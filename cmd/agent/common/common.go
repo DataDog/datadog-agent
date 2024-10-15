@@ -43,10 +43,6 @@ func GetVersion(w http.ResponseWriter, _ *http.Request) {
 
 // NewSettingsClient returns a configured runtime settings client.
 func NewSettingsClient() (settings.Client, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-	if err != nil {
-		return nil, err
-	}
-	hc := util.GetClient(false)
-	return settingshttp.NewClient(hc, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")), "agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
+	hc := util.GetClient().WithNoVerify().WithTimeout(0).WithResolver().Build()
+	return settingshttp.NewClient(hc, fmt.Sprintf("https://%v/agent/config", util.CoreCmd), "agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
 }

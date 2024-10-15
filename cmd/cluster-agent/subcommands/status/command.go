@@ -25,7 +25,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -69,7 +68,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 	}
 	var e error
 	var s string
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient().WithNoVerify().WithTimeout(0).WithResolver().Build() // FIX: get certificates right then make this true
 
 	v := url.Values{}
 	if cliParams.prettyPrintJSON || cliParams.jsonStatus {
@@ -80,7 +79,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 
 	url := url.URL{
 		Scheme:   "https",
-		Host:     fmt.Sprintf("localhost:%v", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")),
+		Host:     fmt.Sprintf("%v", util.ClusterAgent),
 		Path:     "/status",
 		RawQuery: v.Encode(),
 	}

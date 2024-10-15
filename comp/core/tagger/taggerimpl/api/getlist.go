@@ -21,7 +21,7 @@ import (
 
 // GetTaggerList display in a human readable format the Tagger entities into the io.Write w.
 func GetTaggerList(w io.Writer, url string) error {
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient().WithNoVerify().WithTimeout(0).WithResolver().Build() // FIX: get certificates right then make this true
 
 	// get the tagger-list from server
 	r, err := util.DoGet(c, url, util.LeaveConnectionOpen)

@@ -84,8 +84,8 @@ func requestFlare(_ log.Component, config config.Component, _ secrets.Component,
 
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Security Agent to build the flare archive."))
 	var e error
-	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/agent/flare", config.GetInt("security_agent.cmd_port"))
+	c := util.GetClient().WithNoVerify().WithTimeout(0).WithResolver().Build() // FIX: get certificates right then make this true
+	urlstr := fmt.Sprintf("https://%v/agent/flare", util.SecurityCmd)
 
 	logFile := config.GetString("security_agent.log_file")
 

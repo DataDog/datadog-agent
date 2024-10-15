@@ -17,6 +17,7 @@ import (
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -168,23 +169,18 @@ func getClusterAgentDiagnose(fb flaretypes.FlareBuilder) error {
 }
 
 func getDCATaggerList() ([]byte, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-	if err != nil {
-		return nil, err
-	}
-
-	taggerListURL := fmt.Sprintf("https://%v:%v/tagger-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+	taggerListURL := fmt.Sprintf("https://%v/tagger-list", util.ClusterAgent)
 
 	return getTaggerList(taggerListURL)
 }
 
 func getDCAWorkloadList() ([]byte, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-	if err != nil {
-		return nil, err
-	}
+	// ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	return getWorkloadList(fmt.Sprintf("https://%v:%v/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")))
+	return getWorkloadList(fmt.Sprintf("https://%v/workload-list?verbose=true", util.ClusterAgent))
 }
 
 func getPerformanceProfileDCA(fb flaretypes.FlareBuilder, pdata ProfileData) {

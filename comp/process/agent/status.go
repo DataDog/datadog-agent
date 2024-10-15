@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
 )
 
@@ -57,22 +57,7 @@ func (s StatusProvider) getStatusInfo() map[string]interface{} {
 func (s StatusProvider) populateStatus() map[string]interface{} {
 	status := make(map[string]interface{})
 
-	var url string
-	if s.testServerURL != "" {
-		url = s.testServerURL
-	} else {
-
-		// Get expVar server address
-		ipcAddr, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-		if err != nil {
-			status["error"] = fmt.Sprintf("%v", err.Error())
-			return status
-		}
-
-		// Using the core agent's expvar server
-		port := s.config.GetInt("expvar_port")
-		url = fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
-	}
+	url := fmt.Sprintf("http://%v/debug/vars", util.CoreExpvar)
 
 	agentStatus, err := processStatus.GetStatus(s.config, url)
 	if err != nil {

@@ -30,7 +30,6 @@ import (
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -330,13 +329,9 @@ func printPayload(name payloadName, _ log.Component, config config.Component) er
 		return nil
 	}
 
-	c := util.GetClient(false)
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-	if err != nil {
-		return err
-	}
-	apiConfigURL := fmt.Sprintf("https://%v:%d%s%s",
-		ipcAddress, config.GetInt("cmd_port"), metadataEndpoint, name)
+	c := util.GetClient().WithNoVerify().WithTimeout(0).WithResolver().Build()
+	apiConfigURL := fmt.Sprintf("https://%v%s%s",
+		util.CoreCmd, metadataEndpoint, name)
 
 	r, err := util.DoGet(c, apiConfigURL, util.CloseConnection)
 	if err != nil {

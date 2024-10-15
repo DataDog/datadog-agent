@@ -9,9 +9,14 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"strconv"
 	"time"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // ShouldCloseConnection is an option to DoGet to indicate whether to close the underlying
@@ -32,29 +37,193 @@ type ReqOptions struct {
 	Authtoken string
 }
 
-// GetClient is a convenience function returning an http client
-// `GetClient(false)` must be used only for HTTP requests whose destination is
-// localhost (ie, for Agent commands).
-func GetClient(verify bool) *http.Client {
-	return GetClientWithTimeout(0, verify)
+// AddrResolver is a map that provides, for a given Agent domain name, a function to retrieve its real transport address (e.g., "core-cmd" -> "127.0.0.1:5001").
+// The function can return either the address or an error.
+type AddrResolver map[string]func() (string, error)
+
+// The following constant values represent the Agent domain names
+const (
+	CoreCmd        = "core-cmd"        // CoreCmd is the core Agent command endpoint
+	CoreIPC        = "core-ipc"        // CoreIPC is the core Agent configuration synchronisation endpoint
+	CoreExpvar     = "core-expvar"     // CoreExpvar is the core Agent expvar endpoint
+	TraceCmd       = "trace-cmd"       // TraceCmd is the trace Agent command endpoint
+	TraceExpvar    = "trace-expvar"    // TraceExpvar is the trace Agent expvar endpoint
+	SecurityCmd    = "security-cmd"    // SecurityCmd is the security Agent command endpoint
+	SecurityExpvar = "security-expvar" // SecurityExpvar is the security Agent expvar endpoint
+	ProcessCmd     = "process-agent"   // ProcessCmd is the process Agent command endpoint
+	ProcessExpvar  = "process-expvar"  // ProcessExpvar is the process Agent expvar endpoint
+	ClusterAgent   = "cluster-agent"   // ClusterAgent is the Cluster Agent command endpoint
+)
+
+type dialContext func(ctx context.Context, network string, addr string) (net.Conn, error)
+
+var db = AddrResolver{
+	CoreCmd: func() (string, error) {
+		config := pkgconfigsetup.Datadog()
+		host, err := pkgconfigsetup.GetIPCAddress(config)
+
+		if err != nil {
+			return "", err
+		}
+		return net.JoinHostPort(host, config.GetString("cmd_port")), nil
+	},
+	CoreIPC: func() (string, error) {
+		config := pkgconfigsetup.Datadog()
+		port := config.GetInt("agent_ipc.port")
+		if port <= 0 {
+			return "", fmt.Errorf("agent_ipc.port cannot be <= 0")
+		}
+
+		return net.JoinHostPort(config.GetString("agent_ipc.host"), strconv.Itoa(port)), nil
+	},
+	CoreExpvar: func() (string, error) {
+		config := pkgconfigsetup.Datadog()
+		host, err := pkgconfigsetup.GetIPCAddress(config)
+
+		if err != nil {
+			return "", err
+		}
+		return net.JoinHostPort(host, config.GetString("expvar_port")), nil
+	},
+
+	TraceCmd: func() (string, error) {
+		config := pkgconfigsetup.Datadog()
+		host, err := pkgconfigsetup.GetIPCAddress(config)
+
+		if err != nil {
+			return "", err
+		}
+		return net.JoinHostPort(host, config.GetString("apm_config.debug.port")), nil
+	},
+	TraceExpvar: func() (string, error) {
+		config := pkgconfigsetup.Datadog()
+		host, err := pkgconfigsetup.GetIPCAddress(config)
+
+		if err != nil {
+			return "", err
+		}
+		return net.JoinHostPort(host, config.GetString("apm_config.debug.port")), nil
+	},
+
+	ProcessCmd: func() (string, error) {
+		return pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
+	},
+	ProcessExpvar: func() (string, error) {
+		config := pkgconfigsetup.Datadog()
+		host, err := pkgconfigsetup.GetIPCAddress(config)
+
+		if err != nil {
+			return "", err
+		}
+		return net.JoinHostPort(host, config.GetString("process_config.expvar_port")), nil
+	},
+
+	SecurityCmd: func() (string, error) {
+		return pkgconfigsetup.GetSecurityAgentAPIAddressPort(pkgconfigsetup.Datadog())
+	},
+	SecurityExpvar: func() (string, error) {
+		config := pkgconfigsetup.Datadog()
+		host, err := pkgconfigsetup.GetIPCAddress(config)
+
+		if err != nil {
+			return "", err
+		}
+		return net.JoinHostPort(host, config.GetString("security_agent.expvar_port")), nil
+	},
+
+	ClusterAgent: func() (string, error) {
+		config := pkgconfigsetup.Datadog()
+		host, err := pkgconfigsetup.GetIPCAddress(config)
+
+		if err != nil {
+			return "", err
+		}
+		return net.JoinHostPort(host, config.GetString("cluster_agent.cmd_port")), nil
+	},
 }
 
-// GetClientWithTimeout is a convenience function returning an http client
-// Arguments correspond to the request timeout duration, and a boolean to
-// verify the server TLS client (false should only be used on localhost
-// trusted endpoints).
-func GetClientWithTimeout(to time.Duration, verify bool) *http.Client {
-	if verify {
-		return &http.Client{
-			Timeout: to,
-		}
+// OverrideResolver allows you to upsert a getter in the shared [AddrResolver].
+// This function is intended for testing purposes only.
+func OverrideResolver(src, target string) {
+	db[src] = func() (string, error) {
+		return target, nil
 	}
+}
 
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+// ClientBuilder is a struct used to build an [*net/http.Client].
+type ClientBuilder struct {
+	tr      *http.Transport
+	timeout time.Duration
+}
+
+// GetClient returns a ClientBuilder struct that lets you create an Agent-specific client.
+// To get an [*net/http.Client] object from the return value, call the Build() function.
+// To provide specific features to your client, call the related With...() functions.
+//
+// Note: The order in which the With functions are called does not affect the final configuration
+//
+// # Example usage
+//
+//	client := GetClient().WithNoVerify().WithResolver().Build()
+//
+// This example creates an HTTP client with no TLS verification and a custom resolver.
+func GetClient() ClientBuilder {
+	return ClientBuilder{
+		tr: &http.Transport{},
 	}
+}
 
-	return &http.Client{Transport: tr}
+// WithNoVerify configures the client to skip TLS verification.
+//
+// Example usage:
+//
+// # Example usage
+//
+//	client := GetClient().WithNoVerify().Build()
+//
+// This example creates an HTTP client that skips TLS verification.
+func (c ClientBuilder) WithNoVerify() ClientBuilder {
+	c.tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	return c
+}
+
+// WithTimeout sets the timeout for the HTTP client.
+//
+// # Example usage
+//
+//	client := GetClient().WithTimeout(30 * time.Second).Build()
+//
+// This example creates an HTTP client with a 30-second timeout.
+func (c ClientBuilder) WithTimeout(to time.Duration) ClientBuilder {
+	c.timeout = to
+	return c
+}
+
+// WithResolver configures the client to use a custom resolver.
+//
+// # Example usage
+//
+//	client := GetClient().WithResolver().Build()
+//
+// This example creates an HTTP client with a custom resolver.
+func (c ClientBuilder) WithResolver() ClientBuilder {
+	c.tr.DialContext = newDialContext()
+
+	return c
+}
+
+// Build constructs the [*net/http.Client] with the configured options.
+//
+// # Example usage
+//
+//	client := GetClient().WithNoVerify().WithTimeout(30 * time.Second).WithResolver().Build()
+//
+// This example creates an HTTP client with no TLS verification, a 30-second timeout, and a custom resolver.
+func (c ClientBuilder) Build() *http.Client {
+	return &http.Client{
+		Transport: c.tr,
+		Timeout:   c.timeout,
+	}
 }
 
 // DoGet is a wrapper around performing HTTP GET requests

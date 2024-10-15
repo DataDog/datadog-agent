@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -52,18 +51,18 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 func stop(config config.Component, _ *cliParams, _ log.Component) error {
 	// Global Agent configuration
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient().WithNoVerify().WithTimeout(0).WithResolver().Build() // FIX: get certificates right then make this true
 
 	// Set session token
 	e := util.SetAuthToken(config)
 	if e != nil {
 		return e
 	}
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-	if err != nil {
-		return err
-	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/stop", ipcAddress, config.GetInt("cmd_port"))
+	// ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	// if err != nil {
+	// 	return err
+	// }
+	urlstr := fmt.Sprintf("https://%v/agent/stop", util.CoreCmd)
 
 	_, e = util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	if e != nil {

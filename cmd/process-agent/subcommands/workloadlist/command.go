@@ -20,7 +20,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -52,7 +51,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func workloadList(_ log.Component, config config.Component, cliParams *cliParams) error {
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient().WithNoVerify().WithTimeout(0).WithResolver().Build() // FIX: get certificates right then make this true
 
 	// Set session token
 	err := util.SetAuthToken(config)
@@ -86,12 +85,12 @@ func workloadList(_ log.Component, config config.Component, cliParams *cliParams
 }
 
 func workloadURL(verbose bool) (string, error) {
-	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
-	if err != nil {
-		return "", fmt.Errorf("config error: %s", err.Error())
-	}
+	// addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
+	// if err != nil {
+	// 	return "", fmt.Errorf("config error: %s", err.Error())
+	// }
 
-	url := fmt.Sprintf("http://%s/agent/workload-list", addressPort)
+	url := fmt.Sprintf("http://%v/agent/workload-list", util.ProcessCmd)
 
 	if verbose {
 		return url + "/verbose", nil

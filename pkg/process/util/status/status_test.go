@@ -10,6 +10,7 @@ package status
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"runtime"
@@ -20,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -98,7 +100,9 @@ func TestGetStatus(t *testing.T) {
 	expVarSrv := fakeExpVarServer(t, expectedExpVars)
 	defer expVarSrv.Close()
 
-	stats, err := GetStatus(cfg, expVarSrv.URL)
+	util.OverrideResolver(util.CoreExpvar, expVarSrv.Listener.Addr().String())
+
+	stats, err := GetStatus(cfg, fmt.Sprintf("http://%v", util.CoreExpvar))
 	require.NoError(t, err)
 
 	OverrideTime(testTime)(stats)

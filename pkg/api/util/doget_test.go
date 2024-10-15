@@ -104,3 +104,33 @@ func TestDoGet(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+// This test check that NewDialBookBuilder return an error when required config field are not set
+func TestResolver(t *testing.T) {
+
+	t.Run("mocking helper", func(t *testing.T) {
+		handler := func(w http.ResponseWriter, _ *http.Request) {
+			w.Write([]byte("test"))
+		}
+		server := makeTestServer(t, http.HandlerFunc(handler))
+		OverrideResolver("test-cmd", server.Listener.Addr().String())
+
+		client := GetClient().WithNoVerify().WithResolver().Build()
+
+		data, err := DoGet(client, "http://test-cmd", CloseConnection)
+		require.NoError(t, err)
+		require.Equal(t, "test", string(data))
+	})
+
+	t.Run("unknown address", func(t *testing.T) {
+		client := GetClient().WithNoVerify().WithResolver().Build()
+
+		handler := func(w http.ResponseWriter, _ *http.Request) {
+			w.Write([]byte("test"))
+		}
+		server := makeTestServer(t, http.HandlerFunc(handler))
+		_, err := DoGet(client, server.URL, CloseConnection)
+		require.ErrorContains(t, err, "unknown Agent address")
+	})
+
+}

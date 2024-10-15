@@ -8,10 +8,8 @@ package configsyncimpl
 
 import (
 	"context"
-	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 	"time"
 
 	"go.uber.org/fx"
@@ -72,23 +70,21 @@ func newOptionalConfigSync(deps dependencies) optional.Option[configsync.Compone
 		return optional.NewNoneOption[configsync.Component]()
 	}
 
-	configSync := newConfigSync(deps, agentIPCPort, configRefreshIntervalSec)
+	configSync := newConfigSync(deps, configRefreshIntervalSec)
 	return optional.NewOption(configSync)
 }
 
 // newConfigSync creates a new configSync component.
 // agentIPCPort and configRefreshIntervalSec must be strictly positive.
-func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec int) configsync.Component {
-	agentIPCHost := deps.Config.GetString("agent_ipc.host")
-
+func newConfigSync(deps dependencies, configRefreshIntervalSec int) configsync.Component {
 	url := &url.URL{
 		Scheme: "https",
-		Host:   net.JoinHostPort(agentIPCHost, strconv.Itoa(agentIPCPort)),
+		Host:   apiutil.CoreIPC,
 		Path:   "/config/v1",
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	client := apiutil.GetClientWithTimeout(deps.SyncParams.Timeout, false)
+	client := apiutil.GetClient().WithTimeout(deps.SyncParams.Timeout).WithNoVerify().WithResolver().Build()
 	configRefreshInterval := time.Duration(configRefreshIntervalSec) * time.Second
 
 	configSync := configSync{
