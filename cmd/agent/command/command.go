@@ -108,3 +108,19 @@ monitoring and performance data.`,
 
 	return agentCmd
 }
+
+// LogLevelOff is used only for commands where logs are disabled by default.
+// It allows to enabled logs for debugging purpose.
+type LogLevelOff struct {
+	override string
+}
+
+// Register adds the log_level flag to the command.
+func (o *LogLevelOff) Register(cmd *cobra.Command) {
+	cmd.PersistentFlags().StringVarP(&o.override, "log_level", "", "off", "Override the log level for this command for debugging purposes")
+}
+
+// Override returns the overrided value.
+func (o *LogLevelOff) Override() string {
+	return o.override
+}

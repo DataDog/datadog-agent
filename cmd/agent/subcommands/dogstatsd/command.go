@@ -30,9 +30,10 @@ import (
 )
 
 type topFlags struct {
-	path     string
-	nmetrics int
-	ntags    int
+	path        string
+	nmetrics    int
+	ntags       int
+	logLevelOff command.LogLevelOff
 }
 
 // Commands initializes dogstatsd sub-command tree.
@@ -52,11 +53,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(&topFlags),
 				fx.Supply(core.BundleParams{
 					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath), cconfig.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelOff.Override(), true)}),
 				core.Bundle(),
 			)
 		},
 	}
+	topFlags.logLevelOff.Register(topCmd)
 	topCmd.Flags().StringVarP(&topFlags.path, "path", "p", "", "use specified file for input instead of getting contexts from the agent")
 	topCmd.Flags().IntVarP(&topFlags.nmetrics, "num-metrics", "m", 10, "number of metrics to show")
 	topCmd.Flags().IntVarP(&topFlags.ntags, "mum-tags", "t", 5, "number of tags to show per metric")
@@ -70,7 +72,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(dumpContexts,
 				fx.Supply(core.BundleParams{
 					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath), cconfig.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelOff.Override(), true)}),
 				core.Bundle(),
 			)
 		},
