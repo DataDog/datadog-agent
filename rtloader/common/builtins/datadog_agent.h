@@ -145,11 +145,7 @@
 extern "C" {
 #endif
 
-#ifdef DATADOG_AGENT_THREE
 PyMODINIT_FUNC PyInit_datadog_agent(void);
-#elif defined(DATADOG_AGENT_TWO)
-void Py2_init_datadog_agent();
-#endif
 
 void _set_get_clustername_cb(cb_get_clustername_t);
 void _set_get_config_cb(cb_get_config_t);

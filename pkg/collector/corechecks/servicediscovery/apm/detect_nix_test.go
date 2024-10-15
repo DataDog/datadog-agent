@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
@@ -54,7 +55,7 @@ func TestInjected(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := isInjected(d.envs)
+			result := isInjected(envs.NewVariables(d.envs))
 			assert.Equal(t, d.result, result)
 		})
 	}
@@ -93,7 +94,7 @@ func Test_javaDetector(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := javaDetector(0, d.args, d.envs, nil)
+			result := javaDetector(0, d.args, envs.NewVariables(d.envs), nil)
 			if result != d.result {
 				t.Errorf("expected %s got %s", d.result, result)
 			}
@@ -130,7 +131,7 @@ func Test_nodeDetector(t *testing.T) {
 
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := nodeDetector(0, nil, nil, d.contextMap)
+			result := nodeDetector(0, nil, envs.NewVariables(nil), d.contextMap)
 			assert.Equal(t, d.result, result)
 		})
 	}
@@ -176,7 +177,7 @@ func Test_pythonDetector(t *testing.T) {
 func TestDotNetDetector(t *testing.T) {
 	for _, test := range []struct {
 		name   string
-		env    map[string]string
+		envs   map[string]string
 		maps   string
 		result Instrumentation
 	}{
@@ -186,14 +187,14 @@ func TestDotNetDetector(t *testing.T) {
 		},
 		{
 			name: "profiling disabled",
-			env: map[string]string{
+			envs: map[string]string{
 				"CORECLR_ENABLE_PROFILING": "0",
 			},
 			result: None,
 		},
 		{
 			name: "profiling enabled",
-			env: map[string]string{
+			envs: map[string]string{
 				"CORECLR_ENABLE_PROFILING": "1",
 			},
 			result: Provided,
@@ -218,7 +219,7 @@ func TestDotNetDetector(t *testing.T) {
 		},
 		{
 			name: "in maps, env misleading",
-			env: map[string]string{
+			envs: map[string]string{
 				"CORECLR_ENABLE_PROFILING": "0",
 			},
 			maps: `
@@ -230,7 +231,7 @@ func TestDotNetDetector(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var result Instrumentation
 			if test.maps == "" {
-				result = dotNetDetector(0, nil, test.env, nil)
+				result = dotNetDetector(0, nil, envs.NewVariables(test.envs), nil)
 			} else {
 				result = dotNetDetectorFromMapsReader(strings.NewReader(test.maps))
 			}
@@ -259,12 +260,12 @@ func TestGoDetector(t *testing.T) {
 		_ = cmdWithoutSymbols.Process.Kill()
 	})
 
-	result := goDetector(os.Getpid(), nil, nil, nil)
+	result := goDetector(os.Getpid(), nil, envs.NewVariables(nil), nil)
 	require.Equal(t, None, result)
 
-	result = goDetector(cmdWithSymbols.Process.Pid, nil, nil, nil)
+	result = goDetector(cmdWithSymbols.Process.Pid, nil, envs.NewVariables(nil), nil)
 	require.Equal(t, Provided, result)
 
-	result = goDetector(cmdWithoutSymbols.Process.Pid, nil, nil, nil)
+	result = goDetector(cmdWithoutSymbols.Process.Pid, nil, envs.NewVariables(nil), nil)
 	require.Equal(t, Provided, result)
 }
