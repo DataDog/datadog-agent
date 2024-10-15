@@ -128,7 +128,7 @@ func (m *Check) Run() error {
 		return fmt.Errorf("no GPU devices found")
 	}
 
-	data, err := m.sysProbeUtil.GetCheck(sysconfig.GPUMonitoringModule)
+	sysprobeData, err := m.sysProbeUtil.GetCheck(sysconfig.GPUMonitoringModule)
 	if err != nil {
 		return fmt.Errorf("cannot get data from system-probe: %w", err)
 	}
@@ -148,7 +148,7 @@ func (m *Check) Run() error {
 	// Commit the metrics even in case of an error
 	defer snd.Commit()
 
-	stats, ok := data.(model.GPUStats)
+	stats, ok := sysprobeData.(model.GPUStats)
 	if !ok {
 		return log.Errorf("gpu check raw data has incorrect type: %T", stats)
 	}
