@@ -68,7 +68,7 @@ func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return err
 	}
 	if err := yaml.Unmarshal(config, m.config); err != nil {
-		return fmt.Errorf("invalid gpu check config: %s", err)
+		return fmt.Errorf("invalid gpu check config: %w", err)
 	}
 
 	return nil
