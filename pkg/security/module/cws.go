@@ -183,8 +183,13 @@ func (c *CWSConsumer) Start() error {
 		seclog.Debugf("self-test results : success : %v, failed : %v, retry %d/%d", success, fails, c.selfTestRetry.Load()+1, maxSelftestRetry)
 
 		if len(fails) > 0 && c.selfTestRetry.Load() < maxSelftestRetry {
-			c.RunSelfTest(false)
 			c.selfTestRetry.Inc()
+
+			time.Sleep(selftestDelay)
+
+			if _, err := c.RunSelfTest(false); err != nil {
+				seclog.Errorf("self-test error: %s", err)
+			}
 			return
 		}
 
