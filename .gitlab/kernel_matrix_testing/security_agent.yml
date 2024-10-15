@@ -168,7 +168,7 @@ kmt_run_secagent_tests_x64_docker:
     matrix:
       - TAG:
           - "ubuntu_24.04"
-        TEST_SET: [all_tests_cws_cont]
+        TEST_SET: [cws_docker]
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
