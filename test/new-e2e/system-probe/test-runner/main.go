@@ -194,94 +194,6 @@ func createDir(d string) error {
 	return nil
 }
 
-func createCWSTestDockerContainer(testsuite string, containerName string, bpfDir string) error {
-	runDockerCmd := func(args []string) error {
-		cmd := exec.Command("docker", args...)
-		cmd.Dir = filepath.Dir(testsuite)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		return cmd.Run()
-	}
-
-	args := []string{
-		"run",
-		"--name", containerName,
-		"--privileged",
-		"--detach",
-	}
-
-	var capabilities = []string{"SYS_ADMIN", "SYS_RESOURCE", "SYS_PTRACE", "NET_ADMIN", "IPC_LOCK", "ALL"}
-	for _, cap := range capabilities {
-		args = append(args, "--cap-add", cap)
-	}
-
-	var mounts = []string{
-		"/dev:/dev",
-		"/proc:/host/proc",
-		"/etc:/host/etc",
-		"/sys:/host/sys",
-		"/etc/os-release:/host/etc/os-release",
-		"/usr/lib/os-release:/host/usr/lib/os-release",
-		"/etc/passwd:/etc/passwd",
-		"/etc/group:/etc/group",
-		"/opt/datadog-agent/embedded/:/opt/datadog-agent/embedded/",
-		"/opt/kmt-ramfs:/opt/kmt-ramfs",
-		fmt.Sprintf("%s:/opt/bpf", bpfDir),
-	}
-	for _, mount := range mounts {
-		args = append(args, "-v", mount)
-	}
-
-	var envs = []string{
-		"HOST_PROC=/host/proc",
-		"HOST_ETC=/host/etc",
-		"HOST_SYS=/host/sys",
-		"DD_SYSTEM_PROBE_BPF_DIR=/opt/bpf",
-	}
-	for _, env := range envs {
-		args = append(args, "-e", env)
-	}
-
-	// create container
-	args = append(args, "ghcr.io/datadog/apps-cws-centos7:main") // image tag
-	args = append(args, "sleep", "3600")
-	if err := runDockerCmd(args); err != nil {
-		return fmt.Errorf("run docker: %s", err)
-	}
-
-	// mount debugfs
-	args = []string{"exec", containerName, "mount", "-t", "debugfs", "none", "/sys/kernel/debug"}
-	if err := runDockerCmd(args); err != nil {
-		return fmt.Errorf("run docker: %w", err)
-	}
-
-	return nil
-}
-
-func deleteCWSTestDockerContainer(testsuite string, containerName string) error {
-	runDockerCmd := func(args []string) error {
-		cmd := exec.Command("docker", args...)
-		cmd.Dir = filepath.Dir(testsuite)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		return cmd.Run()
-	}
-
-	args := []string{"stop", containerName}
-	if err := runDockerCmd(args); err != nil {
-		return fmt.Errorf("run docker: %w", err)
-	}
-
-	args = []string{"rm", containerName}
-	if err := runDockerCmd(args); err != nil {
-		return fmt.Errorf("run docker: %w", err)
-	}
-
-	return nil
-}
-
-const cwsContainerName = "security-agent-tests"
-
 func testPass(testConfig *testConfig, props map[string]string) error {
 	testsuites, err := glob(testConfig.testDirRoot, "testsuite", func(path string) bool {
 		dir, _ := filepath.Rel(testConfig.testDirRoot, filepath.Dir(path))
@@ -316,10 +228,15 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		}
 		bpfDir := filepath.Join(testConfig.testDirRoot, buildDir)
 
+		var testContainer *cwsTestContainer
 		if testConfig.inCWSContainer {
-			if err := createCWSTestDockerContainer(testsuite, cwsContainerName, bpfDir); err != nil {
-				return fmt.Errorf("createCWSTestDockerContainer: %w", err)
+			testContainer = newCWSTestContainer(testsuite, bpfDir)
+			testContainer.start()
+
+			if err := testContainer.start(); err != nil {
+				return fmt.Errorf("error creating cws test container: %w", err)
 			}
+			defer testContainer.stopAndRemove()
 		}
 
 		pkg, err := filepath.Rel(testConfig.testDirRoot, filepath.Dir(testsuite))
@@ -331,8 +248,8 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		jsonpath := filepath.Join(jsonDir, fmt.Sprintf("%s.json", junitfilePrefix))
 
 		testsuiteArgs := []string{testsuite}
-		if testConfig.inCWSContainer {
-			testsuiteArgs = []string{"docker", "exec", cwsContainerName, testsuite, "--env", "docker"}
+		if testContainer != nil {
+			testsuiteArgs = testContainer.buildDockerExecArgs(testsuite, "--env", "docker")
 		}
 
 		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuiteArgs, testConfig)
@@ -360,12 +277,6 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 
 		if err := addProperties(xmlpath, props); err != nil {
 			return fmt.Errorf("xml add props: %s", err)
-		}
-
-		if testConfig.inCWSContainer {
-			if err := deleteCWSTestDockerContainer(testsuite, cwsContainerName); err != nil {
-				return fmt.Errorf("deleteCWSTestDockerContainer: %w", err)
-			}
 		}
 	}
 
