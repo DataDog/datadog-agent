@@ -11,7 +11,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 	"net/http"
 	"sort"
 	"strconv"
@@ -19,6 +18,8 @@ import (
 	"testing"
 	"time"
 	"unicode"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
@@ -2322,6 +2323,16 @@ func TestMarshalEvents(t *testing.T) {
 					},
 					"dropped_attributes_count":2
 				}]`,
+		},
+		{
+			in: makeEventsSlice(`something:"nested"`, map[string]string{
+				`abc"def"`: `123"456"`,
+			}, 0, 3),
+			out: `[{
+                    "name": "something:\"nested\"",
+                    "attributes": {"abc\"def\"":"123\"456\""},
+                    "dropped_attributes_count":3
+                }]`,
 		},
 	} {
 		assert.Equal(t, trimSpaces(tt.out), transform.MarshalEvents(tt.in))

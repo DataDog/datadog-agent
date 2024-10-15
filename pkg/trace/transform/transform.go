@@ -227,11 +227,9 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 				if j > 0 {
 					str.WriteString(",")
 				}
-				str.WriteString(`"`)
 				escapeJSONString(k, &str)
-				str.WriteString(`":"`)
+				str.WriteString(`:`)
 				escapeJSONString(v.AsString(), &str)
-				str.WriteString(`"`)
 				j++
 				return true
 			})
