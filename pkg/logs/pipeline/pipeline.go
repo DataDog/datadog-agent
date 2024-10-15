@@ -74,7 +74,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	}
 
 	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, flushWg, pipelineID)
-	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize, senderDoneChan, flushWg)
+	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize, senderDoneChan, flushWg, pipelineID)
 
 	inputChan := make(chan *message.Message, config.ChanSize)
 
@@ -127,7 +127,7 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 			if serverless {
 				reliable = append(reliable, http.NewSyncDestination(endpoint, http.JSONContentType, destinationsContext, senderDoneChan, telemetryName, cfg))
 			} else {
-				reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, telemetryName, cfg))
+				reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, telemetryName, cfg, pipelineID))
 			}
 		}
 		for i, endpoint := range endpoints.GetUnReliableEndpoints() {
@@ -135,7 +135,7 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 			if serverless {
 				additionals = append(additionals, http.NewSyncDestination(endpoint, http.JSONContentType, destinationsContext, senderDoneChan, telemetryName, cfg))
 			} else {
-				additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName, cfg))
+				additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName, cfg, pipelineID))
 			}
 		}
 		return client.NewDestinations(reliable, additionals)
@@ -151,13 +151,13 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, flushChan chan struct{}, endpoints *config.Endpoints, serverless bool, flushWg *sync.WaitGroup, _ int) sender.Strategy {
+func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, flushChan chan struct{}, endpoints *config.Endpoints, serverless bool, flushWg *sync.WaitGroup, pipelineID int) sender.Strategy {
 	if endpoints.UseHTTP || serverless {
 		encoder := sender.IdentityContentType
 		if endpoints.Main.UseCompression {
 			encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
 		}
-		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
+		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineID)
 	}
 	return sender.NewStreamStrategy(inputChan, outputChan, sender.IdentityContentType)
 }

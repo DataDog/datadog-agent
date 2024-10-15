@@ -396,12 +396,12 @@ func newHTTPPassthroughPipeline(coreConfig model.Reader, eventPlatformReceiver e
 	reliable := []client.Destination{}
 	for i, endpoint := range endpoints.GetReliableEndpoints() {
 		telemetryName := fmt.Sprintf("%s_%d_reliable_%d", desc.eventType, pipelineID, i)
-		reliable = append(reliable, logshttp.NewDestination(endpoint, desc.contentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, telemetryName, pkgconfigsetup.Datadog()))
+		reliable = append(reliable, logshttp.NewDestination(endpoint, desc.contentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, telemetryName, pkgconfigsetup.Datadog(), 99))
 	}
 	additionals := []client.Destination{}
 	for i, endpoint := range endpoints.GetUnReliableEndpoints() {
 		telemetryName := fmt.Sprintf("%s_%d_unreliable_%d", desc.eventType, pipelineID, i)
-		additionals = append(additionals, logshttp.NewDestination(endpoint, desc.contentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName, pkgconfigsetup.Datadog()))
+		additionals = append(additionals, logshttp.NewDestination(endpoint, desc.contentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName, pkgconfigsetup.Datadog(), 99))
 	}
 	destinations := client.NewDestinations(reliable, additionals)
 	inputChan := make(chan *message.Message, endpoints.InputChanSize)
@@ -426,14 +426,15 @@ func newHTTPPassthroughPipeline(coreConfig model.Reader, eventPlatformReceiver e
 			endpoints.BatchMaxSize,
 			endpoints.BatchMaxContentSize,
 			desc.eventType,
-			encoder)
+			encoder,
+			99)
 	}
 
 	a := auditor.NewNullAuditor()
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",
 		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize)
 	return &passthroughPipeline{
-		sender:                sender.NewSender(coreConfig, senderInput, a.Channel(), destinations, 10, nil, nil),
+		sender:                sender.NewSender(coreConfig, senderInput, a.Channel(), destinations, 10, nil, nil, 99),
 		strategy:              strategy,
 		in:                    inputChan,
 		auditor:               a,

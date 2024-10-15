@@ -360,7 +360,7 @@ func TestDestinationHA(t *testing.T) {
 		}
 		isEndpointMRF := endpoint.IsMRF
 
-		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), 1, false, "test", configmock.New(t))
+		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), 1, false, "test", configmock.New(t), 0)
 		isDestMRF := dest.IsMRF()
 
 		assert.Equal(t, isEndpointMRF, isDestMRF)
