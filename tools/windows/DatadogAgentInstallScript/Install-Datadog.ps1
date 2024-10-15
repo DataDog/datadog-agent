@@ -288,6 +288,8 @@ catch {
 }
 finally {
    Write-Host "Cleaning up..."
-   Remove-Item -Force -EA SilentlyContinue $installer
+   if ($installer -and (Test-Path $installer)) {
+      Remove-Item -Force -EA SilentlyContinue $installer
+   }
 }
 Write-Host "Datadog Install Script finished!"
