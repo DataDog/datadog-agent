@@ -507,13 +507,17 @@ func (it *ProcessAncestorsIterator) Next() *ProcessCacheEntry {
 }
 
 // At returns the element at the given position
-func (it *ProcessAncestorsIterator) At(ctx *eval.Context, pos int) *ProcessCacheEntry {
+func (it *ProcessAncestorsIterator) At(ctx *eval.Context, regID eval.RegisterID, pos int) *ProcessCacheEntry {
+	if ancestor := ctx.RegisterCache[regID]; ancestor != nil {
+		return ancestor.(*ProcessCacheEntry)
+	}
+
 	var i int
 
-	// TODO(safchain) use ctx to cache the result
 	ancestor := ctx.Event.(*Event).ProcessContext.Ancestor
 	for ancestor != nil {
 		if i == pos {
+			ctx.RegisterCache[regID] = ancestor
 			return ancestor
 		}
 		ancestor = ancestor.Ancestor

@@ -81,6 +81,56 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					iterator := &{{$Field.Iterator.ReturnType}}{}
 
+					if regID != "" {
+						value := iterator.At(ctx, regID, ctx.Registers[regID])
+						if value == nil {
+							return results
+						}
+
+						{{if $Field.Iterator.IsOrigTypePtr}}
+							element := value
+						{{else}}
+							element := *value
+						{{end}}
+
+						{{range $Check := $Checks}}
+							{{if $Field.Iterator.Name | HasPrefix $Check}}
+								{{$SubName := $Field.Iterator.Name | TrimPrefix $Check}}
+								{{$Check = $SubName | printf "element%s"}}
+								if !{{$Check}}() {
+									return append(results, {{$Field.GetDefaultScalarReturnValue}})
+								}
+							{{end}}
+						{{end}}
+
+						{{$SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}
+
+						{{$Return := $SubName | printf "element%s"}}
+						{{if $Field.Handler }}
+							{{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
+							{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
+							{{$Return = print "ev.FieldHandlers." $Handler "(ev, &element" $SubName ")"}}
+						{{end}}
+
+						{{if eq $Field.ReturnType "int"}}
+							{{if $Field.IsLength}}
+								result := len({{".length" | TrimSuffix $Return}})
+							{{else}}
+								result := int({{$Return}})
+							{{end}}
+						{{else}}
+							result := {{$Return}}
+						{{end}}
+
+						{{if not $Field.GetArrayPrefix}}
+						results = append(results, result)
+						{{else}}
+						results = append(results, result...)
+						{{end}}
+
+						return results
+					}
+
 					value := iterator.Front(ctx)
 					for value != nil {
 						{{if $Field.Iterator.IsOrigTypePtr}}

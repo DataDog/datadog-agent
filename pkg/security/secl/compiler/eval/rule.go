@@ -16,6 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
 )
 
+const (
+	maxRegisterIteration = 30
+)
+
 // RuleID - ID of a Rule
 type RuleID = string
 
@@ -234,20 +238,30 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 			return nil, &ErrIteratorVariable{Err: err}
 		}
 
-		// eval with each possible value of the registers
-		evalFnc := func(ctx *Context) bool {
-			size := lenEval.Eval(ctx)
+		evalBoolFnc := evalBool.EvalFnc
 
-			for i := 0; i != size.(int); i++ {
+		// eval with each possible value of the registers
+		evalBool.EvalFnc = func(ctx *Context) bool {
+			size := lenEval.Eval(ctx).(int)
+			if size > maxRegisterIteration {
+				size = maxRegisterIteration
+			}
+
+			for i := 0; i != size; i++ {
 				ctx.Registers[regID] = i
-				if evalBool.EvalFnc(ctx) {
+				if evalBoolFnc(ctx) {
+					// invalidate the cache
+					clear(ctx.RegisterCache)
+
 					return true
 				}
+
+				// invalidate the cache
+				clear(ctx.RegisterCache)
 			}
 
 			return false
 		}
-		evalBool.EvalFnc = evalFnc
 	}
 
 	return &RuleEvaluator{

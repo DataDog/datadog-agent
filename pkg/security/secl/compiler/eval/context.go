@@ -20,6 +20,9 @@ type Context struct {
 	IntCache    map[string][]int
 	BoolCache   map[string][]bool
 
+	// iterator register cache. used to cache entry within a single rule evaluation
+	RegisterCache map[RegisterID]interface{}
+
 	// rule register
 	Registers map[RegisterID]int
 
@@ -48,16 +51,18 @@ func (c *Context) Reset() {
 	clear(c.IntCache)
 	clear(c.BoolCache)
 	clear(c.Registers)
+	clear(c.RegisterCache)
 }
 
 // NewContext return a new Context
 func NewContext(evt Event) *Context {
 	return &Context{
-		Event:       evt,
-		StringCache: make(map[string][]string),
-		IntCache:    make(map[string][]int),
-		BoolCache:   make(map[string][]bool),
-		Registers:   make(map[RegisterID]int),
+		Event:         evt,
+		StringCache:   make(map[string][]string),
+		IntCache:      make(map[string][]int),
+		BoolCache:     make(map[string][]bool),
+		Registers:     make(map[RegisterID]int),
+		RegisterCache: make(map[RegisterID]interface{}),
 	}
 }
 
