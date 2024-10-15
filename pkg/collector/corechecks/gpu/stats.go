@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
-	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	sectime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 )
 
@@ -97,26 +96,6 @@ func (sp *StatsProcessor) processKernelSpan(span *model.KernelSpan) {
 func (sp *StatsProcessor) processPastData(data *model.StreamData) {
 	for _, span := range data.Spans {
 		sp.processKernelSpan(span)
-	}
-
-	for _, span := range data.Allocations {
-		// Send events on memory leak
-		if span.IsLeaked {
-			start := sp.timeResolver.ResolveMonotonicTimestamp(span.StartKtime)
-			end := sp.timeResolver.ResolveMonotonicTimestamp(span.EndKtime)
-
-			ev := event.Event{
-				AlertType:      event.AlertTypeWarning,
-				Priority:       event.PriorityNormal,
-				SourceTypeName: CheckName,
-				EventType:      "gpu-memory-leak",
-				Title:          "Leaked GPU memory allocation",
-				Text:           fmt.Sprintf("PID %d leaked %d bytes of memory, allocated at time %s", sp.key.Pid, span.Size, start),
-				Ts:             end.Unix(),
-			}
-
-			sp.sender.Event(ev)
-		}
 	}
 
 	sp.pastAllocs = append(sp.pastAllocs, data.Allocations...)
