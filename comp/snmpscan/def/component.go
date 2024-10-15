@@ -15,6 +15,6 @@ import (
 // Component is the component type.
 type Component interface {
 	// Triggers a device scan
-	RunDeviceScan(snmpConection *gosnmp.GoSNMP, deviceNamespace string) error
+	RunDeviceScan(snmpConection *gosnmp.GoSNMP, deviceNamespace string, deviceIpAddress string) error
 	RunSnmpWalk(snmpConection *gosnmp.GoSNMP, firstOid string) error
 }
