@@ -116,8 +116,12 @@ func (e *ebpfTelemetry) isInitialized() bool {
 
 func (e *ebpfTelemetry) forEachMapErrorEntryInMaps(yield func(key telemetryKey, eBPFKey uint64, val mapErrTelemetry) bool) {
 	var mval mapErrTelemetry
-	for _, errMap := range e.mapErrMapsByModule {
+	for mod, errMap := range e.mapErrMapsByModule {
 		for mKey, k := range e.mapKeys {
+			if mod != mKey.moduleName {
+				continue
+			}
+
 			err := errMap.Lookup(&k, &mval)
 			if err != nil {
 				log.Debugf("failed to get telemetry %s:%d\n", mKey.String(), k)
@@ -132,8 +136,11 @@ func (e *ebpfTelemetry) forEachMapErrorEntryInMaps(yield func(key telemetryKey, 
 
 func (e *ebpfTelemetry) forEachHelperErrorEntryInMaps(yield func(key telemetryKey, eBPFKey uint64, val helperErrTelemetry) bool) {
 	var hval helperErrTelemetry
-	for _, errMap := range e.helperErrMapsByModule {
+	for mod, errMap := range e.helperErrMapsByModule {
 		for pKey, k := range e.probeKeys {
+			if mod != pKey.moduleName {
+				continue
+			}
 			err := errMap.Lookup(&k, &hval)
 			if err != nil {
 				log.Debugf("failed to get telemetry %s:%d\n", pKey.String(), k)
