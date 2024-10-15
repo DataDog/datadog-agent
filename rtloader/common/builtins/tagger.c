@@ -172,7 +172,6 @@ static void add_constants(PyObject *m)
     PyModule_AddIntConstant(m, "HIGH", DATADOG_AGENT_RTLOADER_TAGGER_HIGH);
 }
 
-#ifdef DATADOG_AGENT_THREE
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, TAGGER_MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit_tagger(void)
@@ -181,13 +180,3 @@ PyMODINIT_FUNC PyInit_tagger(void)
     add_constants(module);
     return module;
 }
-#elif defined(DATADOG_AGENT_TWO)
-// in Python2 keep the object alive for the program lifetime
-static PyObject *module;
-
-void Py2_init_tagger()
-{
-    module = Py_InitModule(TAGGER_MODULE_NAME, methods);
-    add_constants(module);
-}
-#endif

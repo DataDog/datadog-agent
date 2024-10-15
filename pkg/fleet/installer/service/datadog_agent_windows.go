@@ -108,7 +108,10 @@ func installAgentPackage(target string, args []string) error {
 	}
 	args = append(args, fmt.Sprintf("DDAGENTUSER_NAME=%s", agentUser))
 
-	err = msiexec(target, datadogAgent, "/i", args)
+	cmd, err := msiexec(target, datadogAgent, "/i", args)
+	if err == nil {
+		err = cmd.Run()
+	}
 	if err != nil {
 		return fmt.Errorf("failed to install Agent %s: %w", target, err)
 	}

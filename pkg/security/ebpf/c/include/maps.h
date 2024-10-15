@@ -98,6 +98,5 @@ BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_progs, 6)
 BPF_PROG_ARRAY(dentry_resolver_tracepoint_progs, 3)
 BPF_PROG_ARRAY(classifier_router, 100)
 BPF_PROG_ARRAY(sys_exit_progs, 64)
-BPF_PROG_ARRAY(raw_packet_filters, 10)
 
 #endif
