@@ -11,7 +11,7 @@ To know if your Agents are affected, starting with v6.16.0 and v7.16.0, the Agen
 If this warning is logged, you have the following options:
 
 - If you are satisfied with the in-app hostname: unset the configured `hostname` from `datadog.yaml` (or the `DD_HOSTNAME` env var) and restart the Agent; or
-- if you are not satisfied with the in-app hostname, and want the configured hostname to appear as the in-app hostname, follow the instructions below
+- If you are not satisfied with the in-app hostname, and want the configured hostname to appear as the in-app hostname, follow the instructions below
 
 ## Allowing Agent in-app hostnames to start with `ip-` or `domu`
 
