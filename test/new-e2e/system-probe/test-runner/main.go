@@ -239,7 +239,6 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 			if err := testContainer.start(); err != nil {
 				return fmt.Errorf("error creating cws test container: %w", err)
 			}
-			defer testContainer.stopAndRemove()
 		}
 
 		pkg, err := filepath.Rel(testConfig.testDirRoot, filepath.Dir(testsuite))
@@ -280,6 +279,11 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 
 		if err := addProperties(xmlpath, props); err != nil {
 			return fmt.Errorf("xml add props: %s", err)
+		}
+
+		if err := testContainer.stopAndRemove(); err != nil {
+			// log but do not return error
+			fmt.Fprintf(os.Stderr, "error stopping and removing cws test container: %s\n", err)
 		}
 	}
 
