@@ -737,9 +737,6 @@ def create_and_update_release_branch(
         base_branch: Branch from which we create the release branch. Default branch if `None`.
     """
 
-    # TODO
-    print('create_and_update_release_branch', repo, release_branch, base_branch)
-
     # Perform branch out in all required repositories
     with ctx.cd(f"{base_directory}/{repo}"):
         # Step 1 - Create a local branch out from the default branch
@@ -824,10 +821,11 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
 
         # create the backport label in the Agent repo
         print(color_message("Creating backport label in the Agent repository", Color.BOLD))
-        # TODO
-        # github.create_label(
-        #     f'backport/{release_branch}', BACKPORT_LABEL_COLOR, f'Automatically create a backport PR to {release_branch}'
-        # )
+        github.create_label(
+            f'backport/{release_branch}',
+            BACKPORT_LABEL_COLOR,
+            f'Automatically create a backport PR to {release_branch}',
+        )
 
         # Step 2 - Create PRs with new settings in datadog-agent repository
 
@@ -851,24 +849,22 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
                     code=1,
                 )
 
-            # TODO
-            print('PUSH etc.')
-            # res = ctx.run(f"git push --set-upstream {upstream} {milestone_branch}", warn=True)
-            # if res.exited is None or res.exited > 0:
-            #     raise Exit(
-            #         color_message(
-            #             f"Could not push branch {milestone_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
-            #             "red",
-            #         ),
-            #         code=1,
-            #     )
+            res = ctx.run(f"git push --set-upstream {upstream} {milestone_branch}", warn=True)
+            if res.exited is None or res.exited > 0:
+                raise Exit(
+                    color_message(
+                        f"Could not push branch {milestone_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
+                        "red",
+                    ),
+                    code=1,
+                )
 
-            # create_release_pr(
-            #     f"[release] Update current milestone to {next}",
-            #     "main",
-            #     milestone_branch,
-            #     next,
-            # )
+            create_release_pr(
+                f"[release] Update current milestone to {next}",
+                "main",
+                milestone_branch,
+                next,
+            )
 
             # Step 2.1 - Update release.json
             update_branch = f"{release_branch}-updates"
@@ -904,26 +900,24 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
                     code=1,
                 )
 
-            # TODO
-            print('PUSH ETC.')
-            # # Step 1.4 - Push branch and create PR
-            # print(color_message("Pushing new branch to the upstream repository", "bold"))
-            # res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
-            # if res.exited is None or res.exited > 0:
-            #     raise Exit(
-            #         color_message(
-            #             f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
-            #             "red",
-            #         ),
-            #         code=1,
-            #     )
+            # Step 1.4 - Push branch and create PR
+            print(color_message("Pushing new branch to the upstream repository", "bold"))
+            res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
+            if res.exited is None or res.exited > 0:
+                raise Exit(
+                    color_message(
+                        f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
+                        "red",
+                    ),
+                    code=1,
+                )
 
-            # create_release_pr(
-            #     f"[release] Update release.json and gitlab files for {release_branch} branch",
-            #     release_branch,
-            #     update_branch,
-            #     current,
-            # )
+            create_release_pr(
+                f"[release] Update release.json and gitlab files for {release_branch} branch",
+                release_branch,
+                update_branch,
+                current,
+            )
 
 
 def _update_last_stable(_, version, major_versions="7"):
