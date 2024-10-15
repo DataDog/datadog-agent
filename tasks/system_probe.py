@@ -701,6 +701,7 @@ def build_sysprobe_binary(
 
     if static:
         build_tags.extend(["osusergo", "netgo"])
+        build_tags = list(set(build_tags).difference({"netcgo"}))
 
     if os.path.exists(binary):
         os.remove(binary)
