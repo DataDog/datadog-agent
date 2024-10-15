@@ -71,6 +71,7 @@ func (server *apiServer) startCMDServer(
 	dcreds := credentials.NewTLS(&tls.Config{
 		ServerName: cmdAddr,
 		RootCAs:    tlsCertPool,
+		InsecureSkipVerify: true,
 	})
 	dopts := []grpc.DialOption{grpc.WithTransportCredentials(dcreds)}
 
