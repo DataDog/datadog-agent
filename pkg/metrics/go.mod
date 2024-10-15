@@ -41,7 +41,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.57.1
 	github.com/DataDog/datadog-agent/pkg/config/model v0.57.1
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.60.0-devel
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/tagset v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3

@@ -11,6 +11,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../comp/def
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/structure => ../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config => ../config
 	github.com/DataDog/datadog-agent/pkg/config/env => ../config/env
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../config/mock
@@ -56,6 +57,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/env v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.60.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3 // indirect
@@ -107,3 +109,4 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+

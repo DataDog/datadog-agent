@@ -11,8 +11,10 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../env
+	github.com/DataDog/datadog-agent/pkg/config/mock => ../mock/
 	github.com/DataDog/datadog-agent/pkg/config/model => ../model/
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../pkg/config/nodetreemodel
+	github.com/DataDog/datadog-agent/pkg/config/structure => ../structure
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../telemetry
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../util/executable

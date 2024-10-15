@@ -40,7 +40,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/model v0.57.0
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.0
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.60.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.57.1
