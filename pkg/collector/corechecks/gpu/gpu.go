@@ -31,11 +31,11 @@ import (
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	config         *CheckConfig
-	sysProbeUtil   *processnet.RemoteSysProbeUtil
-	lastCheckTime  time.Time
-	timeResolver   *sectime.Resolver // TODO: Move resolver to a common package, see EBPF-579
-	statProcessors map[uint32]*StatsProcessor
+	config         *CheckConfig                   // config for the check
+	sysProbeUtil   *processnet.RemoteSysProbeUtil // sysProbeUtil is used to communicate with system probe
+	lastCheckTime  time.Time                      // lastCheckTime is the time the last check was done, used to compute GPU average utilization
+	timeResolver   *sectime.Resolver              // TODO: Move resolver to a common package, see EBPF-579
+	statProcessors map[uint32]*StatsProcessor     // statProcessors is a map of processors, one per pid
 }
 
 // Factory creates a new check factory
@@ -81,14 +81,14 @@ func (m *Check) ensureInitialized() error {
 			pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"),
 		)
 		if err != nil {
-			return fmt.Errorf("sysprobe connection: %s", err)
+			return fmt.Errorf("sysprobe connection: %w", err)
 		}
 	}
 
 	if m.timeResolver == nil {
 		m.timeResolver, err = sectime.NewResolver()
 		if err != nil {
-			return fmt.Errorf("cannot create time resolver: %s", err)
+			return fmt.Errorf("cannot create time resolver: %w", err)
 		}
 	}
 	return nil
