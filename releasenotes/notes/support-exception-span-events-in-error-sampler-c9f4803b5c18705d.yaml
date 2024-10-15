@@ -9,4 +9,3 @@
 enhancements:
   - |
     APM: Consider spans with OpenTelemetry exception Span Events as error spans.
-    in the error sampler.
