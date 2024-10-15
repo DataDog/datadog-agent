@@ -219,6 +219,39 @@ func TestEventRaleLimiters(t *testing.T) {
 	})
 }
 
+func TestEventIteratorRegister(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_register",
+			Expression: `open.file.path == "{{.Root}}/test-register" && process.ancestors[A].name == "syscall_tester" && process.ancestors[A].argv in ["span-exec"]`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testFile, _, err := test.Path("test-register")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test.WaitSignal(t, func() error {
+		return runSyscallTesterFunc(context.Background(), t, syscallTester, "span-exec", "123", "456", "/usr/bin/touch", testFile)
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_register")
+	})
+}
+
 func truncatedParents(t *testing.T, staticOpts testOpts, dynamicOpts dynamicTestOpts) {
 	var truncatedParents string
 	for i := 0; i < model.MaxPathDepth; i++ {
