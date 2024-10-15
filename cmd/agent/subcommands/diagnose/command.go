@@ -267,19 +267,8 @@ This command print the security-agent metadata payload. This payload is used by 
 		},
 	}
 
-	showPayloadCommand.AddCommand(payloadV5Cmd)
-	showPayloadCommand.AddCommand(payloadGohaiCmd)
-	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
-	showPayloadCommand.AddCommand(payloadInventoriesHostCmd)
-	showPayloadCommand.AddCommand(payloadInventoriesOtelCmd)
-	showPayloadCommand.AddCommand(payloadInventoriesChecksCmd)
-	showPayloadCommand.AddCommand(payloadInventoriesPkgSigningCmd)
-	showPayloadCommand.AddCommand(payloadSystemProbeCmd)
-	showPayloadCommand.AddCommand(payloadSecurityAgentCmd)
-	diagnoseCommand.AddCommand(showPayloadCommand)
-
 	showAgentTelemetryCommand := &cobra.Command{
-		Use:   "show-telemetry",
+		Use:   "agent-telemetry",
 		Short: "Print agent telemetry payloads sent by the agent.",
 		Long:  `.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
@@ -290,7 +279,18 @@ This command print the security-agent metadata payload. This payload is used by 
 			)
 		},
 	}
-	diagnoseCommand.AddCommand(showAgentTelemetryCommand)
+
+	showPayloadCommand.AddCommand(payloadV5Cmd)
+	showPayloadCommand.AddCommand(payloadGohaiCmd)
+	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
+	showPayloadCommand.AddCommand(payloadInventoriesHostCmd)
+	showPayloadCommand.AddCommand(payloadInventoriesOtelCmd)
+	showPayloadCommand.AddCommand(payloadInventoriesChecksCmd)
+	showPayloadCommand.AddCommand(payloadInventoriesPkgSigningCmd)
+	showPayloadCommand.AddCommand(payloadSystemProbeCmd)
+	showPayloadCommand.AddCommand(payloadSecurityAgentCmd)
+	showPayloadCommand.AddCommand(showAgentTelemetryCommand)
+	diagnoseCommand.AddCommand(showPayloadCommand)
 
 	return []*cobra.Command{diagnoseCommand}
 }
