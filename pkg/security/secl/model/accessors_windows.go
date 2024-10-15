@@ -978,6 +978,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "process.ancestors.length":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				iterator := &ProcessAncestorsIterator{}
+				return iterator.Len(ctx)
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "process.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -1739,6 +1748,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.file.name.length",
 		"process.ancestors.file.path",
 		"process.ancestors.file.path.length",
+		"process.ancestors.length",
 		"process.ancestors.pid",
 		"process.ancestors.ppid",
 		"process.ancestors.user",
@@ -2036,17 +2046,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 		return values, nil
 	case "process.ancestors.file.name.length":
-		var values []int
-		ctx := eval.NewContext(ev)
-		iterator := &ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := ptr
-			result := len(ev.FieldHandlers.ResolveFileBasename(ev, &element.ProcessContext.Process.FileEvent))
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent), nil
 	case "process.ancestors.file.path":
 		var values []string
 		ctx := eval.NewContext(ev)
@@ -2060,17 +2060,11 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 		return values, nil
 	case "process.ancestors.file.path.length":
-		var values []int
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent), nil
+	case "process.ancestors.length":
 		ctx := eval.NewContext(ev)
 		iterator := &ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := ptr
-			result := len(ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent))
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
+		return iterator.Len(ctx), nil
 	case "process.ancestors.pid":
 		var values []int
 		ctx := eval.NewContext(ev)
@@ -2449,6 +2443,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "", nil
 	case "process.ancestors.file.path.length":
 		return "", nil
+	case "process.ancestors.length":
+		return "", nil
 	case "process.ancestors.pid":
 		return "", nil
 	case "process.ancestors.ppid":
@@ -2753,6 +2749,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.ancestors.file.path":
 		return reflect.String, nil
 	case "process.ancestors.file.path.length":
+		return reflect.Int, nil
+	case "process.ancestors.length":
 		return reflect.Int, nil
 	case "process.ancestors.pid":
 		return reflect.Int, nil
@@ -3544,6 +3542,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "process.ancestors.file.path.length"}
+	case "process.ancestors.length":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "process.ancestors.length"}
 	case "process.ancestors.pid":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}

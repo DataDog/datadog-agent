@@ -65,7 +65,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			{{- if $Field.OpOverrides}}
 			OpOverrides: {{$Field.OpOverrides}},
 			{{- end}}
-			{{- if $Field.Iterator}}
+			{{- if and $Field.Iterator (not $Field.IsIterator) }}
 				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {
 					{{if $Field.Handler}}
 						ev := ctx.Event.(*Event)
@@ -112,9 +112,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 						{{if eq $Field.ReturnType "int"}}
 							{{if $Field.IsLength}}
-							result := len({{".length" | TrimSuffix $Return}})
+								result := len({{".length" | TrimSuffix $Return}})
 							{{else}}
-							result := int({{$Return}})
+								result := int({{$Return}})
 							{{end}}
 						{{else}}
 							result := {{$Return}}
@@ -136,7 +136,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			{{- else}}
 				{{- $ReturnType := $Field.ReturnType}}
 				EvalFnc: func(ctx *eval.Context) {{$Field.GetArrayPrefix}}{{$ReturnType}} {
-					ev := ctx.Event.(*Event)
+					{{- if not (and $Field.IsLength $Field.IsIterator)}}
+						ev := ctx.Event.(*Event)
+					{{end}}
 
 					{{$Return := $Field.Name | printf "ev.%s"}}
 
@@ -175,7 +177,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 								return int({{$Return}})
 							{{- else}}
 								{{- if $Field.IsLength }}
-									{{$Return = ".length" | TrimSuffix $Return | printf "len(%s)"}}
+									{{- if $Field.IsIterator}}
+										iterator := &{{$Field.Iterator.ReturnType}}{}
+										{{$Return = "iterator.Len(ctx)"}}
+									{{else}}
+										{{$Return = ".length" | TrimSuffix $Return | printf "len(%s)"}}
+									{{end}}
 								{{end}}
 								return {{$Return}}
 							{{end -}}
@@ -235,7 +242,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		{{end}}
 
 		case "{{$Name}}":
-		{{if $Field.Iterator}}
+		{{- if and $Field.Iterator (not $Field.IsLength)}}
 			var values []{{$Field.ReturnType}}
 
 			ctx := eval.NewContext(ev)
@@ -260,7 +267,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 				{{end}}
 
 				{{if $Field.IsLength}}
-				{{$Return = ".length" | TrimSuffix $Return}}
+					{{$Return = ".length" | TrimSuffix $Return}}
 				{{end}}
 
 				{{if and (eq $Field.ReturnType "int") (ne $Field.OrigType "int")}}
@@ -295,7 +302,13 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			{{end}}
 
 			{{if $Field.IsLength}}
-			{{$Return = ".length" | TrimSuffix $Field.Name | printf "len(ev.%s)"}}
+				{{- if $Field.IsIterator}}
+					ctx := eval.NewContext(ev)
+					iterator := &{{$Field.Iterator.ReturnType}}{}
+					{{$Return = "iterator.Len(ctx)"}}
+				{{else}}
+					{{$Return = ".length" | TrimSuffix $Return | printf "len(%s)"}}
+				{{end}}
 			{{end}}
 			{{if $Field.Handler}}
 				{{$Ptr := "&"}}

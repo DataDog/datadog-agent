@@ -20,6 +20,9 @@ type Context struct {
 	IntCache    map[string][]int
 	BoolCache   map[string][]bool
 
+	// rule register
+	Registers map[RegisterID]int
+
 	now time.Time
 }
 
@@ -41,16 +44,10 @@ func (c *Context) Reset() {
 	c.Event = nil
 	c.now = time.Time{}
 
-	// as the cache should be low in entry, prefer to delete than re-alloc
-	for key := range c.StringCache {
-		delete(c.StringCache, key)
-	}
-	for key := range c.IntCache {
-		delete(c.IntCache, key)
-	}
-	for key := range c.BoolCache {
-		delete(c.BoolCache, key)
-	}
+	clear(c.StringCache)
+	clear(c.IntCache)
+	clear(c.BoolCache)
+	clear(c.Registers)
 }
 
 // NewContext return a new Context
@@ -60,6 +57,7 @@ func NewContext(evt Event) *Context {
 		StringCache: make(map[string][]string),
 		IntCache:    make(map[string][]int),
 		BoolCache:   make(map[string][]bool),
+		Registers:   make(map[RegisterID]int),
 	}
 }
 

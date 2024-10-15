@@ -506,6 +506,36 @@ func (it *ProcessAncestorsIterator) Next() *ProcessCacheEntry {
 	return nil
 }
 
+// At returns the element at the given position
+func (it *ProcessAncestorsIterator) At(ctx *eval.Context, pos int) *ProcessCacheEntry {
+	var i int
+
+	// TODO(safchain) use ctx to cache the result
+	ancestor := ctx.Event.(*Event).ProcessContext.Ancestor
+	for ancestor != nil {
+		if i == pos {
+			return ancestor
+		}
+		ancestor = ancestor.Ancestor
+	}
+
+	return nil
+}
+
+// Len returns the len
+func (it *ProcessAncestorsIterator) Len(ctx *eval.Context) int {
+	var size int
+
+	// TODO(safchain) use ctx to cache the result
+	ancestor := ctx.Event.(*Event).ProcessContext.Ancestor
+	for ancestor != nil {
+		size++
+		ancestor = ancestor.Ancestor
+	}
+
+	return size
+}
+
 // HasParent returns whether the process has a parent
 func (p *ProcessContext) HasParent() bool {
 	return p.Parent != nil
