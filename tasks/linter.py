@@ -667,6 +667,7 @@ def job_change_path(ctx, job_files=None):
         'new-e2e-package-signing-debian-a7-x86_64',
         'new-e2e-package-signing-suse-a7-x86_64',
         'new-e2e_windows_powershell_module_test',
+        'new-e2e-eks-cleanup-on-failure',
         'trigger-flakes-finder',
     }
 
