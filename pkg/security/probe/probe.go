@@ -437,6 +437,11 @@ func (p *Probe) IsNetworkEnabled() bool {
 	return p.Config.Probe.NetworkEnabled
 }
 
+// IsNetworkRawPacketEnabled returns whether network raw packet is enabled
+func (p *Probe) IsNetworkRawPacketEnabled() bool {
+	return p.IsNetworkEnabled() && p.Config.Probe.NetworkRawPacketEnabled
+}
+
 // IsActivityDumpEnabled returns whether activity dump is enabled
 func (p *Probe) IsActivityDumpEnabled() bool {
 	return p.Config.RuntimeSecurity.ActivityDumpEnabled
