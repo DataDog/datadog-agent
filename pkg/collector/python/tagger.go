@@ -26,7 +26,7 @@ import "C"
 
 // for testing purposes
 var (
-	tagsFunc = tagger.TagDeprecated
+	tagsFunc = tagger.LegacyTag
 )
 
 // Tags bridges towards tagger.Tag to retrieve container tags

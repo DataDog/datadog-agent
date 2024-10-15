@@ -115,9 +115,9 @@ func (m *OOMKillCheck) Run() error {
 			log.Debugf("Unable to extract containerID from cgroup name: %s, err: %v", line.CgroupName, err)
 		}
 
-		entityID := types.NewEntityID(types.ContainerID, containerID).String()
+		entityID := types.NewEntityID(types.ContainerID, containerID)
 		var tags []string
-		if entityID != "" {
+		if entityID.Empty() {
 			tags, err = tagger.Tag(entityID, tagger.ChecksCardinality())
 			if err != nil {
 				log.Errorf("Error collecting tags for container %s: %s", containerID, err)

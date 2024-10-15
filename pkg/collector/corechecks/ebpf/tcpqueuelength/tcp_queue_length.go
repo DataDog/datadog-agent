@@ -110,9 +110,9 @@ func (t *TCPQueueLengthCheck) Run() error {
 			continue
 		}
 
-		entityID := types.NewEntityID(types.ContainerID, containerID).String()
+		entityID := types.NewEntityID(types.ContainerID, containerID)
 		var tags []string
-		if entityID != "" {
+		if entityID.Empty() {
 			tags, err = tagger.Tag(entityID, types.HighCardinality)
 			if err != nil {
 				log.Errorf("Error collecting tags for container %s: %s", k, err)
