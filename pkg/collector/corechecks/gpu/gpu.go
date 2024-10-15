@@ -159,33 +159,20 @@ func (m *Check) Run() error {
 		return fmt.Errorf("get GPU device threads: %w", err)
 	}
 
-	usedProcessors := make(map[uint32]bool)
-
 	for _, data := range stats.CurrentData {
 		m.ensureProcessor(&data.Key, snd, gpuThreads, checkDuration)
 		m.statProcessors[data.Key.Pid].processCurrentData(data)
-		usedProcessors[data.Key.Pid] = true
 	}
 
 	for _, data := range stats.PastData {
 		m.ensureProcessor(&data.Key, snd, gpuThreads, checkDuration)
 		m.statProcessors[data.Key.Pid].processPastData(data)
-		usedProcessors[data.Key.Pid] = true
 	}
 
-	// As we compute the utilization based on the number of threads launched by the kernel, we need to
-	// normalize the utilization if we get above 100%, as the GPU can enqueue threads.
-	totalGPUUtilization := 0.0
-	for _, processor := range m.statProcessors {
-		if usedProcessors[processor.key.Pid] {
-			totalGPUUtilization += processor.getGPUUtilization()
-		}
-	}
-	normFactor := max(1.0, totalGPUUtilization)
+	m.configureNormalizationFactor()
 
 	for _, processor := range m.statProcessors {
-		if usedProcessors[processor.key.Pid] {
-			processor.setGPUUtilizationNormalizationFactor(normFactor)
+		if processor.hasPendingData {
 			err := processor.markInterval()
 			if err != nil {
 				return fmt.Errorf("mark interval: %s", err)
@@ -203,4 +190,22 @@ func (m *Check) Run() error {
 	m.lastCheckTime = now
 
 	return nil
+}
+
+func (m *Check) configureNormalizationFactor() {
+	// As we compute the utilization based on the number of threads launched by the kernel, we need to
+	// normalize the utilization if we get above 100%, as the GPU can enqueue threads.
+	totalGPUUtilization := 0.0
+	for _, processor := range m.statProcessors {
+		// Only consider processors that received data this interval
+		if processor.hasPendingData {
+			totalGPUUtilization += processor.getGPUUtilization()
+		}
+	}
+
+	normFactor := max(1.0, totalGPUUtilization)
+
+	for _, processor := range m.statProcessors {
+		processor.setGPUUtilizationNormalizationFactor(normFactor)
+	}
 }

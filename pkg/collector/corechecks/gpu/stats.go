@@ -71,6 +71,9 @@ type StatsProcessor struct {
 	// utilizationNormFactor is the factor to normalize the utilization by, to account for the fact that we might have more kernels enqueued than the GPU can run in parallel. This factor
 	// allows distributing the utilization over all the streams that are enqueued
 	utilizationNormFactor float64
+
+	// hasPendingData is true if there is data pending to be sent
+	hasPendingData bool
 }
 
 // processKernelSpan processes a kernel span
@@ -99,6 +102,7 @@ func (sp *StatsProcessor) processPastData(data *model.StreamData) {
 	}
 
 	sp.pastAllocs = append(sp.pastAllocs, data.Allocations...)
+	sp.hasPendingData = true
 }
 
 func (sp *StatsProcessor) processCurrentData(data *model.StreamData) {
@@ -107,6 +111,7 @@ func (sp *StatsProcessor) processCurrentData(data *model.StreamData) {
 	}
 
 	sp.currentAllocs = data.Allocations
+	sp.hasPendingData = true
 }
 
 // getTags returns the tags to use for the metrics
@@ -200,7 +205,8 @@ func (sp *StatsProcessor) markInterval() error {
 
 	sp.sender.Gauge(metricNameMaxMem, float64(maxValue), "", tags)
 	sp.sentEvents++
-	fmt.Println(sp.sentEvents)
+
+	sp.hasPendingData = false
 
 	return nil
 }
