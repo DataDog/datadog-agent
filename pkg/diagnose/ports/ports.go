@@ -20,7 +20,7 @@ import (
 var agentNames = map[string]struct{}{
 	"datadog-agent": {}, "agent": {}, "trace-agent": {},
 	"process-agent": {}, "system-probe": {}, "security-agent": {},
-	"dogstatsd": {}, "agent.exe": {},
+	"dogstatsd": {},
 }
 
 // DiagnosePortSuite displays information about the ports used in the agent configuration
@@ -110,6 +110,9 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 
 func isAgentProcess(processName string) (string, bool) {
 	processName = path.Base(processName)
+	if runtime.GOOS == "windows" {
+		processName = strings.TrimSuffix(processName, ".exe")
+	}
 	_, ok := agentNames[processName]
 	return processName, ok
 }
