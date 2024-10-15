@@ -212,10 +212,10 @@ func (er *EnvReader) add() {
 
 // getTargetEnvs reads the environment variables of interest from the /proc/<pid>/environ file.
 func getTargetEnvs(proc *process.Process) (envs.Variables, error) {
-	er, err := newEnvReader(proc)
+	reader, err := newEnvReader(proc)
 	defer func() {
-		if er != nil {
-			er.close()
+		if reader != nil {
+			reader.close()
 		}
 	}()
 
@@ -223,19 +223,19 @@ func getTargetEnvs(proc *process.Process) (envs.Variables, error) {
 		return envs.Variables{}, err
 	}
 
-	for er.scanner.Scan() {
-		er.add()
+	for reader.scanner.Scan() {
+		reader.add()
 	}
 
 	injectionMeta, ok := getInjectionMeta(proc)
 	if !ok {
-		return er.envs, nil
+		return reader.envs, nil
 	}
 	for _, env := range injectionMeta.InjectedEnv {
 		name, val, found := strings.Cut(string(env), "=")
 		if found {
-			er.envs.Set(name, val)
+			reader.envs.Set(name, val)
 		}
 	}
-	return er.envs, nil
+	return reader.envs, nil
 }
