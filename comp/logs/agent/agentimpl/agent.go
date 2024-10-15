@@ -19,6 +19,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	auProto "github.com/DataDog/datadog-agent/comp/core/autodiscovery/proto"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	grpcClient "github.com/DataDog/datadog-agent/comp/core/grpcClient/def"
@@ -220,7 +221,7 @@ func (a *logAgent) start(context.Context) error {
 					a.autodiscoveryStream = nil
 
 					if err != io.EOF {
-						a.log.Warnf("error received from autodiscovery stream workloadmeta: %s", err)
+						a.log.Warnf("error received from autodiscovery stream: %s", err)
 					}
 
 					continue
@@ -231,9 +232,9 @@ func (a *logAgent) start(context.Context) error {
 
 				for _, config := range streamConfigs.Configs {
 					if config.EventType == core.ConfigEventType_SCHEDULE {
-						scheduleConfigs = append(scheduleConfigs, autodiscoveryConfigFromprotobufConfig(config))
+						scheduleConfigs = append(scheduleConfigs, auProto.AutodiscoveryConfigFromprotobufConfig(config))
 					} else if config.EventType == core.ConfigEventType_UNSCHEDULE {
-						unscheduleConfigs = append(unscheduleConfigs, autodiscoveryConfigFromprotobufConfig(config))
+						unscheduleConfigs = append(unscheduleConfigs, auProto.AutodiscoveryConfigFromprotobufConfig(config))
 					}
 				}
 
@@ -254,47 +255,6 @@ func (a *logAgent) start(context.Context) error {
 	a.log.Info("logs-agent started")
 
 	return nil
-}
-
-func autodiscoveryConfigFromprotobufConfig(config *core.Config) integration.Config {
-	instances := []integration.Data{}
-
-	for _, instance := range config.Instances {
-		instances = append(instances, integration.Data(instance))
-	}
-
-	advancedAdIdentifiers := make([]integration.AdvancedADIdentifier, 0, len(config.AdvancedAdIdentifiers))
-	for _, advancedAdIdentifier := range config.AdvancedAdIdentifiers {
-		advancedAdIdentifiers = append(advancedAdIdentifiers, integration.AdvancedADIdentifier{
-			KubeService: integration.KubeNamespacedName{
-				Name:      advancedAdIdentifier.KubeService.Name,
-				Namespace: advancedAdIdentifier.KubeService.Namespace,
-			},
-			KubeEndpoints: integration.KubeNamespacedName{
-				Name:      advancedAdIdentifier.KubeEndpoints.Name,
-				Namespace: advancedAdIdentifier.KubeEndpoints.Namespace,
-			},
-		})
-	}
-
-	return integration.Config{
-		Name:                    config.Name,
-		Instances:               instances,
-		InitConfig:              config.InitConfig,
-		MetricConfig:            config.MetricConfig,
-		LogsConfig:              config.LogsConfig,
-		ADIdentifiers:           config.AdIdentifiers,
-		AdvancedADIdentifiers:   advancedAdIdentifiers,
-		Provider:                config.Provider,
-		ServiceID:               config.ServiceId,
-		TaggerEntity:            config.TaggerEntity,
-		ClusterCheck:            config.ClusterCheck,
-		NodeName:                config.NodeName,
-		Source:                  config.Source,
-		IgnoreAutodiscoveryTags: config.IgnoreAutodiscoveryTags,
-		MetricsExcluded:         config.MetricsExcluded,
-		LogsExcluded:            config.LogsExcluded,
-	}
 }
 
 func (a *logAgent) initStream() error {

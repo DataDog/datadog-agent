@@ -8,18 +8,26 @@ package start
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/cenkalti/backoff"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	auProto "github.com/DataDog/datadog-agent/comp/core/autodiscovery/proto"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	grpcClient "github.com/DataDog/datadog-agent/comp/core/grpcClient/def"
+	grpcClientfx "github.com/DataDog/datadog-agent/comp/core/grpcClient/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
@@ -30,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -92,6 +101,10 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		}),
 		compressionimpl.Module(),
 		hostnameimpl.Module(),
+
+		// grpc Client
+		grpcClientfx.Module(),
+		fetchonlyimpl.Module(),
 	)
 }
 
@@ -102,6 +115,7 @@ func start(
 	_ diagnosesendermanager.Component,
 	collector collector.Component,
 	sender sender.SenderManager,
+	grpcClient grpcClient.Component,
 ) error {
 
 	// Main context passed to components
@@ -112,7 +126,10 @@ func start(
 	// TODO: figure out how to initial.ize checks context
 	// check.InitializeInventoryChecksContext(invChecks)
 
-	pkgcollector.InitCheckScheduler(optional.NewOption(collector), sender, optional.NewNoneOption[integrations.Component]())
+	scheduler := pkgcollector.InitCheckScheduler(optional.NewOption(collector), sender, optional.NewNoneOption[integrations.Component]())
+
+	// Start the scheduler
+	go startScheduler(grpcClient, scheduler, log)
 
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh, log)
@@ -179,4 +196,82 @@ func StopAgent(cancel context.CancelFunc, log log.Component) {
 
 	log.Info("See ya!")
 	log.Flush()
+}
+
+type autodiscoveryStream struct {
+	autodiscoveryStream       core.AgentSecure_AutodiscoveryStreamConfigClient
+	autodiscoveryStreamCancel context.CancelFunc
+}
+
+func (a *autodiscoveryStream) initStream(grpcClient grpcClient.Component, log log.Component) error {
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 500 * time.Millisecond
+	expBackoff.MaxInterval = 5 * time.Minute
+	expBackoff.MaxElapsedTime = 0 * time.Minute
+
+	return backoff.Retry(func() error {
+		select {
+		case <-grpcClient.Context().Done():
+			return &backoff.PermanentError{}
+		default:
+		}
+
+		streamCtx, streamCancelCtx := grpcClient.NewStreamContext()
+
+		stream, err := grpcClient.AutodiscoveryStreamConfig(streamCtx, nil)
+		if err != nil {
+			log.Infof("unable to establish stream, will possibly retry: %s", err)
+			// We need to handle the case that the kernel agent dies
+			return err
+		}
+
+		a.autodiscoveryStream = stream
+		a.autodiscoveryStreamCancel = streamCancelCtx
+
+		log.Info("autodiscovery stream established successfully")
+		return nil
+	}, expBackoff)
+}
+
+func startScheduler(grpcClient grpcClient.Component, scheduler *pkgcollector.CheckScheduler, log log.Component) {
+	// Start a stream using the grpc Client to consume autodiscovery updates for the different configurations
+	autodiscoveryStream := &autodiscoveryStream{}
+
+	for {
+		if autodiscoveryStream.autodiscoveryStream == nil {
+			err := autodiscoveryStream.initStream(grpcClient, log)
+			if err != nil {
+				log.Warnf("error received trying to start stream: %s", err)
+				continue
+			}
+		}
+
+		streamConfigs, err := autodiscoveryStream.autodiscoveryStream.Recv()
+
+		if err != nil {
+			autodiscoveryStream.autodiscoveryStreamCancel()
+
+			autodiscoveryStream.autodiscoveryStream = nil
+
+			if err != io.EOF {
+				log.Warnf("error received from autodiscovery stream: %s", err)
+			}
+
+			continue
+		}
+
+		scheduleConfigs := []integration.Config{}
+		unscheduleConfigs := []integration.Config{}
+
+		for _, config := range streamConfigs.Configs {
+			if config.EventType == core.ConfigEventType_SCHEDULE {
+				scheduleConfigs = append(scheduleConfigs, auProto.AutodiscoveryConfigFromprotobufConfig(config))
+			} else if config.EventType == core.ConfigEventType_UNSCHEDULE {
+				unscheduleConfigs = append(unscheduleConfigs, auProto.AutodiscoveryConfigFromprotobufConfig(config))
+			}
+		}
+
+		scheduler.Schedule(scheduleConfigs)
+		scheduler.Unschedule(unscheduleConfigs)
+	}
 }

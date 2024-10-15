@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/proto"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,7 +38,7 @@ func (s *Server) StreamConfig(out pb.AgentSecure_AutodiscoveryStreamConfigServer
 				return nil
 			}
 
-			protobufConfig := protobufConfigFromAutodiscoveryConfig(config)
+			protobufConfig := proto.ProtobufConfigFromAutodiscoveryConfig(config)
 			protobufConfig.EventType = pb.ConfigEventType_SCHEDULE
 
 			err := grpc.DoWithTimeout(func() error {
@@ -55,7 +56,7 @@ func (s *Server) StreamConfig(out pb.AgentSecure_AutodiscoveryStreamConfigServer
 				return nil
 			}
 
-			protobufConfig := protobufConfigFromAutodiscoveryConfig(config)
+			protobufConfig := proto.ProtobufConfigFromAutodiscoveryConfig(config)
 			protobufConfig.EventType = pb.ConfigEventType_UNSCHEDULE
 
 			err := grpc.DoWithTimeout(func() error {
