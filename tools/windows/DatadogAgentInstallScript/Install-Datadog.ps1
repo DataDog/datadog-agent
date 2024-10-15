@@ -125,6 +125,15 @@ function Start-ProcessWithOutput {
    return $process.ExitCode
 }
 
+function Test-DatadogAgentPresence() {
+   # Rudimentary check for the Agent presence, the `datadogagent` service should exist, and so should the `InstallPath` key in the registry.
+   # We check that particular key since we use it later in the script to restart the service.
+   return 
+      ((Get-Service "datadogagent" -ea silent | Measure-Object).Count -eq 1) -and
+      (Test-Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent") -and
+      ($null -ne (Get-Item -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").GetValue("InstallPath"))
+}
+
 # Set some defaults if not provided
 $ddInstallerUrl = $env:DD_INSTALLER_URL
 if (-Not $ddInstallerUrl) {
@@ -159,6 +168,15 @@ try {
       return $proc.ExitCode
    }
 
+   # First thing to do is to stop the services if they are started
+   if (Test-DatadogAgentPresence) {
+      & ((Get-ItemProperty "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").InstallPath + "bin\\agent.exe") stop-service
+   }
+
+   if ((Get-Service "Datadog Installer" -ea silent | Measure-Object).Count -eq 1) {
+      Stop-Service "Datadog Installer"
+   }
+
    # Powershell does not enable TLS 1.2 by default, & we want it enabled for faster downloads
    Write-Host "Forcing web requests to TLS v1.2"
    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
@@ -182,13 +200,7 @@ try {
    }
    Write-Host "Bootstrap execution done"
 
-   # Rudimentary check for the Agent presence, the `datadogagent` service should exist, and so should the `InstallPath` key in the registry.
-   # We check that particular key since we use it later in the script to restart the service.
-   if (
-       ((Get-Service "datadogagent" -ea silent | Measure-Object).Count -eq 0) -or
-       (-Not (Test-Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent")) -or
-       ($null -eq (Get-Item -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").GetValue("InstallPath"))
-      ) {
+   if (-Not (Test-DatadogAgentPresence)) {
       throw "Agent is not installed"
    }
 
