@@ -12,7 +12,7 @@ import (
 	"net"
 	"strings"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -98,8 +98,9 @@ func (t *Tailer) readForever() {
 				log.Warnf("Couldn't read message from connection: %v", err)
 				return
 			}
-			msg := decoder.NewInput(data)
-			if ipAddress != "" && pkgconfigsetup.Datadog().GetBool("logs_config.use_sourcehost_tag") {
+			copiedTags := make([]string, len(t.source.Config.Tags))
+			copy(copiedTags, t.source.Config.Tags)
+			if ipAddress != "" && coreConfig.Datadog().GetBool("logs_config.use_sourcehost_tag") {
 				lastColonIndex := strings.LastIndex(ipAddress, ":")
 				var ipAddressWithoutPort string
 				if lastColonIndex != -1 {
@@ -108,8 +109,10 @@ func (t *Tailer) readForever() {
 					ipAddressWithoutPort = ipAddress
 				}
 				sourceHostTag := fmt.Sprintf("source_host:%s", ipAddressWithoutPort)
-				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, sourceHostTag)
+				copiedTags = append(copiedTags, sourceHostTag)
 			}
+			msg := decoder.NewInput(data)
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, copiedTags...)
 			t.decoder.InputChan <- msg
 		}
 	}
