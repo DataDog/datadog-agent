@@ -44,8 +44,15 @@ function Send-Telemetry($payload) {
       "DD-Api-Key"   = $env:DD_API_KEY
       "Content-Type" = "application/json"
    }
-   $result = Invoke-WebRequest -Uri $telemetryUrl -Method POST -Body $payload -Headers $requestHeaders
-   Write-Host "Sending telemetry: $($result.StatusCode)"
+   try {
+      $result = Invoke-WebRequest -Uri $telemetryUrl -Method POST -Body $payload -Headers $requestHeaders
+      Write-Host "Sending telemetry: $($result.StatusCode)"
+   } catch {
+      # Don't propagate errors when sending telemetry, because our error handling code will also
+      # try to send telemetry.
+      # It's enough to just print a message since there's no further error handling to be done.
+      Write-Host "Error sending telemetry"
+   }
 }
 
 function Show-Error($errorMessage, $errorCode) {
