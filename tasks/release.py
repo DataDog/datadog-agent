@@ -669,11 +669,14 @@ def build_rc(ctx, major_version: int = 7, patch_version=False, k8s_deployments=F
                 "If commit signing is enabled, you will have to make sure each tag gets properly signed.", "bold"
             )
         )
+
         # tag_version only takes the highest version (Agent 7 currently), and creates
         # the tags for all supported versions
         # TODO: make it possible to do Agent 6-only or Agent 7-only tags?
         tag_version(ctx, str(new_version), force=False)
         tag_modules(ctx, str(new_version), force=False)
+
+        exit()
 
         print(color_message(f"Waiting until the {new_version} tag appears in Gitlab", "bold"))
         gitlab_tag = None
@@ -728,11 +731,14 @@ def get_release_json_value(ctx, key, agent6=False):
 def create_and_update_release_branch(
     ctx, repo, release_branch, base_branch: str | None = None, base_directory="~/dd", upstream="origin"
 ):
-    """Creates and pushes a release branch to `repo`.
+    """Create and push a release branch to `repo`.
 
     Args:
         base_branch: Branch from which we create the release branch. Default branch if `None`.
     """
+
+    # TODO
+    print('create_and_update_release_branch', repo, release_branch, base_branch)
 
     # Perform branch out in all required repositories
     with ctx.cd(f"{base_directory}/{repo}"):
@@ -763,150 +769,161 @@ def create_and_update_release_branch(
 
 # TODO: unfreeze is the former name of this task, kept for backward compatibility. Remove in a few weeks.
 @task(help={'upstream': "Remote repository name (default 'origin')"}, aliases=["unfreeze"])
-def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin", check_state=True):
-    """
-    Create and push release branches in Agent repositories and update them.
+def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, upstream="origin", check_state=True):
+    """Create and push release branches in Agent repositories and update them.
+
     That includes:
-    - creates a release branch in datadog-agent, datadog-agent-macos, omnibus-ruby and omnibus-software repositories,
-    - updates release.json on new datadog-agent branch to point to newly created release branches in nightly section
-    - updates entries in .gitlab-ci.yml and .gitlab/notify/notify.yml which depend on local branch name
+        - creates a release branch in datadog-agent, datadog-agent-macos, omnibus-ruby and omnibus-software repositories,
+        - updates release.json on new datadog-agent branch to point to newly created release branches in nightly section
+        - updates entries in .gitlab-ci.yml and .gitlab/notify/notify.yml which depend on local branch name
+
+    Args:
+        base_directory: Path to the directory where dd repos are cloned, defaults to ~/dd, but can be overwritten.
 
     Notes:
-    base_directory - path to the directory where dd repos are cloned, defaults to ~/dd, but can be overwritten.
-    This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
-    with 'repo' permissions.
-    This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
-    release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
+        This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
+        with 'repo' permissions.
+        This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
+        release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
-    github = GithubAPI(repository=GITHUB_REPO_NAME)
 
-    list_major_versions = parse_major_versions(major_versions)
+    with agent_context(ctx, major_version=major_version):
+        github = GithubAPI(repository=GITHUB_REPO_NAME)
 
-    current = current_version(ctx, max(list_major_versions))
-    next = current.next_version(bump_minor=True)
-    current.rc = False
-    current.devel = False
-    next.devel = False
+        current = current_version(ctx, major_version)
+        next = current.next_version(bump_minor=True)
+        current.rc = False
+        current.devel = False
+        next.devel = False
 
-    # Strings with proper branch/tag names
-    release_branch = current.branch()
+        # Strings with proper branch/tag names
+        release_branch = current.branch()
 
-    # Step 0: checks
-    ctx.run("git fetch")
+        # Step 0: checks
+        ctx.run("git fetch")
 
-    if check_state:
-        print(color_message("Checking repository state", "bold"))
-        check_clean_branch_state(ctx, github, release_branch)
+        if check_state:
+            print(color_message("Checking repository state", "bold"))
+            check_clean_branch_state(ctx, github, release_branch)
 
-    if not yes_no_question(
-        f"This task will create new branches with the name '{release_branch}' in repositories: {', '.join(UNFREEZE_REPOS)}. Is this OK?",
-        color="orange",
-        default=False,
-    ):
-        raise Exit(color_message("Aborting.", "red"), code=1)
+        if not yes_no_question(
+            f"This task will create new branches with the name '{release_branch}' in repositories: {', '.join(UNFREEZE_REPOS)}. Is this OK?",
+            color="orange",
+            default=False,
+        ):
+            raise Exit(color_message("Aborting.", "red"), code=1)
 
-    # Step 1 - Create release branches in all required repositories
+        # Step 1 - Create release branches in all required repositories
 
-    for repo in UNFREEZE_REPOS:
-        create_and_update_release_branch(ctx, repo, release_branch, base_directory=base_directory, upstream=upstream)
+        base_branch = DEFAULT_AGENT6_BRANCH if major_version == 6 else None
 
-    # create the backport label in the Agent repo
-    print(color_message("Creating backport label in the Agent repository", Color.BOLD))
-    github.create_label(
-        f'backport/{release_branch}', BACKPORT_LABEL_COLOR, f'Automatically create a backport PR to {release_branch}'
-    )
-
-    # Step 2 - Create PRs with new settings in datadog-agent repository
-
-    with ctx.cd(f"{base_directory}/{UNFREEZE_REPO_AGENT}"):
-        # Step 2.0 - Create milestone update
-        milestone_branch = f"release_milestone-{int(time.time())}"
-        ctx.run(f"git switch -c {milestone_branch}")
-        rj = load_release_json()
-        rj["current_milestone"] = f"{next}"
-        _save_release_json(rj)
-        # Commit release.json
-        ctx.run("git add release.json")
-        ok = try_git_command(ctx, f"git commit -m 'Update release.json with current milestone to {next}'")
-
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually and push the commit to the {milestone_branch} branch.",
-                    "red",
-                ),
-                code=1,
+        for repo in UNFREEZE_REPOS:
+            create_and_update_release_branch(
+                ctx, repo, release_branch, base_branch=base_branch, base_directory=base_directory, upstream=upstream
             )
 
-        res = ctx.run(f"git push --set-upstream {upstream} {milestone_branch}", warn=True)
-        if res.exited is None or res.exited > 0:
-            raise Exit(
-                color_message(
-                    f"Could not push branch {milestone_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
-                    "red",
-                ),
-                code=1,
+        # create the backport label in the Agent repo
+        print(color_message("Creating backport label in the Agent repository", Color.BOLD))
+        # TODO
+        # github.create_label(
+        #     f'backport/{release_branch}', BACKPORT_LABEL_COLOR, f'Automatically create a backport PR to {release_branch}'
+        # )
+
+        # Step 2 - Create PRs with new settings in datadog-agent repository
+
+        with ctx.cd(f"{base_directory}/{UNFREEZE_REPO_AGENT}"):
+            # Step 2.0 - Create milestone update
+            milestone_branch = f"release_milestone-{int(time.time())}"
+            ctx.run(f"git switch -c {milestone_branch}")
+            rj = load_release_json()
+            rj["current_milestone"] = f"{next}"
+            _save_release_json(rj)
+            # Commit release.json
+            ctx.run("git add release.json")
+            ok = try_git_command(ctx, f"git commit -m 'Update release.json with current milestone to {next}'")
+
+            if not ok:
+                raise Exit(
+                    color_message(
+                        f"Could not create commit. Please commit manually and push the commit to the {milestone_branch} branch.",
+                        "red",
+                    ),
+                    code=1,
+                )
+
+            # TODO
+            print('PUSH etc.')
+            # res = ctx.run(f"git push --set-upstream {upstream} {milestone_branch}", warn=True)
+            # if res.exited is None or res.exited > 0:
+            #     raise Exit(
+            #         color_message(
+            #             f"Could not push branch {milestone_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
+            #             "red",
+            #         ),
+            #         code=1,
+            #     )
+
+            # create_release_pr(
+            #     f"[release] Update current milestone to {next}",
+            #     "main",
+            #     milestone_branch,
+            #     next,
+            # )
+
+            # Step 2.1 - Update release.json
+            update_branch = f"{release_branch}-updates"
+
+            ctx.run(f"git checkout {release_branch}")
+            ctx.run(f"git checkout -b {update_branch}")
+
+            set_new_release_branch(release_branch)
+
+            # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml and notify.yml jobs
+            for file in GITLAB_FILES_TO_UPDATE:
+                with open(file) as gl:
+                    file_content = gl.readlines()
+
+                with open(file, "w") as gl:
+                    for line in file_content:
+                        if re.search(r"compare_to: main", line):
+                            gl.write(line.replace("main", f"{release_branch}"))
+                        else:
+                            gl.write(line)
+
+            # Step 1.3 - Commit new changes
+            ctx.run("git add release.json .gitlab-ci.yml .gitlab/notify/notify.yml")
+            ok = try_git_command(
+                ctx, f"git commit -m 'Update release.json, .gitlab-ci.yml and notify.yml with {release_branch}'"
             )
+            if not ok:
+                raise Exit(
+                    color_message(
+                        f"Could not create commit. Please commit manually and push the commit to the {release_branch} branch.",
+                        "red",
+                    ),
+                    code=1,
+                )
 
-        create_release_pr(
-            f"[release] Update current milestone to {next}",
-            "main",
-            milestone_branch,
-            next,
-        )
+            # TODO
+            print('PUSH ETC.')
+            # # Step 1.4 - Push branch and create PR
+            # print(color_message("Pushing new branch to the upstream repository", "bold"))
+            # res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
+            # if res.exited is None or res.exited > 0:
+            #     raise Exit(
+            #         color_message(
+            #             f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
+            #             "red",
+            #         ),
+            #         code=1,
+            #     )
 
-        # Step 2.1 - Update release.json
-        update_branch = f"{release_branch}-updates"
-
-        ctx.run(f"git checkout {release_branch}")
-        ctx.run(f"git checkout -b {update_branch}")
-
-        set_new_release_branch(release_branch)
-
-        # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml and notify.yml jobs
-        for file in GITLAB_FILES_TO_UPDATE:
-            with open(file) as gl:
-                file_content = gl.readlines()
-
-            with open(file, "w") as gl:
-                for line in file_content:
-                    if re.search(r"compare_to: main", line):
-                        gl.write(line.replace("main", f"{release_branch}"))
-                    else:
-                        gl.write(line)
-
-        # Step 1.3 - Commit new changes
-        ctx.run("git add release.json .gitlab-ci.yml .gitlab/notify/notify.yml")
-        ok = try_git_command(
-            ctx, f"git commit -m 'Update release.json, .gitlab-ci.yml and notify.yml with {release_branch}'"
-        )
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually and push the commit to the {release_branch} branch.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        # Step 1.4 - Push branch and create PR
-        print(color_message("Pushing new branch to the upstream repository", "bold"))
-        res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
-        if res.exited is None or res.exited > 0:
-            raise Exit(
-                color_message(
-                    f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        create_release_pr(
-            f"[release] Update release.json and gitlab files for {release_branch} branch",
-            release_branch,
-            update_branch,
-            current,
-        )
+            # create_release_pr(
+            #     f"[release] Update release.json and gitlab files for {release_branch} branch",
+            #     release_branch,
+            #     update_branch,
+            #     current,
+            # )
 
 
 def _update_last_stable(_, version, major_versions="7"):
