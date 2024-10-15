@@ -1403,7 +1403,7 @@ use_proxy_for_cloud_metadata: true
 func TestServerlessConfigNumComponents(t *testing.T) {
 	// Enforce the number of config "components" reachable by the serverless agent
 	// to avoid accidentally adding entire components if it's not needed
-	require.Len(t, serverlessConfigComponents, 22)
+	require.Len(t, serverlessConfigComponents, 23)
 }
 
 func TestServerlessConfigInit(t *testing.T) {
@@ -1419,6 +1419,22 @@ func TestServerlessConfigInit(t *testing.T) {
 	// ensure some non-serverless configs are not declared
 	assert.False(t, conf.IsKnown("sbom.enabled"))
 	assert.False(t, conf.IsKnown("inventories_enabled"))
+
+	// ensure infra events payloads are enabled
+	assert.True(t, conf.GetBool("enable_payloads.events"))
+}
+
+func TestServerlessConfigInitInfraDisabled(t *testing.T) {
+	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	t.Setenv("DD_INFRA_AGENT_ENABLE", "false")
+
+	initCommonWithServerless(conf)
+
+	// ensure infra payloads are disabled
+	assert.False(t, conf.GetBool("enable_payloads.events"))
+	assert.False(t, conf.GetBool("enable_payloads.series"))
+	assert.False(t, conf.GetBool("enable_payloads.service_check"))
+	assert.False(t, conf.GetBool("enable_payloads.sketches"))
 }
 
 func TestAgentConfigInit(t *testing.T) {

@@ -238,6 +238,7 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	debugging,
 	vector,
 	podman,
+	infraAgent, // run after serializer as some flags are overridden
 }
 
 func init() {
@@ -1643,6 +1644,17 @@ func kubernetes(config pkgconfigmodel.Setup) {
 
 func podman(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("podman_db_path", "")
+}
+
+func infraAgent(config pkgconfigmodel.Setup) {
+	// Disables metric data submission (including Custom Metrics) so that hosts stop showing up in Datadog.
+	// Used namely for Error Tracking Standalone where Infrastructure Monitoring is not needed.
+	if enabled := os.Getenv("DD_INFRA_AGENT_ENABLE"); enabled == "false" {
+		config.BindEnvAndSetDefault("enable_payloads.events", false)
+		config.BindEnvAndSetDefault("enable_payloads.series", false)
+		config.BindEnvAndSetDefault("enable_payloads.service_checks", false)
+		config.BindEnvAndSetDefault("enable_payloads.sketches", false)
+	}
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
