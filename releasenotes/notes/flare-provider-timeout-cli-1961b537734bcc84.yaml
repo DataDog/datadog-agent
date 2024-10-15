@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    The ``flare`` subcommand includes a ``--provider-timeout`` option to set a timeout in seconds for each file collection (default is 10), useful for unblocking slow flare creation.
+    The ``flare`` subcommand includes a ``--provider-timeout`` option to set a timeout for each file collection (default is 10s), useful for unblocking slow flare creation.

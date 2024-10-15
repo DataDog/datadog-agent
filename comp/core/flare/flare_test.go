@@ -104,13 +104,13 @@ func TestRunProviders(t *testing.T) {
 		)),
 	)
 
-	cliProviderTimeoutSeconds := 1
+	cliProviderTimeout := time.Nanosecond
 	f := newFlare(deps)
 
 	fb, err := helpers.NewFlareBuilder(false)
 	require.NoError(t, err)
 
-	f.Comp.(*flare).runProviders(fb, cliProviderTimeoutSeconds)
+	f.Comp.(*flare).runProviders(fb, cliProviderTimeout)
 
 	require.True(t, firstRan.Load())
 	require.True(t, secondRan.Load())

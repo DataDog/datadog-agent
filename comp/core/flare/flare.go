@@ -141,13 +141,13 @@ func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	var providerTimeoutSeconds int
+	var providerTimeout time.Duration
 
 	queryProviderTimeout := r.URL.Query().Get("provider_timeout")
 	if queryProviderTimeout != "" {
-		givenTimeout, err := strconv.Atoi(queryProviderTimeout)
+		givenTimeout, err := strconv.ParseInt(queryProviderTimeout, 10, 64)
 		if err == nil && givenTimeout > 0 {
-			providerTimeoutSeconds = givenTimeout
+			providerTimeout = time.Duration(givenTimeout)
 		} else {
 			f.log.Warnf("provider_timeout query parameter must be a positive integer, but was %s, using configuration value", queryProviderTimeout)
 		}
@@ -159,7 +159,7 @@ func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request)
 
 	var filePath string
 	f.log.Infof("Making a flare")
-	filePath, err := f.Create(profile, providerTimeoutSeconds, nil)
+	filePath, err := f.Create(profile, providerTimeout, nil)
 
 	if err != nil || filePath == "" {
 		if err != nil {
@@ -181,10 +181,10 @@ func (f *flare) Send(flarePath string, caseID string, email string, source helpe
 
 // Create creates a new flare and returns the path to the final archive file.
 //
-// If providerTimeoutSeconds is 0 or negative, the timeout from the configuration will be used.
-func (f *flare) Create(pdata ProfileData, providerTimeoutSeconds int, ipcError error) (string, error) {
-	if providerTimeoutSeconds <= 0 {
-		providerTimeoutSeconds = f.config.GetInt("flare_provider_timeout")
+// If providerTimeout is 0 or negative, the timeout from the configuration will be used.
+func (f *flare) Create(pdata ProfileData, providerTimeout time.Duration, ipcError error) (string, error) {
+	if providerTimeout <= 0 {
+		providerTimeout = f.config.GetDuration("flare_provider_timeout")
 	}
 
 	fb, err := helpers.NewFlareBuilder(f.params.local)
@@ -207,14 +207,13 @@ func (f *flare) Create(pdata ProfileData, providerTimeoutSeconds int, ipcError e
 		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data) //nolint:errcheck
 	}
 
-	f.runProviders(fb, providerTimeoutSeconds)
+	f.runProviders(fb, providerTimeout)
 
 	return fb.Save()
 }
 
-func (f *flare) runProviders(fb types.FlareBuilder, providerTimeoutSeconds int) {
-	flareStepTimeout := time.Duration(providerTimeoutSeconds) * time.Second
-	timer := time.NewTimer(flareStepTimeout)
+func (f *flare) runProviders(fb types.FlareBuilder, providerTimeout time.Duration) {
+	timer := time.NewTimer(providerTimeout)
 	defer timer.Stop()
 
 	for _, p := range f.providers {
@@ -244,10 +243,10 @@ func (f *flare) runProviders(fb types.FlareBuilder, providerTimeoutSeconds int) 
 				<-timer.C
 			}
 		case <-timer.C:
-			err := f.log.Warnf("flare provider '%s' skipped after %s", providerName, flareStepTimeout)
+			err := f.log.Warnf("flare provider '%s' skipped after %s", providerName, providerTimeout)
 			_ = fb.Logf("%s", err.Error())
 		}
-		timer.Reset(flareStepTimeout)
+		timer.Reset(providerTimeout)
 	}
 
 	f.log.Info("All flare providers have been run, creating archive...")

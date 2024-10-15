@@ -78,7 +78,7 @@ type cliParams struct {
 	profileBlocking      bool
 	profileBlockingRate  int
 	withStreamLogs       time.Duration
-	providerTimeoutSec   int
+	providerTimeout      time.Duration
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -157,7 +157,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	flareCmd.Flags().BoolVarP(&cliParams.profileBlocking, "profile-blocking", "B", false, "Add gorouting blocking profile to the performance data in the flare")
 	flareCmd.Flags().IntVarP(&cliParams.profileBlockingRate, "profile-blocking-rate", "", 10000, "Set the fraction of goroutine blocking events that are reported in the blocking profile")
 	flareCmd.Flags().DurationVarP(&cliParams.withStreamLogs, "with-stream-logs", "L", 0*time.Second, "Add stream-logs data to the flare. It will collect logs for the amount of seconds passed to the flag")
-	flareCmd.Flags().IntVarP(&cliParams.providerTimeoutSec, "provider-timeout", "t", 0, "Timeout to run each flare provider in seconds. This is not a global timeout for the flare creation process.")
+	flareCmd.Flags().DurationVarP(&cliParams.providerTimeout, "provider-timeout", "t", 0*time.Second, "Timeout to run each flare provider in seconds. This is not a global timeout for the flare creation process.")
 	flareCmd.SetArgs([]string{"caseID"})
 
 	return []*cobra.Command{flareCmd}
@@ -355,9 +355,9 @@ func makeFlare(flareComp flare.Component,
 
 	var filePath string
 	if cliParams.forceLocal {
-		filePath, err = createArchive(flareComp, profile, cliParams.providerTimeoutSec, nil)
+		filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, nil)
 	} else {
-		filePath, err = requestArchive(flareComp, profile, cliParams.providerTimeoutSec)
+		filePath, err = requestArchive(flareComp, profile, cliParams.providerTimeout)
 	}
 
 	if err != nil {
@@ -387,13 +387,13 @@ func makeFlare(flareComp flare.Component,
 	return nil
 }
 
-func requestArchive(flareComp flare.Component, pdata flare.ProfileData, providerTimeoutSeconds int) (string, error) {
+func requestArchive(flareComp flare.Component, pdata flare.ProfileData, providerTimeout time.Duration) (string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
-		return createArchive(flareComp, pdata, providerTimeoutSeconds, err)
+		return createArchive(flareComp, pdata, providerTimeout, err)
 	}
 
 	cmdport := pkgconfigsetup.Datadog().GetInt("cmd_port")
@@ -402,9 +402,9 @@ func requestArchive(flareComp flare.Component, pdata flare.ProfileData, provider
 		Host:   net.JoinHostPort(ipcAddress, strconv.Itoa(cmdport)),
 		Path:   "/agent/flare",
 	}
-	if providerTimeoutSeconds > 0 {
+	if providerTimeout > 0 {
 		q := url.Query()
-		q.Set("provider_timeout", strconv.Itoa(providerTimeoutSeconds))
+		q.Set("provider_timeout", strconv.FormatInt(int64(providerTimeout), 10))
 		url.RawQuery = q.Encode()
 	}
 
@@ -413,7 +413,7 @@ func requestArchive(flareComp flare.Component, pdata flare.ProfileData, provider
 	// Set session token
 	if err = util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", err)))
-		return createArchive(flareComp, pdata, providerTimeoutSeconds, err)
+		return createArchive(flareComp, pdata, providerTimeout, err)
 	}
 
 	p, err := json.Marshal(pdata)
@@ -431,15 +431,15 @@ func requestArchive(flareComp flare.Component, pdata flare.ProfileData, provider
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make the flare. (is it running?)"))
 			err = fmt.Errorf("Error getting flare from running agent: %w", err)
 		}
-		return createArchive(flareComp, pdata, providerTimeoutSeconds, err)
+		return createArchive(flareComp, pdata, providerTimeout, err)
 	}
 
 	return string(r), nil
 }
 
-func createArchive(flareComp flare.Component, pdata flare.ProfileData, providerTimeoutSeconds int, ipcError error) (string, error) {
+func createArchive(flareComp flare.Component, pdata flare.ProfileData, providerTimeout time.Duration, ipcError error) (string, error) {
 	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
-	filePath, err := flareComp.Create(pdata, providerTimeoutSeconds, ipcError)
+	filePath, err := flareComp.Create(pdata, providerTimeout, ipcError)
 	if err != nil {
 		fmt.Printf("The flare zipfile failed to be created: %s\n", err)
 		return "", err
