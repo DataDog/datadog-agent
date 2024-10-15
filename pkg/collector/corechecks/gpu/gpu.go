@@ -51,11 +51,6 @@ func newCheck() check.Check {
 	}
 }
 
-// Parse parses the check configuration
-func (m *CheckConfig) Parse(data []byte) error {
-	return yaml.Unmarshal(data, m)
-}
-
 // Cancel cancels the check
 func (m *Check) Cancel() {
 	ret := nvml.Shutdown()
@@ -69,8 +64,8 @@ func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	if err := m.CommonConfigure(senderManager, initConfig, config, source); err != nil {
 		return err
 	}
-	if err := m.config.Parse(config); err != nil {
-		return fmt.Errorf("gpu check config: %s", err)
+	if err := yaml.Unmarshal(config, m.config); err != nil {
+		return fmt.Errorf("invalid gpu check config: %s", err)
 	}
 
 	return nil
