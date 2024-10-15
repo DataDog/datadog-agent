@@ -29,6 +29,7 @@ func newHostTagProviderWithClock(clock clock.Clock) *HostTagProvider {
 	p := &HostTagProvider{
 		hostTags: nil,
 	}
+
 	duration := pkgconfigsetup.Datadog().GetDuration("expected_tags_duration")
 	if pkgconfigsetup.Datadog().GetDuration("expected_tags_duration") > 0 {
 		p.hostTags = append([]string{}, hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System...)
