@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-// Check doesn't need additional fields
+// Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
 	config         *CheckConfig                   // config for the check
