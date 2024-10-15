@@ -13,9 +13,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/opencontainers/image-spec/identity"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -455,6 +457,7 @@ func (c *ContainerdUtil) getMounts(ctx context.Context, expiration time.Duration
 	for i := range mounts {
 		mounts[i].Source = sanitizePath(mounts[i].Source)
 
+		var errs error
 		for j, opt := range mounts[i].Options {
 			for _, prefix := range []string{"upperdir=", "lowerdir=", "workdir="} {
 				if strings.HasPrefix(opt, prefix) {
@@ -462,12 +465,19 @@ func (c *ContainerdUtil) getMounts(ctx context.Context, expiration time.Duration
 					dirs := strings.Split(trimmedOpt, ":")
 					for n, dir := range dirs {
 						dirs[n] = sanitizePath(dir)
+						if _, err := os.Stat(dirs[n]); err != nil {
+							errs = multierror.Append(errs, fmt.Errorf("unreachable folder %s for overlayfs mount: %w", dir, err))
+						}
 					}
 					mounts[i].Options[j] = prefix + strings.Join(dirs, ":")
 				}
 			}
 
 			log.Debugf("Sanitized overlayfs mount options to %s", strings.Join(mounts[i].Options, ","))
+		}
+
+		if errs != nil {
+			log.Warnf("Unreachable path detected in mounts for image %s: %s", imageID, errs.Error())
 		}
 	}
 
