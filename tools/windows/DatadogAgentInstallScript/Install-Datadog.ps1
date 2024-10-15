@@ -27,11 +27,13 @@ class ExitCodeException : Exception {
 }
 
 function Get-DatadogConfigPath() {
-   $configFile = Join-Path (Get-ItemPropertyValue -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent" -Name "ConfigRoot") "datadog.yaml"
-   if (-Not $configFile) {
-      $configFile = "C:\\ProgramData\\Datadog\\datadog.yaml"
+   if (
+      (Test-Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent") -and
+      ($null -ne (Get-Item -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").GetValue("ConfigRoot"))
+   ) {
+      return (Join-Path (Get-ItemPropertyValue -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent" -Name "ConfigRoot") "datadog.yaml")
    }
-   return $configFile
+   return "C:\\ProgramData\\Datadog\\datadog.yaml"
 }
 
 function Update-DatadogConfigFile($regex, $replacement) {
