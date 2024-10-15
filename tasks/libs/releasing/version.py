@@ -118,10 +118,6 @@ def next_rc_version(ctx, major_version, patch_version=False) -> Version:
     return new_version
 
 
-def parse_major_versions(major_versions):
-    return sorted(int(x) for x in major_versions.split(","))
-
-
 ##
 ## Repository version fetch functions
 ## The following functions aim at returning the correct version to use for a given

@@ -73,7 +73,6 @@ from tasks.libs.releasing.version import (
     current_version,
     next_final_version,
     next_rc_version,
-    parse_major_versions,
 )
 from tasks.pipeline import edit_schedule, run
 from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
@@ -940,15 +939,16 @@ def cleanup(ctx, major_version: int = 7):
       - Updates the release.json last_stable fields
     """
 
+    gh = GithubAPI()
     if major_version == 6:
-        agent6_branches = ctx.run(r"git ls-remote -h origin | awk '{print $2}' | grep 'refs/heads/6\.' | sed 's;refs/heads/;;g' | sort -V", hide=True).stdout.strip().split()
-        latest_agent6_branch = agent6_branches[-1]
+        latest_release = max(
+            (r for r in gh.get_releases() if r.title.startswith('6.')), key=lambda r: r.created_at
+        ).title
     else:
-        gh = GithubAPI()
         latest_release = gh.latest_release()
-        match = VERSION_RE.search(latest_release)
-        if not match:
-            raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
+    match = VERSION_RE.search(latest_release)
+    if not match:
+        raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
 
     with agent_context(ctx, major_version=major_version, mutable=True):
         version = _create_version_from_match(match)

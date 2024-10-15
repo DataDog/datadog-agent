@@ -202,6 +202,9 @@ class GithubAPI:
         release = self._repository.get_latest_release()
         return release.title
 
+    def get_releases(self):
+        return self._repository.get_releases()
+
     def latest_unreleased_release_branches(self):
         """
         Get all the release branches that are newer than the latest release.
