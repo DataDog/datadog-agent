@@ -84,11 +84,6 @@ func List() types.TaggerListResponse {
 	return types.TaggerListResponse{}
 }
 
-// GetTaggerInstance returns the global Tagger instance
-func GetTaggerInstance() Component {
-	return globalTagger
-}
-
 // SetNewCaptureTagger will set capture tagger in global tagger instance by using provided capture tagger
 func SetNewCaptureTagger(newCaptureTagger Component) {
 	if globalTagger != nil {
