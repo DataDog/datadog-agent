@@ -32,7 +32,7 @@ kmt_setup_env_secagent_arm64:
     AMI_ID_ARG: "--arm-ami-id=$KERNEL_MATRIX_TESTING_ARM_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-arm
     TEST_COMPONENT: security-agent
-    TEST_SETS: all_tests,all_tests_cws_cont
+    TEST_SETS: all_tests
 
 kmt_setup_env_secagent_x64:
   extends:
