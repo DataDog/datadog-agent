@@ -78,7 +78,7 @@ func (ctc *cwsTestContainer) start() error {
 
 	// create container
 	args = append(args, "ghcr.io/datadog/apps-cws-centos7:main") // image tag
-	args = append(args, "sleep", "3600")
+	args = append(args, "sleep", "7200")
 	if err := ctc.runDockerCmd(args); err != nil {
 		return fmt.Errorf("run docker: %s", err)
 	}
