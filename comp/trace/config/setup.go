@@ -392,8 +392,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	c.Obfuscation = new(config.ObfuscationConfig)
 	if core.IsSet("apm_config.obfuscation") {
+		cfg := pkgconfigsetup.Datadog()
 		var o config.ObfuscationConfig
-		err := pkgconfigsetup.Datadog().UnmarshalKey("apm_config.obfuscation", &o)
+		err := structure.UnmarshalKey(cfg, "apm_config.obfuscation", &o)
 		if err == nil {
 			c.Obfuscation = &o
 			if o.RemoveStackTraces {
@@ -532,7 +533,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		"apm_config.trace_writer": c.TraceWriter,
 		"apm_config.stats_writer": c.StatsWriter,
 	} {
-		if err := pkgconfigsetup.Datadog().UnmarshalKey(key, cfg); err != nil {
+		ddcfg := pkgconfigsetup.Datadog()
+		if err := structure.UnmarshalKey(ddcfg, key, cfg); err != nil {
 			log.Errorf("Error reading writer config %q: %v", key, err)
 		}
 	}
@@ -552,7 +554,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	// undocumented deprecated
 	if core.IsSet("apm_config.analyzed_rate_by_service") {
 		rateByService := make(map[string]float64)
-		if err := pkgconfigsetup.Datadog().UnmarshalKey("apm_config.analyzed_rate_by_service", &rateByService); err != nil {
+		cfg := pkgconfigsetup.Datadog()
+		if err := structure.UnmarshalKey(cfg, "apm_config.analyzed_rate_by_service", &rateByService); err != nil {
 			return err
 		}
 		c.AnalyzedRateByServiceLegacy = rateByService

@@ -14,6 +14,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -62,7 +63,7 @@ func TestConcurrencyUnmarshalling(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for n := 0; n <= 1000; n++ {
-			err := config.UnmarshalKey("foo", &s)
+			err := structure.UnmarshalKey(config, "foo", &s)
 			if err != nil {
 				errs <- fmt.Errorf("unable to decode into struct, %w", err)
 				return

@@ -21,6 +21,7 @@ import (
 type featureSet struct {
 	allowSquash        bool
 	convertEmptyStrNil bool
+	convertArrayToMap  bool
 }
 
 // UnmarshalKeyOption is an option that affects the enabled features in UnmarshalKey
@@ -36,6 +37,14 @@ var EnableSquash UnmarshalKeyOption = func(fs *featureSet) {
 var ConvertEmptyStringToNil UnmarshalKeyOption = func(fs *featureSet) {
 	fs.convertEmptyStrNil = true
 }
+
+// ImplicitlyConvertArrayToMapSet allows UnmarshalKey to implicity convert an array of []interface{} to a map[interface{}]bool
+var ImplicitlyConvertArrayToMapSet UnmarshalKeyOption = func(fs *featureSet) {
+	fs.convertArrayToMap = true
+}
+
+// error for when a key is not found
+var errNotFound = fmt.Errorf("not found")
 
 // UnmarshalKey retrieves data from the config at the given key and deserializes it
 // to be stored on the target struct. It is implemented entirely using reflection, and
@@ -147,12 +156,30 @@ func copyStruct(target reflect.Value, source nodetreemodel.Node, fs *featureSet)
 	return nil
 }
 
-func copyMap(target reflect.Value, source nodetreemodel.Node, _ *featureSet) error {
-	// TODO: Should handle maps with more complex types in a future PR
-	ktype := reflect.TypeOf("")
-	vtype := reflect.TypeOf("")
+func copyMap(target reflect.Value, source nodetreemodel.Node, fs *featureSet) error {
+	ktype := target.Type().Key()
+	vtype := target.Type().Elem()
 	mtype := reflect.MapOf(ktype, vtype)
 	results := reflect.MakeMap(mtype)
+
+	if fs.convertArrayToMap {
+		if arr, ok := source.(nodetreemodel.ArrayNode); ok {
+			// convert []interface{} to map[interface{}]bool
+			create := make(map[interface{}]bool)
+			for k := range arr.Size() {
+				item, err := arr.Index(k)
+				if err != nil {
+					return err
+				}
+				create[fmt.Sprintf("%s", item)] = true
+			}
+			converted, err := nodetreemodel.NewNode(create)
+			if err != nil {
+				return err
+			}
+			source = converted
+		}
+	}
 
 	mapKeys, err := source.ChildrenKeys()
 	if err != nil {
@@ -169,8 +196,10 @@ func copyMap(target reflect.Value, source nodetreemodel.Node, _ *featureSet) err
 		if scalar, ok := child.(nodetreemodel.LeafNode); ok {
 			if mval, err := scalar.GetString(); err == nil {
 				results.SetMapIndex(reflect.ValueOf(mkey), reflect.ValueOf(mval))
+			} else if bval, err := scalar.GetBool(); err == nil {
+				results.SetMapIndex(reflect.ValueOf(mkey), reflect.ValueOf(bval))
 			} else {
-				return fmt.Errorf("TODO: only map[string]string supported currently")
+				return fmt.Errorf("only map[string]string and map[string]bool supported currently")
 			}
 		}
 	}

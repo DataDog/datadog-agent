@@ -1687,6 +1687,7 @@ func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 	var isSet bool
 	p := &pkgconfigmodel.Proxy{}
 	if isSet = config.IsSet("proxy"); isSet {
+		// TODO: This should use pkg/config/structure.UnmarshalKey but that creates a circular dependency.
 		if err := config.UnmarshalKey("proxy", p); err != nil {
 			isSet = false
 			log.Errorf("Could not load proxy setting from the configuration (ignoring): %s", err)
@@ -2448,6 +2449,7 @@ func IsCLCRunner(config pkgconfigmodel.Reader) bool {
 	}
 
 	var cps []ConfigurationProviders
+	// TODO: This should use pkg/config/structure.UnmarshalKey but that creates a circular dependency.
 	if err := config.UnmarshalKey("config_providers", &cps); err != nil {
 		return false
 	}

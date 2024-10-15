@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	snmplistener "github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,9 +23,10 @@ import (
 func DiscoverComponentsFromConfig() ([]pkgconfigsetup.ConfigurationProviders, []pkgconfigsetup.Listeners) {
 	detectedProviders := []pkgconfigsetup.ConfigurationProviders{}
 	detectedListeners := []pkgconfigsetup.Listeners{}
+	ddcfg := pkgconfigsetup.Datadog()
 
 	// Auto-add Prometheus config provider based on `prometheus_scrape.enabled`
-	if pkgconfigsetup.Datadog().GetBool("prometheus_scrape.enabled") {
+	if ddcfg.GetBool("prometheus_scrape.enabled") {
 		var prometheusProvider pkgconfigsetup.ConfigurationProviders
 		if flavor.GetFlavor() == flavor.ClusterAgent {
 			prometheusProvider = pkgconfigsetup.ConfigurationProviders{Name: "prometheus_services", Polling: true}
@@ -35,7 +37,7 @@ func DiscoverComponentsFromConfig() ([]pkgconfigsetup.ConfigurationProviders, []
 		detectedProviders = append(detectedProviders, prometheusProvider)
 	}
 	// Add database-monitoring aurora listener if the feature is enabled
-	if pkgconfigsetup.Datadog().GetBool("database_monitoring.autodiscovery.aurora.enabled") {
+	if ddcfg.GetBool("database_monitoring.autodiscovery.aurora.enabled") {
 		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "database-monitoring-aurora"})
 		log.Info("Database monitoring aurora discovery is enabled: Adding the aurora listener")
 	}
@@ -76,7 +78,7 @@ func DiscoverComponentsFromConfig() ([]pkgconfigsetup.ConfigurationProviders, []
 
 	// Auto-activate autodiscovery without listeners: - snmp
 	configs := []snmplistener.Config{}
-	err := pkgconfigsetup.Datadog().UnmarshalKey("network_devices.autodiscovery.configs", &configs)
+	err := structure.UnmarshalKey(ddcfg, "network_devices.autodiscovery.configs", &configs)
 
 	if err == nil && len(configs) > 0 {
 		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "snmp"})
