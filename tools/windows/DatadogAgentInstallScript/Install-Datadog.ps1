@@ -205,18 +205,22 @@ try {
 
    # First thing to do is to stop the services if they are started
    if (Test-DatadogAgentPresence) {
+      Write-Host "Stopping Datadog Agent services"
       & ((Get-ItemProperty "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").InstallPath + "bin\\agent.exe") stop-service
    }
 
    if ((Get-Service "Datadog Installer" -ea silent | Measure-Object).Count -eq 1) {
+      Write-Host "Stopping Datadog Installer service"
       Stop-Service "Datadog Installer"
    }
 
+   $configUpdated = $False
    # Write the config before-hand if it exists, that way if the Agent/Installer services start
    # once installed, they will have a valid configuration.
    # This allows the MSI to emit some telemetry as well.
-   if (Test-Path Get-DatadogConfigPath) {
+   if (Test-Path (Get-DatadogConfigPath)) {
       Update-DatadogAgentConfig
+      $configUpdated = $True
    }
 
    # Powershell does not enable TLS 1.2 by default, & we want it enabled for faster downloads
@@ -237,7 +241,7 @@ try {
    Write-Host "Starting bootstrap process"
    $result = Start-ProcessWithOutput -Path $installer -ArgumentList "bootstrap"
    if ($result -ne 0) {
-      # bootstrap only fails if it fails to install to install the Datadog Installer, so it's possible the Agent was not  installed
+      # bootstrap only fails if it fails to install to install the Datadog Installer, so it's possible the Agent was not installed
       throw [ExitCodeException]::new("Bootstrap failed", $result)
    }
    Write-Host "Bootstrap execution done"
@@ -246,7 +250,9 @@ try {
       throw "Agent is not installed"
    }
 
-   Update-DatadogAgentConfig
+   if (-Not ($configUpdated)) {
+      Update-DatadogAgentConfig
+   }
 
    Send-Telemetry @"
 {
@@ -266,8 +272,10 @@ try {
 }
 "@
    # The datadog.yaml configuration was potentially modified so restart the services
+   Write-Host "Starting Datadog Installer service"
    Restart-Service "Datadog Installer"
    # This command handles restarting the dependent services as well
+   Write-Host "Stopping Datadog Agent services"
    & ((Get-ItemProperty "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").InstallPath + "bin\\agent.exe") restart-service
 }
 catch [ExitCodeException] {
