@@ -32,7 +32,7 @@ kmt_setup_env_secagent_arm64:
     AMI_ID_ARG: "--arm-ami-id=$KERNEL_MATRIX_TESTING_ARM_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-arm
     TEST_COMPONENT: security-agent
-    TEST_SETS: all_tests,all_tests_cws_container
+    TEST_SETS: all_tests,all_tests_cws_cont
 
 kmt_setup_env_secagent_x64:
   extends:
@@ -45,7 +45,7 @@ kmt_setup_env_secagent_x64:
     AMI_ID_ARG: "--x86-ami-id=$KERNEL_MATRIX_TESTING_X86_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-x86
     TEST_COMPONENT: security-agent
-    TEST_SETS: all_tests,all_tests_cws_container
+    TEST_SETS: all_tests,all_tests_cws_cont
 
 .upload_secagent_tests:
   stage: kernel_matrix_testing_prepare
@@ -168,7 +168,7 @@ kmt_run_secagent_tests_x64_docker:
     matrix:
       - TAG:
           - "ubuntu_24.04"
-        TEST_SET: [all_tests_cws_container]
+        TEST_SET: [all_tests_cws_cont]
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
