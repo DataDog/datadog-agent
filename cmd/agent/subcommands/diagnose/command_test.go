@@ -121,7 +121,7 @@ func TestShowAgentTelemetryCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"diagnose", "show-metadata", "agent-telemetry"},
 		printPayload,
-		func(_ core.BundleParams, secretParams secrets.Params) {
-			require.Equal(t, false, secretParams.Enabled)
+		func(payload payloadName) {
+			require.Equal(t, payloadName("agent-telemetry"), payload)
 		})
 }
