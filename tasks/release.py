@@ -930,6 +930,10 @@ def _update_last_stable(_, version, major_version: int = 7):
     _save_release_json(release_json)
 
 
+def _get_agent6_latest_release(gh):
+    return max((r for r in gh.get_releases() if r.title.startswith('6.')), key=lambda r: r.created_at).title
+
+
 @task
 def cleanup(ctx, major_version: int = 7):
     """Perform the post release cleanup steps
@@ -941,9 +945,7 @@ def cleanup(ctx, major_version: int = 7):
 
     gh = GithubAPI()
     if major_version == 6:
-        latest_release = max(
-            (r for r in gh.get_releases() if r.title.startswith('6.')), key=lambda r: r.created_at
-        ).title
+        latest_release = _get_agent6_latest_release(gh)
     else:
         latest_release = gh.latest_release()
     match = VERSION_RE.search(latest_release)
@@ -1077,19 +1079,20 @@ def _create_build_links_patterns(current_version, new_version):
 
 
 @task
-def get_active_release_branch(_):
-    """
-    Determine what is the current active release branch for the Agent.
+def get_active_release_branch(_, agent6=False):
+    """Determine what is the current active release branch for the Agent.
+
     If release started and code freeze is in place - main branch is considered active.
     If release started and code freeze is over - release branch is considered active.
     """
+
     gh = GithubAPI()
-    next_version = get_next_version(gh)
+    next_version = get_next_version(gh, latest_release=_get_agent6_latest_release(gh) if agent6 else None)
     release_branch = gh.get_branch(next_version.branch())
     if release_branch:
         print(f"{release_branch.name}")
     else:
-        print("main")
+        print(DEFAULT_AGENT6_BRANCH if agent6 else "main")
 
 
 @task
@@ -1101,8 +1104,8 @@ def get_unreleased_release_branches(_):
     print(json.dumps([branch.name for branch in gh.latest_unreleased_release_branches()]))
 
 
-def get_next_version(gh):
-    latest_release = gh.latest_release()
+def get_next_version(gh, latest_release=None):
+    latest_release = latest_release or gh.latest_release()
     current_version = _create_version_from_match(VERSION_RE.search(latest_release))
     return current_version.next_version(bump_minor=True)
 
