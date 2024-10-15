@@ -6,6 +6,17 @@
 $SCRIPT_VERSION = "1.0.0"
 $GENERAL_ERROR_CODE = 1
 
+# Set some defaults if not provided
+$ddInstallerUrl = $env:DD_INSTALLER_URL
+if (-Not $ddInstallerUrl) {
+   $ddInstallerUrl = "https://s3.amazonaws.com/dd-agent-mstesting/datadog-installer-x86_64.exe"
+}
+
+$ddRemoteUpdates = $env:DD_REMOTE_UPDATES
+if (-Not $ddRemoteUpdates) {
+   $ddRemoteUpdates = "false"
+}
+
 # ExitCodeException can be used to report failures from executables that set $LASTEXITCODE
 class ExitCodeException : Exception {
    [string] $LastExitCode
@@ -15,11 +26,16 @@ class ExitCodeException : Exception {
    }
 }
 
-function Update-ConfigFile($regex, $replacement) {
+function Get-DatadogConfigPath() {
    $configFile = Join-Path (Get-ItemPropertyValue -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent" -Name "ConfigRoot") "datadog.yaml"
    if (-Not $configFile) {
       $configFile = "C:\\ProgramData\\Datadog\\datadog.yaml"
    }
+   return $configFile
+}
+
+function Update-DatadogConfigFile($regex, $replacement) {
+   $configFile = Get-DatadogConfigPath
    if (-Not (Test-Path $configFile)) {
       throw "datadog.yaml doesn't exist"
    }
@@ -141,15 +157,26 @@ function Test-DatadogAgentPresence() {
       ($null -ne (Get-Item -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").GetValue("InstallPath"))
 }
 
-# Set some defaults if not provided
-$ddInstallerUrl = $env:DD_INSTALLER_URL
-if (-Not $ddInstallerUrl) {
-   $ddInstallerUrl = "https://s3.amazonaws.com/dd-agent-mstesting/datadog-installer-x86_64.exe"
-}
+function Update-DatadogAgentConfig() {
+   if ($env:DD_API_KEY) {
+      Write-Host "Writing DD_API_KEY"
+      Update-DatadogConfigFile "^[ #]*api_key:.*" "api_key: $env:DD_API_KEY"
+   }
 
-$ddRemoteUpdates = $env:DD_REMOTE_UPDATES
-if (-Not $ddRemoteUpdates) {
-   $ddRemoteUpdates = "false"
+   if ($env:DD_SITE) {
+      Write-Host "Writing DD_SITE"
+      Update-DatadogConfigFile "^[ #]*site:.*" "site: $env:DD_SITE"
+   }
+
+   if ($env:DD_URL) {
+      Write-Host "Writing DD_URL"
+      Update-DatadogConfigFile "^[ #]*dd_url:.*" "dd_url: $env:DD_URL"
+   }
+
+   if ($ddRemoteUpdates) {
+      Write-Host "Writing DD_REMOTE_UPDATES"
+      Update-DatadogConfigFile "^[ #]*remote_updates:.*" "remote_updates: $($ddRemoteUpdates.ToLower())"
+   }
 }
 
 try {
@@ -184,6 +211,13 @@ try {
       Stop-Service "Datadog Installer"
    }
 
+   # Write the config before-hand if it exists, that way if the Agent/Installer services start
+   # once installed, they will have a valid configuration.
+   # This allows the MSI to emit some telemetry as well.
+   if (Test-Path Get-DatadogConfigPath) {
+      Update-DatadogAgentConfig
+   }
+
    # Powershell does not enable TLS 1.2 by default, & we want it enabled for faster downloads
    Write-Host "Forcing web requests to TLS v1.2"
    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
@@ -211,25 +245,7 @@ try {
       throw "Agent is not installed"
    }
 
-   if ($env:DD_API_KEY) {
-      Write-Host "Writing DD_API_KEY"
-      Update-ConfigFile "^[ #]*api_key:.*" "api_key: $env:DD_API_KEY"
-   }
-
-   if ($env:DD_SITE) {
-      Write-Host "Writing DD_SITE"
-      Update-ConfigFile "^[ #]*site:.*" "site: $env:DD_SITE"
-   }
-
-   if ($env:DD_URL) {
-      Write-Host "Writing DD_URL"
-      Update-ConfigFile "^[ #]*dd_url:.*" "dd_url: $env:DD_URL"
-   }
-
-   if ($ddRemoteUpdates) {
-      Write-Host "Writing DD_REMOTE_UPDATES"
-      Update-ConfigFile "^[ #]*remote_updates:.*" "remote_updates: $($ddRemoteUpdates.ToLower())"
-   }
+   Update-DatadogAgentConfig
 
    Send-Telemetry @"
 {
