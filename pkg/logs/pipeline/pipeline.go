@@ -169,7 +169,7 @@ func getStrategy(inputChan chan message.TimedMessage[*message.Message],
 		var encoder compression.Component
 		encoder = compressionFactory.NewNoopCompressor()
 		if endpoints.Main.UseCompression {
-			encoder = compressionFactory.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel, "logs_config.compression_kind", []string{"zstd", "gzip"})
+			encoder = compressionFactory.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel, "logs_config.compression_kind", []string{"nativezstd", "zstd", "gzip"})
 		}
 		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
 	}

@@ -416,7 +416,7 @@ func newHTTPPassthroughPipeline(coreConfig model.Reader, eventPlatformReceiver e
 	var encoder compression.Component
 	encoder = compressionFactory.NewNoopCompressor()
 	if endpoints.Main.UseCompression {
-		encoder = compressionFactory.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel, "logs_config.compression_kind", []string{"zstd", "gzip"})
+		encoder = compressionFactory.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel, "logs_config.compression_kind", []string{"nativezstd", "zstd", "gzip"})
 	}
 
 	var strategy sender.Strategy
