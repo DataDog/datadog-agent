@@ -46,7 +46,7 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 		return
 	}
 
-	// Extract operation is an expensive operation but, it is also concurrent safe, so we can do it here
+	// extractTopicName is an expensive operation but, it is also concurrent safe, so we can do it here
 	// without holding the lock.
 	key := Key{
 		RequestAPIKey:  tx.APIKey(),
