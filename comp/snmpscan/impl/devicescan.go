@@ -16,13 +16,13 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-func (s snmpScannerImpl) RunDeviceScan(snmpConnection *gosnmp.GoSNMP, deviceNamespace string) error {
+func (s snmpScannerImpl) RunDeviceScan(snmpConnection *gosnmp.GoSNMP, deviceNamespace string, deviceIpAddress string) error {
 	pdus, err := gatherPDUs(snmpConnection)
 	if err != nil {
 		return err
 	}
 
-	deviceID := deviceNamespace + ":" + snmpConnection.Target
+	deviceID := deviceNamespace + ":" + deviceIpAddress
 	var deviceOids []*metadata.DeviceOID
 	for _, pdu := range pdus {
 		record, err := metadata.DeviceOIDFromPDU(deviceID, pdu)
