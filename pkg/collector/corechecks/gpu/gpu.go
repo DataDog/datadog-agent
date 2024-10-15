@@ -36,6 +36,7 @@ type Check struct {
 	lastCheckTime  time.Time                      // lastCheckTime is the time the last check was done, used to compute GPU average utilization
 	timeResolver   *sectime.Resolver              // TODO: Move resolver to a common package, see EBPF-579
 	statProcessors map[uint32]*StatsProcessor     // statProcessors is a map of processors, one per pid
+	gpuDevices     []gpuDevice                    // gpuDevices is a list of GPU devices found in the host
 }
 
 // Factory creates a new check factory
@@ -91,6 +92,14 @@ func (m *Check) ensureInitialized() error {
 			return fmt.Errorf("cannot create time resolver: %w", err)
 		}
 	}
+
+	if m.gpuDevices == nil {
+		m.gpuDevices, err = getGPUDevices()
+		if err != nil {
+			return fmt.Errorf("cannot get GPU devices: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -115,13 +124,7 @@ func (m *Check) Run() error {
 	if err := m.ensureInitialized(); err != nil {
 		return err
 	}
-
-	gpuDevices, err := getGPUDevices()
-	if err != nil {
-		return err
-	}
-
-	if len(gpuDevices) == 0 {
+	if len(m.gpuDevices) == 0 {
 		return fmt.Errorf("no GPU devices found")
 	}
 
@@ -151,7 +154,7 @@ func (m *Check) Run() error {
 	}
 
 	// TODO: Multiple GPUs are not supported yet
-	gpuThreads, err := gpuDevices[0].GetMaxThreads()
+	gpuThreads, err := m.gpuDevices[0].GetMaxThreads()
 	if err != nil {
 		return fmt.Errorf("get GPU device threads: %s", err)
 	}
