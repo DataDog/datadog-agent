@@ -17,5 +17,5 @@ If this warning is logged, you have the following options:
 
 Starting with Agent v6.16.0 and v7.16.0, the Agent supports the config option `hostname_force_config_as_canonical` (default: `false`). When set to `true`, a configuration-provided hostname starting with `ip-` or `domu` is accepted as the canonical hostname in-app:
 
-- for new hosts, enabling this option works immediately
+- For new hosts, enabling this option works immediately.
 - for hosts that already report to Datadog, after enabling this option, please contact our support team at support@datadoghq.com so that the in-app hostname can be changed to your configuration-provided hostname.
