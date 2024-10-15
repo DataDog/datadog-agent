@@ -141,10 +141,16 @@ func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	var providerTimeoutSeconds int
+
 	queryProviderTimeout := r.URL.Query().Get("provider_timeout")
-	providerTimeoutSeconds, err := strconv.Atoi(queryProviderTimeout)
-	if err != nil {
-		providerTimeoutSeconds = 0 // use timeout from the config on error
+	if queryProviderTimeout != "" {
+		givenTimeout, err := strconv.Atoi(queryProviderTimeout)
+		if err == nil && givenTimeout > 0 {
+			providerTimeoutSeconds = givenTimeout
+		} else {
+			f.log.Warnf("provider_timeout query parameter must be a positive integer, but was %s, using configuration value", queryProviderTimeout)
+		}
 	}
 
 	// Reset the `server_timeout` deadline for this connection as creating a flare can take some time
@@ -153,7 +159,7 @@ func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request)
 
 	var filePath string
 	f.log.Infof("Making a flare")
-	filePath, err = f.Create(profile, providerTimeoutSeconds, nil)
+	filePath, err := f.Create(profile, providerTimeoutSeconds, nil)
 
 	if err != nil || filePath == "" {
 		if err != nil {
