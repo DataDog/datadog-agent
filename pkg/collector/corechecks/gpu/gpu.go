@@ -53,6 +53,8 @@ func newCheck() check.Check {
 
 // Cancel cancels the check
 func (m *Check) Cancel() {
+	m.CheckBase.Cancel()
+
 	ret := nvml.Shutdown()
 	if ret != nvml.SUCCESS && ret != nvml.ERROR_UNINITIALIZED {
 		log.Warnf("Failed to shutdown NVML: %v", nvml.ErrorString(ret))
