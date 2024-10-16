@@ -41,7 +41,7 @@ type dependencies struct {
 	SharedForwarder        defaultforwarder.Component
 	OrchestratorForwarder  orchestratorforwarder.Component
 	EventPlatformForwarder eventplatform.Component
-	Compressor             compression.Component
+	CompressorFactory      compression.Factory
 
 	Params Params
 }
@@ -77,6 +77,14 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 			return provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
 		}
 	}
+
+	compressor := deps.CompressorFactory.NewCompressor(
+		deps.Config.GetString("serializer_compressor_kind"),
+		deps.Config.GetInt("serializer_zstd_compressor_level"),
+		"serializer_compressor_kind",
+		[]string{"zstd", "zlib", "nativezstd"},
+	)
+
 	options := createAgentDemultiplexerOptions(deps.Config, deps.Params)
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,
@@ -84,7 +92,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		deps.OrchestratorForwarder,
 		options,
 		deps.EventPlatformForwarder,
-		deps.Compressor,
+		compressor,
 		hostnameDetected)
 	demultiplexer := demultiplexer{
 		AgentDemultiplexer: agentDemultiplexer,

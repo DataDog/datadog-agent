@@ -370,7 +370,7 @@ func BenchmarkCreateSingleMarshalerOneEventBySource(b *testing.B) {
 func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem int) Events) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
 		cfg := configmock.New(b)
-		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressionimpl.NewCompressor(cfg))
+		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressionimpl.FromConfig(cfg))
 		events := createEvents(numberOfItem)
 
 		b.ResetTimer()
@@ -384,7 +384,7 @@ func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem
 func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
 		cfg := configmock.New(b)
-		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressionimpl.NewCompressor(cfg))
+		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressionimpl.FromConfig(cfg))
 		events := createBenchmarkEvents(numberOfItem)
 
 		b.ResetTimer()
@@ -400,7 +400,7 @@ func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
 func BenchmarkCreateMarshalersSeveralSourceTypes(b *testing.B) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
 		cfg := configmock.New(b)
-		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressionimpl.NewCompressor(cfg))
+		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressionimpl.FromConfig(cfg))
 
 		events := Events{}
 		// Half of events have the same source type

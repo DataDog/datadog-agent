@@ -14,6 +14,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../def
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../logs/agent/config
+	github.com/DataDog/datadog-agent/comp/serializer/compression => ../../serializer/compression
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../pkg/config/mock
@@ -66,8 +67,9 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.57.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/serializer/compression v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.57.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.57.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.57.0 // indirect

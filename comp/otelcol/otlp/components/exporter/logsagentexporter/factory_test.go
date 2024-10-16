@@ -18,7 +18,7 @@ import (
 )
 
 func TestNewLogsExporter(t *testing.T) {
-	channel := make(chan *message.Message)
+	channel := make(chan message.TimedMessage[*message.Message])
 
 	factory := NewFactory(channel)
 	cfg := factory.CreateDefaultConfig()

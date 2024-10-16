@@ -66,10 +66,10 @@ func TestExclusion(t *testing.T) {
 
 	for _, test := range exclusionTests {
 		msg := newMessage(test.input, &test.source, "")
-		shouldProcess := p.applyRedactingRules(msg)
+		shouldProcess := p.applyRedactingRules(msg.Inner)
 		assert.Equal(test.shouldProcess, shouldProcess)
 		if test.shouldProcess {
-			assert.Equal(test.output, msg.GetContent())
+			assert.Equal(test.output, msg.Inner.GetContent())
 		}
 	}
 
@@ -123,10 +123,10 @@ func TestInclusion(t *testing.T) {
 
 	for _, test := range inclusionTests {
 		msg := newMessage(test.input, &test.source, "")
-		shouldProcess := p.applyRedactingRules(msg)
+		shouldProcess := p.applyRedactingRules(msg.Inner)
 		assert.Equal(test.shouldProcess, shouldProcess)
 		if test.shouldProcess {
-			assert.Equal(test.output, msg.GetContent())
+			assert.Equal(test.output, msg.Inner.GetContent())
 		}
 	}
 
@@ -184,10 +184,10 @@ func TestExclusionWithInclusion(t *testing.T) {
 
 	for _, test := range exclusionInclusionTests {
 		msg := newMessage(test.input, &test.source, "")
-		shouldProcess := p.applyRedactingRules(msg)
+		shouldProcess := p.applyRedactingRules(msg.Inner)
 		assert.Equal(test.shouldProcess, shouldProcess)
 		if test.shouldProcess {
-			assert.Equal(test.output, msg.GetContent())
+			assert.Equal(test.output, msg.Inner.GetContent())
 		}
 	}
 
@@ -259,10 +259,10 @@ func TestMask(t *testing.T) {
 
 	for _, maskTest := range masksTests {
 		msg := newMessage(maskTest.input, &maskTest.source, "")
-		shouldProcess := p.applyRedactingRules(msg)
+		shouldProcess := p.applyRedactingRules(msg.Inner)
 		assert.Equal(maskTest.shouldProcess, shouldProcess)
 		if maskTest.shouldProcess {
-			assert.Equal(maskTest.output, msg.GetContent())
+			assert.Equal(maskTest.output, msg.Inner.GetContent())
 		}
 	}
 
@@ -282,8 +282,8 @@ func TestTruncate(t *testing.T) {
 	p := &Processor{}
 	source := sources.NewLogSource("", &config.LogsConfig{})
 	msg := newMessage([]byte("hello"), source, "")
-	_ = p.applyRedactingRules(msg)
-	assert.Equal(t, []byte("hello"), msg.GetContent())
+	_ = p.applyRedactingRules(msg.Inner)
+	assert.Equal(t, []byte("hello"), msg.Inner.GetContent())
 }
 
 func TestGetHostnameLambda(t *testing.T) {
@@ -317,8 +317,8 @@ func TestBuffering(t *testing.T) {
 
 	p := &Processor{
 		encoder:                   JSONEncoder,
-		inputChan:                 make(chan *message.Message),
-		outputChan:                make(chan *message.Message),
+		inputChan:                 make(chan message.TimedMessage[*message.Message]),
+		outputChan:                make(chan message.TimedMessage[*message.Message]),
 		ReconfigChan:              make(chan sds.ReconfigureOrder),
 		diagnosticMessageReceiver: diagnostic.NewBufferedMessageReceiver(nil, hostnameComponent),
 		done:                      make(chan struct{}),
@@ -479,8 +479,8 @@ func newSource(ruleType, replacePlaceholder, pattern string) sources.LogSource {
 	return sources.LogSource{Config: &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{newProcessingRule(ruleType, replacePlaceholder, pattern)}}}
 }
 
-func newMessage(content []byte, source *sources.LogSource, status string) *message.Message {
-	return message.NewMessageWithSource(content, status, source, 0)
+func newMessage(content []byte, source *sources.LogSource, status string) message.TimedMessage[*message.Message] {
+	return message.NewTimedMessage(message.NewMessageWithSource(content, status, source, 0))
 }
 
 func newStructuredMessage(content []byte, source *sources.LogSource, status string) *message.Message {

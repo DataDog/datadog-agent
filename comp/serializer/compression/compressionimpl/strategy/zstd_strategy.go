@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package strategy provides a set of functions for compressing with zlib / zstd
+// Package strategy provides a set of functions for compressing with zlib / zstd /gzip
 package strategy
 
 import (
 	"bytes"
 
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/zstd"
 )
 
@@ -20,6 +21,8 @@ type ZstdStrategy struct {
 
 // NewZstdStrategy returns a new ZstdStrategy
 func NewZstdStrategy(level int) *ZstdStrategy {
+	log.Debugf("Compressing zstd at level %d", level)
+
 	return &ZstdStrategy{
 		level: level,
 	}

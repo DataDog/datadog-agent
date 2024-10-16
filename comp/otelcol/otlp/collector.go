@@ -92,7 +92,7 @@ func generateID(group, resource, namespace, name string) string {
 	return string(util.GenerateKubeMetadataEntityID(group, resource, namespace, name))
 }
 
-func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message.Message, tagger tagger.Component) (
+func getComponents(s serializer.MetricSerializer, logsAgentChannel chan message.TimedMessage[*message.Message], tagger tagger.Component) (
 	otelcol.Factories,
 	error,
 ) {
@@ -195,7 +195,7 @@ type Pipeline struct {
 type CollectorStatus = datatype.CollectorStatus
 
 // NewPipeline defines a new OTLP pipeline.
-func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentChannel chan *message.Message, tagger tagger.Component) (*Pipeline, error) {
+func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentChannel chan message.TimedMessage[*message.Message], tagger tagger.Component) (*Pipeline, error) {
 	buildInfo, err := getBuildInfo()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get build info: %w", err)
@@ -262,7 +262,7 @@ func (p *Pipeline) Stop() {
 
 // NewPipelineFromAgentConfig creates a new pipeline from the given agent configuration, metric serializer and logs channel. It returns
 // any potential failure.
-func NewPipelineFromAgentConfig(cfg config.Component, s serializer.MetricSerializer, logsAgentChannel chan *message.Message, tagger tagger.Component) (*Pipeline, error) {
+func NewPipelineFromAgentConfig(cfg config.Component, s serializer.MetricSerializer, logsAgentChannel chan message.TimedMessage[*message.Message], tagger tagger.Component) (*Pipeline, error) {
 	pcfg, err := FromAgentConfig(cfg)
 	if err != nil {
 		pipelineError.Store(fmt.Errorf("config error: %w", err))

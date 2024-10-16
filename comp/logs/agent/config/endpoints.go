@@ -41,8 +41,9 @@ type Endpoint struct {
 
 	Host                    string `mapstructure:"host" json:"host"`
 	Port                    int
-	UseCompression          bool `mapstructure:"use_compression" json:"use_compression"`
-	CompressionLevel        int  `mapstructure:"compression_level" json:"compression_level"`
+	UseCompression          bool   `mapstructure:"use_compression" json:"use_compression"`
+	CompressionKind         string `mapstructure:"compression_kind" json:"compression_kind"`
+	CompressionLevel        int    `mapstructure:"compression_level" json:"compression_level"`
 	ProxyAddress            string
 	IsMRF                   bool `mapstructure:"-" json:"-"`
 	ConnectionResetInterval time.Duration
@@ -99,6 +100,7 @@ func NewHTTPEndpoint(logsConfig *LogsConfigKeys) Endpoint {
 	return Endpoint{
 		apiKeyGetter:            logsConfig.getAPIKeyGetter(),
 		UseCompression:          logsConfig.useCompression(),
+		CompressionKind:         logsConfig.compressionKind(),
 		CompressionLevel:        logsConfig.compressionLevel(),
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
 		BackoffBase:             logsConfig.senderBackoffBase(),

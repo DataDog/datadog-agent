@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package strategy provides a set of functions for compressing with zlib / zstd
+// Package strategy provides a set of functions for compressing with zlib / zstd / gzip
 package strategy
 
 import (
@@ -12,6 +12,7 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ZlibStrategy is the strategy for when serializer_compressor_kind is zlib
@@ -20,6 +21,7 @@ type ZlibStrategy struct {
 
 // NewZlibStrategy returns a new ZlibStrategy
 func NewZlibStrategy() *ZlibStrategy {
+	log.Debug("Compressing zlib")
 	return &ZlibStrategy{}
 }
 

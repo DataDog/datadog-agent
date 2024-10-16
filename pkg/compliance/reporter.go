@@ -14,12 +14,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -32,19 +34,19 @@ type LogReporter struct {
 	pipelineProvider pipeline.Provider
 	auditor          auditor.Auditor
 	logSource        *sources.LogSource
-	logChan          chan *message.Message
+	logChan          chan message.TimedMessage[*message.Message]
 	endpoints        *config.Endpoints
 	tags             []string
 }
 
 // NewLogReporter instantiates a new log LogReporter
-func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext) *LogReporter {
+func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext, compressionFactory compression.Factory) *LogReporter {
 	// setup the auditor
 	auditor := auditor.NewNullAuditor()
 	auditor.Start()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext, agentimpl.NewStatusProvider(), hostnameimpl.NewHostnameService(), pkgconfigsetup.Datadog())
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext, agentimpl.NewStatusProvider(), hostnameimpl.NewHostnameService(), pkgconfigsetup.Datadog(), compressionFactory)
 	pipelineProvider.Start()
 
 	logSource := sources.NewLogSource(
@@ -102,5 +104,8 @@ func (r *LogReporter) ReportEvent(event interface{}) {
 	origin.SetTags(r.tags)
 	msg := message.NewMessage(buf, origin, message.StatusInfo, time.Now().UnixNano())
 	msg.Hostname = r.hostname
-	r.logChan <- msg
+
+	metrics.TlmChanLength.Set(float64(len(r.logChan)/cap(r.logChan)), "reporter")
+
+	r.logChan <- message.NewTimedMessage(msg)
 }

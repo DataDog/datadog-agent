@@ -35,7 +35,7 @@ type TailerTestSuite struct {
 	testFile *os.File
 
 	tailer     *Tailer
-	outputChan chan *message.Message
+	outputChan chan message.TimedMessage[*message.Message]
 	source     *sources.ReplaceableSource
 }
 
@@ -48,7 +48,7 @@ func (suite *TailerTestSuite) SetupTest() {
 	suite.NotNil(f)
 	suite.Nil(err)
 	suite.testFile = f
-	suite.outputChan = make(chan *message.Message, chanSize)
+	suite.outputChan = make(chan message.TimedMessage[*message.Message], chanSize)
 	suite.source = sources.NewReplaceableSource(sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
@@ -128,7 +128,7 @@ func (suite *TailerTestSuite) TestTailerTimeDurationConfig() {
 func (suite *TailerTestSuite) TestTailFromBeginning() {
 	lines := []string{"hello world\n", "hello again\n", "good bye\n"}
 
-	var msg *message.Message
+	var msg message.TimedMessage[*message.Message]
 	var err error
 
 	// this line should be tailed
@@ -144,16 +144,16 @@ func (suite *TailerTestSuite) TestTailFromBeginning() {
 	suite.Nil(err)
 
 	msg = <-suite.outputChan
-	suite.Equal("hello world", string(msg.GetContent()))
-	suite.Equal(len(lines[0]), toInt(msg.Origin.Offset))
+	suite.Equal("hello world", string(msg.Inner.GetContent()))
+	suite.Equal(len(lines[0]), toInt(msg.Inner.Origin.Offset))
 
 	msg = <-suite.outputChan
-	suite.Equal("hello again", string(msg.GetContent()))
-	suite.Equal(len(lines[0])+len(lines[1]), toInt(msg.Origin.Offset))
+	suite.Equal("hello again", string(msg.Inner.GetContent()))
+	suite.Equal(len(lines[0])+len(lines[1]), toInt(msg.Inner.Origin.Offset))
 
 	msg = <-suite.outputChan
-	suite.Equal("good bye", string(msg.GetContent()))
-	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
+	suite.Equal("good bye", string(msg.Inner.GetContent()))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Inner.Origin.Offset))
 
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset.Load()))
 }
@@ -161,7 +161,7 @@ func (suite *TailerTestSuite) TestTailFromBeginning() {
 func (suite *TailerTestSuite) TestTailFromEnd() {
 	lines := []string{"hello world\n", "hello again\n", "good bye\n"}
 
-	var msg *message.Message
+	var msg message.TimedMessage[*message.Message]
 	var err error
 
 	// this line should be tailed
@@ -177,12 +177,12 @@ func (suite *TailerTestSuite) TestTailFromEnd() {
 	suite.Nil(err)
 
 	msg = <-suite.outputChan
-	suite.Equal("hello again", string(msg.GetContent()))
-	suite.Equal(len(lines[0])+len(lines[1]), toInt(msg.Origin.Offset))
+	suite.Equal("hello again", string(msg.Inner.GetContent()))
+	suite.Equal(len(lines[0])+len(lines[1]), toInt(msg.Inner.Origin.Offset))
 
 	msg = <-suite.outputChan
-	suite.Equal("good bye", string(msg.GetContent()))
-	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
+	suite.Equal("good bye", string(msg.Inner.GetContent()))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Inner.Origin.Offset))
 
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset.Load()))
 }
@@ -190,7 +190,7 @@ func (suite *TailerTestSuite) TestTailFromEnd() {
 func (suite *TailerTestSuite) TestRecoverTailing() {
 	lines := []string{"hello world\n", "hello again\n", "good bye\n"}
 
-	var msg *message.Message
+	var msg message.TimedMessage[*message.Message]
 	var err error
 
 	// those line should be skipped
@@ -208,12 +208,12 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 	suite.Nil(err)
 
 	msg = <-suite.outputChan
-	suite.Equal("hello again", string(msg.GetContent()))
-	suite.Equal(len(lines[0])+len(lines[1]), toInt(msg.Origin.Offset))
+	suite.Equal("hello again", string(msg.Inner.GetContent()))
+	suite.Equal(len(lines[0])+len(lines[1]), toInt(msg.Inner.Origin.Offset))
 
 	msg = <-suite.outputChan
-	suite.Equal("good bye", string(msg.GetContent()))
-	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
+	suite.Equal("good bye", string(msg.Inner.GetContent()))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Inner.Origin.Offset))
 
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset.Load()))
 }
@@ -226,7 +226,7 @@ func (suite *TailerTestSuite) TestWithBlanklines() {
 	lines += "\n\t\r\n"
 	lines += "message 3\n"
 
-	var msg *message.Message
+	var msg message.TimedMessage[*message.Message]
 	var err error
 
 	_, err = suite.testFile.WriteString(lines)
@@ -235,13 +235,13 @@ func (suite *TailerTestSuite) TestWithBlanklines() {
 	suite.tailer.Start(0, io.SeekStart)
 
 	msg = <-suite.outputChan
-	suite.Equal("message 1", string(msg.GetContent()))
+	suite.Equal("message 1", string(msg.Inner.GetContent()))
 
 	msg = <-suite.outputChan
-	suite.Equal("message 2", string(msg.GetContent()))
+	suite.Equal("message 2", string(msg.Inner.GetContent()))
 
 	msg = <-suite.outputChan
-	suite.Equal("message 3", string(msg.GetContent()))
+	suite.Equal("message 3", string(msg.Inner.GetContent()))
 
 	suite.Equal(len(lines), int(suite.tailer.decodedOffset.Load()))
 }
@@ -261,7 +261,7 @@ func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
 	suite.Nil(err)
 
 	msg := <-suite.outputChan
-	tags := msg.Tags()
+	tags := msg.Inner.Tags()
 	suite.ElementsMatch([]string{
 		"filename:" + filepath.Base(suite.testFile.Name()),
 		"dirname:" + filepath.Dir(suite.testFile.Name()),
@@ -292,7 +292,7 @@ func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 	suite.Nil(err)
 
 	msg := <-suite.outputChan
-	tags := msg.Tags()
+	tags := msg.Inner.Tags()
 	suite.ElementsMatch([]string{
 		"filename:" + filepath.Base(suite.testFile.Name()),
 		"dirname:" + filepath.Dir(suite.testFile.Name()),
@@ -316,7 +316,6 @@ func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
-
 	suite.tailer.StartFromBeginning()
 
 	tags := suite.tailer.buildTailerTags()
@@ -380,7 +379,7 @@ func (suite *TailerTestSuite) TestTruncatedTag() {
 	suite.Nil(err)
 
 	msg := <-suite.outputChan
-	tags := msg.Tags()
+	tags := msg.Inner.Tags()
 	suite.Contains(tags, message.TruncatedReasonTag("single_line"))
 }
 

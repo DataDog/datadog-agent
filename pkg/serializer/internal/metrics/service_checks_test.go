@@ -80,7 +80,7 @@ func createServiceCheck(checkName string) *servicecheck.ServiceCheck {
 }
 
 func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler, cfg pkgconfigmodel.Config) [][]byte {
-	strategy := compressionimpl.NewCompressor(cfg)
+	strategy := compressionimpl.FromConfig(cfg)
 	builder := stream.NewJSONPayloadBuilder(true, cfg, strategy)
 	payloads, err := stream.BuildJSONPayload(builder, m)
 	assert.NoError(t, err)
@@ -159,7 +159,7 @@ func createServiceChecks(numberOfItem int) ServiceChecks {
 
 func benchmarkJSONPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
 	mockConfig := mock.New(b)
-	payloadBuilder := stream.NewJSONPayloadBuilder(true, mockConfig, compressionimpl.NewCompressor(mockConfig))
+	payloadBuilder := stream.NewJSONPayloadBuilder(true, mockConfig, compressionimpl.FromConfig(mockConfig))
 	serviceChecks := createServiceChecks(numberOfItem)
 
 	b.ResetTimer()
@@ -200,7 +200,7 @@ func benchmarkPayloadsServiceCheck(b *testing.B, numberOfItem int) {
 	b.ResetTimer()
 
 	mockConfig := mock.New(b)
-	strategy := compressionimpl.NewCompressor(mockConfig)
+	strategy := compressionimpl.FromConfig(mockConfig)
 	for n := 0; n < b.N; n++ {
 		split.Payloads(serviceChecks, true, split.JSONMarshalFct, strategy)
 	}

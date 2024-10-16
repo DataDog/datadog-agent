@@ -12,27 +12,28 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
-	input := make(chan *message.Message)
+	input := make(chan message.TimedMessage[*message.Message])
 	output := make(chan *message.Payload)
 	flushChan := make(chan struct{})
 
-	s := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{})
+	s := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", compressionimpl.NewCompressorFactory().NewNoopCompressor())
 	s.Start()
 
 	message1 := message.NewMessage([]byte("a"), nil, "", 0)
-	input <- message1
+	input <- message.NewTimedMessage(message1)
 
 	message2 := message.NewMessage([]byte("b"), nil, "", 0)
-	input <- message2
+	input <- message.NewTimedMessage(message2)
 
 	expectedPayload := &message.Payload{
 		Messages:      []*message.Message{message1, message2},
 		Encoded:       []byte("a\nb"),
-		Encoding:      "identity",
+		Encoding:      "",
 		UnencodedSize: 3,
 	}
 
@@ -46,18 +47,18 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 }
 
 func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
-	input := make(chan *message.Message)
+	input := make(chan message.TimedMessage[*message.Message])
 	output := make(chan *message.Payload)
 	flushChan := make(chan struct{})
 	timerInterval := 100 * time.Millisecond
 
 	clk := clock.NewMock()
-	s := newBatchStrategyWithClock(input, output, flushChan, false, nil, LineSerializer, timerInterval, 100, 100, "test", clk, &identityContentType{})
+	s := newBatchStrategyWithClock(input, output, flushChan, false, nil, LineSerializer, timerInterval, 100, 100, "test", clk, compressionimpl.NewCompressorFactory().NewNoopCompressor())
 	s.Start()
 
 	for round := 0; round < 3; round++ {
 		m := message.NewMessage([]byte("a"), nil, "", 0)
-		input <- m
+		input <- message.NewTimedMessage(m)
 
 		// it should flush in this time
 		clk.Add(2 * timerInterval)
@@ -72,16 +73,16 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 }
 
 func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
-	input := make(chan *message.Message)
+	input := make(chan message.TimedMessage[*message.Message])
 	output := make(chan *message.Payload)
 	flushChan := make(chan struct{})
 
 	clk := clock.NewMock()
-	s := newBatchStrategyWithClock(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", clk, &identityContentType{})
+	s := newBatchStrategyWithClock(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", clk, compressionimpl.NewCompressorFactory().NewNoopCompressor())
 	s.Start()
 
-	message := message.NewMessage([]byte("a"), nil, "", 0)
-	input <- message
+	msg := message.NewMessage([]byte("a"), nil, "", 0)
+	input <- message.NewTimedMessage(msg)
 
 	go func() {
 		s.Stop()
@@ -94,19 +95,19 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 	// expect payload to be sent before timer, so we never advance the clock; if this
 	// doesn't work, the test will hang
 	payload := <-output
-	assert.Equal(t, message, payload.Messages[0])
+	assert.Equal(t, msg, payload.Messages[0])
 }
 
 func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
-	input := make(chan *message.Message)
+	input := make(chan message.TimedMessage[*message.Message])
 	output := make(chan *message.Payload)
 	flushChan := make(chan struct{})
 
-	s := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{})
+	s := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", compressionimpl.NewCompressorFactory().NewNoopCompressor())
 	s.Start()
-	message := message.NewMessage([]byte{}, nil, "", 0)
+	msg := message.NewMessage([]byte{}, nil, "", 0)
 
-	input <- message
+	input <- message.NewTimedMessage(msg)
 
 	go func() {
 		s.Stop()
@@ -115,18 +116,18 @@ func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 		assert.Fail(t, "input should be closed")
 	}
 
-	assert.Equal(t, message, (<-output).Messages[0])
+	assert.Equal(t, msg, (<-output).Messages[0])
 }
 
 func TestBatchStrategySynchronousFlush(t *testing.T) {
-	input := make(chan *message.Message)
+	input := make(chan message.TimedMessage[*message.Message])
 	// output needs to be buffered so the flush has somewhere to write to without blocking
 	output := make(chan *message.Payload)
 	flushChan := make(chan struct{})
 
 	// batch size is large so it will not flush until we trigger it manually
 	// flush time is large so it won't automatically trigger during this test
-	strategy := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, time.Hour, 100, 100, "test", &identityContentType{})
+	strategy := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, time.Hour, 100, 100, "test", compressionimpl.NewCompressorFactory().NewNoopCompressor())
 	strategy.Start()
 
 	// all of these messages will get buffered
@@ -136,7 +137,7 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 		message.NewMessage([]byte("c"), nil, "", 0),
 	}
 	for _, m := range messages {
-		input <- m
+		input <- message.NewTimedMessage(m)
 	}
 
 	// since the batch size is large there should be nothing on the output yet
@@ -165,13 +166,13 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 }
 
 func TestBatchStrategyFlushChannel(t *testing.T) {
-	input := make(chan *message.Message)
+	input := make(chan message.TimedMessage[*message.Message])
 	output := make(chan *message.Payload)
 	flushChan := make(chan struct{})
 
 	// batch size is large so it will not flush until we trigger it manually
 	// flush time is large so it won't automatically trigger during this test
-	strategy := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, time.Hour, 100, 100, "test", &identityContentType{})
+	strategy := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, time.Hour, 100, 100, "test", compressionimpl.NewCompressorFactory().NewNoopCompressor())
 	strategy.Start()
 
 	// all of these messages will get buffered
@@ -181,7 +182,7 @@ func TestBatchStrategyFlushChannel(t *testing.T) {
 		message.NewMessage([]byte("c"), nil, "", 0),
 	}
 	for _, m := range messages {
-		input <- m
+		input <- message.NewTimedMessage(m)
 	}
 
 	// since the batch size is large there should be nothing on the output yet

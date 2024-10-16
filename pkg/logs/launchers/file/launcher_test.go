@@ -46,7 +46,7 @@ type LauncherTestSuite struct {
 	testRotatedPath string
 	testRotatedFile *os.File
 
-	outputChan       chan *message.Message
+	outputChan       chan message.TimedMessage[*message.Message]
 	pipelineProvider pipeline.Provider
 	source           *sources.LogSource
 	openFilesLimit   int
@@ -96,7 +96,7 @@ func (suite *LauncherTestSuite) TestLauncherStartsTailers() {
 	_, err := suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg := <-suite.outputChan
-	suite.Equal("hello world", string(msg.GetContent()))
+	suite.Equal("hello world", string(msg.Inner.GetContent()))
 }
 
 func (suite *LauncherTestSuite) TestLauncherScanWithoutLogRotation() {
@@ -105,13 +105,13 @@ func (suite *LauncherTestSuite) TestLauncherScanWithoutLogRotation() {
 	var tailer *filetailer.Tailer
 	var newTailer *filetailer.Tailer
 	var err error
-	var msg *message.Message
+	var msg message.TimedMessage[*message.Message]
 
 	tailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	_, err = suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
-	suite.Equal("hello world", string(msg.GetContent()))
+	suite.Equal("hello world", string(msg.Inner.GetContent()))
 
 	s.scan()
 	newTailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
@@ -121,7 +121,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithoutLogRotation() {
 	_, err = suite.testFile.WriteString("hello again\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
-	suite.Equal("hello again", string(msg.GetContent()))
+	suite.Equal("hello again", string(msg.Inner.GetContent()))
 }
 
 func (suite *LauncherTestSuite) TestLauncherScanWithLogRotation() {
@@ -130,12 +130,12 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotation() {
 	var tailer *filetailer.Tailer
 	var newTailer *filetailer.Tailer
 	var err error
-	var msg *message.Message
+	var msg message.TimedMessage[*message.Message]
 
 	_, err = suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
-	suite.Equal("hello world", string(msg.GetContent()))
+	suite.Equal("hello world", string(msg.Inner.GetContent()))
 
 	tailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	os.Rename(suite.testPath, suite.testRotatedPath)
@@ -148,7 +148,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotation() {
 	_, err = f.WriteString("hello again\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
-	suite.Equal("hello again", string(msg.GetContent()))
+	suite.Equal("hello again", string(msg.Inner.GetContent()))
 }
 
 func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
@@ -156,13 +156,13 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
 	var tailer *filetailer.Tailer
 	var newTailer *filetailer.Tailer
 	var err error
-	var msg *message.Message
+	var msg message.TimedMessage[*message.Message]
 
 	tailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	_, err = suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
-	suite.Equal("hello world", string(msg.GetContent()))
+	suite.Equal("hello world", string(msg.Inner.GetContent()))
 
 	suite.Nil(suite.testFile.Truncate(0))
 	_, err = suite.testFile.Seek(0, 0)
@@ -179,7 +179,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
 	suite.True(tailer != newTailer)
 
 	msg = <-suite.outputChan
-	suite.Equal("third", string(msg.GetContent()))
+	suite.Equal("third", string(msg.Inner.GetContent()))
 }
 
 func (suite *LauncherTestSuite) TestLauncherScanWithFileRemovedAndCreated() {
@@ -223,7 +223,7 @@ func TestLauncherTestSuiteWithConfigID(t *testing.T) {
 
 func TestLauncherScanStartNewTailer(t *testing.T) {
 	var path string
-	var msg *message.Message
+	var msg message.TimedMessage[*message.Message]
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
 	defer fakeTagger.ResetTagger()
 
@@ -262,9 +262,9 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 		launcher.scan()
 		assert.Equal(t, 1, launcher.tailers.Count())
 		msg = <-outputChan
-		assert.Equal(t, "hello", string(msg.GetContent()))
+		assert.Equal(t, "hello", string(msg.Inner.GetContent()))
 		msg = <-outputChan
-		assert.Equal(t, "world", string(msg.GetContent()))
+		assert.Equal(t, "world", string(msg.Inner.GetContent()))
 	}
 }
 
@@ -306,13 +306,13 @@ func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 	assert.Nil(t, err)
 
 	msg := <-outputChan
-	assert.Equal(t, "Once", string(msg.GetContent()))
+	assert.Equal(t, "Once", string(msg.Inner.GetContent()))
 	msg = <-outputChan
-	assert.Equal(t, "Upon", string(msg.GetContent()))
+	assert.Equal(t, "Upon", string(msg.Inner.GetContent()))
 	msg = <-outputChan
-	assert.Equal(t, "A", string(msg.GetContent()))
+	assert.Equal(t, "A", string(msg.Inner.GetContent()))
 	msg = <-outputChan
-	assert.Equal(t, "Time", string(msg.GetContent()))
+	assert.Equal(t, "Time", string(msg.Inner.GetContent()))
 
 	// Add a second source, same file, different container ID, tailing twice the same file is supported in that case
 	launcher.addSource(secondSource)
@@ -361,13 +361,13 @@ func TestLauncherTailFromTheBeginning(t *testing.T) {
 		assert.Nil(t, err)
 
 		msg := <-outputChan
-		assert.Equal(t, "Once", string(msg.GetContent()))
+		assert.Equal(t, "Once", string(msg.Inner.GetContent()))
 		msg = <-outputChan
-		assert.Equal(t, "Upon", string(msg.GetContent()))
+		assert.Equal(t, "Upon", string(msg.Inner.GetContent()))
 		msg = <-outputChan
-		assert.Equal(t, "A", string(msg.GetContent()))
+		assert.Equal(t, "A", string(msg.Inner.GetContent()))
 		msg = <-outputChan
-		assert.Equal(t, "Time", string(msg.GetContent()))
+		assert.Equal(t, "Time", string(msg.Inner.GetContent()))
 	}
 }
 

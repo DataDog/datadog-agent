@@ -86,7 +86,8 @@ func NewDirectMsgSender(stopper startstop.Stopper) (*DirectMsgSender, error) {
 
 	// we set the hostname to the empty string to take advantage of the out of the box message hostname
 	// resolution
-	reporter, err := reporter.NewCWSReporter("", stopper, endpoints, destinationsCtx)
+	// TODO That nil is exceptionally bad!!!
+	reporter, err := reporter.NewCWSReporter("", stopper, endpoints, destinationsCtx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reporter: %w", err)
 	}

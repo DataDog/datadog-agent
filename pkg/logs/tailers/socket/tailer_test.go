@@ -19,30 +19,30 @@ import (
 )
 
 func TestReadAndForwardShouldSucceedWithSuccessfulRead(t *testing.T) {
-	msgChan := make(chan *message.Message)
+	msgChan := make(chan message.TimedMessage[*message.Message])
 	r, w := net.Pipe()
 	tailer := NewTailer(sources.NewLogSource("", &config.LogsConfig{}), r, msgChan, read)
 	tailer.Start()
 
-	var msg *message.Message
+	var msg message.TimedMessage[*message.Message]
 
 	// should receive and decode one message
 	w.Write([]byte("foo\n"))
 	msg = <-msgChan
-	assert.Equal(t, "foo", string(msg.GetContent()))
+	assert.Equal(t, "foo", string(msg.Inner.GetContent()))
 
 	// should receive and decode two messages
 	w.Write([]byte("bar\nboo\n"))
 	msg = <-msgChan
-	assert.Equal(t, "bar", string(msg.GetContent()))
+	assert.Equal(t, "bar", string(msg.Inner.GetContent()))
 	msg = <-msgChan
-	assert.Equal(t, "boo", string(msg.GetContent()))
+	assert.Equal(t, "boo", string(msg.Inner.GetContent()))
 
 	tailer.Stop()
 }
 
 func TestReadShouldFailWithError(t *testing.T) {
-	msgChan := make(chan *message.Message)
+	msgChan := make(chan message.TimedMessage[*message.Message])
 	r, w := net.Pipe()
 	read := func(*Tailer) ([]byte, string, error) { return nil, "", errors.New("") }
 	tailer := NewTailer(sources.NewLogSource("", &config.LogsConfig{}), r, msgChan, read)
@@ -60,7 +60,7 @@ func TestReadShouldFailWithError(t *testing.T) {
 }
 
 func TestSourceHostTag(t *testing.T) {
-	msgChan := make(chan *message.Message)
+	msgChan := make(chan message.TimedMessage[*message.Message])
 	r, w := net.Pipe()
 	logsConfig := &config.LogsConfig{
 		Tags: []string{"test:tag"},
@@ -70,10 +70,11 @@ func TestSourceHostTag(t *testing.T) {
 	tailer := NewTailer(logSource, r, msgChan, readWithIP)
 	tailer.Start()
 
-	var msg *message.Message
+	var msg message.TimedMessage[*message.Message]
+
 	w.Write([]byte("foo\n"))
 	msg = <-msgChan
-	assert.Equal(t, []string{"source_host:192.168.1.100", "test:tag"}, msg.Tags())
+	assert.Equal(t, []string{"source_host:192.168.1.100", "test:tag"}, msg.Inner.Tags())
 	tailer.Stop()
 }
 
@@ -82,7 +83,7 @@ func TestSourceHostTagFlagDisabled(t *testing.T) {
 	pkgconfigsetup.Datadog().BindEnvAndSetDefault("logs_config.use_sourcehost_tag", false)
 
 	// Set up test components
-	msgChan := make(chan *message.Message)
+	msgChan := make(chan message.TimedMessage[*message.Message])
 	r, w := net.Pipe()
 	logsConfig := &config.LogsConfig{
 		Tags: []string{"test:tag"},
@@ -92,12 +93,12 @@ func TestSourceHostTagFlagDisabled(t *testing.T) {
 	tailer := NewTailer(logSource, r, msgChan, readWithIP)
 	tailer.Start()
 
-	var msg *message.Message
+	var msg message.TimedMessage[*message.Message]
 	w.Write([]byte("foo\n"))
 	msg = <-msgChan
 
 	// Assert that only the original tag is present (source_host tag should not be added)
-	assert.Equal(t, []string{"test:tag"}, msg.Tags(), "source_host tag should not be added when flag is disabled")
+	assert.Equal(t, []string{"test:tag"}, msg.Inner.Tags(), "source_host tag should not be added when flag is disabled")
 
 	tailer.Stop()
 }

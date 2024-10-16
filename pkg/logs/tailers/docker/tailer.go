@@ -49,7 +49,7 @@ type Tailer struct {
 	// ContainerID is the ID of the container this tailer is tailing.
 	ContainerID string
 
-	outputChan  chan *message.Message
+	outputChan  chan message.TimedMessage[*message.Message]
 	decoder     *decoder.Decoder
 	dockerutil  dockerContainerLogInterface
 	Source      *sources.LogSource
@@ -80,7 +80,7 @@ type Tailer struct {
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(cli *dockerutil.DockerUtil, containerID string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
+func NewTailer(cli *dockerutil.DockerUtil, containerID string, source *sources.LogSource, outputChan chan message.TimedMessage[*message.Message], erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
 	return &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
@@ -322,7 +322,7 @@ func (t *Tailer) forwardMessages() {
 			tags = append(tags, t.tagProvider.GetTags()...)
 			origin.SetTags(tags)
 			// XXX(remy): is it OK recreating a message here?
-			t.outputChan <- message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
+			t.outputChan <- message.NewTimedMessage(message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp))
 		}
 	}
 }
