@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
@@ -60,8 +59,7 @@ type Requires struct {
 	// and shutdown hooks.
 	Lc compdef.Lifecycle
 
-	CollectorContrib collectorcontrib.Component
-	URIs             []string
+	URIs []string
 
 	// Below are dependencies required by Datadog exporter and other Agent functionalities
 	Log                 corelog.Component
@@ -81,9 +79,8 @@ type RequiresNoAgent struct {
 	// and shutdown hooks.
 	Lc compdef.Lifecycle
 
-	CollectorContrib collectorcontrib.Component
-	URIs             []string
-	Converter        confmap.Converter
+	URIs      []string
+	Converter confmap.Converter
 }
 
 // Provides declares the output types from the constructor
@@ -148,10 +145,7 @@ var buildInfo = component.BuildInfo{
 
 // NewComponent returns a new instance of the collector component with full Agent functionalities.
 func NewComponent(reqs Requires) (Provides, error) {
-	factories, err := reqs.CollectorContrib.OTelComponentFactories()
-	if err != nil {
-		return Provides{}, err
-	}
+	factories := otelcol.Factories{}
 	addFactories(reqs, factories)
 
 	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
@@ -191,10 +185,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 // NewComponentNoAgent returns a new instance of the collector component with no Agent functionalities.
 // It is used when there is no Datadog exporter in the OTel Agent config.
 func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
-	factories, err := reqs.CollectorContrib.OTelComponentFactories()
-	if err != nil {
-		return Provides{}, err
-	}
+	factories := otelcol.Factories{}
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
 	factories.Extensions[ddextension.Type] = ddextension.NewFactory(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
 

@@ -3417,11 +3417,6 @@
 			<property name="go.version" value="go1.21.9 linux/amd64" />
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx" timestamp="2024-05-10T17:03:43Z">
-		<properties>
-			<property name="go.version" value="go1.21.9 linux/amd64" />
-		</properties>
-	</testsuite>
 	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/comp/otelcol/collector/def" timestamp="2024-05-10T17:03:43Z">
 		<properties>
 			<property name="go.version" value="go1.21.9 linux/amd64" />
