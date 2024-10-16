@@ -153,18 +153,12 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 	}
 
 	p := &Probe{
-<<<<<<< HEAD
-		mgr:      mgr,
-		cfg:      cfg,
-		attacher: attacher,
-		deps:     deps,
-=======
 		mgr:         mgr,
 		cfg:         cfg,
 		attacher:    attacher,
 		lastGetCall: time.Now(),
 		deps:        deps,
->>>>>>> 4d8e7061c6 (Add aggregator to system-probe)
+		aggregators: make(map[uint32]*aggregator),
 	}
 
 	p.sysCtx, err = getSystemContext(deps.NvmlLib)
@@ -252,6 +246,8 @@ func (p *Probe) getOrCreateAggregator(streamKey model.StreamKey) *aggregator {
 		p.aggregators[aggKey] = newAggregator(p.sysCtx)
 	}
 
+	p.aggregators[aggKey].lastCheck = p.lastGetCall
+	p.aggregators[aggKey].measuredInterval = p.currentGetCall.Sub(p.lastGetCall)
 	return p.aggregators[aggKey]
 }
 
