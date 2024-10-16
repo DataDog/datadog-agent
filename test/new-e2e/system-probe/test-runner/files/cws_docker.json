@@ -1,10 +1,8 @@
 {
     "filters": {
-        "pkg/network/usm": {
-            "exclude": true
-        },
         "*": {
             "exclude": false
         }
-    }
+    },
+    "testcontainer": "ghcr.io/datadog/apps-cws-centos7:main"
 }
