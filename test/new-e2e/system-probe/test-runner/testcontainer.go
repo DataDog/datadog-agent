@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 )
 
 const containerName = "kmt-test-container"
@@ -21,17 +20,15 @@ type testContainer struct {
 	bpfDir string
 }
 
-func newTestContainer(image, testsuite, bpfDir string) *testContainer {
+func newTestContainer(image, bpfDir string) *testContainer {
 	return &testContainer{
 		image:  image,
-		pwd:    filepath.Dir(testsuite),
 		bpfDir: bpfDir,
 	}
 }
 
 func (ctc *testContainer) runDockerCmd(args []string) error {
 	cmd := exec.Command("docker", args...)
-	cmd.Dir = ctc.pwd
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -86,20 +83,6 @@ func (ctc *testContainer) start() error {
 
 	// mount debugfs
 	args = []string{"exec", containerName, "mount", "-t", "debugfs", "none", "/sys/kernel/debug"}
-	if err := ctc.runDockerCmd(args); err != nil {
-		return fmt.Errorf("run docker: %w", err)
-	}
-
-	return nil
-}
-
-func (ctc *testContainer) stopAndRemove() error {
-	args := []string{"stop", containerName}
-	if err := ctc.runDockerCmd(args); err != nil {
-		return fmt.Errorf("run docker: %w", err)
-	}
-
-	args = []string{"rm", containerName}
 	if err := ctc.runDockerCmd(args); err != nil {
 		return fmt.Errorf("run docker: %w", err)
 	}

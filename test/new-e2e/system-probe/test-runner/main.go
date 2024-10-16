@@ -226,21 +226,21 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		}
 	}
 
+	buildDir, err := getEBPFBuildDir()
+	if err != nil {
+		return fmt.Errorf("getEBPFBuildDir: %w", err)
+	}
+	bpfDir := filepath.Join(testConfig.testDirRoot, buildDir)
+
+	var testContainer *testContainer
+	if testConfig.inContainerImage != "" {
+		testContainer = newTestContainer(testConfig.inContainerImage, bpfDir)
+		if err := testContainer.start(); err != nil {
+			return fmt.Errorf("error creating test container: %w", err)
+		}
+	}
+
 	for _, testsuite := range testsuites {
-		buildDir, err := getEBPFBuildDir()
-		if err != nil {
-			return fmt.Errorf("getEBPFBuildDir: %w", err)
-		}
-		bpfDir := filepath.Join(testConfig.testDirRoot, buildDir)
-
-		var testContainer *testContainer
-		if testConfig.inContainerImage != "" {
-			testContainer = newTestContainer(testConfig.inContainerImage, testsuite, bpfDir)
-			if err := testContainer.start(); err != nil {
-				return fmt.Errorf("error creating test container: %w", err)
-			}
-		}
-
 		pkg, err := filepath.Rel(testConfig.testDirRoot, filepath.Dir(testsuite))
 		if err != nil {
 			return fmt.Errorf("could not get relative path for %s: %w", testsuite, err)
@@ -279,13 +279,6 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 
 		if err := addProperties(xmlpath, props); err != nil {
 			return fmt.Errorf("xml add props: %s", err)
-		}
-
-		if testContainer != nil {
-			if err := testContainer.stopAndRemove(); err != nil {
-				// log but do not return error
-				fmt.Fprintf(os.Stderr, "error stopping and removing test container: %s\n", err)
-			}
 		}
 	}
 
