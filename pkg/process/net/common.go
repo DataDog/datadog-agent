@@ -425,31 +425,6 @@ func (r *RemoteSysProbeUtil) GetTelemetry() ([]byte, error) {
 	return data, nil
 }
 
-// GetConnTrackHostJSON queries contrack/host, which uses netlink to return the list of NAT'd connections
-func (r *RemoteSysProbeUtil) GetConnTrackHostJSON() ([]byte, error) {
-	req, err := http.NewRequest(http.MethodGet, conntrackHostURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(`GetConnTrackHostJSON got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
-	}
-
-	return data, nil
-}
-
 // GetConnTrackCachedJSON queries contrack/cached, which uses our conntracker implementation (typically ebpf)
 // to return the list of NAT'd connections
 func (r *RemoteSysProbeUtil) GetConnTrackCachedJSON() ([]byte, error) {
@@ -471,6 +446,56 @@ func (r *RemoteSysProbeUtil) GetConnTrackCachedJSON() ([]byte, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf(`GetConnTrackCachedJSON got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
+	}
+
+	return data, nil
+}
+
+// GetConnTrackHost queries contrack/host, which uses netlink to return the list of NAT'd connections
+func (r *RemoteSysProbeUtil) GetConnTrackHost() ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, conntrackHostURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(`GetConnTrackHost got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
+	}
+
+	return data, nil
+}
+
+// GetConnTrackHostFull queries contrack/host_full, which uses netlink to return the list of NAT'd connections
+func (r *RemoteSysProbeUtil) GetConnTrackHostFull() ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, conntrackHostURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(`GetConnTrackHost got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
 	}
 
 	return data, nil

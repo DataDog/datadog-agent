@@ -7,12 +7,12 @@
 
 package sysprobe
 
-// GetSystemProbeConntrackHostJSON is not supported without the process agent on linux
-func GetSystemProbeConntrackHostJSON(socketPath string) ([]byte, error) {
-	return nil, errors.New("GetSystemProbeConntrackHostJSON is not supported without the process agent on linux")
+// GetSystemProbeConntrackCached is not supported without the process agent on linux
+func GetSystemProbeConntrackCached(socketPath string) ([]byte, error) {
+	return nil, errors.New("GetSystemProbeConntrackCached is not supported without the process agent on linux")
 }
 
-// GetSystemProbeConntrackCachedJSON is not supported without the process agent on linux
-func GetSystemProbeConntrackCachedJSON(socketPath string) ([]byte, error) {
-	return nil, errors.New("GetSystemProbeConntrackCachedJSON is not supported without the process agent on linux")
+// GetSystemProbeConntrackHost is not supported without the process agent on linux
+func GetSystemProbeConntrackHost(socketPath string) ([]byte, error) {
+	return nil, errors.New("GetSystemProbeConntrackHost is not supported without the process agent on linux")
 }

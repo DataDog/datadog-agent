@@ -766,14 +766,8 @@ func (t *Tracer) connVia(cs *network.ConnectionStats) {
 	cs.Via = t.gwLookup.Lookup(cs)
 }
 
-type debugConntrackResponse struct {
-	Kind    string
-	RootNS  uint32
-	Entries map[uint32][]netlink.DebugConntrackEntry
-}
-
 // DebugCachedConntrack dumps the cached NAT conntrack data
-func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) {
+func (t *Tracer) DebugCachedConntrack(ctx context.Context) (*DebugConntrackTable, error) {
 	ns, err := t.config.GetRootNetNs()
 	if err != nil {
 		return nil, err
@@ -789,7 +783,7 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) 
 		return nil, err
 	}
 
-	return debugConntrackResponse{
+	return &DebugConntrackTable{
 		Kind:    "cached-" + t.conntracker.GetType(),
 		RootNS:  rootNS,
 		Entries: table,
@@ -797,7 +791,7 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) 
 }
 
 // DebugHostConntrack dumps the NAT conntrack data obtained from the host via netlink.
-func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
+func (t *Tracer) DebugHostConntrack(ctx context.Context) (*DebugConntrackTable, error) {
 	ns, err := t.config.GetRootNetNs()
 	if err != nil {
 		return nil, err
@@ -808,13 +802,37 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	table, err := netlink.DumpHostTable(ctx, t.config, t.telemetryComp)
+	table, err := netlink.DumpHostTable(ctx, t.config, t.telemetryComp, netlink.HostTableDumpNatOnly)
 	if err != nil {
 		return nil, err
 	}
 
-	return debugConntrackResponse{
-		Kind:    "host",
+	return &DebugConntrackTable{
+		Kind:    "host-nat",
+		RootNS:  rootNS,
+		Entries: table,
+	}, nil
+}
+
+// DebugHostConntrackFull dumps the conntrack data obtained from the host via netlink (including non-NAT entries).
+func (t *Tracer) DebugHostConntrackFull(ctx context.Context) (*DebugConntrackTable, error) {
+	ns, err := t.config.GetRootNetNs()
+	if err != nil {
+		return nil, err
+	}
+	defer ns.Close()
+
+	rootNS, err := kernel.GetInoForNs(ns)
+	if err != nil {
+		return nil, err
+	}
+	table, err := netlink.DumpHostTable(ctx, t.config, t.telemetryComp, netlink.HostTableDumpFull)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DebugConntrackTable{
+		Kind:    "host-full",
 		RootNS:  rootNS,
 		Entries: table,
 	}, nil
