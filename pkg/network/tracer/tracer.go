@@ -828,13 +828,15 @@ func (t *Tracer) DebugDumpProcessCache(_ context.Context) (interface{}, error) {
 }
 
 func newUSMMonitor(c *config.Config, tracer connection.Tracer) *usm.Monitor {
+	// Shared map between NPM and USM
+	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)
+
 	if !usmconfig.IsUSMSupportedAndEnabled(c) {
 		// If USM is not supported, or if USM is not enabled, we should not start the USM monitor.
+		// We should still clean the connection protocol map as it is used by NPM.
+		usm.SetupConnectionProtocolMapCleaner(connectionProtocolMap)
 		return nil
 	}
-
-	// Shared with the USM program
-	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)
 
 	monitor, err := usm.NewMonitor(c, connectionProtocolMap)
 	if err != nil {

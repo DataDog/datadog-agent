@@ -226,7 +226,7 @@ func (e *ebpfProgram) Start() error {
 		}
 		e.connectionProtocolMap = m
 	}
-	mapCleaner, err := e.setupMapCleaner()
+	mapCleaner, err := SetupConnectionProtocolMapCleaner(e.connectionProtocolMap)
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 	} else {
@@ -488,8 +488,8 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 const connProtoTTL = 3 * time.Minute
 const connProtoCleaningInterval = 5 * time.Minute
 
-func (e *ebpfProgram) setupMapCleaner() (*ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper], error) {
-	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper](e.connectionProtocolMap, 1024)
+func SetupConnectionProtocolMapCleaner(connectionProtocolMap *ebpf.Map) (*ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper], error) {
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper](connectionProtocolMap, 1024)
 	if err != nil {
 		return nil, err
 	}
