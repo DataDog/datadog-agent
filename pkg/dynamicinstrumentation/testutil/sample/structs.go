@@ -5,7 +5,9 @@
 
 package sample
 
-type receiver struct{}
+type receiver struct {
+	u uint
+}
 
 //nolint:all
 //go:noinline
@@ -128,7 +130,7 @@ func ExecuteStructFuncs() {
 	ptrReceiver := &receiver{}
 	ptrReceiver.test_pointer_method_receiver(1)
 
-	receiver := receiver{}
+	receiver := receiver{1}
 	receiver.test_method_receiver(2)
 }
 
