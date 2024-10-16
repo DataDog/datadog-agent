@@ -201,6 +201,7 @@ func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time
 // timeout or if the listener is canceled, it should return a canceledError
 func handlePackets(ctx context.Context, conn rawConnWrapper, listener string, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
 	buf := make([]byte, 1024)
+	tp := newTCPParser()
 	for {
 		select {
 		case <-ctx.Done():
@@ -237,7 +238,7 @@ func handlePackets(ctx context.Context, conn rawConnWrapper, listener string, lo
 				return icmpResponse.SrcIP, 0, icmpResponse.TypeCode, received, nil
 			}
 		} else if listener == "tcp" {
-			tcpResp, err := parseTCP(header, packet)
+			tcpResp, err := tp.parseTCP(header, packet)
 			if err != nil {
 				log.Tracef("failed to parse TCP packet: %s", err.Error())
 				continue
@@ -309,7 +310,18 @@ func parseICMP(header *ipv4.Header, payload []byte) (*icmpResponse, error) {
 	return &icmpResponse, nil
 }
 
-func parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, error) {
+type tcpParser struct {
+	layer               layers.TCP
+	decodingLayerParser *gopacket.DecodingLayerParser
+}
+
+func newTCPParser() *tcpParser {
+	tcpParser := &tcpParser{}
+	tcpParser.decodingLayerParser = gopacket.NewDecodingLayerParser(layers.LayerTypeTCP, &tcpParser.layer)
+	return tcpParser
+}
+
+func (tp *tcpParser) parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, error) {
 	tcpResponse := tcpResponse{}
 
 	if header.Protocol != IPProtoTCP || header.Version != 4 ||
@@ -319,13 +331,14 @@ func parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, error) {
 	tcpResponse.SrcIP = header.Src
 	tcpResponse.DstIP = header.Dst
 
-	var tcpLayer layers.TCP
 	decoded := []gopacket.LayerType{}
-	tcpParser := gopacket.NewDecodingLayerParser(layers.LayerTypeTCP, &tcpLayer)
-	if err := tcpParser.DecodeLayers(payload, &decoded); err != nil {
+
+	if err := tp.decodingLayerParser.DecodeLayers(payload, &decoded); err != nil {
 		return nil, fmt.Errorf("failed to decode TCP packet: %w", err)
 	}
-	tcpResponse.TCPResponse = &tcpLayer
+	copiedLayer := tp.layer
+	tcpResponse.TCPResponse = &copiedLayer
+	tp.layer = layers.TCP{}
 
 	return &tcpResponse, nil
 }

@@ -311,9 +311,10 @@ func Test_parseTCP(t *testing.T) {
 		},
 	}
 
+	tp := newTCPParser()
 	for _, test := range tt {
 		t.Run(test.description, func(t *testing.T) {
-			actual, err := parseTCP(test.inHeader, test.inPayload)
+			actual, err := tp.parseTCP(test.inHeader, test.inPayload)
 			if test.errMsg != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.errMsg)
@@ -338,9 +339,11 @@ func BenchmarkParseTCP(b *testing.B) {
 	// full packet
 	_, fullTCPPacket := createMockTCPPacket(ipv4Header, tcpLayer)
 
+	tp := newTCPParser()
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := parseTCP(ipv4Header, fullTCPPacket)
+		_, err := tp.parseTCP(ipv4Header, fullTCPPacket)
 		if err != nil {
 			b.Fatal(err)
 		}
