@@ -75,7 +75,7 @@ func (p *processor) processRefresh(allImages []*workloadmeta.ContainerImageMetad
 
 func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 	entityID := types.NewEntityID(types.ContainerImageMetadata, img.ID)
-	ddTags, err := tagger.Tag(entityID.String(), types.HighCardinality)
+	ddTags, err := tagger.Tag(entityID, types.HighCardinality)
 	if err != nil {
 		log.Errorf("Could not retrieve tags for container image %s: %v", img.ID, err)
 	}

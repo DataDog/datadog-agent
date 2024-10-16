@@ -54,7 +54,7 @@ func (n *noopTagger) GetTaggerTelemetryStore() *telemetry.Store {
 	return nil
 }
 
-func (n *noopTagger) Tag(string, types.TagCardinality) ([]string, error) {
+func (n *noopTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 

@@ -200,9 +200,8 @@ func (t *Tagger) GetTaggerTelemetryStore() *telemetry.Store {
 }
 
 // Tag returns tags for a given entity at the desired cardinality.
-func (t *Tagger) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
-	id, _ := types.NewEntityIDFromString(entityID)
-	entity := t.store.getEntity(id)
+func (t *Tagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
+	entity := t.store.getEntity(entityID)
 	if entity != nil {
 		t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
 		return entity.GetTags(cardinality), nil
@@ -215,7 +214,7 @@ func (t *Tagger) Tag(entityID string, cardinality types.TagCardinality) ([]strin
 
 // AccumulateTagsFor returns tags for a given entity at the desired cardinality.
 func (t *Tagger) AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
-	tags, err := t.Tag(entityID.String(), cardinality)
+	tags, err := t.Tag(entityID, cardinality)
 	if err != nil {
 		return err
 	}

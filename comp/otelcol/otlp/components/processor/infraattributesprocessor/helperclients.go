@@ -11,7 +11,7 @@ import "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 // see comp/core/tagger for tagger functions; client for tagger interface
 type taggerClient interface {
 	// Tag is an interface function that queries taggerclient singleton
-	Tag(entity string, cardinality types.TagCardinality) ([]string, error)
+	Tag(entity types.EntityID, cardinality types.TagCardinality) ([]string, error)
 	// GlobalTags is an interface function that queries taggerclient singleton
 	GlobalTags(cardinality types.TagCardinality) ([]string, error)
 }

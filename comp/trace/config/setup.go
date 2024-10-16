@@ -123,7 +123,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 }
 
 func containerTagsFunc(cid string) ([]string, error) {
-	return tagger.Tag(types.NewEntityID(types.ContainerID, cid).String(), types.HighCardinality)
+	return tagger.Tag(types.NewEntityID(types.ContainerID, cid), types.HighCardinality)
 }
 
 // appendEndpoints appends any endpoint configuration found at the given cfgKey.

@@ -70,7 +70,7 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 	enrichedTags = append(enrichedTags, extraTags...)
 	enrichedTags = append(enrichedTags, dimensions.Tags()...)
 
-	entityTags, err := tagger.Tag(dimensions.OriginID(), t.cardinality)
+	entityTags, err := tagger.LegacyTag(dimensions.OriginID(), t.cardinality)
 	if err != nil {
 		log.Tracef("Cannot get tags for entity %s: %s", dimensions.OriginID(), err)
 	} else {
