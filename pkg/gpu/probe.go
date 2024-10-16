@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -52,15 +51,13 @@ type ProbeDependencies struct {
 
 // Probe represents the GPU monitoring probe
 type Probe struct {
-	mgr            *ddebpf.Manager
-	cfg            *Config
-	consumer       *cudaEventConsumer
-	attacher       *uprobes.UprobeAttacher
-	aggregators    map[uint32]*aggregator
-	lastGetCall    time.Time
-	currentGetCall time.Time
-	deps           ProbeDependencies
-	sysCtx         *systemContext
+	mgr       *ddebpf.Manager
+	cfg       *Config
+	consumer  *cudaEventConsumer
+	attacher  *uprobes.UprobeAttacher
+	generator *statsGenerator
+	deps      ProbeDependencies
+	sysCtx    *systemContext
 }
 
 // NewProbe starts the GPU monitoring probe
@@ -160,12 +157,10 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 	}
 
 	p := &Probe{
-		mgr:         mgr,
-		cfg:         cfg,
-		attacher:    attacher,
-		lastGetCall: time.Now(),
-		deps:        deps,
-		aggregators: make(map[uint32]*aggregator),
+		mgr:      mgr,
+		cfg:      cfg,
+		attacher: attacher,
+		deps:     deps,
 	}
 
 	p.sysCtx, err = getSystemContext(deps.NvmlLib)
@@ -174,6 +169,8 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 	}
 
 	p.startEventConsumer()
+
+	p.generator = newStatsGenerator(p.sysCtx, p.consumer.streamHandlers)
 
 	if err := mgr.InitWithOptions(buf, &opts); err != nil {
 		return nil, fmt.Errorf("failed to init manager: %w", err)
@@ -205,76 +202,15 @@ func (p *Probe) Close() {
 
 // GetAndFlush returns the GPU stats
 func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
-	now, err := ddebpf.NowNanoseconds()
+	stats, err := p.generator.getStats()
 	if err != nil {
-		return nil, fmt.Errorf("getting current time: %w", err)
-	}
-	p.lastGetCall = p.currentGetCall
-	p.currentGetCall = time.Now()
-
-	for key, handler := range p.consumer.streamHandlers {
-		aggr := p.getOrCreateAggregator(key)
-		currData := handler.getCurrentData(uint64(now))
-		pastData := handler.getPastData(true)
-
-		if currData != nil {
-			aggr.processCurrentData(currData)
-		}
-
-		if pastData != nil {
-			aggr.processPastData(pastData)
-		}
-
-		if handler.processEnded {
-			aggr.processEnded = true
-			delete(p.consumer.streamHandlers, key)
-		}
+		return nil, fmt.Errorf("error getting GPU stats: %w", err)
 	}
 
-	p.configureNormalizationFactor()
+	p.generator.cleanupFinishedAggregators()
+	p.consumer.cleanupHandlersMarkedFinished()
 
-	stats := model.GPUStats{
-		PIDStats: make(map[uint32]model.PIDStats),
-	}
-
-	for pid, aggregator := range p.aggregators {
-		stats.PIDStats[pid] = aggregator.getStats()
-
-		if aggregator.processEnded {
-			delete(p.aggregators, pid)
-		}
-	}
-
-	return &stats, nil
-}
-
-func (p *Probe) getOrCreateAggregator(streamKey model.StreamKey) *aggregator {
-	aggKey := streamKey.Pid
-	if _, ok := p.aggregators[aggKey]; !ok {
-		p.aggregators[aggKey] = newAggregator(p.sysCtx)
-	}
-
-	p.aggregators[aggKey].lastCheck = p.lastGetCall
-	p.aggregators[aggKey].measuredInterval = p.currentGetCall.Sub(p.lastGetCall)
-	return p.aggregators[aggKey]
-}
-
-func (p *Probe) configureNormalizationFactor() {
-	// As we compute the utilization based on the number of threads launched by the kernel, we need to
-	// normalize the utilization if we get above 100%, as the GPU can enqueue threads.
-	totalGPUUtilization := 0.0
-	for _, aggregator := range p.aggregators {
-		// Only consider aggregators that received data this interval
-		if aggregator.hasPendingData {
-			totalGPUUtilization += aggregator.getGPUUtilization()
-		}
-	}
-
-	normFactor := max(1.0, totalGPUUtilization)
-
-	for _, aggregator := range p.aggregators {
-		aggregator.setGPUUtilizationNormalizationFactor(normFactor)
-	}
+	return stats, nil
 }
 
 func (p *Probe) startEventConsumer() {

@@ -145,4 +145,5 @@ func (agg *aggregator) flushProcessedStats() {
 	agg.currentAllocs = agg.currentAllocs[:0]
 	agg.pastAllocs = agg.pastAllocs[:0]
 	agg.totalThreadSecondsUsed = 0
+	agg.hasPendingData = false
 }
