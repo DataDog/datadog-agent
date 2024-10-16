@@ -30,12 +30,12 @@ var targets = map[string]struct{}{
 
 // Variables - collected of targeted environment variables.
 type Variables struct {
-	Vars map[string]string
+	vars map[string]string
 }
 
 // Get returns an environment variable if it is present in the collection
 func (ev *Variables) Get(name string) (string, bool) {
-	val, ok := ev.Vars[name]
+	val, ok := ev.vars[name]
 	return val, ok
 }
 
@@ -55,10 +55,10 @@ func (ev *Variables) Set(name, val string) bool {
 	if _, ok := targets[name]; !ok {
 		return false
 	}
-	if ev.Vars == nil {
-		ev.Vars = make(map[string]string)
+	if ev.vars == nil {
+		ev.vars = make(map[string]string)
 	}
-	ev.Vars[name] = val
+	ev.vars[name] = val
 
 	return true
 }

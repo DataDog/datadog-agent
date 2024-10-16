@@ -18,7 +18,7 @@ func NewVariables(vars map[string]string) Variables {
 		}
 	}
 	return Variables{
-		Vars: vars,
+		vars: vars,
 	}
 }
 
