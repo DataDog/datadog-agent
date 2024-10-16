@@ -7,7 +7,7 @@ blackhole:
       binding_addr: "127.0.0.1:9092"
 
 target_metrics:
-  - prometheus: #core agent telemetry
+  - prometheus: 
       uri: "http://127.0.0.1:5000/telemetry"
       tags:
         sub_agent: "core"
