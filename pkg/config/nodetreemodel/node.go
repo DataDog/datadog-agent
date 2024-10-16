@@ -269,6 +269,8 @@ func (n *leafNodeImpl) GetInt() (int, error) {
 		return int(it), nil
 	case float64:
 		return int(it), nil
+	case time.Duration:
+		return int(it), nil
 	}
 	return 0, newConversionError(n.val, "int")
 }
