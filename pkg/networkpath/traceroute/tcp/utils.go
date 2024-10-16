@@ -331,8 +331,7 @@ func (tp *tcpParser) parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse
 	tcpResponse.SrcIP = header.Src
 	tcpResponse.DstIP = header.Dst
 
-	decoded := []gopacket.LayerType{}
-
+	var decoded []gopacket.LayerType
 	if err := tp.decodingLayerParser.DecodeLayers(payload, &decoded); err != nil {
 		return nil, fmt.Errorf("failed to decode TCP packet: %w", err)
 	}
