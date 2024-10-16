@@ -15,7 +15,15 @@ xcopy /e/s/h/q c:\mnt\*.*
 call %TEST_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %TEST_ROOT%\datadog-agent modcache
 call %TEST_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %TEST_ROOT%\datadog-agent modcache_tools
 
-Powershell -C "%TEST_ROOT%\datadog-agent\tasks\winbuildscripts\unittests.ps1" || exit /b 2
+Powershell -File "%TEST_ROOT%\datadog-agent\tasks\winbuildscripts\unittests.ps1"
+if %ERRORLEVEL% neq 0 (
+    if %ERRORLEVEL% == 42 (
+        echo "Issue with aws, need job restart"
+        exit /b 42
+    ) else (
+        exit /b 2
+    )
+)
 
 goto :EOF
 
