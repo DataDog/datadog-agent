@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -378,24 +379,29 @@ func (suite *LauncherTestSuite) TestCreateFileAfterScanInitialFile() {
 func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 	suite.s.combinedUsageMax = 3 * 1024 * 1024
 
-	filename1 := "sample_integration1_123.log"
-	filename2 := "sample_integration2_123.log"
-	filename3 := "sample_integration3_123.log"
+	// Given 3 files exist
+	fileWithPath1 := filepath.Join(suite.s.runPath, "sample_integration1_123.log")
+	fileWithPath2 := filepath.Join(suite.s.runPath, "sample_integration2_123.log")
+	fileWithPath3 := filepath.Join(suite.s.runPath, "sample_integration3_123.log")
+	fileNames := [3]string{fileWithPath1, fileWithPath2, fileWithPath3}
 
-	file1, err := os.Create(filepath.Join(suite.s.runPath, filename1))
-	assert.Nil(suite.T(), err)
-	file2, err := os.Create(filepath.Join(suite.s.runPath, filename2))
-	assert.Nil(suite.T(), err)
-	file3, err := os.Create(filepath.Join(suite.s.runPath, filename3))
-	assert.Nil(suite.T(), err)
-
+	//  And I write 1Mb to each file in seq order
 	dataOneMB := make([]byte, 1*1024*1024)
-	file1.Write(dataOneMB)
-	file2.Write(dataOneMB)
-	file3.Write(dataOneMB)
-	file1.Close()
-	file2.Close()
-	file3.Close()
+	for _, fileWithPath := range fileNames {
+		file, err := os.Create(fileWithPath)
+		require.NoError(suite.T(), err)
+		_, _ = file.Write(dataOneMB)
+		_ = file.Close()
+	}
+
+	// If the files have the same timestamp, scanInitialFiles will detect them in
+	// random order. Setting their modified time manually allows the
+	// scanInitialFiles function to detect them in a deterministic manner
+	modTime := time.Now()
+	accessTime := time.Now()
+	os.Chtimes(fileWithPath1, accessTime, modTime.Add(-2*time.Minute))
+	os.Chtimes(fileWithPath2, accessTime, modTime.Add(-1*time.Minute))
+	os.Chtimes(fileWithPath3, accessTime, modTime)
 
 	suite.s.Start(nil, nil, nil, nil)
 
@@ -404,18 +410,21 @@ func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 		IntegrationID: "sample_integration1:123",
 	}
 
+	// When a log line is written to sample_integration1_123
 	suite.s.receiveLogs(integrationLog)
 
-	file1Stat, err := os.Stat(filepath.Join(suite.s.runPath, filename1))
-	assert.Nil(suite.T(), err)
-	file2Stat, err := os.Stat(filepath.Join(suite.s.runPath, filename2))
-	assert.Nil(suite.T(), err)
-	file3Stat, err := os.Stat(filepath.Join(suite.s.runPath, filename3))
-	assert.Nil(suite.T(), err)
+	var actualSize int64
+	for _, fileWithPath := range fileNames {
+		file, err := os.Stat(fileWithPath)
+		require.Nil(suite.T(), err)
+		actualSize += file.Size()
+	}
 
-	actualSize := file1Stat.Size() + file2Stat.Size() + file3Stat.Size()
-
+	// Then combined file size is greater than 0
+	assert.Greater(suite.T(), actualSize, int64(0), "Actual combined file size should be greater than zero")
 	assert.Equal(suite.T(), suite.s.combinedUsageSize, actualSize)
+	// And sample_integration2 should be the least recently modified file
+	// as sample_integration1_123 & sample_integration3_123 are most recently written files
 	assert.Equal(suite.T(), suite.s.integrationToFile["sample_integration2:123"], suite.s.getLeastRecentlyModifiedFile())
 }
 

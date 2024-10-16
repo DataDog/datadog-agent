@@ -754,6 +754,8 @@ func (p *WindowsProbe) Start() error {
 				return
 
 			case <-p.onError:
+				log.Errorf("error in underlying procmon")
+				continue
 				// in this case, we got some sort of error that the underlying
 				// subsystem can't recover from.  Need to initiate some sort of cleanup
 
@@ -1263,8 +1265,6 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 		}
 	}
 
-	p.processKiller.Apply(rs)
-
 	ars, err := kfilters.NewApplyRuleSetReport(p.config.Probe, rs)
 	if err != nil {
 		return nil, err
@@ -1287,6 +1287,11 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 	}
 
 	return ars, nil
+}
+
+// OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
+func (p *WindowsProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
+	p.processKiller.Reset(rs)
 }
 
 // FlushDiscarders invalidates all the discarders

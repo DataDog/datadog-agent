@@ -1,7 +1,6 @@
 ---
 include:
-  - .gitlab/.pre/cancel-prev-pipelines.yml
-  - .gitlab/.pre/gitlab_configuration.yml
+  - .gitlab/.pre/include.yml
   - .gitlab/benchmarks/include.yml
   - .gitlab/binary_build/include.yml
   - .gitlab/check_deploy/check_deploy.yml
@@ -12,7 +11,6 @@ include:
   - .gitlab/powershell_script_deploy/powershell_script_deploy.yml
   - .gitlab/common/shared.yml
   - .gitlab/common/skip_ci_check.yml
-  - .gitlab/common/pr_commenter.yml
   - .gitlab/common/test_infra_version.yml
   - .gitlab/container_build/include.yml
   - .gitlab/container_scan/container_scan.yml
@@ -98,7 +96,9 @@ stages:
   - internal_image_deploy
   - install_script_testing
   - e2e_pre_test
+  - e2e_init
   - e2e
+  - e2e_cleanup
   - e2e_k8s
   - e2e_install_packages
   - kitchen_cleanup
@@ -173,15 +173,15 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v45605580-5f42ffba
+  DATADOG_AGENT_BUILDIMAGES: v46542806-c7a4a6be
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v45605580-5f42ffba
+  DATADOG_AGENT_WINBUILDIMAGES: v46542806-c7a4a6be
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v45605580-5f42ffba
+  DATADOG_AGENT_ARMBUILDIMAGES: v46542806-c7a4a6be
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v45605580-5f42ffba
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v46542806-c7a4a6be
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v45605580-5f42ffba
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v46542806-c7a4a6be
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: c0962c7d
@@ -220,6 +220,7 @@ variables:
   E2E_TESTS_AZURE_TENANT_ID: ci.datadog-agent.e2e_tests_azure_tenant_id  # agent-devx-loops
   E2E_TESTS_AZURE_SUBSCRIPTION_ID: ci.datadog-agent.e2e_tests_azure_subscription_id  # agent-devx-loops
   E2E_TESTS_GCP_CREDENTIALS: ci.datadog-agent.e2e_tests_gcp_credentials  # agent-devx-loops
+  E2E_PULUMI_CONFIG_PASSPHRASE: ci.datadog-agent.pulumi_password  # agent-devx-loops
   KITCHEN_EC2_SSH_KEY: ci.datadog-agent.aws_ec2_kitchen_ssh_key  # agent-devx-loops
   KITCHEN_AZURE_CLIENT_ID: ci.datadog-agent.azure_kitchen_client_id  # agent-devx-loops
   KITCHEN_AZURE_CLIENT_SECRET: ci.datadog-agent.azure_kitchen_client_secret  # agent-devx-loops
@@ -748,6 +749,8 @@ workflow:
   - pkg/network/**/*
   - pkg/process/monitor/*
   - pkg/util/kernel/**/*
+  - pkg/dynamicinstrumentation/**/*
+  - pkg/gpu/**/*
   - .gitlab/kernel_matrix_testing/system_probe.yml
   - .gitlab/kernel_matrix_testing/common.yml
   - .gitlab/source_test/ebpf.yml
@@ -892,6 +895,7 @@ workflow:
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for npm
+        - pkg/network/**/*
         - test/new-e2e/tests/npm/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
@@ -1158,12 +1162,17 @@ workflow:
       COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
 
 .on_gitlab_changes:
-  - !reference [.except_mergequeue]
-  - changes:
-      paths:
-        - .gitlab-ci.yml
-        - .gitlab/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+  changes:
+    paths:
+      - .gitlab-ci.yml
+      - .gitlab/**/*
+      - .gitlab/**/.*
+    compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_gitlab_changes_or_mergequeue_or_main:
+  - !reference [.on_gitlab_changes]
+  - !reference [.on_mergequeue]
+  - !reference [.on_main]
 
 .on_invoke_tasks_changes:
   - <<: *if_main_branch

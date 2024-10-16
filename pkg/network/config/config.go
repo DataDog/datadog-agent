@@ -20,11 +20,10 @@ import (
 )
 
 const (
-	spNS   = "system_probe_config"
-	netNS  = "network_config"
-	smNS   = "service_monitoring_config"
-	evNS   = "event_monitoring_config"
-	smjtNS = smNS + ".tls.java"
+	spNS  = "system_probe_config"
+	netNS = "network_config"
+	smNS  = "service_monitoring_config"
+	evNS  = "event_monitoring_config"
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
@@ -110,10 +109,6 @@ type Config struct {
 	// hooking the system-probe test binary. Defaults to true.
 	GoTLSExcludeSelf bool
 
-	// EnableJavaTLSSupport specifies whether the tracer should monitor HTTPS
-	// traffic done through Java's TLS implementation
-	EnableJavaTLSSupport bool
-
 	// MaxTrackedHTTPConnections max number of http(s) flows that will be concurrently tracked.
 	// value is currently Windows only
 	MaxTrackedHTTPConnections int64
@@ -125,21 +120,6 @@ type Config struct {
 	// HTTPMaxRequestFragment is the size of the HTTP path buffer to be retrieved.
 	// Currently Windows only
 	HTTPMaxRequestFragment int64
-
-	// JavaAgentDebug will enable debug output of the injected USM agent
-	JavaAgentDebug bool
-
-	// JavaAgentArgs arguments pass through injected USM agent
-	JavaAgentArgs string
-
-	// JavaAgentAllowRegex (Higher priority) define a regex, if matching /proc/pid/cmdline the java agent will be injected
-	JavaAgentAllowRegex string
-
-	// JavaAgentBlockRegex define a regex, if matching /proc/pid/cmdline the java agent will not be injected
-	JavaAgentBlockRegex string
-
-	// JavaDir is the directory to load the java agent program from
-	JavaDir string
 
 	// UDPConnTimeout determines the length of traffic inactivity between two
 	// (IP, port)-pairs before declaring a UDP connection as inactive. This is
@@ -407,12 +387,6 @@ func New() *Config {
 		EnableEbpfless: cfg.GetBool(join(netNS, "enable_ebpfless")),
 
 		// Service Monitoring
-		EnableJavaTLSSupport:      cfg.GetBool(join(smjtNS, "enabled")),
-		JavaAgentDebug:            cfg.GetBool(join(smjtNS, "debug")),
-		JavaAgentArgs:             cfg.GetString(join(smjtNS, "args")),
-		JavaAgentAllowRegex:       cfg.GetString(join(smjtNS, "allow_regex")),
-		JavaAgentBlockRegex:       cfg.GetString(join(smjtNS, "block_regex")),
-		JavaDir:                   cfg.GetString(join(smjtNS, "dir")),
 		EnableGoTLSSupport:        cfg.GetBool(join(smNS, "tls", "go", "enabled")),
 		GoTLSExcludeSelf:          cfg.GetBool(join(smNS, "tls", "go", "exclude_self")),
 		EnableUSMQuantization:     cfg.GetBool(join(smNS, "enable_quantization")),
