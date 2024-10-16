@@ -312,6 +312,7 @@ func parseICMP(header *ipv4.Header, payload []byte) (*icmpResponse, error) {
 
 type tcpParser struct {
 	layer               layers.TCP
+	decoded             []gopacket.LayerType
 	decodingLayerParser *gopacket.DecodingLayerParser
 }
 
@@ -327,8 +328,7 @@ func (tp *tcpParser) parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse
 		return nil, fmt.Errorf("invalid IP header for TCP packet: %+v", header)
 	}
 
-	var decoded []gopacket.LayerType
-	if err := tp.decodingLayerParser.DecodeLayers(payload, &decoded); err != nil {
+	if err := tp.decodingLayerParser.DecodeLayers(payload, &tp.decoded); err != nil {
 		return nil, fmt.Errorf("failed to decode TCP packet: %w", err)
 	}
 
