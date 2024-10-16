@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    [CWS] Fixes an issue where the `cws-instrumentation trace` command could panic
+    before launching the traced executable when running on AWS Fargate.
+  - |
+    [CWS] Fixes an issue where ECS Fargate tags would not be resolved correctly
+    on CWS events.
