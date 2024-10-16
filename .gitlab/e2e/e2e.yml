@@ -21,7 +21,7 @@
     # Setup Azure credentials. https://www.pulumi.com/registry/packages/azure-native/installation-configuration/#set-configuration-using-pulumi-config
     # The app is called `agent-e2e-tests`
     - ARM_CLIENT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_AZURE client_id) || exit $?; export ARM_CLIENT_ID
-    - ARM_CLIENT_SECRET=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_AZURE client_secret) || exit $?; export ARM_CLIENT_SECRET
+    - ARM_CLIENT_SECRET=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_AZURE token) || exit $?; export ARM_CLIENT_SECRET
     - ARM_TENANT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_AZURE tenant_id) || exit $?; export ARM_TENANT_ID
     - ARM_SUBSCRIPTION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_AZURE subscription_id) || exit $?; export ARM_SUBSCRIPTION_ID
     # Setup GCP credentials. https://www.pulumi.com/registry/packages/gcp/installation-configuration/
