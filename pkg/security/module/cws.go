@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // CWSConsumer represents the system-probe module for the runtime security agent
@@ -226,6 +228,9 @@ func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID,
 	tags := []string{
 		fmt.Sprintf("success:%d", len(success)),
 		fmt.Sprintf("fails:%d", len(fails)),
+		fmt.Sprintf("os:%s", runtime.GOOS),
+		fmt.Sprintf("arch:%s", utils.RuntimeArch()),
+		fmt.Sprintf("origin:%s", c.probe.Origin()),
 	}
 	if err := c.statsdClient.Count(metrics.MetricSelfTest, 1, tags, 1.0); err != nil {
 		seclog.Errorf("failed to send self_test metric: %s", err)

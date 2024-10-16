@@ -1023,13 +1023,6 @@ def kmt_sysprobe_prepare(
                     variables=variables,
                 )
 
-            if pkg.endswith("java"):
-                nw.build(
-                    inputs=[os.path.join(pkg, "agent-usm.jar")],
-                    outputs=[os.path.join(target_path, "agent-usm.jar")],
-                    rule="copyfiles",
-                )
-
         # handle testutils and testdata separately since they are
         # shared across packages
         target_pkgs = build_target_packages([], build_tags)

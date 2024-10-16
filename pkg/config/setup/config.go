@@ -1882,6 +1882,9 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_POD_NAME": {},
 		// this variable is used by tracers
 		"DD_INSTRUMENTATION_TELEMETRY_ENABLED": {},
+		// these variables are used by source code integration
+		"DD_GIT_COMMIT_SHA":     {},
+		"DD_GIT_REPOSITORY_URL": {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}

@@ -395,7 +395,7 @@ func (p *EBPFProbe) Setup() error {
 
 	p.profileManagers.Start(p.ctx, &p.wg)
 
-	if p.config.Probe.NetworkRawPacketEnabled {
+	if p.probe.IsNetworkRawPacketEnabled() {
 		if err := p.setupRawPacketProgs(); err != nil {
 			return err
 		}

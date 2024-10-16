@@ -572,25 +572,12 @@ func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 }
 
 // UnmarshalKey wraps Viper for concurrent access
+// DEPRECATED: use pkg/config/structure.UnmarshalKey instead
 func (c *safeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
 	return c.Viper.UnmarshalKey(key, rawVal, opts...)
-}
-
-// Unmarshal wraps Viper for concurrent access
-func (c *safeConfig) Unmarshal(rawVal interface{}) error {
-	c.RLock()
-	defer c.RUnlock()
-	return c.Viper.Unmarshal(rawVal)
-}
-
-// UnmarshalExact wraps Viper for concurrent access
-func (c *safeConfig) UnmarshalExact(rawVal interface{}) error {
-	c.RLock()
-	defer c.RUnlock()
-	return c.Viper.UnmarshalExact(rawVal)
 }
 
 // ReadInConfig wraps Viper for concurrent access
