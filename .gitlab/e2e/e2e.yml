@@ -485,6 +485,41 @@ new-e2e-windows-security-agent:
     TARGETS: ./tests/security-agent-functional
     TEAM: windows-kernel-integrations
 
+new-e2e-otel-eks-init:
+  stage: e2e_init
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_otel_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+    - qa_agent
+    - qa_agent_ot
+  variables:
+    TARGETS: ./tests/otel
+    TEAM: otel
+    EXTRA_PARAMS: --run TestOTelAgentIAEKS
+    E2E_INIT_ONLY: "true"
+  allow_failure: true
+
+new-e2e-otel-eks:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_otel_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+    - qa_agent
+    - qa_agent_ot
+    - new-e2e-otel-eks-init
+  variables:
+    TARGETS: ./tests/otel
+    EXTRA_PARAMS: --run TestOTelAgentIAEKS
+    TEAM: otel
+    E2E_PRE_INITIALIZED: "true"
+
 new-e2e-otel:
   extends: .new_e2e_template
   rules:
@@ -497,6 +532,7 @@ new-e2e-otel:
     - qa_agent_ot
   variables:
     TARGETS: ./tests/otel
+    EXTRA_PARAMS: --skip TestOTelAgentIAEKS
     TEAM: otel
 
 .new-e2e_package_signing:
