@@ -305,7 +305,7 @@ func Test_parseTCP(t *testing.T) {
 			expected: &tcpResponse{
 				SrcIP:       srcIP,
 				DstIP:       dstIP,
-				TCPResponse: encodedTCPLayer,
+				TCPResponse: *encodedTCPLayer,
 			},
 			errMsg: "",
 		},

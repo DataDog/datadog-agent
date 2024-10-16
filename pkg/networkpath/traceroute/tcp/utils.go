@@ -57,7 +57,7 @@ type (
 	tcpResponse struct {
 		SrcIP       net.IP
 		DstIP       net.IP
-		TCPResponse *layers.TCP
+		TCPResponse layers.TCP
 	}
 
 	rawConnWrapper interface {
@@ -322,24 +322,25 @@ func newTCPParser() *tcpParser {
 }
 
 func (tp *tcpParser) parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, error) {
-	tcpResponse := tcpResponse{}
-
 	if header.Protocol != IPProtoTCP || header.Version != 4 ||
 		header.Src == nil || header.Dst == nil {
 		return nil, fmt.Errorf("invalid IP header for TCP packet: %+v", header)
 	}
-	tcpResponse.SrcIP = header.Src
-	tcpResponse.DstIP = header.Dst
 
 	var decoded []gopacket.LayerType
 	if err := tp.decodingLayerParser.DecodeLayers(payload, &decoded); err != nil {
 		return nil, fmt.Errorf("failed to decode TCP packet: %w", err)
 	}
-	copiedLayer := tp.layer
-	tcpResponse.TCPResponse = &copiedLayer
+
+	resp := &tcpResponse{
+		SrcIP:       header.Src,
+		DstIP:       header.Dst,
+		TCPResponse: tp.layer,
+	}
+	// make sure the TCP layer is cleared between runs
 	tp.layer = layers.TCP{}
 
-	return &tcpResponse, nil
+	return resp, nil
 }
 
 func icmpMatch(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, response *icmpResponse) bool {
