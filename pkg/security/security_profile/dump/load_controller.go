@@ -102,7 +102,7 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 	}
 
 	// compute the duration it took to reach the dump size threshold
-	timeToThreshold := time.Now().Sub(ad.Start)
+	timeToThreshold := time.Since(ad.Start)
 
 	// set new load parameters
 	newDump.SetTimeout(ad.LoadConfig.Timeout - timeToThreshold)
