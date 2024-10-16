@@ -217,7 +217,7 @@ def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_
 
     if test_washer or running_in_ci():
         if not test_washer:
-            print("Test washer is always enabled in the CI")
+            print("Test washer is always enabled in the CI, enforcing it")
 
         tw = TestWasher()
         should_succeed = tw.process_module_results(test_results)
