@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/process/net"
+	netmocks "github.com/DataDog/datadog-agent/pkg/process/net/mocks"
 )
 
 type testProc struct {
@@ -573,7 +575,7 @@ func Test_linuxImpl(t *testing.T) {
 			require.NotNil(t, check.os)
 
 			for _, cr := range tc.checkRun {
-				mSysProbe := NewMocksystemProbeClient(ctrl)
+				mSysProbe := netmocks.NewSysProbeUtil(t)
 				mSysProbe.EXPECT().GetDiscoveryServices().
 					Return(cr.servicesResp, nil).
 					Times(1)
@@ -584,7 +586,7 @@ func Test_linuxImpl(t *testing.T) {
 				mTimer.EXPECT().Now().Return(cr.time).AnyTimes()
 
 				// set mocks
-				check.os.(*linuxImpl).getSysProbeClient = func() (systemProbeClient, error) {
+				check.os.(*linuxImpl).getSysProbeClient = func(_ string) (net.SysProbeUtil, error) {
 					return mSysProbe, nil
 				}
 				check.os.(*linuxImpl).time = mTimer

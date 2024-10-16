@@ -257,14 +257,18 @@ variables:
   VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url  # windows-agent
   WINGET_PAT: ci.datadog-agent.winget_pat  # windows-agent
   # End aws ssm variables
+ 
   # Start vault variables
+  AGENT_API_KEY_ORG2: agent-api-key-org-2  # agent-devx-infra
+  AGENT_APP_KEY_ORG2: agent-ci-app-key-org-2  # agent-devx-infra
+  AGENT_GITHUB_APP: agent-github-app  # agent-devx-infra
+  ATLASSIAN_WRITE: atlassian-write  # agent-devx-infra
+  DOCKER_REGISTRY_RO: dockerhub-readonly  # agent-delivery
+  GITLAB_TOKEN: gitlab-token  # agent-devx-infra
+  INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2  # agent-devx-infra
+  MACOS_GITHUB_APP_1: macos-github-app-one  # agent-devx-infra
+  MACOS_GITHUB_APP_2: macos-github-app-two  # agent-devx-infra
   # End vault variables
-
-  ATLASSIAN_WRITE: atlassian-write
-  AGENT_GITHUB_APP: agent-github-app
-  MACOS_GITHUB_APP_1: macos-github-app-one
-  MACOS_GITHUB_APP_2: macos-github-app-two
-  DOCKER_REGISTRY_RO: dockerhub-readonly
 
   DD_PKG_VERSION: "latest"
 
@@ -771,19 +775,6 @@ workflow:
       paths: *system_probe_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
-.on_e2e_changes_or_manual:
-  - <<: *if_main_branch
-  - !reference [.except_mergequeue]
-  - changes:
-      paths:
-        - test/new-e2e/pkg/**/*
-        - test/new-e2e/test-infra-definition/*
-        - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-    when: on_success
-  - when: manual
-    allow_failure: true
-
 # New E2E related rules
 
 .on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
@@ -800,6 +791,7 @@ workflow:
     when: on_success
   - changes:
       paths:
+        - .gitlab/e2e/e2e.yml
         - test/new-e2e/pkg/**/*
         - test/new-e2e/go.mod
         - flakes.yaml

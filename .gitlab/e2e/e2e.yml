@@ -485,6 +485,41 @@ new-e2e-windows-security-agent:
     TARGETS: ./tests/security-agent-functional
     TEAM: windows-kernel-integrations
 
+new-e2e-otel-eks-init:
+  stage: e2e_init
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_otel_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+    - qa_agent
+    - qa_agent_ot
+  variables:
+    TARGETS: ./tests/otel
+    TEAM: otel
+    EXTRA_PARAMS: --run TestOTelAgentIAEKS
+    E2E_INIT_ONLY: "true"
+  allow_failure: true
+
+new-e2e-otel-eks:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_otel_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+    - qa_agent
+    - qa_agent_ot
+    - new-e2e-otel-eks-init
+  variables:
+    TARGETS: ./tests/otel
+    EXTRA_PARAMS: --run TestOTelAgentIAEKS
+    TEAM: otel
+    E2E_PRE_INITIALIZED: "true"
+
 new-e2e-otel:
   extends: .new_e2e_template
   rules:
@@ -497,6 +532,7 @@ new-e2e-otel:
     - qa_agent_ot
   variables:
     TARGETS: ./tests/otel
+    EXTRA_PARAMS: --skip TestOTelAgentIAEKS
     TEAM: otel
 
 .new-e2e_package_signing:
@@ -541,6 +577,7 @@ generate-flakes-finder-pipeline:
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
   needs:
+    - compute_gitlab_ci_config
     - deploy_deb_testing-a7_arm64
     - deploy_deb_testing-a7_x64
     - deploy_rpm_testing-a7_arm64
@@ -557,7 +594,6 @@ generate-flakes-finder-pipeline:
     - qa_agent_ot
   tags: ["arch:amd64"]
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
     - inv -e testwasher.generate-flake-finder-pipeline
   artifacts:
     paths:

@@ -159,6 +159,5 @@ jobs:
         if: steps.should.outputs.should_run == 'true'
         with:
           header: serverless-binary-size
-          hide_and_recreate: true
-          hide_classify: "RESOLVED"
+          recreate: true
           path: ${{ steps.write.outputs.filename }}

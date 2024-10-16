@@ -59,7 +59,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20241010155348-7e55b9e3279a
+	github.com/DataDog/test-infra-definitions v0.0.0-20241015101741-f694c4dc33e4
 	github.com/aws/aws-sdk-go-v2 v1.32.0
 	github.com/aws/aws-sdk-go-v2/config v1.27.40
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.164.2
@@ -94,7 +94,7 @@ require (
 )
 
 require (
-	dario.cat/mergo v1.0.0 // indirect
+	dario.cat/mergo v1.0.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/BurntSushi/toml v1.2.1 // indirect
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
@@ -252,11 +252,11 @@ require (
 	github.com/zclconf/go-cty v1.14.4 // indirect
 	github.com/zorkian/go-datadog-api v2.30.0+incompatible
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.44.0 // indirect
-	go.opentelemetry.io/otel v1.30.0 // indirect
+	go.opentelemetry.io/otel v1.31.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.28.0 // indirect
-	go.opentelemetry.io/otel/metric v1.30.0 // indirect
+	go.opentelemetry.io/otel/metric v1.31.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.28.0 // indirect
-	go.opentelemetry.io/otel/trace v1.30.0 // indirect
+	go.opentelemetry.io/otel/trace v1.31.0 // indirect
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20241004190924-225e2abe05e6

@@ -40,9 +40,9 @@ func TestSnmpScanComp(t *testing.T) {
 	snmpConnection.LocalAddr = "127.0.0.1"
 	snmpConnection.Port = 0
 
-	err = snmpScanner.Comp.RunDeviceScan(snmpConnection, "default")
+	err = snmpScanner.Comp.RunDeviceScan(snmpConnection, "default", "127.0.0.1")
 	assert.ErrorContains(t, err, "&GoSNMP.Conn is missing. Provide a connection or use Connect()")
 
-	err = snmpScanner.Comp.RunDeviceScan(snmpConnection, "default")
+	err = snmpScanner.Comp.RunDeviceScan(snmpConnection, "default", "127.0.0.1")
 	assert.ErrorContains(t, err, "&GoSNMP.Conn is missing. Provide a connection or use Connect()")
 }

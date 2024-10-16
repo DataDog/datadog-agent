@@ -478,7 +478,7 @@ func startAgent(
 	_ sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	wmeta workloadmeta.Component,
-	_ tagger.Component,
+	tagger tagger.Component,
 	ac autodiscovery.Component,
 	rcclient rcclient.Component,
 	_ optional.Option[logsAgent.Component],
@@ -579,7 +579,7 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, cfg, telemetry)
+	commonchecks.RegisterChecks(wmeta, tagger, cfg, telemetry)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
