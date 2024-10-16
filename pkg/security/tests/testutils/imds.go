@@ -3,19 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package imdsutils holds utils related to the IMDS tests
-package imdsutils
+// Package testutils holds test utility functions
+package testutils
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"time"
-
-	"github.com/vishvananda/netlink"
 )
 
 const (
@@ -33,54 +30,13 @@ const (
 	AWSSecurityCredentialsExpirationTestValue = "2324-05-01T12:00:00Z"
 	// AWSIMDSServerTestValue is the IMDS Server used by the IMDS tests
 	AWSIMDSServerTestValue = "EC2ws"
-	// CSMDummyInterface is the Dummy interface name used by the IMDS tests
-	CSMDummyInterface = "dummy_csm"
 	// IMDSTestServerIP is the IMDS server IP used by the IMDS tests
 	IMDSTestServerIP = "169.254.169.254"
+	// IMDSTestServerCIDR is the IMDS server CIDR used by the IMDS tests
+	IMDSTestServerCIDR = IMDSTestServerIP + "/32"
 	// IMDSTestServerPort is the IMDS server port used by the IMDS tests
 	IMDSTestServerPort = 8080
 )
-
-// CreateDummyInterface creates a dummy interface and attaches it to the provided IP
-func CreateDummyInterface(ip string, name string) (*netlink.Dummy, error) {
-	dummy := &netlink.Dummy{
-		LinkAttrs: netlink.LinkAttrs{
-			Name: name,
-		},
-	}
-
-	// delete existing dummy interface
-	_ = netlink.LinkDel(dummy)
-
-	// Add the dummy interface
-	if err := netlink.LinkAdd(dummy); err != nil {
-		return nil, fmt.Errorf("failed to create dummy interface %s: %v", name, err)
-	}
-
-	// attach the IMDS IP to the dummy interface
-	addr := &netlink.Addr{IPNet: &net.IPNet{
-		IP:   net.ParseIP(ip),
-		Mask: net.CIDRMask(24, 32),
-	}}
-	if err := netlink.AddrAdd(dummy, addr); err != nil {
-		return nil, fmt.Errorf("failed to attach IMDS IP to %s: %v", name, err)
-	}
-
-	// set dummy interface up
-	if err := netlink.LinkSetUp(dummy); err != nil {
-		return nil, fmt.Errorf("failed to set %s up: %v", name, err)
-	}
-
-	return dummy, nil
-}
-
-// RemoveDummyInterface removes the provided dummy interface
-func RemoveDummyInterface(link *netlink.Dummy) error {
-	if err := netlink.LinkDel(link); err != nil {
-		return fmt.Errorf("failed to delete %s: %v", link.Name, err)
-	}
-	return nil
-}
 
 // CreateIMDSServer creates a fake IMDS server
 func CreateIMDSServer(addr string) *http.Server {
