@@ -52,3 +52,7 @@ packages:
         config:
           mock-build-tags: test
           with-expecter: true
+      GpuDevice:
+        config:
+          mock-build-tags: test
+          with-expecter: true
