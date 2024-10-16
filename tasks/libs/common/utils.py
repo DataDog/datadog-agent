@@ -669,7 +669,6 @@ def file_match(word):
         'internal',
         'omnibus',
         'pkg',
-        'pkg-config',
         'rtloader',
         'tasks',
         'test',
