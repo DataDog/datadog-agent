@@ -572,7 +572,6 @@
 /comp/core/workloadmeta/collectors/internal/cloudfoundry @DataDog/platform-integrations
 /pkg/sbom/                              @DataDog/container-integrations @DataDog/agent-security
 /pkg/internaltelemetry                  @DataDog/windows-kernel-integrations @DataDog/fleet
-/pkg-config/                            @DataDog/agent-delivery
 /pkg/networkpath/                       @DataDog/network-device-monitoring @DataDog/Networks
 /pkg/collector/corechecks/networkpath/  @DataDog/network-device-monitoring @DataDog/Networks
 

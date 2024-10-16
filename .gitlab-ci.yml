@@ -257,14 +257,18 @@ variables:
   VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url  # windows-agent
   WINGET_PAT: ci.datadog-agent.winget_pat  # windows-agent
   # End aws ssm variables
+ 
   # Start vault variables
+  AGENT_API_KEY_ORG2: agent-api-key-org-2  # agent-devx-infra
+  AGENT_APP_KEY_ORG2: agent-ci-app-key-org-2  # agent-devx-infra
+  AGENT_GITHUB_APP: agent-github-app  # agent-devx-infra
+  ATLASSIAN_WRITE: atlassian-write  # agent-devx-infra
+  DOCKER_REGISTRY_RO: dockerhub-readonly  # agent-delivery
+  GITLAB_TOKEN: gitlab-token  # agent-devx-infra
+  INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2  # agent-devx-infra
+  MACOS_GITHUB_APP_1: macos-github-app-one  # agent-devx-infra
+  MACOS_GITHUB_APP_2: macos-github-app-two  # agent-devx-infra
   # End vault variables
-
-  ATLASSIAN_WRITE: atlassian-write
-  AGENT_GITHUB_APP: agent-github-app
-  MACOS_GITHUB_APP_1: macos-github-app-one
-  MACOS_GITHUB_APP_2: macos-github-app-two
-  DOCKER_REGISTRY_RO: dockerhub-readonly
 
   DD_PKG_VERSION: "latest"
 
