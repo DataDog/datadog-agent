@@ -425,9 +425,9 @@ func (r *RemoteSysProbeUtil) GetTelemetry() ([]byte, error) {
 	return data, nil
 }
 
-// GetConnTrackCachedJSON queries contrack/cached, which uses our conntracker implementation (typically ebpf)
+// GetConnTrackCached queries conntrack/cached, which uses our conntracker implementation (typically ebpf)
 // to return the list of NAT'd connections
-func (r *RemoteSysProbeUtil) GetConnTrackCachedJSON() ([]byte, error) {
+func (r *RemoteSysProbeUtil) GetConnTrackCached() ([]byte, error) {
 	req, err := http.NewRequest(http.MethodGet, conntrackCachedURL, nil)
 	if err != nil {
 		return nil, err
@@ -445,13 +445,13 @@ func (r *RemoteSysProbeUtil) GetConnTrackCachedJSON() ([]byte, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(`GetConnTrackCachedJSON got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
+		return nil, fmt.Errorf(`GetConnTrackCached got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
 	}
 
 	return data, nil
 }
 
-// GetConnTrackHost queries contrack/host, which uses netlink to return the list of NAT'd connections
+// GetConnTrackHost queries conntrack/host, which uses netlink to return the list of NAT'd connections
 func (r *RemoteSysProbeUtil) GetConnTrackHost() ([]byte, error) {
 	req, err := http.NewRequest(http.MethodGet, conntrackHostURL, nil)
 	if err != nil {
@@ -476,9 +476,9 @@ func (r *RemoteSysProbeUtil) GetConnTrackHost() ([]byte, error) {
 	return data, nil
 }
 
-// GetConnTrackHostFull queries contrack/host_full, which uses netlink to return the list of NAT'd connections
+// GetConnTrackHostFull queries conntrack/host_full, which uses netlink to return the list of connections (including non-NAT connections)
 func (r *RemoteSysProbeUtil) GetConnTrackHostFull() ([]byte, error) {
-	req, err := http.NewRequest(http.MethodGet, conntrackHostURL, nil)
+	req, err := http.NewRequest(http.MethodGet, conntrackHostFullURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -495,7 +495,7 @@ func (r *RemoteSysProbeUtil) GetConnTrackHostFull() ([]byte, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(`GetConnTrackHost got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
+		return nil, fmt.Errorf(`GetConnTrackHostFull got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
 	}
 
 	return data, nil

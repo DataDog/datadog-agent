@@ -30,8 +30,9 @@ const (
 	languageDetectionURL = "http://unix/" + string(sysconfig.LanguageDetectionModule) + "/detect"
 	discoveryServicesURL = "http://unix/" + string(sysconfig.DiscoveryModule) + "/services"
 	telemetryURL         = "http://unix/telemetry"
-	conntrackHostURL     = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/host"
 	conntrackCachedURL   = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/cached"
+	conntrackHostURL     = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/host"
+	conntrackHostFullURL = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/host_full"
 	netType              = "unix"
 )
 
