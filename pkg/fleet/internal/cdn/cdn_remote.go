@@ -23,9 +23,10 @@ import (
 type cdnRemote struct {
 	client              *remoteconfig.HTTPClient
 	currentRootsVersion uint64
+	hostTags            hostTagsGetter
 }
 
-func newRemote(env *env.Env, configDBPath string) (CDN, error) {
+func newRemote(env *env.Env, hostTags hostTagsGetter, configDBPath string) (CDN, error) {
 	client, err := remoteconfig.NewHTTPClient(
 		configDBPath,
 		env.Site,
@@ -38,6 +39,7 @@ func newRemote(env *env.Env, configDBPath string) (CDN, error) {
 	return &cdnRemote{
 		client:              client,
 		currentRootsVersion: 1,
+		hostTags:            hostTags,
 	}, nil
 }
 
@@ -58,7 +60,7 @@ func (c *cdnRemote) Get(ctx context.Context, pkg string) (cfg Config, err error)
 			return nil, err
 		}
 	case "datadog-apm-inject":
-		cfg, err = newAPMConfig(orderConfig, layers...)
+		cfg, err = newAPMConfig(c.hostTags.get(), orderConfig, layers...)
 		if err != nil {
 			return nil, err
 		}

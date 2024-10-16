@@ -37,7 +37,7 @@ func (i *apmConfig) Version() string {
 	return i.version
 }
 
-func newAPMConfig(configOrder *orderConfig, rawLayers ...[]byte) (*apmConfig, error) {
+func newAPMConfig(hostTags []string, configOrder *orderConfig, rawLayers ...[]byte) (*apmConfig, error) {
 	if configOrder == nil {
 		return nil, fmt.Errorf("order config is nil")
 	}
@@ -78,18 +78,21 @@ func newAPMConfig(configOrder *orderConfig, rawLayers ...[]byte) (*apmConfig, er
 		}
 	}
 
-	// Marshal into msgpack configs
-	injectorConfig, err := msgpack.Marshal(compiledLayer.InjectorConfig)
-	if err != nil {
-		return nil, err
-	}
-
 	hash := sha256.New()
 	version, err := json.Marshal(compiledLayer)
 	if err != nil {
 		return nil, err
 	}
 	hash.Write(version)
+
+	// Add host tags AFTER compiling the version -- we don't want to trigger noop updates
+	compiledLayer.InjectorConfig["host_tags"] = hostTags
+
+	// Marshal into msgpack configs
+	injectorConfig, err := msgpack.Marshal(compiledLayer.InjectorConfig)
+	if err != nil {
+		return nil, err
+	}
 
 	return &apmConfig{
 		version:        fmt.Sprintf("%x", hash.Sum(nil)),
