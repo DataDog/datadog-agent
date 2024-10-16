@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_AGENT6_BRANCH
+from tasks.libs.common.constants import DEFAULT_AGENT6_BRANCH, DEFAULT_BRANCH
 from tasks.libs.common.user_interactions import yes_no_question
 
 if TYPE_CHECKING:
