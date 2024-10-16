@@ -355,12 +355,16 @@ func (p *EBPFProbe) setupRawPacketProgs() error {
 	if err != nil {
 		return err
 	}
+	rawPacketsMap, _, err := p.Manager.GetMap("raw_packets")
+	if err != nil {
+		return err
+	}
 	routerMap, _, err := p.Manager.GetMap("classifier_router")
 	if err != nil {
 		return err
 	}
 
-	progSpec, err := probes.GetRawPacketTCFilterProg(packetsMap.FD(), routerMap.FD())
+	progSpec, err := probes.GetRawPacketTCFilterProg(packetsMap.FD(), rawPacketsMap.FD(), routerMap.FD())
 	if err != nil {
 		return err
 	}

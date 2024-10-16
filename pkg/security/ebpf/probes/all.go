@@ -132,6 +132,7 @@ func AllMaps() []*manager.Map {
 		{Name: "kill_list"},
 		// used by raw packet filters
 		{Name: "packets"},
+		{Name: "raw_packets"},
 	}
 }
 

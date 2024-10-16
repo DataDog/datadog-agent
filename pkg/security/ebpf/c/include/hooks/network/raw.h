@@ -30,18 +30,13 @@ int classifier_raw_packet(struct __sk_buff *skb) {
         len = sizeof(evt->data);
     }
 
-    // NOTE(safchain) inline asm because clang isn't generating the proper instructions for :
-    // if (len == 0) return ACT_OK;
-    /*asm ("r4 = %[len]\n"
-         "if r4 > 0 goto + 2\n"
-         "r0 = 0\n"
-         "exit\n" :: [len]"r"((u64)len));*/
-
     if (len > 1) {
         if (bpf_skb_load_bytes(skb, 0, evt->data, len) < 0) {
             return ACT_OK;
         }
         evt->len = skb->len;
+
+        bpf_printk("DATA: %d", evt->data[12]);
 
         // process context
         fill_network_process_context(&evt->process, pkt);
