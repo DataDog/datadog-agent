@@ -23,6 +23,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../../../../pkg/config/nodetreemodel
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../../../pkg/config/setup
+	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../../../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../../../../pkg/metrics
@@ -108,6 +109,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.60.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.60.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.56.0-rc.3 // indirect

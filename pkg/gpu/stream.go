@@ -223,8 +223,10 @@ func (sh *StreamHandler) getCurrentData(now uint64) *model.StreamData {
 		return nil
 	}
 
-	data := &model.StreamData{
-		Spans: []*model.KernelSpan{sh.getCurrentKernelSpan(now)},
+	data := &model.StreamData{}
+	span := sh.getCurrentKernelSpan(now)
+	if span != nil {
+		data.Spans = append(data.Spans, span)
 	}
 
 	for _, alloc := range sh.memAllocEvents {

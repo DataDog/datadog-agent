@@ -22,7 +22,6 @@ import (
 
 	"github.com/DataDog/viper"
 	"github.com/mohae/deepcopy"
-	"github.com/spf13/afero"
 	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -277,13 +276,6 @@ func (c *safeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) 
 	c.Lock()
 	defer c.Unlock()
 	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
-}
-
-// SetFs wraps Viper for concurrent access
-func (c *safeConfig) SetFs(fs afero.Fs) {
-	c.Lock()
-	defer c.Unlock()
-	c.Viper.SetFs(fs)
 }
 
 // IsSet wraps Viper for concurrent access
@@ -572,25 +564,12 @@ func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 }
 
 // UnmarshalKey wraps Viper for concurrent access
+// DEPRECATED: use pkg/config/structure.UnmarshalKey instead
 func (c *safeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
 	return c.Viper.UnmarshalKey(key, rawVal, opts...)
-}
-
-// Unmarshal wraps Viper for concurrent access
-func (c *safeConfig) Unmarshal(rawVal interface{}) error {
-	c.RLock()
-	defer c.RUnlock()
-	return c.Viper.Unmarshal(rawVal)
-}
-
-// UnmarshalExact wraps Viper for concurrent access
-func (c *safeConfig) UnmarshalExact(rawVal interface{}) error {
-	c.RLock()
-	defer c.RUnlock()
-	return c.Viper.UnmarshalExact(rawVal)
 }
 
 // ReadInConfig wraps Viper for concurrent access

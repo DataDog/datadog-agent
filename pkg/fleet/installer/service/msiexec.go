@@ -16,20 +16,20 @@ import (
 	"path/filepath"
 )
 
-func msiexec(target, product, operation string, args []string) (err error) {
+func msiexec(target, product, operation string, args []string) (*exec.Cmd, error) {
 	updaterPath := filepath.Join(paths.PackagesPath, product, target)
 	msis, err := filepath.Glob(filepath.Join(updaterPath, fmt.Sprintf("%s-*-1-x86_64.msi", product)))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(msis) > 1 {
-		return fmt.Errorf("too many MSIs in package")
+		return nil, fmt.Errorf("too many MSIs in package")
 	} else if len(msis) == 0 {
-		return fmt.Errorf("no MSIs in package")
+		return nil, fmt.Errorf("no MSIs in package")
 	}
 
 	cmd := exec.Command("msiexec", append([]string{operation, msis[0], "/qn", "MSIFASTINSTALL=7"}, args...)...)
-	return cmd.Run()
+	return cmd, nil
 }
 
 // Product represents a software from the Windows Registry

@@ -51,7 +51,7 @@ class TestIsGetParameterCall(unittest.TestCase):
     def test_with_wrapper_with_env(self):
         with open(self.test_file, "w") as f:
             f.write(
-                "DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $APP_KEY_ORG2) || exit $?; export DD_APP_KEY"
+                "DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_APP_KEY_ORG2 token) || exit $?; export DD_APP_KEY"
             )
         matched = linter.list_get_parameter_calls(self.test_file)
         self.assertListEqual([], matched)
@@ -124,6 +124,73 @@ class TestGitlabCIJobsNeedsRules(unittest.TestCase):
         ):
             with self.assertRaises(Exit):
                 linter.gitlab_ci_jobs_needs_rules(MockContext())
+
+
+class TestGitlabCIJobsOwners(unittest.TestCase):
+    def empty_ci_linters_config(self) -> MagicMock:
+        mock = MagicMock()
+        mock.job_owners_jobs = set()
+        mock.path = './config.yml'
+
+        return mock
+
+    def test_one_job(self):
+        jobowners = """
+        /somejob        @DataDog/the-best-team
+        """
+
+        linter._gitlab_ci_jobs_owners_lint(
+            ['somejob'], CodeOwners(jobowners), self.empty_ci_linters_config(), 'jobowners'
+        )
+
+    def test_one_job_glob(self):
+        jobowners = """
+        /my*        @DataDog/the-best-team
+        """
+
+        linter._gitlab_ci_jobs_owners_lint(
+            ['myjob'], CodeOwners(jobowners), self.empty_ci_linters_config(), 'jobowners'
+        )
+
+    def test_one_job_fail(self):
+        jobowners = """
+        /somejob        @DataDog/the-best-team
+        """
+
+        with self.assertRaises(Exit):
+            linter._gitlab_ci_jobs_owners_lint(
+                ['someotherjob'], CodeOwners(jobowners), self.empty_ci_linters_config(), 'jobowners'
+            )
+
+    def test_multiple_jobs(self):
+        jobowners = """
+        /somejob        @DataDog/the-best-team
+        /my*            @DataDog/another-best-team
+        """
+
+        linter._gitlab_ci_jobs_owners_lint(
+            ['somejob', 'myjob'], CodeOwners(jobowners), self.empty_ci_linters_config(), 'jobowners'
+        )
+
+    def test_multiple_jobs_fail(self):
+        jobowners = """
+        /somejob        @DataDog/the-best-team
+        """
+
+        with self.assertRaises(Exit):
+            linter._gitlab_ci_jobs_owners_lint(
+                ['somejob', 'someotherjob'], CodeOwners(jobowners), self.empty_ci_linters_config(), 'jobowners'
+            )
+
+    def test_multiple_jobs_ignore(self):
+        jobowners = """
+        /somejob        @DataDog/the-best-team
+        """
+
+        config = self.empty_ci_linters_config()
+        config.job_owners_jobs.add('someotherjob')
+
+        linter._gitlab_ci_jobs_owners_lint(['somejob', 'someotherjob'], CodeOwners(jobowners), config, 'jobowners')
 
 
 class TestGitlabCIJobsCodeowners(unittest.TestCase):
