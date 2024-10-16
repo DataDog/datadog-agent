@@ -7,6 +7,8 @@
 
 package sysprobe
 
+import "errors"
+
 // GetSystemProbeConntrackCached is not supported without the process agent on linux
 func GetSystemProbeConntrackCached(socketPath string) ([]byte, error) {
 	return nil, errors.New("GetSystemProbeConntrackCached is not supported without the process agent on linux")
