@@ -7,19 +7,16 @@
 package flowaggregator
 
 import (
-	"context"
-	"encoding/json"
+	"fmt"
 	"net"
-	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/haagent"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 
@@ -29,8 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
@@ -197,87 +192,134 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 	//for namespace, ids := range orderedExporterIDs {
 	//
 	//}
-	clusterId := pkgconfigsetup.Datadog().GetString("ha_agent.cluster_id")
 
-	agentHostname, err := hostname.Get(context.TODO())
-	if err != nil {
-		agg.logger.Warnf("Error getting the hostname: %v", err)
-	}
-	var checkIDs []string
-	if agg.autodiscovery != nil {
-		//configs := agg.autodiscovery.GetConfigCheck()
-		configs := agg.autodiscovery.LoadedConfigs()
-		checksJson, _ := json.Marshal(configs)
-		agg.logger.Warnf("[HA AGENT] checks: %s", checksJson)
-
-		for _, c := range configs {
-			if !haagent.IsDistributedCheck(c.Name) {
-				continue
-			}
-			for _, inst := range c.Instances {
-				//agg.logger.Warnf("[HA AGENT] check config: %+v", c)
-				agg.logger.Warnf("[HA AGENT] check inst: `%s`", string(inst))
-				agg.logger.Warnf("[HA AGENT] check InitConfig: `%s`", string(c.InitConfig))
-				checkId := string(checkid.BuildID(c.Name, c.FastDigest(), inst, c.InitConfig))
-				agg.logger.Warnf("[HA AGENT] check checkId: `%s`", checkId)
-				checkIDs = append(checkIDs, checkId)
-			}
-		}
-	}
-	//stats, _ := status.GetExpvarRunnerStats()
-
-	//for checkName, checks := range stats.Checks {
-	//	if !haagent.IsDistributedCheck(checkName) {
+	//clusterId := pkgconfigsetup.Datadog().GetString("ha_agent.cluster_id")
+	//
+	//agentHostname, err := hostname.Get(context.TODO())
+	//if err != nil {
+	//	agg.logger.Warnf("Error getting the hostname: %v", err)
+	//}
+	//var checkIDs []string
+	//if agg.autodiscovery != nil {
+	//	//configs := agg.autodiscovery.GetConfigCheck()
+	//	configs := agg.autodiscovery.LoadedConfigs()
+	//	checksJson, _ := json.Marshal(configs)
+	//	agg.logger.Warnf("[HA AGENT] checks: %s", checksJson)
+	//
+	//	for _, c := range configs {
+	//		if !haagent.IsDistributedCheck(c.Name) {
+	//			continue
+	//		}
+	//		for _, inst := range c.Instances {
+	//			//agg.logger.Warnf("[HA AGENT] check config: %+v", c)
+	//			agg.logger.Warnf("[HA AGENT] check inst: `%s`", string(inst))
+	//			agg.logger.Warnf("[HA AGENT] check InitConfig: `%s`", string(c.InitConfig))
+	//			checkId := string(checkid.BuildID(c.Name, c.FastDigest(), inst, c.InitConfig))
+	//			agg.logger.Warnf("[HA AGENT] check checkId: `%s`", checkId)
+	//			checkIDs = append(checkIDs, checkId)
+	//		}
+	//	}
+	//}
+	////stats, _ := status.GetExpvarRunnerStats()
+	//
+	////for checkName, checks := range stats.Checks {
+	////	if !haagent.IsDistributedCheck(checkName) {
+	////		continue
+	////	}
+	////	for checkID := range checks {
+	////		checkIDs = append(checkIDs, checkID)
+	////	}
+	////}
+	//sort.Strings(checkIDs)
+	////statsJson, _ := json.Marshal(stats.Checks)
+	////agg.logger.Warnf("[HA AGENT] stats: %s", statsJson)
+	//agg.logger.Warnf("[HA AGENT] checkIDs: %+v", checkIDs)
+	//
+	//agg.logger.Warnf("[HA AGENT] send cluster_id: %s", clusterId)
+	//// TODO: USING NDM NETFLOW EXPORTER FOR POC
+	//role := haagent.GetRole()
+	//netflowExporters := []metadata.NetflowExporter{
+	//	{
+	//		// UUID to avoid being cached in backend
+	//		ID:            "ha-agent-" + agentHostname + "-" + uuid.NewString(),
+	//		IPAddress:     "1.1.1.1",
+	//		FlowType:      "netflow9",
+	//		ClusterId:     clusterId,
+	//		AgentHostname: agentHostname,
+	//		AgentRole:     role,
+	//		CheckIDs:      checkIDs,
+	//	},
+	//}
+	//
+	//if role != "" {
+	//	agg.sender.Gauge("datadog.ha_agent.running", 1, "", []string{
+	//		"cluster_id:" + clusterId,
+	//		"host:" + agentHostname,
+	//		"role:" + haagent.GetRole(),
+	//	})
+	//}
+	////for _, exporterID := range ids {
+	////	netflowExporters = append(netflowExporters, exporterMap[namespace][exporterID])
+	////}
+	//metadataPayloads := metadata.BatchPayloads("default", "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, netflowExporters, nil)
+	//for _, payload := range metadataPayloads {
+	//	payloadBytes, err := json.Marshal(payload)
+	//	if err != nil {
+	//		agg.logger.Errorf("Error marshalling device metadata: %s", err)
 	//		continue
 	//	}
-	//	for checkID := range checks {
-	//		checkIDs = append(checkIDs, checkID)
+	//	agg.logger.Debugf("netflow exporter metadata payload: %s", string(payloadBytes))
+	//	m := message.NewMessage(payloadBytes, nil, "", 0)
+	//	err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesMetadata)
+	//	if err != nil {
+	//		agg.logger.Errorf("Error sending event platform event for netflow exporter metadata: %s", err)
 	//	}
 	//}
-	sort.Strings(checkIDs)
-	//statsJson, _ := json.Marshal(stats.Checks)
-	//agg.logger.Warnf("[HA AGENT] stats: %s", statsJson)
-	agg.logger.Warnf("[HA AGENT] checkIDs: %+v", checkIDs)
 
-	agg.logger.Warnf("[HA AGENT] send cluster_id: %s", clusterId)
-	// TODO: USING NDM NETFLOW EXPORTER FOR POC
-	role := haagent.GetRole()
-	netflowExporters := []metadata.NetflowExporter{
-		{
-			// UUID to avoid being cached in backend
-			ID:            "ha-agent-" + agentHostname + "-" + uuid.NewString(),
-			IPAddress:     "1.1.1.1",
-			FlowType:      "netflow9",
-			ClusterId:     clusterId,
-			AgentHostname: agentHostname,
-			AgentRole:     role,
-			CheckIDs:      checkIDs,
-		},
+	agg.logger.Warnf("[sendExporterMetadata] Current Role: %s", haagent.GetRole()) // TODO: REMOVE ME
+
+	primaryUrl := pkgconfigsetup.Datadog().GetString("ha_agent.primary_url")
+	if primaryUrl == "" {
+		agg.logger.Warnf("[sendExporterMetadata] No primaryUrl") // TODO: REMOVE ME
+		return
 	}
 
-	if role != "" {
-		agg.sender.Gauge("datadog.ha_agent.running", 1, "", []string{
-			"cluster_id:" + clusterId,
-			"host:" + agentHostname,
-			"role:" + haagent.GetRole(),
-		})
+	// Global Agent configuration
+	c := util.GetClient(false) // FIX: get certificates right then make this true
+
+	// Set session token
+	err := util.SetAuthToken(pkgconfigsetup.Datadog())
+	if err != nil {
+		agg.logger.Warnf("[sendExporterMetadata] SetAuthToken: %s", err) // TODO: REMOVE ME
+		return
 	}
-	//for _, exporterID := range ids {
-	//	netflowExporters = append(netflowExporters, exporterMap[namespace][exporterID])
-	//}
-	metadataPayloads := metadata.BatchPayloads("default", "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, netflowExporters, nil)
-	for _, payload := range metadataPayloads {
-		payloadBytes, err := json.Marshal(payload)
-		if err != nil {
-			agg.logger.Errorf("Error marshalling device metadata: %s", err)
-			continue
+
+	urlstr := fmt.Sprintf("https://%s/agent/status/health", primaryUrl)
+	agg.logger.Warnf("[sendExporterMetadata] URL: %s", urlstr) // TODO: REMOVE ME
+
+	//resp, err := util.DoGet(c, urlstr, util.CloseConnection)
+	resp, err := util.DoGetWithOptions(c, urlstr, &util.ReqOptions{Conn: util.CloseConnection, Authtoken: "abc"})
+	agg.logger.Warnf("[sendExporterMetadata] DoGet resp: %v", resp) // TODO: REMOVE ME
+	if err != nil {
+		agg.logger.Warnf("[sendExporterMetadata] DoGet err: `%s`", err.Error()) // TODO: REMOVE ME
+	}
+	var primaryIsUp bool
+	if err != nil {
+		if strings.Contains(err.Error(), "invalid session token") {
+			// TODO: TEMPORARILY assuming agent is up on "invalid session token"
+			//       since we either need a valid token or the endpoint should not require token
+			primaryIsUp = true
 		}
-		agg.logger.Debugf("netflow exporter metadata payload: %s", string(payloadBytes))
-		m := message.NewMessage(payloadBytes, nil, "", 0)
-		err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesMetadata)
-		if err != nil {
-			agg.logger.Errorf("Error sending event platform event for netflow exporter metadata: %s", err)
-		}
+	} else {
+		primaryIsUp = true
+	}
+	if primaryIsUp {
+		agg.logger.Warnf("[sendExporterMetadata] Primary is up")
+	} else {
+		agg.logger.Warnf("[sendExporterMetadata] Primary is down")
+
+		agg.logger.Infof("[sendExporterMetadata] SetRole role=%s", "primary")
+		haagent.SetRole("primary")
 	}
 }
 
