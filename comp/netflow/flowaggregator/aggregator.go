@@ -328,6 +328,7 @@ func (agg *FlowAggregator) handleFailover(primaryUrl string) {
 	}
 	if primaryIsUp {
 		agg.logger.Warnf("[sendExporterMetadata] Primary is up")
+		haagent.SetRole("standby")
 	} else {
 		agg.logger.Warnf("[sendExporterMetadata] Primary is down")
 
