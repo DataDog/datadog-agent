@@ -174,6 +174,14 @@ var structCaptures = fixtures{
 			}},
 		"a": capturedValue("int", "2"),
 	},
+	// TODO: re-enable when fixing pointer method receivers
+	// "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.(*receiver).test_pointer_method_receiver": {
+	// 	"r": {
+	// 		Type: "struct", Fields: fieldMap{
+	// 			"u": capturedValue("uint", "3"),
+	// 		}},
+	// 	"a": capturedValue("int", "4"),
+	// },
 	// "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_lots_of_fields": {"l": {Type: "struct", Fields: fieldMap{
 	// 	"a": capturedValue("uint8", "1"),
 	// 	"b": capturedValue("uint8", "2"),
@@ -269,9 +277,9 @@ func mergeMaps(maps ...fixtures) fixtures {
 }
 
 var expectedCaptures = mergeMaps(
-	// basicCaptures,
-	// stringCaptures,
-	// arrayCaptures,
+	basicCaptures,
+	stringCaptures,
+	arrayCaptures,
 	structCaptures,
 	// mapCaptures,
 	// genericCaptures,

@@ -127,11 +127,12 @@ func ExecuteStructFuncs() {
 	fields := lotsOfFields{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26}
 	test_lots_of_fields(fields)
 
-	ptrReceiver := &receiver{}
-	ptrReceiver.test_pointer_method_receiver(1)
+	rcvr := receiver{1}
+	rcvr.test_method_receiver(2)
 
-	receiver := receiver{1}
-	receiver.test_method_receiver(2)
+	ptrRcvr := &receiver{3}
+	ptrRcvr.test_pointer_method_receiver(4)
+
 }
 
 type emptyStruct struct{}
