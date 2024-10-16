@@ -773,6 +773,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"EBPFLessEnabled":                            ebpfLessEnabled,
 		"FIMEnabled":                                 opts.enableFIM, // should only be enabled/disabled on windows
 		"NetworkIngressEnabled":                      opts.networkIngressEnabled,
+		"NetworkRawPacketEnabled":                    opts.networkRawPacketEnabled,
 		"OnDemandRateLimiterEnabled":                 !opts.disableOnDemandRateLimiter,
 		"EnforcementExcludeBinary":                   opts.enforcementExcludeBinary,
 		"EnforcementDisarmerContainerEnabled":        opts.enforcementDisarmerContainerEnabled,

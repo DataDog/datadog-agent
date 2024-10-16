@@ -16,12 +16,13 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/tests/imds_utils"
-	"github.com/stretchr/testify/assert"
+	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
 )
 
 func TestAWSIMDSv1Request(t *testing.T) {
@@ -51,21 +52,21 @@ func TestAWSIMDSv1Request(t *testing.T) {
 	}
 
 	// create dummy interface
-	dummy, err := imdsutils.CreateDummyInterface(imdsutils.IMDSTestServerIP, imdsutils.CSMDummyInterface)
+	dummy, err := testutils.CreateDummyInterface(testutils.CSMDummyInterface, testutils.IMDSTestServerCIDR)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err = imdsutils.RemoveDummyInterface(dummy); err != nil {
+		if err = testutils.RemoveDummyInterface(dummy); err != nil {
 			t.Fatal(err)
 		}
 	}()
 
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", imdsutils.IMDSTestServerIP, imdsutils.IMDSTestServerPort)
-	imdsServer := imdsutils.CreateIMDSServer(imdsServerAddr)
+	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
-		if err = imdsutils.StopIMDSserver(imdsServer); err != nil {
+		if err = testutils.StopIMDSserver(imdsServer); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -78,7 +79,7 @@ func TestAWSIMDSv1Request(t *testing.T) {
 
 	t.Run("aws_imds_v1_request", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, imdsutils.IMDSSecurityCredentialsURL))
+			response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL))
 			if err != nil {
 				return fmt.Errorf("failed to query IMDS server: %v", err)
 			}
@@ -89,7 +90,7 @@ func TestAWSIMDSv1Request(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule_aws_imds_v1_request")
 			assert.Equal(t, "request", event.IMDS.Type, "wrong IMDS request type")
 			assert.Equal(t, imdsServerAddr, event.IMDS.Host, "wrong IMDS request Host")
-			assert.Equal(t, imdsutils.IMDSSecurityCredentialsURL, event.IMDS.URL, "wrong IMDS request URL")
+			assert.Equal(t, testutils.IMDSSecurityCredentialsURL, event.IMDS.URL, "wrong IMDS request URL")
 			assert.Equal(t, "Go-http-client/1.1", event.IMDS.UserAgent, "wrong IMDS request user agent")
 
 			test.validateIMDSSchema(t, event)
@@ -129,21 +130,21 @@ func TestAWSIMDSv1Response(t *testing.T) {
 	}
 
 	// create dummy interface
-	dummy, err := imdsutils.CreateDummyInterface(imdsutils.IMDSTestServerIP, imdsutils.CSMDummyInterface)
+	dummy, err := testutils.CreateDummyInterface(testutils.CSMDummyInterface, testutils.IMDSTestServerCIDR)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err = imdsutils.RemoveDummyInterface(dummy); err != nil {
+		if err = testutils.RemoveDummyInterface(dummy); err != nil {
 			t.Fatal(err)
 		}
 	}()
 
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", imdsutils.IMDSTestServerIP, imdsutils.IMDSTestServerPort)
-	imdsServer := imdsutils.CreateIMDSServer(imdsServerAddr)
+	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
-		if err = imdsutils.StopIMDSserver(imdsServer); err != nil {
+		if err = testutils.StopIMDSserver(imdsServer); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -156,7 +157,7 @@ func TestAWSIMDSv1Response(t *testing.T) {
 
 	t.Run("aws_imds_v1_response", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, imdsutils.IMDSSecurityCredentialsURL))
+			response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL))
 			if err != nil {
 				return fmt.Errorf("failed to query IMDS server: %v", err)
 			}
@@ -166,12 +167,12 @@ func TestAWSIMDSv1Response(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_aws_imds_v1_response")
 			assert.Equal(t, "response", event.IMDS.Type, "wrong IMDS request Type")
-			assert.Equal(t, imdsutils.AWSIMDSServerTestValue, event.IMDS.Server, "wrong IMDS request Server")
-			assert.Equal(t, imdsutils.AWSSecurityCredentialsTypeTestValue, event.IMDS.AWS.SecurityCredentials.Type, "wrong IMDS request AWS Security Credentials Type")
-			assert.Equal(t, imdsutils.AWSSecurityCredentialsExpirationTestValue, event.IMDS.AWS.SecurityCredentials.ExpirationRaw, "wrong IMDS request AWS Security Credentials ExpirationRaw")
-			assert.Equal(t, imdsutils.AWSSecurityCredentialsAccessKeyIDTestValue, event.IMDS.AWS.SecurityCredentials.AccessKeyID, "wrong IMDS request AWS Security Credentials AccessKeyID")
-			assert.Equal(t, imdsutils.AWSSecurityCredentialsCodeTestValue, event.IMDS.AWS.SecurityCredentials.Code, "wrong IMDS request AWS Security Credentials Code")
-			assert.Equal(t, imdsutils.AWSSecurityCredentialsLastUpdatedTestValue, event.IMDS.AWS.SecurityCredentials.LastUpdated, "wrong IMDS request AWS Security Credentials LastUpdated")
+			assert.Equal(t, testutils.AWSIMDSServerTestValue, event.IMDS.Server, "wrong IMDS request Server")
+			assert.Equal(t, testutils.AWSSecurityCredentialsTypeTestValue, event.IMDS.AWS.SecurityCredentials.Type, "wrong IMDS request AWS Security Credentials Type")
+			assert.Equal(t, testutils.AWSSecurityCredentialsExpirationTestValue, event.IMDS.AWS.SecurityCredentials.ExpirationRaw, "wrong IMDS request AWS Security Credentials ExpirationRaw")
+			assert.Equal(t, testutils.AWSSecurityCredentialsAccessKeyIDTestValue, event.IMDS.AWS.SecurityCredentials.AccessKeyID, "wrong IMDS request AWS Security Credentials AccessKeyID")
+			assert.Equal(t, testutils.AWSSecurityCredentialsCodeTestValue, event.IMDS.AWS.SecurityCredentials.Code, "wrong IMDS request AWS Security Credentials Code")
+			assert.Equal(t, testutils.AWSSecurityCredentialsLastUpdatedTestValue, event.IMDS.AWS.SecurityCredentials.LastUpdated, "wrong IMDS request AWS Security Credentials LastUpdated")
 
 			test.validateIMDSSchema(t, event)
 		})
@@ -205,21 +206,21 @@ func TestNoAWSIMDSv1Response(t *testing.T) {
 	}
 
 	// create dummy interface
-	dummy, err := imdsutils.CreateDummyInterface(imdsutils.IMDSTestServerIP, imdsutils.CSMDummyInterface)
+	dummy, err := testutils.CreateDummyInterface(testutils.CSMDummyInterface, testutils.IMDSTestServerCIDR)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err = imdsutils.RemoveDummyInterface(dummy); err != nil {
+		if err = testutils.RemoveDummyInterface(dummy); err != nil {
 			t.Fatal(err)
 		}
 	}()
 
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", imdsutils.IMDSTestServerIP, imdsutils.IMDSTestServerPort)
-	imdsServer := imdsutils.CreateIMDSServer(imdsServerAddr)
+	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
-		if err = imdsutils.StopIMDSserver(imdsServer); err != nil {
+		if err = testutils.StopIMDSserver(imdsServer); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -232,7 +233,7 @@ func TestNoAWSIMDSv1Response(t *testing.T) {
 
 	t.Run("no_aws_imds_v1_response", func(t *testing.T) {
 		if err := waitForIMDSResponseProbeEvent(test, func() error {
-			response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, imdsutils.IMDSSecurityCredentialsURL))
+			response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL))
 			if err != nil {
 				return fmt.Errorf("failed to query IMDS server: %v", err)
 			}
@@ -277,21 +278,21 @@ func TestAWSIMDSv2Request(t *testing.T) {
 	}
 
 	// create dummy interface
-	dummy, err := imdsutils.CreateDummyInterface(imdsutils.IMDSTestServerIP, imdsutils.CSMDummyInterface)
+	dummy, err := testutils.CreateDummyInterface(testutils.CSMDummyInterface, testutils.IMDSTestServerCIDR)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err = imdsutils.RemoveDummyInterface(dummy); err != nil {
+		if err = testutils.RemoveDummyInterface(dummy); err != nil {
 			t.Fatal(err)
 		}
 	}()
 
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", imdsutils.IMDSTestServerIP, imdsutils.IMDSTestServerPort)
-	imdsServer := imdsutils.CreateIMDSServer(imdsServerAddr)
+	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
-		if err = imdsutils.StopIMDSserver(imdsServer); err != nil {
+		if err = testutils.StopIMDSserver(imdsServer); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -304,7 +305,7 @@ func TestAWSIMDSv2Request(t *testing.T) {
 
 	t.Run("aws_imds_v2_request", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, imdsutils.IMDSSecurityCredentialsURL), nil)
+			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL), nil)
 			if err != nil {
 				return fmt.Errorf("failed to instantiate request: %v", err)
 			}
@@ -320,7 +321,7 @@ func TestAWSIMDSv2Request(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule_aws_imds_v2_request")
 			assert.Equal(t, "request", event.IMDS.Type, "wrong IMDS request type")
 			assert.Equal(t, imdsServerAddr, event.IMDS.Host, "wrong IMDS request Host")
-			assert.Equal(t, imdsutils.IMDSSecurityCredentialsURL, event.IMDS.URL, "wrong IMDS request URL")
+			assert.Equal(t, testutils.IMDSSecurityCredentialsURL, event.IMDS.URL, "wrong IMDS request URL")
 			assert.Equal(t, "Go-http-client/1.1", event.IMDS.UserAgent, "wrong IMDS request user agent")
 
 			test.validateIMDSSchema(t, event)
@@ -355,21 +356,21 @@ func TestGCPIMDS(t *testing.T) {
 	}
 
 	// create dummy interface
-	dummy, err := imdsutils.CreateDummyInterface(imdsutils.IMDSTestServerIP, imdsutils.CSMDummyInterface)
+	dummy, err := testutils.CreateDummyInterface(testutils.CSMDummyInterface, testutils.IMDSTestServerCIDR)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err = imdsutils.RemoveDummyInterface(dummy); err != nil {
+		if err = testutils.RemoveDummyInterface(dummy); err != nil {
 			t.Fatal(err)
 		}
 	}()
 
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", imdsutils.IMDSTestServerIP, imdsutils.IMDSTestServerPort)
-	imdsServer := imdsutils.CreateIMDSServer(imdsServerAddr)
+	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
-		if err = imdsutils.StopIMDSserver(imdsServer); err != nil {
+		if err = testutils.StopIMDSserver(imdsServer); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -382,7 +383,7 @@ func TestGCPIMDS(t *testing.T) {
 
 	t.Run("gcp_imds_request", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, imdsutils.IMDSSecurityCredentialsURL), nil)
+			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL), nil)
 			if err != nil {
 				return fmt.Errorf("failed to instantiate request: %v", err)
 			}
@@ -398,7 +399,7 @@ func TestGCPIMDS(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule_gcp_imds_request")
 			assert.Equal(t, "request", event.IMDS.Type, "wrong IMDS request type")
 			assert.Equal(t, imdsServerAddr, event.IMDS.Host, "wrong IMDS request Host")
-			assert.Equal(t, imdsutils.IMDSSecurityCredentialsURL, event.IMDS.URL, "wrong IMDS request URL")
+			assert.Equal(t, testutils.IMDSSecurityCredentialsURL, event.IMDS.URL, "wrong IMDS request URL")
 			assert.Equal(t, "Go-http-client/1.1", event.IMDS.UserAgent, "wrong IMDS request user agent")
 
 			test.validateIMDSSchema(t, event)
@@ -433,21 +434,21 @@ func TestAzureIMDS(t *testing.T) {
 	}
 
 	// create dummy interface
-	dummy, err := imdsutils.CreateDummyInterface(imdsutils.IMDSTestServerIP, imdsutils.CSMDummyInterface)
+	dummy, err := testutils.CreateDummyInterface(testutils.CSMDummyInterface, testutils.IMDSTestServerCIDR)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err = imdsutils.RemoveDummyInterface(dummy); err != nil {
+		if err = testutils.RemoveDummyInterface(dummy); err != nil {
 			t.Fatal(err)
 		}
 	}()
 
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", imdsutils.IMDSTestServerIP, imdsutils.IMDSTestServerPort)
-	imdsServer := imdsutils.CreateIMDSServer(imdsServerAddr)
+	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
-		if err = imdsutils.StopIMDSserver(imdsServer); err != nil {
+		if err = testutils.StopIMDSserver(imdsServer); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -460,7 +461,7 @@ func TestAzureIMDS(t *testing.T) {
 
 	t.Run("azure_imds_request", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, imdsutils.IMDSSecurityCredentialsURL), nil)
+			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL), nil)
 			if err != nil {
 				return fmt.Errorf("failed to instantiate request: %v", err)
 			}
@@ -476,7 +477,7 @@ func TestAzureIMDS(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule_azure_imds_request")
 			assert.Equal(t, "request", event.IMDS.Type, "wrong IMDS request type")
 			assert.Equal(t, imdsServerAddr, event.IMDS.Host, "wrong IMDS request Host")
-			assert.Equal(t, imdsutils.IMDSSecurityCredentialsURL, event.IMDS.URL, "wrong IMDS request URL")
+			assert.Equal(t, testutils.IMDSSecurityCredentialsURL, event.IMDS.URL, "wrong IMDS request URL")
 			assert.Equal(t, "Go-http-client/1.1", event.IMDS.UserAgent, "wrong IMDS request user agent")
 
 			test.validateIMDSSchema(t, event)
@@ -511,21 +512,21 @@ func TestIBMIMDS(t *testing.T) {
 	}
 
 	// create dummy interface
-	dummy, err := imdsutils.CreateDummyInterface(imdsutils.IMDSTestServerIP, imdsutils.CSMDummyInterface)
+	dummy, err := testutils.CreateDummyInterface(testutils.CSMDummyInterface, testutils.IMDSTestServerCIDR)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err = imdsutils.RemoveDummyInterface(dummy); err != nil {
+		if err = testutils.RemoveDummyInterface(dummy); err != nil {
 			t.Fatal(err)
 		}
 	}()
 
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", imdsutils.IMDSTestServerIP, imdsutils.IMDSTestServerPort)
-	imdsServer := imdsutils.CreateIMDSServer(imdsServerAddr)
+	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
-		if err = imdsutils.StopIMDSserver(imdsServer); err != nil {
+		if err = testutils.StopIMDSserver(imdsServer); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -538,7 +539,7 @@ func TestIBMIMDS(t *testing.T) {
 
 	t.Run("ibm_imds_request", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, imdsutils.IMDSSecurityCredentialsURL), nil)
+			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL), nil)
 			if err != nil {
 				return fmt.Errorf("failed to instantiate request: %v", err)
 			}
@@ -554,7 +555,7 @@ func TestIBMIMDS(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule_idbm_imds_request")
 			assert.Equal(t, "request", event.IMDS.Type, "wrong IMDS request type")
 			assert.Equal(t, imdsServerAddr, event.IMDS.Host, "wrong IMDS request Host")
-			assert.Equal(t, imdsutils.IMDSSecurityCredentialsURL, event.IMDS.URL, "wrong IMDS request URL")
+			assert.Equal(t, testutils.IMDSSecurityCredentialsURL, event.IMDS.URL, "wrong IMDS request URL")
 			assert.Equal(t, "Go-http-client/1.1", event.IMDS.UserAgent, "wrong IMDS request user agent")
 
 			test.validateIMDSSchema(t, event)
@@ -589,21 +590,21 @@ func TestOracleIMDS(t *testing.T) {
 	}
 
 	// create dummy interface
-	dummy, err := imdsutils.CreateDummyInterface(imdsutils.IMDSTestServerIP, imdsutils.CSMDummyInterface)
+	dummy, err := testutils.CreateDummyInterface(testutils.CSMDummyInterface, testutils.IMDSTestServerCIDR)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err = imdsutils.RemoveDummyInterface(dummy); err != nil {
+		if err = testutils.RemoveDummyInterface(dummy); err != nil {
 			t.Fatal(err)
 		}
 	}()
 
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", imdsutils.IMDSTestServerIP, imdsutils.IMDSTestServerPort)
-	imdsServer := imdsutils.CreateIMDSServer(imdsServerAddr)
+	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
-		if err = imdsutils.StopIMDSserver(imdsServer); err != nil {
+		if err = testutils.StopIMDSserver(imdsServer); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -616,7 +617,7 @@ func TestOracleIMDS(t *testing.T) {
 
 	t.Run("oracle_imds_request", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, imdsutils.IMDSSecurityCredentialsURL), nil)
+			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL), nil)
 			if err != nil {
 				return fmt.Errorf("failed to instantiate request: %v", err)
 			}
@@ -632,7 +633,7 @@ func TestOracleIMDS(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule_oracle_imds_request")
 			assert.Equal(t, "request", event.IMDS.Type, "wrong IMDS request type")
 			assert.Equal(t, imdsServerAddr, event.IMDS.Host, "wrong IMDS request Host")
-			assert.Equal(t, imdsutils.IMDSSecurityCredentialsURL, event.IMDS.URL, "wrong IMDS request URL")
+			assert.Equal(t, testutils.IMDSSecurityCredentialsURL, event.IMDS.URL, "wrong IMDS request URL")
 			assert.Equal(t, "Go-http-client/1.1", event.IMDS.UserAgent, "wrong IMDS request user agent")
 
 			test.validateIMDSSchema(t, event)
@@ -672,21 +673,21 @@ func TestIMDSProcessContext(t *testing.T) {
 	}
 
 	// create dummy interface
-	dummy, err := imdsutils.CreateDummyInterface(imdsutils.IMDSTestServerIP, imdsutils.CSMDummyInterface)
+	dummy, err := testutils.CreateDummyInterface(testutils.CSMDummyInterface, testutils.IMDSTestServerCIDR)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err = imdsutils.RemoveDummyInterface(dummy); err != nil {
+		if err = testutils.RemoveDummyInterface(dummy); err != nil {
 			t.Fatal(err)
 		}
 	}()
 
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", imdsutils.IMDSTestServerIP, imdsutils.IMDSTestServerPort)
-	imdsServer := imdsutils.CreateIMDSServer(imdsServerAddr)
+	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
-		if err = imdsutils.StopIMDSserver(imdsServer); err != nil {
+		if err = testutils.StopIMDSserver(imdsServer); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -707,7 +708,7 @@ func TestIMDSProcessContext(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			// make request first to populate process cache
-			response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, imdsutils.IMDSSecurityCredentialsURL))
+			response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL))
 			if err != nil {
 				return fmt.Errorf("failed to query IMDS server: %v", err)
 			}
@@ -725,11 +726,11 @@ func TestIMDSProcessContext(t *testing.T) {
 			assert.NotNil(t, event.ProcessCacheEntry.Process.AWSSecurityCredentials, "empty IMDS context")
 			if len(event.ProcessCacheEntry.Process.AWSSecurityCredentials) > 0 {
 				creds := event.ProcessCacheEntry.Process.AWSSecurityCredentials[0]
-				assert.Equal(t, imdsutils.AWSSecurityCredentialsTypeTestValue, creds.Type, "wrong IMDS context AWS Security Credentials Type")
-				assert.Equal(t, imdsutils.AWSSecurityCredentialsExpirationTestValue, creds.ExpirationRaw, "wrong IMDS context AWS Security Credentials ExpirationRaw")
-				assert.Equal(t, imdsutils.AWSSecurityCredentialsAccessKeyIDTestValue, creds.AccessKeyID, "wrong IMDS context AWS Security Credentials AccessKeyID")
-				assert.Equal(t, imdsutils.AWSSecurityCredentialsCodeTestValue, creds.Code, "wrong IMDS context AWS Security Credentials Code")
-				assert.Equal(t, imdsutils.AWSSecurityCredentialsLastUpdatedTestValue, creds.LastUpdated, "wrong IMDS context AWS Security Credentials LastUpdated")
+				assert.Equal(t, testutils.AWSSecurityCredentialsTypeTestValue, creds.Type, "wrong IMDS context AWS Security Credentials Type")
+				assert.Equal(t, testutils.AWSSecurityCredentialsExpirationTestValue, creds.ExpirationRaw, "wrong IMDS context AWS Security Credentials ExpirationRaw")
+				assert.Equal(t, testutils.AWSSecurityCredentialsAccessKeyIDTestValue, creds.AccessKeyID, "wrong IMDS context AWS Security Credentials AccessKeyID")
+				assert.Equal(t, testutils.AWSSecurityCredentialsCodeTestValue, creds.Code, "wrong IMDS context AWS Security Credentials Code")
+				assert.Equal(t, testutils.AWSSecurityCredentialsLastUpdatedTestValue, creds.LastUpdated, "wrong IMDS context AWS Security Credentials LastUpdated")
 			}
 
 			test.validateOpenSchema(t, event)

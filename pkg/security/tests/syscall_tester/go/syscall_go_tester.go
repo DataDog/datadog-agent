@@ -27,7 +27,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/injectcmd"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
-	imdsutils "github.com/DataDog/datadog-agent/pkg/security/tests/imds_utils"
+	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
 )
 
 var (
@@ -164,10 +164,10 @@ func SetupAndRunIMDSTest() error {
 
 func RunIMDSTest() error {
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", imdsutils.IMDSTestServerIP, imdsutils.IMDSTestServerPort)
-	imdsServer := imdsutils.CreateIMDSServer(imdsServerAddr)
+	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
-		if err := imdsutils.StopIMDSserver(imdsServer); err != nil {
+		if err := testutils.StopIMDSserver(imdsServer); err != nil {
 			panic(err)
 		}
 	}()
@@ -176,7 +176,7 @@ func RunIMDSTest() error {
 	time.Sleep(5 * time.Second)
 
 	// make IMDS request
-	response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, imdsutils.IMDSSecurityCredentialsURL))
+	response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL))
 	if err != nil {
 		return fmt.Errorf("failed to query IMDS server: %v", err)
 	}
@@ -185,11 +185,11 @@ func RunIMDSTest() error {
 
 func SetupIMDSTest() (*netlink.Dummy, error) {
 	// create dummy interface
-	return imdsutils.CreateDummyInterface(imdsutils.IMDSTestServerIP, imdsutils.CSMDummyInterface)
+	return testutils.CreateDummyInterface(testutils.CSMDummyInterface, testutils.IMDSTestServerCIDR)
 }
 
 func CleanupIMDSTest(dummy *netlink.Dummy) error {
-	return imdsutils.RemoveDummyInterface(dummy)
+	return testutils.RemoveDummyInterface(dummy)
 }
 
 func RunSyscallDriftTest() error {
@@ -320,7 +320,7 @@ func main() {
 	if cleanupIMDSTest {
 		if err := CleanupIMDSTest(&netlink.Dummy{
 			LinkAttrs: netlink.LinkAttrs{
-				Name: imdsutils.CSMDummyInterface,
+				Name: testutils.CSMDummyInterface,
 			},
 		}); err != nil {
 			panic(err)
