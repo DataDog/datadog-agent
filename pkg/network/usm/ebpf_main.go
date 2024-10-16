@@ -82,8 +82,9 @@ const (
 
 type ebpfProgram struct {
 	*ddebpf.Manager
-	cfg            *config.Config
-	tailCallRouter []manager.TailCallRoute
+	cfg                   *config.Config
+	tailCallRouter        []manager.TailCallRoute
+	connectionProtocolMap *ebpf.Map
 
 	enabledProtocols  []*protocols.ProtocolSpec
 	disabledProtocols []*protocols.ProtocolSpec
@@ -91,7 +92,7 @@ type ebpfProgram struct {
 	buildMode buildmode.Type
 }
 
-func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: protocols.TLSDispatcherProgramsMap},
@@ -152,8 +153,9 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 	}
 
 	program := &ebpfProgram{
-		Manager: ddebpf.NewManager(mgr, &ebpftelemetry.ErrorsTelemetryModifier{}),
-		cfg:     c,
+		Manager:               ddebpf.NewManager(mgr, &ebpftelemetry.ErrorsTelemetryModifier{}),
+		cfg:                   c,
+		connectionProtocolMap: connectionProtocolMap,
 	}
 
 	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr)
@@ -211,6 +213,17 @@ func (e *ebpfProgram) Init() error {
 // Start starts the ebpf program and the enabled protocols.
 func (e *ebpfProgram) Start() error {
 	initializeTupleMaps(e.Manager)
+
+	// Mainly for tests, but possible for other cases as well, we might have a nil (not shared) connection protocol map
+	// between NPM and USM. In such a case we just create our own instance, but we don't modify the
+	// `e.connectionProtocolMap` field.
+	if e.connectionProtocolMap == nil {
+		m, _, err := e.GetMap(probes.ConnectionProtocolMap)
+		if err != nil {
+			return err
+		}
+		e.connectionProtocolMap = m
+	}
 
 	e.enabledProtocols = e.executePerProtocol(e.enabledProtocols, "pre-start",
 		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PreStart(m) },
@@ -387,6 +400,13 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		},
+	}
+
+	if e.connectionProtocolMap != nil {
+		if options.MapEditors == nil {
+			options.MapEditors = make(map[string]*ebpf.Map)
+		}
+		options.MapEditors[probes.ConnectionProtocolMap] = e.connectionProtocolMap
 	}
 
 	begin, end := network.EphemeralRange()
