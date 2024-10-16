@@ -124,12 +124,6 @@ single-machine-performance-regression_detector:
     # space characters. This avoids
     # https://gitlab.com/gitlab-org/gitlab/-/issues/217231.
     - cat outputs/report.md | sed "s/^\$/$(echo -ne '\uFEFF\u00A0\u200B')/g"
-    # Upload JUnit XML outside of Agent CI's tooling because the `junit_upload`
-    # invoke task has additional logic that does not seem to apply well to SMP's
-    # JUnit XML. Agent CI seems to use `datadog-agent` as the service name when
-    # uploading JUnit XML, so the upload command below respects that convention.
-    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
-    - datadog-ci junit upload --service datadog-agent outputs/junit.xml
     # Finally, exit 1 if the job signals a regression else 0.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
       job result
@@ -156,7 +150,7 @@ single-machine-performance-regression_detector-pr-comment:
   variables:
     # Not using the entrypoint script for the pr-commenter image
     FF_KUBERNETES_HONOR_ENTRYPOINT: false
-  allow_failure: true  # allow_failure here should have same setting as in job above
+  allow_failure: true
   script: # ignore error message about no PR, because it happens for dev branches without PRs
     # We need to transform the Markdown report into a valid JSON string (without
     # quotes) in order to pass a well-formed payload to the PR commenting
@@ -201,3 +195,21 @@ single-machine-performance-regression_detector-pr-comment:
         exit 0
       fi
       exit $exitcode
+
+single-machine-performance-regression_detector-junit-upload:
+  stage: functional_test
+  rules:
+    - !reference [.except_main_or_release_branch]
+    - when: on_success
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:docker"]
+  needs:
+    - job: single-machine-performance-regression_detector
+  allow_failure: true
+  script:
+    # Upload JUnit XML outside of Agent CI's tooling because the `junit_upload`
+    # invoke task has additional logic that does not seem to apply well to SMP's
+    # JUnit XML. Agent CI seems to use `datadog-agent` as the service name when
+    # uploading JUnit XML, so the upload command below respects that convention.
+    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
+    - datadog-ci junit upload --service datadog-agent outputs/junit.xml
