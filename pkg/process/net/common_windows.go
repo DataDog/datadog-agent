@@ -34,10 +34,12 @@ const (
 	procStatsURL = "http://localhost:3333/" + string(sysconfig.ProcessModule) + "stats"
 	// pingURL is not used in windows, the value is added to avoid compilation error in windows
 	pingURL = "http://localhost:3333/" + string(sysconfig.PingModule) + "/ping/"
-	// conntrackHostURL is not used on Windows, the value is added to avoid a compilation error
-	conntrackHostURL = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/host"
 	// conntrackCachedURL is not used on Windows, the value is added to avoid a compilation error
-	conntrackCachedURL = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/cached"
+	conntrackCachedURL = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/cached"
+	// conntrackHostURL is not used on Windows, the value is added to avoid a compilation error
+	conntrackHostURL = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/host"
+	// conntrackHostFullURL is not used on Windows, the value is added to avoid a compilation error
+	conntrackHostFullURL = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/host_full"
 
 	// SystemProbePipeName is the production named pipe for system probe
 	SystemProbePipeName = `\\.\pipe\dd_system_probe`
