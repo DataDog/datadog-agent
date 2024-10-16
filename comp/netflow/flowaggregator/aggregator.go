@@ -163,6 +163,7 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) 
 }
 
 func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime time.Time) {
+	return
 	//// exporterMap structure: map[NAMESPACE]map[EXPORTER_ID]metadata.NetflowExporter
 	//exporterMap := make(map[string]map[string]metadata.NetflowExporter)
 	//

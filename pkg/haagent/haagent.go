@@ -27,28 +27,28 @@ var assignedDistributedChecks []string
 var assignedDistributedChecksMutex = sync.Mutex{}
 
 func IsEnabled() bool {
-	return pkgconfigsetup.Datadog().GetBool("ha_agent.enabled")
+	return pkgconfigsetup.Datadog().GetBool("failover.enabled")
 }
 
 func IsPrimary() bool {
-	currentRole := pkgconfigsetup.Datadog().GetString("ha_agent.role")
-	runtRole := runtimeRole.Load()
-	if runtRole != "" {
-		currentRole = runtRole
-	}
+	currentRole := GetRole()
 	// TODO: REMOVE ME
 	log.Infof("[IsPrimary] currentRole: %v", currentRole)
 	return currentRole == "primary"
 }
 
+func IsInitialRolePrimary() bool {
+	return GetInitialRole() == "primary"
+}
+
 func GetInitialRole() string {
-	return pkgconfigsetup.Datadog().GetString("ha_agent.role")
+	return pkgconfigsetup.Datadog().GetString("failover.role")
 }
 
 func GetRole() string {
 	role := runtimeRole.Load()
 	if role == "" {
-		return pkgconfigsetup.Datadog().GetString("ha_agent.role")
+		return GetInitialRole()
 	}
 	return role
 }
@@ -82,7 +82,7 @@ func ShouldRunForCheck(check check.Check) bool {
 	log.Warnf("[ShouldRunForCheck] check InitConfig %s: `%s`", checkName, check.InitConfig())
 
 	if IsEnabled() && checkName == "snmp" {
-		mode := pkgconfigsetup.Datadog().GetString("ha_agent.mode")
+		mode := pkgconfigsetup.Datadog().GetString("failover.mode")
 
 		if mode == "distributed" {
 			checkIDs := GetChecks()
@@ -103,7 +103,7 @@ func ShouldRunForCheck(check check.Check) bool {
 
 			// TODO: REMOVE ME
 			log.Warnf("[ShouldRunForCheck] name=%s haAgentEnabled=%v role=%s isPrimary=%v",
-				checkName, IsEnabled(), pkgconfigsetup.Datadog().GetString("ha_agent.role"), isPrimary)
+				checkName, IsEnabled(), pkgconfigsetup.Datadog().GetString("failover.role"), isPrimary)
 
 			if !isPrimary {
 				return false
