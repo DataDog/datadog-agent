@@ -237,15 +237,6 @@ def agent_context(ctx, version: str | None = None, major_version: int | None = N
         yield
 
 
-# TODO: Remove test
-@task
-def t(ctx, v='6.53.0'):
-    # with agent_context(ctx, v, mutable=True):
-    with agent_context(ctx, major_version=6, mutable=True):
-        print(get_default_modules(ctx))
-        print(len(get_default_modules(ctx)))
-
-
 @task
 def list_major_change(_, milestone):
     """List all PR labeled "major_changed" for this release."""

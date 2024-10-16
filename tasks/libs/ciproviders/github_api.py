@@ -12,7 +12,7 @@ from functools import lru_cache
 import requests
 
 from tasks.libs.common.color import color_message
-from tasks.libs.common.constants import GITHUB_REPO_NAME
+from tasks.libs.common.constants import DEFAULT_AGENT6_BRANCH, GITHUB_REPO_NAME
 
 try:
     import semver
@@ -404,8 +404,6 @@ def get_user_query(login):
 
 
 def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False):
-    from tasks.libs.common.constants import DEFAULT_AGENT6_BRANCH
-
     print(color_message("Creating PR", "bold"))
 
     github = GithubAPI(repository=GITHUB_REPO_NAME)
