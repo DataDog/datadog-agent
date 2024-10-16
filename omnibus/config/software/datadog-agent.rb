@@ -42,14 +42,12 @@ build do
     env = {
         'GOPATH' => gopath.to_path,
         'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
-        "Python3_ROOT_DIR" => "#{windows_safe_path(python_3_embedded)}",
     }
     major_version_arg = "%MAJOR_VERSION%"
   else
     env = {
         'GOPATH' => gopath.to_path,
         'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
-        "Python3_ROOT_DIR" => "#{install_dir}/embedded",
         "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
         "CGO_CFLAGS" => "-I. -I#{install_dir}/embedded/include",
         "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
