@@ -363,11 +363,7 @@ func (t *ebpfTracer) Stop() {
 }
 
 func (t *ebpfTracer) GetMap(name string) *ebpf.Map {
-	m, _, err := t.m.GetMap(name)
-	if err != nil {
-		log.Warnf("error retrieving map %s: %s", name, err)
-		return nil
-	}
+	m, _, _ := t.m.GetMap(name)
 	return m
 }
 

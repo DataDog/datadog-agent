@@ -183,13 +183,18 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	}
 
 	tr.reverseDNS = newReverseDNS(cfg, telemetryComponent)
-	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer)
+	tr.usmMonitor = newUSMMonitor(cfg)
 
-	connectionProtocolMap := tr.ebpfTracer.GetMap(probes.ConnectionProtocolMap)
-
-	tr.connectionProtocolMapCleaner, err = usm.SetupConnectionProtocolMapCleaner(connectionProtocolMap)
-	if err != nil {
-		log.Warnf("could not setup connection protocol map cleaner: %s", err)
+	if cfg.ProtocolClassificationEnabled {
+		connectionProtocolMap := tr.ebpfTracer.GetMap(probes.ConnectionProtocolMap)
+		if connectionProtocolMap == nil {
+			log.Warn("could not get connection_protocol map, will not be able to expire connection_protocol data")
+		} else {
+			tr.connectionProtocolMapCleaner, err = usm.SetupConnectionProtocolMapCleaner(connectionProtocolMap)
+			if err != nil {
+				log.Warnf("could not setup connection protocol map cleaner: %s", err)
+			}
+		}
 	}
 
 	if cfg.EnableProcessEventMonitoring {
@@ -838,18 +843,14 @@ func (t *Tracer) DebugDumpProcessCache(_ context.Context) (interface{}, error) {
 	return nil, nil
 }
 
-func newUSMMonitor(c *config.Config, tracer connection.Tracer) *usm.Monitor {
-	// Shared map between NPM and USM
-	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)
-
+func newUSMMonitor(c *config.Config) *usm.Monitor {
 	if !usmconfig.IsUSMSupportedAndEnabled(c) {
 		// If USM is not supported, or if USM is not enabled, we should not start the USM monitor.
 		// We should still clean the connection protocol map as it is used by NPM.
-		usm.SetupConnectionProtocolMapCleaner(connectionProtocolMap)
 		return nil
 	}
 
-	monitor, err := usm.NewMonitor(c, connectionProtocolMap)
+	monitor, err := usm.NewMonitor(c)
 	if err != nil {
 		log.Errorf("usm initialization failed: %s", err)
 		return nil

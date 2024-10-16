@@ -14,7 +14,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -53,7 +52,7 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map) (m *Monitor, err error) {
+func NewMonitor(c *config.Config) (m *Monitor, err error) {
 	defer func() {
 		// capture error and wrap it
 		if err != nil {
@@ -63,7 +62,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map) (m *Monitor, 
 		}
 	}()
 
-	mgr, err := newEBPFProgram(c, connectionProtocolMap)
+	mgr, err := newEBPFProgram(c)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up ebpf program: %w", err)
 	}
