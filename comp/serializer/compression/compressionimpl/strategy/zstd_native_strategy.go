@@ -35,13 +35,13 @@ func NewZstdNativeStrategy(level int) *ZstdNativeStrategy {
 
 // Compress will compress the data with zstd
 func (s *ZstdNativeStrategy) Compress(src []byte) ([]byte, error) {
-	return s.encoder.EncodeAll(src, make([]byte, 0, len(src))), nil
+	return s.encoder.EncodeAll(src, nil), nil
 }
 
 // Decompress will decompress the data with zstd
 func (*ZstdNativeStrategy) Decompress(_ []byte) ([]byte, error) {
-	//return zstd.Decompress(nil, src)
-	return nil, nil
+	decoder, _ := zstd.NewReader(nil)
+	return decoder.DecodeAll(encoded, nil)
 }
 
 // CompressBound returns the worst case size needed for a destination buffer when using zstd
