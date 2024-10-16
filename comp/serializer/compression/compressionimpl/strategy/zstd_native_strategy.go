@@ -39,9 +39,9 @@ func (s *ZstdNativeStrategy) Compress(src []byte) ([]byte, error) {
 }
 
 // Decompress will decompress the data with zstd
-func (*ZstdNativeStrategy) Decompress(_ []byte) ([]byte, error) {
+func (*ZstdNativeStrategy) Decompress(src []byte) ([]byte, error) {
 	decoder, _ := zstd.NewReader(nil)
-	return decoder.DecodeAll(encoded, nil)
+	return decoder.DecodeAll(src, nil)
 }
 
 // CompressBound returns the worst case size needed for a destination buffer when using zstd
