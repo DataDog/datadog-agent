@@ -89,9 +89,7 @@ type ebpfProgram struct {
 	enabledProtocols  []*protocols.ProtocolSpec
 	disabledProtocols []*protocols.ProtocolSpec
 
-	// Used for connection_protocol data expiration
-	mapCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper]
-	buildMode  buildmode.Type
+	buildMode buildmode.Type
 }
 
 func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfProgram, error) {
@@ -226,12 +224,6 @@ func (e *ebpfProgram) Start() error {
 		}
 		e.connectionProtocolMap = m
 	}
-	mapCleaner, err := SetupConnectionProtocolMapCleaner(e.connectionProtocolMap)
-	if err != nil {
-		log.Errorf("error creating map cleaner: %s", err)
-	} else {
-		e.mapCleaner = mapCleaner
-	}
 
 	e.enabledProtocols = e.executePerProtocol(e.enabledProtocols, "pre-start",
 		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PreStart(m) },
@@ -242,7 +234,7 @@ func (e *ebpfProgram) Start() error {
 		return errNoProtocols
 	}
 
-	err = e.Manager.Start()
+	err := e.Manager.Start()
 	if err != nil {
 		return err
 	}
@@ -271,7 +263,6 @@ func (e *ebpfProgram) Start() error {
 
 // Close stops the ebpf program and cleans up all resources.
 func (e *ebpfProgram) Close() error {
-	e.mapCleaner.Stop()
 	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
 	var err error
 	// We need to stop the perf maps and ring buffers before stopping the protocols, as we need to stop sending events
