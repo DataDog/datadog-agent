@@ -79,7 +79,7 @@ func (ctc *testContainer) start() error {
 
 	// create container
 	args = append(args, ctc.image) // image tag
-	args = append(args, "sleep", "7200")
+	args = append(args, "sleep", "infinity")
 	if err := ctc.runDockerCmd(args); err != nil {
 		return fmt.Errorf("run docker: %s", err)
 	}
