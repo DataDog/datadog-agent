@@ -334,6 +334,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 	tagList.AddLow(tags.KubePriorityClass, pod.PriorityClass)
 	tagList.AddLow(tags.KubeQOS, pod.QOSClass)
 	tagList.AddLow(tags.KubeRuntimeClass, pod.RuntimeClass)
+	tagList.AddLow(tags.KubeGPUType, pod.GPUType)
 
 	c.extractTagsFromPodLabels(pod, tagList)
 

@@ -678,6 +678,7 @@ type KubernetesPod struct {
 	IP                         string
 	PriorityClass              string
 	QOSClass                   string
+	GPUType                    string
 	RuntimeClass               string
 	KubeServices               []string
 	NamespaceLabels            map[string]string

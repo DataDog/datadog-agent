@@ -145,6 +145,12 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			&podID,
 		)
 
+		// Attempt to find the GPU type from running containers first, then init containers
+		GPUType := findPodGPUType(pod.Spec.Containers)
+		if GPUType == "" {
+			GPUType = findPodGPUType(pod.Spec.InitContainers)
+		}
+
 		podOwners := pod.Owners()
 		owners := make([]workloadmeta.KubernetesPodOwner, 0, len(podOwners))
 		for _, o := range podOwners {
@@ -175,6 +181,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			IP:                         pod.Status.PodIP,
 			PriorityClass:              pod.Spec.PriorityClassName,
 			QOSClass:                   pod.Status.QOSClass,
+			GPUType:                    GPUType,
 			RuntimeClass:               RuntimeClassName,
 			SecurityContext:            PodSecurityContext,
 		}
@@ -311,6 +318,17 @@ func (c *collector) parsePodContainers(
 	}
 
 	return podContainers, events
+}
+
+func findPodGPUType(containers []kubelet.ContainerSpec) string {
+	for _, container := range containers {
+		for _, gpuResource := range kubelet.GetGPUResourceNames() {
+			if _, found := container.Resources.Requests[gpuResource]; found {
+				return extractSimpleGPUName(gpuResource)
+			}
+		}
+	}
+	return ""
 }
 
 func extractPodRuntimeClassName(spec *kubelet.Spec) string {
