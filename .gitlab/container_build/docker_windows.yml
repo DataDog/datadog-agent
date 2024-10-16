@@ -34,7 +34,7 @@
       -v "$(Get-Location):C:\mnt"
       -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       powershell
-      -C C:\mnt\tools\ci\docker-login.ps1
+      -File C:\mnt\tools\ci\docker-login.ps1
     - If ($lastExitCode -eq "42") { exit "$lastExitCode" }
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - powershell -Command "$(Get-Location)\tools\ci\retry.ps1 docker build --no-cache --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
