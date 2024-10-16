@@ -219,6 +219,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 	if rdnsquerier, err := check.GetRDNSQuerierContext(); err == nil {
 		hostname, _ = rdnsquerier.GetHostnameSync(config.IPAddress)
 	}
+	log.Infof("FOUND HOSTNAME: %s", hostname)
 
 	return devicemetadata.DeviceMetadata{
 		ID:             deviceID,
