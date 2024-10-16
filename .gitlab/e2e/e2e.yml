@@ -513,6 +513,7 @@ new-e2e-otel-eks:
     - qa_dca
     - qa_agent
     - qa_agent_ot
+    - new-e2e-otel-eks-init
   variables:
     TARGETS: ./tests/otel
     EXTRA_PARAMS: --run TestOTelAgentIAEKS
