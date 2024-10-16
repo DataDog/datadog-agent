@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/failover"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
@@ -87,6 +88,7 @@ import (
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	dogstatsdStatusimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/status/statusimpl"
+	failoverServer "github.com/DataDog/datadog-agent/comp/failover/server/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -238,6 +240,7 @@ func run(log log.Component,
 	invChecks inventorychecks.Component,
 	logReceiver optional.Option[integrations.Component],
 	_ netflowServer.Component,
+	_ failoverServer.Component,
 	_ snmptrapsServer.Component,
 	_ langDetectionCl.Component,
 	agentAPI internalAPI.Component,
@@ -430,6 +433,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		ndmtmp.Bundle(),
 		netflow.Bundle(),
+		failover.Bundle(),
 		rdnsquerierfx.Module(),
 		snmptraps.Bundle(),
 		collectorimpl.Module(),
