@@ -99,12 +99,13 @@ func createIterableMetrics(
 ) (*metrics.IterableSeries, *metrics.IterableSketches) {
 	var series *metrics.IterableSeries
 	var sketches *metrics.IterableSketches
+	hostTags := hostTagProvider.GetHostTags()
 	if serializer.AreSeriesEnabled() {
 		series = metrics.NewIterableSeries(func(se *metrics.Serie) {
 			if logPayloads {
 				log.Debugf("Flushing serie: %s", se)
 			}
-			hostTags := hostTagProvider.GetHostTags()
+
 			if hostTags != nil {
 				se.Tags = tagset.CombineCompositeTagsAndSlice(se.Tags, hostTagProvider.GetHostTags())
 			}
@@ -119,7 +120,6 @@ func createIterableMetrics(
 			if isServerless {
 				log.DebugfServerless("Sending sketches payload : %s", sketch.String())
 			}
-			hostTags := hostTagProvider.GetHostTags()
 			if hostTags != nil {
 				sketch.Tags = tagset.CombineCompositeTagsAndSlice(sketch.Tags, hostTagProvider.GetHostTags())
 			}
