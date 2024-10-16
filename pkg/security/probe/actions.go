@@ -24,7 +24,7 @@ const (
 	// KillActionStatusPerformed indicates the kill action was performed
 	KillActionStatusPerformed KillActionStatus = "performed"
 	// KillActionStatusRuleDisarmed indicates the kill action was skipped because the rule was disarmed
-	KillActionStatusRuleDisarmed KillActionStatus = "rule_dismarmed"
+	KillActionStatusRuleDisarmed KillActionStatus = "rule_disarmed"
 )
 
 // KillActionReport defines a kill action reports

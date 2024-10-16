@@ -447,7 +447,7 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 			})
 		}
 
-		// test that another executable dismars the kill action
+		// test that another executable disarms the kill action
 		testKillActionIgnored(t, "kill_action_disarm_executable", func(_ context.Context) {
 			cmd := exec.Command(sleep, "1")
 			cmd.Env = []string{"TARGETTOKILL=1"}
@@ -486,7 +486,7 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 		}
 		defer newDockerInstance.stop()
 
-		// test that another container dismars the kill action
+		// test that another container disarms the kill action
 		testKillActionIgnored(t, "kill_action_disarm_container", func(_ context.Context) {
 			cmd := newDockerInstance.Command("env", []string{"-i", "-", "TARGETTOKILL=1", "sleep", "1"}, []string{})
 			_ = cmd.Run()
