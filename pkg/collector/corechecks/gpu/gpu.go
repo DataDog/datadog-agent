@@ -31,12 +31,12 @@ import (
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	config         *CheckConfig                   // config for the check
-	sysProbeUtil   *processnet.RemoteSysProbeUtil // sysProbeUtil is used to communicate with system probe
-	lastCheckTime  time.Time                      // lastCheckTime is the time the last check was done, used to compute GPU average utilization
-	timeResolver   *sectime.Resolver              // TODO: Move resolver to a common package, see EBPF-579
-	statProcessors map[uint32]*StatsProcessor     // statProcessors is a map of processors, one per pid
-	gpuDevices     []gpuDevice                    // gpuDevices is a list of GPU devices found in the host
+	config         *CheckConfig               // config for the check
+	sysProbeUtil   processnet.SysProbeUtil    // sysProbeUtil is used to communicate with system probe
+	lastCheckTime  time.Time                  // lastCheckTime is the time the last check was done, used to compute GPU average utilization
+	timeResolver   *sectime.Resolver          // TODO: Move resolver to a common package, see EBPF-579
+	statProcessors map[uint32]*StatsProcessor // statProcessors is a map of processors, one per pid
+	gpuDevices     []gpuDevice                // gpuDevices is a list of GPU devices found in the host
 }
 
 // Factory creates a new check factory
