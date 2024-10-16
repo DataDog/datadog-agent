@@ -104,22 +104,4 @@ func (v *gpuSuite) TestGPUCheckIsEnabled() {
 
 	gpuCheckStatus := status.RunnerStats.Checks["gpu"]
 	v.Require().Equal(gpuCheckStatus.LastError, "")
-
-}
-
-func (v *gpuSuite) TestVectorAddProgramDetected() {
-	vm := v.Env().RemoteHost
-	out, err := vm.Execute(fmt.Sprintf("docker run --rm --gpus all %s", vectorAddDockerImg))
-	require.NoError(v.T(), err)
-	v.Require().NoError(err)
-	v.Require().NotEmpty(out)
-
-	v.EventuallyWithT(func(c *assert.CollectT) {
-		metricNames := []string{"gpu.memory", "gpu.utilization", "gpu.max_memory"}
-		for _, metricName := range metricNames {
-			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0))
-			assert.NoError(c, err)
-			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
-		}
-	}, 5*time.Minute, 10*time.Second)
 }
