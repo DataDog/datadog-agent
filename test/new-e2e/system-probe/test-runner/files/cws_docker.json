@@ -4,5 +4,5 @@
             "exclude": false
         }
     },
-    "cwscontainer": true
+    "testcontainer": "ghcr.io/datadog/apps-cws-centos7:main"
 }

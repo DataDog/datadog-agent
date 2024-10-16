@@ -14,21 +14,22 @@ import (
 	"path/filepath"
 )
 
-const cwsContainerName = "cws-tests"
+const containerName = "kmt-test-container"
 
-type cwsTestContainer struct {
-	pwd    string
+type testContainer struct {
+	image  string
 	bpfDir string
 }
 
-func newCWSTestContainer(testsuite string, bpfDir string) *cwsTestContainer {
-	return &cwsTestContainer{
+func newTestContainer(image, testsuite, bpfDir string) *testContainer {
+	return &testContainer{
+		image:  image,
 		pwd:    filepath.Dir(testsuite),
 		bpfDir: bpfDir,
 	}
 }
 
-func (ctc *cwsTestContainer) runDockerCmd(args []string) error {
+func (ctc *testContainer) runDockerCmd(args []string) error {
 	cmd := exec.Command("docker", args...)
 	cmd.Dir = ctc.pwd
 	cmd.Stdout = os.Stdout
@@ -36,10 +37,10 @@ func (ctc *cwsTestContainer) runDockerCmd(args []string) error {
 	return cmd.Run()
 }
 
-func (ctc *cwsTestContainer) start() error {
+func (ctc *testContainer) start() error {
 	args := []string{
 		"run",
-		"--name", cwsContainerName,
+		"--name", containerName,
 		"--privileged",
 		"--detach",
 	}
@@ -77,14 +78,14 @@ func (ctc *cwsTestContainer) start() error {
 	}
 
 	// create container
-	args = append(args, "ghcr.io/datadog/apps-cws-centos7:main") // image tag
+	args = append(args, ctc.image) // image tag
 	args = append(args, "sleep", "7200")
 	if err := ctc.runDockerCmd(args); err != nil {
 		return fmt.Errorf("run docker: %s", err)
 	}
 
 	// mount debugfs
-	args = []string{"exec", cwsContainerName, "mount", "-t", "debugfs", "none", "/sys/kernel/debug"}
+	args = []string{"exec", containerName, "mount", "-t", "debugfs", "none", "/sys/kernel/debug"}
 	if err := ctc.runDockerCmd(args); err != nil {
 		return fmt.Errorf("run docker: %w", err)
 	}
@@ -92,13 +93,13 @@ func (ctc *cwsTestContainer) start() error {
 	return nil
 }
 
-func (ctc *cwsTestContainer) stopAndRemove() error {
-	args := []string{"stop", cwsContainerName}
+func (ctc *testContainer) stopAndRemove() error {
+	args := []string{"stop", containerName}
 	if err := ctc.runDockerCmd(args); err != nil {
 		return fmt.Errorf("run docker: %w", err)
 	}
 
-	args = []string{"rm", cwsContainerName}
+	args = []string{"rm", containerName}
 	if err := ctc.runDockerCmd(args); err != nil {
 		return fmt.Errorf("run docker: %w", err)
 	}
@@ -106,6 +107,6 @@ func (ctc *cwsTestContainer) stopAndRemove() error {
 	return nil
 }
 
-func (ctc *cwsTestContainer) buildDockerExecArgs(args ...string) []string {
-	return append([]string{"docker", "exec", cwsContainerName}, args...)
+func (ctc *testContainer) buildDockerExecArgs(args ...string) []string {
+	return append([]string{"docker", "exec", containerName}, args...)
 }

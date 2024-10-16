@@ -49,12 +49,12 @@ type testConfig struct {
 	testingTools      string
 	extraParams       string
 	extraEnv          string
-	inCWSContainer    bool
+	inContainerImage  string
 }
 
 type userProvidedConfig struct {
 	PackagesRunConfig map[string]packageRunConfiguration `json:"filters"`
-	InCWSContainer    bool                               `json:"cwscontainer"`
+	InContainerImage  string                             `json:"testcontainer"`
 }
 
 const ciVisibility = "/ci-visibility"
@@ -233,11 +233,11 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		}
 		bpfDir := filepath.Join(testConfig.testDirRoot, buildDir)
 
-		var testContainer *cwsTestContainer
-		if testConfig.inCWSContainer {
-			testContainer = newCWSTestContainer(testsuite, bpfDir)
+		var testContainer *testContainer
+		if testConfig.inContainerImage != "" {
+			testContainer = newTestContainer(testConfig.inContainerImage, testsuite, bpfDir)
 			if err := testContainer.start(); err != nil {
-				return fmt.Errorf("error creating cws test container: %w", err)
+				return fmt.Errorf("error creating test container: %w", err)
 			}
 		}
 
@@ -284,7 +284,7 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		if testContainer != nil {
 			if err := testContainer.stopAndRemove(); err != nil {
 				// log but do not return error
-				fmt.Fprintf(os.Stderr, "error stopping and removing cws test container: %s\n", err)
+				fmt.Fprintf(os.Stderr, "error stopping and removing test container: %s\n", err)
 			}
 		}
 	}
@@ -355,7 +355,7 @@ func buildTestConfiguration() (*testConfig, error) {
 		testingTools:      tools,
 		extraParams:       *extraParams,
 		extraEnv:          *extraEnv,
-		inCWSContainer:    userConfig.InCWSContainer,
+		inContainerImage:  userConfig.InContainerImage,
 	}, nil
 }
 
