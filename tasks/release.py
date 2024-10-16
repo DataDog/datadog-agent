@@ -1112,15 +1112,16 @@ def get_next_version(gh, latest_release=None):
 
 @task
 def generate_release_metrics(ctx, milestone, freeze_date, release_date):
-    """
-    Task to run after the release is done to generate release metrics.
+    """Task to run after the release is done to generate release metrics.
 
-    milestone - github milestone number for the release. Expected format like '7.54.0'
-    freeze_date - date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
-    release_date - date when the release was done. Expected format YYYY-MM-DD, like '2022-09-15'
+    Args:
+        milestone: Github milestone number for the release. Expected format like '7.54.0'
+        freeze_date: Date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
+        release_date: Date when the release was done. Expected format YYYY-MM-DD, like '2022-09-15'
 
-    Results are formatted in a way that can be easily copied to https://docs.google.com/spreadsheets/d/1r39CtyuvoznIDx1JhhLHQeAzmJB182n7ln8nToiWQ8s/edit#gid=1490566519
-    Copy paste numbers to the respective sheets and select 'Split text to columns'.
+    Notes:
+        Results are formatted in a way that can be easily copied to https://docs.google.com/spreadsheets/d/1r39CtyuvoznIDx1JhhLHQeAzmJB182n7ln8nToiWQ8s/edit#gid=1490566519
+        Copy paste numbers to the respective sheets and select 'Split text to columns'.
     """
 
     # Step 1: Lead Time for Changes data
@@ -1149,10 +1150,12 @@ def generate_release_metrics(ctx, milestone, freeze_date, release_date):
 
 @task
 def create_schedule(_, version, freeze_date):
+    """Create confluence pages for the release schedule.
+
+    Args:
+        freeze_date: Date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
     """
-    Create confluence pages for the release schedule.
-    freeze_date - date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
-    """
+
     required_environment_variables = ["ATLASSIAN_USERNAME", "ATLASSIAN_PASSWORD"]
     if not all(key in os.environ for key in required_environment_variables):
         raise Exit(f"You must set {required_environment_variables} environment variables to use this task.", code=1)
@@ -1210,11 +1213,11 @@ def chase_for_qa_cards(_, version):
 
 
 @task
-def check_for_changes(ctx, release_branch, warning_mode=False):
+def check_for_changes(ctx, release_branch, warning_mode=False, major_version="7"):
     """
     Check if there was any modification on the release repositories since last release candidate.
     """
-    next_version = next_rc_version(ctx, "7")
+    next_version = next_rc_version(ctx, major_version)
     repo_data = generate_repo_data(warning_mode, next_version, release_branch)
     changes = 'false'
     for repo_name, repo in repo_data.items():
