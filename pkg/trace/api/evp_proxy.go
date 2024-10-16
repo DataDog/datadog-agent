@@ -181,9 +181,8 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	timeout := getConfiguredEVPRequestTimeoutDuration(t.conf)
 	req.Header.Set("X-Datadog-Timeout", strconv.Itoa((int(timeout.Seconds()))))
 	deadline := time.Now().Add(timeout)
-	ctx, ctxCancel := context.WithDeadline(req.Context(), deadline)
+	ctx, _ := context.WithDeadline(req.Context(), deadline)
 	req = req.WithContext(ctx)
-	defer ctxCancel()
 
 	// Set target URL and API key header (per domain)
 	req.URL.Scheme = "https"
