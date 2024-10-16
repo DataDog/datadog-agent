@@ -227,6 +227,7 @@ func (sh *StreamHandler) getCurrentData(now uint64) *model.StreamData {
 	span := sh.getCurrentKernelSpan(now)
 	if span != nil {
 		data.Spans = append(data.Spans, span)
+		data.Allocations = append(data.Allocations, getAssociatedAllocations(span)...)
 	}
 
 	for _, alloc := range sh.memAllocEvents {
@@ -237,8 +238,6 @@ func (sh *StreamHandler) getCurrentData(now uint64) *model.StreamData {
 			IsLeaked:   false,
 		})
 	}
-
-	data.Allocations = append(data.Allocations, getAssociatedAllocations(data.Spans[0])...)
 
 	return data
 }
