@@ -12,64 +12,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// ArrayNode represents a node with ordered, numerically indexed set of children
-type ArrayNode interface {
-	Size() int
-	Index(int) (Node, error)
-}
-
-type arrayNodeImpl struct {
-	nodes []Node
-}
-
-func newArrayNodeImpl(v []interface{}, source model.Source) (Node, error) {
-	nodes := make([]Node, 0, len(v))
-	for _, it := range v {
-		if n, ok := it.(Node); ok {
-			nodes = append(nodes, n)
-			continue
-		}
-		n, err := NewNode(it, source)
-		if err != nil {
-			return nil, err
-		}
-		nodes = append(nodes, n)
-	}
-	return &arrayNodeImpl{nodes: nodes}, nil
-}
-
-// GetChild returns an error because array node does not have children accessible by name
-func (n *arrayNodeImpl) GetChild(string) (Node, error) {
-	return nil, fmt.Errorf("arrayNodeImpl.GetChild not implemented")
-}
-
-// ChildrenKeys returns an error because array node does not have children accessible by name
-func (n *arrayNodeImpl) ChildrenKeys() ([]string, error) {
-	return nil, fmt.Errorf("arrayNodeImpl.ChildrenKeys not implemented")
-}
-
-// Size returns number of children in the list
-func (n *arrayNodeImpl) Size() int {
-	return len(n.nodes)
-}
-
-// Index returns the kth element of the list
-func (n *arrayNodeImpl) Index(k int) (Node, error) {
-	if k < 0 || k >= len(n.nodes) {
-		return nil, ErrNotFound
-	}
-	return n.nodes[k], nil
-}
-
-var _ ArrayNode = (*arrayNodeImpl)(nil)
-var _ Node = (*arrayNodeImpl)(nil)
-
-// leafNode represents a leaf with a scalar value
-
 type leafNodeImpl struct {
 	// val must be a scalar kind
 	val    interface{}
 	source model.Source
+}
+
+var _ LeafNode = (*leafNodeImpl)(nil)
+var _ Node = (*leafNodeImpl)(nil)
+
+func isScalar(v interface{}) bool {
+	switch v.(type) {
+	case int, int8, int16, int32, int64:
+		return true
+	case uint, uint8, uint16, uint32, uint64:
+		return true
+	case bool, string, float32, float64, time.Time, time.Duration:
+		return true
+	default:
+		return false
+	}
 }
 
 func newLeafNodeImpl(v interface{}, source model.Source) (Node, error) {
@@ -78,9 +40,6 @@ func newLeafNodeImpl(v interface{}, source model.Source) (Node, error) {
 	}
 	return nil, fmt.Errorf("cannot create leaf node from %v of type %T", v, v)
 }
-
-var _ LeafNode = (*leafNodeImpl)(nil)
-var _ Node = (*leafNodeImpl)(nil)
 
 // GetChild returns an error because a leaf has no children
 func (n *leafNodeImpl) GetChild(key string) (Node, error) {
@@ -127,11 +86,21 @@ func (n *leafNodeImpl) GetDuration() (time.Duration, error) {
 	return time.Duration(0), fmt.Errorf("not implemented")
 }
 
-// Set assigns a value in the config, for the given source
+// SetWithSource assigns a value in the config, for the given source
 func (n *leafNodeImpl) SetWithSource(newValue interface{}, source model.Source) error {
 	// TODO: enforce type-checking, return an error if type changes
 	n.val = newValue
 	n.source = source
 	// TODO: Record previous value and source
 	return nil
+}
+
+// Source returns the source for this leaf
+func (n *leafNodeImpl) Source() model.Source {
+	return n.source
+}
+
+// Set is not implemented for a leaf node
+func (n *leafNodeImpl) Set([]string, interface{}, model.Source) (bool, error) {
+	return false, fmt.Errorf("not implemented")
 }
