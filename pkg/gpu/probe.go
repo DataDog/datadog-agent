@@ -23,6 +23,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
+	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -141,6 +142,12 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 		},
 		EbpfConfig:         cfg.Config,
 		PerformInitialScan: cfg.InitialProcessSync,
+	}
+
+	// Note: this will later be replaced by a common way to enable the process monitor across system-probe
+	procMon := monitor.GetProcessMonitor()
+	if err := procMon.Initialize(false); err != nil {
+		return nil, fmt.Errorf("error initializing process monitor: %w", err)
 	}
 
 	attacher, err := uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{})
