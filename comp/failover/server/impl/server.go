@@ -110,7 +110,7 @@ func (s *Server) checkPrimary() {
 
 	if configRole == "standby" {
 		s.handleFailover()
-		s.logger.Warnf("[checkPrimary] Is ") // TODO: REMOVE ME
+		s.logger.Warnf("[checkPrimary] Is Standby ") // TODO: REMOVE ME
 	}
 	clusterId := pkgconfigsetup.Datadog().GetString("ha_agent.cluster_id")
 	agentHostname, _ := hostname.Get(context.TODO())
