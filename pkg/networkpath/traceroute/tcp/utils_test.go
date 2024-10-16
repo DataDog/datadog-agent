@@ -331,6 +331,22 @@ func Test_parseTCP(t *testing.T) {
 	}
 }
 
+func BenchmarkParseTCP(b *testing.B) {
+	ipv4Header := createMockIPv4Header(srcIP, dstIP, 6) // 6 is TCP
+	tcpLayer := createMockTCPLayer(12345, 443, 28394, 12737, true, true, true)
+
+	// full packet
+	_, fullTCPPacket := createMockTCPPacket(ipv4Header, tcpLayer)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := parseTCP(ipv4Header, fullTCPPacket)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func (m *mockRawConn) SetReadDeadline(t time.Time) error {
 	if m.setReadDeadlineErr != nil {
 		return m.setReadDeadlineErr
