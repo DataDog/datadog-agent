@@ -9,6 +9,7 @@
 package sbom
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -19,6 +20,8 @@ import (
 type fileQuerier struct {
 	files []uint64
 	pkgs  []*Package
+
+	lastNegativeCache *uint64
 }
 
 /*
@@ -68,6 +71,11 @@ func newFileQuerier(report *trivy.Report) fileQuerier {
 }
 
 func (fq *fileQuerier) queryHash(hash uint64) *Package {
+	// fast path, if no package in the report contains the file
+	if !slices.Contains(fq.files, hash) {
+		return nil
+	}
+
 	var i, pkgIndex uint64
 	for i < uint64(len(fq.files)) {
 		partSize := fq.files[i]
@@ -85,13 +93,26 @@ func (fq *fileQuerier) queryHash(hash uint64) *Package {
 	return nil
 }
 
+func (fq *fileQuerier) queryHashWithNegativeCache(hash uint64) *Package {
+	if fq.lastNegativeCache != nil && *fq.lastNegativeCache == hash {
+		return nil
+	}
+
+	pkg := fq.queryHash(hash)
+	if pkg == nil {
+		fq.lastNegativeCache = &hash
+	}
+
+	return pkg
+}
+
 func (fq *fileQuerier) queryFile(path string) *Package {
-	if pkg := fq.queryHash(murmur3.StringSum64(path)); pkg != nil {
+	if pkg := fq.queryHashWithNegativeCache(murmur3.StringSum64(path)); pkg != nil {
 		return pkg
 	}
 
 	if strings.HasPrefix(path, "/usr") {
-		return fq.queryHash(murmur3.StringSum64(path[4:]))
+		return fq.queryHashWithNegativeCache(murmur3.StringSum64(path[4:]))
 	}
 
 	return nil
