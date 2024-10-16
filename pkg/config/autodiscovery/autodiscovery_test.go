@@ -53,7 +53,7 @@ network_devices:
     configs:
       - network_address: 127.0.0.1/30
         ignored_ip_addresses:
-          - 127.0.0.2
+          - 127.0.0.3
 `))
 	assert.NoError(t, err)
 	_, configListeners = DiscoverComponentsFromConfig()
