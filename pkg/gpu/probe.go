@@ -209,6 +209,7 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 	if err != nil {
 		return nil, fmt.Errorf("getting current time: %w", err)
 	}
+	p.lastGetCall = p.currentGetCall
 	p.currentGetCall = time.Now()
 
 	for key, handler := range p.consumer.streamHandlers {
