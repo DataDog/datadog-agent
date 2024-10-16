@@ -7,6 +7,7 @@
 package flowaggregator
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/haagent"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 
@@ -281,9 +283,20 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 	primaryUrl := pkgconfigsetup.Datadog().GetString("ha_agent.primary_url")
 	if primaryUrl == "" {
 		agg.logger.Warnf("[sendExporterMetadata] No primaryUrl") // TODO: REMOVE ME
-		return
+	} else {
+		agg.handleFailover(primaryUrl)
 	}
+	clusterId := pkgconfigsetup.Datadog().GetString("ha_agent.cluster_id")
+	agentHostname, _ := hostname.Get(context.TODO())
+	role := haagent.GetRole()
+	agg.sender.Gauge("datadog.ha_agent.running", 1, "", []string{
+		"cluster_id:" + clusterId,
+		"host:" + agentHostname,
+		"role:" + role,
+	})
+}
 
+func (agg *FlowAggregator) handleFailover(primaryUrl string) {
 	// Global Agent configuration
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 

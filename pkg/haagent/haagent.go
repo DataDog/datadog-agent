@@ -46,7 +46,11 @@ func GetInitialRole() string {
 }
 
 func GetRole() string {
-	return runtimeRole.Load()
+	role := runtimeRole.Load()
+	if role == "" {
+		return pkgconfigsetup.Datadog().GetString("ha_agent.role")
+	}
+	return role
 }
 
 func SetRole(role string) {
