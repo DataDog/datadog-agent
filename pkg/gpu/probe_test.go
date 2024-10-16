@@ -121,8 +121,11 @@ func TestProbeCanGenerateStats(t *testing.T) {
 
 	utils.WaitForProgramsToBeTraced(t, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 
-	// Wait until the process finishes and we can get the stats
-	_, err = cmd.Process.Wait()
+	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
+	// so that we can time out correctly
+	require.Eventually(t, func() bool {
+		return !utils.IsProgramTraced(gpuAttacherName, cmd.Process.Pid)
+	}, 20*time.Second, 500*time.Millisecond, "process not stopped")
 	require.NoError(t, err)
 
 	stats, err := probe.GetAndFlush()
