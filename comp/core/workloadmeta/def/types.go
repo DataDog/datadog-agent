@@ -746,6 +746,7 @@ func (p KubernetesPod) String(verbose bool) string {
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Priority Class:", p.PriorityClass)
 		_, _ = fmt.Fprintln(&sb, "QOS Class:", p.QOSClass)
+		_, _ = fmt.Fprintln(&sb, "GPU Type:", p.GPUType)
 		_, _ = fmt.Fprintln(&sb, "Runtime Class:", p.RuntimeClass)
 		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
 		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))

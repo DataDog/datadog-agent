@@ -844,6 +844,60 @@ func TestHandleKubePod(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "pod with containers requesting gpu resources",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				GPUType: "nvidia",
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:    fullyFleshedContainerID,
+						Name:  containerName,
+						Image: image,
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					EntityID:     podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_gpu_type:nvidia",
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source:   podSource,
+					EntityID: fullyFleshedContainerTaggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_id:%s", fullyFleshedContainerID),
+						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
+					},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: append([]string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						fmt.Sprintf("kube_container_name:%s", containerName),
+						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+						"image_name:datadog/agent",
+						"image_tag:latest",
+						"short_image:agent",
+						"kube_gpu_type:nvidia",
+					}, standardTags...),
+					StandardTags: standardTags,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
