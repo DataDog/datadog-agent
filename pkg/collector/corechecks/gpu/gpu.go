@@ -126,6 +126,7 @@ func (m *Check) Run() error {
 	}
 	if len(m.gpuDevices) == 0 {
 		log.Warnf("No GPU devices found")
+		return nil
 	}
 
 	sysprobeData, err := m.sysProbeUtil.GetCheck(sysconfig.GPUMonitoringModule)
@@ -175,14 +176,14 @@ func (m *Check) Run() error {
 		if processor.hasPendingData {
 			err := processor.markInterval()
 			if err != nil {
-				return fmt.Errorf("mark interval: %s", err)
+				return fmt.Errorf("mark interval: %w", err)
 			}
 		} else {
 			err := processor.finish(now)
 			// delete even in an error case, as we don't want to keep the processor around
 			delete(m.statProcessors, processor.key.Pid)
 			if err != nil {
-				return fmt.Errorf("finish processor: %s", err)
+				return fmt.Errorf("finish processor: %w", err)
 			}
 		}
 	}
