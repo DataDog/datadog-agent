@@ -9,12 +9,18 @@
 // classification procedures on the same connection
 BPF_HASH_MAP(connection_protocol, conn_tuple_t, protocol_stack_wrapper_t, 0)
 
+BPF_HASH_MAP(tls_expanded_tags, conn_tuple_t, tls_expanded_tags_t, 0)
+
 static __always_inline protocol_stack_t* __get_protocol_stack(conn_tuple_t* tuple) {
     protocol_stack_wrapper_t *wrapper = bpf_map_lookup_elem(&connection_protocol, tuple);
     if (!wrapper) {
         return NULL;
     }
     return &wrapper->stack;
+}
+
+static __always_inline tls_expanded_tags_t* get_tls_expanded_tags(conn_tuple_t* tuple) {
+    return bpf_map_lookup_elem(&tls_expanded_tags, tuple);
 }
 
 static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *skb_tup) {
