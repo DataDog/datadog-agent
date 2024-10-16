@@ -9,17 +9,17 @@ package sysprobe
 
 import "github.com/DataDog/datadog-agent/pkg/process/net"
 
-// GetSystemProbeConntrackCached queries contrack/cached, which uses our conntracker implementation (typically ebpf)
+// GetSystemProbeConntrackCached queries conntrack/cached, which uses our conntracker implementation (typically ebpf)
 // to return the list of NAT'd connections
 func GetSystemProbeConntrackCached(socketPath string) ([]byte, error) {
 	probeUtil, err := net.GetRemoteSystemProbeUtil(socketPath)
 	if err != nil {
 		return nil, err
 	}
-	return probeUtil.GetConnTrackCachedJSON()
+	return probeUtil.GetConnTrackCached()
 }
 
-// GetSystemProbeConntrackHost queries contrack/host, which uses netlink to return the list of NAT'd connections
+// GetSystemProbeConntrackHost queries conntrack/host, which uses netlink to return the list of NAT'd connections
 func GetSystemProbeConntrackHost(socketPath string) ([]byte, error) {
 	probeUtil, err := net.GetRemoteSystemProbeUtil(socketPath)
 	if err != nil {
@@ -28,11 +28,11 @@ func GetSystemProbeConntrackHost(socketPath string) ([]byte, error) {
 	return probeUtil.GetConnTrackHost()
 }
 
-// GetSystemProbeConntrackHostFull queries contrack/host, which uses netlink to return the connections
+// GetSystemProbeConntrackHostFull queries conntrack/host_full, which uses netlink to return the connections
 func GetSystemProbeConntrackHostFull(socketPath string) ([]byte, error) {
 	probeUtil, err := net.GetRemoteSystemProbeUtil(socketPath)
 	if err != nil {
 		return nil, err
 	}
-	return probeUtil.GetConnTrackHost()
+	return probeUtil.GetConnTrackHostFull()
 }
