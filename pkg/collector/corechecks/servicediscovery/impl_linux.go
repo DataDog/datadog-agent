@@ -152,7 +152,7 @@ func (li *linuxImpl) handlePotentialServices(events *serviceEvents, now time.Tim
 
 			if id, ok := containers[pid]; ok {
 				svc.service.ContainerID = id
-				log.Debugf("[pid: %d] add containerID to process: %s", pid, id)
+				log.Infof("[pid: %d] add containerID to process: %s", pid, id)
 			}
 
 			li.aliveServices[pid] = svc
