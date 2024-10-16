@@ -43,7 +43,6 @@ build do
         'GOPATH' => gopath.to_path,
         'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
         "Python3_ROOT_DIR" => "#{windows_safe_path(python_3_embedded)}",
-        "CMAKE_INSTALL_PREFIX" => "#{windows_safe_path(python_3_embedded)}",
     }
     major_version_arg = "%MAJOR_VERSION%"
   else
