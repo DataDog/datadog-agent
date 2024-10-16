@@ -10,16 +10,16 @@ package sysprobe
 import "errors"
 
 // GetSystemProbeConntrackCached is not supported without the process agent on linux
-func GetSystemProbeConntrackCached(socketPath string) ([]byte, error) {
+func GetSystemProbeConntrackCached(_ string) ([]byte, error) {
 	return nil, errors.New("GetSystemProbeConntrackCached is not supported without the process agent on linux")
 }
 
 // GetSystemProbeConntrackHost is not supported without the process agent on linux
-func GetSystemProbeConntrackHost(socketPath string) ([]byte, error) {
+func GetSystemProbeConntrackHost(_ string) ([]byte, error) {
 	return nil, errors.New("GetSystemProbeConntrackHost is not supported without the process agent on linux")
 }
 
 // GetSystemProbeConntrackHostFull is not supported without the process agent on linux
-func GetSystemProbeConntrackHostFull(socketPath string) ([]byte, error) {
+func GetSystemProbeConntrackHostFull(_ string) ([]byte, error) {
 	return nil, errors.New("GetSystemProbeConntrackHostFull is not supported without the process agent on linux")
 }
