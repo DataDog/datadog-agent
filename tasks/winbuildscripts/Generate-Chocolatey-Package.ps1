@@ -2,7 +2,11 @@ Param(
     [Parameter(Mandatory=$true,Position=0)]
     [ValidateSet("offline", "online")]
     [String]
-    $installMethod
+    $installMethod,
+
+    [Parameter(Mandatory=$true,Position=1)]
+    [String] 
+    $msiDirectory
 )
 
 $ErrorActionPreference = 'Stop';
@@ -66,16 +70,14 @@ if (!(Test-Path $outputDirectory)) {
 }
 
 if ($installMethod -eq "online") {
-    $statusCode = -1
     try {
-        $tempMsi = "$(Get-Location)\temp\datadog-agent-$rawAgentVersion-1-x86_64.msi"
+        $tempMsi = Join-Path -Path "$msiDirectory" "datadog-agent-$rawAgentVersion-1-x86_64.msi"
         if (!(Test-Path $tempMsi)) {
-            Write-Host "Error: Could not find MSI file for version $rawAgentVersion-1 in temp directory"
+            Write-Host "Error: Could not find MSI file in $tempMsi"
             Get-ChildItem "$(Get-Location)\temp"
             exit 1 
         }
         $checksum = (Get-FileHash $tempMsi -Algorithm SHA256).Hash
-        Remove-Item -Path "$(Get-Location)\temp" -Recurse -Force
     } 
     catch {
         Write-Host "Error: Could not generate checksum for package $($tempMsi): $($_)"
