@@ -186,6 +186,10 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
+	err = i.db.DeletePackage(pkg.Name)
+	if err != nil {
+		return fmt.Errorf("could not remove package installation in db: %w", err)
+	}
 	configDir := filepath.Join(i.userConfigsDir, pkg.Name)
 	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
