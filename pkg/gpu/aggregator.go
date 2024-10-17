@@ -93,7 +93,7 @@ func (agg *aggregator) processCurrentData(data *model.StreamData) {
 		agg.processKernelSpan(span)
 	}
 
-	agg.currentAllocs = data.Allocations
+	agg.currentAllocs = append(agg.currentAllocs, data.Allocations...)
 	agg.hasPendingData = true
 }
 
