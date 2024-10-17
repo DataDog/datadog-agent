@@ -295,7 +295,7 @@ func (d *DownloadedPackage) WriteOCILayout(dir string) error {
 func PackageURL(env *env.Env, pkg string, version string) string {
 	switch env.Site {
 	case "datad0g.com":
-		return fmt.Sprintf("oci://docker.io/datadog/%s-package-dev:%s", strings.TrimPrefix(pkg, "datadog-"), version)
+		return fmt.Sprintf("oci://install.datad0g.com/%s-package-dev:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 	default:
 		return fmt.Sprintf("oci://gcr.io/datadoghq/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 	}
