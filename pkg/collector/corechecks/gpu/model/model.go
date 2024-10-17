@@ -53,13 +53,13 @@ type StreamData struct {
 
 // PIDStats contains the GPU stats for a given PID
 type PIDStats struct {
-	UtilizationPercentage float64
-	CurrentMemoryBytes    uint64
-	MaxMemoryBytes        uint64
+	UtilizationPercentage float64 `json:"utilization_percentage"`
+	CurrentMemoryBytes    uint64  `json:"current_memory_bytes"`
+	MaxMemoryBytes        uint64  `json:"max_memory_bytes"`
 }
 
 // GPUStats contains the past and current data for all streams, including kernel spans and allocations.
 // This is the data structure that is sent to the agent
 type GPUStats struct {
-	PIDStats map[uint32]PIDStats
+	PIDStats map[uint32]PIDStats `json:"pid_stats"`
 }
