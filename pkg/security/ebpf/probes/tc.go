@@ -75,8 +75,14 @@ var RawPacketTCProgram = []string{
 }
 
 // GetRawPacketTCFilterProg returns a first tc filter
-func GetRawPacketTCFilterProg(_, rawPacketsMapFd, clsRouterMapFd int) (*ebpf.ProgramSpec, error) {
+func GetRawPacketTCFilterProg(rawPacketEventMapFd, clsRouterMapFd int) (*ebpf.ProgramSpec, error) {
 	insts := asm.Instructions{
+		// load raw event
+		asm.Mov.Imm(asm.R2, 0),
+		asm.LoadMapPtr(asm.R1, rawPacketEventMapFd),
+		asm.JNE.Imm(asm.R0, 0, "raw-packet-event-not-null"),
+		asm.Return(),
+		asm.Mov.Reg(asm.R6, asm.R0),
 
 		// jump to the send event program
 		asm.LoadMapPtr(asm.R2, clsRouterMapFd),

@@ -351,11 +351,7 @@ func (p *EBPFProbe) IsRuntimeCompiled() bool {
 }
 
 func (p *EBPFProbe) setupRawPacketProgs() error {
-	packetsMap, _, err := p.Manager.GetMap("packets")
-	if err != nil {
-		return err
-	}
-	rawPacketsMap, _, err := p.Manager.GetMap("raw_packets")
+	rawPacketEventMap, _, err := p.Manager.GetMap("raw_packet_event")
 	if err != nil {
 		return err
 	}
@@ -364,7 +360,7 @@ func (p *EBPFProbe) setupRawPacketProgs() error {
 		return err
 	}
 
-	progSpec, err := probes.GetRawPacketTCFilterProg(packetsMap.FD(), rawPacketsMap.FD(), routerMap.FD())
+	progSpec, err := probes.GetRawPacketTCFilterProg(rawPacketEventMap.FD(), routerMap.FD())
 	if err != nil {
 		return err
 	}

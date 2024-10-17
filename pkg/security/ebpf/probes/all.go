@@ -131,8 +131,7 @@ func AllMaps() []*manager.Map {
 		{Name: "syscalls_stats_enabled"},
 		{Name: "kill_list"},
 		// used by raw packet filters
-		{Name: "packets"},
-		{Name: "raw_packets"},
+		{Name: "raw_packet_event"},
 	}
 }
 

@@ -88,7 +88,7 @@ BPF_PERCPU_ARRAY_MAP(packets, struct packet_t, 1)
 BPF_PERCPU_ARRAY_MAP(selinux_write_buffer, struct selinux_write_buffer_t, 1)
 BPF_PERCPU_ARRAY_MAP(is_new_kthread, u32, 1)
 BPF_PERCPU_ARRAY_MAP(syscalls_stats, struct syscalls_stats_t, EVENT_MAX)
-BPF_PERCPU_ARRAY_MAP(raw_packets, struct raw_packet_t, 1)
+BPF_PERCPU_ARRAY_MAP(raw_packet_event, struct raw_packet_event_t, 1)
 
 BPF_PROG_ARRAY(args_envs_progs, 3)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_callbacks, EVENT_MAX)
