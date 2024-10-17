@@ -57,19 +57,20 @@ func SetupLogAgent(conf *Config, tags map[string]string) logsAgent.ServerlessLog
 
 	tagsArray := serverlessTag.MapToArray(tags)
 
-	addFileTailing(logsAgent, tagsArray)
+	addFileTailing(logsAgent, conf.source, tagsArray)
 
 	serverlessLogs.SetLogsTags(tagsArray)
 	return logsAgent
 }
 
-func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, tags []string) {
+func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags []string) {
 	if filePath, set := os.LookupEnv(envVarTailFilePath); set {
 		src := sources.NewLogSource("serverless-file-tail", &logConfig.LogsConfig{
 			Type:    logConfig.FileType,
 			Path:    filePath,
 			Service: os.Getenv("DD_SERVICE"),
 			Tags:    tags,
+			Source:  source,
 		})
 		logsAgent.GetSources().AddSource(src)
 	}
