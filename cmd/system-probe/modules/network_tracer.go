@@ -47,7 +47,7 @@ const inactivityRestartDuration = 20 * time.Minute
 
 var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config"}
 
-const maxConntrackDumpSize = 1000
+const maxConntrackDumpSize = 3000
 
 func createNetworkTracerModule(cfg *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 	ncfg := networkconfig.New()
