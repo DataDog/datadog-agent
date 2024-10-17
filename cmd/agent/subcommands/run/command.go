@@ -155,6 +155,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
+
 	// runtime init routines
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 )
@@ -255,6 +257,7 @@ func run(log log.Component,
 	settings settings.Component,
 	_ optional.Option[gui.Component],
 	_ agenttelemetry.Component,
+	rdnsquerier rdnsquerier.Component,
 ) error {
 	defer func() {
 		stopAgent()
@@ -319,6 +322,7 @@ func run(log log.Component,
 		cloudfoundrycontainer,
 		jmxlogger,
 		settings,
+		rdnsquerier,
 	); err != nil {
 		return err
 	}
@@ -494,6 +498,7 @@ func startAgent(
 	_ cloudfoundrycontainer.Component,
 	jmxLogger jmxlogger.Component,
 	settings settings.Component,
+	rdnsquerier rdnsquerier.Component,
 ) error {
 	var err error
 
@@ -571,6 +576,7 @@ func startAgent(
 
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
+	check.InitializeRDNSQuerierContext(rdnsquerier)
 
 	// Init JMX runner and inject dogstatsd component
 	jmxfetch.InitRunner(server, jmxLogger)

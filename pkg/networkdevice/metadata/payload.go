@@ -73,6 +73,7 @@ type DeviceMetadata struct {
 	OsHostname     string       `json:"os_hostname,omitempty"`
 	Integration    string       `json:"integration,omitempty"` // indicates the source of the data SNMP, meraki_api, etc.
 	DeviceType     string       `json:"device_type,omitempty"`
+	RDNSHostname   string       `json:"rdns_hostname,omitempty"`
 }
 
 // DeviceOID device scan oid data

@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 )
 
 // checkContext holds a list of reference to different components used by Go and Python checks.
@@ -20,7 +21,8 @@ import (
 // of C to Go. This way python checks can submit metadata to inventorychecks through the 'SetCheckMetadata' python
 // method.
 type checkContext struct {
-	ic inventorychecks.Component
+	ic          inventorychecks.Component
+	rdnsquerier rdnsquerier.Component
 }
 
 var ctx checkContext
@@ -47,10 +49,32 @@ func InitializeInventoryChecksContext(ic inventorychecks.Component) {
 	}
 }
 
+// GetRDNSQuerierContext returns a reference to the rdnsquerier component for Python and Go checks to use.
+func GetRDNSQuerierContext() (rdnsquerier.Component, error) {
+	checkContextMutex.Lock()
+	defer checkContextMutex.Unlock()
+
+	if ctx.rdnsquerier == nil {
+		return nil, errors.New("rdnsquerier context was not set")
+	}
+	return ctx.rdnsquerier, nil
+}
+
+// InitializeRDNSQuerierContext set the reference to rdnsquerier in checkContext
+func InitializeRDNSQuerierContext(rdnsquerier rdnsquerier.Component) {
+	checkContextMutex.Lock()
+	defer checkContextMutex.Unlock()
+
+	if ctx.rdnsquerier == nil {
+		ctx.rdnsquerier = rdnsquerier
+	}
+}
+
 // ReleaseContext reset to nil all the references hold by the current context
 func ReleaseContext() {
 	checkContextMutex.Lock()
 	defer checkContextMutex.Unlock()
 
 	ctx.ic = nil
+	ctx.rdnsquerier = nil
 }
