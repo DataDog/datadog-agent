@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// This doesn't need BPF but it's built with this tag to only run with
+// This doesn't need BPF, but it's built with this tag to only run with
 // system-probe tests.
-//go:build linux_bpf
+//go:build test && linux_bpf
 
 package module
 
