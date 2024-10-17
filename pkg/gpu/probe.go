@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -24,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
 // TODO: Set a minimum kernel version
@@ -48,12 +51,15 @@ type ProbeDependencies struct {
 
 // Probe represents the GPU monitoring probe
 type Probe struct {
-	mgr      *ddebpf.Manager
-	cfg      *Config
-	consumer *cudaEventConsumer
-	attacher *uprobes.UprobeAttacher
-	deps     ProbeDependencies
-	sysCtx   *systemContext
+	mgr            *ddebpf.Manager
+	cfg            *Config
+	consumer       *cudaEventConsumer
+	attacher       *uprobes.UprobeAttacher
+	aggregators    map[uint32]*aggregator
+	lastGetCall    time.Time
+	currentGetCall time.Time
+	deps           ProbeDependencies
+	sysCtx         *systemContext
 }
 
 // NewProbe starts the GPU monitoring probe
@@ -147,10 +153,18 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 	}
 
 	p := &Probe{
+<<<<<<< HEAD
 		mgr:      mgr,
 		cfg:      cfg,
 		attacher: attacher,
 		deps:     deps,
+=======
+		mgr:         mgr,
+		cfg:         cfg,
+		attacher:    attacher,
+		lastGetCall: time.Now(),
+		deps:        deps,
+>>>>>>> 4d8e7061c6 (Add aggregator to system-probe)
 	}
 
 	p.sysCtx, err = getSystemContext(deps.NvmlLib)
@@ -194,28 +208,69 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 	if err != nil {
 		return nil, fmt.Errorf("getting current time: %w", err)
 	}
+	p.currentGetCall = time.Now()
 
-	stats := model.GPUStats{}
 	for key, handler := range p.consumer.streamHandlers {
+		aggr := p.getOrCreateAggregator(key)
 		currData := handler.getCurrentData(uint64(now))
 		pastData := handler.getPastData(true)
 
 		if currData != nil {
-			currData.Key = key
-			stats.CurrentData = append(stats.CurrentData, currData)
+			aggr.processCurrentData(currData)
 		}
 
 		if pastData != nil {
-			pastData.Key = key
-			stats.PastData = append(stats.PastData, pastData)
+			aggr.processPastData(pastData)
 		}
 
 		if handler.processEnded {
+			aggr.processEnded = true
 			delete(p.consumer.streamHandlers, key)
 		}
 	}
 
+	p.configureNormalizationFactor()
+
+	stats := model.GPUStats{
+		PIDStats: make(map[uint32]model.PIDStats),
+	}
+
+	for pid, aggregator := range p.aggregators {
+		stats.PIDStats[pid] = aggregator.getStats()
+
+		if aggregator.processEnded {
+			delete(p.aggregators, pid)
+		}
+	}
+
 	return &stats, nil
+}
+
+func (p *Probe) getOrCreateAggregator(streamKey model.StreamKey) *aggregator {
+	aggKey := streamKey.Pid
+	if _, ok := p.aggregators[aggKey]; !ok {
+		p.aggregators[aggKey] = newAggregator(p.sysCtx)
+	}
+
+	return p.aggregators[aggKey]
+}
+
+func (p *Probe) configureNormalizationFactor() {
+	// As we compute the utilization based on the number of threads launched by the kernel, we need to
+	// normalize the utilization if we get above 100%, as the GPU can enqueue threads.
+	totalGPUUtilization := 0.0
+	for _, aggregator := range p.aggregators {
+		// Only consider aggregators that received data this interval
+		if aggregator.hasPendingData {
+			totalGPUUtilization += aggregator.getGPUUtilization()
+		}
+	}
+
+	normFactor := max(1.0, totalGPUUtilization)
+
+	for _, aggregator := range p.aggregators {
+		aggregator.setGPUUtilizationNormalizationFactor(normFactor)
+	}
 }
 
 func (p *Probe) startEventConsumer() {
