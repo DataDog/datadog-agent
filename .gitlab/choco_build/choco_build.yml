@@ -26,7 +26,7 @@ windows_choco_offline_7_x64:
 # The online version of the choco job gets the msi package through the gitlab artifacts
 windows_choco_online_7_x64:
   rules:
-    !reference [.on_deploy_stable_or_beta_repo_branch]
+    !reference [.manual]
   stage: choco_and_install_script_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["deploy_packages_windows-x64-7"]
