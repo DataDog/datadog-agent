@@ -368,6 +368,11 @@ func (s *KubeServiceService) GetTags() ([]string, error) {
 	return s.tags, nil
 }
 
+// GetTagsWithCardinality returns the tags with given cardinality.
+func (s *KubeServiceService) GetTagsWithCardinality(_ string) ([]string, error) {
+	return s.GetTags()
+}
+
 // GetHostname returns nil and an error because port is not supported in Kubelet
 func (s *KubeServiceService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported

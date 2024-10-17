@@ -124,7 +124,7 @@ func (p *EtcdConfigProvider) getTemplates(ctx context.Context, key string) []int
 		return nil
 	}
 
-	return utils.BuildTemplates(key, checkNames, initConfigs, instances, false)
+	return utils.BuildTemplates(key, checkNames, initConfigs, instances, false, "")
 }
 
 // getEtcdValue retrieves content from etcd

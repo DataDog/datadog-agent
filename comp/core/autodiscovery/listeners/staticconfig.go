@@ -92,6 +92,11 @@ func (s *StaticConfigService) GetTags() ([]string, error) {
 	return nil, nil
 }
 
+// GetTagsWithCardinality returns the tags with given cardinality.
+func (s *StaticConfigService) GetTagsWithCardinality(_ string) ([]string, error) {
+	return s.GetTags()
+}
+
 // GetPid inspect the container and return its pid
 // Not relevant in this listener
 func (s *StaticConfigService) GetPid(context.Context) (int, error) {
