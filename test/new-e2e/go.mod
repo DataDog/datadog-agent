@@ -75,7 +75,7 @@ require (
 	github.com/pkg/sftp v1.13.6
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.54.2
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.14.0
-	github.com/pulumi/pulumi-eks/sdk/v2 v2.7.8
+	github.com/pulumi/pulumi-eks/sdk/v2 v2.7.8 // indirect
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.17.1
 	github.com/pulumi/pulumi/sdk/v3 v3.133.0
 	github.com/samber/lo v1.47.0
