@@ -89,7 +89,8 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
 	}
-	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
+	packagesDir := paths.PackagesPath
+	db, err := db.New(filepath.Join(packagesDir, "packages.db"), db.WithTimeout(10*time.Second))
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
@@ -102,11 +103,11 @@ func NewInstaller(env *env.Env) (Installer, error) {
 		cdn:        cdn,
 		db:         db,
 		downloader: oci.NewDownloader(env, http.DefaultClient),
-		packages:   repository.NewRepositories(paths.PackagesPath, paths.LocksPath),
+		packages:   repository.NewRepositories(packagesDir, paths.LocksPath),
 		configs:    repository.NewRepositories(paths.ConfigsPath, paths.LocksPath),
 
 		userConfigsDir: paths.DefaultUserConfigsDir,
-		packagesDir:    paths.PackagesPath,
+		packagesDir:    packagesDir,
 	}, nil
 }
 
@@ -393,13 +394,29 @@ func (i *installerImpl) Purge(ctx context.Context) {
 		log.Warnf("could not remove installer: %v", err)
 	}
 
+	// Must close dependencies before removing the rest of the files,
+	// as some may be open/locked by the dependencies
+	i.close()
+
 	err = os.RemoveAll(paths.ConfigsPath)
 	if err != nil {
 		log.Warnf("could not delete configs dir: %v", err)
 	}
+
+	// explicitly remove the packages database from disk
+	// It's in the packagesDir which we'll completely remove below,
+	// however RemoveAll stops on the first failure and we want to
+	// avoid leaving a stale database behind. Any stale repository
+	// files will simply be removed by the next Install, but the packages.db
+	// is still used as a source of truth.
+	err = os.Remove(filepath.Join(i.packagesDir, "packages.db"))
+	if err != nil {
+		log.Warnf("could not delete packages db: %v", err)
+	}
+
 	// remove all from disk
 	span, _ := tracer.StartSpanFromContext(ctx, "remove_all")
-	err = os.RemoveAll(paths.PackagesPath)
+	err = os.RemoveAll(i.packagesDir)
 	defer span.Finish(tracer.WithError(err))
 	if err != nil {
 		log.Warnf("could not delete packages dir: %v", err)
@@ -480,9 +497,37 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 	return nil
 }
 
+// Close cleans up the Installer's dependencies, lock must be held by the caller
+func (i *installerImpl) close() error {
+	var errs []error
+
+	if i.db != nil {
+		if dbErr := i.db.Close(); dbErr != nil {
+			dbErr = fmt.Errorf("failed to close packages database: %w", dbErr)
+			errs = append(errs, dbErr)
+		}
+		i.db = nil
+	}
+	if i.cdn != nil {
+		if cdnErr := i.cdn.Close(); cdnErr != nil {
+			cdnErr = fmt.Errorf("failed to close Remote Config cdn: %w", cdnErr)
+			errs = append(errs, cdnErr)
+		}
+		i.cdn = nil
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
+}
+
 // Close cleans up the Installer's dependencies
 func (i *installerImpl) Close() error {
-	return i.cdn.Close()
+	i.m.Lock()
+	defer i.m.Unlock()
+	return i.close()
 }
 
 func (i *installerImpl) startExperiment(ctx context.Context, pkg string) error {
