@@ -26,7 +26,8 @@ func TestProbeCanLoad(t *testing.T) {
 		t.Skipf("minimum kernel version %s not met, read %s", minimumKernelVersion, kver)
 	}
 
-	probe, err := NewProbe(NewConfig(), nil)
+	nvmlMock := testutil.GetBasicNvmlMock()
+	probe, err := NewProbe(NewConfig(), ProbeDependencies{NvmlLib: nvmlMock})
 	require.NoError(t, err)
 	require.NotNil(t, probe)
 	t.Cleanup(probe.Close)
@@ -46,11 +47,15 @@ func TestProbeCanReceiveEvents(t *testing.T) {
 	procMon := monitor.GetProcessMonitor()
 	require.NotNil(t, procMon)
 	require.NoError(t, procMon.Initialize(false))
+	t.Cleanup(procMon.Stop)
 
 	cfg := NewConfig()
 	cfg.InitialProcessSync = false
 	cfg.BPFDebug = true
-	probe, err := NewProbe(cfg, nil)
+
+	nvmlMock := testutil.GetBasicNvmlMock()
+
+	probe, err := NewProbe(cfg, ProbeDependencies{NvmlLib: nvmlMock})
 	require.NoError(t, err)
 	require.NotNil(t, probe)
 	t.Cleanup(probe.Close)
