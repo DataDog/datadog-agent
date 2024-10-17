@@ -82,7 +82,7 @@ func TestMergeToEmpty(t *testing.T) {
 	src, err := NewNode(obj, model.SourceFile)
 	require.NoError(t, err)
 
-	dst, err := newMapNodeImpl(nil, model.SourceDefault)
+	dst, err := newInnerNodeImpl(nil, model.SourceDefault)
 	require.NoError(t, err)
 
 	err = dst.Merge(src)
@@ -194,7 +194,7 @@ func TestMergeErrorLeafToNode(t *testing.T) {
 }
 
 func TestMergeErrorLeaf(t *testing.T) {
-	base, err := newMapNodeImpl(nil, model.SourceDefault)
+	base, err := newInnerNodeImpl(nil, model.SourceDefault)
 	require.NoError(t, err)
 
 	leaf, err := newLeafNodeImpl(123, model.SourceDefault)

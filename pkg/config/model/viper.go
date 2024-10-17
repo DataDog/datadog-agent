@@ -92,8 +92,8 @@ type ValueWithSource struct {
 }
 
 // IsGreaterThan returns true if the current source is of higher priority than the one given as a parameter
-func (s Source) IsGreaterThan(x Source) bool {
-	return sourcesPriority[s] > sourcesPriority[x]
+func (s Source) IsGreaterOrEqualThan(x Source) bool {
+	return sourcesPriority[s] >= sourcesPriority[x]
 }
 
 // String casts Source into a string

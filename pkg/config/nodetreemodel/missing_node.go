@@ -15,6 +15,9 @@ import (
 // missingLeafImpl is a none-object representing when a child node is missing
 type missingLeafImpl struct{}
 
+var _ ArrayNode = (*arrayNodeImpl)(nil)
+var _ Node = (*arrayNodeImpl)(nil)
+
 var missingLeaf missingLeafImpl
 
 func (m *missingLeafImpl) GetAny() (any, error) {
@@ -47,4 +50,8 @@ func (m *missingLeafImpl) GetDuration() (time.Duration, error) {
 
 func (m *missingLeafImpl) SetWithSource(interface{}, model.Source) error {
 	return fmt.Errorf("SetWithSource(): missing")
+}
+
+func (m *missingLeafImpl) Source() model.Source {
+	return model.SourceUnknown
 }
