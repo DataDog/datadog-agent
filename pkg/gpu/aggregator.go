@@ -30,18 +30,9 @@ type aggregator struct {
 	// pastAllocs is the list of past memory allocations
 	pastAllocs []*model.MemoryAllocation
 
-	// lastKernelEndKtime is the timestamp of the last kernel end
-	lastKernelEndKtime int64
-
-	// firstKernelStart is the timestamp of the first kernel start
-	firstKernelStartKtime int64
-
 	// utilizationNormFactor is the factor to normalize the utilization by, to account for the fact that we might have more kernels enqueued than the GPU can run in parallel. This factor
 	// allows distributing the utilization over all the streams that are enqueued
 	utilizationNormFactor float64
-
-	// hasPendingData is true if there is data pending to be sent
-	hasPendingData bool
 
 	// processEnded is true if the process has ended and this aggregator should be deleted
 	processEnded bool
@@ -61,10 +52,6 @@ func (agg *aggregator) processKernelSpan(span *model.KernelSpan) {
 	tsStart := int64(span.StartKtime)
 	tsEnd := int64(span.EndKtime)
 
-	if agg.firstKernelStartKtime == 0 || tsStart < agg.firstKernelStartKtime {
-		agg.firstKernelStartKtime = int64(span.EndKtime)
-	}
-
 	// we only want to consider data that was not already processed in the previous interval
 	if agg.lastCheckKtime > tsStart {
 		tsStart = agg.lastCheckKtime
@@ -73,10 +60,6 @@ func (agg *aggregator) processKernelSpan(span *model.KernelSpan) {
 	durationSec := float64(tsEnd-tsStart) / nsecPerSec
 	maxThreads := uint64(agg.sysCtx.maxGpuThreadsPerDevice[0])                                // TODO: MultiGPU support not enabled yet
 	agg.totalThreadSecondsUsed += durationSec * float64(min(span.AvgThreadCount, maxThreads)) // we can't use more threads than the GPU has
-
-	if tsEnd > agg.lastKernelEndKtime {
-		agg.lastKernelEndKtime = tsEnd
-	}
 }
 
 func (agg *aggregator) processPastData(data *model.StreamData) {
@@ -85,7 +68,6 @@ func (agg *aggregator) processPastData(data *model.StreamData) {
 	}
 
 	agg.pastAllocs = append(agg.pastAllocs, data.Allocations...)
-	agg.hasPendingData = true
 }
 
 func (agg *aggregator) processCurrentData(data *model.StreamData) {
@@ -94,7 +76,6 @@ func (agg *aggregator) processCurrentData(data *model.StreamData) {
 	}
 
 	agg.currentAllocs = append(agg.currentAllocs, data.Allocations...)
-	agg.hasPendingData = true
 }
 
 func (agg *aggregator) getGPUUtilization() float64 {
@@ -143,5 +124,4 @@ func (agg *aggregator) flushProcessedStats() {
 	agg.currentAllocs = agg.currentAllocs[:0]
 	agg.pastAllocs = agg.pastAllocs[:0]
 	agg.totalThreadSecondsUsed = 0
-	agg.hasPendingData = false
 }

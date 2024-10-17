@@ -82,10 +82,7 @@ func (g *statsGenerator) configureNormalizationFactor() {
 	// normalize the utilization if we get above 100%, as the GPU can enqueue threads.
 	totalGPUUtilization := 0.0
 	for _, aggregator := range g.aggregators {
-		// Only consider aggregators that received data this interval
-		if aggregator.hasPendingData {
-			totalGPUUtilization += aggregator.getGPUUtilization()
-		}
+		totalGPUUtilization += aggregator.getGPUUtilization()
 	}
 
 	normFactor := max(1.0, totalGPUUtilization)
