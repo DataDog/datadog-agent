@@ -145,7 +145,8 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "destination": {
         "hostname": "abc",
         "ip_address": "10.0.0.2",
-        "port": 80
+        "port": 80,
+		"reverse_dns_hostname": "hostname-10.0.0.2"
     },
     "hops": [
         {
@@ -179,7 +180,8 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "destination": {
         "hostname": "abc",
         "ip_address": "10.0.0.4",
-        "port": 80
+        "port": 80,
+		"reverse_dns_hostname": "hostname-10.0.0.4"
     },
     "hops": [
         {
