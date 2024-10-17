@@ -690,7 +690,12 @@ def build_sysprobe_binary(
     arch_obj = Arch.from_str(arch)
 
     ldflags, gcflags, env = get_build_flags(
-        ctx, install_path=install_path, major_version=major_version, python_runtimes=python_runtimes, arch=arch_obj, static=static
+        ctx,
+        install_path=install_path,
+        major_version=major_version,
+        python_runtimes=python_runtimes,
+        arch=arch_obj,
+        static=static,
     )
 
     build_tags = get_default_build_tags(build="system-probe")
