@@ -5,6 +5,18 @@
 
 package sample
 
+type receiver struct {
+	u uint
+}
+
+//nolint:all
+//go:noinline
+func (r *receiver) test_pointer_method_receiver(a int) {}
+
+//nolint:all
+//go:noinline
+func (r receiver) test_method_receiver(a int) {}
+
 //nolint:all
 //go:noinline
 func test_struct_with_array(a structWithAnArray) {}
@@ -114,6 +126,13 @@ func ExecuteStructFuncs() {
 
 	fields := lotsOfFields{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26}
 	test_lots_of_fields(fields)
+
+	rcvr := receiver{1}
+	rcvr.test_method_receiver(2)
+
+	ptrRcvr := &receiver{3}
+	ptrRcvr.test_pointer_method_receiver(4)
+
 }
 
 type emptyStruct struct{}
