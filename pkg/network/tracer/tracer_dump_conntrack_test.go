@@ -96,6 +96,23 @@ TCP v4 src=10.0.0.1 dst=10.0.0.2 sport=11000 dport=11001 src=10.0.0.3 dst=10.0.0
 	require.Equal(t, expected, sb.String())
 }
 
+func TestDumpingConntrackSizeLimitWithTruncation(t *testing.T) {
+	sb := strings.Builder{}
+	table := getTestTableTwoEntries()
+	table.IsTruncated = true
+	err := table.WriteTo(&sb, 1)
+	require.NoError(t, err)
+
+	expected := `conntrack dump, kind=test-kind rootNS=1234
+totalEntries=2, capped to 1 to reduce output size
+netlink table truncated due to response timeout, some entries may be missing
+namespace 1234, size=2:
+TCP v4 src=10.0.0.1 dst=10.0.0.2 sport=11000 dport=11001 src=10.0.0.3 dst=10.0.0.4 sport=11002 dport=11003
+<reached max entries, skipping remaining 1 entries...>
+`
+	require.Equal(t, expected, sb.String())
+}
+
 func TestDumpingConntrackIPv6(t *testing.T) {
 	sb := strings.Builder{}
 	table := getTestTableTwoEntries()
