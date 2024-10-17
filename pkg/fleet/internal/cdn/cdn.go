@@ -43,5 +43,8 @@ func New(env *env.Env, configDBPath string) (CDN, error) {
 	if env.CDNLocalDirPath != "" {
 		return newLocal(env)
 	}
-	return newRemote(env, configDBPath)
+	if env.CDNEnabled {
+		return newRemote(env, configDBPath)
+	}
+	return newDirect(env, configDBPath)
 }

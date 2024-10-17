@@ -41,7 +41,7 @@ const (
 	// gcInterval is the interval at which the GC will run
 	gcInterval = 1 * time.Hour
 	// refreshStateInterval is the interval at which the state will be refreshed
-	refreshStateInterval = 1 * time.Minute
+	refreshStateInterval = 30 * time.Second
 )
 
 // Daemon is the fleet daemon in charge of remote install, updates and configuration.
@@ -562,7 +562,7 @@ func (d *daemonImpl) resolveRemoteConfigVersion(ctx context.Context, pkg string)
 	}
 	config, err := d.cdn.Get(ctx, pkg)
 	if err != nil {
-		return "", fmt.Errorf("could not get cdn config: %w", err)
+		return "", err
 	}
 	return config.Version(), nil
 }
@@ -602,9 +602,6 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		}
 
 		configVersion, err := d.resolveRemoteConfigVersion(ctx, pkg)
-		if err != nil {
-			log.Errorf("could not get agent remote config version: %v", err)
-		}
 		if err == nil {
 			p.RemoteConfigVersion = configVersion
 		} else if err != cdn.ErrProductNotSupported {

@@ -32,6 +32,7 @@ const (
 	envAgentMinorVersion     = "DD_AGENT_MINOR_VERSION"
 	envApmLanguages          = "DD_APM_INSTRUMENTATION_LANGUAGES"
 	envCDNLocalDirPath       = "DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH"
+	envCDNEnabled            = "DD_INSTALLER_CDN_ENABLED"
 )
 
 var defaultEnv = Env{
@@ -88,6 +89,7 @@ type Env struct {
 
 	InstallScript InstallScriptEnv
 
+	CDNEnabled      bool
 	CDNLocalDirPath string
 }
 
@@ -118,6 +120,7 @@ func FromEnv() *Env {
 
 		InstallScript: installScriptEnvFromEnv(),
 
+		CDNEnabled:      strings.ToLower(os.Getenv(envCDNEnabled)) == "true",
 		CDNLocalDirPath: getEnvOrDefault(envCDNLocalDirPath, ""),
 	}
 }

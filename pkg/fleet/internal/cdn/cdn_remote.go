@@ -43,16 +43,15 @@ func newRemote(env *env.Env, configDBPath string) (CDN, error) {
 
 // Get gets the configuration from the CDN.
 func (c *cdnRemote) Get(ctx context.Context, pkg string) (cfg Config, err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "cdn.Get")
+	span, _ := tracer.StartSpanFromContext(ctx, "cdn_remote.Get")
 	defer func() { span.Finish(tracer.WithError(err)) }()
-
-	orderConfig, layers, err := c.get(ctx)
-	if err != nil {
-		return nil, err
-	}
 
 	switch pkg {
 	case "datadog-agent":
+		orderConfig, layers, err := c.get(ctx)
+		if err != nil {
+			return nil, err
+		}
 		cfg, err = newAgentConfig(orderConfig, layers...)
 		if err != nil {
 			return nil, err
