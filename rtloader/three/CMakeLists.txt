@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.12)
 set(CMAKE_FIND_DEBUG_MODE on)
 find_package (Python3 COMPONENTS Interpreter Development)
 set(CMAKE_FIND_DEBUG_MODE off)
+message(INFO "Pyton3_STDLIB: ${Python3_STDLIB}")
+message(INFO "Python3_EXECUTABLE: ${Python3_EXECUTABLE}")
+message(INFO "Python3_INCLUDE_DIRS: ${Python3_INCLUDE_DIRS}")
 
 if(Python3_VERSION_MINOR LESS "7")
   message(
