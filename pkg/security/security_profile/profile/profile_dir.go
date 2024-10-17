@@ -68,7 +68,9 @@ type DirectoryProvider struct {
 	// selectors is used to select the profiles we currently care about
 	selectors []cgroupModel.WorkloadSelector
 	// profileMapping is an in-memory mapping of the profiles currently on the file system
-	profileMapping map[cgroupModel.WorkloadSelector]profileFSEntry
+	// key = image name
+	// value = pair of profile path on disk, and the selector of the profile
+	profileMapping map[string]profileFSEntry
 }
 
 // NewDirectoryProvider returns a new instance of DirectoryProvider
@@ -87,7 +89,7 @@ func NewDirectoryProvider(directory string, watch bool) (*DirectoryProvider, err
 	dp := &DirectoryProvider{
 		directory:      directory,
 		watcherEnabled: watch,
-		profileMapping: make(map[cgroupModel.WorkloadSelector]profileFSEntry),
+		profileMapping: make(map[string]profileFSEntry),
 		newFiles:       make(map[string]bool),
 	}
 	dp.workloadSelectorDebouncer = debouncer.New(workloadSelectorDebounceDelay, dp.onNewProfileDebouncerCallback)
@@ -101,6 +103,9 @@ func (dp *DirectoryProvider) Start(ctx context.Context) error {
 	dp.workloadSelectorDebouncer.Start()
 	dp.newFilesDebouncer.Start()
 
+	var childContext context.Context
+	childContext, dp.cancelFnc = context.WithCancel(ctx)
+
 	// add watches
 	if dp.watcherEnabled {
 		var err error
@@ -113,10 +118,10 @@ func (dp *DirectoryProvider) Start(ctx context.Context) error {
 			return err
 		}
 
-		var childContext context.Context
-		childContext, dp.cancelFnc = context.WithCancel(ctx)
 		go dp.watch(childContext)
 	}
+
+	go dp.cleanupLoop(childContext)
 
 	// start by loading the profiles in the configured directory
 	if err := dp.loadProfiles(); err != nil {
@@ -169,7 +174,11 @@ func (dp *DirectoryProvider) onNewProfileDebouncerCallback() {
 	}
 
 	for _, selector := range selectors {
-		for profileSelector, profilePath := range profileMapping {
+		for imageName, profilePath := range profileMapping {
+			profileSelector := cgroupModel.WorkloadSelector{
+				Image: imageName,
+				Tag:   "*",
+			}
 			if selector.Match(profileSelector) {
 				// read and parse profile
 				profile, err := LoadProtoFromFile(profilePath.path)
@@ -213,25 +222,35 @@ func (dp *DirectoryProvider) listProfiles() ([]string, error) {
 	return output, nil
 }
 
-func (dp *DirectoryProvider) loadProfile(profilePath string) error {
+func readProfile(profilePath string) (*proto.SecurityProfile, cgroupModel.WorkloadSelector, error) {
 	profile, err := LoadProtoFromFile(profilePath)
 	if err != nil {
-		return fmt.Errorf("couldn't load profile %s: %w", profilePath, err)
+		return nil, cgroupModel.WorkloadSelector{}, fmt.Errorf("couldn't load profile %s: %w", profilePath, err)
 	}
 
 	if len(profile.ProfileContexts) == 0 {
-		return fmt.Errorf("couldn't load profile %s: it did not contains any version", profilePath)
+		return nil, cgroupModel.WorkloadSelector{}, fmt.Errorf("couldn't load profile %s: it did not contains any version", profilePath)
 	}
 
 	imageName, imageTag := profile.Selector.GetImageName(), profile.Selector.GetImageTag()
 	if imageTag == "" || imageName == "" {
-		return fmt.Errorf("couldn't load profile %s: it did not contains any valid image_name (%s) or image_tag (%s)", profilePath, imageName, imageTag)
+		return nil, cgroupModel.WorkloadSelector{}, fmt.Errorf("couldn't load profile %s: it did not contains any valid image_name (%s) or image_tag (%s)", profilePath, imageName, imageTag)
 	}
 
 	workloadSelector, err := cgroupModel.NewWorkloadSelector(imageName, imageTag)
 	if err != nil {
+		return nil, cgroupModel.WorkloadSelector{}, err
+	}
+
+	return profile, workloadSelector, nil
+}
+
+func (dp *DirectoryProvider) loadProfile(profilePath string) error {
+	profile, workloadSelector, err := readProfile(profilePath)
+	if err != nil {
 		return err
 	}
+
 	profileManagerSelector := workloadSelector
 	profileManagerSelector.Tag = "*"
 
@@ -239,7 +258,7 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 	dp.Lock()
 
 	// prioritize a persited profile over activity dumps
-	if existingProfile, ok := dp.profileMapping[profileManagerSelector]; ok {
+	if existingProfile, ok := dp.profileMapping[workloadSelector.Image]; ok {
 		if existingProfile.selector.Tag == "*" && profile.Selector.GetImageTag() != "*" {
 			seclog.Debugf("ignoring %s: a persisted profile already exists for workload %s", profilePath, profileManagerSelector.String())
 			dp.Unlock()
@@ -248,7 +267,7 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 	}
 
 	// update profile mapping
-	dp.profileMapping[profileManagerSelector] = profileFSEntry{
+	dp.profileMapping[workloadSelector.Image] = profileFSEntry{
 		path:     profilePath,
 		selector: workloadSelector,
 	}
@@ -293,15 +312,18 @@ func (dp *DirectoryProvider) findProfile(path string) (cgroupModel.WorkloadSelec
 	dp.Lock()
 	defer dp.Unlock()
 
-	for selector, profile := range dp.profileMapping {
+	for imageName, profile := range dp.profileMapping {
 		if path == profile.path {
-			return selector, true
+			return cgroupModel.WorkloadSelector{
+				Image: imageName,
+				Tag:   "*",
+			}, true
 		}
 	}
 	return cgroupModel.WorkloadSelector{}, false
 }
 
-func (dp *DirectoryProvider) getProfiles() map[cgroupModel.WorkloadSelector]profileFSEntry {
+func (dp *DirectoryProvider) getProfiles() map[string]profileFSEntry {
 	dp.Lock()
 	defer dp.Unlock()
 	return dp.profileMapping
@@ -331,10 +353,10 @@ func (dp *DirectoryProvider) OnLocalStorageCleanup(files []string) {
 	}
 }
 
-func (dp *DirectoryProvider) deleteProfile(selector cgroupModel.WorkloadSelector) {
+func (dp *DirectoryProvider) deleteProfile(imageName string) {
 	dp.Lock()
 	defer dp.Unlock()
-	delete(dp.profileMapping, selector)
+	delete(dp.profileMapping, imageName)
 }
 
 func (dp *DirectoryProvider) onHandleFilesFromWatcher() {
@@ -389,18 +411,18 @@ func (dp *DirectoryProvider) watch(ctx context.Context) {
 						}
 					} else if event.Has(fsnotify.Remove) {
 						// look for the deleted profile
-						for selector, profile := range dp.getProfiles() {
+						for imageName, profile := range dp.getProfiles() {
 							if slices.Contains(files, profile.path) {
 								continue
 							}
 
 							// delete profile
-							dp.deleteProfile(selector)
+							dp.deleteProfile(imageName)
 							dp.newFilesLock.Lock()
 							delete(dp.newFiles, profile.path)
 							dp.newFilesLock.Unlock()
 
-							seclog.Debugf("security profile %s removed from profile mapping", selector)
+							seclog.Debugf("security profile %s removed from profile mapping", imageName)
 						}
 					}
 
@@ -428,6 +450,53 @@ func (dp *DirectoryProvider) SendStats(client statsd.ClientInterface) error {
 	if value := len(dp.profileMapping); value > 0 {
 		if err := client.Gauge(metrics.MetricSecurityProfileDirectoryProviderCount, float64(value), []string{}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricSecurityProfileDirectoryProviderCount, err)
+		}
+	}
+
+	return nil
+}
+
+func (dp *DirectoryProvider) cleanupLoop(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := dp.cleanup(); err != nil {
+				seclog.Errorf("couldn't cleanup profiles: %v", err)
+			}
+		}
+	}
+}
+
+func (dp *DirectoryProvider) cleanup() error {
+	// collect all workload selectors
+	profiles := dp.getProfiles()
+	pathToImageName := make(map[string]string)
+	for imageName, pfse := range profiles {
+		pathToImageName[pfse.path] = imageName
+	}
+
+	paths, err := dp.listProfiles()
+	if err != nil {
+		return err
+	}
+
+	toRemovePaths := make([]string, 0)
+	for _, path := range paths {
+		if _, ok := pathToImageName[path]; !ok {
+			toRemovePaths = append(toRemovePaths, path)
+		}
+	}
+
+	seclog.Errorf("directory provider: removing paths: %v\n", toRemovePaths)
+
+	for _, path := range toRemovePaths {
+		if err := os.Remove(path); err != nil {
+			seclog.Errorf("couldn't remove profile %s: %v", path, err)
 		}
 	}
 

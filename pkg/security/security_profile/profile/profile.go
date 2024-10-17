@@ -25,6 +25,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -203,6 +204,9 @@ func LoadProtoFromFile(filepath string) (*proto.SecurityProfile, error) {
 	if err = pp.UnmarshalVT(raw); err != nil {
 		return nil, fmt.Errorf("couldn't decode protobuf profile: %w", err)
 	}
+
+	seclog.Errorf("profile loaded from %s (%d bytes) => %s:%s", filepath, len(raw), pp.Selector.ImageName, pp.Selector.ImageTag)
+
 	return pp, nil
 }
 
