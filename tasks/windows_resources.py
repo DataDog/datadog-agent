@@ -47,12 +47,8 @@ def build_rc(ctx, rc_file, vars=None, out=None):
     ctx.run(command)
 
 
-def versioninfo_vars(
-    ctx,
-    major_version='7',
-    python_runtimes='3',
-):
-    py_runtime_var = get_win_py_runtime_var(python_runtimes)
+def versioninfo_vars(ctx, major_version='7'):
+    py_runtime_var = get_win_py_runtime_var()
     ver = get_version_numeric_only(ctx, major_version=major_version)
     build_maj, build_min, build_patch = ver.split(".")
 

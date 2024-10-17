@@ -85,7 +85,6 @@ def get_omnibus_env(
     skip_sign=False,
     release_version="nightly",
     major_version='7',
-    python_runtimes='3',
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -125,7 +124,6 @@ def get_omnibus_env(
         ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
     )
     env['MAJOR_VERSION'] = major_version
-    env['PY_RUNTIMES'] = python_runtimes
 
     # Since omnibus and the invoke task won't run in the same folder
     # we need to input the absolute path of the pip config file
@@ -176,7 +174,6 @@ def build(
     skip_sign=False,
     release_version="nightly",
     major_version='7',
-    python_runtimes='3',
     omnibus_s3_cache=False,
     hardened_runtime=False,
     system_probe_bin=None,
@@ -211,7 +208,6 @@ def build(
         skip_sign=skip_sign,
         release_version=release_version,
         major_version=major_version,
-        python_runtimes=python_runtimes,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         go_mod_cache=go_mod_cache,
@@ -345,7 +341,6 @@ def manifest(
     skip_sign=False,
     release_version="nightly",
     major_version='7',
-    python_runtimes='3',
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -359,7 +354,6 @@ def manifest(
         skip_sign=skip_sign,
         release_version=release_version,
         major_version=major_version,
-        python_runtimes=python_runtimes,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         go_mod_cache=go_mod_cache,

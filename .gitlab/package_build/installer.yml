@@ -52,7 +52,6 @@ datadog-agent-oci-x64-a7:
     ]
   variables:
     AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: "3"
     PACKAGE_ARCH: amd64
     DESTINATION_OCI: "datadog-agent-7-remote-updater-amd64.tar.xz"
     DD_CC: 'x86_64-unknown-linux-gnu-gcc'
@@ -78,7 +77,6 @@ datadog-agent-oci-arm64-a7:
     ]
   variables:
     AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: "3"
     PACKAGE_ARCH: arm64
     DESTINATION_OCI: "datadog-agent-7-remote-updater-arm64.tar.xz"
     DD_CC: 'aarch64-unknown-linux-gnu-gcc'
