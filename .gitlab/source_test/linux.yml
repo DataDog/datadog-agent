@@ -7,6 +7,7 @@
     - !reference [.retrieve_linux_go_deps]
     - inv -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
     - inv -e rtloader.install
+    - readelf -d /go/src/github.com/DataDog/datadog-agent/rtloader/build/three/libdatadog-agent-three.so
     - inv -e rtloader.format --raise-if-changed
     - inv -e rtloader.test
   # Placeholder script, overridden by .linux_tests when running all go tests

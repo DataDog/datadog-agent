@@ -1,16 +1,15 @@
 cmake_minimum_required(VERSION 3.12)
-find_package (Python3 COMPONENTS Interpreter Development)
-
-if(Python3_VERSION_MINOR LESS "7")
-  message(
-    FATAL_ERROR
-    "Python3 version found is too old: found ${Python3_EXECUTABLE} (version \"${Python3_VERSION}\"), minimum required version is 3.7"
-  )
-endif()
+pkg_check_modules(Python3 REQUIRED "python3-embed >= 3.11")
 
 project(datadog-agent-three VERSION 0.1.0 DESCRIPTION "CPython backend for the Datadog Agent")
 
-if(WIN32)
+# Compose Python3_STDLIB ourselves in order to have a correct value for _defaultPythonHome:
+# cmake sets it to the value of sysconfig.get_path('stdlib')
+# Which python defines as prefix/lib/pythonX.Y or prefix\Lib on windows
+if (NOT WIN32)
+  set(Python3_STDLIB "${Python3_PREFIX}/lib/python${Python3_VERSION}")
+else()
+  set(Python3_STDLIB "${Python3_PREFIX}\\Lib")
   if(MSVC)
     # explicitly set the compiler flags to use the static C runtime (/MT(d) instead of the DLL
     # c runtime (/MD(d) so that we don't have to worry about redistributing the CRT).
@@ -63,6 +62,11 @@ target_include_directories(datadog-agent-three PUBLIC
     ${CMAKE_SOURCE_DIR}/common/builtins
     ${Python3_INCLUDE_DIRS}
 )
+message(INFO "Linking datadog-agent-three with ${Python3_LIBRARIES}")
+message(INFO "Python3_LIBRARY_DIRS: ${Python3_LIBRARY_DIRS}")
+message(INFO "Python3_LDFLAGS: ${Python3_LDFLAGS}")
+message(INFO "Python3_LDFLAGS_OTHER: ${Python3_LDFLAGS_OTHER}")
+target_link_directories(datadog-agent-three PRIVATE ${Python3_LIBRARY_DIRS})
 target_link_libraries(datadog-agent-three ${Python3_LIBRARIES} datadog-agent-rtloader)
 
 if(WIN32)
