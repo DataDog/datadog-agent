@@ -35,6 +35,7 @@ const (
 	TCPQueueLengthTracerModule   types.ModuleName = "tcp_queue_length_tracer"
 	ProcessModule                types.ModuleName = "process"
 	EventMonitorModule           types.ModuleName = "event_monitor"
+	ProcessMonitorModule         types.ModuleName = "process_monitor"
 	DynamicInstrumentationModule types.ModuleName = "dynamic_instrumentation"
 	EBPFModule                   types.ModuleName = "ebpf"
 	LanguageDetectionModule      types.ModuleName = "language_detection"
@@ -163,7 +164,9 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(discoveryNS("enabled")) {
 		c.EnabledModules[DiscoveryModule] = struct{}{}
 	}
-	if cfg.GetBool(gpuNS("enabled")) {
+
+	gpuEnabled := cfg.GetBool(gpuNS("enabled"))
+	if gpuEnabled {
 		c.EnabledModules[GPUMonitoringModule] = struct{}{}
 	}
 
@@ -176,6 +179,11 @@ func load() (*types.Config, error) {
 			// module is enabled, to allow the core agent to detect our own crash
 			c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
 		}
+	}
+
+	// Enable process monitor if there are modules that require it (USM, GPU monitoring)
+	if gpuEnabled || usmEnabled {
+		c.EnabledModules[ProcessMonitorModule] = struct{}{}
 	}
 
 	c.Enabled = len(c.EnabledModules) > 0
