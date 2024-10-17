@@ -802,37 +802,13 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (*DebugConntrackTable, 
 	if err != nil {
 		return nil, err
 	}
-	table, err := netlink.DumpHostTable(ctx, t.config, t.telemetryComp, netlink.HostTableDumpNatOnly)
+	table, err := netlink.DumpHostTable(ctx, t.config, t.telemetryComp)
 	if err != nil {
 		return nil, err
 	}
 
 	return &DebugConntrackTable{
 		Kind:    "host-nat",
-		RootNS:  rootNS,
-		Entries: table,
-	}, nil
-}
-
-// DebugHostConntrackFull dumps the conntrack data obtained from the host via netlink (including non-NAT entries).
-func (t *Tracer) DebugHostConntrackFull(ctx context.Context) (*DebugConntrackTable, error) {
-	ns, err := t.config.GetRootNetNs()
-	if err != nil {
-		return nil, err
-	}
-	defer ns.Close()
-
-	rootNS, err := kernel.GetInoForNs(ns)
-	if err != nil {
-		return nil, err
-	}
-	table, err := netlink.DumpHostTable(ctx, t.config, t.telemetryComp, netlink.HostTableDumpFull)
-	if err != nil {
-		return nil, err
-	}
-
-	return &DebugConntrackTable{
-		Kind:    "host-full",
 		RootNS:  rootNS,
 		Entries: table,
 	}, nil

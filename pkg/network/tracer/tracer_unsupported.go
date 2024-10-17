@@ -82,11 +82,6 @@ func (t *Tracer) DebugHostConntrack(_ context.Context) (*DebugConntrackTable, er
 	return nil, ebpf.ErrNotImplemented
 }
 
-// DebugHostConntrackFull is not implemented on this OS for Tracer
-func (t *Tracer) DebugHostConntrackFull(_ context.Context) (*DebugConntrackTable, error) {
-	return nil, ebpf.ErrNotImplemented
-}
-
 // DebugDumpProcessCache is not implemented on this OS for Tracer
 func (t *Tracer) DebugDumpProcessCache(context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented

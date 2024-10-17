@@ -10,6 +10,7 @@ package netlink
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"net/netip"
 
@@ -98,7 +99,8 @@ func (ctr *realConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]D
 	return table, nil
 }
 
-func dumpHostTableWithFilter(ctx context.Context, cfg *config.Config, telemetryComp telemetry.Component, keepCon func(Con) bool) (map[uint32][]DebugConntrackEntry, error) {
+// DumpHostTable dumps the host conntrack NAT entries grouped by network namespace
+func DumpHostTable(ctx context.Context, cfg *config.Config, telemetryComp telemetry.Component) (map[uint32][]DebugConntrackEntry, error) {
 	consumer, err := NewConsumer(cfg, telemetryComp)
 	if err != nil {
 		return nil, err
@@ -124,6 +126,11 @@ func dumpHostTableWithFilter(ctx context.Context, cfg *config.Config, telemetryC
 		for {
 			select {
 			case <-ctx.Done():
+				err = ctx.Err()
+				// if we have exceeded the deadline, return partial data of what we have so far.
+				if errors.Is(err, context.DeadlineExceeded) {
+					break dumploop
+				}
 				return nil, ctx.Err()
 			case ev, ok := <-events:
 				if !ok {
@@ -131,7 +138,7 @@ func dumpHostTableWithFilter(ctx context.Context, cfg *config.Config, telemetryC
 				}
 				conns := decoder.DecodeAndReleaseEvent(ev)
 				for _, c := range conns {
-					if !keepCon(c) {
+					if !IsNAT(c) {
 						continue
 					}
 
@@ -164,38 +171,4 @@ func dumpHostTableWithFilter(ctx context.Context, cfg *config.Config, telemetryC
 		}
 	}
 	return table, nil
-}
-
-// HostTableDumpType decides whether to filter the output of netlink conntrack
-type HostTableDumpType int
-
-const (
-	// HostTableDumpFull shows all entries, including non-NAT entries
-	HostTableDumpFull HostTableDumpType = iota
-	// HostTableDumpNatOnly filters to only entries where IsNAT is true
-	HostTableDumpNatOnly
-)
-
-func (t HostTableDumpType) String() string {
-	switch t {
-	case HostTableDumpFull:
-		return "full"
-	case HostTableDumpNatOnly:
-		return "nat"
-	default:
-		return "unknown"
-	}
-}
-
-// DumpHostTable dumps the host conntrack NAT entries grouped by network namespace
-func DumpHostTable(ctx context.Context, cfg *config.Config, telemetryComp telemetry.Component, kind HostTableDumpType) (map[uint32][]DebugConntrackEntry, error) {
-	keepAll := func(Con) bool { return true }
-	switch kind {
-	case HostTableDumpFull:
-		return dumpHostTableWithFilter(ctx, cfg, telemetryComp, keepAll)
-	case HostTableDumpNatOnly:
-		return dumpHostTableWithFilter(ctx, cfg, telemetryComp, IsNAT)
-	default:
-		return nil, fmt.Errorf("invalid host table dump type: %d", int(kind))
-	}
 }

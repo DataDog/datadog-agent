@@ -27,12 +27,3 @@ func GetSystemProbeConntrackHost(socketPath string) ([]byte, error) {
 	}
 	return probeUtil.GetConnTrackHost()
 }
-
-// GetSystemProbeConntrackHostFull queries conntrack/host_full, which uses netlink to return the connections
-func GetSystemProbeConntrackHostFull(socketPath string) ([]byte, error) {
-	probeUtil, err := net.GetRemoteSystemProbeUtil(socketPath)
-	if err != nil {
-		return nil, err
-	}
-	return probeUtil.GetConnTrackHostFull()
-}

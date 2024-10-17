@@ -148,11 +148,10 @@ func provideSystemProbe(fb flaretypes.FlareBuilder) error {
 	addSystemProbePlatformSpecificEntries(fb)
 
 	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
-		fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)                              //nolint:errcheck
-		fb.AddFileFromFunc(filepath.Join("system-probe", "system_probe_telemetry.log"), getSystemProbeTelemetry)      // nolint:errcheck
-		fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_cached.log"), getSystemProbeConntrackCached)      // nolint:errcheck
-		fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_host.log"), getSystemProbeConntrackHost)          // nolint:errcheck
-		fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_host_full.log"), getSystemProbeConntrackHostFull) // nolint:errcheck
+		fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)                         //nolint:errcheck
+		fb.AddFileFromFunc(filepath.Join("system-probe", "system_probe_telemetry.log"), getSystemProbeTelemetry) // nolint:errcheck
+		fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_cached.log"), getSystemProbeConntrackCached) // nolint:errcheck
+		fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_host.log"), getSystemProbeConntrackHost)     // nolint:errcheck
 	}
 	return nil
 }
@@ -266,9 +265,6 @@ func getSystemProbeConntrackCached() ([]byte, error) {
 }
 func getSystemProbeConntrackHost() ([]byte, error) {
 	return sysprobe.GetSystemProbeConntrackHost(getSystemProbeSocketPath())
-}
-func getSystemProbeConntrackHostFull() ([]byte, error) {
-	return sysprobe.GetSystemProbeConntrackHostFull(getSystemProbeSocketPath())
 }
 
 // getProcessAgentFullConfig fetches process-agent runtime config as YAML and returns it to be added to  process_agent_runtime_config_dump.yaml
