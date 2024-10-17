@@ -8,21 +8,21 @@
 package gpu
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 )
+
+const nsecPerSec = 1e9
 
 // aggregator is responsible for processing the data from the streams and generating the metrics
 type aggregator struct {
 	// totalThreadSecondsUsed is the total amount of thread-seconds used by the GPU in the current interval
 	totalThreadSecondsUsed float64
 
-	// lastCheck is the last time the processor was checked
-	lastCheck time.Time
+	// lastCheckKtime is the last kernel time the processor was checked
+	lastCheckKtime int64
 
-	// measuredInterval is the interval between the last two checks
-	measuredInterval time.Duration
+	// measuredIntervalNs is the interval between the last two checks, in nanoseconds
+	measuredIntervalNs int64
 
 	// currentAllocs is the list of current memory allocations
 	currentAllocs []*model.MemoryAllocation
@@ -30,11 +30,11 @@ type aggregator struct {
 	// pastAllocs is the list of past memory allocations
 	pastAllocs []*model.MemoryAllocation
 
-	// lastKernelEnd is the timestamp of the last kernel end
-	lastKernelEnd time.Time
+	// lastKernelEndKtime is the timestamp of the last kernel end
+	lastKernelEndKtime int64
 
 	// firstKernelStart is the timestamp of the first kernel start
-	firstKernelStart time.Time
+	firstKernelStartKtime int64
 
 	// utilizationNormFactor is the factor to normalize the utilization by, to account for the fact that we might have more kernels enqueued than the GPU can run in parallel. This factor
 	// allows distributing the utilization over all the streams that are enqueued
@@ -58,22 +58,24 @@ func newAggregator(sysCtx *systemContext) *aggregator {
 
 // processKernelSpan processes a kernel span
 func (agg *aggregator) processKernelSpan(span *model.KernelSpan) {
-	tsStart := agg.sysCtx.timeResolver.ResolveMonotonicTimestamp(span.StartKtime)
-	tsEnd := agg.sysCtx.timeResolver.ResolveMonotonicTimestamp(span.EndKtime)
+	tsStart := int64(span.StartKtime)
+	tsEnd := int64(span.EndKtime)
 
-	if agg.firstKernelStart.IsZero() || tsStart.Before(agg.firstKernelStart) {
-		agg.firstKernelStart = tsStart
+	if agg.firstKernelStartKtime == 0 || tsStart < agg.firstKernelStartKtime {
+		agg.firstKernelStartKtime = int64(span.EndKtime)
 	}
 
 	// we only want to consider data that was not already processed in the previous interval
-	if agg.lastCheck.After(tsStart) {
-		tsStart = agg.lastCheck
+	if agg.lastCheckKtime > tsStart {
+		tsStart = agg.lastCheckKtime
 	}
-	duration := tsEnd.Sub(tsStart)
-	maxThreads := uint64(agg.sysCtx.maxGpuThreadsPerDevice[0])                                       // TODO: MultiGPU support not enabled yet
-	agg.totalThreadSecondsUsed += duration.Seconds() * float64(min(span.AvgThreadCount, maxThreads)) // we can't use more threads than the GPU has
-	if tsEnd.After(agg.lastKernelEnd) {
-		agg.lastKernelEnd = tsEnd
+
+	durationSec := float64(tsEnd-tsStart) / nsecPerSec
+	maxThreads := uint64(agg.sysCtx.maxGpuThreadsPerDevice[0])                                // TODO: MultiGPU support not enabled yet
+	agg.totalThreadSecondsUsed += durationSec * float64(min(span.AvgThreadCount, maxThreads)) // we can't use more threads than the GPU has
+
+	if tsEnd > agg.lastKernelEndKtime {
+		agg.lastKernelEndKtime = tsEnd
 	}
 }
 
@@ -96,7 +98,7 @@ func (agg *aggregator) processCurrentData(data *model.StreamData) {
 }
 
 func (agg *aggregator) getGPUUtilization() float64 {
-	intervalSecs := agg.measuredInterval.Seconds()
+	intervalSecs := float64(agg.measuredIntervalNs) / nsecPerSec
 	if intervalSecs > 0 {
 		// TODO: MultiGPU support not enabled yet
 		availableThreadSeconds := float64(agg.sysCtx.maxGpuThreadsPerDevice[0]) * intervalSecs
@@ -113,22 +115,18 @@ func (agg *aggregator) setGPUUtilizationNormalizationFactor(factor float64) {
 func (agg *aggregator) getStats() model.PIDStats {
 	var stats model.PIDStats
 
-	intervalSecs := agg.measuredInterval.Seconds()
-	if intervalSecs > 0 {
+	if agg.measuredIntervalNs > 0 {
 		stats.UtilizationPercentage = agg.getGPUUtilization() / agg.utilizationNormFactor
 	}
 
 	var memTsBuilder tseriesBuilder
 
 	for _, alloc := range agg.currentAllocs {
-		startEpoch := agg.sysCtx.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix()
-		memTsBuilder.AddEventStart(uint64(startEpoch), int64(alloc.Size))
+		memTsBuilder.AddEventStart(alloc.StartKtime, int64(alloc.Size))
 	}
 
 	for _, alloc := range agg.pastAllocs {
-		startEpoch := agg.sysCtx.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix()
-		endEpoch := agg.sysCtx.timeResolver.ResolveMonotonicTimestamp(alloc.EndKtime).Unix()
-		memTsBuilder.AddEvent(uint64(startEpoch), uint64(endEpoch), int64(alloc.Size))
+		memTsBuilder.AddEvent(alloc.StartKtime, alloc.EndKtime, int64(alloc.Size))
 	}
 
 	lastValue, maxValue := memTsBuilder.GetLastAndMax()

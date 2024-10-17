@@ -168,9 +168,13 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
 
-	p.startEventConsumer()
+	now, err := ddebpf.NowNanoseconds()
+	if err != nil {
+		return nil, fmt.Errorf("error getting current time: %w", err)
+	}
 
-	p.generator = newStatsGenerator(p.sysCtx, p.consumer.streamHandlers)
+	p.startEventConsumer()
+	p.generator = newStatsGenerator(p.sysCtx, now, p.consumer.streamHandlers)
 
 	if err := mgr.InitWithOptions(buf, &opts); err != nil {
 		return nil, fmt.Errorf("failed to init manager: %w", err)
@@ -202,11 +206,12 @@ func (p *Probe) Close() {
 
 // GetAndFlush returns the GPU stats
 func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
-	stats, err := p.generator.getStats()
+	now, err := ddebpf.NowNanoseconds()
 	if err != nil {
-		return nil, fmt.Errorf("error getting GPU stats: %w", err)
+		return nil, fmt.Errorf("error getting current time: %w", err)
 	}
 
+	stats := p.generator.getStats(now)
 	p.generator.cleanupFinishedAggregators()
 	p.consumer.cleanupHandlersMarkedFinished()
 
