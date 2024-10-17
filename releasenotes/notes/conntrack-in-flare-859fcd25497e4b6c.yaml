@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    The agent flare now returns NAT debug information from conntrack in the ``system-probe`` directory.
+    The Agent flare now returns NAT debug information from conntrack in the ``system-probe`` directory.
