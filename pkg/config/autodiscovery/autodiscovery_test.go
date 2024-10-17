@@ -44,5 +44,19 @@ snmp_listener:
 `))
 	assert.NoError(t, err)
 	_, configListeners = DiscoverComponentsFromConfig()
-	assert.Empty(t, len(configListeners))
+	assert.Len(t, configListeners, 1)
+	assert.Equal(t, "snmp", configListeners[0].Name)
+
+	err = pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+network_devices:
+  autodiscovery:
+    configs:
+      - network_address: 127.0.0.1/30
+        ignored_ip_addresses:
+          - 127.0.0.3
+`))
+	assert.NoError(t, err)
+	_, configListeners = DiscoverComponentsFromConfig()
+	assert.Len(t, configListeners, 1)
+	assert.Equal(t, "snmp", configListeners[0].Name)
 }
