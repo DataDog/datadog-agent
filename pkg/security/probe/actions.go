@@ -38,10 +38,10 @@ type KillActionReport struct {
 	DetectedAt   time.Time
 	KilledAt     time.Time
 	ExitedAt     time.Time
-	DisarmerType disarmerType
+	DisarmerType string
 
 	// internal
-	pid      uint32
+	Pid      uint32
 	resolved bool
 	rule     *rules.Rule
 }
@@ -80,7 +80,7 @@ func (k *KillActionReport) ToJSON() ([]byte, error) {
 		Signal:       k.Signal,
 		Scope:        k.Scope,
 		Status:       string(k.Status),
-		DisarmerType: string(k.DisarmerType),
+		DisarmerType: k.DisarmerType,
 		CreatedAt:    utils.NewEasyjsonTime(k.CreatedAt),
 		DetectedAt:   utils.NewEasyjsonTime(k.DetectedAt),
 		KilledAt:     utils.NewEasyjsonTimeIfNotZero(k.KilledAt),

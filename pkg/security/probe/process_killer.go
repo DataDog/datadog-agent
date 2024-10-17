@@ -127,7 +127,7 @@ func (p *ProcessKiller) HandleProcessExited(event *model.Event) {
 		report.Lock()
 		defer report.Unlock()
 
-		if report.pid == event.ProcessContext.Pid {
+		if report.Pid == event.ProcessContext.Pid {
 			report.ExitedAt = event.ProcessContext.ExitTime
 			report.resolved = true
 			return true
@@ -196,10 +196,10 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 				Scope:        scope,
 				Signal:       kill.Signal,
 				Status:       KillActionStatusRuleDisarmed,
-				DisarmerType: dt,
+				DisarmerType: string(dt),
 				CreatedAt:    ev.ProcessContext.ExecTime,
 				DetectedAt:   ev.ResolveEventTime(),
-				pid:          ev.ProcessContext.Pid,
+				Pid:          ev.ProcessContext.Pid,
 				rule:         rule,
 			})
 		}
@@ -273,7 +273,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 		CreatedAt:  ev.ProcessContext.ExecTime,
 		DetectedAt: ev.ResolveEventTime(),
 		KilledAt:   killedAt,
-		pid:        ev.ProcessContext.Pid,
+		Pid:        ev.ProcessContext.Pid,
 		rule:       rule,
 	}
 	ev.ActionReports = append(ev.ActionReports, report)
@@ -455,8 +455,8 @@ const (
 type disarmerType string
 
 const (
-	containerDisarmerType  = disarmerType("container")
-	executableDisarmerType = disarmerType("executable")
+	containerDisarmerType  disarmerType = "container"
+	executableDisarmerType disarmerType = "executable"
 )
 
 type ruleDisarmer struct {
