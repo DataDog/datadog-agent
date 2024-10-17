@@ -46,6 +46,9 @@ const (
 	dotnetProfilingLdPreloadKey   = "LD_PRELOAD"
 	dotnetProfilingLdPreloadValue = "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so"
 
+  // PHP config
+	phpPathValue = "/datadog-lib"
+
 	// Ruby config
 	rubyOptKey   = "RUBYOPT"
 	rubyOptValue = " -r/datadog-lib/auto_inject"
@@ -109,6 +112,13 @@ func pythonEnvValFunc(predefinedVal string) string {
 		return pythonPathValue
 	}
 	return fmt.Sprintf("%s:%s", pythonPathValue, predefinedVal)
+}
+
+func phpEnvValFunc(predefinedVal string) string {
+	if predefinedVal == "" {
+		return phpPathValue
+	}
+	return fmt.Sprintf("%s:%s", phpPathValue, predefinedVal)
 }
 
 func dotnetProfilingLdPreloadEnvValFunc(predefinedVal string) string {
