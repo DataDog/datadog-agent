@@ -203,7 +203,7 @@ func TestUnmarshal(t *testing.T) {
 					},
 				},
 			}),
-			err: "1 error(s) decoding:\n\n* error decoding 'metrics.sums.cumulative_monotonic_mode': invalid cumulative monotonic sum mode \"invalid_mode\"",
+			err: "decoding failed due to the following error(s):\n\nerror decoding '': decoding failed due to the following error(s):\n\nerror decoding 'metrics.sums.cumulative_monotonic_mode': invalid cumulative monotonic sum mode \"invalid_mode\"",
 		},
 		{
 			name: "invalid host metadata hostname source",
@@ -212,7 +212,7 @@ func TestUnmarshal(t *testing.T) {
 					"hostname_source": "invalid_source",
 				},
 			}),
-			err: "1 error(s) decoding:\n\n* error decoding 'host_metadata.hostname_source': invalid host metadata hostname source \"invalid_source\"",
+			err: "decoding failed due to the following error(s):\n\nerror decoding '': decoding failed due to the following error(s):\n\nerror decoding 'host_metadata.hostname_source': invalid host metadata hostname source \"invalid_source\"",
 		},
 		{
 			name: "invalid summary mode",
@@ -223,7 +223,7 @@ func TestUnmarshal(t *testing.T) {
 					},
 				},
 			}),
-			err: "1 error(s) decoding:\n\n* error decoding 'metrics.summaries.mode': invalid summary mode \"invalid_mode\"",
+			err: "decoding failed due to the following error(s):\n\nerror decoding '': decoding failed due to the following error(s):\n\nerror decoding 'metrics.summaries.mode': invalid summary mode \"invalid_mode\"",
 		},
 		{
 			name: "metrics::send_monotonic_counter custom error",
@@ -300,7 +300,7 @@ func TestUnmarshal(t *testing.T) {
 					},
 				},
 			}),
-			err: "1 error(s) decoding:\n\n* error decoding 'metrics.sums.initial_cumulative_monotonic_value': invalid initial value mode \"invalid_mode\"",
+			err: "decoding failed due to the following error(s):\n\nerror decoding '': decoding failed due to the following error(s):\n\nerror decoding 'metrics.sums.initial_cumulative_monotonic_value': invalid initial value mode \"invalid_mode\"",
 		},
 		{
 			name: "initial cumulative monotonic value mode set with raw_value",

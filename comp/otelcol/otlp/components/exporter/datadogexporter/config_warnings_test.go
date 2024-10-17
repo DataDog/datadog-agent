@@ -30,7 +30,7 @@ func TestSendAggregations(t *testing.T) {
 					},
 				},
 			}),
-			err: "\"metrics::histograms::send_count_sum_metrics\" and \"metrics::histograms::send_aggregation_metrics\" can't be both set at the same time: use \"metrics::histograms::send_aggregation_metrics\" only instead",
+			err: "decoding failed due to the following error(s):\n\nerror decoding '': \"metrics::histograms::send_count_sum_metrics\" and \"metrics::histograms::send_aggregation_metrics\" can't be both set at the same time: use \"metrics::histograms::send_aggregation_metrics\" only instead",
 		},
 		{
 			name: "metrics::histograms::send_count_sum_metrics set to true",
