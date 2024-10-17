@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// RegisterCacheKey used as index to the register cache
+// RegisterCacheEntry used to track the value
 type RegisterCacheEntry struct {
 	Pos   int
 	Value interface{}
