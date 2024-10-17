@@ -740,7 +740,8 @@ func (t *Tracer) connectionExpired(conn *network.ConnectionStats, latestTime uin
 
 	// skip connection check for udp connections or if
 	// the pid for the connection is dead
-	if conn.Type == network.UDP || !procutil.PidExists(int(conn.Pid)) {
+	// conn.Pid can be 0 when ebpf-less tracer is running
+	if conn.Type == network.UDP || (conn.Pid > 0 && !procutil.PidExists(int(conn.Pid))) {
 		return true
 	}
 
