@@ -48,7 +48,6 @@ static void add_constants(PyObject *m)
     PyModule_AddIntConstant(m, "HISTORATE", DATADOG_AGENT_RTLOADER_HISTORATE);
 }
 
-#ifdef DATADOG_AGENT_THREE
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, AGGREGATOR_MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit_aggregator(void)
@@ -57,16 +56,6 @@ PyMODINIT_FUNC PyInit_aggregator(void)
     add_constants(m);
     return m;
 }
-#elif defined(DATADOG_AGENT_TWO)
-// module object storage
-static PyObject *module;
-
-void Py2_init_aggregator()
-{
-    module = Py_InitModule(AGGREGATOR_MODULE_NAME, methods);
-    add_constants(module);
-}
-#endif
 
 void _set_submit_metric_cb(cb_submit_metric_t cb)
 {
