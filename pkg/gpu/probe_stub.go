@@ -13,6 +13,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
+type ProbeDependencies struct {
+	Telemetry telemetry.Component
+	NvmlLib   any // use any as the type to avoid importing NVML
+}
+
 // Probe is not implemented on non-linux systems
 type Probe struct{}
 
