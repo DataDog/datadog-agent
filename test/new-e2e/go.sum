@@ -18,6 +18,8 @@ github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a h1:m9REhmyaWD5YJ0P53y
 github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/test-infra-definitions v0.0.0-20241015101741-f694c4dc33e4 h1:9P0Ecgmk+so7agQVftk6ojEs7qlquhGakJ1BMh3jZ7A=
 github.com/DataDog/test-infra-definitions v0.0.0-20241015101741-f694c4dc33e4/go.mod h1:0YN66dG8119K5c1QDt11MUwYxov6Yd0JX9+kmj45yQE=
+github.com/DataDog/test-infra-definitions v0.0.0-20241016154028-41ba752d6324 h1:9UU8MS8vC17/lYY0H6AdJ9+vv/kHGQjko9sKbHJBppQ=
+github.com/DataDog/test-infra-definitions v0.0.0-20241016154028-41ba752d6324/go.mod h1:0YN66dG8119K5c1QDt11MUwYxov6Yd0JX9+kmj45yQE=
 github.com/DataDog/viper v1.13.5 h1:SZMcyMknYQN2jRY/40A16gUXexlNJOI8sDs1cWZnI64=
 github.com/DataDog/viper v1.13.5/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/DataDog/zstd v1.5.5 h1:oWf5W7GtOLgp6bciQYDmhHHjdhYkALu6S/5Ni9ZgSvQ=
