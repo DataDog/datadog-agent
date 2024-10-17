@@ -13,25 +13,31 @@ import (
 
 const nsecPerSec = 1e9
 
-// aggregator is responsible for processing the data from the streams and generating the metrics
+// aggregator is responsible for receiving stream-level data for one process and aggregating it into metrics
 type aggregator struct {
-	// totalThreadSecondsUsed is the total amount of thread-seconds used by the GPU in the current interval
+	// totalThreadSecondsUsed is the total amount of thread-seconds used by the
+	// GPU in the current interval
 	totalThreadSecondsUsed float64
 
-	// lastCheckKtime is the last kernel time the processor was checked
+	// lastCheckKtime is the last kernel time the processor was checked,
+	// required to take into account only data from the current interval.
 	lastCheckKtime int64
 
-	// measuredIntervalNs is the interval between the last two checks, in nanoseconds
+	// measuredIntervalNs is the interval between the last two checks, in
+	// nanoseconds, required to compute thread seconds used/available for
+	// utilization percentages
 	measuredIntervalNs int64
 
-	// currentAllocs is the list of current memory allocations
+	// currentAllocs is the list of current (active) memory allocations
 	currentAllocs []*model.MemoryAllocation
 
-	// pastAllocs is the list of past memory allocations
+	// pastAllocs is the list of past (freed) memory allocations
 	pastAllocs []*model.MemoryAllocation
 
-	// utilizationNormFactor is the factor to normalize the utilization by, to account for the fact that we might have more kernels enqueued than the GPU can run in parallel. This factor
-	// allows distributing the utilization over all the streams that are enqueued
+	// utilizationNormFactor is the factor to normalize the utilization by, to
+	// account for the fact that we might have more kernels enqueued than the
+	// GPU can run in parallel. This factor allows distributing the utilization
+	// over all the streams that were active during the interval.
 	utilizationNormFactor float64
 
 	// processEnded is true if the process has ended and this aggregator should be deleted
@@ -47,7 +53,8 @@ func newAggregator(sysCtx *systemContext) *aggregator {
 	}
 }
 
-// processKernelSpan processes a kernel span
+// processKernelSpan takes a kernel span and computes the thread-seconds used by it during
+// the interval
 func (agg *aggregator) processKernelSpan(span *model.KernelSpan) {
 	tsStart := int64(span.StartKtime)
 	tsEnd := int64(span.EndKtime)
@@ -62,6 +69,7 @@ func (agg *aggregator) processKernelSpan(span *model.KernelSpan) {
 	agg.totalThreadSecondsUsed += durationSec * float64(min(span.AvgThreadCount, maxThreads)) // we can't use more threads than the GPU has
 }
 
+// processPastData takes spans/allocations that have already been closed
 func (agg *aggregator) processPastData(data *model.StreamData) {
 	for _, span := range data.Spans {
 		agg.processKernelSpan(span)
@@ -70,6 +78,7 @@ func (agg *aggregator) processPastData(data *model.StreamData) {
 	agg.pastAllocs = append(agg.pastAllocs, data.Allocations...)
 }
 
+// processCurrentData takes spans/allocations that are active (e.g., unfreed allocations, running kernels)
 func (agg *aggregator) processCurrentData(data *model.StreamData) {
 	for _, span := range data.Spans {
 		agg.processKernelSpan(span)
@@ -78,6 +87,7 @@ func (agg *aggregator) processCurrentData(data *model.StreamData) {
 	agg.currentAllocs = append(agg.currentAllocs, data.Allocations...)
 }
 
+// getGpuUtilization computes the utilization of the GPU as the average of the
 func (agg *aggregator) getGPUUtilization() float64 {
 	intervalSecs := float64(agg.measuredIntervalNs) / nsecPerSec
 	if intervalSecs > 0 {
@@ -89,10 +99,12 @@ func (agg *aggregator) getGPUUtilization() float64 {
 	return 0
 }
 
+// setGPUUtilizationNormalizationFactor sets the factor to normalize GPU utilization
 func (agg *aggregator) setGPUUtilizationNormalizationFactor(factor float64) {
 	agg.utilizationNormFactor = factor
 }
 
+// getStats returns the aggregated stats for the process
 func (agg *aggregator) getStats() model.PIDStats {
 	var stats model.PIDStats
 
