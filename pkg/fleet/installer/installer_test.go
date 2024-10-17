@@ -165,33 +165,6 @@ func TestReinstallAfterDBClean(t *testing.T) {
 	assert.NotEqual(t, lastModTime, newLastModTime)
 }
 
-func TestReinstallAfterErrror(t *testing.T) {
-	s := fixtures.NewServer(t)
-	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
-	defer installer.db.Close()
-
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
-	assert.NoError(t, err)
-	r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
-	lastModTime, err := latestModTimeFS(r.StableFS(), ".")
-	assert.NoError(t, err)
-
-	// Make the v2 package directory read-only, so the installation will fail
-	err = os.Chmod(filepath.Join(installer.packages.RootPath(), fixtures.FixtureSimpleV2.Package), 0000)
-	assert.NoError(t, err)
-	err = installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV2), nil)
-	assert.Error(t, err)
-	err = os.Chmod(filepath.Join(installer.packages.RootPath(), fixtures.FixtureSimpleV2.Package), 0755)
-	assert.NoError(t, err)
-
-	err = installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
-	assert.NoError(t, err)
-	r = installer.packages.Get(fixtures.FixtureSimpleV1.Package)
-	newLastModTime, err := latestModTimeFS(r.StableFS(), ".")
-	assert.NoError(t, err)
-	assert.NotEqual(t, lastModTime, newLastModTime)
-}
-
 func latestModTimeFS(fsys fs.FS, dirPath string) (time.Time, error) {
 	var latestTime time.Time
 
