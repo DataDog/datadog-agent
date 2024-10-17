@@ -152,7 +152,7 @@ def set_agent6_context(
     branch = os.getenv('AGENT6_BRANCH', branch)
 
     check_version(version, agent6=version.startswith('6.'))
-    assert version.startswith('6.'), 'Not an agent6 version'
+
     # Ensure this branch exists
     assert len(ctx.run(f'git branch --list {branch}', hide=True).stdout.strip()), f"Branch {branch} does not exist"
 
