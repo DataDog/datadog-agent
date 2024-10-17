@@ -354,7 +354,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("scrubber.additional_keys", []string{})
 
 	// flare configs
-	config.BindEnvAndSetDefault("flare_provider_timeout", 10)
+	config.BindEnvAndSetDefault("flare_provider_timeout", 10*time.Second)
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -1882,6 +1882,9 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_POD_NAME": {},
 		// this variable is used by tracers
 		"DD_INSTRUMENTATION_TELEMETRY_ENABLED": {},
+		// these variables are used by source code integration
+		"DD_GIT_COMMIT_SHA":     {},
+		"DD_GIT_REPOSITORY_URL": {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}

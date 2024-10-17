@@ -68,7 +68,6 @@ TEST_TIMEOUTS = {
 }
 CWS_PREBUILT_MINIMUM_KERNEL_VERSION = (5, 8, 0)
 EMBEDDED_SHARE_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
-EMBEDDED_SHARE_JAVA_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "java")
 
 is_windows = sys.platform == "win32"
 is_macos = sys.platform == "darwin"
@@ -969,9 +968,6 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
             if os.path.isdir(extra_path):
                 shutil.copytree(extra_path, os.path.join(target_path, extra))
 
-        if pkg.endswith("java"):
-            shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
-
         for gobin in [
             "external_unix_proxy_server",
             "fmapper",
@@ -1440,10 +1436,6 @@ def build_object_files(
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
 
-        java_dir = os.path.join("pkg", "network", "protocols", "tls", "java")
-        ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_JAVA_DIR}")
-        ctx.run(f"{sudo} install -m644 -oroot -groot {java_dir}/agent-usm.jar {EMBEDDED_SHARE_JAVA_DIR}/agent-usm.jar")
-
         if ctx.run("command -v rsync >/dev/null 2>&1", warn=True, hide=True).ok:
             rsync_filter = "--filter='+ */' --filter='+ *.o' --filter='+ *.c' --filter='- *'"
             ctx.run(
@@ -1902,8 +1894,6 @@ def _test_docker_image_list():
         for component in docker_compose["services"]:
             images.add(docker_compose["services"][component]["image"])
 
-    # Special use-case in javatls
-    images.remove("${IMAGE_VERSION}")
     # Temporary: GoTLS monitoring inside containers tests are flaky in the CI, so at the meantime, the tests are
     # disabled, so we can skip downloading a redundant image.
     images.remove("public.ecr.aws/b1o7r7e0/usm-team/go-httpbin:https")
@@ -2001,7 +1991,7 @@ def save_build_outputs(ctx, destfile):
         ctx.run(f"sha256sum {outfile} >> {absdest}.sum")
 
 
-def copy_ebpf_and_related_files(ctx: Context, target: Path | str, arch: Arch | None = None, copy_usm_jar: bool = True):
+def copy_ebpf_and_related_files(ctx: Context, target: Path | str, arch: Arch | None = None):
     if arch is None:
         arch = Arch.local()
 
@@ -2014,6 +2004,3 @@ def copy_ebpf_and_related_files(ctx: Context, target: Path | str, arch: Arch | N
     ctx.run(f"chmod 0444 {target}/*.o {target}/*.c {target}/co-re/*.o")
     ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {target}")
     ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {target}")
-
-    if copy_usm_jar:
-        ctx.run(f"cp pkg/network/protocols/tls/java/agent-usm.jar {target}")

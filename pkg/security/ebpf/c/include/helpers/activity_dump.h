@@ -100,10 +100,11 @@ __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, containe
         return 0;
     }
 
-    if (cgroup->cgroup_flags != 0 && ((cgroup->cgroup_flags & 0b111) != CGROUP_MANAGER_SYSTEMD)) {
-        copy_container_id(container_id, evt->container.container_id);
+    if ((cgroup->cgroup_flags & 0b111) == CGROUP_MANAGER_SYSTEMD) {
+        return 0;
     }
 
+    copy_container_id(container_id, evt->container.container_id);
     evt->container.cgroup_context = *cgroup;
     evt->cookie = cookie;
     evt->config = config;

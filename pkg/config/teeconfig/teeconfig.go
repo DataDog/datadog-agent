@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/viper"
-	"github.com/spf13/afero"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -102,12 +101,6 @@ func (t *teeConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[s
 func (t *teeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 	t.baseline.ParseEnvAsSlice(key, fn)
 	t.compare.ParseEnvAsSlice(key, fn)
-}
-
-// SetFs wraps Viper for concurrent access
-func (t *teeConfig) SetFs(fs afero.Fs) {
-	t.baseline.SetFs(fs)
-	t.compare.SetFs(fs)
 }
 
 // IsSet wraps Viper for concurrent access

@@ -22,7 +22,6 @@ import (
 
 	"github.com/DataDog/viper"
 	"github.com/mohae/deepcopy"
-	"github.com/spf13/afero"
 	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -277,13 +276,6 @@ func (c *safeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) 
 	c.Lock()
 	defer c.Unlock()
 	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
-}
-
-// SetFs wraps Viper for concurrent access
-func (c *safeConfig) SetFs(fs afero.Fs) {
-	c.Lock()
-	defer c.Unlock()
-	c.Viper.SetFs(fs)
 }
 
 // IsSet wraps Viper for concurrent access

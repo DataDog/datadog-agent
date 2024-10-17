@@ -65,8 +65,11 @@ type RemoteSysProbeUtil struct {
 	tracerouteClient http.Client
 }
 
+// ensure that GetRemoteSystemProbeUtil implements SysProbeUtilGetter
+var _ SysProbeUtilGetter = GetRemoteSystemProbeUtil
+
 // GetRemoteSystemProbeUtil returns a ready to use RemoteSysProbeUtil. It is backed by a shared singleton.
-func GetRemoteSystemProbeUtil(path string) (*RemoteSysProbeUtil, error) {
+func GetRemoteSystemProbeUtil(path string) (SysProbeUtil, error) {
 	err := CheckPath(path)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up remote system probe util, %v", err)
