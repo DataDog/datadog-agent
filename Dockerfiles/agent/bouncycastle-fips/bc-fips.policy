@@ -1,0 +1,5 @@
+grant {
+permission java.lang.RuntimePermission "getProtectionDomain";
+permission java.util.PropertyPermission "java.runtime.name", "read";
+permission java.lang.RuntimePermission "accessDeclaredMembers";
+}
