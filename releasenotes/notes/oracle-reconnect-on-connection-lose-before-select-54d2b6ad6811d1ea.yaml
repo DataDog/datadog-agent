@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix nil pointer error on Oracle DBM query when check connection is lost before SELECT.
+    Fix nil pointer error on Oracle DBM query when the check's connection is lost before SELECT statement executes.
