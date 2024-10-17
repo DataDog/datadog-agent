@@ -73,5 +73,15 @@ func (s *minimalTestSuite) TestOTelAgentInstalled() {
 }
 
 func (s *minimalTestSuite) TestOTelFlare() {
-	utils.TestOTelFlare(s)
+	expectedContents := []string{
+		"otel-agent",
+		"ddflare/dd-autoconfigured:",
+		"health_check/dd-autoconfigured:",
+		"pprof/dd-autoconfigured:",
+		"zpages/dd-autoconfigured:",
+		"infraattributes/dd-autoconfigured:",
+		"prometheus/dd-autoconfigured:",
+		"key: '[REDACTED]'",
+	}
+	utils.TestOTelFlare(s, expectedContents)
 }
