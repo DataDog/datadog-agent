@@ -686,9 +686,20 @@ func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.Proce
 
 func traceContainsError(trace pb.Trace) bool {
 	for _, span := range trace {
-		if span.Error != 0 {
+		if spanIsError(span) {
 			return true
 		}
+	}
+	return false
+}
+
+func spanIsError(span *pb.Span) bool {
+	return span.Error != 0 || spanContainsExceptionSpanEvent(span)
+}
+
+func spanContainsExceptionSpanEvent(span *pb.Span) bool {
+	if hasExceptionSpanEvents, ok := span.Meta["_dd.span_events.has_exception"]; ok && hasExceptionSpanEvents == "true" {
+		return true
 	}
 	return false
 }

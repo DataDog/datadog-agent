@@ -111,6 +111,12 @@ func OtelSpanToDDSpan(
 	if otelspan.Events().Len() > 0 {
 		ddspan.Meta["events"] = MarshalEvents(otelspan.Events())
 	}
+	for i := range otelspan.Events().Len() {
+		if otelspan.Events().At(i).Name() == "exception" {
+			ddspan.Meta["_dd.span_events.has_exception"] = "true"
+			break
+		}
+	}
 	if otelspan.Links().Len() > 0 {
 		ddspan.Meta["_dd.span_links"] = MarshalLinks(otelspan.Links())
 	}

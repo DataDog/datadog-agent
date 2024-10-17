@@ -1273,10 +1273,10 @@ func TestSampling(t *testing.T) {
 	}
 }
 
-func TestSample(t *testing.T) {
+func TestSampleTrace(t *testing.T) {
 	now := time.Now()
 	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{})}
-	genSpan := func(decisionMaker string, priority sampler.SamplingPriority, err int32) traceutil.ProcessedTrace {
+	genSpan := func(decisionMaker string, priority sampler.SamplingPriority, err int32, exceptionInSpanEvent bool) traceutil.ProcessedTrace {
 		root := &pb.Span{
 			Service:  "serv1",
 			Start:    now.UnixNano(),
@@ -1284,6 +1284,9 @@ func TestSample(t *testing.T) {
 			Metrics:  map[string]float64{"_top_level": 1},
 			Error:    err, // If 1, the Error Sampler will keep the trace, if 0, it will not be sampled
 			Meta:     map[string]string{},
+		}
+		if exceptionInSpanEvent {
+			root.Meta["_dd.span_events.has_exception"] = "true" // the Error Sampler will keep the trace
 		}
 		chunk := testutil.TraceChunkWithSpan(root)
 		if decisionMaker != "" {
@@ -1300,37 +1303,42 @@ func TestSample(t *testing.T) {
 		keepWithFeature bool
 	}{
 		"userdrop-error-no-dm-sampled": {
-			trace:           genSpan("", sampler.PriorityUserDrop, 1),
+			trace:           genSpan("", sampler.PriorityUserDrop, 1, false),
 			keep:            false,
 			keepWithFeature: true,
 		},
 		"userdrop-error-manual-dm-unsampled": {
-			trace:           genSpan("-4", sampler.PriorityUserDrop, 1),
+			trace:           genSpan("-4", sampler.PriorityUserDrop, 1, false),
 			keep:            false,
 			keepWithFeature: false,
 		},
 		"userdrop-error-agent-dm-sampled": {
-			trace:           genSpan("-1", sampler.PriorityUserDrop, 1),
+			trace:           genSpan("-1", sampler.PriorityUserDrop, 1, false),
 			keep:            false,
 			keepWithFeature: true,
 		},
 		"userkeep-error-no-dm-sampled": {
-			trace:           genSpan("", sampler.PriorityUserKeep, 1),
+			trace:           genSpan("", sampler.PriorityUserKeep, 1, false),
 			keep:            true,
 			keepWithFeature: true,
 		},
 		"userkeep-error-agent-dm-sampled": {
-			trace:           genSpan("-1", sampler.PriorityUserKeep, 1),
+			trace:           genSpan("-1", sampler.PriorityUserKeep, 1, false),
 			keep:            true,
 			keepWithFeature: true,
 		},
 		"autodrop-error-sampled": {
-			trace:           genSpan("", sampler.PriorityAutoDrop, 1),
+			trace:           genSpan("", sampler.PriorityAutoDrop, 1, false),
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"autodrop-errorspanevent-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 0, true),
 			keep:            true,
 			keepWithFeature: true,
 		},
 		"autodrop-not-sampled": {
-			trace:           genSpan("", sampler.PriorityAutoDrop, 0),
+			trace:           genSpan("", sampler.PriorityAutoDrop, 0, false),
 			keep:            false,
 			keepWithFeature: false,
 		},
