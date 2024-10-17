@@ -11,15 +11,21 @@
       export GOPATH=$GOROOT
       echo "Don't forget to regularly delete unused versions. Here are the installed versions and their memory usage on the runner:"
       du -sh $HOME/.gimme/versions/*
-    # Remove the Python cache and env if the Python version changed
     - |
+      PYTHON_REPO_VERSION=$(cat .python-version)
+      echo "Python version in .python-version: $PYTHON_REPO_VERSION"
+    - |
+      PYTHON_VERSION=$(python3 --version | awk '{print $2}' | sed 's/\.[0-9]*$//')
+      echo "Python current version: $PYTHON_VERSION"
+    - |
+      # Remove the Python cache and env if the Python version changed
       PYTHON_REPO_VERSION=$(cat .python-version)
       PYTHON_VERSION=$(python3 --version | awk '{print $2}' | sed 's/\.[0-9]*$//')
       if [ "$PYTHON_REPO_VERSION" != "$PYTHON_VERSION" ]; then
         echo "Python version $PYTHON_VERSION is different from $PYTHON_REPO_VERSION in .python-version. Cleaning the environment."
         pyenv uninstall -f datadog-agent
         echo "Installing Python $PYTHON_REPO_VERSION..."
-        pyenv virtualenv 3.11.8 datadog-agent
+        pyenv virtualenv 3.12.6 datadog-agent
         pyenv activate datadog-agent
       else
         echo "Python current version $PYTHON_VERSION is the same as .python-version. Keeping the existing environment."
