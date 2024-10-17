@@ -177,7 +177,7 @@ func TestReinstallAfterErrror(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Make the v2 package directory read-only, so the installation will fail
-	err = os.Chmod(filepath.Join(installer.packages.RootPath(), fixtures.FixtureSimpleV2.Package), 0555)
+	err = os.Chmod(filepath.Join(installer.packages.RootPath(), fixtures.FixtureSimpleV2.Package), 0000)
 	assert.NoError(t, err)
 	err = installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV2), nil)
 	assert.Error(t, err)
