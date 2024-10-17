@@ -389,10 +389,6 @@ func (i *installerImpl) Purge(ctx context.Context) {
 			log.Warnf("could not remove package %s: %v", pkg.Name, err)
 		}
 	}
-	err = i.removePackage(ctx, packageDatadogInstaller)
-	if err != nil {
-		log.Warnf("could not remove installer: %v", err)
-	}
 
 	// Must close dependencies before removing the rest of the files,
 	// as some may be open/locked by the dependencies
@@ -420,6 +416,17 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	defer span.Finish(tracer.WithError(err))
 	if err != nil {
 		log.Warnf("could not delete packages dir: %v", err)
+	}
+
+	// Remove the installer package last as this process may be running
+	// from within the installer package. If this is the case:
+	// - Windows: The MSI will force kill this process
+	// - Linux: This process can keep running
+	// TODO: This is a workaround, and the trace made by the caller won't
+	//       be closed. Maybe purge should always run from a separate/temporary path.
+	err = i.removePackage(ctx, packageDatadogInstaller)
+	if err != nil {
+		log.Warnf("could not remove installer: %v", err)
 	}
 }
 
