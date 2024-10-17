@@ -173,7 +173,7 @@ def set_agent6_context(
         ctx.run("git stash -u", hide=True)
         info['stashed'] = True
     print(f'{color_message("Agent6", "bold")}: Checking out to {branch}')
-    ctx.run(f"git checkout {branch}", hide=True)
+    ctx.run(f"git switch {branch}", hide=True)
     info['branch_switched'] = True
     is_agent6_context = True
 
