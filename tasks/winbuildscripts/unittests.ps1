@@ -69,6 +69,9 @@ If ($LASTEXITCODE -ne "0") {
 }
 $Env:CODECOV_TOKEN=$(cat "$tmpfile")
 & inv -e coverage.upload-to-codecov $Env:COVERAGE_CACHE_FLAG
+if($err -ne 0){
+    Write-Host -ForegroundColor Red "coverage upload failed $err"
+}
 
 # 2. Upload junit files
 # Copy test files to c:\mnt for further gitlab upload
@@ -84,8 +87,7 @@ Remove-Item "$tmpfile"
 
 & inv -e junit-upload --tgz-path $Env:JUNIT_TAR
 if($err -ne 0){
-    Write-Host -ForegroundColor Red "test failed $err"
-    [Environment]::Exit($err)
+    Write-Host -ForegroundColor Red "junit upload failed $err"
 }
 
 Write-Host Test passed

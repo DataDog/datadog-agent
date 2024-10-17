@@ -532,7 +532,8 @@ def gitlab_section(section_name, collapsed=False, echo=False):
     """
     - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything
     """
-    section_id = section_name.replace(" ", "_").replace("/", "_")
+    # Specific characters can prevent the generation of the section
+    section_id = re.sub(r"[ :/\\]", "_", section_name)
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:
