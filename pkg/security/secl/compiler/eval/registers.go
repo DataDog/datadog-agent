@@ -7,3 +7,9 @@ package eval
 
 // RegisterID identify a register ID
 type RegisterID = string
+
+// Register defines an eval register
+type Register struct {
+	ID    RegisterID
+	Field Field
+}

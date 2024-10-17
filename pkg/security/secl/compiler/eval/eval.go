@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -75,7 +76,7 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 		}
 	}
 
-	field, _, regID, err := extractField(*obj.Ident, state)
+	field, itField, regID, err := extractField(*obj.Ident, state)
 	if err != nil {
 		return nil, obj.Pos, err
 	}
@@ -93,6 +94,26 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 	}
 
 	state.UpdateFields(field)
+
+	if regID != "" {
+		// avoid wildcard register for the moment
+		if regID == "_" {
+			return nil, obj.Pos, NewError(obj.Pos, "`_` can't be used as a iterator variable name")
+		}
+
+		// avoid using the same register on two different fields
+		if slices.ContainsFunc(state.registers, func(r Register) bool {
+			return r.ID == regID && r.Field != itField
+		}) {
+			return nil, obj.Pos, NewError(obj.Pos, "iterator variable used by different fields '%s'", regID)
+		}
+
+		if !slices.ContainsFunc(state.registers, func(r Register) bool {
+			return r.ID == regID
+		}) {
+			state.registers = append(state.registers, Register{ID: regID, Field: itField})
+		}
+	}
 
 	return accessor, obj.Pos, nil
 }

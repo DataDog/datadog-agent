@@ -6358,6 +6358,19 @@ func (ev *Event) GetProcessAncestorsIsThread() []bool {
 	return values
 }
 
+// GetProcessAncestorsLength returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsLength() int {
+	if ev.BaseEvent.ProcessContext == nil {
+		return 0
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return 0
+	}
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	return iterator.Len(ctx)
+}
+
 // GetProcessAncestorsPid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsPid() []uint32 {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -10391,6 +10404,22 @@ func (ev *Event) GetPtraceTraceeAncestorsIsThread() []bool {
 		ptr = iterator.Next()
 	}
 	return values
+}
+
+// GetPtraceTraceeAncestorsLength returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeAncestorsLength() int {
+	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if ev.PTrace.Tracee == nil {
+		return 0
+	}
+	if ev.PTrace.Tracee.Ancestor == nil {
+		return 0
+	}
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	return iterator.Len(ctx)
 }
 
 // GetPtraceTraceeAncestorsPid returns the value of the field, resolving if necessary
@@ -16016,6 +16045,22 @@ func (ev *Event) GetSignalTargetAncestorsIsThread() []bool {
 		ptr = iterator.Next()
 	}
 	return values
+}
+
+// GetSignalTargetAncestorsLength returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetAncestorsLength() int {
+	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if ev.Signal.Target == nil {
+		return 0
+	}
+	if ev.Signal.Target.Ancestor == nil {
+		return 0
+	}
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	return iterator.Len(ctx)
 }
 
 // GetSignalTargetAncestorsPid returns the value of the field, resolving if necessary

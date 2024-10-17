@@ -506,6 +506,43 @@ func (it *ProcessAncestorsIterator) Next() *ProcessCacheEntry {
 	return nil
 }
 
+// At returns the element at the given position
+func (it *ProcessAncestorsIterator) At(ctx *eval.Context, regID eval.RegisterID, pos int) *ProcessCacheEntry {
+	if entry := ctx.RegisterCache[regID]; entry != nil && entry.Pos == pos {
+		return entry.Value.(*ProcessCacheEntry)
+	}
+
+	var i int
+
+	ancestor := ctx.Event.(*Event).ProcessContext.Ancestor
+	for ancestor != nil {
+		if i == pos {
+			ctx.RegisterCache[regID] = &eval.RegisterCacheEntry{
+				Pos:   pos,
+				Value: ancestor,
+			}
+			return ancestor
+		}
+		ancestor = ancestor.Ancestor
+		i++
+	}
+
+	return nil
+}
+
+// Len returns the len
+func (it *ProcessAncestorsIterator) Len(ctx *eval.Context) int {
+	var size int
+
+	ancestor := ctx.Event.(*Event).ProcessContext.Ancestor
+	for ancestor != nil {
+		size++
+		ancestor = ancestor.Ancestor
+	}
+
+	return size
+}
+
 // HasParent returns whether the process has a parent
 func (p *ProcessContext) HasParent() bool {
 	return p.Parent != nil

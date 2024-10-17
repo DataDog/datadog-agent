@@ -248,6 +248,23 @@ func handleNonEmbedded(module *common.Module, field seclField, prefixedFieldName
 	}
 }
 
+func addLengthOpField(module *common.Module, alias string, field *common.StructField) *common.StructField {
+	lengthField := *field
+	lengthField.IsLength = true
+	lengthField.Name += ".length"
+	lengthField.OrigType = "int"
+	lengthField.BasicType = "int"
+	lengthField.ReturnType = "int"
+	lengthField.Struct = "string"
+	lengthField.AliasPrefix = alias
+	lengthField.Alias = alias + ".length"
+	lengthField.CommentText = doc.SECLDocForLength
+
+	module.Fields[lengthField.Alias] = &lengthField
+
+	return &lengthField
+}
+
 // handleIterator adds iterator to list of exposed SECL iterators of the module
 func handleIterator(module *common.Module, field seclField, fieldType, iterator, aliasPrefix, prefixedFieldName, event string, restrictedTo []string, fieldCommentText, opOverrides string, isPointer, isArray bool) *common.StructField {
 	alias := field.name
@@ -271,6 +288,10 @@ func handleIterator(module *common.Module, field seclField, fieldType, iterator,
 		Ref:              field.ref,
 		RestrictedTo:     restrictedTo,
 	}
+
+	lengthField := addLengthOpField(module, alias, module.Iterators[alias])
+	lengthField.Iterator = module.Iterators[alias]
+	lengthField.IsIterator = true
 
 	return module.Iterators[alias]
 }
@@ -311,22 +332,10 @@ func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix,
 		Ref:              field.ref,
 		RestrictedTo:     restrictedTo,
 	}
-
 	module.Fields[alias] = newStructField
 
 	if field.lengthField {
-		var lengthField = *module.Fields[alias]
-		lengthField.IsLength = true
-		lengthField.Name += ".length"
-		lengthField.OrigType = "int"
-		lengthField.BasicType = "int"
-		lengthField.ReturnType = "int"
-		lengthField.Struct = "string"
-		lengthField.AliasPrefix = alias
-		lengthField.Alias = alias + ".length"
-		lengthField.CommentText = doc.SECLDocForLength
-
-		module.Fields[lengthField.Alias] = &lengthField
+		addLengthOpField(module, alias, module.Fields[alias])
 	}
 
 	if _, ok := module.EventTypes[event]; !ok {
