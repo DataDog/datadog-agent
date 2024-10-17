@@ -8,21 +8,24 @@
 package gpu
 
 import (
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
+// ProbeDependencies holds the dependencies for the probe
 type ProbeDependencies struct {
 	Telemetry telemetry.Component
-	NvmlLib   any // use any as the type to avoid importing NVML
+	NvmlLib   nvml.Interface
 }
 
 // Probe is not implemented on non-linux systems
 type Probe struct{}
 
 // NewProbe is not implemented on non-linux systems
-func NewProbe(_ *Config, _ telemetry.Component) (*Probe, error) {
+func NewProbe(_ *Config, _ ProbeDependencies) (*Probe, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
