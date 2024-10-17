@@ -11,8 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/netip"
-	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -238,13 +236,23 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 
 	// Perform reverse DNS lookup on destination and hop IPs
 	rdnsHostname, err := s.reverseDNSLookup(path.Destination.IPAddress)
-	if err == nil {
+	if err != nil {
+		// TODO: should this be an error message?
+		s.logger.Errorf("Reverse lookup failed for destination %s: %s", path.Destination.IPAddress, err)
+	} else {
 		path.Destination.ReverseDNSHostname = rdnsHostname
 	}
 
 	for i := range path.Hops {
+		// Skip unreachable hops
+		if !path.Hops[i].Reachable {
+			continue
+		}
 		rdnsHostname, err := s.reverseDNSLookup(path.Hops[i].IPAddress)
-		if err == nil {
+		if err != nil {
+			// TODO: should this be an error message?
+			s.logger.Errorf("Reverse lookup failed for hop #%d %s: %s", i+1, path.Hops[i].IPAddress, err)
+		} else {
 			path.Hops[i].Hostname = rdnsHostname
 		}
 	}
@@ -362,43 +370,11 @@ func (s *npCollectorImpl) startWorker(workerID int) {
 }
 
 func (s *npCollectorImpl) reverseDNSLookup(ipString string) (string, error) {
-	var hostname string
-	var wg sync.WaitGroup
-	var callbackErr error
-
-	ip, err := netip.ParseAddr(ipString)
+	hostname, err := s.rdnsquerier.GetHostnameSync(ipString)
 	if err != nil {
-		return "", fmt.Errorf("invalid IP address: %s", err)
+		s.logger.Debugf("Reverse lookup failed for IP %s: %s", ipString, err)
+		return "", err
 	}
-
-	wg.Add(1)
-	err = s.rdnsquerier.GetHostname(
-		ip.AsSlice(),
-		func(h string) {
-			hostname = h
-			wg.Done()
-		},
-		func(h string, asyncErr error) {
-			hostname = h
-			callbackErr = asyncErr
-			wg.Done()
-		},
-	)
-	if err != nil {
-		s.logger.Tracef("Error resolving reverse DNS enrichment for source IP address: %v error: %v", ip, err)
-		wg.Done()
-	}
-	go func() {
-		// TODO: more reasonable timeout
-		time.Sleep(1 * time.Second)
-		wg.Done()
-	}()
-	wg.Wait()
-
-	if callbackErr != nil {
-		s.logger.Tracef("Error resolving reverse DNS enrichment for source IP address: %v error: %v", ip, callbackErr)
-		return "", callbackErr
-	}
-
-	return hostname, err
+	s.logger.Debugf("Reverse lookup for IP %s: %s", ipString, hostname)
+	return hostname, nil
 }
