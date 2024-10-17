@@ -140,10 +140,9 @@ def set_agent6_context(
 
     base_branch = get_current_branch(ctx)
 
-    if version is None and major_version is None:
-        version = DEFAULT_AGENT6_VERSION
-        branch = DEFAULT_AGENT6_BRANCH
-    elif major_version is not None:
+    assert version or major_version and not (version and major_version), "Exactly one of version or major_version is required"
+
+    if major_version:
         version = version or DEFAULT_AGENT6_VERSION
         branch = DEFAULT_AGENT6_BRANCH
     else:
@@ -198,12 +197,9 @@ def agent_context(ctx, version: str | None = None, major_version: int | None = N
 
     global is_agent6_context
 
-    if not major_version and not version:
-        major_version = 6
+    assert version or major_version and not (version and major_version), "Exactly one of version or major_version is required"
 
-    if not major_version:
-        version = version or DEFAULT_AGENT6_VERSION
-
+    if version:
         check_version(version, agent6=version.startswith('6.'))
 
     if major_version == 6 or (version and version.startswith('6.')):
@@ -267,14 +263,13 @@ def update_modules(ctx, agent_version, verify=True):
     if verify:
         check_version(agent_version, agent6=agent_version.startswith('6.'))
 
-    if agent_version.startswith('6.'):
-        set_agent6_context(ctx)
-
-    modules = get_default_modules(ctx)
-    for module in modules.values():
-        for dependency in module.dependencies:
-            dependency_mod = modules[dependency]
-            ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
+    with agent_context(ctx, agent_version, mutable=True):
+        modules = get_default_modules(ctx)
+        for module in modules.values():
+            for dependency in module.dependencies:
+                dependency_mod = modules[dependency]
+                # ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
+                print(module, dependency)
 
 
 def __get_force_option(force: bool) -> str:
