@@ -3,7 +3,13 @@ pkg_check_modules(Python3 REQUIRED "python3-embed >= 3.11")
 
 project(datadog-agent-three VERSION 0.1.0 DESCRIPTION "CPython backend for the Datadog Agent")
 
-if(WIN32)
+# Compose Python3_STDLIB ourselves in order to have a correct value for _defaultPythonHome:
+# cmake sets it to the value of sysconfig.get_path('stdlib')
+# Which python defines as prefix/lib/pythonX.Y or prefix\Lib on windows
+if (NOT WIN32)
+  set(Python3_STDLIB "${Python3_PREFIX}/lib/python${Python3_VERSION}")
+else()
+  set(Python3_STDLIB "${Python3_PREFIX}\\Lib")
   if(MSVC)
     # explicitly set the compiler flags to use the static C runtime (/MT(d) instead of the DLL
     # c runtime (/MD(d) so that we don't have to worry about redistributing the CRT).
