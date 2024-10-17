@@ -18,7 +18,8 @@ import (
 )
 
 var (
-	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
+	tlmDroppedTooLarge    = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
+	tlmMessageBufferFlush = telemetry.NewCounter("logs_sender_batch_strategy", "message_buffer_flush", []string{"reason"}, "Count of message buffer flushes")
 )
 
 // batchStrategy contains all the logic to send logs in batch.
@@ -144,6 +145,15 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	if s.buffer.IsEmpty() {
 		return
 	}
+
+	if s.buffer.ContentSizeLimitReached() {
+		tlmMessageBufferFlush.Inc("content_size_limit")
+	} else if s.buffer.MessagesCountReached() {
+		tlmMessageBufferFlush.Inc("messages_count_limit")
+	} else {
+		tlmMessageBufferFlush.Inc("cycle")
+	}
+
 	messages := s.buffer.GetMessages()
 	s.buffer.Clear()
 	// Logging specifically for DBM pipelines, which seem to fail to send more often than other pipelines.
@@ -151,6 +161,7 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	if s.pipelineName == "dbm-samples" || s.pipelineName == "dbm-metrics" || s.pipelineName == "dbm-activity" {
 		log.Debugf("Flushing buffer and sending %d messages for pipeline %s", len(messages), s.pipelineName)
 	}
+
 	s.sendMessages(messages, outputChan)
 }
 

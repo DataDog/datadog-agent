@@ -50,7 +50,19 @@ func (p *MessageBuffer) GetMessages() []*message.Message {
 
 // IsFull returns true if the buffer is full.
 func (p *MessageBuffer) IsFull() bool {
-	return len(p.messageBuffer) == cap(p.messageBuffer) || p.contentSize == p.contentSizeLimit
+	return p.MessagesCountReached() || p.ContentSizeLimitReached()
+}
+
+// MessagesCountReached return true if the buffer is full because of how many
+// messages it contains.
+func (p *MessageBuffer) MessagesCountReached() bool {
+	return len(p.messageBuffer) == cap(p.messageBuffer)
+}
+
+// ContentSizeLimitReached returns true if the buffer is full because its content
+// size limit has been reached.
+func (p *MessageBuffer) ContentSizeLimitReached() bool {
+	return p.contentSize == p.contentSizeLimit
 }
 
 // IsEmpty returns true if the buffer is empty.
