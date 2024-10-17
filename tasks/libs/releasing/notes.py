@@ -26,8 +26,10 @@ def _add_prelude(ctx, version):
     print(f"git commit -m \"Add prelude for {version} release\"")
 
 
-def _add_dca_prelude(ctx, version=None, branch=DEFAULT_BRANCH):
+def _add_dca_prelude(ctx, version=None):
     """Release of the Cluster Agent should be pinned to a version of the Agent."""
+
+    branch = DEFAULT_AGENT6_BRANCH if version.startswith('6.') else DEFAULT_BRANCH
 
     res = ctx.run(f"reno --rel-notes-dir releasenotes-dca new prelude-release-{version}")
     new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path

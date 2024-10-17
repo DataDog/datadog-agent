@@ -6,7 +6,6 @@ from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import create_release_pr
 from tasks.libs.common.color import color_message
-from tasks.libs.common.constants import DEFAULT_BRANCH
 from tasks.libs.common.git import get_current_branch, try_git_command
 from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude, update_changelog_generic
 
@@ -17,11 +16,11 @@ def add_prelude(ctx, version):
 
 
 @task
-def add_dca_prelude(ctx, version, branch=DEFAULT_BRANCH):
+def add_dca_prelude(ctx, version):
     """
     Release of the Cluster Agent should be pinned to a version of the Agent.
     """
-    _add_dca_prelude(ctx, version, branch=branch)
+    _add_dca_prelude(ctx, version)
 
 
 @task

@@ -439,7 +439,7 @@ def finish(ctx, major_version: int = 7, upstream="origin"):
         _add_prelude(ctx, str(new_version))
 
         print(color_message("Adding DCA release changelog prelude", "bold"))
-        _add_dca_prelude(ctx, str(new_version), branch=DEFAULT_AGENT6_BRANCH if major_version == 6 else DEFAULT_BRANCH)
+        _add_dca_prelude(ctx, str(new_version))
 
         ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
         if not ok:
