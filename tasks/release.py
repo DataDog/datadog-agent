@@ -151,7 +151,7 @@ def set_agent6_context(
 
     branch = os.getenv('AGENT6_BRANCH', branch)
 
-    check_version(version, allow_agent6=True)
+    check_version(version, agent6=version.startswith('6.'))
     assert version.startswith('6.'), 'Not an agent6 version'
     # Ensure this branch exists
     assert len(ctx.run(f'git branch --list {branch}', hide=True).stdout.strip()), f"Branch {branch} does not exist"
@@ -204,7 +204,7 @@ def agent_context(ctx, version: str | None = None, major_version: int | None = N
     if not major_version:
         version = version or DEFAULT_AGENT6_VERSION
 
-        check_version(version, allow_agent6=True)
+        check_version(version, agent6=version.startswith('6.'))
 
     if major_version == 6 or (version and version.startswith('6.')):
         was_agent6_context = is_agent6_context
@@ -265,7 +265,7 @@ def update_modules(ctx, agent_version, verify=True):
     """
 
     if verify:
-        check_version(agent_version, allow_agent6=True)
+        check_version(agent_version, agent6=agent_version.startswith('6.'))
 
     if agent_version.startswith('6.'):
         set_agent6_context(ctx)
@@ -331,7 +331,7 @@ def tag_modules(ctx, agent_version, commit="HEAD", verify=True, push=True, force
     """
 
     if verify:
-        check_version(agent_version, allow_agent6=True)
+        check_version(agent_version, agent6=agent_version.startswith('6.'))
 
     with agent_context(ctx, agent_version):
         force_option = __get_force_option(force)
@@ -363,7 +363,7 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force
     """
 
     if verify:
-        check_version(agent_version, allow_agent6=True)
+        check_version(agent_version, agent6=agent_version.startswith('6.'))
 
     # Always tag the main module
     force_option = __get_force_option(force)
