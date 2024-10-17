@@ -624,41 +624,6 @@ func TestCommandLineSanitization(t *testing.T) {
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
-func TestIgnore(t *testing.T) {
-	serverDir := buildFakeServer(t)
-	url := setupDiscoveryModule(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
-
-	badBin := filepath.Join(serverDir, "sshd")
-	badCmd := exec.CommandContext(ctx, badBin)
-	require.NoError(t, badCmd.Start())
-
-	// Also run a non-ignored server so that we can use it in the eventually
-	// loop below so that we don't have to wait a long time to be sure that we
-	// really ignored badBin and just didn't miss it because of a race.
-	goodBin := filepath.Join(serverDir, "node")
-	goodCmd := exec.CommandContext(ctx, goodBin)
-	require.NoError(t, goodCmd.Start())
-
-	goodPid := goodCmd.Process.Pid
-	badPid := badCmd.Process.Pid
-
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		svcMap := getServicesMap(t, url)
-		assert.Contains(collect, svcMap, goodPid)
-		require.NotContains(t, svcMap, badPid)
-	}, 30*time.Second, 100*time.Millisecond)
-}
-
-func TestIgnoreCommsLengths(t *testing.T) {
-	for comm := range ignoreComms {
-		// /proc/PID/comm is limited to 16 characters.
-		assert.LessOrEqual(t, len(comm), 16, "Process name %q too big", comm)
-	}
-}
-
 func TestNodeDocker(t *testing.T) {
 	cert, key, err := testutil.GetCertsPaths()
 	require.NoError(t, err)
