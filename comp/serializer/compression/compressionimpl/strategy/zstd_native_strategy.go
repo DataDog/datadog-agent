@@ -17,25 +17,26 @@ import (
 
 // ZstdNativeStrategy is the strategy for when serializer_compressor_kind is zstd
 type ZstdNativeStrategy struct {
-	level   int
-	encoder *zstd.Encoder
+	level int
+	//	encoder *zstd.Encoder
 }
 
 // NewZstdNativeStrategy returns a new ZstdStrategy
 func NewZstdNativeStrategy(level int) *ZstdNativeStrategy {
 	log.Debugf("Compressing native zstd at level %d", level)
 
-	encoder, _ := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)))
+	//encoder, _ := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)))
 
 	return &ZstdNativeStrategy{
-		level:   level,
-		encoder: encoder,
+		level: level,
+		//encoder: encoder,
 	}
 }
 
 // Compress will compress the data with zstd
 func (s *ZstdNativeStrategy) Compress(src []byte) ([]byte, error) {
-	return s.encoder.EncodeAll(src, nil), nil
+	encoder, _ := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(s.level)))
+	return encoder.EncodeAll(src, nil), nil
 }
 
 // Decompress will decompress the data with zstd
@@ -46,7 +47,8 @@ func (*ZstdNativeStrategy) Decompress(src []byte) ([]byte, error) {
 
 // CompressBound returns the worst case size needed for a destination buffer when using zstd
 func (s *ZstdNativeStrategy) CompressBound(sourceLen int) int {
-	return s.encoder.MaxEncodedSize(sourceLen)
+	encoder, _ := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(s.level)))
+	return encoder.MaxEncodedSize(sourceLen)
 }
 
 // ContentEncoding returns the content encoding value for zstd
