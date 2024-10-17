@@ -445,6 +445,7 @@
 /pkg/flare/*_win.go                     @Datadog/windows-agent
 /pkg/flare/*_windows.go                 @Datadog/windows-agent
 /pkg/flare/*_windows_test.go            @Datadog/windows-agent
+/pkg/flare/sysprobe                     @DataDog/Networks
 /pkg/fleet/                             @DataDog/fleet @DataDog/windows-agent
 /pkg/otlp/                              @DataDog/opentelemetry
 /pkg/otlp/*_serverless*.go              @DataDog/serverless @Datadog/serverless-aws
