@@ -158,7 +158,8 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
 		eventplatformreceiverimpl.Module(),
 		hostnameimpl.Module(),
-		taggerimpl.OptionalModule(),
+		fx.Provide(tagger.NewTaggerParams),
+		taggerimpl.Module(),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
@@ -191,7 +192,7 @@ func start(
 	server dogstatsdServer.Component,
 	_ defaultforwarder.Component,
 	wmeta optional.Option[workloadmeta.Component],
-	_ optional.Option[tagger.Component],
+	_ tagger.Component,
 	demultiplexer demultiplexer.Component,
 	_ runner.Component,
 	_ resources.Component,
