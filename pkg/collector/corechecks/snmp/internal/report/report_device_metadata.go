@@ -216,7 +216,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		vendor = config.ProfileDef.Device.Vendor
 	}
 
-	// hostname := ""
+	hostname := ""
 	// if rdnsquerier, err := check.GetRDNSQuerierContext(); err == nil {
 	// 	hostname, _ = rdnsquerier.GetHostnameSync(config.IPAddress)
 	// }
