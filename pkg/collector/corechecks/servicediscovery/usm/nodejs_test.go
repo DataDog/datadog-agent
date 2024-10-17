@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,10 +42,8 @@ func TestFindNameFromNearestPackageJSON(t *testing.T) {
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			instance := &nodeDetector{ctx: DetectionContext{
-				fs:         NewSubDirFS(full),
-				contextMap: make(DetectorContextMap),
-			}}
+			dc := NewDetectionContext(0, nil, envs.NewVariables(nil), NewSubDirFS(full), make(DetectorContextMap))
+			instance := &nodeDetector{ctx: dc}
 			value, ok := instance.findNameFromNearestPackageJSON(tt.path)
 			assert.Equal(t, len(tt.expected) > 0, ok)
 			assert.Equal(t, tt.expected, value)

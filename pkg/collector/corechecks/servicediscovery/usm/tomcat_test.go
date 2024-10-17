@@ -49,7 +49,8 @@ func TestTomcatDefaultContextRootFromFile(t *testing.T) {
 			expected: "",
 		},
 	}
-	extractor := newTomcatExtractor(NewDetectionContext(nil, envs.NewVariables(nil), nil))
+	dc := NewDetectionContext(0, nil, envs.NewVariables(nil), nil, nil)
+	extractor := newTomcatExtractor(dc)
 	for _, tt := range tests {
 		t.Run("Should parse "+tt.filename, func(t *testing.T) {
 			value, ok := extractor.defaultContextRootFromFile(tt.filename)
@@ -94,7 +95,8 @@ func TestScanDirForDeployments(t *testing.T) {
 			},
 		},
 	}
-	extractor := tomcatExtractor{ctx: NewDetectionContext(nil, envs.NewVariables(nil), memfs)}
+	dc := NewDetectionContext(0, nil, envs.NewVariables(nil), memfs, nil)
+	extractor := tomcatExtractor{ctx: dc}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			deployments := extractor.scanDirForDeployments(tt.path, &map[string]struct{}{
@@ -171,7 +173,8 @@ func TestFindDeployedApps(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		extractor := tomcatExtractor{ctx: NewDetectionContext(nil, envs.NewVariables(nil), tt.fs)}
+		dc := NewDetectionContext(0, nil, envs.NewVariables(nil), tt.fs, nil)
+		extractor := tomcatExtractor{ctx: dc}
 		deployments, ok := extractor.findDeployedApps(tt.domainHome)
 		require.Equal(t, len(tt.expected) > 0, ok)
 		require.Equal(t, tt.expected, deployments)

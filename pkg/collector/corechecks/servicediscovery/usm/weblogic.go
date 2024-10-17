@@ -53,7 +53,7 @@ func newWeblogicExtractor(ctx DetectionContext) vendorExtractor {
 // The args is required here because used to determine the current server name.
 // it returns paths for staged only applications and bool being true if at least one application is found
 func (we weblogicExtractor) findDeployedApps(domainHome string) ([]jeeDeployment, bool) {
-	serverName, ok := extractJavaPropertyFromArgs(we.ctx.args, wlsServerNameSysProp)
+	serverName, ok := extractJavaPropertyFromArgs(we.ctx.Args, wlsServerNameSysProp)
 	if !ok {
 		return nil, false
 	}

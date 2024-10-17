@@ -111,8 +111,9 @@ func TestWebsphereFindDeployedApps(t *testing.T) {
 				fs[path.Join("base", "config", "cells", tt.args[0], "applications", "myapp.ear", "deployments", "myapp", "deployment.xml")] =
 					&fstest.MapFile{Data: []byte(tt.deploymentXML)}
 			}
+			dc := NewDetectionContext(0, tt.args, envs.NewVariables(nil), fs, nil)
+			value, ok := newWebsphereExtractor(dc).findDeployedApps("base")
 
-			value, ok := newWebsphereExtractor(NewDetectionContext(tt.args, envs.NewVariables(nil), fs)).findDeployedApps("base")
 			require.Equal(t, tt.expected, value)
 			require.Equal(t, len(value) > 0, ok)
 		})
@@ -120,7 +121,8 @@ func TestWebsphereFindDeployedApps(t *testing.T) {
 }
 
 func TestWebsphereDefaultContextRootFromFile(t *testing.T) {
-	value, ok := newWebsphereExtractor(NewDetectionContext(nil, envs.NewVariables(nil), nil)).defaultContextRootFromFile("myapp.war")
+	dc := NewDetectionContext(0, nil, envs.NewVariables(nil), nil, nil)
+	value, ok := newWebsphereExtractor(dc).defaultContextRootFromFile("myapp.war")
 	require.Equal(t, "myapp", value)
 	require.True(t, ok)
 }

@@ -120,7 +120,8 @@ func TestParseUri(t *testing.T) {
 			expectedClassPathLocations: map[string][]string{},
 		},
 	}
-	parser := newSpringBootParser(NewDetectionContext(nil, envs.NewVariables(nil), fstest.MapFS(nil)))
+	dc := NewDetectionContext(0, nil, envs.NewVariables(nil), fstest.MapFS(nil), nil)
+	parser := newSpringBootParser(dc)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fsLocs, cpLocs := parser.parseURI(strings.Split(tt.locations, ";"), tt.configName, tt.profiles, tt.cwd)
@@ -214,7 +215,8 @@ func TestScanSourcesFromFileSystem(t *testing.T) {
 	full, err := filepath.Abs("testdata/root")
 	require.NoError(t, err)
 	sub := NewSubDirFS(full)
-	parser := newSpringBootParser(NewDetectionContext(nil, envs.NewVariables(nil), sub))
+	dc := NewDetectionContext(0, nil, envs.NewVariables(nil), sub, nil)
+	parser := newSpringBootParser(dc)
 
 	fileSources := parser.scanSourcesFromFileSystem(map[string][]string{
 		"fs": {
@@ -399,7 +401,8 @@ func TestExtractServiceMetadataSpringBoot(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app, ok := newSpringBootParser(NewDetectionContext(tt.cmdline, envs.NewVariables(tt.envs), RealFs{})).GetSpringBootAppName(tt.jarname)
+			dc := NewDetectionContext(0, tt.cmdline, envs.NewVariables(tt.envs), RealFs{}, nil)
+			app, ok := newSpringBootParser(dc).GetSpringBootAppName(tt.jarname)
 			require.Equal(t, tt.expected, app)
 			require.Equal(t, len(app) > 0, ok)
 		})

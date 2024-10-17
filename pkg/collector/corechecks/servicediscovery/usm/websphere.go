@@ -82,11 +82,11 @@ func isApplicationDeployed(fs fs.FS, descriptorPath string, nodeName string, ser
 // findDeployedApps finds applications that are enabled in a domainHome for the matched cell, node and server
 // If nothing false, it returns false
 func (we websphereExtractor) findDeployedApps(domainHome string) ([]jeeDeployment, bool) {
-	n := len(we.ctx.args)
+	n := len(we.ctx.Args)
 	if n < 3 {
 		return nil, false
 	}
-	cellName, nodeName, serverName := we.ctx.args[n-3], we.ctx.args[n-2], we.ctx.args[n-1]
+	cellName, nodeName, serverName := we.ctx.Args[n-3], we.ctx.Args[n-2], we.ctx.Args[n-1]
 	if len(cellName) == 0 || len(nodeName) == 0 || len(serverName) == 0 {
 		return nil, false
 	}

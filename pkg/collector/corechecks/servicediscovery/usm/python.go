@@ -50,7 +50,7 @@ func (p pythonDetector) detect(args []string) (ServiceMetadata, bool) {
 		}
 
 		if !shouldSkipArg {
-			wd, _ := workingDirFromEnvs(p.ctx.envs)
+			wd, _ := workingDirFromEnvs(p.ctx.Envs)
 			absPath := abs(a, wd)
 			fi, err := fs.Stat(p.ctx.fs, absPath)
 			if err != nil {
@@ -114,13 +114,13 @@ func (p pythonDetector) findNearestTopLevel(fp string) string {
 }
 
 func (g gunicornDetector) detect(args []string) (ServiceMetadata, bool) {
-	if fromEnv, ok := extractEnvVar(g.ctx.envs, gunicornEnvCmdArgs); ok {
+	if fromEnv, ok := extractEnvVar(g.ctx.Envs, gunicornEnvCmdArgs); ok {
 		name, ok := extractGunicornNameFrom(strings.Split(fromEnv, " "))
 		if ok {
 			return NewServiceMetadata(name), true
 		}
 	}
-	if wsgiApp, ok := extractEnvVar(g.ctx.envs, wsgiAppEnv); ok && len(wsgiApp) > 0 {
+	if wsgiApp, ok := extractEnvVar(g.ctx.Envs, wsgiAppEnv); ok && len(wsgiApp) > 0 {
 		return NewServiceMetadata(parseNameFromWsgiApp(wsgiApp)), true
 	}
 
