@@ -47,7 +47,10 @@ func (*ZstdNativeStrategy) Decompress(src []byte) ([]byte, error) {
 
 // CompressBound returns the worst case size needed for a destination buffer when using zstd
 func (s *ZstdNativeStrategy) CompressBound(sourceLen int) int {
-	encoder, _ := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(s.level)))
+	encoder, _ := zstd.NewWriter(nil,
+		zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(s.level)),
+		zstd.WithEncoderConcurrency(1))
+
 	return encoder.MaxEncodedSize(sourceLen)
 }
 
