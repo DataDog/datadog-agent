@@ -176,25 +176,6 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 	})
 }
 
-func TestEnableJavaTLSSupport(t *testing.T) {
-	t.Run("via YAML", func(t *testing.T) {
-		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.tls.java.enabled", true)
-		cfg := New()
-
-		require.True(t, cfg.EnableJavaTLSSupport)
-	})
-
-	t.Run("via ENV variable", func(t *testing.T) {
-		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_JAVA_ENABLED", "true")
-		cfg := New()
-
-		require.True(t, cfg.EnableJavaTLSSupport)
-	})
-
-}
-
 func TestEnableHTTP2Monitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
@@ -291,16 +272,6 @@ func TestEnableRedisMonitoring(t *testing.T) {
 
 		assert.False(t, cfg.EnableRedisMonitoring)
 	})
-}
-
-func TestDefaultDisabledJavaTLSSupport(t *testing.T) {
-	mock.NewSystemProbe(t)
-	cfg := New()
-
-	_, err := sysconfig.New("", "")
-	require.NoError(t, err)
-
-	assert.False(t, cfg.EnableJavaTLSSupport)
 }
 
 func TestDefaultDisabledHTTP2Support(t *testing.T) {

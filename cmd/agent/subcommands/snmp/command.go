@@ -417,7 +417,7 @@ func scanDevice(connParams *snmpConnectionParams, args argsType, snmpScanner snm
 
 	namespace := conf.GetString("network_devices.namespace")
 
-	err = snmpScanner.RunDeviceScan(snmp, namespace)
+	err = snmpScanner.RunDeviceScan(snmp, namespace, connParams.IPAddress)
 	if err != nil {
 		return fmt.Errorf("unable to perform device scan: %v", err)
 	}

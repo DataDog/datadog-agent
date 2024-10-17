@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -41,6 +42,10 @@ func TestProbeCanReceiveEvents(t *testing.T) {
 	if kver < minimumKernelVersion {
 		t.Skipf("minimum kernel version %s not met, read %s", minimumKernelVersion, kver)
 	}
+
+	procMon := monitor.GetProcessMonitor()
+	require.NotNil(t, procMon)
+	require.NoError(t, procMon.Initialize(false))
 
 	cfg := NewConfig()
 	cfg.InitialProcessSync = false

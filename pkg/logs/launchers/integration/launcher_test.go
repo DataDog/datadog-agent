@@ -93,7 +93,7 @@ func (suite *LauncherTestSuite) TestSendLog() {
 	assert.Equal(suite.T(), foundSource.Config.Type, config.FileType)
 	assert.Equal(suite.T(), foundSource.Config.Source, "foo")
 	assert.Equal(suite.T(), foundSource.Config.Service, "bar")
-	expectedPath := filepath.Join(suite.s.runPath, suite.s.integrationToFile[id].filename)
+	expectedPath := suite.s.integrationToFile[id].fileWithPath
 
 	assert.Equal(suite.T(), logSample, <-fileLogChan)
 	assert.Equal(suite.T(), expectedPath, <-filepathChan)
@@ -113,8 +113,8 @@ func (suite *LauncherTestSuite) TestZeroCombinedUsageMaxFileCreated() {
 	suite.s.combinedUsageMax = 0
 
 	filename := "sample_integration_123.log"
-	filepath := filepath.Join(suite.s.runPath, filename)
-	file, err := os.Create(filepath)
+	fileWithPath := filepath.Join(suite.s.runPath, filename)
+	file, err := os.Create(fileWithPath)
 	assert.Nil(suite.T(), err)
 
 	file.Close()
@@ -143,11 +143,11 @@ func (suite *LauncherTestSuite) TestZeroCombinedUsageMaxFileNotCreated() {
 }
 
 func (suite *LauncherTestSuite) TestSmallCombinedUsageMax() {
-	suite.s.combinedUsageMax = 10
+	suite.s.combinedUsageMax = 15
 
 	filename := "sample_integration_123.log"
-	filepath := filepath.Join(suite.s.runPath, filename)
-	file, err := os.Create(filepath)
+	fileWithPath := filepath.Join(suite.s.runPath, filename)
+	file, err := os.Create(fileWithPath)
 	assert.Nil(suite.T(), err)
 
 	file.Close()
@@ -155,32 +155,41 @@ func (suite *LauncherTestSuite) TestSmallCombinedUsageMax() {
 	suite.s.Start(nil, nil, nil, nil)
 
 	// Launcher should write this log
-	writtenLog := "sample"
+	shortLog := "sample"
 	integrationLog := integrations.IntegrationLog{
-		Log:           writtenLog,
+		Log:           shortLog,
 		IntegrationID: "sample_integration:123",
 	}
 	suite.s.receiveLogs(integrationLog)
-	fileStat, err := os.Stat(filepath)
+	fileStat, err := os.Stat(fileWithPath)
 	assert.Nil(suite.T(), err)
-	assert.Equal(suite.T(), fileStat.Size(), int64(len(writtenLog)+1))
+	assert.Equal(suite.T(), fileStat.Size(), int64(len(shortLog)+1))
 
-	// Launcher should delete file for this log
-	unwrittenLog := "sample log two"
+	// Launcher should delete and remake the log file for this log since it would break combinedUsageMax threshold
+	longLog := "sample log two"
 	integrationLogTwo := integrations.IntegrationLog{
-		Log:           unwrittenLog,
+		Log:           longLog,
 		IntegrationID: "sample_integration:123",
 	}
 	suite.s.receiveLogs(integrationLogTwo)
+	_, err = os.Stat(fileWithPath)
+	assert.Nil(suite.T(), err)
 
-	_, err = os.Stat(filepath)
-	assert.True(suite.T(), os.IsNotExist(err))
+	// Launcher should skip writing this log since it's larger than combinedUsageMax
+	unwrittenLog := "this log is too long"
+	unwrittenIntegrationLog := integrations.IntegrationLog{
+		Log:           unwrittenLog,
+		IntegrationID: "sample_integration:123",
+	}
+	suite.s.receiveLogs(unwrittenIntegrationLog)
+	_, err = os.Stat(fileWithPath)
+	assert.Nil(suite.T(), err)
 
 	// Remake the file
 	suite.s.receiveLogs(integrationLog)
-	fileStat, err = os.Stat(filepath)
+	fileStat, err = os.Stat(fileWithPath)
 	assert.Nil(suite.T(), err)
-	assert.Equal(suite.T(), fileStat.Size(), int64(len(writtenLog)+1))
+	assert.Equal(suite.T(), fileStat.Size(), int64(len(shortLog)+1))
 }
 
 func (suite *LauncherTestSuite) TestWriteLogToFile() {
@@ -215,12 +224,12 @@ func (suite *LauncherTestSuite) TestWriteMultipleLogsToFile() {
 // TestDeleteFile tests that deleteFile properly deletes the correct file
 func (suite *LauncherTestSuite) TestDeleteFile() {
 	filename := "testfile.log"
-	filepath := filepath.Join(suite.s.runPath, filename)
-	file, err := os.Create(filepath)
-	fileinfo := &fileInfo{filename: filename, size: int64(0)}
+	fileWithPath := filepath.Join(suite.s.runPath, filename)
+	file, err := os.Create(fileWithPath)
+	fileinfo := &fileInfo{fileWithPath: fileWithPath, size: int64(0)}
 	assert.Nil(suite.T(), err)
 
-	info, err := os.Stat(filepath)
+	info, err := os.Stat(fileWithPath)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), int64(0), info.Size(), "Newly created file size not zero")
 
@@ -229,14 +238,14 @@ func (suite *LauncherTestSuite) TestDeleteFile() {
 	file.Write(data)
 	file.Close()
 
-	info, err = os.Stat(filepath)
+	info, err = os.Stat(fileWithPath)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), int64(2*1024*1024), info.Size())
 
 	err = suite.s.deleteFile(fileinfo)
 	assert.Nil(suite.T(), err)
 
-	_, err = os.Stat(filepath)
+	_, err = os.Stat(fileWithPath)
 	assert.True(suite.T(), os.IsNotExist(err))
 }
 
@@ -281,8 +290,8 @@ func (suite *LauncherTestSuite) TestFileExceedsSingleFileLimit() {
 	suite.s.fileSizeMax = oneMB
 
 	filename := "sample_integration_123.log"
-	filepath := filepath.Join(suite.s.runPath, filename)
-	file, err := os.Create(filepath)
+	fileWithPath := filepath.Join(suite.s.runPath, filename)
+	file, err := os.Create(fileWithPath)
 	assert.Nil(suite.T(), err)
 
 	file.Write(make([]byte, oneMB))
@@ -308,7 +317,8 @@ func (suite *LauncherTestSuite) TestScanInitialFiles() {
 	filename := "sample_integration_123.log"
 	fileSize := int64(1 * 1024 * 1024)
 
-	file, err := os.Create(filepath.Join(suite.s.runPath, filename))
+	fileWithPath := filepath.Join(suite.s.runPath, filename)
+	file, err := os.Create(fileWithPath)
 	assert.Nil(suite.T(), err)
 
 	data := make([]byte, fileSize)
@@ -320,7 +330,7 @@ func (suite *LauncherTestSuite) TestScanInitialFiles() {
 	actualFileInfo := suite.s.integrationToFile[fileID]
 
 	assert.NotEmpty(suite.T(), suite.s.integrationToFile)
-	assert.Equal(suite.T(), actualFileInfo.filename, filename)
+	assert.Equal(suite.T(), actualFileInfo.fileWithPath, fileWithPath)
 	assert.Equal(suite.T(), fileSize, actualFileInfo.size)
 	assert.Equal(suite.T(), fileSize, suite.s.combinedUsageSize)
 }
@@ -331,7 +341,8 @@ func (suite *LauncherTestSuite) TestCreateFileAfterScanInitialFile() {
 	filename := "sample_integration_123.log"
 	fileSize := int64(1 * 1024 * 1024)
 
-	file, err := os.Create(filepath.Join(suite.s.runPath, filename))
+	fileWithPath := filepath.Join(suite.s.runPath, filename)
+	file, err := os.Create(fileWithPath)
 	assert.Nil(suite.T(), err)
 
 	data := make([]byte, fileSize)
@@ -343,7 +354,7 @@ func (suite *LauncherTestSuite) TestCreateFileAfterScanInitialFile() {
 	scannedFile := suite.s.integrationToFile[fileID]
 
 	assert.NotEmpty(suite.T(), suite.s.integrationToFile)
-	assert.Equal(suite.T(), filename, scannedFile.filename)
+	assert.Equal(suite.T(), fileWithPath, scannedFile.fileWithPath)
 	assert.Equal(suite.T(), fileSize, scannedFile.size)
 	assert.Equal(suite.T(), fileSize, suite.s.combinedUsageSize)
 
