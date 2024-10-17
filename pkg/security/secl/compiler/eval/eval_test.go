@@ -937,6 +937,8 @@ func TestRegister(t *testing.T) {
 
 		{Expr: `process.array[A].key == 1000 && process.array[A].value == "EEEE"`, Expected: true},
 		{Expr: `process.array[A].key == 1002 && process.array[A].value == "EEEE"`, Expected: false},
+
+		{Expr: `process.array[A].key == 1000`, Expected: true},
 	}
 
 	for _, test := range tests {

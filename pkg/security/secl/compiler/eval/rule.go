@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	maxRegisterIteration = 30
+	maxRegisterIteration = 100
 )
 
 // RuleID - ID of a Rule

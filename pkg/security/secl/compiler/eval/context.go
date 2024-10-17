@@ -11,6 +11,12 @@ import (
 	"time"
 )
 
+// RegisterCacheKey used as index to the register cache
+type RegisterCacheEntry struct {
+	Pos   int
+	Value interface{}
+}
+
 // Context describes the context used during a rule evaluation
 type Context struct {
 	Event Event
@@ -21,7 +27,7 @@ type Context struct {
 	BoolCache   map[string][]bool
 
 	// iterator register cache. used to cache entry within a single rule evaluation
-	RegisterCache map[RegisterID]interface{}
+	RegisterCache map[RegisterID]*RegisterCacheEntry
 
 	// rule register
 	Registers map[RegisterID]int
@@ -62,7 +68,7 @@ func NewContext(evt Event) *Context {
 		IntCache:      make(map[string][]int),
 		BoolCache:     make(map[string][]bool),
 		Registers:     make(map[RegisterID]int),
-		RegisterCache: make(map[RegisterID]interface{}),
+		RegisterCache: make(map[RegisterID]*RegisterCacheEntry),
 	}
 }
 
