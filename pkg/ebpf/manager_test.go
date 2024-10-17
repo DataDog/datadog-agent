@@ -7,8 +7,10 @@
 package ebpf
 
 import (
+	"io"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/stretchr/testify/assert"
 )
@@ -24,10 +26,12 @@ func (t *dummyModifier) String() string {
 }
 
 // BeforeInit adds the patchPrintkNewline function to the manager
-func (t *dummyModifier) BeforeInit(_ *manager.Manager, _ *manager.Options) error { return nil }
+func (t *dummyModifier) BeforeInit(_ *manager.Manager, _ names.ModuleName, _ *manager.Options, _ io.ReaderAt) error {
+	return nil
+}
 
 // AfterInit is a no-op for this modifier
-func (t *dummyModifier) AfterInit(_ *manager.Manager, _ *manager.Options) error {
+func (t *dummyModifier) AfterInit(_ *manager.Manager, _ names.ModuleName, _ *manager.Options) error {
 	return nil
 }
 
@@ -37,7 +41,7 @@ func TestNewManagerWithDefault(t *testing.T) {
 		modifiers []Modifier
 	}
 	// ensuring the lazy init of the defaultModifiers list
-	_ = NewManagerWithDefault(nil, nil)
+	_ = NewManagerWithDefault(nil, "ebpf", nil)
 	tests := []struct {
 		name                  string
 		args                  args
@@ -61,7 +65,7 @@ func TestNewManagerWithDefault(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			target := NewManagerWithDefault(tt.args.mgr, tt.args.modifiers...)
+			target := NewManagerWithDefault(tt.args.mgr, "ebpf", tt.args.modifiers...)
 			assert.Equalf(t, tt.expectedModifierCount, len(target.EnabledModifiers), "Expected to have %v enabled modifiers ", tt.expectedModifierCount)
 		})
 	}
