@@ -267,7 +267,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/conntrack/host", func(w http.ResponseWriter, req *http.Request) {
-		ctx, cancelFunc := context.WithTimeout(req.Context(), 30*time.Second)
+		ctx, cancelFunc := context.WithTimeout(req.Context(), 10*time.Second)
 		defer cancelFunc()
 		table, err := nt.tracer.DebugHostConntrack(ctx)
 		if err != nil {
@@ -279,21 +279,8 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		writeConntrackTable(table, w)
 	})
 
-	httpMux.HandleFunc("/debug/conntrack/host_full", func(w http.ResponseWriter, req *http.Request) {
-		ctx, cancelFunc := context.WithTimeout(req.Context(), 30*time.Second)
-		defer cancelFunc()
-		table, err := nt.tracer.DebugHostConntrackFull(ctx)
-		if err != nil {
-			log.Errorf("unable to retrieve host conntrack table: %s", err)
-			w.WriteHeader(500)
-			return
-		}
-
-		writeConntrackTable(table, w)
-	})
-
 	httpMux.HandleFunc("/debug/process_cache", func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancelFunc := context.WithTimeout(r.Context(), 30*time.Second)
+		ctx, cancelFunc := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancelFunc()
 		cache, err := nt.tracer.DebugDumpProcessCache(ctx)
 		if err != nil {

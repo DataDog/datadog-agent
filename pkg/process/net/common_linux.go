@@ -32,7 +32,6 @@ const (
 	telemetryURL         = "http://unix/telemetry"
 	conntrackCachedURL   = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/cached"
 	conntrackHostURL     = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/host"
-	conntrackHostFullURL = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/host_full"
 	netType              = "unix"
 )
 

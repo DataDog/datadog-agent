@@ -476,31 +476,6 @@ func (r *RemoteSysProbeUtil) GetConnTrackHost() ([]byte, error) {
 	return data, nil
 }
 
-// GetConnTrackHostFull queries conntrack/host_full, which uses netlink to return the list of connections (including non-NAT connections)
-func (r *RemoteSysProbeUtil) GetConnTrackHostFull() ([]byte, error) {
-	req, err := http.NewRequest(http.MethodGet, conntrackHostFullURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(`GetConnTrackHostFull got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
-	}
-
-	return data, nil
-}
-
 func (r *RemoteSysProbeUtil) init() error {
 	resp, err := r.httpClient.Get(statsURL)
 	if err != nil {
