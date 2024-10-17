@@ -66,6 +66,8 @@ type cliParams struct {
 
 	// diagnose suites not to run as a list of regular expressions
 	exclude []string
+
+	logLevelOff command.LogLevelOff
 }
 
 // payloadName is the name of the payload to display
@@ -90,7 +92,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:    log.ForOneShot("CORE", "off", true),
+					LogParams:    log.ForOneShot("CORE", cliParams.logLevelOff.Override(), true),
 				}),
 				core.Bundle(),
 				// workloadmeta setup
@@ -109,6 +111,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			)
 		},
 	}
+
+	cliParams.logLevelOff.Register(diagnoseCommand)
 
 	// Normally a successful diagnosis is printed as a single dot character. If verbose option is specified
 	// successful diagnosis is printed fully. With verbose option diagnosis description is also printed.
