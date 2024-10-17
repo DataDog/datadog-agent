@@ -18,8 +18,8 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
@@ -33,11 +33,30 @@ import (
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
+	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/ntp"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/cpu"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/load"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/disk"
+	ioCheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -92,15 +111,41 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		secretsimpl.Module(),
 		noopTelemetry.Module(),
 		collectorimpl.Module(),
-		fx.Provide(func() optional.Option[serializer.MetricSerializer] {
-			return optional.NewNoneOption[serializer.MetricSerializer]()
-		}),
-		diagnosesendermanagerimpl.Module(),
-		fx.Provide(func(diagnoseSenderManager diagnosesendermanager.Component) (sender.SenderManager, error) {
-			return diagnoseSenderManager.LazyGetSenderManager()
-		}),
+		// Sending metrics to the backend
+		fx.Provide(defaultforwarder.NewParams),
+		defaultforwarder.Module(),
 		compressionimpl.Module(),
+		// Since we do not use the build tag orchestrator, we use the comp/forwarder/orchestrator/orchestratorimpl/forwarder_no_orchestrator.go
+		orchestratorimpl.Module(),
+		fx.Supply(orchestratorimpl.NewDisabledParams()),
+		eventplatformimpl.Module(),
+		fx.Supply(eventplatformimpl.NewDisabledParams()),
+		eventplatformreceiver.NoneModule(),
+		demultiplexerimpl.Module(),
+		fx.Provide(func(config config.Component) demultiplexerimpl.Params {
+			params := demultiplexerimpl.NewDefaultParams()
+			params.ContinueOnMissingHostname = true
+			return params
+		}),
+		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
+		// already migrated components to request it.
+		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
+			return demuxInstance.Serializer()
+		}),
+
+		fx.Provide(func(ms serializer.MetricSerializer) optional.Option[serializer.MetricSerializer] {
+			return optional.NewOption[serializer.MetricSerializer](ms)
+		}),
 		hostnameimpl.Module(),
+
+		fx.Provide(tagger.NewTaggerParams),
+		// TODO: Explor having a fully remote tagger
+		// It would remove the need as well of having the workloadmeta component
+		taggerimpl.Module(),
+		// workloadmeta setup
+		collectors.GetCatalog(),
+		fx.Provide(workloadmeta.NewParams),
+		workloadmetafx.Module(),
 
 		// grpc Client
 		grpcClientfx.Module(),
@@ -112,10 +157,10 @@ func start(
 	cliParams *CLIParams,
 	config config.Component,
 	log log.Component,
-	_ diagnosesendermanager.Component,
 	collector collector.Component,
-	sender sender.SenderManager,
+	demultiplexer demultiplexer.Component,
 	grpcClient grpcClient.Component,
+	_ tagger.Component,
 ) error {
 
 	// Main context passed to components
@@ -125,8 +170,8 @@ func start(
 
 	// TODO: figure out how to initial.ize checks context
 	// check.InitializeInventoryChecksContext(invChecks)
-
-	scheduler := pkgcollector.InitCheckScheduler(optional.NewOption(collector), sender, optional.NewNoneOption[integrations.Component]())
+	registerCoreChecks()
+	scheduler := pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, optional.NewNoneOption[integrations.Component]())
 
 	// Start the scheduler
 	go startScheduler(grpcClient, scheduler, log)
@@ -274,4 +319,19 @@ func startScheduler(grpcClient grpcClient.Component, scheduler *pkgcollector.Che
 		scheduler.Schedule(scheduleConfigs)
 		scheduler.Unschedule(unscheduleConfigs)
 	}
+}
+
+// registerCoreChecks registers all core checks
+func registerCoreChecks() {
+	// Required checks
+	corechecks.RegisterCheck(cpu.CheckName, cpu.Factory())
+	corechecks.RegisterCheck(load.CheckName, load.Factory())
+	corechecks.RegisterCheck(memory.CheckName, memory.Factory())
+	corechecks.RegisterCheck(uptime.CheckName, uptime.Factory())
+	corechecks.RegisterCheck(ntp.CheckName, ntp.Factory())
+	corechecks.RegisterCheck(network.CheckName, network.Factory())
+	corechecks.RegisterCheck(snmp.CheckName, snmp.Factory())
+	corechecks.RegisterCheck(ioCheck.CheckName, ioCheck.Factory())
+	corechecks.RegisterCheck(filehandles.CheckName, filehandles.Factory())
+	corechecks.RegisterCheck(disk.CheckName, disk.Factory())
 }

@@ -34,8 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	acServer "github.com/DataDog/datadog-agent/comp/core/autodiscovery/server"
@@ -60,7 +58,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
-	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -73,21 +70,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/ntp"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/cpu"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/load"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/disk"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
-	telemetryCheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -178,7 +160,6 @@ func RunKernelAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		}),
 
 		// Autodiscovery
-		// Do we really need autodiscovery for the Logs Agent?
 		autodiscoveryimpl.Module(),
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
 		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
@@ -204,13 +185,6 @@ func RunKernelAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		fx.Provide(workloadmeta.NewParams),
 		workloadmetafx.Module(),
 
-		// Core checks
-		fx.Provide(func(ms serializer.MetricSerializer) optional.Option[serializer.MetricSerializer] {
-			return optional.NewOption[serializer.MetricSerializer](ms)
-		}),
-		collectorimpl.Module(),
-		fx.Supply(optional.NewNoneOption[integrations.Component]()),
-
 		// Healthprobe
 		fx.Provide(func(config config.Component) healthprobe.Options {
 			return healthprobe.Options{
@@ -234,9 +208,7 @@ func start(
 	_ tagger.Component,
 	workloadmeta workloadmeta.Component,
 	telemetry telemetry.Component,
-	collector collector.Component,
-	demultiplexer demultiplexer.Component,
-	logReceiver optional.Option[integrations.Component],
+	_ demultiplexer.Component,
 	ac autodiscovery.Component,
 ) error {
 	// Main context passed to components
@@ -246,9 +218,6 @@ func start(
 
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh, log)
-
-	registerCoreChecks(workloadmeta, telemetry)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver), true)
 
 	ac.LoadAndRun(context.Background())
 
@@ -473,22 +442,4 @@ func StopAgent(cancel context.CancelFunc, log log.Component) {
 
 	log.Info("See ya!")
 	log.Flush()
-}
-
-// registerCoreChecks registers all core checks
-func registerCoreChecks(workloadmeta workloadmeta.Component, telemetry telemetry.Component) {
-	// Required checks
-	corechecks.RegisterCheck(cpu.CheckName, cpu.Factory())
-	corechecks.RegisterCheck(load.CheckName, load.Factory())
-	corechecks.RegisterCheck(memory.CheckName, memory.Factory())
-	corechecks.RegisterCheck(uptime.CheckName, uptime.Factory())
-	corechecks.RegisterCheck(ntp.CheckName, ntp.Factory())
-	corechecks.RegisterCheck(network.CheckName, network.Factory())
-	corechecks.RegisterCheck(snmp.CheckName, snmp.Factory())
-	corechecks.RegisterCheck(io.CheckName, io.Factory())
-	corechecks.RegisterCheck(filehandles.CheckName, filehandles.Factory())
-	corechecks.RegisterCheck(telemetryCheck.CheckName, telemetryCheck.Factory())
-	corechecks.RegisterCheck(networkpath.CheckName, networkpath.Factory(telemetry))
-	corechecks.RegisterCheck(disk.CheckName, io.Factory())
-	corechecks.RegisterCheck(generic.CheckName, generic.Factory(workloadmeta))
 }
