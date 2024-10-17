@@ -75,7 +75,7 @@ func (b *bucket) flush() *message.Message {
 		msg.ParsingExtra.IsTruncated = true
 		tlmTags[0] = "true"
 		if b.tagTruncatedLogs {
-			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedReasonTag("auto_multiline"))
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedReasonTag("single_line"))
 		}
 	}
 
