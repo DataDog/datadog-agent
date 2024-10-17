@@ -229,6 +229,7 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 						str.WriteString(string(val))
 					} else {
 						log.Warnf("Trouble parsing the following attribute value, dropping: %v", v.AsString())
+						str.WriteString(`"redacted"`)
 					}
 				} else {
 					log.Errorf("Error parsing the following attribute key on span event %v, dropping attribute: %v", e.Name(), k)
