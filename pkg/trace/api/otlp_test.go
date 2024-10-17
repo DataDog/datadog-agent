@@ -2324,19 +2324,40 @@ func TestMarshalEvents(t *testing.T) {
 					"dropped_attributes_count":2
 				}]`,
 		},
-		{
-			in: makeEventsSlice(`something:"nested"`, map[string]string{
-				`abc"def"`: `123"456"`,
-			}, 0, 3),
-			out: `[{
-                    "name": "something:\"nested\"",
-                    "attributes": {"abc\"def\"":"123\"456\""},
-                    "dropped_attributes_count":3
-                }]`,
-		},
 	} {
 		assert.Equal(t, trimSpaces(tt.out), transform.MarshalEvents(tt.in))
 	}
+}
+
+func TestMarshalJSONUnsafeEvents(t *testing.T) {
+	name := `something:"nested"`
+	key := `abc\def\`
+	val := `["test\"1\","/test2\\"]`
+
+	events := makeEventsSlice(name, map[string]string{
+		key: val,
+	}, 0, 3)
+
+	jsonName, err := json.Marshal(name)
+	if err != nil {
+		t.Fatal("Failure parsing name")
+	}
+	jsonKey, err := json.Marshal(key)
+	if err != nil {
+		t.Fatal("Failure parsing key")
+	}
+	jsonVal, err := json.Marshal(val)
+	if err != nil {
+		t.Fatal("Failure parsing val")
+	}
+
+	out := fmt.Sprintf(`[{
+				"name": %v,
+				"attributes": {%v: %v},
+				"dropped_attributes_count":3
+			}]`, string(jsonName), string(jsonKey), string(jsonVal))
+
+	assert.Equal(t, trimSpaces(out), transform.MarshalEvents(events))
 }
 
 func trimSpaces(str string) string {

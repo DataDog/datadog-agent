@@ -8,6 +8,7 @@ package transform
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
@@ -179,20 +181,6 @@ func OtelSpanToDDSpan(
 	return ddspan
 }
 
-// escapeJSONString writes a string s to the stringbuilder sb, ensuring quotation marks are escaped
-func escapeJSONString(s string, sb *strings.Builder) {
-	sb.WriteString(`"`)
-	for _, c := range s {
-		switch c {
-		case '"':
-			sb.WriteString(`\"`)
-		default:
-			sb.WriteRune(c)
-		}
-	}
-	sb.WriteString(`"`)
-}
-
 // MarshalEvents marshals events into JSON.
 func MarshalEvents(events ptrace.SpanEventSlice) string {
 	var str strings.Builder
@@ -214,7 +202,13 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 				str.WriteString(",")
 			}
 			str.WriteString(`"name":`)
-			escapeJSONString(v, &str)
+			if name, err := json.Marshal(v); err == nil {
+				str.WriteString(string(name))
+			} else {
+				// still collect the event information, if possible
+				log.Errorf("Error parsing span event name %v, using name 'redacted' instead", name)
+				str.WriteString(`"redacted"`)
+			}
 			wrote = true
 		}
 		if e.Attributes().Len() > 0 {
@@ -224,12 +218,21 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 			str.WriteString(`"attributes":{`)
 			j := 0
 			e.Attributes().Range(func(k string, v pcommon.Value) bool {
-				if j > 0 {
-					str.WriteString(",")
+				// collect the attribute only if the key is json-parseable, else drop the attribute
+				if key, err := json.Marshal(k); err == nil {
+					if j > 0 {
+						str.WriteString(",")
+					}
+					str.WriteString(string(key))
+					str.WriteString(":")
+					if val, err := json.Marshal(v.AsString()); err == nil {
+						str.WriteString(string(val))
+					} else {
+						log.Warnf("Trouble parsing the following attribute value, dropping: %v", v.AsString())
+					}
+				} else {
+					log.Errorf("Error parsing the following attribute key on span event %v, dropping attribute: %v", e.Name(), k)
 				}
-				escapeJSONString(k, &str)
-				str.WriteString(`:`)
-				escapeJSONString(v.AsString(), &str)
 				j++
 				return true
 			})
