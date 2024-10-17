@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
 	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
@@ -298,6 +299,11 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 			ctx.Export("agent-ec2-linux-task-arn", agentDaemon.TaskDefinition.Arn())
 			ctx.Export("agent-ec2-linux-task-family", agentDaemon.TaskDefinition.Family())
 			ctx.Export("agent-ec2-linux-task-version", agentDaemon.TaskDefinition.Revision())
+		}
+
+		_, err := cpustress.FargateAppDefinition(awsEnv, ecsCluster.Arn, apiKeyParam.Name, fakeIntake)
+		if err != nil {
+			return err
 		}
 	}
 
