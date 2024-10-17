@@ -261,6 +261,7 @@ variables:
   AGENT_API_KEY_ORG2: agent-api-key-org-2  # agent-devx-infra
   AGENT_APP_KEY_ORG2: agent-ci-app-key-org-2  # agent-devx-infra
   AGENT_GITHUB_APP: agent-github-app  # agent-devx-infra
+  AGENT_QA_E2E: agent-qa-e2e  # agent-devx-loops
   ATLASSIAN_WRITE: atlassian-write  # agent-devx-infra
   DOCKER_REGISTRY_RO: dockerhub-readonly  # agent-delivery
   GITLAB_TOKEN: gitlab-token  # agent-devx-infra
