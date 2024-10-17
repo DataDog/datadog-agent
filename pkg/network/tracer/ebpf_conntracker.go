@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/netip"
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -370,24 +371,12 @@ func (e *ebpfConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]net
 			Family: src.Family().String(),
 			Proto:  src.Type().String(),
 			Origin: netlink.DebugConntrackTuple{
-				Src: netlink.DebugConntrackAddress{
-					IP:   src.SourceAddress().String(),
-					Port: src.Sport,
-				},
-				Dst: netlink.DebugConntrackAddress{
-					IP:   src.DestAddress().String(),
-					Port: src.Dport,
-				},
+				Src: netip.AddrPortFrom(src.SourceAddress().Addr, src.Sport),
+				Dst: netip.AddrPortFrom(src.DestAddress().Addr, src.Dport),
 			},
 			Reply: netlink.DebugConntrackTuple{
-				Src: netlink.DebugConntrackAddress{
-					IP:   dst.SourceAddress().String(),
-					Port: dst.Sport,
-				},
-				Dst: netlink.DebugConntrackAddress{
-					IP:   dst.DestAddress().String(),
-					Port: dst.Dport,
-				},
+				Src: netip.AddrPortFrom(dst.SourceAddress().Addr, dst.Sport),
+				Dst: netip.AddrPortFrom(dst.DestAddress().Addr, dst.Dport),
 			},
 		})
 	}
