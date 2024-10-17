@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -25,6 +26,7 @@ type dependencies struct {
 	Logger      log.Component
 	AgentConfig config.Component
 	Telemetry   telemetry.Component
+	RDNSQuerier rdnsquerier.Component
 }
 
 type provides struct {
@@ -43,6 +45,13 @@ func Module() fxutil.Module {
 func newNpCollector(deps dependencies) provides {
 	var collector *npCollectorImpl
 
+	// Note that multiple components can share the same rdnsQuerier instance.  If any of them have
+	// reverse DNS enrichment enabled then the deps.RDNSQuerier component passed here will be an
+	// active instance.  However, we also need to check here whether the netflow component has
+	// reverse DNS enrichment enabled to decide whether to use the passed instance or to override
+	// it with a noop implementation.
+	rdnsQuerier := deps.RDNSQuerier
+
 	configs := newConfig(deps.AgentConfig)
 	if configs.networkPathCollectorEnabled() {
 		deps.Logger.Debugf("Network Path Collector enabled")
@@ -51,7 +60,7 @@ func newNpCollector(deps dependencies) provides {
 			deps.Logger.Errorf("Error getting EpForwarder")
 			collector = newNoopNpCollectorImpl()
 		} else {
-			collector = newNpCollectorImpl(epForwarder, configs, deps.Logger, deps.Telemetry)
+			collector = newNpCollectorImpl(epForwarder, configs, deps.Logger, deps.Telemetry, rdnsQuerier)
 			deps.Lc.Append(fx.Hook{
 				// No need for OnStart hook since NpCollector.Init() will be called by clients when needed.
 				OnStart: func(context.Context) error {
