@@ -169,7 +169,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
     protocol_t app_layer_proto = get_protocol_from_stack(protocol_stack, LAYER_APPLICATION);
 
-    if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) && is_tls(skb)) {
+    if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) && is_tls(skb, skb_info.data_off)) {
         // TLS classification
         update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
         // The connection is TLS encrypted, thus we cannot classify the protocol

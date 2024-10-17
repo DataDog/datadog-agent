@@ -4,9 +4,6 @@
 #include "ktypes.h"
 #include "bpf_builtins.h"
 
-// #include <linux/if_ether.h>  // For Ethernet header structures
-// #include <linux/tcp.h>  // For TCP header structures
-// #include <linux/ip.h>  // For IP header structures
 #include "ip.h"
 
 #define ETH_HLEN 14  // Ethernet header length
@@ -51,7 +48,7 @@ typedef struct {
 typedef struct {
     tls_client_tags_t client_tags;
     tls_server_tags_t server_tags;
-} tls_expanded_tags_t;
+} tls_enhanced_tags_t;
 
 #define TLS_HANDSHAKE_CLIENT_HELLO 0x01
 #define TLS_HANDSHAKE_SERVER_HELLO 0x02
@@ -83,146 +80,6 @@ static __always_inline bool is_valid_tls_version(__u16 version) {
 //   of the skb
 static __always_inline bool is_valid_tls_app_data(tls_record_header_t *hdr, __u32 skb_len) {
     return hdr->length + sizeof(tls_record_header_t) <= skb_len;
-}
-
-// is_tls_handshake checks if the given TLS message header is a valid TLS
-// handshake message. The message is considered valid if:
-// - The type matches CLIENT_HELLO or SERVER_HELLO
-// - The version is a known SSL/TLS version
-// static __always_inline bool is_tls_handshake(tls_record_header_t *hdr, const char *buf, __u32 buf_size) {
-//     // Checking the buffer size contains at least the size of the tls record header and the tls hello message header.
-//     if (sizeof(tls_record_header_t) + sizeof(tls_hello_message_t) > buf_size) {
-//         return false;
-//     }
-//     // Checking the tls record header length is greater than the tls hello message header length.
-//     if (hdr->length < sizeof(tls_hello_message_t)) {
-//         return false;
-//     }
-
-//     // Getting the tls hello message header.
-//     tls_hello_message_t msg = *(tls_hello_message_t *)(buf + sizeof(tls_record_header_t));
-//     // If the message is not a CLIENT_HELLO or SERVER_HELLO, we don't attempt to classify.
-//     if (msg.handshake_type != TLS_HANDSHAKE_CLIENT_HELLO && msg.handshake_type != TLS_HANDSHAKE_SERVER_HELLO) {
-//         return false;
-//     }
-//     // Converting the fields to host byte order.
-//     __u32 length = msg.length[0] << 16 | msg.length[1] << 8 | msg.length[2];
-//     // TLS handshake message length should be equal to the record header length minus the size of the hello message
-//     // header.
-//     if (length + TLS_HELLO_MESSAGE_HEADER_SIZE != hdr->length) {
-//         return false;
-//     }
-
-//     msg.version = bpf_ntohs(msg.version);
-//     return is_valid_tls_version(msg.version) && msg.version >= hdr->version;
-// }
-
-// // is_tls checks if the given buffer is a valid TLS record header. We are
-// // currently checking for two types of record headers:
-// // - TLS Handshake record headers
-// // - TLS Application Data record headers
-// static __always_inline bool is_tls(const char *buf, __u32 buf_size, __u32 skb_len) {
-//     if (buf_size < sizeof(tls_record_header_t)) {
-//         return false;
-//     }
-
-//     // Copying struct to the stack, to avoid modifying the original buffer that will be used for other classifiers.
-//     tls_record_header_t tls_record_header = *(tls_record_header_t *)buf;
-//     // Converting the fields to host byte order.
-//     tls_record_header.version = bpf_ntohs(tls_record_header.version);
-//     tls_record_header.length = bpf_ntohs(tls_record_header.length);
-
-//     // Checking the version in the record header.
-//     if (!is_valid_tls_version(tls_record_header.version)) {
-//         return false;
-//     }
-
-//     // Checking the length in the record header is not greater than the maximum payload length.
-//     if (tls_record_header.length > TLS_MAX_PAYLOAD_LENGTH) {
-//         return false;
-//     }
-//     switch (tls_record_header.content_type) {
-//     case TLS_HANDSHAKE:
-//         return is_tls_handshake(&tls_record_header, buf, buf_size);
-//     case TLS_APPLICATION_DATA:
-//         return is_valid_tls_app_data(&tls_record_header, skb_len);
-//     }
-
-//     return false;
-// }
-
-static __always_inline int parse_ethernet(struct __sk_buff *skb, __u64 nh_off, __u16 *eth_proto) {
-    struct ethhdr eth;
-
-    // Ensure there's enough data for the Ethernet header
-    if (nh_off + sizeof(struct ethhdr) > skb->len)
-        return -1;
-
-    // Load the Ethernet header from the packet
-    if (bpf_skb_load_bytes(skb, nh_off, &eth, sizeof(eth)) < 0)
-        return -1;
-
-    // Extract the EtherType (protocol)
-    *eth_proto = bpf_ntohs(eth.h_proto);
-
-    return 0;
-}
-
-static __always_inline int parse_tcp(struct __sk_buff *skb, __u64 nh_off, __u64 *tcp_hdr_len) {
-    struct tcphdr tcp;
-
-    // Ensure there's enough data for the TCP header (minimum 20 bytes)
-    if (nh_off + sizeof(struct tcphdr) > skb->len)
-        return -1;
-
-    // Load the TCP header from the packet
-    if (bpf_skb_load_bytes(skb, nh_off, &tcp, sizeof(tcp)) < 0)
-        return -1;
-
-    // Extract the Data Offset (Header Length)
-    // The data offset field specifies the size of the TCP header in 32-bit words
-    __u8 data_offset = tcp.doff;
-
-    // Calculate the TCP header length in bytes
-    *tcp_hdr_len = (__u64)data_offset * 4;
-
-    // Ensure that the computed TCP header length is valid
-    if (*tcp_hdr_len < sizeof(struct tcphdr))
-        return -1;
-    if (nh_off + *tcp_hdr_len > skb->len)
-        return -1;
-
-    return 0;
-}
-
-static __always_inline int parse_ip(struct __sk_buff *skb, __u64 nh_off, __u8 *protocol, __u64 *ip_hdr_len) {
-    struct iphdr ip;
-
-    // Ensure there's enough data for the IP header (minimum 20 bytes)
-    if (nh_off + sizeof(struct iphdr) > skb->len)
-        return -1;
-
-    // Load IP header from the packet
-    if (bpf_skb_load_bytes(skb, nh_off, &ip, sizeof(ip)) < 0)
-        return -1;
-
-    // Extract the Internet Header Length (IHL)
-    // The IHL field specifies the size of the IP header in 32-bit words
-    __u8 ihl = ip.ihl;
-
-    // Calculate the IP header length in bytes
-    *ip_hdr_len = (__u64)ihl * 4;
-
-    // Ensure that the computed IP header length is valid
-    if (*ip_hdr_len < sizeof(struct iphdr))
-        return -1;
-    if (nh_off + *ip_hdr_len > skb->len)
-        return -1;
-
-    // Extract the protocol field (e.g., TCP, UDP)
-    *protocol = ip.protocol;
-
-    return 0;
 }
 
 static __always_inline bool parse_supported_versions_extension(struct __sk_buff *skb, __u64 offset, __u16 extension_length) {
@@ -519,38 +376,8 @@ static __always_inline bool is_tls_handshake(tls_record_header_t *hdr, struct __
     }
 }
 
-static __always_inline bool is_tls(struct __sk_buff *skb) {
-    __u64 nh_off = 0;
+static __always_inline bool is_tls(struct __sk_buff *skb, __u64 nh_off) {
     __u32 skb_len = skb->len;
-    __u16 eth_proto = 0;
-
-    // Parse Ethernet header
-    if (parse_ethernet(skb, nh_off, &eth_proto) < 0)
-        return false;
-    nh_off += ETH_HLEN;
-
-    // Parse IP header
-    if (eth_proto == ETH_P_IP) {
-        __u8 ip_proto = 0;
-        __u64 ip_hdr_len = 0;
-        if (parse_ip(skb, nh_off, &ip_proto, &ip_hdr_len) < 0)
-            return false;
-        nh_off += ip_hdr_len;
-
-        if (ip_proto != IPPROTO_TCP)
-            return false;
-    } else if (eth_proto == ETH_P_IPV6) {
-        // Parse IPv6 header (left as an exercise)
-        return false;
-    } else {
-        return false;
-    }
-
-    // Parse TCP header
-    __u64 tcp_hdr_len = 0;
-    if (parse_tcp(skb, nh_off, &tcp_hdr_len) < 0)
-        return false;
-    nh_off += tcp_hdr_len;
 
     // Ensure there's enough space for TLS record header
     if (nh_off + sizeof(tls_record_header_t) > skb_len)
@@ -564,6 +391,12 @@ static __always_inline bool is_tls(struct __sk_buff *skb) {
     // Convert fields to host byte order
     tls_hdr.version = bpf_ntohs(tls_hdr.version);
     tls_hdr.length = bpf_ntohs(tls_hdr.length);
+
+    // Validate version and length
+    if (!is_valid_tls_version(tls_hdr.version))
+        return false;
+    if (tls_hdr.length > TLS_MAX_PAYLOAD_LENGTH)
+        return false;
 
     // Validate version and length
     if (!is_valid_tls_version(tls_hdr.version))

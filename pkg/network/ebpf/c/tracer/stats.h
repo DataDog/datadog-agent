@@ -121,7 +121,7 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
     // lookup from new map and add info to the connection
-    tls_expanded_tags_t tls_tags = get_tls_expanded_tags(&conn_tuple_copy);
+    // tls_enhanced_tags_t *tls_tags = get_tls_enhanced_tags(&conn_tuple_copy);
 }
 
 static __always_inline void determine_connection_direction(conn_tuple_t *t, conn_stats_ts_t *conn_stats) {
