@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build linux_bpf
 
 // Package gpu defines the agent corecheck for
 // the GPU integration
@@ -12,16 +12,9 @@ package gpu
 import (
 	"errors"
 	"fmt"
-	"sync"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
-
-var initOnce sync.Once
-
-type gpuDevice struct {
-	nvml.Device
-}
 
 func wrapNvmlError(ret nvml.Return) error {
 	if ret == nvml.SUCCESS {
