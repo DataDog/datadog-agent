@@ -6,7 +6,6 @@ core,cloud.google.com/go/auth/credentials/internal/externalaccountuser,Apache-2.
 core,cloud.google.com/go/auth/credentials/internal/gdch,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/credentials/internal/impersonate,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/credentials/internal/stsexchange,Apache-2.0,Copyright 2019 Google LLC
-core,cloud.google.com/go/auth/grpctransport,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/httptransport,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/internal,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/internal/credsfile,Apache-2.0,Copyright 2019 Google LLC
@@ -15,16 +14,6 @@ core,cloud.google.com/go/auth/internal/transport,Apache-2.0,Copyright 2019 Googl
 core,cloud.google.com/go/auth/internal/transport/cert,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/auth/oauth2adapt,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/compute/metadata,Apache-2.0,Copyright 2019 Google LLC
-core,cloud.google.com/go/iam,Apache-2.0,Copyright 2019 Google LLC
-core,cloud.google.com/go/iam/apiv1/iampb,Apache-2.0,Copyright 2019 Google LLC
-core,cloud.google.com/go/internal,Apache-2.0,Copyright 2019 Google LLC
-core,cloud.google.com/go/internal/optional,Apache-2.0,Copyright 2019 Google LLC
-core,cloud.google.com/go/internal/trace,Apache-2.0,Copyright 2019 Google LLC
-core,cloud.google.com/go/internal/version,Apache-2.0,Copyright 2019 Google LLC
-core,cloud.google.com/go/storage,Apache-2.0,Copyright 2019 Google LLC
-core,cloud.google.com/go/storage/internal,Apache-2.0,Copyright 2019 Google LLC
-core,cloud.google.com/go/storage/internal/apiv2,Apache-2.0,Copyright 2019 Google LLC
-core,cloud.google.com/go/storage/internal/apiv2/storagepb,Apache-2.0,Copyright 2019 Google LLC
 core,code.cloudfoundry.org/bbs,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,code.cloudfoundry.org/bbs/encryption,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,code.cloudfoundry.org/bbs/events,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
@@ -254,6 +243,8 @@ core,github.com/Microsoft/hcsshim/internal/wclayer,MIT,Copyright (c) 2015 Micros
 core,github.com/Microsoft/hcsshim/internal/winapi,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/osversion,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/pkg/ociwclayer,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
+core,github.com/NVIDIA/go-nvml/pkg/dl,Apache-2.0,Copyright 2023 NVIDIA CORPORATION
+core,github.com/NVIDIA/go-nvml/pkg/nvml,Apache-2.0,Copyright 2023 NVIDIA CORPORATION
 core,github.com/NYTimes/gziphandler,Apache-2.0,Copyright 2016-2017 The New York Times Company
 core,github.com/OneOfOne/xxhash,Apache-2.0,Copyright (c) 2014 Ahmed W. (OneOfOne)
 core,github.com/ProtonMail/go-crypto/bitcurves,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -650,11 +641,13 @@ core,github.com/aws/smithy-go/endpoints,Apache-2.0,"Copyright Amazon.com, Inc. o
 core,github.com/aws/smithy-go/internal/sync/singleflight,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/io,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/logging,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
+core,github.com/aws/smithy-go/metrics,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/middleware,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/private/requestcompression,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/ptr,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/rand,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/time,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
+core,github.com/aws/smithy-go/tracing,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/transport/http,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/transport/http/internal/io,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/waiter,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
@@ -2289,7 +2282,6 @@ core,go.opencensus.io/internal,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opencensus.io/internal/tagencoding,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opencensus.io/metric/metricdata,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opencensus.io/metric/metricproducer,Apache-2.0,"Copyright 2018, OpenCensus Authors"
-core,go.opencensus.io/plugin/ocgrpc,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opencensus.io/plugin/ochttp,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opencensus.io/plugin/ochttp/propagation/b3,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opencensus.io/resource,Apache-2.0,"Copyright 2018, OpenCensus Authors"
@@ -2710,18 +2702,13 @@ core,gonum.org/v1/gonum/mat,BSD-3-Clause,Alexander Egurnov <alexander.egurnov@gm
 core,google.golang.org/api/compute/v1,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/googleapi,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/googleapi/transport,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
-core,google.golang.org/api/iamcredentials/v1,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/internal,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/internal/cert,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/internal/gensupport,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/internal/impersonate,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/internal/third_party/uritemplates,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
-core,google.golang.org/api/iterator,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/option,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/option/internaloption,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
-core,google.golang.org/api/storage/v1,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
-core,google.golang.org/api/transport,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
-core,google.golang.org/api/transport/grpc,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/transport/http,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/transport/http/internal/propagation,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/genproto/googleapis/api,Apache-2.0,Copyright 2020 Google LLC
@@ -2731,16 +2718,12 @@ core,google.golang.org/genproto/googleapis/api/httpbody,Apache-2.0,Copyright 202
 core,google.golang.org/genproto/googleapis/rpc/code,Apache-2.0,Copyright 2020 Google LLC
 core,google.golang.org/genproto/googleapis/rpc/errdetails,Apache-2.0,Copyright 2020 Google LLC
 core,google.golang.org/genproto/googleapis/rpc/status,Apache-2.0,Copyright 2020 Google LLC
-core,google.golang.org/genproto/googleapis/type/date,Apache-2.0,Copyright 2020 Google LLC
-core,google.golang.org/genproto/googleapis/type/expr,Apache-2.0,Copyright 2020 Google LLC
 core,google.golang.org/genproto/protobuf/field_mask,Apache-2.0,Copyright 2020 Google LLC
 core,google.golang.org/grpc,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/attributes,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/backoff,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/base,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/balancer/grpclb,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/balancer/grpclb/grpc_lb_v1,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/grpclb/state,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/pickfirst,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/roundrobin,Apache-2.0,Copyright 2014 gRPC authors.
@@ -2749,16 +2732,7 @@ core,google.golang.org/grpc/channelz,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/codes,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/connectivity,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/credentials,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/credentials/alts,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/credentials/alts/internal,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/credentials/alts/internal/authinfo,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/credentials/alts/internal/conn,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/credentials/alts/internal/handshaker,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/credentials/alts/internal/handshaker/service,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/credentials/alts/internal/proto/grpc_gcp,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/credentials/google,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/credentials/insecure,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/credentials/oauth,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/encoding,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/encoding/gzip,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/encoding/proto,Apache-2.0,Copyright 2014 gRPC authors.
@@ -2777,7 +2751,6 @@ core,google.golang.org/grpc/internal/buffer,Apache-2.0,Copyright 2014 gRPC autho
 core,google.golang.org/grpc/internal/channelz,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/credentials,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/envconfig,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/internal/googlecloud,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/grpclog,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/grpcsync,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/grpcutil,Apache-2.0,Copyright 2014 gRPC authors.
@@ -2795,7 +2768,6 @@ core,google.golang.org/grpc/internal/status,Apache-2.0,Copyright 2014 gRPC autho
 core,google.golang.org/grpc/internal/syscall,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/transport,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/transport/networktype,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/internal/xds,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/keepalive,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/mem,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/metadata,Apache-2.0,Copyright 2014 gRPC authors.

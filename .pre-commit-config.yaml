@@ -116,6 +116,14 @@ repos:
       files: .*gitlab.*\.yml$
       pass_filenames: false
       stages: [pre-push]
+    - id: gitlab-lint-jobs-codeowners
+      name: gitlab-lint-jobs-codeowners
+      description: lint the gitlab configuration to verify jobs codeowners
+      entry: 'inv linter.gitlab-ci-jobs-codeowners'
+      language: system
+      require_serial: true
+      files: .*gitlab.*\.yml$
+      pass_filenames: false
     - id: update-go
       name: update-go
       description: test formatting of files will allow go update

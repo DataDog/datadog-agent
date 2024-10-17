@@ -159,7 +159,7 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
             ctx.run(f"touch {docker_context}/agent")
             core_agent_dest = "/dev/null"
 
-        copy_ebpf_and_related_files(ctx, docker_context, copy_usm_jar=False)
+        copy_ebpf_and_related_files(ctx, docker_context)
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image
@@ -369,6 +369,7 @@ def build_functional_tests(
     debug=False,
     skip_object_files=False,
     syscall_tester_compiler='clang',
+    ebpf_compiler='clang',
 ):
     if not is_windows:
         if not skip_object_files:
@@ -379,6 +380,7 @@ def build_functional_tests(
                 kernel_release=kernel_release,
                 debug=debug,
                 bundle_ebpf=bundle_ebpf,
+                ebpf_compiler=ebpf_compiler,
             )
         build_embed_syscall_tester(ctx, compiler=syscall_tester_compiler)
 
@@ -608,8 +610,6 @@ def docker_functional_tests(
     cmd += '-v ./pkg/security/tests:/tests {image_tag} sleep 3600'
 
     args = {
-        "GOPATH": get_gopath(ctx),
-        "REPO_PATH": REPO_PATH,
         "container_name": container_name,
         "caps": ' '.join(f"--cap-add {cap}" for cap in capabilities),
         "image_tag": image_tag,

@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: gcr.io/datadoghq/agent-circleci-runner:v45979046-89a73a40
+      - image: gcr.io/datadoghq/agent-circleci-runner:v46542806-c7a4a6be
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -100,7 +100,7 @@ jobs:
       - run:
           name: run unit tests
           no_output_timeout: 20m
-          command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 8 --build-stdlib --test-washer
+          command: inv -e test --rerun-fails=2 --coverage --race --profile --cpus 8 --build-stdlib --test-washer
           environment:
             GO_TEST_SKIP_FLAKE: "true"
 

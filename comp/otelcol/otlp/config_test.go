@@ -30,7 +30,7 @@ func TestIsEnabled(t *testing.T) {
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.path, func(t *testing.T) {
-			cfg, err := testutil.LoadConfig("./testdata/" + testInstance.path)
+			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
 			assert.Equal(t, testInstance.enabled, IsEnabled(cfg))
 		})
@@ -39,7 +39,7 @@ func TestIsEnabled(t *testing.T) {
 
 func TestIsEnabledEnv(t *testing.T) {
 	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", "0.0.0.0:9993")
-	cfg, err := testutil.LoadConfig("./testdata/empty.yaml")
+	cfg, err := testutil.LoadConfig(t, "./testdata/empty.yaml")
 	require.NoError(t, err)
 	assert.True(t, IsEnabled(cfg))
 }
@@ -186,7 +186,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.path, func(t *testing.T) {
-			cfg, err := testutil.LoadConfig("./testdata/" + testInstance.path)
+			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
 			pcfg, err := FromAgentConfig(cfg)
 			if err != nil || testInstance.err != "" {
@@ -432,7 +432,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 			for env, val := range testInstance.env {
 				t.Setenv(env, val)
 			}
-			cfg, err := testutil.LoadConfig("./testdata/empty.yaml")
+			cfg, err := testutil.LoadConfig(t, "./testdata/empty.yaml")
 			require.NoError(t, err)
 			pcfg, err := FromAgentConfig(cfg)
 			if err != nil || testInstance.err != "" {
@@ -483,7 +483,7 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.path, func(t *testing.T) {
-			cfg, err := testutil.LoadConfig("./testdata/" + testInstance.path)
+			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
 			pcfg, err := FromAgentConfig(cfg)
 			if err != nil || testInstance.err != "" {
@@ -577,7 +577,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.path, func(t *testing.T) {
-			cfg, err := testutil.LoadConfig("./testdata/" + testInstance.path)
+			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
 			pcfg, err := FromAgentConfig(cfg)
 			if err != nil || testInstance.err != "" {
