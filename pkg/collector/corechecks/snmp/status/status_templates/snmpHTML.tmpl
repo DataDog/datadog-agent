@@ -1,0 +1,35 @@
+{{- if .snmpProfiles }}
+<div class="stat">
+  <span class="stat_title">SNMP Profiles</span>
+  <span class="stat_data">
+    {{- range $key, $value := .snmpProfiles}}
+      {{$key}}: {{$value}}
+    {{- end }}
+  </span>
+</div>
+{{- end }}
+{{- if or .autodiscoverySubnets .discoverySubnets }}
+<div class="stat">
+  <span class="stat_title">SNMP Autodiscovery</span>
+  <span class="stat_data">
+    {{- range $key, $value := .autodiscoverySubnets }}
+    {{- if eq $value "scanning" }}
+    Subnet {{$key}} scanning...</br>
+    {{- else if eq $value "1" }}
+    Subnet {{$key}} scanned with {{$value}} device</br>
+    {{- else }}
+    Subnet {{$key}} scanned with {{$value}} devices</br>
+    {{- end }}
+    {{- end }}
+    {{- range $key, $value := .discoverySubnets}}
+    {{- if eq $value "scanning" }}
+    Subnet {{$key}} scanning...</br>
+    {{- else if eq $value "1" }}
+    Subnet {{$key}} scanned with {{$value}} device</br>
+    {{- else }}
+    Subnet {{$key}} scanned with {{$value}} devices</br>
+    {{- end }}
+    {{- end }}
+  </span>
+</div>
+{{- end -}}
