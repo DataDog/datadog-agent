@@ -8,4 +8,5 @@
 ---
 features:
   - |
-    Add ``container.restart_count`` with ``restart_policy`` tag.
+    Add new metrics, ``container.restarts``, which means the number of times a container has been restarted due to the restart policy.
+    For more details: https://docs.docker.com/engine/containers/start-containers-automatically/.
