@@ -74,6 +74,9 @@ func (c *Check) Run() error {
 	path.Destination.Service = c.config.DestinationService
 	path.Tags = c.config.Tags
 
+	// enrich with reverse DNS
+	enrichPathWithRDNS(&path)
+
 	// send to EP
 	err = c.SendNetPathMDToEP(senderInstance, path)
 	if err != nil {
@@ -140,4 +143,34 @@ func Factory(telemetry telemetryComp.Component) optional.Option[func() check.Che
 			telemetryComp: telemetry,
 		}
 	})
+}
+
+func enrichPathWithRDNS(path *payload.NetworkPath) {
+	rdnsQuerier, err := check.GetRDNSQuerierContext()
+	if err != nil {
+		log.Errorf("Failed to get RDNSQuerier context: %s", err)
+		return
+	}
+
+	rdnsHostname, err := rdnsQuerier.GetHostnameSync(path.Destination.IPAddress)
+	if err != nil {
+		log.Errorf("Reverse lookup failed for destination %s: %s", path.Destination.IPAddress, err)
+	}
+	if rdnsHostname != "" {
+		path.Destination.ReverseDNSHostname = rdnsHostname
+	}
+
+	for i := range path.Hops {
+		// Skip unreachable hops
+		if !path.Hops[i].Reachable {
+			continue
+		}
+		rdnsHostname, err := rdnsQuerier.GetHostnameSync(path.Hops[i].IPAddress)
+		if err != nil {
+			log.Errorf("Reverse lookup failed for hop #%d %s: %s", i+1, path.Hops[i].IPAddress, err)
+		}
+		if rdnsHostname != "" {
+			path.Hops[i].Hostname = rdnsHostname
+		}
+	}
 }
