@@ -42,9 +42,14 @@ func (b *bucket) isEmpty() bool {
 	return b.originalDataLen == 0
 }
 
-func (b *bucket) truncate() {
+func (b *bucket) truncate(addLine bool) {
 	b.buffer.Write(message.TruncatedFlag)
 	b.truncated = true
+	// Adds a line to the counter (even though it's not a real line)
+	// This is to ensure that the truncated flag is counted as a line when truncating multiline logs.
+	if addLine {
+		b.lineCount++
+	}
 }
 
 func (b *bucket) flush() *message.Message {
@@ -62,10 +67,12 @@ func (b *bucket) flush() *message.Message {
 
 	msg := message.NewRawMessage(content, b.message.Status, b.originalDataLen, b.message.ParsingExtra.Timestamp)
 	tlmTags := []string{"false", "single_line"}
+	logsTag := "single_line"
 
 	if b.lineCount > 1 {
 		msg.ParsingExtra.IsMultiLine = true
 		tlmTags[1] = "multi_line"
+		logsTag = "auto_multiline"
 		if b.tagMultiLineLogs {
 			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.MultiLineSourceTag("auto_multiline"))
 		}
@@ -75,7 +82,7 @@ func (b *bucket) flush() *message.Message {
 		msg.ParsingExtra.IsTruncated = true
 		tlmTags[0] = "true"
 		if b.tagTruncatedLogs {
-			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedReasonTag("single_line"))
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedReasonTag(logsTag))
 		}
 	}
 
@@ -120,13 +127,15 @@ func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
 	// If `noAggregate` - flush the bucket immediately and then flush the next message.
 	if label == noAggregate {
 		a.Flush()
-		a.outputFn(msg)
+		a.bucket.add(msg)
+		a.Flush()
 		return
 	}
 
 	// If `aggregate` and the bucket is empty - flush the next message.
 	if label == aggregate && a.bucket.isEmpty() {
-		a.outputFn(msg)
+		a.bucket.add(msg)
+		a.Flush()
 		return
 	}
 
@@ -138,10 +147,10 @@ func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
 
 	// At this point we either have `startGroup` with an empty bucket or `aggregate` with a non-empty bucket
 	// so we add the message to the bucket or flush if the bucket will overflow the max content size.
-	if msg.RawDataLen+a.bucket.buffer.Len() > a.maxContentSize && !a.bucket.isEmpty() {
-		a.bucket.truncate() // Truncate the end of the current bucket
+	if msg.RawDataLen+a.bucket.buffer.Len() >= a.maxContentSize && !a.bucket.isEmpty() {
+		a.bucket.truncate(true) // Truncate the end of the current bucket
 		a.Flush()
-		a.bucket.truncate() // Truncate the start of the next bucket
+		a.bucket.truncate(true) // Truncate the start of the next bucket
 	}
 
 	if !a.bucket.isEmpty() {
@@ -185,6 +194,11 @@ func (a *Aggregator) FlushChan() <-chan time.Time {
 func (a *Aggregator) Flush() {
 	if a.bucket.isEmpty() {
 		return
+	}
+	// If the bucket is not truncated, but reaches the maximum size, truncated it.
+	// This ensures single line logs are truncated exactly the same way as the single_line_handler.
+	if !a.bucket.truncated && a.bucket.buffer.Len() >= a.maxContentSize {
+		a.bucket.truncate(false)
 	}
 	a.outputFn(a.bucket.flush())
 }
