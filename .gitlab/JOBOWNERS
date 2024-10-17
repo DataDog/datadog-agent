@@ -171,6 +171,7 @@ new-e2e-windows-systemprobe            @DataDog/windows-kernel-integrations
 new-e2e-windows-security-agent         @DataDog/windows-kernel-integrations
 new-e2e_windows_powershell_module_test @DataDog/windows-kernel-integrations
 new-e2e-eks-cleanup-on-failure         @DataDog/agent-devx-loops
+new-e2e-gpu*                           @DataDog/ebpf-platform
 
 # Kernel matrix testing
 upload_dependencies*              @DataDog/ebpf-platform
