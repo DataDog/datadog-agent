@@ -100,6 +100,9 @@ func (fq *fileQuerier) queryHashWithNegativeCache(hash uint64) *Package {
 
 	pkg := fq.queryHash(hash)
 	if pkg == nil {
+		if fq.lastNegativeCache == nil {
+			fq.lastNegativeCache = newFixedSizeQueue[uint64](2)
+		}
 		fq.lastNegativeCache.push(hash)
 	}
 
@@ -140,6 +143,10 @@ func (q *fixedSizeQueue[T]) push(value T) {
 }
 
 func (q *fixedSizeQueue[T]) contains(value T) bool {
+	if q == nil {
+		return false
+	}
+
 	for _, v := range q.queue {
 		if v == value {
 			return true
