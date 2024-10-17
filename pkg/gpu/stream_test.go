@@ -45,13 +45,13 @@ func TestKernelLaunchesHandled(t *testing.T) {
 	currTime := uint64(100)
 	currData := stream.getCurrentData(currTime)
 	require.NotNil(t, currData)
-	require.Len(t, currData.Spans, 1)
+	require.Len(t, currData.spans, 1)
 
-	span := currData.Spans[0]
-	require.Equal(t, kernStartTime, span.StartKtime)
-	require.Equal(t, currTime, span.EndKtime)
-	require.Equal(t, uint64(numLaunches), span.NumKernels)
-	require.Equal(t, uint64(threadCount), span.AvgThreadCount)
+	span := currData.spans[0]
+	require.Equal(t, kernStartTime, span.startKtime)
+	require.Equal(t, currTime, span.endKtime)
+	require.Equal(t, uint64(numLaunches), span.numKernels)
+	require.Equal(t, uint64(threadCount), span.avgThreadCount)
 
 	// Now we mark a sync event
 	syncTime := uint64(200)
@@ -61,12 +61,12 @@ func TestKernelLaunchesHandled(t *testing.T) {
 	pastData := stream.getPastData(true)
 	require.NotNil(t, pastData)
 
-	require.Len(t, pastData.Spans, 1)
-	span = pastData.Spans[0]
-	require.Equal(t, kernStartTime, span.StartKtime)
-	require.Equal(t, syncTime, span.EndKtime)
-	require.Equal(t, uint64(numLaunches), span.NumKernels)
-	require.Equal(t, uint64(threadCount), span.AvgThreadCount)
+	require.Len(t, pastData.spans, 1)
+	span = pastData.spans[0]
+	require.Equal(t, kernStartTime, span.startKtime)
+	require.Equal(t, syncTime, span.endKtime)
+	require.Equal(t, uint64(numLaunches), span.numKernels)
+	require.Equal(t, uint64(threadCount), span.avgThreadCount)
 
 	// We should have no current data
 	require.Nil(t, stream.getCurrentData(currTime))
@@ -112,13 +112,13 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 	currTime := uint64(100)
 	currData := stream.getCurrentData(currTime)
 	require.NotNil(t, currData)
-	require.Len(t, currData.Allocations, 1)
+	require.Len(t, currData.allocations, 1)
 
-	memAlloc := currData.Allocations[0]
-	require.Equal(t, memAllocTime, memAlloc.StartKtime)
-	require.Equal(t, uint64(0), memAlloc.EndKtime) // Not deallocated yet
-	require.Equal(t, false, memAlloc.IsLeaked)     // Cannot say this is a leak yet
-	require.Equal(t, allocSize, memAlloc.Size)
+	memAlloc := currData.allocations[0]
+	require.Equal(t, memAllocTime, memAlloc.startKtime)
+	require.Equal(t, uint64(0), memAlloc.endKtime) // Not deallocated yet
+	require.Equal(t, false, memAlloc.isLeaked)     // Cannot say this is a leak yet
+	require.Equal(t, allocSize, memAlloc.size)
 
 	// Now we free the memory
 	stream.handleMemEvent(free)
@@ -127,12 +127,12 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 	pastData := stream.getPastData(true)
 	require.NotNil(t, pastData)
 
-	require.Len(t, pastData.Allocations, 1)
-	memAlloc = pastData.Allocations[0]
-	require.Equal(t, memAllocTime, memAlloc.StartKtime)
-	require.Equal(t, memFreeTime, memAlloc.EndKtime) // Not deallocated yet
-	require.Equal(t, false, memAlloc.IsLeaked)       // Cannot say this is a leak yet
-	require.Equal(t, allocSize, memAlloc.Size)
+	require.Len(t, pastData.allocations, 1)
+	memAlloc = pastData.allocations[0]
+	require.Equal(t, memAllocTime, memAlloc.startKtime)
+	require.Equal(t, memFreeTime, memAlloc.endKtime) // Not deallocated yet
+	require.Equal(t, false, memAlloc.isLeaked)       // Cannot say this is a leak yet
+	require.Equal(t, allocSize, memAlloc.size)
 
 	// We should have no current data
 	require.Nil(t, stream.getCurrentData(currTime))
@@ -167,11 +167,11 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 	pastData := stream.getPastData(true)
 	require.NotNil(t, pastData)
 
-	require.Len(t, pastData.Allocations, 1)
-	memAlloc := pastData.Allocations[0]
-	require.Equal(t, memAllocTime, memAlloc.StartKtime)
-	require.Equal(t, true, memAlloc.IsLeaked)
-	require.Equal(t, allocSize, memAlloc.Size)
+	require.Len(t, pastData.allocations, 1)
+	memAlloc := pastData.allocations[0]
+	require.Equal(t, memAllocTime, memAlloc.startKtime)
+	require.Equal(t, true, memAlloc.isLeaked)
+	require.Equal(t, allocSize, memAlloc.size)
 }
 
 func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
@@ -279,20 +279,20 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 	pastData := stream.getPastData(true)
 	require.NotNil(t, pastData)
 
-	require.Len(t, pastData.Allocations, 2)
+	require.Len(t, pastData.allocations, 2)
 	foundAlloc1, foundAlloc2 := false, false
 
-	for _, alloc := range pastData.Allocations {
-		if alloc.StartKtime == memAllocTime1 {
+	for _, alloc := range pastData.allocations {
+		if alloc.startKtime == memAllocTime1 {
 			foundAlloc1 = true
-			require.Equal(t, memFreeTime1, alloc.EndKtime)
-			require.Equal(t, false, alloc.IsLeaked)
-			require.Equal(t, allocSize1, alloc.Size)
-		} else if alloc.StartKtime == memAllocTime2 {
+			require.Equal(t, memFreeTime1, alloc.endKtime)
+			require.Equal(t, false, alloc.isLeaked)
+			require.Equal(t, allocSize1, alloc.size)
+		} else if alloc.startKtime == memAllocTime2 {
 			foundAlloc2 = true
-			require.Equal(t, memFreeTime2, alloc.EndKtime)
-			require.Equal(t, false, alloc.IsLeaked)
-			require.Equal(t, allocSize2, alloc.Size)
+			require.Equal(t, memFreeTime2, alloc.endKtime)
+			require.Equal(t, false, alloc.isLeaked)
+			require.Equal(t, allocSize2, alloc.size)
 		}
 	}
 

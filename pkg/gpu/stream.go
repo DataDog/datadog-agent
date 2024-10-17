@@ -10,34 +10,63 @@ package gpu
 import (
 	"math"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// StreamHandler is responsible for receiving events from a single CUDA stream and generating
+// streamHandler is responsible for receiving events from a single CUDA stream and generating
 // stats from them.
-type StreamHandler struct {
+type streamHandler struct {
 	kernelLaunches []gpuebpf.CudaKernelLaunch
 	memAllocEvents map[uint64]gpuebpf.CudaMemEvent
-	kernelSpans    []*model.KernelSpan
-	allocations    []*model.MemoryAllocation
+	kernelSpans    []*kernelSpan
+	allocations    []*memoryAllocation
 	processEnded   bool // A marker to indicate that the process has ended, and this handler should be flushed
 }
 
-func newStreamHandler() *StreamHandler {
-	return &StreamHandler{
+// streamKey is a unique identifier for a CUDA stream
+type streamKey struct {
+	pid    uint32
+	stream uint64
+}
+
+// kernelSpan represents a span of time during which one or more kernels were running on a GPU until
+// a synchronization event happened
+type kernelSpan struct {
+	startKtime     uint64 // startKtime is the kernel-time of the moment the first kernel was launched
+	endKtime       uint64 // endKtime is the kernel-time of the moment the synchronization event happened
+	avgThreadCount uint64 // avgThreadCount is the average number of threads running on the GPU during the span
+	numKernels     uint64 // numKernels is the number of kernels that were launched during the span
+}
+
+// memoryAllocation represents a memory allocation event
+type memoryAllocation struct {
+	startKtime uint64 // StartKtime is the kernel-time timestamp of the allocation event
+	endKtime   uint64 // EndKtime is the kernel-time timestamp of the deallocation event. If 0, this means the allocation was not deallocated yet
+	size       uint64 // Size is the size of the allocation in bytes
+	isLeaked   bool   // IsLeaked is true if the allocation was not deallocated
+}
+
+// streamData contains kernel spans and allocations for a stream
+type streamData struct {
+	key         streamKey
+	spans       []*kernelSpan
+	allocations []*memoryAllocation
+}
+
+func newStreamHandler() *streamHandler {
+	return &streamHandler{
 		memAllocEvents: make(map[uint64]gpuebpf.CudaMemEvent),
 	}
 }
 
-func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
+func (sh *streamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 	// Copy events, as the memory can be overwritten in the ring buffer after the function returns
 	sh.kernelLaunches = append(sh.kernelLaunches, *event)
 }
 
-func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
+func (sh *streamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 	if event.Type == gpuebpf.CudaMemAlloc {
 		sh.memAllocEvents[event.Addr] = *event
 		return
@@ -50,18 +79,18 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 		return
 	}
 
-	data := model.MemoryAllocation{
-		StartKtime: alloc.Header.Ktime_ns,
-		EndKtime:   event.Header.Ktime_ns,
-		Size:       alloc.Size,
-		IsLeaked:   false, // Came from a free event, so it's not a leak
+	data := memoryAllocation{
+		startKtime: alloc.Header.Ktime_ns,
+		endKtime:   event.Header.Ktime_ns,
+		size:       alloc.Size,
+		isLeaked:   false, // Came from a free event, so it's not a leak
 	}
 
 	sh.allocations = append(sh.allocations, &data)
 	delete(sh.memAllocEvents, event.Addr)
 }
 
-func (sh *StreamHandler) markSynchronization(ts uint64) {
+func (sh *streamHandler) markSynchronization(ts uint64) {
 	span := sh.getCurrentKernelSpan(ts)
 	if span == nil {
 		return
@@ -78,16 +107,16 @@ func (sh *StreamHandler) markSynchronization(ts uint64) {
 	sh.kernelLaunches = remainingLaunches
 }
 
-func (sh *StreamHandler) handleSync(event *gpuebpf.CudaSync) {
+func (sh *streamHandler) handleSync(event *gpuebpf.CudaSync) {
 	// TODO: Worry about concurrent calls to this?
 	sh.markSynchronization(event.Header.Ktime_ns)
 }
 
-func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *model.KernelSpan {
-	span := model.KernelSpan{
-		StartKtime: math.MaxUint64,
-		EndKtime:   maxTime,
-		NumKernels: 0,
+func (sh *streamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
+	span := kernelSpan{
+		startKtime: math.MaxUint64,
+		endKtime:   maxTime,
+		numKernels: 0,
 	}
 
 	for _, launch := range sh.kernelLaunches {
@@ -97,33 +126,33 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *model.KernelSpan 
 			continue
 		}
 
-		span.StartKtime = min(launch.Header.Ktime_ns, span.StartKtime)
-		span.EndKtime = max(launch.Header.Ktime_ns, span.EndKtime)
+		span.startKtime = min(launch.Header.Ktime_ns, span.startKtime)
+		span.endKtime = max(launch.Header.Ktime_ns, span.endKtime)
 		blockSize := launch.Block_size.X * launch.Block_size.Y * launch.Block_size.Z
 		blockCount := launch.Grid_size.X * launch.Grid_size.Y * launch.Grid_size.Z
-		span.AvgThreadCount += uint64(blockSize) * uint64(blockCount)
-		span.NumKernels++
+		span.avgThreadCount += uint64(blockSize) * uint64(blockCount)
+		span.numKernels++
 	}
 
-	if span.NumKernels == 0 {
+	if span.numKernels == 0 {
 		return nil
 	}
 
-	span.AvgThreadCount /= uint64(span.NumKernels)
+	span.avgThreadCount /= uint64(span.numKernels)
 
 	return &span
 }
 
 // getPastData returns all the events that have finished (kernel spans with synchronizations/allocations that have been freed)
 // If flush is true, the data will be cleared from the handler
-func (sh *StreamHandler) getPastData(flush bool) *model.StreamData {
+func (sh *streamHandler) getPastData(flush bool) *streamData {
 	if len(sh.kernelSpans) == 0 && len(sh.allocations) == 0 {
 		return nil
 	}
 
-	data := &model.StreamData{
-		Spans:       sh.kernelSpans,
-		Allocations: sh.allocations,
+	data := &streamData{
+		spans:       sh.kernelSpans,
+		allocations: sh.allocations,
 	}
 
 	if flush {
@@ -134,23 +163,23 @@ func (sh *StreamHandler) getPastData(flush bool) *model.StreamData {
 	return data
 }
 
-func (sh *StreamHandler) getCurrentData(now uint64) *model.StreamData {
+func (sh *streamHandler) getCurrentData(now uint64) *streamData {
 	if len(sh.kernelLaunches) == 0 && len(sh.memAllocEvents) == 0 {
 		return nil
 	}
 
-	data := &model.StreamData{}
+	data := &streamData{}
 	span := sh.getCurrentKernelSpan(now)
 	if span != nil {
-		data.Spans = append(data.Spans, span)
+		data.spans = append(data.spans, span)
 	}
 
 	for _, alloc := range sh.memAllocEvents {
-		data.Allocations = append(data.Allocations, &model.MemoryAllocation{
-			StartKtime: alloc.Header.Ktime_ns,
-			EndKtime:   0,
-			Size:       alloc.Size,
-			IsLeaked:   false,
+		data.allocations = append(data.allocations, &memoryAllocation{
+			startKtime: alloc.Header.Ktime_ns,
+			endKtime:   0,
+			size:       alloc.Size,
+			isLeaked:   false,
 		})
 	}
 
@@ -159,7 +188,7 @@ func (sh *StreamHandler) getCurrentData(now uint64) *model.StreamData {
 
 // markEnd is called when this stream is closed (process exited or stream destroyed).
 // A synchronization event will be triggered and all pending events (allocations) will be resolved.
-func (sh *StreamHandler) markEnd() error {
+func (sh *streamHandler) markEnd() error {
 	nowTs, err := ddebpf.NowNanoseconds()
 	if err != nil {
 		return err
@@ -170,11 +199,11 @@ func (sh *StreamHandler) markEnd() error {
 
 	// Close all allocations. Treat them as leaks, as they weren't freed properly
 	for _, alloc := range sh.memAllocEvents {
-		data := model.MemoryAllocation{
-			StartKtime: alloc.Header.Ktime_ns,
-			EndKtime:   uint64(nowTs),
-			Size:       alloc.Size,
-			IsLeaked:   true,
+		data := memoryAllocation{
+			startKtime: alloc.Header.Ktime_ns,
+			endKtime:   uint64(nowTs),
+			size:       alloc.Size,
+			isLeaked:   true,
 		}
 		sh.allocations = append(sh.allocations, &data)
 	}

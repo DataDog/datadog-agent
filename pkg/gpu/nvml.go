@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build linux_bpf
 
 // Package gpu defines the agent corecheck for
 // the GPU integration
@@ -12,16 +12,9 @@ package gpu
 import (
 	"errors"
 	"fmt"
-	"sync"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
-
-var initOnce sync.Once
-
-type gpuDevice struct {
-	nvml.Device
-}
 
 func wrapNvmlError(ret nvml.Return) error {
 	if ret == nvml.SUCCESS {
@@ -31,47 +24,24 @@ func wrapNvmlError(ret nvml.Return) error {
 	return errors.New(nvml.ErrorString(ret))
 }
 
-func ensureNvmlInit() error {
-	var err error
-	initOnce.Do(func() {
-		err = wrapNvmlError(nvml.Init())
-	})
-
-	return err
-}
-
-func getGPUDevices() ([]gpuDevice, error) {
-	err := ensureNvmlInit()
-	if err != nil {
-		return nil, err
-	}
-
-	count, ret := nvml.DeviceGetCount()
+func getGPUDevices(lib nvml.Interface) ([]nvml.Device, error) {
+	count, ret := lib.DeviceGetCount()
 	if err := wrapNvmlError(ret); err != nil {
 		return nil, fmt.Errorf("cannot get number of GPU devices: %w", err)
 	}
 
-	var devices []gpuDevice
+	var devices []nvml.Device
 
 	for i := 0; i < count; i++ {
-		device, ret := nvml.DeviceGetHandleByIndex(i)
+		device, ret := lib.DeviceGetHandleByIndex(i)
 		if err := wrapNvmlError(ret); err != nil {
 			return nil, fmt.Errorf("cannot get handle for GPU device %d: %w", i, err)
 		}
 
-		devices = append(devices, gpuDevice{device})
+		devices = append(devices, device)
 	}
 
 	return devices, nil
-}
-
-func (d *gpuDevice) GetNumMultiprocessors() (int, error) {
-	devProps, ret := d.GetAttributes()
-	if err := wrapNvmlError(ret); err != nil {
-		return 0, fmt.Errorf("cannot get device attributes: %w", err)
-	}
-
-	return int(devProps.MultiprocessorCount), nil
 }
 
 // GetMaxThreads returns the maximum number of threads that can be run on the
@@ -79,8 +49,8 @@ func (d *gpuDevice) GetNumMultiprocessors() (int, error) {
 // confuse the number of cores with the number of streaming multiprocessors
 // (SM): the number of cores is equal to the number of SMs multiplied by the
 // number of cores per SM.
-func (d *gpuDevice) GetMaxThreads() (int, error) {
-	cores, ret := d.GetNumGpuCores()
+func getMaxThreadsForDevice(device nvml.Device) (int, error) {
+	cores, ret := device.GetNumGpuCores()
 	if err := wrapNvmlError(ret); err != nil {
 		return 0, fmt.Errorf("cannot get number of GPU cores: %w", err)
 	}
