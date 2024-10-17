@@ -33,7 +33,13 @@ type linuxTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-var services = []string{"python-svc", "python-instrumented", "node-json-server", "node-instrumented"}
+var services = []string{
+	"python-svc",
+	"python-instrumented",
+	"node-json-server",
+	"node-instrumented",
+	"rails-svc",
+}
 
 func TestLinuxTestSuite(t *testing.T) {
 	agentParams := []func(*agentparams.Params) error{
@@ -120,6 +126,15 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 			assert.Equal(c, "provided", found.Payload.APMInstrumentation)
 			assert.Equal(c, "python.instrumented", found.Payload.ServiceName)
 			assert.Equal(c, "python.instrumented", found.Payload.GeneratedServiceName)
+			assert.Empty(c, found.Payload.DDService)
+			assert.Empty(c, found.Payload.ServiceNameSource)
+			assert.NotZero(c, found.Payload.RSSMemory)
+		}
+
+		found = foundMap["rails_hello"]
+		if assert.NotNil(c, found) {
+			assert.Equal(c, "rails_hello", found.Payload.ServiceName)
+			assert.Equal(c, "rails_hello", found.Payload.GeneratedServiceName)
 			assert.Empty(c, found.Payload.DDService)
 			assert.Empty(c, found.Payload.ServiceNameSource)
 			assert.NotZero(c, found.Payload.RSSMemory)
