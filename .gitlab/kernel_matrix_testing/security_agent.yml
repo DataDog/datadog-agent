@@ -167,7 +167,25 @@ kmt_run_secagent_tests_x64_docker:
   parallel:
     matrix:
       - TAG:
+          - "ubuntu_18.04"
+          - "ubuntu_20.04"
+          - "ubuntu_22.04"
+          - "ubuntu_23.10"
           - "ubuntu_24.04"
+          - "amazon_4.14"
+          - "amazon_5.4"
+          - "amazon_5.10"
+          - "amazon_2023"
+          - "fedora_37"
+          - "fedora_38"
+          - "debian_10"
+          - "debian_11"
+          - "debian_12"
+          - "centos_7.9"
+          - "oracle_8.9"
+          - "oracle_9.3"
+          - "rocky_8.5"
+          - "rocky_9.3"
         TEST_SET: [cws_docker]
   after_script:
     - !reference [.collect_outcomes_kmt]
