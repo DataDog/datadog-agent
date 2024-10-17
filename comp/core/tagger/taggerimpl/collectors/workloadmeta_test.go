@@ -852,7 +852,7 @@ func TestHandleKubePod(t *testing.T) {
 					Name:      podName,
 					Namespace: podNamespace,
 				},
-				GPUType: "nvidia",
+				GPUTypeList: []string{"nvidia"},
 				Containers: []workloadmeta.OrchestratorContainer{
 					{
 						ID:    fullyFleshedContainerID,
@@ -2126,7 +2126,7 @@ func TestHandleContainer(t *testing.T) {
 					Name: containerName,
 				},
 				Resources: workloadmeta.ContainerResources{
-					GPUType: "nvidia",
+					GPUTypeList: []string{"nvidia"},
 				},
 			},
 			expected: []*types.TagInfo{

@@ -145,11 +145,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			&podID,
 		)
 
-		// Attempt to find the GPU type from running containers first, then init containers
-		GPUType := findPodGPUType(pod.Spec.Containers)
-		if GPUType == "" {
-			GPUType = findPodGPUType(pod.Spec.InitContainers)
-		}
+		GPUTypes := getGPUTypesFromContainers(initContainerEvents, containerEvents)
 
 		podOwners := pod.Owners()
 		owners := make([]workloadmeta.KubernetesPodOwner, 0, len(podOwners))
@@ -181,7 +177,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			IP:                         pod.Status.PodIP,
 			PriorityClass:              pod.Spec.PriorityClassName,
 			QOSClass:                   pod.Status.QOSClass,
-			GPUType:                    GPUType,
+			GPUTypeList:                GPUTypes,
 			RuntimeClass:               RuntimeClassName,
 			SecurityContext:            PodSecurityContext,
 		}
@@ -320,15 +316,21 @@ func (c *collector) parsePodContainers(
 	return podContainers, events
 }
 
-func findPodGPUType(containers []kubelet.ContainerSpec) string {
-	for _, container := range containers {
-		for _, gpuResource := range kubelet.GetGPUResourceNames() {
-			if _, found := container.Resources.Requests[gpuResource]; found {
-				return extractSimpleGPUName(gpuResource)
-			}
+func getGPUTypesFromContainers(initContainerEvents, containerEvents []workloadmeta.CollectorEvent) []string {
+	gpuUniqueTypes := make(map[string]bool)
+	for _, event := range append(initContainerEvents, containerEvents...) {
+		container := event.Entity.(*workloadmeta.Container)
+		for _, gpuType := range container.Resources.GPUTypeList {
+			gpuUniqueTypes[gpuType] = true
 		}
 	}
-	return ""
+
+	gpuTypes := make([]string, 0, len(gpuUniqueTypes))
+	for gpuType := range gpuUniqueTypes {
+		gpuTypes = append(gpuTypes, gpuType)
+	}
+
+	return gpuTypes
 }
 
 func extractPodRuntimeClassName(spec *kubelet.Spec) string {
@@ -443,13 +445,18 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 	}
 
 	// extract GPU resource info from the possible GPU sources
+	uniqueGPUType := make(map[string]bool)
 	for _, gpuResource := range kubelet.GetGPUResourceNames() {
 		if gpuReq, found := spec.Resources.Requests[gpuResource]; found {
 			resources.GPURequest = pointer.Ptr(uint64(gpuReq.Value()))
-			resources.GPUType = extractSimpleGPUName(gpuResource)
-			break
+			uniqueGPUType[extractSimpleGPUName(gpuResource)] = true
 		}
 	}
+	gpuTypeList := make([]string, 0, len(uniqueGPUType))
+	for gpuType := range uniqueGPUType {
+		gpuTypeList = append(gpuTypeList, gpuType)
+	}
+	resources.GPUTypeList = gpuTypeList
 
 	return resources
 }
