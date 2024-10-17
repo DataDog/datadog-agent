@@ -352,7 +352,7 @@ func dumpNetworkNamespace(_ log.Component, _ config.Component, _ secrets.Compone
 	}
 
 	if len(resp.GetError()) > 0 {
-		return fmt.Errorf("couldn't dump network namespaces: %w", err)
+		return fmt.Errorf("couldn't dump network namespaces: %s", resp.GetError())
 	}
 
 	fmt.Printf("Network namespace dump: %s\n", resp.GetDumpFilename())
