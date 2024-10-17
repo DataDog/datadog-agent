@@ -176,6 +176,9 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 	}
 	// Create cluster
 	cluster, err := ecs.NewCluster(awsEnv, params.name, params.ecsOptions...)
+	if err != nil {
+		return err
+	}
 
 	var apiKeyParam *ssm.Parameter
 	var fakeIntake *fakeintakeComp.Fakeintake
