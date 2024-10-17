@@ -493,9 +493,6 @@ new-e2e-otel-eks-init:
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
-    - qa_dca
-    - qa_agent
-    - qa_agent_ot
   variables:
     TARGETS: ./tests/otel
     TEAM: otel
