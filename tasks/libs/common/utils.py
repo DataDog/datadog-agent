@@ -404,7 +404,8 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
             cmd += " --match \"[0-9]*\""
     if git_sha_length and type(git_sha_length) == int:
         cmd += f" --abbrev={git_sha_length}"
-    described_version = ctx.run(cmd, hide=True).stdout.strip()
+    print(f"command is {cmd}")
+    described_version = ctx.run(cmd).stdout.strip()
 
     # for the example above, 6.0.0-beta.0-1-g4f19118, this will be 1
     commit_number_match = re.match(r"^.*-(?P<commit_number>\d+)-g[0-9a-f]+$", described_version)
@@ -474,10 +475,7 @@ def get_version(
     pipeline_id=None,
     include_git=False,
     include_pre=True,
-    fake_condition=True,
 ):
-    if fake_condition:
-        return "7.53.0"
     version = ""
     if pipeline_id is None:
         pipeline_id = os.getenv("CI_PIPELINE_ID")
