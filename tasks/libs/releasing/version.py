@@ -63,7 +63,7 @@ def _create_version_from_match(match):
 
 def check_version(agent_version, allow_agent6=False):
     """Check Agent version to see if it is valid."""
-    version_re = re.compile(('[67]' if allow_agent6 else '7') + r'[.](\d+)[.](\d+)(-rc\.(\d+))?')
+    version_re = re.compile(('6' if agent6 else '7') + r'[.](\d+)[.](\d+)(-rc\.(\d+))?')
     if not version_re.match(agent_version):
         raise Exit(
             message="Version should be of the form 7.Y.Z or 7.Y.Z-rc.t"
