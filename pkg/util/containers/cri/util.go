@@ -162,9 +162,9 @@ func (c *CRIUtil) detectAPIVersion(conn *grpc.ClientConn) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.connectionTimeout)
 	defer cancel()
 
-	clientV1 := criv1.NewRuntimeServiceClient(conn)
+	c.clientV1 = criv1.NewRuntimeServiceClient(conn)
 
-	_, err := clientV1.Version(ctx, &criv1.VersionRequest{})
+	_, err := c.clientV1.Version(ctx, &criv1.VersionRequest{})
 	return err
 }
 
