@@ -20,6 +20,10 @@ type Config struct {
 	*ebpf.Config
 	ScanTerminatedProcessesInterval time.Duration
 	InitialProcessSync              bool
+
+	// DisableGpuDeviceQuery disables the queries to NVML for existing devices. Useful for unit tests
+	// where NVML is not available
+	DisableGpuDeviceQuery bool
 }
 
 // NewConfig generates a new configuration for the GPU monitoring probe.
@@ -28,5 +32,6 @@ func NewConfig() *Config {
 		Config:                          ebpf.NewConfig(),
 		ScanTerminatedProcessesInterval: 5 * time.Second,
 		InitialProcessSync:              true,
+		DisableGpuDeviceQuery:           false,
 	}
 }
