@@ -243,7 +243,7 @@ PyObject *subprocess_output(PyObject *self, PyObject *args, PyObject *kw)
 
     PyObject *pyStdout = NULL;
     if (c_stdout) {
-        pyStdout = PyStringFromCString(c_stdout);
+        pyStdout = PyUnicode_FromString(c_stdout);
     } else {
         Py_INCREF(Py_None);
         pyStdout = Py_None;
@@ -251,7 +251,7 @@ PyObject *subprocess_output(PyObject *self, PyObject *args, PyObject *kw)
 
     PyObject *pyStderr = NULL;
     if (c_stderr) {
-        pyStderr = PyStringFromCString(c_stderr);
+        pyStderr = PyUnicode_FromString(c_stderr);
     } else {
         Py_INCREF(Py_None);
         pyStderr = Py_None;

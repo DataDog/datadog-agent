@@ -54,13 +54,6 @@
     The returned C-string YAML representation is allocated by the function and should
     be subsequently freed by the caller.
 */
-/*! \def PyStringFromCString(x)
-    \brief A macro that returns a Python string from C string x (char *).
-
-    This macro is implemented differently in the Python2 and Python3 variants.
-    For Python2 this macro wraps and calls PyString_FromString(x).
-    For Python3 this macro wraps and calls PyUnicode_FromString(x).
-*/
 
 #ifdef __cplusplus
 extern "C" {
@@ -72,8 +65,6 @@ int init_stringutils(void);
 char *as_string(PyObject *);
 PyObject *from_yaml(const char *);
 char *as_yaml(PyObject *);
-
-#define PyStringFromCString(x) PyUnicode_FromString(x)
 
 #ifdef __cplusplus
 }
