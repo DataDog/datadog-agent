@@ -235,27 +235,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.Origin = payload.PathOriginNetworkTraffic
 
 	// Perform reverse DNS lookup on destination and hop IPs
-	rdnsHostname, err := s.reverseDNSLookup(path.Destination.IPAddress)
-	if err != nil {
-		// TODO: should this be an error message?
-		s.logger.Errorf("Reverse lookup failed for destination %s: %s", path.Destination.IPAddress, err)
-	} else {
-		path.Destination.ReverseDNSHostname = rdnsHostname
-	}
-
-	for i := range path.Hops {
-		// Skip unreachable hops
-		if !path.Hops[i].Reachable {
-			continue
-		}
-		rdnsHostname, err := s.reverseDNSLookup(path.Hops[i].IPAddress)
-		if err != nil {
-			// TODO: should this be an error message?
-			s.logger.Errorf("Reverse lookup failed for hop #%d %s: %s", i+1, path.Hops[i].IPAddress, err)
-		} else {
-			path.Hops[i].Hostname = rdnsHostname
-		}
-	}
+	s.enrichPathWithRDNS(&path)
 
 	s.sendTelemetry(path, startTime, ptest)
 
@@ -365,6 +345,30 @@ func (s *npCollectorImpl) startWorker(workerID int) {
 			s.logger.Debugf("[worker%d] Handling pathtest hostname=%s, port=%d", workerID, pathtestCtx.Pathtest.Hostname, pathtestCtx.Pathtest.Port)
 			s.runTracerouteForPath(pathtestCtx)
 			s.processedTracerouteCount.Inc()
+		}
+	}
+}
+
+func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath) {
+	rdnsHostname, err := s.reverseDNSLookup(path.Destination.IPAddress)
+	if err != nil {
+		s.logger.Errorf("Reverse lookup failed for destination %s: %s", path.Destination.IPAddress, err)
+	}
+	if rdnsHostname != "" {
+		path.Destination.ReverseDNSHostname = rdnsHostname
+	}
+
+	for i := range path.Hops {
+		// Skip unreachable hops
+		if !path.Hops[i].Reachable {
+			continue
+		}
+		rdnsHostname, err := s.reverseDNSLookup(path.Hops[i].IPAddress)
+		if err != nil {
+			s.logger.Errorf("Reverse lookup failed for hop #%d %s: %s", i+1, path.Hops[i].IPAddress, err)
+		}
+		if rdnsHostname != "" {
+			path.Hops[i].Hostname = rdnsHostname
 		}
 	}
 }
