@@ -32,6 +32,8 @@ import (
 	"go.uber.org/fx"
 	"google.golang.org/protobuf/proto"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
@@ -74,7 +76,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) error {
@@ -102,6 +103,9 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 			}
 			pkgconfigenv.DetectFeatures(c)
 			return c, nil
+		}),
+		fx.Provide(func(c coreconfig.Component) optional.Option[coreconfig.Component] {
+			return optional.NewOption[coreconfig.Component](c)
 		}),
 		fx.Provide(func() []string {
 			return append(params.ConfPaths, params.Sets...)
