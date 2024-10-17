@@ -149,7 +149,7 @@ func TestProcessContext(t *testing.T) {
 		},
 		{
 			ID:         "test_rule_pid1",
-			Expression: `open.file.path == "{{.Root}}/test-process-pid1" && process.ancestors.pid == 1`,
+			Expression: `open.file.path == "{{.Root}}/test-process-pid1" && process.ancestors[A].pid == 1`,
 		},
 		{
 			ID:         "test_rule_args_envs",

@@ -235,16 +235,11 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 	case "process.list.key":
 
 		if regID != "" {
-
-			fmt.Printf("ZAAAA: %s\n", regID)
-
 			return &IntArrayEvaluator{
 				EvalFnc: func(ctx *Context) []int {
 					idx := ctx.Registers[regID]
 
 					var i int
-
-					fmt.Printf("ZOOOOOO: %s => %d\n", regID, idx)
 
 					el := ctx.Event.(*testEvent).process.list.Front()
 					for el != nil {
@@ -290,12 +285,9 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 					var i int
 
-					fmt.Printf("ZOOOOOO: %s => %d\n", regID, idx)
-
 					el := ctx.Event.(*testEvent).process.list.Front()
 					for el != nil {
 						if i == idx {
-							fmt.Printf("GGGGG: %s => %d\n", regID, idx)
 							return []string{el.Value.(*testItem).value}
 						}
 						el = el.Next()

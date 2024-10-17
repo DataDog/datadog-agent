@@ -508,8 +508,8 @@ func (it *ProcessAncestorsIterator) Next() *ProcessCacheEntry {
 
 // At returns the element at the given position
 func (it *ProcessAncestorsIterator) At(ctx *eval.Context, regID eval.RegisterID, pos int) *ProcessCacheEntry {
-	if ancestor := ctx.RegisterCache[regID]; ancestor != nil {
-		return ancestor.(*ProcessCacheEntry)
+	if entry := ctx.RegisterCache[regID]; entry != nil && entry.Pos == pos {
+		return entry.Value.(*ProcessCacheEntry)
 	}
 
 	var i int
@@ -517,10 +517,14 @@ func (it *ProcessAncestorsIterator) At(ctx *eval.Context, regID eval.RegisterID,
 	ancestor := ctx.Event.(*Event).ProcessContext.Ancestor
 	for ancestor != nil {
 		if i == pos {
-			ctx.RegisterCache[regID] = ancestor
+			ctx.RegisterCache[regID] = &eval.RegisterCacheEntry{
+				Pos:   pos,
+				Value: ancestor,
+			}
 			return ancestor
 		}
 		ancestor = ancestor.Ancestor
+		i++
 	}
 
 	return nil
