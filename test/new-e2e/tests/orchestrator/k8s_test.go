@@ -25,7 +25,7 @@ func (suite *k8sSuite) TestRedisPod() {
 		},
 		message: "find a redis-query pod",
 		timeout: defaultTimeout,
-	}.Assert(suite)
+	}.Assert(suite, suite.T())
 }
 
 func (suite *k8sSuite) TestNode() {
@@ -36,7 +36,7 @@ func (suite *k8sSuite) TestNode() {
 		},
 		message: "find a control plane node",
 		timeout: defaultTimeout,
-	}.Assert(suite)
+	}.Assert(suite, suite.T())
 }
 
 func (suite *k8sSuite) TestDeploymentManif() {
