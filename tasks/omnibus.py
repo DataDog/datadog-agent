@@ -272,7 +272,9 @@ def build(
             if use_remote_cache:
                 cache_state = None
                 cache_key = omnibus_compute_cache_key(ctx)
-                git_cache_url = f"s3://{os.environ['S3_OMNIBUS_CACHE_BUCKET']}/builds/{cache_key}/{remote_cache_name}"
+                git_cache_url = (
+                    f"s3://{os.environ['S3_OMNIBUS_GIT_CACHE_BUCKET']}/builds/{cache_key}/{remote_cache_name}"
+                )
                 bundle_path = (
                     "/tmp/omnibus-git-cache-bundle" if sys.platform != 'win32' else "C:\\TEMP\\omnibus-git-cache-bundle"
                 )
