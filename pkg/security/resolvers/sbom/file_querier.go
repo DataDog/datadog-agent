@@ -21,7 +21,7 @@ type fileQuerier struct {
 	files []uint64
 	pkgs  []*Package
 
-	lastNegativeCache *uint64
+	lastNegativeCache *fixedSizeQueue[uint64]
 }
 
 /*
@@ -67,7 +67,7 @@ func newFileQuerier(report *trivy.Report) fileQuerier {
 		}
 	}
 
-	return fileQuerier{files: files, pkgs: pkgs}
+	return fileQuerier{files: files, pkgs: pkgs, lastNegativeCache: newFixedSizeQueue[uint64](2)}
 }
 
 func (fq *fileQuerier) queryHash(hash uint64) *Package {
@@ -94,13 +94,13 @@ func (fq *fileQuerier) queryHash(hash uint64) *Package {
 }
 
 func (fq *fileQuerier) queryHashWithNegativeCache(hash uint64) *Package {
-	if fq.lastNegativeCache != nil && *fq.lastNegativeCache == hash {
+	if fq.lastNegativeCache.contains(hash) {
 		return nil
 	}
 
 	pkg := fq.queryHash(hash)
 	if pkg == nil {
-		fq.lastNegativeCache = &hash
+		fq.lastNegativeCache.push(hash)
 	}
 
 	return pkg
@@ -120,4 +120,31 @@ func (fq *fileQuerier) queryFile(path string) *Package {
 
 func (fq *fileQuerier) len() int {
 	return len(fq.files)
+}
+
+type fixedSizeQueue[T comparable] struct {
+	queue   []T
+	maxSize int
+}
+
+func newFixedSizeQueue[T comparable](maxSize int) *fixedSizeQueue[T] {
+	return &fixedSizeQueue[T]{maxSize: maxSize}
+}
+
+func (q *fixedSizeQueue[T]) push(value T) {
+	if len(q.queue) == q.maxSize {
+		q.queue = q.queue[1:]
+	}
+
+	q.queue = append(q.queue, value)
+}
+
+func (q *fixedSizeQueue[T]) contains(value T) bool {
+	for _, v := range q.queue {
+		if v == value {
+			return true
+		}
+	}
+
+	return false
 }
