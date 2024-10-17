@@ -3,12 +3,12 @@
 
 #include "helpers/syscalls.h"
 
-SEC("kprobe/audit_set_loginuid")
-int hook_audit_set_loginuid(struct pt_regs *ctx) {
+HOOK_ENTRY("audit_set_loginuid")
+int hook_audit_set_loginuid(ctx_t *ctx) {
     struct syscall_cache_t syscall = {
         .type = EVENT_LOGIN_UID_WRITE,
         .login_uid = {
-            .auid = (u32)PT_REGS_PARM1(ctx),
+            .auid = (u32)CTX_PARM1(ctx),
         },
     };
 
@@ -16,9 +16,9 @@ int hook_audit_set_loginuid(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kretprobe/audit_set_loginuid")
-int rethook_audit_set_loginuid(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_EXIT("audit_set_loginuid")
+int rethook_audit_set_loginuid(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx, 1);
     if (retval < 0) {
         return 0;
     }
