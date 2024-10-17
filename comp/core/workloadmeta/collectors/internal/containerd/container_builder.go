@@ -12,11 +12,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/containerd/runtime/restart"
 	"github.com/containerd/errdefs"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -105,6 +107,16 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		networkIPs[""] = ip
 	}
 
+	// See https://github.com/containerd/nerdctl/blob/v1.7.7/pkg/inspecttypes/dockercompat/dockercompat.go#L222-L224
+	var restartCount int
+	if info.Labels[restart.StatusLabel] == string(containerd.Running) {
+		restartCount, _ = strconv.Atoi(info.Labels[restart.CountLabel])
+	}
+	restartPolicy := "no"
+	if policy := info.Labels[restart.PolicyLabel]; policy != "" {
+		restartPolicy = policy
+	}
+
 	// Some attributes in workloadmeta.Container cannot be fetched from
 	// containerd. I've marked those as "Not available".
 	workloadContainer := workloadmeta.Container{
@@ -127,8 +139,10 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 			StartedAt:  info.CreatedAt, // StartedAt not available in containerd, mapped to CreatedAt
 			FinishedAt: time.Time{},    // Not available
 		},
-		NetworkIPs: networkIPs,
-		PID:        pid, // PID will be 0 for non-running containers
+		NetworkIPs:    networkIPs,
+		PID:           pid, // PID will be 0 for non-running containers
+		RestartCount:  restartCount,
+		RestartPolicy: restartPolicy,
 	}
 
 	// Spec retrieval is slow if large due to JSON parsing

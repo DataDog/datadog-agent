@@ -99,7 +99,7 @@ func TestContainerdCheckGenericPart(t *testing.T) {
 
 	expectedTags := []string{"runtime:containerd"}
 	mockSender.AssertNumberOfCalls(t, "Rate", 13)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 11)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 12)
 
 	mockSender.AssertMetricInRange(t, "Gauge", "containerd.uptime", 0, 600, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "containerd.cpu.total", 100, "", expectedTags)
@@ -139,4 +139,5 @@ func TestContainerdCheckGenericPart(t *testing.T) {
 	mockSender.AssertMetric(t, "MonotonicCount", "containerd.image.pull", 16559, "", []string{"grpc_service:runtime.v1alpha2.ImageService", "grpc_code:not_found"})
 
 	mockSender.AssertMetric(t, "Gauge", "containerd.proc.open_fds", 200, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "containerd.restart_count", 42, "", append(expectedTags, "restart_policy:always"))
 }

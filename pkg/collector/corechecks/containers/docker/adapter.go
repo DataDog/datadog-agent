@@ -38,8 +38,9 @@ var metricsNameMapping = map[string]string{
 	"container.pid.thread_count":      "docker.thread.count",
 	"container.pid.thread_limit":      "docker.thread.limit",
 	"container.pid.open_files":        "docker.container.open_fds",
-	"container.net.sent":              "",                      // Removed, handled by custom network extension
-	"container.net.rcvd":              "",                      // Removed, handled by custom network extension
+	"container.net.sent":              "", // Removed, handled by custom network extension
+	"container.net.rcvd":              "", // Removed, handled by custom network extension
+	"container.restart_count":         "docker.restart_count",
 	"docker.net.bytes_sent":           "docker.net.bytes_sent", // Passthrough for custom network extension
 	"docker.net.bytes_rcvd":           "docker.net.bytes_rcvd", // Passthrough for custom network extension
 	"docker.mem.in_use":               "docker.mem.in_use",     // Passthrough for custom metrics extension

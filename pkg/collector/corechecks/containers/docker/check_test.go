@@ -72,7 +72,7 @@ func TestDockerCheckGenericPart(t *testing.T) {
 
 	expectedTags := []string{"runtime:docker"}
 	mockSender.AssertNumberOfCalls(t, "Rate", 13)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 16)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 17)
 
 	mockSender.AssertMetricInRange(t, "Gauge", "docker.uptime", 0, 600, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "docker.cpu.usage", 1e-5, "", expectedTags)
@@ -108,6 +108,7 @@ func TestDockerCheckGenericPart(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "docker.thread.count", 10, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.thread.limit", 20, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.container.open_fds", 200, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "docker.restart_count", 42, "", append(expectedTags, "restart_policy:always"))
 }
 
 func TestDockerCustomPart(t *testing.T) {
