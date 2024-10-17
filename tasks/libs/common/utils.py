@@ -404,8 +404,7 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
             cmd += " --match \"[0-9]*\""
     if git_sha_length and type(git_sha_length) == int:
         cmd += f" --abbrev={git_sha_length}"
-    print(f"command is {cmd}")
-    described_version = ctx.run(cmd).stdout.strip()
+    described_version = ctx.run(cmd, hide=True).stdout.strip()
 
     # for the example above, 6.0.0-beta.0-1-g4f19118, this will be 1
     commit_number_match = re.match(r"^.*-(?P<commit_number>\d+)-g[0-9a-f]+$", described_version)
