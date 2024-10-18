@@ -22,6 +22,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
+	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -48,12 +49,13 @@ type ProbeDependencies struct {
 
 // Probe represents the GPU monitoring probe
 type Probe struct {
-	mgr      *ddebpf.Manager
-	cfg      *Config
-	consumer *cudaEventConsumer
-	attacher *uprobes.UprobeAttacher
-	deps     ProbeDependencies
-	sysCtx   *systemContext
+	mgr       *ddebpf.Manager
+	cfg       *Config
+	consumer  *cudaEventConsumer
+	attacher  *uprobes.UprobeAttacher
+	generator *statsGenerator
+	deps      ProbeDependencies
+	sysCtx    *systemContext
 }
 
 // NewProbe starts the GPU monitoring probe
@@ -137,6 +139,12 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 		PerformInitialScan: cfg.InitialProcessSync,
 	}
 
+	// Note: this will later be replaced by a common way to enable the process monitor across system-probe
+	procMon := monitor.GetProcessMonitor()
+	if err := procMon.Initialize(false); err != nil {
+		return nil, fmt.Errorf("error initializing process monitor: %w", err)
+	}
+
 	attacher, err := uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{})
 	if err != nil {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
@@ -158,7 +166,13 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
 
+	now, err := ddebpf.NowNanoseconds()
+	if err != nil {
+		return nil, fmt.Errorf("error getting current time: %w", err)
+	}
+
 	p.startEventConsumer()
+	p.generator = newStatsGenerator(p.sysCtx, now, p.consumer.streamHandlers)
 
 	if err := mgr.InitWithOptions(buf, &opts); err != nil {
 		return nil, fmt.Errorf("failed to init manager: %w", err)
@@ -192,30 +206,14 @@ func (p *Probe) Close() {
 func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 	now, err := ddebpf.NowNanoseconds()
 	if err != nil {
-		return nil, fmt.Errorf("getting current time: %w", err)
+		return nil, fmt.Errorf("error getting current time: %w", err)
 	}
 
-	stats := model.GPUStats{}
-	for key, handler := range p.consumer.streamHandlers {
-		currData := handler.getCurrentData(uint64(now))
-		pastData := handler.getPastData(true)
+	stats := p.generator.getStats(now)
+	p.generator.cleanupFinishedAggregators()
+	p.consumer.cleanupHandlersMarkedFinished()
 
-		if currData != nil {
-			currData.Key = key
-			stats.CurrentData = append(stats.CurrentData, currData)
-		}
-
-		if pastData != nil {
-			pastData.Key = key
-			stats.PastData = append(stats.PastData, pastData)
-		}
-
-		if handler.processEnded {
-			delete(p.consumer.streamHandlers, key)
-		}
-	}
-
-	return &stats, nil
+	return stats, nil
 }
 
 func (p *Probe) startEventConsumer() {

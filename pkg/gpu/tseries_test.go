@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTseriesBuilder(t *testing.T) {
@@ -49,24 +48,7 @@ func TestTseriesBuilder(t *testing.T) {
 		builder.AddEventStart(s.start, s.value)
 	}
 
-	tseries, max := builder.Build()
+	last, max := builder.GetLastAndMax()
 	assert.Equal(t, max, int64(15)) // From event [40,50]=8 and onlystarts [35,inf]=7a
-
-	expected := []tsPoint{
-		{0, 1},
-		{5, 3},
-		{10, 2},
-		{15, 0},
-		{20, 10},
-		{28, 13},
-		{30, 0},
-		{31, 9},
-		{33, 5},
-		{34, 0},
-		{35, 7},
-		{40, 15},
-		{50, 7},
-	}
-
-	require.ElementsMatch(t, expected, tseries)
+	assert.Equal(t, last, int64(7)) // From onlystarts [35,inf]=7
 }
