@@ -169,11 +169,11 @@ func newResolverSettings(uris []string, enhanced bool) confmap.ResolverSettings 
 			httpprovider.NewFactory(),
 			httpsprovider.NewFactory(),
 		},
-		ConverterFactories: newConverterFactorie(enhanced),
+		ConverterFactories: newConverterFactory(enhanced),
 	}
 }
 
-func newConverterFactorie(enhanced bool) []confmap.ConverterFactory {
+func newConverterFactory(enhanced bool) []confmap.ConverterFactory {
 	converterFactories := []confmap.ConverterFactory{
 		expandconverter.NewFactory(),
 	}
