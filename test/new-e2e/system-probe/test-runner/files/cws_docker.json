@@ -1,0 +1,8 @@
+{
+    "filters": {
+        "*": {
+            "exclude": false
+        }
+    },
+    "testcontainer": "ghcr.io/datadog/apps-cws-centos7:main"
+}

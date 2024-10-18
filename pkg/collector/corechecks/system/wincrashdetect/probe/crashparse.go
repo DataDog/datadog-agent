@@ -23,6 +23,7 @@ import (
 
 // allow us to change for testing
 var readfn = doReadCrashDump
+var parseCrashDump = parseWinCrashDump
 
 type logCallbackContext struct {
 	loglines       []string
@@ -107,14 +108,14 @@ func doReadCrashDump(filename string, ctx *logCallbackContext, exterr *uint32) e
 	return nil
 }
 
-func parseCrashDump(wcs *WinCrashStatus) {
+func parseWinCrashDump(wcs *WinCrashStatus) {
 	var ctx logCallbackContext
 	var extendedError uint32
 
 	err := readfn(wcs.FileName, &ctx, &extendedError)
 
 	if err != nil {
-		wcs.Success = false
+		wcs.StatusCode = WinCrashStatusCodeFailed
 		wcs.ErrString = fmt.Sprintf("Failed to load crash dump file %v %x", err, extendedError)
 		log.Errorf("Failed to open crash dump %s: %v %x", wcs.FileName, err, extendedError)
 		return
@@ -122,7 +123,7 @@ func parseCrashDump(wcs *WinCrashStatus) {
 
 	if len(ctx.loglines) < 2 {
 		wcs.ErrString = fmt.Sprintf("Invalid crash dump file %s", wcs.FileName)
-		wcs.Success = false
+		wcs.StatusCode = WinCrashStatusCodeFailed
 		return
 	}
 
@@ -190,5 +191,5 @@ func parseCrashDump(wcs *WinCrashStatus) {
 		wcs.Offender = callsite
 		break
 	}
-	wcs.Success = true
+	wcs.StatusCode = WinCrashStatusCodeSuccess
 }

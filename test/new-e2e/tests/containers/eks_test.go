@@ -75,7 +75,7 @@ func (suite *eksSuite) SetupSuite() {
 	suite.Fakeintake = fakeintake.Client()
 
 	kubeCluster := &components.KubernetesCluster{}
-	kubeSerialized, err := json.Marshal(stackOutput.Outputs["dd-Cluster-aws-eks"].Value)
+	kubeSerialized, err := json.Marshal(stackOutput.Outputs["dd-Cluster-eks"].Value)
 	suite.Require().NoError(err)
 	suite.Require().NoError(kubeCluster.Import(kubeSerialized, &kubeCluster))
 	suite.Require().NoError(kubeCluster.Init(suite))

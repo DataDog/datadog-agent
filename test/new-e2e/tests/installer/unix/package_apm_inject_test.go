@@ -54,6 +54,10 @@ func (s *packageApmInjectSuite) TestInstall() {
 	state.AssertFileExists("/usr/bin/dd-host-install", 0755, "root", "root")
 	state.AssertFileExists("/usr/bin/dd-container-install", 0755, "root", "root")
 	state.AssertDirExists("/etc/datadog-agent/inject", 0755, "root", "root")
+	if s.os == e2eos.Ubuntu2204 || s.os == e2eos.Debian12 {
+		state.AssertDirExists("/etc/apparmor.d/abstractions/base.d", 0755, "root", "root")
+		state.AssertFileExists("/etc/apparmor.d/abstractions/base.d/datadog", 0644, "root", "root")
+	}
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath()
 	s.assertDockerdInstrumented(injectOCIPath)
@@ -78,6 +82,7 @@ func (s *packageApmInjectSuite) TestUninstall() {
 	state := s.host.State()
 	state.AssertPathDoesNotExist("/usr/bin/dd-host-install")
 	state.AssertPathDoesNotExist("/usr/bin/dd-container-install")
+	state.AssertPathDoesNotExist("/etc/apparmor.d/abstractions/base.d/datadog")
 }
 
 func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
@@ -421,6 +426,23 @@ func (s *packageApmInjectSuite) TestInstallWithUmask() {
 	s.TestInstall()
 }
 
+func (s *packageApmInjectSuite) TestAppArmor() {
+	if s.os != e2eos.Ubuntu2204 && s.os != e2eos.Debian12 {
+		s.T().Skip("AppArmor not installed by default")
+	}
+	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
+	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=host",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
+		envForceInstall("datadog-agent"),
+	)
+	defer s.Purge()
+	s.assertAppArmorProfile()
+	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
+	res := s.Env().RemoteHost.MustExecute("sudo DD_APM_INSTRUMENTATION_DEBUG=true /usr/sbin/dhclient 2>&1")
+	assert.Contains(s.T(), res, "not injecting; on deny list")
+}
+
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
 	found := assert.Eventually(s.T(), func() bool {
 		tracePayloads, err := s.Env().FakeIntake.Client().GetTraces()
@@ -493,6 +515,13 @@ func (s *packageApmInjectSuite) assertDockerdNotInstrumented() {
 	}
 	runtimeConfig := s.host.GetDockerRuntimePath("dd-shim")
 	assert.Equal(s.T(), runtimeConfig, "")
+}
+
+func (s *packageApmInjectSuite) assertAppArmorProfile() {
+	content, err := s.host.ReadFile("/etc/apparmor.d/abstractions/base.d/datadog")
+	assert.NoError(s.T(), err)
+	assert.Equal(s.T(), string(content), "/opt/datadog-packages/** rix,\n/proc/@{pid}/** rix,")
+	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
 }
 
 func (s *packageApmInjectSuite) purgeInjectorDebInstall() {

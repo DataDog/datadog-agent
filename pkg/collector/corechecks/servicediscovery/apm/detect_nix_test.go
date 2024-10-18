@@ -241,6 +241,9 @@ func TestDotNetDetector(t *testing.T) {
 }
 
 func TestGoDetector(t *testing.T) {
+	if os.Getenv("CI") == "" && os.Getuid() != 0 {
+		t.Skip("skipping test; requires root privileges")
+	}
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 	serverBinWithSymbols, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "instrumented")
