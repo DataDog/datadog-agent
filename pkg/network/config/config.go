@@ -263,10 +263,6 @@ type Config struct {
 	// TCPFailedConnectionsEnabled specifies whether the tracer will track & report TCP error codes
 	TCPFailedConnectionsEnabled bool
 
-	// EnableHTTPStatsByStatusCode specifies if the HTTP stats should be aggregated by the actual status code
-	// instead of the status code family.
-	EnableHTTPStatsByStatusCode bool
-
 	// EnableNPMConnectionRollup enables aggregating connections by rolling up ephemeral ports
 	EnableNPMConnectionRollup bool
 
@@ -391,13 +387,12 @@ func New() *Config {
 		EnableEbpfless: cfg.GetBool(join(netNS, "enable_ebpfless")),
 
 		// Service Monitoring
-		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "tls", "go", "enabled")),
-		GoTLSExcludeSelf:            cfg.GetBool(join(smNS, "tls", "go", "exclude_self")),
-		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
-		EnableUSMQuantization:       cfg.GetBool(join(smNS, "enable_quantization")),
-		EnableUSMConnectionRollup:   cfg.GetBool(join(smNS, "enable_connection_rollup")),
-		EnableUSMRingBuffers:        cfg.GetBool(join(smNS, "enable_ring_buffers")),
-		EnableUSMEventStream:        cfg.GetBool(join(smNS, "enable_event_stream")),
+		EnableGoTLSSupport:        cfg.GetBool(join(smNS, "tls", "go", "enabled")),
+		GoTLSExcludeSelf:          cfg.GetBool(join(smNS, "tls", "go", "exclude_self")),
+		EnableUSMQuantization:     cfg.GetBool(join(smNS, "enable_quantization")),
+		EnableUSMConnectionRollup: cfg.GetBool(join(smNS, "enable_connection_rollup")),
+		EnableUSMRingBuffers:      cfg.GetBool(join(smNS, "enable_ring_buffers")),
+		EnableUSMEventStream:      cfg.GetBool(join(smNS, "enable_event_stream")),
 	}
 
 	httpRRKey := join(smNS, "http_replace_rules")
