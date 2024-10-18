@@ -67,7 +67,6 @@ static __always_inline bool is_valid_tls_version(__u16 version) {
     case TLS_VERSION13:
         return true;
     }
-
     return false;
 }
 
@@ -82,56 +81,85 @@ static __always_inline bool is_valid_tls_app_data(tls_record_header_t *hdr, __u3
     return hdr->length + sizeof(tls_record_header_t) <= skb_len;
 }
 
-static __always_inline bool parse_supported_versions_extension(struct __sk_buff *skb, __u64 offset, __u16 extension_length) {
+// parse_supported_versions_extension parses the supported_versions extension, extracting the list of 
+// supported versions for the client or the selected version for the server.
+static __always_inline bool parse_supported_versions_extension(struct __sk_buff *skb, __u64 offset, __u16 extension_length, bool is_client_hello) {
     __u64 skb_len = skb->len;
 
-    // Ensure we have at least 1 byte for the list length
-    if (offset + 1 > skb_len) {
-        return false;
-    }
-
-    // Read Supported Versions Length (1 byte)
-    __u8 sv_list_length;
-    if (bpf_skb_load_bytes(skb, offset, &sv_list_length, sizeof(sv_list_length)) < 0) {
-        return false;
-    }
-    offset += 1;
-
-    // Ensure the list length is consistent with the extension length
-    if (sv_list_length + 1 > extension_length) {
-        return false;
-    }
-
-    // Ensure we don't read beyond the packet
-    if (offset + sv_list_length > skb_len) {
-        return false;
-    }
-
-    // Set an upper bound for the loop to satisfy the eBPF verifier
-    #define MAX_SUPPORTED_VERSIONS 8
-    __u8 versions_parsed = 0;
-
-    // Read the list of supported versions (2 bytes each)
-    for (__u8 i = 0; i + 1 < sv_list_length && versions_parsed < MAX_SUPPORTED_VERSIONS; i += 2, versions_parsed++) {
-        __u16 sv_version;
-        if (bpf_skb_load_bytes(skb, offset, &sv_version, sizeof(sv_version)) < 0) {
+    if (is_client_hello) {
+        // ClientHello Supported Versions Extension
+        // Ensure we have at least 1 byte for the list length
+        if (offset + 1 > skb_len) {
             return false;
         }
-        sv_version = bpf_ntohs(sv_version);
-        offset += 2;
 
-        if (sv_version == TLS_VERSION13) {
-            log_debug("adamk supported version: TLS 1.3");
+        // Read Supported Versions Length (1 byte)
+        __u8 sv_list_length;
+        if (bpf_skb_load_bytes(skb, offset, &sv_list_length, sizeof(sv_list_length)) < 0) {
+            return false;
+        }
+        offset += 1;
+
+        // Ensure the list length is consistent with the extension length
+        if (sv_list_length + 1 > extension_length) {
+            return false;
         }
 
-        // TODO: add supported version to the map
+        // Ensure we don't read beyond the packet
+        if (offset + sv_list_length > skb_len) {
+            return false;
+        }
 
+        // Set an upper bound for the loop to satisfy the eBPF verifier
+        #define MAX_SUPPORTED_VERSIONS 8
+        __u8 versions_parsed = 0;
+
+        // Read the list of supported versions (2 bytes each)
+        for (__u8 i = 0; i + 1 < sv_list_length && versions_parsed < MAX_SUPPORTED_VERSIONS; i += 2, versions_parsed++) {
+            __u16 sv_version;
+            if (bpf_skb_load_bytes(skb, offset, &sv_version, sizeof(sv_version)) < 0) {
+                return false;
+            }
+            sv_version = bpf_ntohs(sv_version);
+            offset += 2;
+
+            if (sv_version == TLS_VERSION13) {
+                log_debug("adamk supported version (ClientHello): TLS 1.3");
+            }
+
+            // TODO: Store the supported version as needed
+        }
+        log_debug("adamk supported versions parsed (ClientHello): %d", versions_parsed);
+        return true;
+    } else {
+        // ServerHello Supported Versions Extension
+        // The extension length should be exactly 2 bytes
+        if (extension_length != 2) {
+            return false;
+        }
+
+        if (offset + 2 > skb_len) {
+            return false;
+        }
+
+        // Read Selected Version (2 bytes)
+        __u16 selected_version;
+        if (bpf_skb_load_bytes(skb, offset, &selected_version, sizeof(selected_version)) < 0) {
+            return false;
+        }
+        selected_version = bpf_ntohs(selected_version);
+
+        if (selected_version == TLS_VERSION13) {
+            log_debug("adamk selected version (ServerHello): TLS 1.3");
+        }
+
+        // TODO: Store the selected version as needed
+        return true;
     }
-    log_debug("adamk supported versions parsed: %d", versions_parsed);
-    return true;
 }
 
-static __always_inline bool parse_client_hello_extensions(struct __sk_buff *skb, __u64 offset, __u16 extensions_length) {
+// parse_tls_extensions parses the TLS extensions in the ClientHello or ServerHello message.
+static __always_inline bool parse_tls_extensions(struct __sk_buff *skb, __u64 offset, __u16 extensions_length, bool is_client_hello) {
     __u64 skb_len = skb->len;
     __u64 extensions_end = offset + extensions_length;
 
@@ -163,7 +191,7 @@ static __always_inline bool parse_client_hello_extensions(struct __sk_buff *skb,
 
         // Check for supported_versions extension (type 0x002B)
         if (extension_type == 0x002B) {
-            if (!parse_supported_versions_extension(skb, offset, extension_length)) {
+            if (!parse_supported_versions_extension(skb, offset, extension_length, is_client_hello)) {
                 return false;
             }
         }
@@ -176,6 +204,7 @@ static __always_inline bool parse_client_hello_extensions(struct __sk_buff *skb,
     return true;
 }
 
+// parse_client_hello parses the ClientHello TLS payload.
 static __always_inline bool parse_client_hello(tls_record_header_t *hdr, struct __sk_buff *skb, __u64 offset) {
     __u32 skb_len = skb->len;
 
@@ -265,8 +294,8 @@ static __always_inline bool parse_client_hello(tls_record_header_t *hdr, struct 
         return false;
     }
 
-    // Parse Extensions
-    if (!parse_client_hello_extensions(skb, offset, extensions_length)) {
+    // Parse Extensions (is_client_hello = true)
+    if (!parse_tls_extensions(skb, offset, extensions_length, true /* is_client_hello */)) {
         return false;
     }
 
@@ -274,6 +303,7 @@ static __always_inline bool parse_client_hello(tls_record_header_t *hdr, struct 
     return true;
 }
 
+// parse_server_hello parses the ServerHello TLS payload.
 static __always_inline bool parse_server_hello(tls_record_header_t *hdr, struct __sk_buff *skb, __u64 offset) {
     __u32 skb_len = skb->len;
 
@@ -293,6 +323,8 @@ static __always_inline bool parse_server_hello(tls_record_header_t *hdr, struct 
     if (offset + handshake_length > skb_len)
         return false;
 
+    __u64 handshake_end = offset + handshake_length;
+
     // Read server version (2 bytes)
     __u16 server_version;
     if (bpf_skb_load_bytes(skb, offset, &server_version, sizeof(server_version)) < 0)
@@ -301,9 +333,8 @@ static __always_inline bool parse_server_hello(tls_record_header_t *hdr, struct 
     log_debug("adamk server version: %d", server_version);
     offset += 2;
 
-    // Validate server version
-    if (!is_valid_tls_version(server_version))
-        return false;
+    // Note: In TLS 1.3, the server_version field is set to 0x0303 (TLS 1.2)
+    // The actual version is indicated in the supported_versions extension
 
     // Skip Random (32 bytes)
     offset += 32;
@@ -318,7 +349,7 @@ static __always_inline bool parse_server_hello(tls_record_header_t *hdr, struct 
     offset += session_id_len;
 
     // Ensure we don't read beyond the packet
-    if (offset + 2 > skb_len)
+    if (offset + 3 > skb_len)
         return false;
 
     // Read Cipher Suite (2 bytes)
@@ -329,18 +360,17 @@ static __always_inline bool parse_server_hello(tls_record_header_t *hdr, struct 
     log_debug("adamk server cipher_suite: %d", cipher_suite);
     offset += 2;
 
-    // You can store or process the cipher suite as needed
-
     // Read Compression Method (1 byte)
-    if (offset + 1 > skb_len)
-        return false;
     __u8 compression_method;
     if (bpf_skb_load_bytes(skb, offset, &compression_method, sizeof(compression_method)) < 0)
         return false;
     offset += 1;
 
-    // Read Extensions Length (2 bytes) if present
-    if (offset + 2 <= skb_len) {
+    // Check if there are extensions
+    if (offset < handshake_end) {
+        // Read Extensions Length (2 bytes)
+        if (offset + 2 > skb_len || offset + 2 > handshake_end)
+            return false;
         __u16 extensions_length;
         if (bpf_skb_load_bytes(skb, offset, &extensions_length, sizeof(extensions_length)) < 0)
             return false;
@@ -348,16 +378,20 @@ static __always_inline bool parse_server_hello(tls_record_header_t *hdr, struct 
         offset += 2;
 
         // Ensure we don't read beyond the packet
-        if (offset + extensions_length > skb_len)
+        if (offset + extensions_length > skb_len || offset + extensions_length > handshake_end)
             return false;
 
-        // Process extensions if needed
+        // Parse Extensions (is_client_hello = false)
+        if (!parse_tls_extensions(skb, offset, extensions_length, false /* is_client_hello */)) {
+            return false;
+        }
     }
 
     // At this point, we've successfully parsed the ServerHello message
     return true;
 }
 
+// is_tls_handshake checks if the given TLS record is a TLS handshake message.
 static __always_inline bool is_tls_handshake(tls_record_header_t *hdr, struct __sk_buff *skb, __u64 offset) {
     // Read handshake type
     __u8 handshake_type;
@@ -366,16 +400,17 @@ static __always_inline bool is_tls_handshake(tls_record_header_t *hdr, struct __
 
     // Only proceed if it's a ClientHello or ServerHello
     if (handshake_type == TLS_HANDSHAKE_CLIENT_HELLO) {
-        log_debug("adamk inspecting client hello");
+        log_debug("adamk inspecting ClientHello");
         return parse_client_hello(hdr, skb, offset);
     } else if (handshake_type == TLS_HANDSHAKE_SERVER_HELLO) {
-        log_debug("adamk inspecting server hello");
+        log_debug("adamk inspecting ServerHello");
         return parse_server_hello(hdr, skb, offset);
     } else {
         return false;
     }
 }
 
+// is_tls checks if the given packet is a TLS packet.
 static __always_inline bool is_tls(struct __sk_buff *skb, __u64 nh_off) {
     __u32 skb_len = skb->len;
 
@@ -398,12 +433,6 @@ static __always_inline bool is_tls(struct __sk_buff *skb, __u64 nh_off) {
     if (tls_hdr.length > TLS_MAX_PAYLOAD_LENGTH)
         return false;
 
-    // Validate version and length
-    if (!is_valid_tls_version(tls_hdr.version))
-        return false;
-    if (tls_hdr.length > TLS_MAX_PAYLOAD_LENGTH)
-        return false;
-
     // Move offset to the start of TLS handshake message
     nh_off += sizeof(tls_record_header_t);
 
@@ -414,7 +443,6 @@ static __always_inline bool is_tls(struct __sk_buff *skb, __u64 nh_off) {
     // Handle based on content type
     switch (tls_hdr.content_type) {
         case TLS_HANDSHAKE: {
-            // return is_tls_handshake(&tls_hdr, skb, nh_off);
             bool handshake = is_tls_handshake(&tls_hdr, skb, nh_off);
             log_debug("adamk is_tls_handshake: %d", handshake);
             return handshake;

@@ -75,3 +75,16 @@ func (t *TCPServer) Shutdown() {
 		t.ln = nil
 	}
 }
+
+// GetFreePort returns a free port on localhost
+func GetFreePort() (port uint16, err error) {
+	var a *net.TCPAddr
+	if a, err = net.ResolveTCPAddr("tcp", "localhost:0"); err == nil {
+		var l *net.TCPListener
+		if l, err = net.ListenTCP("tcp", a); err == nil {
+			defer l.Close()
+			return uint16(l.Addr().(*net.TCPAddr).Port), nil
+		}
+	}
+	return
+}
