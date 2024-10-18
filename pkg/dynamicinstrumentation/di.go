@@ -123,10 +123,7 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 		}
 		stopFunctions = append(stopFunctions, stopFileConfigManager)
 	} else {
-		cm, err := diconfig.NewRCConfigManager()
-		if err != nil {
-			return nil, fmt.Errorf("could not create new RC config manager: %w", err)
-		}
+		cm := diconfig.NewRCConfigManager()
 		goDI = &GoDI{
 			ConfigManager: cm,
 			lu:            uploader.NewLogUploader(),

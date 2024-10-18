@@ -15,6 +15,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/cilium/ebpf/ringbuf"
+	"github.com/google/uuid"
+
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/codegen"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
@@ -22,8 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/eventparser"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/proctracker"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
-	"github.com/cilium/ebpf/ringbuf"
-	"github.com/google/uuid"
 )
 
 type rcConfig struct {
@@ -65,19 +66,16 @@ type RCConfigManager struct {
 }
 
 // NewRCConfigManager creates a new configuration manager which utilizes remote-config
-func NewRCConfigManager() (*RCConfigManager, error) {
+func NewRCConfigManager() *RCConfigManager {
 	log.Info("Creating new RC config manager")
 	cm := &RCConfigManager{
 		callback: applyConfigUpdate,
 	}
 
 	cm.procTracker = proctracker.NewProcessTracker(cm.updateProcesses)
-	err := cm.procTracker.Start()
-	if err != nil {
-		return nil, fmt.Errorf("could not start process tracker: %w", err)
-	}
+	cm.procTracker.Start()
 	cm.diProcs = ditypes.NewDIProcs()
-	return cm, nil
+	return cm
 }
 
 // GetProcInfos returns the state of the RCConfigManager

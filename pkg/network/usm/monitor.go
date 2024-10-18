@@ -24,7 +24,6 @@ import (
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	usmstate "github.com/DataDog/datadog-agent/pkg/network/usm/state"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
@@ -130,11 +129,6 @@ func (m *Monitor) Start() error {
 	err = m.ebpfProgram.Start()
 	if err != nil {
 		return err
-	}
-
-	// Need to explicitly save the error in `err` so the defer function could save the startup error.
-	if usmconfig.NeedProcessMonitor(m.cfg) {
-		err = m.processMonitor.Initialize(m.cfg.EnableUSMEventStream)
 	}
 
 	return err
