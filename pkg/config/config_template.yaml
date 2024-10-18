@@ -1456,9 +1456,11 @@ api_key:
   ## Enables Error Tracking Standalone
   ##
   #error_tracking_standalone:
-  ## @env DD_APM_ERROR_TRACKING_STANDALONE_ENABLED - boolean - optional - default: false
-  ## Enables or disables Error Tracking Standalone
-  # enabled: false
+  #
+    ## @param enabled - boolean - optional - default: false
+    ## @env DD_APM_ERROR_TRACKING_STANDALONE_ENABLED - boolean - optional - default: false
+    ## Enables or disables Error Tracking Standalone
+    # enabled: false
 
 
   {{- if .InternalProfiling -}}
