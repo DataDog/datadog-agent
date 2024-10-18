@@ -93,7 +93,13 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		return resolvedConfig, errors.New("unable to resolve, service not ready")
 	}
 
-	tags, err := svc.GetTags()
+	var tags []string
+	var err error
+	if tpl.CheckTagCardinality != "" {
+		tags, err = svc.GetTagsWithCardinality(tpl.CheckTagCardinality)
+	} else {
+		tags, err = svc.GetTags()
+	}
 	if err != nil {
 		return resolvedConfig, fmt.Errorf("couldn't get tags for service '%s', err: %w", svc.GetServiceID(), err)
 	}
