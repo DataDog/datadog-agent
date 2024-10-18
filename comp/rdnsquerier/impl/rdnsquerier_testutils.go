@@ -10,6 +10,7 @@ package rdnsquerierimpl
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -35,9 +36,14 @@ type fakeResults struct {
 type fakeResolver struct {
 	config        *rdnsQuerierConfig
 	fakeIPResults map[string]*fakeResults
+	delay         time.Duration
 }
 
 func (r *fakeResolver) lookup(addr string) (string, error) {
+	if r.delay > 0 {
+		time.Sleep(r.delay)
+	}
+
 	fr, ok := r.fakeIPResults[addr]
 	if ok && len(fr.errors) > 0 {
 		err := fr.errors[0]
@@ -60,7 +66,7 @@ type testState struct {
 	logComp       log.Component
 }
 
-func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeIPResults map[string]*fakeResults) *testState {
+func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeIPResults map[string]*fakeResults, delay time.Duration) *testState {
 	lc := compdef.NewTestLifecycle(t)
 
 	config := fxutil.Test[config.Component](t, fx.Options(
@@ -95,13 +101,13 @@ func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeI
 		assert.NotNil(t, internalCache)
 		internalQuerier := internalCache.querier.(*querierImpl)
 		assert.NotNil(t, internalQuerier)
-		internalQuerier.resolver = &fakeResolver{internalRDNSQuerier.config, fakeIPResults}
+		internalQuerier.resolver = &fakeResolver{internalRDNSQuerier.config, fakeIPResults, delay}
 	} else {
 		internalCache := internalRDNSQuerier.cache.(*cacheNone)
 		assert.NotNil(t, internalCache)
 		internalQuerier := internalCache.querier.(*querierImpl)
 		assert.NotNil(t, internalQuerier)
-		internalQuerier.resolver = &fakeResolver{internalRDNSQuerier.config, fakeIPResults}
+		internalQuerier.resolver = &fakeResolver{internalRDNSQuerier.config, fakeIPResults, delay}
 	}
 
 	if start {

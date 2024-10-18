@@ -9,7 +9,10 @@ package rdnsquerierimpl
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/netip"
+	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -179,6 +182,79 @@ func (q *rdnsQuerierImpl) GetHostname(ipAddr []byte, updateHostnameSync func(str
 	}
 
 	return nil
+}
+
+// GetHostnameSync attempts to resolve the hostname for the given IP address synchronously.
+// If the IP address is invalid then an error is returned.
+// If the IP address is not in the private address space then it is ignored - no lookup is performed and nil error is returned.
+// If the IP address is in the private address space then the IP address will be resolved to a hostname.
+// The function accepts a timeout duration, which defaults to 2 seconds if not provided.
+func (q *rdnsQuerierImpl) GetHostnameSync(ipAddr string, timeout ...time.Duration) (string, error) {
+	q.internalTelemetry.total.Inc()
+
+	// Set default timeout to 2 seconds if not provided
+	var timeoutDuration time.Duration
+	if len(timeout) > 0 {
+		timeoutDuration = timeout[0]
+	} else {
+		timeoutDuration = 2 * time.Second
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeoutDuration)
+	defer cancel()
+
+	netipAddr := net.ParseIP(ipAddr).To4()
+	if netipAddr == nil {
+		q.internalTelemetry.invalidIPAddress.Inc()
+		return "", fmt.Errorf("invalid IP address %v", ipAddr)
+	}
+
+	if !netipAddr.IsPrivate() {
+		q.logger.Tracef("Reverse DNS Enrichment IP address %s is not in the private address space", netipAddr)
+		return "", fmt.Errorf("IP address %v is not in the private address space", netipAddr)
+	}
+	q.internalTelemetry.private.Inc()
+
+	var hostname string
+	var err error
+	var mutex sync.Mutex
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		var wg sync.WaitGroup
+		wg.Add(1)
+		err = q.GetHostname(
+			netipAddr,
+			func(h string) {
+				mutex.Lock()
+				hostname = h
+				mutex.Unlock()
+				wg.Done()
+			},
+			func(h string, e error) {
+				mutex.Lock()
+				hostname = h
+				err = e
+				mutex.Unlock()
+				wg.Done()
+			},
+		)
+		if err != nil {
+			q.logger.Tracef("Error resolving reverse DNS enrichment for source IP address: %v error: %v", ipAddr, err)
+			wg.Done()
+		}
+		wg.Wait()
+	}()
+
+	select {
+	case <-done:
+		mutex.Lock()
+		defer mutex.Unlock()
+		return hostname, err
+	case <-ctx.Done():
+		return "", fmt.Errorf("timeout reached while resolving hostname for IP address %v", ipAddr)
+	}
 }
 
 func (q *rdnsQuerierImpl) start(_ context.Context) error {
