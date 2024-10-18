@@ -46,12 +46,12 @@ replace (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.122
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.59.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/version v0.59.0-rc.4
-	github.com/DataDog/datadog-agent/test/fakeintake v0.59.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.59.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/version v0.59.0-rc.5
+	github.com/DataDog/datadog-agent/test/fakeintake v0.59.0-rc.5
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.27.0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
@@ -97,8 +97,8 @@ require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/BurntSushi/toml v1.2.1 // indirect
-	github.com/DataDog/datadog-agent/comp/netflow/payload v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.59.0-rc.4
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/proto v0.59.0-rc.5
 	github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a // indirect
 	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -289,30 +289,30 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.59.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/trace v0.59.0-rc.4
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.59.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/trace v0.59.0-rc.5
 	github.com/DataDog/datadog-go/v5 v5.5.0
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
 	github.com/hairyhenderson/go-codeowners v0.5.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/tagger v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.59.0-rc.4 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/tagger v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.59.0-rc.5 // indirect
 	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
