@@ -78,6 +78,52 @@ func TestCachedConntrackIgnoreErrExists(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestCachedConntrackIgnoreErrNotPermitted(t *testing.T) {
+	createCalled := false
+	cache := newCachedConntrack("/proc", func(_ netns.NsHandle) (netlink.Conntrack, error) {
+		createCalled = true
+		return nil, netlink.ErrNotPermitted
+	}, 1)
+
+	t.Cleanup(func() { cache.Close() })
+
+	c := &network.ConnectionStats{
+		NetNS: 123455,
+		Pid:   1,
+	}
+
+	exists, err := cache.Exists(c)
+	require.True(t, createCalled, "conntrack creator not called")
+	assert.NoError(t, err)
+	assert.False(t, exists)
+}
+
+func TestCachedConntrackCacheCreatorError(t *testing.T) {
+	createCalled := false
+	cache := newCachedConntrack("/proc", func(_ netns.NsHandle) (netlink.Conntrack, error) {
+		createCalled = true
+		return nil, assert.AnError
+	}, 1)
+
+	t.Cleanup(func() { cache.Close() })
+
+	c := &network.ConnectionStats{
+		NetNS: 123455,
+		Pid:   1,
+	}
+
+	exists, err := cache.Exists(c)
+	require.True(t, createCalled, "conntrack creator not called")
+	assert.ErrorIs(t, err, assert.AnError)
+	assert.False(t, exists)
+
+	createCalled = false
+	exists, err = cache.Exists(c)
+	require.False(t, createCalled, "conntrack creator called")
+	assert.ErrorIs(t, err, assert.AnError)
+	assert.False(t, exists)
+}
+
 func TestCachedConntrackExists(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
