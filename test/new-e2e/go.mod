@@ -45,7 +45,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.122
+	github.com/DataDog/agent-payload/v5 v5.0.134
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.2
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.2
