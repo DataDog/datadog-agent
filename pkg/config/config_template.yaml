@@ -3116,7 +3116,7 @@ api_key:
       ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_RESOURCES_CPU_LIMIT - string - optional
       ## Configures the CPU limit for the init containers.
       #
-      # cpu:
+      # cpu_limit:
 
       ## @param memory - string - optional
       ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_RESOURCES_MEMORY - string - optional
