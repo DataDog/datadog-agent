@@ -91,7 +91,7 @@ const (
 
 	// GPU related tags
 
-	// KubeGPUVendor the tag for the Kubernetes Resource GPU type
+	// KubeGPUVendor the tag for the Kubernetes Resource GPU vendor
 	KubeGPUVendor = "gpu_vendor"
 
 	// OpenshiftDeploymentConfig is the tag for the OpenShift deployment config name
