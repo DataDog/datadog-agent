@@ -1,7 +1,7 @@
 param (
     [Parameter(Mandatory=$true)][string]$Version,
     [Parameter(Mandatory=$false)][string]$md5sum,
-    [Parameter(Mandatory=$false)][string]$OutDir,
+    [Parameter(Mandatory=$false)][string]$OutDir
 )
 # https://www.python.org/ftp/python/2.7.17/python-2.7.17.amd64.msi
 # https://www.python.org/ftp/python/2.7.17/python-2.7.17.msi
@@ -95,7 +95,7 @@ elseif ($maj -eq "3") {
 
     try {
         $installedPythonVersion = python --version
-        $installedPythonVersion = [regex]::match($installedPythonVersion,'Python (\d.\d.\d)').Groups[1].Value
+        $installedPythonVersion = [regex]::match($installedPythonVersion,'Python (\d+.\d+.\d+)').Groups[1].Value
         $installedMaj, $installedMin, $installedPatch = $installedPythonVersion.Split(".")
 
         Write-Host -ForegroundColor Green "Detected installed Python $installedMaj $installedMin $installedPatch"
