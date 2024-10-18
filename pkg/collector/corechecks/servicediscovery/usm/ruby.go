@@ -61,10 +61,9 @@ func (r railsDetector) findRailsApplicationName(filename string) (string, bool) 
 	reader, err := SizeVerifiedReader(file)
 	if err != nil {
 		log.Debugf("skipping application.rb (%q): %v", filename, err)
-		return "", true // stops here
+		return "", true
 	}
 
-	// Scan the file line by line, instead of reading the whole file into memory
 	bytes, err := io.ReadAll(reader)
 	if err != nil {
 		log.Debugf("unable to read application.rb (%q): %v", filename, err)
