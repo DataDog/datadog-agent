@@ -9,6 +9,8 @@
 package probes
 
 import (
+	"fmt"
+
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
@@ -76,21 +78,35 @@ var RawPacketTCProgram = []string{
 
 // GetRawPacketTCFilterProg returns a first tc filter
 func GetRawPacketTCFilterProg(rawPacketEventMapFd, clsRouterMapFd int) (*ebpf.ProgramSpec, error) {
+	const (
+		ctxReg  = asm.R9
+		dataReg = asm.R6
+	)
+
 	insts := asm.Instructions{
+		// save ctx
+		asm.Mov.Reg(ctxReg, asm.R1),
+
 		// load raw event
-		asm.Mov.Imm(asm.R2, 0),
+		asm.Mov.Reg(asm.R2, asm.RFP),
+		asm.Add.Imm(asm.R2, -4),
+		asm.StoreImm(asm.R2, 0, 0, asm.Word),
 		asm.LoadMapPtr(asm.R1, rawPacketEventMapFd),
+		asm.FnMapLookupElem.Call(),
 		asm.JNE.Imm(asm.R0, 0, "raw-packet-event-not-null"),
 		asm.Return(),
-		asm.Mov.Reg(asm.R6, asm.R0),
+		asm.Mov.Reg(dataReg, asm.R0).WithSymbol("raw-packet-event-not-null"),
 
 		// jump to the send event program
+		asm.Mov.Reg(asm.R1, ctxReg),
 		asm.LoadMapPtr(asm.R2, clsRouterMapFd),
 		asm.Mov.Imm(asm.R3, int32(TCRawPacketParserKey)),
 		asm.FnTailCall.Call(),
 		asm.Mov.Imm(asm.R0, 0),
 		asm.Return(),
 	}
+
+	fmt.Printf("INS: %+v\n", insts)
 
 	return &ebpf.ProgramSpec{
 		Type:         ebpf.SchedCLS,

@@ -4,6 +4,11 @@
 #include "helpers/network.h"
 #include "perf_ring.h"
 
+__attribute__((always_inline)) struct raw_packet_event_t *get_raw_packet_event() {
+    u32 key = 0;
+    return bpf_map_lookup_elem(&raw_packet_event, &key);
+}
+
 SEC("classifier/raw_packet")
 int classifier_raw_packet(struct __sk_buff *skb) {
     struct packet_t *pkt = get_packet();
@@ -37,7 +42,7 @@ int classifier_raw_packet(struct __sk_buff *skb) {
         len = sizeof(evt->data);
     }
 
-    send_event_with_size_ptr(skb, EVENT_RAW_PACKET, evt, offsetof(struct raw_packet_t, data) + len);
+    send_event_with_size_ptr(skb, EVENT_RAW_PACKET, evt, offsetof(struct raw_packet_event_t, data) + len);
 
     return ACT_OK;
 }
