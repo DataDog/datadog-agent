@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/netip"
 	"sync"
-	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -265,19 +264,11 @@ func (q *rdnsQuerierImpl) GetHostnames(ctx context.Context, ipAddrs []string) ma
 // If the IP address is not in the private address space then it is ignored - no lookup is performed and nil error is returned.
 // If the IP address is in the private address space then the IP address will be resolved to a hostname.
 // The function accepts a timeout duration, which defaults to 2 seconds if not provided.
-func (q *rdnsQuerierImpl) GetHostnameSync(ipAddr string, timeout ...time.Duration) (string, error) {
+func (q *rdnsQuerierImpl) GetHostnameSync(ctx context.Context, ipAddr string) (string, error) {
+
+	q.logger.Infof("ENTERED THE GetHostnameSync FUNCTION with IP address: %s", ipAddr)
+
 	q.internalTelemetry.total.Inc()
-
-	// Set default timeout to 2 seconds if not provided
-	var timeoutDuration time.Duration
-	if len(timeout) > 0 {
-		timeoutDuration = timeout[0]
-	} else {
-		timeoutDuration = 2 * time.Second
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeoutDuration)
-	defer cancel()
 
 	netipAddr := net.ParseIP(ipAddr).To4()
 	if netipAddr == nil {
@@ -292,39 +283,47 @@ func (q *rdnsQuerierImpl) GetHostnameSync(ipAddr string, timeout ...time.Duratio
 	q.internalTelemetry.private.Inc()
 
 	var hostname string
-	var err error
+	var internalErr error
 	var mu sync.Mutex
 	done := make(chan struct{})
 
-	go func() {
-		defer close(done)
-		err = q.GetHostname(
-			netipAddr,
-			func(h string) {
-				mu.Lock()
-				hostname = h
-				err = nil
-				mu.Unlock()
-			},
-			func(h string, e error) {
-				mu.Lock()
-				hostname = h
-				err = e
-				mu.Unlock()
-			},
-		)
-		if err != nil {
-			q.logger.Tracef("Error resolving reverse DNS enrichment for source IP address: %v error: %v", ipAddr, err)
-		}
-	}()
-
-	select {
-	case <-done:
+	asyncCallBack := func(h string, e error) {
+		q.logger.Info("ASYNC CALLBACK CALLED")
 		mu.Lock()
-		defer mu.Unlock()
-		return hostname, err
-	case <-ctx.Done():
-		return "", fmt.Errorf("timeout reached while resolving hostname for IP address %v", ipAddr)
+		hostname = h
+		internalErr = e
+		mu.Unlock()
+		q.logger.Infof("Async done with: %s", h)
+		close(done)
+	}
+
+	err := q.GetHostname(
+		netipAddr,
+		func(h string) {
+			mu.Lock()
+			hostname = h
+			mu.Unlock()
+			q.logger.Infof("Sync done with: %s", h)
+			close(done)
+		},
+		asyncCallBack,
+	)
+	if err != nil {
+		q.logger.Tracef("Error resolving reverse DNS enrichment for source IP address: %v error: %v", ipAddr, err)
+	}
+
+	for {
+		select {
+		case <-done:
+			mu.Lock()
+			defer mu.Unlock()
+			q.logger.Infof("Returning hostname: %s, err: %v", hostname, err)
+			q.logger.Infof("EXITING THE GetHostnameSync FUNCTION with internalErr: %v", internalErr)
+			return hostname, err
+		case <-ctx.Done():
+			q.logger.Infof("Timed out!")
+			return "", fmt.Errorf("timeout reached while resolving hostname for IP address %v", ipAddr)
+		}
 	}
 }
 

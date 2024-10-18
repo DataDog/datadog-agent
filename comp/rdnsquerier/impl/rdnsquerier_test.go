@@ -1216,16 +1216,13 @@ func TestGetHostnameSyncTimeouts(t *testing.T) {
 	// Set up with a delay to simulate timeout
 	ts := testSetup(t, overrides, true, nil, 3*time.Second)
 	internalRDNSQuerier := ts.rdnsQuerier.(*rdnsQuerierImpl)
+	ctx, cancel := context.WithTimeout(ts.ctx, 1*time.Millisecond)
 
 	// Test with a timeout exceeding the specified timeout limit
-	hostname, err := internalRDNSQuerier.GetHostnameSync("192.168.1.102", 1*time.Millisecond)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "timeout reached while resolving hostname for IP address 192.168.1.102")
+	hostname, err := internalRDNSQuerier.GetHostnameSync(ctx, "192.168.1.100")
 	assert.Equal(t, "", hostname)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "timeout reached while resolving hostname for IP address 192.168.1.100")
 
-	// Test with the default 2-second timeout
-	hostname, err = internalRDNSQuerier.GetHostnameSync("192.168.1.103")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "timeout reached while resolving hostname for IP address 192.168.1.103")
-	assert.Equal(t, "", hostname)
+	cancel()
 }
