@@ -181,9 +181,9 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	timeout := getConfiguredEVPRequestTimeoutDuration(t.conf)
 	req.Header.Set("X-Datadog-Timeout", strconv.Itoa((int(timeout.Seconds()))))
 	deadline := time.Now().Add(timeout)
-	ctx, ctxCancel := context.WithDeadline(req.Context(), deadline)
+	//nolint:govet,lostcancel we don't need to manually cancel this context, we can rely on the parent context being cancelled
+	ctx, _ := context.WithDeadline(req.Context(), deadline)
 	req = req.WithContext(ctx)
-	defer ctxCancel()
 
 	// Set target URL and API key header (per domain)
 	req.URL.Scheme = "https"

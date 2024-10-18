@@ -127,6 +127,9 @@ func TestActionKill(t *testing.T) {
 				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal == 'SIGUSR2')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.status == 'performed')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
 			})
 
 			return nil
@@ -180,6 +183,9 @@ func TestActionKill(t *testing.T) {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
 				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.exited_at =~ /20.*/)]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.status == 'performed')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
 			})
@@ -331,6 +337,9 @@ func TestActionKillRuleSpecific(t *testing.T) {
 			if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.exited_at =~ /20.*/)]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 				t.Errorf("element not found %s => %v", string(msg.Data), err)
 			}
+			if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.status == 'performed')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+				t.Errorf("element not found %s => %v", string(msg.Data), err)
+			}
 		})
 
 		return nil
@@ -399,6 +408,9 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.exited_at =~ /20.*/)]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.status == 'performed')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
 			})
 
 			return nil
@@ -406,7 +418,7 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 		assert.NoError(t, err)
 	}
 
-	testKillActionIgnored := func(t *testing.T, ruleID string, cmdFunc func(context.Context)) {
+	testKillActionDisarmed := func(t *testing.T, ruleID string, cmdFunc func(context.Context)) {
 		test.msgSender.flush()
 		err := test.GetEventSent(t, func() error {
 			cmdFunc(nil)
@@ -426,8 +438,11 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 			validateMessageSchema(t, string(msg.Data))
 
 			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
-				if _, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions`); err == nil {
-					t.Errorf("unexpected rule action %s", string(msg.Data))
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal == 'SIGKILL')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.status == 'rule_disarmed')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
 			})
 
@@ -447,8 +462,8 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 			})
 		}
 
-		// test that another executable dismars the kill action
-		testKillActionIgnored(t, "kill_action_disarm_executable", func(_ context.Context) {
+		// test that another executable disarms the kill action
+		testKillActionDisarmed(t, "kill_action_disarm_executable", func(_ context.Context) {
 			cmd := exec.Command(sleep, "1")
 			cmd.Env = []string{"TARGETTOKILL=1"}
 			_ = cmd.Run()
@@ -486,8 +501,8 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 		}
 		defer newDockerInstance.stop()
 
-		// test that another container dismars the kill action
-		testKillActionIgnored(t, "kill_action_disarm_container", func(_ context.Context) {
+		// test that another container disarms the kill action
+		testKillActionDisarmed(t, "kill_action_disarm_container", func(_ context.Context) {
 			cmd := newDockerInstance.Command("env", []string{"-i", "-", "TARGETTOKILL=1", "sleep", "1"}, []string{})
 			_ = cmd.Run()
 		})
