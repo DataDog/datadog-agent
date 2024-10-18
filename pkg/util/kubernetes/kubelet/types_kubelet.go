@@ -57,6 +57,7 @@ type Spec struct {
 	SecurityContext   *PodSecurityContextSpec `json:"securityContext,omitempty"`
 	RuntimeClassName  *string                 `json:"runtimeClassName,omitempty"`
 	Tolerations       []Toleration            `json:"tolerations,omitempty"`
+	RestartPolicy     string                  `json:"restartPolicy,omitempty"`
 }
 
 // PodSecurityContextSpec contains fields for unmarshalling a Pod.Spec.SecurityContext
