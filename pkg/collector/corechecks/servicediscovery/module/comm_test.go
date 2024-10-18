@@ -60,6 +60,13 @@ func TestIgnoreComm(t *testing.T) {
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
+// TestIgnoreCommsLengths checks that the map contains names no longer than 15 bytes.
+func TestIgnoreCommsLengths(t *testing.T) {
+	for comm := range ignoreComms {
+		assert.LessOrEqual(t, len(comm), 15, "Process name %q too big", comm)
+	}
+}
+
 // buildLongProc returns the path of a symbolic link to a binary file
 func buildLongProc(t *testing.T) string {
 	curDir, err := httptestutil.CurDir()
@@ -103,7 +110,8 @@ func makeSymLink(b *testing.B, src string, dst string) {
 	}
 }
 
-func startBenchLongCommProcess(b *testing.B) *process.Process {
+// startProcessLongComm starts a process with a long command name, used to benchmark command name extraction.
+func startProcessLongComm(b *testing.B) *process.Process {
 	b.Helper()
 
 	dstPath := filepath.Join(b.TempDir(), longComm)
@@ -128,7 +136,7 @@ func startBenchLongCommProcess(b *testing.B) *process.Process {
 
 // BenchmarkProcName benchmarks reading of entire command name from /proc.
 func BenchmarkProcName(b *testing.B) {
-	proc := startBenchLongCommProcess(b)
+	proc := startProcessLongComm(b)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -139,7 +147,7 @@ func BenchmarkProcName(b *testing.B) {
 			b.Fatal(err)
 		}
 		if len(comm) != len(longComm) {
-			b.Fatalf("wrong comm length, expected: %d, got: %d", len(longComm), len(comm))
+			b.Fatalf("wrong comm length, expected: %d, got: %d (%s)", len(longComm), len(comm), comm)
 		}
 	}
 }
@@ -157,7 +165,7 @@ func getComm(proc *process.Process) (string, error) {
 
 // BenchmarkProcComm benchmarks reading of command name from /proc/<pid>/comm.
 func BenchmarkProcComm(b *testing.B) {
-	proc := startBenchLongCommProcess(b)
+	proc := startProcessLongComm(b)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -168,7 +176,7 @@ func BenchmarkProcComm(b *testing.B) {
 			b.Fatal(err)
 		}
 		if len(comm) != 15 {
-			b.Fatalf("wrong comm length, expected: 15, got: %d", len(comm))
+			b.Fatalf("wrong comm length, expected: 15, got: %d (%s)", len(comm), comm)
 		}
 	}
 }
