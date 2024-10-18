@@ -43,6 +43,7 @@ import (
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	procmontestutil "github.com/DataDog/datadog-agent/pkg/process/monitor/testutil"
 )
 
@@ -851,10 +852,20 @@ func (m requestsMap) String() string {
 	return result.String()
 }
 
+func launchProcessMonitor(t *testing.T, useEventStream bool) {
+	pm := monitor.GetProcessMonitor()
+	t.Cleanup(pm.Stop)
+	require.NoError(t, pm.Initialize(useEventStream))
+	if useEventStream {
+		eventmonitortestutil.StartEventMonitor(t, procmontestutil.RegisterProcessMonitorEventConsumer)
+	}
+}
+
 func setupUSMTLSMonitor(t *testing.T, cfg *config.Config) *Monitor {
 	usmMonitor, err := NewMonitor(cfg, nil)
 	require.NoError(t, err)
 	require.NoError(t, usmMonitor.Start())
+	launchProcessMonitor(t, cfg.EnableUSMEventStream)
 	if cfg.EnableUSMEventStream {
 		eventmonitortestutil.StartEventMonitor(t, procmontestutil.RegisterProcessMonitorEventConsumer)
 	}
