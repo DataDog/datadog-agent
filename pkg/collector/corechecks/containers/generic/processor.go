@@ -190,6 +190,13 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 		p.sendMetric(sender.Gauge, "container.pid.thread_limit", containerStats.PID.ThreadLimit, tags)
 	}
 
+	restartCount := float64(container.RestartCount)
+	restartPolicy := "unknown"
+	if container.RestartPolicy != "" {
+		restartPolicy = container.RestartPolicy
+	}
+	p.sendMetric(sender.Gauge, "container.restarts", &restartCount, append(tags, "restart_policy:"+restartPolicy))
+
 	return nil
 }
 

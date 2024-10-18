@@ -148,9 +148,14 @@ func ParseV4TaskContainers(
 				Networks:      make([]workloadmeta.ContainerNetwork, 0, len(container.Networks)),
 				Volumes:       make([]workloadmeta.ContainerVolume, 0, len(container.Volumes)),
 			},
-			Image:      image,
-			NetworkIPs: ips,
-			Ports:      make([]workloadmeta.ContainerPort, 0, len(container.Ports)),
+			Image:        image,
+			NetworkIPs:   ips,
+			Ports:        make([]workloadmeta.ContainerPort, 0, len(container.Ports)),
+			RestartCount: container.RestartCount,
+			// The restart policy in ECS is an object, not a string like in docker (no, always, on-failure).
+			// Besides, it can be fetched from the task definition, not from /task endpoint.
+			// https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#container_definition_restart_policy
+			RestartPolicy: "ecs",
 		}
 
 		containerEvent.Resources = workloadmeta.ContainerResources{}
