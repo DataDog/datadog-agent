@@ -784,6 +784,7 @@ core,github.com/containerd/containerd/remotes/docker/schema1,Apache-2.0,"Copyrig
 core,github.com/containerd/containerd/remotes/errors,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/rootfs,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/runtime/linux/runctypes,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/runtime/restart,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/runtime/v2/runc/options,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/sandbox,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/sandbox/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
