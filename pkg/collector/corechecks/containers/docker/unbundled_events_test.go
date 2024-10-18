@@ -301,12 +301,13 @@ pokemon/azurill 1 top on test-host
 		t.Run(tt.name, func(t *testing.T) {
 			var eventTransformer eventTransformer = noopEventTransformer{}
 			if tt.bundleUnspecifedEvents {
-				eventTransformer = newBundledTransformer(hostname, tt.filteredEventTypes)
+				eventTransformer = newBundledTransformer(hostname, tt.filteredEventTypes, fakeTagger)
 			}
 			transformer := newUnbundledTransformer(
 				hostname,
 				tt.collectedEventTypes,
 				eventTransformer,
+				fakeTagger,
 			)
 			evs, errs := transformer.Transform(incomingEvents)
 			require.Nil(t, errs)
