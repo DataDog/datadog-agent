@@ -9,11 +9,13 @@
 package probes
 
 import (
-	"fmt"
-
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
+	"github.com/cloudflare/cbpfc"
+	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcap"
+	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
 )
 
@@ -78,35 +80,85 @@ var RawPacketTCProgram = []string{
 
 // GetRawPacketTCFilterProg returns a first tc filter
 func GetRawPacketTCFilterProg(rawPacketEventMapFd, clsRouterMapFd int) (*ebpf.ProgramSpec, error) {
+	pcapBPF, err := pcap.CompileBPFFilter(layers.LinkTypeEthernet, 256, "port 5555")
+	if err != nil {
+		return nil, err
+	}
+	bpfInsts := make([]bpf.Instruction, len(pcapBPF))
+	for i, ri := range pcapBPF {
+		bpfInsts[i] = bpf.RawInstruction{Op: ri.Code, Jt: ri.Jt, Jf: ri.Jf, K: ri.K}.Disassemble()
+	}
+
 	const (
-		ctxReg  = asm.R9
-		dataReg = asm.R6
+		ctxReg = asm.R9
+
+		// raw packet data, see kernel definition
+		dataSize   = 256
+		dataOffset = 164
 	)
 
+	opts := cbpfc.EBPFOpts{
+		PacketStart: asm.R1,
+		PacketEnd:   asm.R2,
+		Result:      asm.R3,
+		Working: [4]asm.Register{
+			asm.R4,
+			asm.R5,
+			asm.R6,
+			asm.R7,
+		},
+		LabelPrefix: "cbpfc-",
+		ResultLabel: "result",
+		StackOffset: 16, // adapt using the stack used outside of the filter itself, ex: map_lookup
+	}
+
+	filterInsts, err := cbpfc.ToEBPF(bpfInsts, opts)
+	if err != nil {
+		return nil, err
+	}
+
 	insts := asm.Instructions{
+		// save ctx
+		asm.Mov.Reg(ctxReg, asm.R1),
+	}
+	insts = append(insts,
 		// save ctx
 		asm.Mov.Reg(ctxReg, asm.R1),
 
 		// load raw event
 		asm.Mov.Reg(asm.R2, asm.RFP),
 		asm.Add.Imm(asm.R2, -4),
-		asm.StoreImm(asm.R2, 0, 0, asm.Word),
+		asm.StoreImm(asm.R2, 0, 0, asm.Word), // index 0
 		asm.LoadMapPtr(asm.R1, rawPacketEventMapFd),
 		asm.FnMapLookupElem.Call(),
 		asm.JNE.Imm(asm.R0, 0, "raw-packet-event-not-null"),
 		asm.Return(),
-		asm.Mov.Reg(dataReg, asm.R0).WithSymbol("raw-packet-event-not-null"),
 
-		// jump to the send event program
-		asm.Mov.Reg(asm.R1, ctxReg),
+		// place in result in the start register and end register
+		asm.Mov.Reg(opts.PacketStart, asm.R0).WithSymbol("raw-packet-event-not-null"),
+		asm.Add.Imm(opts.PacketStart, dataOffset),
+		asm.Mov.Reg(opts.PacketEnd, opts.PacketStart),
+		asm.Add.Imm(opts.PacketEnd, dataSize),
+	)
+
+	// insert the filter
+	insts = append(insts, filterInsts...)
+
+	// filter output
+	insts = append(insts,
+		asm.JNE.Imm(opts.Result, 0, "send-event").WithSymbol(opts.ResultLabel),
+		asm.Return(),
+	)
+
+	// tail call to the send event program
+	insts = append(insts,
+		asm.Mov.Reg(asm.R1, ctxReg).WithSymbol("send-event"),
 		asm.LoadMapPtr(asm.R2, clsRouterMapFd),
 		asm.Mov.Imm(asm.R3, int32(TCRawPacketParserKey)),
 		asm.FnTailCall.Call(),
 		asm.Mov.Imm(asm.R0, 0),
 		asm.Return(),
-	}
-
-	fmt.Printf("INS: %+v\n", insts)
+	)
 
 	return &ebpf.ProgramSpec{
 		Type:         ebpf.SchedCLS,
