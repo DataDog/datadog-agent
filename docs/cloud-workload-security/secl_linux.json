@@ -1836,29 +1836,24 @@
           "property_doc_link": "common-ipportcontext-port-doc"
         },
         {
-          "name": "network.device.ifindex",
-          "definition": "Interface ifindex",
-          "property_doc_link": "network-device-ifindex-doc"
-        },
-        {
           "name": "network.device.ifname",
           "definition": "Interface ifname",
-          "property_doc_link": "network-device-ifname-doc"
+          "property_doc_link": "common-networkdevicecontext-ifname-doc"
         },
         {
           "name": "network.l3_protocol",
           "definition": "L3 protocol of the network packet",
-          "property_doc_link": "network-l3_protocol-doc"
+          "property_doc_link": "common-networkcontext-l3_protocol-doc"
         },
         {
           "name": "network.l4_protocol",
           "definition": "L4 protocol of the network packet",
-          "property_doc_link": "network-l4_protocol-doc"
+          "property_doc_link": "common-networkcontext-l4_protocol-doc"
         },
         {
           "name": "network.size",
           "definition": "Size in bytes of the network packet",
-          "property_doc_link": "network-size-doc"
+          "property_doc_link": "common-networkcontext-size-doc"
         },
         {
           "name": "network.source.ip",
@@ -2763,29 +2758,24 @@
           "property_doc_link": "common-ipportcontext-port-doc"
         },
         {
-          "name": "network.device.ifindex",
-          "definition": "Interface ifindex",
-          "property_doc_link": "network-device-ifindex-doc"
-        },
-        {
           "name": "network.device.ifname",
           "definition": "Interface ifname",
-          "property_doc_link": "network-device-ifname-doc"
+          "property_doc_link": "common-networkdevicecontext-ifname-doc"
         },
         {
           "name": "network.l3_protocol",
           "definition": "L3 protocol of the network packet",
-          "property_doc_link": "network-l3_protocol-doc"
+          "property_doc_link": "common-networkcontext-l3_protocol-doc"
         },
         {
           "name": "network.l4_protocol",
           "definition": "L4 protocol of the network packet",
-          "property_doc_link": "network-l4_protocol-doc"
+          "property_doc_link": "common-networkcontext-l4_protocol-doc"
         },
         {
           "name": "network.size",
           "definition": "Size in bytes of the network packet",
-          "property_doc_link": "network-size-doc"
+          "property_doc_link": "common-networkcontext-size-doc"
         },
         {
           "name": "network.source.ip",
@@ -3619,6 +3609,60 @@
           "name": "open.syscall.path",
           "definition": "Path argument of the syscall",
           "property_doc_link": "open-syscall-path-doc"
+        }
+      ]
+    },
+    {
+      "name": "packet",
+      "definition": "A raw network packet captured",
+      "type": "Network",
+      "from_agent_version": "7.60",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "packet.destination.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "packet.destination.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "packet.device.ifname",
+          "definition": "Interface ifname",
+          "property_doc_link": "common-networkdevicecontext-ifname-doc"
+        },
+        {
+          "name": "packet.l3_protocol",
+          "definition": "L3 protocol of the network packet",
+          "property_doc_link": "common-networkcontext-l3_protocol-doc"
+        },
+        {
+          "name": "packet.l4_protocol",
+          "definition": "L4 protocol of the network packet",
+          "property_doc_link": "common-networkcontext-l4_protocol-doc"
+        },
+        {
+          "name": "packet.size",
+          "definition": "Size in bytes of the network packet",
+          "property_doc_link": "common-networkcontext-size-doc"
+        },
+        {
+          "name": "packet.source.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "packet.source.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "packet.tls.version",
+          "definition": "TLS version",
+          "property_doc_link": "packet-tls-version-doc"
         }
       ]
     },
@@ -8030,6 +8074,19 @@
       "examples": []
     },
     {
+      "name": "*.ifname",
+      "link": "common-networkdevicecontext-ifname-doc",
+      "type": "string",
+      "definition": "Interface ifname",
+      "prefixes": [
+        "network.device",
+        "packet.device"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.in_upper_layer",
       "link": "common-filefields-in_upper_layer-doc",
       "type": "bool",
@@ -8149,7 +8206,9 @@
       "prefixes": [
         "bind.addr",
         "network.destination",
-        "network.source"
+        "network.source",
+        "packet.destination",
+        "packet.source"
       ],
       "constants": "",
       "constants_link": "",
@@ -8263,6 +8322,32 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.l3_protocol",
+      "link": "common-networkcontext-l3_protocol-doc",
+      "type": "int",
+      "definition": "L3 protocol of the network packet",
+      "prefixes": [
+        "network",
+        "packet"
+      ],
+      "constants": "L3 protocols",
+      "constants_link": "l3-protocols",
+      "examples": []
+    },
+    {
+      "name": "*.l4_protocol",
+      "link": "common-networkcontext-l4_protocol-doc",
+      "type": "int",
+      "definition": "L4 protocol of the network packet",
+      "prefixes": [
+        "network",
+        "packet"
+      ],
+      "constants": "L4 protocols",
+      "constants_link": "l4-protocols",
       "examples": []
     },
     {
@@ -8834,7 +8919,9 @@
       "prefixes": [
         "bind.addr",
         "network.destination",
-        "network.source"
+        "network.source",
+        "packet.destination",
+        "packet.source"
       ],
       "constants": "",
       "constants_link": "",
@@ -8943,6 +9030,19 @@
       ],
       "constants": "File mode constants",
       "constants_link": "file-mode-constants",
+      "examples": []
+    },
+    {
+      "name": "*.size",
+      "link": "common-networkcontext-size-doc",
+      "type": "int",
+      "definition": "Size in bytes of the network packet",
+      "prefixes": [
+        "network",
+        "packet"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -9979,66 +10079,6 @@
       "examples": []
     },
     {
-      "name": "network.device.ifindex",
-      "link": "network-device-ifindex-doc",
-      "type": "int",
-      "definition": "Interface ifindex",
-      "prefixes": [
-        "network.device"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "network.device.ifname",
-      "link": "network-device-ifname-doc",
-      "type": "string",
-      "definition": "Interface ifname",
-      "prefixes": [
-        "network.device"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "network.l3_protocol",
-      "link": "network-l3_protocol-doc",
-      "type": "int",
-      "definition": "L3 protocol of the network packet",
-      "prefixes": [
-        "network"
-      ],
-      "constants": "L3 protocols",
-      "constants_link": "l3-protocols",
-      "examples": []
-    },
-    {
-      "name": "network.l4_protocol",
-      "link": "network-l4_protocol-doc",
-      "type": "int",
-      "definition": "L4 protocol of the network packet",
-      "prefixes": [
-        "network"
-      ],
-      "constants": "L4 protocols",
-      "constants_link": "l4-protocols",
-      "examples": []
-    },
-    {
-      "name": "network.size",
-      "link": "network-size-doc",
-      "type": "int",
-      "definition": "Size in bytes of the network packet",
-      "prefixes": [
-        "network"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
       "name": "open.file.destination.mode",
       "link": "open-file-destination-mode-doc",
       "type": "int",
@@ -10093,6 +10133,18 @@
       "definition": "Path argument of the syscall",
       "prefixes": [
         "open"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "packet.tls.version",
+      "link": "packet-tls-version-doc",
+      "type": "int",
+      "definition": "TLS version",
+      "prefixes": [
+        "packet.tls"
       ],
       "constants": "",
       "constants_link": "",

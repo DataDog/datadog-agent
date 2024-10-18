@@ -33,16 +33,12 @@
 #include "rtloader_mem.h"
 
 #if __linux__
-#    define DATADOG_AGENT_TWO "libdatadog-agent-two.so"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.so"
 #elif __APPLE__
-#    define DATADOG_AGENT_TWO "libdatadog-agent-two.dylib"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.dylib"
 #elif __FreeBSD__
-#    define DATADOG_AGENT_TWO "libdatadog-agent-two.so"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.so"
 #elif _WIN32
-#    define DATADOG_AGENT_TWO "libdatadog-agent-two.dll"
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.dll"
 #else
 #    error Platform not supported
@@ -69,7 +65,7 @@ static void *rtloader_backend = NULL;
     \return A create_t * function pointer that will allow us to create the relevant python
     backend. In case of failure NULL is returned and the error string is set on the output
     parameter.
-    \sa create_t, make2, make3
+    \sa create_t, make3
 
     This function is windows only. Required by the backend "makers".
 */
@@ -100,21 +96,6 @@ create_t *loadAndCreate(const char *dll, const char *python_home, char **error)
         return NULL;
     }
     return create;
-}
-
-rtloader_t *make2(const char *python_home, const char *python_exe, char **error)
-{
-
-    if (rtloader_backend != NULL) {
-        *error = strdupe("RtLoader already initialized!");
-        return NULL;
-    }
-
-    create_t *create = loadAndCreate(DATADOG_AGENT_TWO, python_home, error);
-    if (!create) {
-        return NULL;
-    }
-    return AS_TYPE(rtloader_t, create(python_home, python_exe, _get_memory_tracker_cb()));
 }
 
 rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
@@ -152,37 +133,6 @@ void destroy(rtloader_t *rtloader)
 }
 
 #else
-rtloader_t *make2(const char *python_home, const char *python_exe, char **error)
-{
-    if (rtloader_backend != NULL) {
-        std::string err_msg = "RtLoader already initialized!";
-        *error = strdupe(err_msg.c_str());
-        return NULL;
-    }
-    // load library
-    rtloader_backend = dlopen(DATADOG_AGENT_TWO, RTLD_LAZY | RTLD_GLOBAL);
-    if (!rtloader_backend) {
-        std::ostringstream err_msg;
-        err_msg << "Unable to open two library: " << dlerror();
-        *error = strdupe(err_msg.str().c_str());
-        return NULL;
-    }
-
-    // reset dl errors
-    dlerror();
-
-    // dlsym class factory
-    create_t *create = (create_t *)dlsym(rtloader_backend, "create");
-    const char *dlsym_error = dlerror();
-    if (dlsym_error) {
-        std::ostringstream err_msg;
-        err_msg << "Unable to open two factory: " << dlsym_error;
-        *error = strdupe(err_msg.str().c_str());
-        return NULL;
-    }
-
-    return AS_TYPE(rtloader_t, create(python_home, python_exe, _get_memory_tracker_cb()));
-}
 
 rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
 {

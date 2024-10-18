@@ -31,21 +31,6 @@ char *as_string(PyObject *object)
 
     char *retval = NULL;
 
-// DATADOG_AGENT_THREE implementation is the default
-#ifdef DATADOG_AGENT_TWO
-    if (!PyString_Check(object) && !PyUnicode_Check(object)) {
-        return NULL;
-    }
-
-    char *tmp = PyString_AsString(object);
-    if (tmp == NULL) {
-        // PyString_AsString might raise an error when python can't encode a
-        // unicode string to byte
-        PyErr_Clear();
-        return NULL;
-    }
-    retval = strdupe(tmp);
-#else
     PyObject *temp_bytes = NULL;
 
     if (PyBytes_Check(object)) {
@@ -67,7 +52,6 @@ char *as_string(PyObject *object)
 
     retval = strdupe(PyBytes_AS_STRING(temp_bytes));
     Py_XDECREF(temp_bytes);
-#endif
 
     return retval;
 }

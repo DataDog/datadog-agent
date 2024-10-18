@@ -586,3 +586,15 @@ func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(_ *Event) (*ProcessCacheE
 func (dfh *FakeFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerContext, bool) {
 	return nil, false
 }
+
+// TLSContext represents a tls context
+type TLSContext struct {
+	Version uint16 `field:"version"` // SECLDoc[version] Definition:`TLS version`
+}
+
+// RawPacketEvent represents a packet event
+type RawPacketEvent struct {
+	NetworkContext
+
+	TLSContext TLSContext `field:"tls"` // SECLDoc[tls] Definition:`TLS context`
+}
