@@ -55,6 +55,11 @@ var allSubsystems = map[string]subsystemFactory{}
 
 // NewCollector creates a new Collector that will collect metrics from the given NVML library.
 func NewCollector(lib nvml.Interface) (*Collector, error) {
+	return newCollectorWithSubsystems(lib, allSubsystems)
+}
+
+// newCollectorWithSubsystems allows specifying which subsystems to use when creating the collector, useful for tests.
+func newCollectorWithSubsystems(lib nvml.Interface, subsystems map[string]subsystemFactory) (*Collector, error) {
 	ret := nvml.SUCCESS
 	coll := &Collector{
 		lib: lib,
@@ -74,7 +79,7 @@ func NewCollector(lib nvml.Interface) (*Collector, error) {
 		coll.devices = append(coll.devices, dev)
 	}
 
-	for name, factory := range allSubsystems {
+	for name, factory := range subsystems {
 		subsystem, err := factory(lib, coll.devices)
 		if err != nil {
 			coll.Close() // Close all previously created subsystems
@@ -95,9 +100,9 @@ func (coll *Collector) Collect() ([]Metric, error) {
 	var err error
 
 	for _, dev := range coll.devices {
-		tags, err := getTagsFromDevice(dev)
-		if err != nil {
-			return allMetrics, fmt.Errorf("failed to get tags for device: %w", err)
+		tags, tagsErr := getTagsFromDevice(dev)
+		if tagsErr != nil {
+			return allMetrics, fmt.Errorf("failed to get tags for device: %w", tagsErr)
 		}
 
 		for _, subsystem := range coll.collectors {
