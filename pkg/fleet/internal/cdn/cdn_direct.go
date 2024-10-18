@@ -43,7 +43,7 @@ func newDirect(env *env.Env, configDBPath string) (CDN, error) {
 	ht := newHostTagsGetter()
 	hostname, err := pkghostname.Get(ctx)
 	if err != nil {
-		return nil, err
+		hostname = "unknown"
 	}
 
 	// Remove previous DB if needed
@@ -60,12 +60,12 @@ func newDirect(env *env.Env, configDBPath string) (CDN, error) {
 	}
 
 	service, err := remoteconfig.NewService(
-		pkgconfigsetup.Datadog(), // May not be filled
+		pkgconfigsetup.Datadog(), // May not be filled as we don't read the config when we're not in the daemon, in which case we'll use the defaults
 		"Datadog Installer",
 		fmt.Sprintf("https://config.%s", env.Site),
 		hostname,
-		func() []string { return append(ht.get(), "installer:true") }, // Add a tag to identify the installer
-		&rctelemetryreporterimpl.DdRcTelemetryReporter{},              // No telemetry for this client
+		ht.get,
+		&rctelemetryreporterimpl.DdRcTelemetryReporter{}, // No telemetry for this client
 		version.AgentVersion,
 		options...,
 	)
@@ -83,12 +83,13 @@ func newDirect(env *env.Env, configDBPath string) (CDN, error) {
 }
 
 func (c *cdnDirect) Get(ctx context.Context, pkg string) (cfg Config, err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "cdn_direct.Get")
+	span, _ := tracer.StartSpanFromContext(ctx, "cdn.Get")
+	span.SetTag("cdn_type", "remote_config")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 
 	switch pkg {
 	case "datadog-agent":
-		orderConfig, layers, err := c.get(ctx, 0)
+		orderConfig, layers, err := c.get(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -104,16 +105,18 @@ func (c *cdnDirect) Get(ctx context.Context, pkg string) (cfg Config, err error)
 }
 
 // get calls the Remote Config service to get the ordered layers.
-func (c *cdnDirect) get(ctx context.Context, retry int) (*orderConfig, [][]byte, error) {
+func (c *cdnDirect) get(ctx context.Context) (*orderConfig, [][]byte, error) {
 	agentConfigUpdate, err := c.rcService.ClientGetConfigs(ctx, &pbgo.ClientGetConfigsRequest{
 		Client: &pbgo.Client{
-			Id:            c.clientUUID,
-			Products:      []string{"AGENT_CONFIG"},
-			IsUpdater:     true,
-			ClientUpdater: &pbgo.ClientUpdater{},
+			Id:        c.clientUUID,
+			Products:  []string{"AGENT_CONFIG"},
+			IsUpdater: true,
+			ClientUpdater: &pbgo.ClientUpdater{
+				Tags: []string{"installer:true"},
+			},
 			State: &pbgo.ClientState{
 				RootVersion:    c.currentRootsVersion,
-				TargetsVersion: 1,
+				TargetsVersion: 0,
 			},
 		},
 	})
@@ -167,13 +170,6 @@ func (c *cdnDirect) get(ctx context.Context, retry int) (*orderConfig, [][]byte,
 	}
 	if layersErr != nil {
 		return nil, nil, layersErr
-	}
-
-	if configOrder == nil && retry < 10 {
-		// Retry for up to 10 seconds to get the order config
-		time.Sleep(1 * time.Second)
-		return c.get(ctx, retry+1)
-
 	}
 	return configOrder, configLayers, nil
 }
