@@ -45,14 +45,14 @@ func NewEmptyExecNode() *ExecNode {
 	return &ExecNode{}
 }
 
-// NewExecNodeFromEvent returns a new exec node from a given event, and if any, use
+// NewExecNodeFromProcess returns a new exec node from a given event, and if any, use
 // the provided key to assign it (otherwise it will choose a random one)
-func NewExecNodeFromEvent(event *model.Event, key interface{}) *ExecNode {
+func NewExecNodeFromProcess(process *model.Process, key interface{}) *ExecNode {
 	if key == nil {
 		key = rand.Uint64()
 	}
 	exec := NewEmptyExecNode()
-	exec.Process = event.ProcessContext.Process
+	exec.Process = *process
 	exec.Key = key
 	return exec
 }
