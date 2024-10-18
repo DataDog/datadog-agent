@@ -6,6 +6,7 @@
 package sender
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
-	flushChan := make(chan struct{})
+	flushChan := make(chan *sync.WaitGroup)
 
 	s := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{})
 	s.Start()
@@ -48,7 +49,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
-	flushChan := make(chan struct{})
+	flushChan := make(chan *sync.WaitGroup)
 	timerInterval := 100 * time.Millisecond
 
 	clk := clock.NewMock()
@@ -74,7 +75,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
-	flushChan := make(chan struct{})
+	flushChan := make(chan *sync.WaitGroup)
 
 	clk := clock.NewMock()
 	s := newBatchStrategyWithClock(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", clk, &identityContentType{})
@@ -100,7 +101,7 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
-	flushChan := make(chan struct{})
+	flushChan := make(chan *sync.WaitGroup)
 
 	s := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{})
 	s.Start()
@@ -122,7 +123,7 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 	input := make(chan *message.Message)
 	// output needs to be buffered so the flush has somewhere to write to without blocking
 	output := make(chan *message.Payload)
-	flushChan := make(chan struct{})
+	flushChan := make(chan *sync.WaitGroup)
 
 	// batch size is large so it will not flush until we trigger it manually
 	// flush time is large so it won't automatically trigger during this test
@@ -167,7 +168,7 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 func TestBatchStrategyFlushChannel(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
-	flushChan := make(chan struct{})
+	flushChan := make(chan *sync.WaitGroup)
 
 	// batch size is large so it will not flush until we trigger it manually
 	// flush time is large so it won't automatically trigger during this test
@@ -192,7 +193,7 @@ func TestBatchStrategyFlushChannel(t *testing.T) {
 	}
 
 	// Trigger a manual flush
-	flushChan <- struct{}{}
+	flushChan <- &sync.WaitGroup{}
 
 	assert.ElementsMatch(t, messages, (<-output).Messages)
 
