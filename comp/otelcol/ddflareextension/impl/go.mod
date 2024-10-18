@@ -123,7 +123,6 @@ require (
 	go.opentelemetry.io/collector/component/componentstatus v0.111.0
 	go.opentelemetry.io/collector/config/confighttp v0.111.0
 	go.opentelemetry.io/collector/confmap v1.17.0
-	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.111.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v1.17.0
 	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.17.0
 	go.opentelemetry.io/collector/confmap/provider/httpprovider v1.17.0

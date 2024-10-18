@@ -23,7 +23,6 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
-	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
@@ -174,9 +173,7 @@ func newResolverSettings(uris []string, enhanced bool) confmap.ResolverSettings 
 }
 
 func newConverterFactorie(enhanced bool) []confmap.ConverterFactory {
-	converterFactories := []confmap.ConverterFactory{
-		expandconverter.NewFactory(),
-	}
+	converterFactories := []confmap.ConverterFactory{}
 
 	converter, err := converterimpl.NewConverter(converterimpl.Requires{})
 	if err != nil {

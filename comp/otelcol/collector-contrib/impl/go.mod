@@ -35,6 +35,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.111.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator v0.111.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.111.0
+	go.opentelemetry.io/collector/component v0.111.0
 	go.opentelemetry.io/collector/connector v0.111.0
 	go.opentelemetry.io/collector/exporter v0.111.0
 	go.opentelemetry.io/collector/exporter/debugexporter v0.111.0
@@ -238,7 +239,6 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/collector v0.111.0 // indirect
 	go.opentelemetry.io/collector/client v1.17.0 // indirect
-	go.opentelemetry.io/collector/component v0.111.0 // indirect
 	go.opentelemetry.io/collector/component/componentprofiles v0.111.0 // indirect
 	go.opentelemetry.io/collector/component/componentstatus v0.111.0 // indirect
 	go.opentelemetry.io/collector/config/configauth v0.111.0 // indirect

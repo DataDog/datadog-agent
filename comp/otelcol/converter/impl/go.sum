@@ -238,8 +238,6 @@ github.com/yusufpapurcu/wmi v1.2.4/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQ
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.opentelemetry.io/collector/confmap v1.17.0 h1:5UKHtPGtzNGaOGBsJ6aFpvsKElNUXOVuErBfC0eTWLM=
 go.opentelemetry.io/collector/confmap v1.17.0/go.mod h1:GrIZ12P/9DPOuTpe2PIS51a0P/ZM6iKtByVee1Uf3+k=
-go.opentelemetry.io/collector/confmap/converter/expandconverter v0.111.0 h1:FlrfejpK6J+OytGuYEElrVZGjP4D3mTQUcqe/tkIMZQ=
-go.opentelemetry.io/collector/confmap/converter/expandconverter v0.111.0/go.mod h1:7wnSpMS3KE6wBUG8OhQELPBJod5gV6SgSbJEEpBwlR0=
 go.opentelemetry.io/collector/confmap/provider/envprovider v0.111.0 h1:Ip2KeNRdF6alndCXE6QrxUyq8LUTh+1IvaANEI95pSo=
 go.opentelemetry.io/collector/confmap/provider/envprovider v0.111.0/go.mod h1:jyFbV9hLrYJf2zNjqcpzkzB6zmPj/Ohr+S+vmPuxyMY=
 go.opentelemetry.io/collector/confmap/provider/fileprovider v0.111.0 h1:4u+jXuvV20sBQOEzDlXlo7tT5dC+rHqjxW+JaPwl8W8=

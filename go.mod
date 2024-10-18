@@ -738,7 +738,6 @@ require (
 	github.com/swaggest/jsonschema-go v0.3.70
 	github.com/valyala/fastjson v1.6.4
 	github.com/vibrantbyte/go-antpath v1.1.1
-	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.111.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v1.17.0
 	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.17.0
 	go.opentelemetry.io/collector/confmap/provider/httpprovider v1.17.0

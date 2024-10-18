@@ -45,7 +45,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.2
 	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/collector/confmap v1.17.0
-	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.111.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v0.111.0
 	go.opentelemetry.io/collector/confmap/provider/fileprovider v0.111.0
 	go.opentelemetry.io/collector/confmap/provider/httpprovider v0.111.0
