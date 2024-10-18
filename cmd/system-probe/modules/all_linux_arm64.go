@@ -20,10 +20,6 @@ var All = []module.Factory{
 	NetworkTracer,
 	TCPQueueLength,
 	OOMKillProbe,
-	ProcessMonitor,
-	// there is a dependency from EventMonitor -> NetworkTracer,ProcessMonitor
-	// so EventMonitor has to follow NetworkTracer and ProcessMonitor
-	EventMonitor,
 	Process,
 	DynamicInstrumentation,
 	LanguageDetectionModule,
@@ -32,6 +28,12 @@ var All = []module.Factory{
 	Traceroute,
 	DiscoveryModule,
 	GPUMonitoring,
+	// Other modules (NetworkTracer,GpuMonitoring,DynamicInstrumentation) use the process
+	// monitor so they must set up their callbacks before we call initializes
+	ProcessMonitor,
+	// EventMonitor must be initialized after ProcessMonitor, if we are using EventStream
+	// for process monitoring, starting the event monitor will scan existing processes
+	EventMonitor,
 }
 
 func inactivityEventLog(_ time.Duration) {
