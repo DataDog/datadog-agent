@@ -240,7 +240,7 @@ func (c *systemCollector) GetContainerIDForInode(inode uint64, cacheValidity tim
 
 		cg = c.reader.GetCgroupByInode(inode)
 		if cg == nil {
-			return "", fmt.Errorf("containerID not found from inode %d, err: %w", inode, err)
+			return "", fmt.Errorf("containerID not found from inode %d", inode)
 		}
 	}
 
