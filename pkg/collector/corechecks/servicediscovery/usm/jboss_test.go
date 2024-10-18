@@ -211,8 +211,7 @@ func TestJbossExtractWarContextRoot(t *testing.T) {
 			if len(tt.location) > 0 {
 				memFs[tt.location] = &fstest.MapFile{Data: []byte(tt.jbossWebXML)}
 			}
-			dc := NewDetectionContext(0, nil, envs.NewVariables(nil), memFs, nil)
-			value, ok := newJbossExtractor(dc).customExtractWarContextRoot(dc.fs)
+			value, ok := newJbossExtractor(NewDetectionContext(nil, envs.NewVariables(nil), nil)).customExtractWarContextRoot(memFs)
 			require.Equal(t, tt.expected, value)
 			require.Equal(t, len(value) > 0, ok)
 		})
@@ -403,8 +402,7 @@ func TestJbossFindDeployedApps(t *testing.T) {
 			envsMap := map[string]string{
 				"PWD": "/sibling",
 			}
-			dc := NewDetectionContext(0, tt.args, envs.NewVariables(envsMap), tt.fs, nil)
-			value, ok := newJbossExtractor(dc).findDeployedApps(tt.domainHome)
+			value, ok := newJbossExtractor(NewDetectionContext(tt.args, envs.NewVariables(envsMap), tt.fs)).findDeployedApps(tt.domainHome)
 			require.Equal(t, tt.expected, value)
 			require.Equal(t, len(value) > 0, ok)
 		})

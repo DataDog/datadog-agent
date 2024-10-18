@@ -619,13 +619,14 @@ func TestExtractServiceMetadata(t *testing.T) {
 				t.Skip("Not supported on Windows")
 			}
 
-			var f fs.SubFS
-			f = RealFs{}
+			var fs fs.SubFS
+			fs = RealFs{}
 			if tt.fs != nil {
-				f = *tt.fs
+				fs = *tt.fs
 			}
-			dc := NewDetectionContext(0, tt.cmdline, envs.NewVariables(tt.envs), f, make(DetectorContextMap))
-			meta, ok := ExtractServiceMetadata(tt.lang, dc)
+			ctx := NewDetectionContext(tt.cmdline, envs.NewVariables(tt.envs), fs)
+			ctx.ContextMap = make(DetectorContextMap)
+			meta, ok := ExtractServiceMetadata(tt.lang, ctx)
 			if len(tt.expectedGeneratedName) == 0 && len(tt.expectedDDService) == 0 {
 				require.False(t, ok)
 			} else {

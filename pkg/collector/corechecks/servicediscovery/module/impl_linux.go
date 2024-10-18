@@ -354,10 +354,12 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 
 	contextMap := make(usm.DetectorContextMap)
 	fs := usm.NewSubDirFS(root)
-	dc := usm.NewDetectionContext(int(proc.Pid), cmdline, env, fs, contextMap)
+	ctx := usm.NewDetectionContext(cmdline, env, fs)
+	ctx.Pid = int(proc.Pid)
+	ctx.ContextMap = contextMap
 
-	nameMeta := servicediscovery.GetServiceName(lang, dc)
-	apmInstrumentation := apm.Detect(lang, dc)
+	nameMeta := servicediscovery.GetServiceName(lang, ctx)
+	apmInstrumentation := apm.Detect(lang, ctx)
 
 	return &serviceInfo{
 		generatedName:      nameMeta.Name,

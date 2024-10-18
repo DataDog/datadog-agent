@@ -121,13 +121,12 @@ type DetectionContext struct {
 }
 
 // NewDetectionContext initializes DetectionContext.
-func NewDetectionContext(pid int, args []string, envs envs.Variables, fs fs.SubFS, contextMap DetectorContextMap) DetectionContext {
+func NewDetectionContext(args []string, envs envs.Variables, fs fs.SubFS) DetectionContext {
 	return DetectionContext{
-		Pid:        pid,
-		Args:       args,
-		Envs:       envs,
-		fs:         fs,
-		ContextMap: contextMap,
+		Pid:  0,
+		Args: args,
+		Envs: envs,
+		fs:   fs,
 	}
 }
 
@@ -206,8 +205,8 @@ func serviceNameInjected(envs envs.Variables) bool {
 }
 
 // ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.
-func ExtractServiceMetadata(lang language.Language, dc DetectionContext) (metadata ServiceMetadata, success bool) {
-	cmd := dc.Args
+func ExtractServiceMetadata(lang language.Language, ctx DetectionContext) (metadata ServiceMetadata, success bool) {
+	cmd := ctx.Args
 	if len(cmd) == 0 || len(cmd[0]) == 0 {
 		return
 	}
@@ -215,9 +214,9 @@ func ExtractServiceMetadata(lang language.Language, dc DetectionContext) (metada
 	// We always return a service name from here on
 	success = true
 
-	if value, ok := chooseServiceNameFromEnvs(dc.Envs); ok {
+	if value, ok := chooseServiceNameFromEnvs(ctx.Envs); ok {
 		metadata.DDService = value
-		metadata.DDServiceInjected = serviceNameInjected(dc.Envs)
+		metadata.DDServiceInjected = serviceNameInjected(ctx.Envs)
 	}
 
 	exe := cmd[0]
@@ -246,7 +245,7 @@ func ExtractServiceMetadata(lang language.Language, dc DetectionContext) (metada
 	}
 
 	if ok {
-		langMeta, ok := detectorProvider(dc).detect(cmd[1:])
+		langMeta, ok := detectorProvider(ctx).detect(cmd[1:])
 
 		// The detector could return a DD Service name (eg. Java, from the
 		// dd.service property), but still fail to generate a service name (ok =
