@@ -77,6 +77,7 @@ type rdnsQuerierImpl struct {
 	started bool
 
 	cache cache
+	mutex sync.Mutex
 }
 
 // NewComponent creates a new rdnsquerier component
@@ -293,6 +294,7 @@ func (q *rdnsQuerierImpl) GetHostnameSync(ipAddr string, timeout ...time.Duratio
 
 	var hostname string
 	var err error
+	var mutex sync.Mutex
 	done := make(chan struct{})
 
 	go func() {
@@ -302,12 +304,16 @@ func (q *rdnsQuerierImpl) GetHostnameSync(ipAddr string, timeout ...time.Duratio
 		err = q.GetHostname(
 			netipAddr,
 			func(h string) {
+				mutex.Lock()
 				hostname = h
+				mutex.Unlock()
 				wg.Done()
 			},
 			func(h string, e error) {
+				mutex.Lock()
 				hostname = h
 				err = e
+				mutex.Unlock()
 				wg.Done()
 			},
 		)
@@ -320,6 +326,8 @@ func (q *rdnsQuerierImpl) GetHostnameSync(ipAddr string, timeout ...time.Duratio
 
 	select {
 	case <-done:
+		mutex.Lock()
+		defer mutex.Unlock()
 		return hostname, err
 	case <-ctx.Done():
 		return "", fmt.Errorf("timeout reached while resolving hostname for IP address %v", ipAddr)
