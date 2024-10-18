@@ -31,6 +31,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/common => ../../../pkg/util/common
+	github.com/DataDog/datadog-agent/pkg/util/clusteragent => ../../../pkg/util/clusteragent
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../../pkg/util/defaultpaths
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../pkg/util/filesystem
@@ -67,6 +68,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.57.1
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/http v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/clusteragent v0.0.1
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.57.1
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.57.1
 	github.com/DataDog/datadog-agent/pkg/version v0.56.0-rc.3
