@@ -363,12 +363,11 @@ func (t *ebpfTracer) Stop() {
 }
 
 func (t *ebpfTracer) GetMap(name string) *ebpf.Map {
-	switch name {
-	case probes.ConnectionProtocolMap:
-	default:
+	m, _, err := t.m.GetMap(name)
+	if err != nil {
+		log.Warnf("error retrieving map %s: %s", name, err)
 		return nil
 	}
-	m, _, _ := t.m.GetMap(name)
 	return m
 }
 

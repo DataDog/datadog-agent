@@ -101,6 +101,9 @@ type Tracer struct {
 	timeResolver *timeresolver.Resolver
 
 	telemetryComp telemetryComponent.Component
+
+	// Used for connection_protocol data expiration
+	connectionProtocolMapCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper]
 }
 
 // NewTracer creates a Tracer
@@ -181,6 +184,19 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 
 	tr.reverseDNS = newReverseDNS(cfg, telemetryComponent)
 	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer)
+
+	// Setup the connection_protocol map cleaner if protocol classification is enabled and USM is disabled
+	if cfg.ProtocolClassificationEnabled && !usmconfig.IsUSMSupportedAndEnabled(cfg) {
+		connectionProtocolMap := tr.ebpfTracer.GetMap(probes.ConnectionProtocolMap)
+		if connectionProtocolMap == nil {
+			log.Warn("could not get connection_protocol map, will not be able to expire connection_protocol data")
+		} else {
+			tr.connectionProtocolMapCleaner, err = usm.SetupConnectionProtocolMapCleaner(connectionProtocolMap)
+			if err != nil {
+				log.Warnf("could not setup connection protocol map cleaner: %s", err)
+			}
+		}
+	}
 
 	if cfg.EnableProcessEventMonitoring {
 		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked); err != nil {
@@ -391,6 +407,7 @@ func (t *Tracer) Stop() {
 		t.processCache.Stop()
 		telemetry.GetCompatComponent().UnregisterCollector(t.processCache)
 	}
+	t.connectionProtocolMapCleaner.Stop()
 }
 
 // GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
@@ -833,7 +850,7 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer) *usm.Monitor {
 		return nil
 	}
 
-	// Shared with the USM program
+	// Shared map between NPM and USM
 	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)
 
 	monitor, err := usm.NewMonitor(c, connectionProtocolMap)
