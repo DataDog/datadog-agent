@@ -1055,3 +1055,36 @@ func TestGetHostnameSyncTimeouts(t *testing.T) {
 	assert.Contains(t, err.Error(), "timeout reached while resolving hostname for IP address 192.168.1.103")
 	assert.Equal(t, "", hostname)
 }
+
+func TestGetHostnameSyncThreadSafety(t *testing.T) {
+	overrides := map[string]interface{}{
+		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
+	}
+	ts := testSetup(t, overrides, true, nil, 0)
+
+	internalRDNSQuerier := ts.rdnsQuerier.(*rdnsQuerierImpl)
+	assert.NotNil(t, internalRDNSQuerier)
+
+	ipAddrs := []string{
+		"192.168.1.100",
+		"192.168.1.101",
+		"192.168.1.102",
+		"192.168.1.103",
+		"192.168.1.104",
+	}
+	numGoroutines := 100
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(i int) {
+			defer wg.Done()
+			ipAddr := ipAddrs[i%len(ipAddrs)]
+			hostname, err := internalRDNSQuerier.GetHostnameSync(ipAddr)
+			assert.NoError(t, err)
+			assert.Equal(t, "fakehostname-"+ipAddr, hostname)
+		}(i)
+	}
+
+	wg.Wait()
+}
