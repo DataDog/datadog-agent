@@ -342,18 +342,13 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		return nil, err
 	}
 
-	cwd, err := proc.Cwd()
-	if err != nil {
-		return nil, err
-	}
-
 	createTime, err := proc.CreateTime()
 	if err != nil {
 		return nil, err
 	}
 
 	contextMap := make(usm.DetectorContextMap)
-	contextMap[usm.ServiceCwd] = cwd
+	contextMap[usm.ServiceProc] = proc
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
 	lang := language.FindInArgs(exe, cmdline)

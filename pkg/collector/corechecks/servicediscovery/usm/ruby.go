@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/shirou/gopsutil/v3/process"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -33,7 +35,13 @@ func newRailsDetector(ctx DetectionContext) detector {
 // project is created. This file should contain a `module` declaration with the
 // application name.
 func (r railsDetector) detect(_ []string) (ServiceMetadata, bool) {
-	cwd := r.ctx.contextMap[ServiceCwd].(string)
+	proc := r.ctx.contextMap[ServiceProc].(*process.Process)
+	cwd, err := proc.Cwd()
+	if err != nil {
+		log.Debugf("could not get cwd of process: %s", err)
+		return ServiceMetadata{}, false
+	}
+
 	absFile := abs("config/application.rb", cwd)
 	if _, err := fs.Stat(r.ctx.fs, absFile); err != nil {
 		return ServiceMetadata{}, false

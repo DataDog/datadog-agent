@@ -34,8 +34,8 @@ const (
 	NodePackageJSONPath = iota
 	// The SubdirFS instance package.json path is valid in.
 	ServiceSubFS = iota
-	// The working directory of the service
-	ServiceCwd = iota
+	// The pointer to the Process instance of the service
+	ServiceProc = iota
 )
 
 const (
