@@ -37,9 +37,13 @@ type fakeResolver struct {
 	config        *rdnsQuerierConfig
 	fakeIPResults map[string]*fakeResults
 	delay         time.Duration
+	logger        log.Component
 }
 
 func (r *fakeResolver) lookup(addr string) (string, error) {
+
+	r.logger.Infof("fakeResolver.lookup(%s) with timeout %d", addr, r.delay)
+
 	if r.delay > 0 {
 		time.Sleep(r.delay)
 	}
@@ -101,13 +105,13 @@ func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeI
 		assert.NotNil(t, internalCache)
 		internalQuerier := internalCache.querier.(*querierImpl)
 		assert.NotNil(t, internalQuerier)
-		internalQuerier.resolver = &fakeResolver{internalRDNSQuerier.config, fakeIPResults, delay}
+		internalQuerier.resolver = &fakeResolver{internalRDNSQuerier.config, fakeIPResults, delay, logComp}
 	} else {
 		internalCache := internalRDNSQuerier.cache.(*cacheNone)
 		assert.NotNil(t, internalCache)
 		internalQuerier := internalCache.querier.(*querierImpl)
 		assert.NotNil(t, internalQuerier)
-		internalQuerier.resolver = &fakeResolver{internalRDNSQuerier.config, fakeIPResults, delay}
+		internalQuerier.resolver = &fakeResolver{internalRDNSQuerier.config, fakeIPResults, delay, logComp}
 	}
 
 	if start {

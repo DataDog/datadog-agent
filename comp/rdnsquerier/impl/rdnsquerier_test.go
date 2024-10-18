@@ -3,9 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+//go:build test
+
 package rdnsquerierimpl
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"sync"
@@ -999,40 +1002,56 @@ func TestGetHostnameSync(t *testing.T) {
 	ts := testSetup(t, overrides, true, nil, 0)
 	internalRDNSQuerier := ts.rdnsQuerier.(*rdnsQuerierImpl)
 
-	// Test with invalid IP address
-	hostname, err := internalRDNSQuerier.GetHostnameSync("invalid_ip")
+	// Vic to reformat this test
+	// tests := []struct {
+	// 	description string
+	// 	ip          string
+	// 	expected    string
+	// 	errMsg      string
+	// }{
+	// 	{},
+	// }
+
+	ctx, cancel := context.WithTimeout(ts.ctx, 100*time.Second)
+	var hostname string
+	var err error
+
+	// // Test with invalid IP address
+	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "invalid_ip")
 	assert.Error(t, err)
 	assert.Equal(t, "", hostname)
 
-	// Test with IP address not in private range
-	hostname, err = internalRDNSQuerier.GetHostnameSync("8.8.8.8")
+	//Test with IP address not in private range
+	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "8.8.8.8")
 	assert.Error(t, err)
 	assert.Equal(t, "", hostname)
 
-	// Test with IP address in private range
-	hostname, err = internalRDNSQuerier.GetHostnameSync("192.168.1.100")
+	// // Test with IP address in private range
+	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "192.168.1.100")
 	assert.NoError(t, err)
-	assert.Equal(t, "", hostname)
+	assert.Equal(t, "fakehostname-192.168.1.100", hostname)
 
-	// Test with IP address in private range but cache miss
-	hostname, err = internalRDNSQuerier.GetHostnameSync("192.168.1.101")
+	// Test with IP address in private range but cache miss, async look up succeeds
+	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "192.168.1.101")
 	assert.NoError(t, err)
-	assert.Equal(t, "", hostname)
+	assert.Equal(t, "fakehostname-192.168.1.101", hostname)
 
-	// Test with a valid IP address that resolves to a hostname
-	hostname, err = internalRDNSQuerier.GetHostnameSync("192.168.1.100") // cached from earlier test
+	// Cache Hit
+	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "192.168.1.100") // cached from earlier test
 	assert.NoError(t, err)
 	assert.Equal(t, "fakehostname-192.168.1.100", hostname)
 
 	// Test with an empty string as input
-	hostname, err = internalRDNSQuerier.GetHostnameSync("")
+	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "")
 	assert.Error(t, err)
 	assert.Equal(t, "", hostname)
 
 	// Test with an IPv6 address
-	hostname, err = internalRDNSQuerier.GetHostnameSync("2001:4860:4860::8888") // Google Public DNS
+	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "2001:4860:4860::8888") // Google Public DNS
 	assert.Error(t, err)
 	assert.Equal(t, "", hostname)
+
+	cancel()
 }
 
 func TestGetHostnameSyncTimeouts(t *testing.T) {
@@ -1042,16 +1061,13 @@ func TestGetHostnameSyncTimeouts(t *testing.T) {
 	// Set up with a delay to simulate timeout
 	ts := testSetup(t, overrides, true, nil, 3*time.Second)
 	internalRDNSQuerier := ts.rdnsQuerier.(*rdnsQuerierImpl)
+	ctx, cancel := context.WithTimeout(ts.ctx, 1*time.Millisecond)
 
 	// Test with a timeout exceeding the specified timeout limit
-	hostname, err := internalRDNSQuerier.GetHostnameSync("192.168.1.102", 1*time.Millisecond)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "timeout reached while resolving hostname for IP address 192.168.1.102")
+	hostname, err := internalRDNSQuerier.GetHostnameSync(ctx, "192.168.1.100")
 	assert.Equal(t, "", hostname)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "timeout reached while resolving hostname for IP address 192.168.1.100")
 
-	// Test with the default 2-second timeout
-	hostname, err = internalRDNSQuerier.GetHostnameSync("192.168.1.103")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "timeout reached while resolving hostname for IP address 192.168.1.103")
-	assert.Equal(t, "", hostname)
+	cancel()
 }

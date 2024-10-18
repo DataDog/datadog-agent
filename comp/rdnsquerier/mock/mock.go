@@ -9,10 +9,10 @@
 package mock
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/netip"
-	"time"
 
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 )
@@ -56,7 +56,7 @@ func (q *rdnsQuerierMock) GetHostname(ipAddr []byte, updateHostnameSync func(str
 
 // GetHostnameSync simulates resolving the hostname for the given IP address synchronously.  If the IP address is in the private address
 // space then the resolved hostname is returned.
-func (q *rdnsQuerierMock) GetHostnameSync(ipAddr string, _ ...time.Duration) (string, error) {
+func (q *rdnsQuerierMock) GetHostnameSync(_ context.Context, ipAddr string) (string, error) {
 	ipaddr := net.ParseIP(ipAddr).To4()
 	if ipaddr == nil {
 		return "", fmt.Errorf("invalid IP address %v", ipAddr)
