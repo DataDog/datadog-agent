@@ -425,6 +425,57 @@ func (r *RemoteSysProbeUtil) GetTelemetry() ([]byte, error) {
 	return data, nil
 }
 
+// GetConnTrackCached queries conntrack/cached, which uses our conntracker implementation (typically ebpf)
+// to return the list of NAT'd connections
+func (r *RemoteSysProbeUtil) GetConnTrackCached() ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, conntrackCachedURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(`GetConnTrackCached got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
+	}
+
+	return data, nil
+}
+
+// GetConnTrackHost queries conntrack/host, which uses netlink to return the list of NAT'd connections
+func (r *RemoteSysProbeUtil) GetConnTrackHost() ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, conntrackHostURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(`GetConnTrackHost got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
+	}
+
+	return data, nil
+}
+
 func (r *RemoteSysProbeUtil) init() error {
 	resp, err := r.httpClient.Get(statsURL)
 	if err != nil {

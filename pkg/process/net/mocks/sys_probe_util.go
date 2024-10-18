@@ -146,6 +146,177 @@ func (_c *SysProbeUtil_GetCheck_Call) RunAndReturn(run func(types.ModuleName) (i
 	return _c
 }
 
+// GetConnTrackCached provides a mock function with given fields:
+func (_m *SysProbeUtil) GetConnTrackCached() ([]byte, error) {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetConnTrackCached")
+	}
+
+	var r0 []byte
+	var r1 error
+	if rf, ok := ret.Get(0).(func() ([]byte, error)); ok {
+		return rf()
+	}
+	if rf, ok := ret.Get(0).(func() []byte); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]byte)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// SysProbeUtil_GetConnTrackCached_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetConnTrackCached'
+type SysProbeUtil_GetConnTrackCached_Call struct {
+	*mock.Call
+}
+
+// GetConnTrackCached is a helper method to define mock.On call
+func (_e *SysProbeUtil_Expecter) GetConnTrackCached() *SysProbeUtil_GetConnTrackCached_Call {
+	return &SysProbeUtil_GetConnTrackCached_Call{Call: _e.mock.On("GetConnTrackCached")}
+}
+
+func (_c *SysProbeUtil_GetConnTrackCached_Call) Run(run func()) *SysProbeUtil_GetConnTrackCached_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *SysProbeUtil_GetConnTrackCached_Call) Return(_a0 []byte, _a1 error) *SysProbeUtil_GetConnTrackCached_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SysProbeUtil_GetConnTrackCached_Call) RunAndReturn(run func() ([]byte, error)) *SysProbeUtil_GetConnTrackCached_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetConnTrackHost provides a mock function with given fields:
+func (_m *SysProbeUtil) GetConnTrackHost() ([]byte, error) {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetConnTrackHost")
+	}
+
+	var r0 []byte
+	var r1 error
+	if rf, ok := ret.Get(0).(func() ([]byte, error)); ok {
+		return rf()
+	}
+	if rf, ok := ret.Get(0).(func() []byte); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]byte)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// SysProbeUtil_GetConnTrackHost_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetConnTrackHost'
+type SysProbeUtil_GetConnTrackHost_Call struct {
+	*mock.Call
+}
+
+// GetConnTrackHost is a helper method to define mock.On call
+func (_e *SysProbeUtil_Expecter) GetConnTrackHost() *SysProbeUtil_GetConnTrackHost_Call {
+	return &SysProbeUtil_GetConnTrackHost_Call{Call: _e.mock.On("GetConnTrackHost")}
+}
+
+func (_c *SysProbeUtil_GetConnTrackHost_Call) Run(run func()) *SysProbeUtil_GetConnTrackHost_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *SysProbeUtil_GetConnTrackHost_Call) Return(_a0 []byte, _a1 error) *SysProbeUtil_GetConnTrackHost_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SysProbeUtil_GetConnTrackHost_Call) RunAndReturn(run func() ([]byte, error)) *SysProbeUtil_GetConnTrackHost_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetConnTrackHostFull provides a mock function with given fields:
+func (_m *SysProbeUtil) GetConnTrackHostFull() ([]byte, error) {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetConnTrackHostFull")
+	}
+
+	var r0 []byte
+	var r1 error
+	if rf, ok := ret.Get(0).(func() ([]byte, error)); ok {
+		return rf()
+	}
+	if rf, ok := ret.Get(0).(func() []byte); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]byte)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// SysProbeUtil_GetConnTrackHostFull_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetConnTrackHostFull'
+type SysProbeUtil_GetConnTrackHostFull_Call struct {
+	*mock.Call
+}
+
+// GetConnTrackHostFull is a helper method to define mock.On call
+func (_e *SysProbeUtil_Expecter) GetConnTrackHostFull() *SysProbeUtil_GetConnTrackHostFull_Call {
+	return &SysProbeUtil_GetConnTrackHostFull_Call{Call: _e.mock.On("GetConnTrackHostFull")}
+}
+
+func (_c *SysProbeUtil_GetConnTrackHostFull_Call) Run(run func()) *SysProbeUtil_GetConnTrackHostFull_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *SysProbeUtil_GetConnTrackHostFull_Call) Return(_a0 []byte, _a1 error) *SysProbeUtil_GetConnTrackHostFull_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SysProbeUtil_GetConnTrackHostFull_Call) RunAndReturn(run func() ([]byte, error)) *SysProbeUtil_GetConnTrackHostFull_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetConnections provides a mock function with given fields: clientID
 func (_m *SysProbeUtil) GetConnections(clientID string) (*process.Connections, error) {
 	ret := _m.Called(clientID)
