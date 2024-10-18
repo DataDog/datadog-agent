@@ -45,6 +45,7 @@ func newDirect(env *env.Env, configDBPath string) (CDN, error) {
 	if err != nil {
 		return nil, err
 	}
+	// hostname = hostname + "-cfg"
 
 	// Remove previous DB if needed
 	err = os.Remove(configDBPath)
@@ -88,7 +89,7 @@ func (c *cdnDirect) Get(ctx context.Context, pkg string) (cfg Config, err error)
 
 	switch pkg {
 	case "datadog-agent":
-		orderConfig, layers, err := c.get(ctx, 0)
+		orderConfig, layers, err := c.get(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -104,7 +105,7 @@ func (c *cdnDirect) Get(ctx context.Context, pkg string) (cfg Config, err error)
 }
 
 // get calls the Remote Config service to get the ordered layers.
-func (c *cdnDirect) get(ctx context.Context, retry int) (*orderConfig, [][]byte, error) {
+func (c *cdnDirect) get(ctx context.Context) (*orderConfig, [][]byte, error) {
 	agentConfigUpdate, err := c.rcService.ClientGetConfigs(ctx, &pbgo.ClientGetConfigsRequest{
 		Client: &pbgo.Client{
 			Id:            c.clientUUID,
@@ -113,7 +114,7 @@ func (c *cdnDirect) get(ctx context.Context, retry int) (*orderConfig, [][]byte,
 			ClientUpdater: &pbgo.ClientUpdater{},
 			State: &pbgo.ClientState{
 				RootVersion:    c.currentRootsVersion,
-				TargetsVersion: 1,
+				TargetsVersion: 0,
 			},
 		},
 	})
@@ -167,13 +168,6 @@ func (c *cdnDirect) get(ctx context.Context, retry int) (*orderConfig, [][]byte,
 	}
 	if layersErr != nil {
 		return nil, nil, layersErr
-	}
-
-	if configOrder == nil && retry < 10 {
-		// Retry for up to 10 seconds to get the order config
-		time.Sleep(1 * time.Second)
-		return c.get(ctx, retry+1)
-
 	}
 	return configOrder, configLayers, nil
 }
