@@ -6,9 +6,14 @@
 // Package rdnsquerier provides the reverse DNS querier component.
 package rdnsquerier
 
+import (
+	"context"
+)
+
 // team: network-device-monitoring
 
 // Component is the component type.
 type Component interface {
 	GetHostname([]byte, func(string), func(string, error)) error
+	GetHostnameSync(context.Context, string) (string, error)
 }

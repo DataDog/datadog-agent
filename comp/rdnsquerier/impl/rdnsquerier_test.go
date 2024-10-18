@@ -3,9 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+//go:build test
+
 package rdnsquerierimpl
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"sync"
@@ -20,7 +23,7 @@ func TestStartStop(t *testing.T) {
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 	}
-	ts := testSetup(t, overrides, false, nil)
+	ts := testSetup(t, overrides, false, nil, 0)
 
 	internalRDNSQuerier := ts.rdnsQuerier.(*rdnsQuerierImpl)
 	assert.NotNil(t, internalRDNSQuerier)
@@ -38,7 +41,7 @@ func TestNotStarted(t *testing.T) {
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 	}
-	ts := testSetup(t, overrides, false, nil)
+	ts := testSetup(t, overrides, false, nil, 0)
 
 	// IP address in private range
 	err := ts.rdnsQuerier.GetHostname(
@@ -66,7 +69,7 @@ func TestNormalOperationsDefaultConfig(t *testing.T) {
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 	}
-	ts := testSetup(t, overrides, true, nil)
+	ts := testSetup(t, overrides, true, nil, 0)
 
 	var wg sync.WaitGroup
 
@@ -143,7 +146,7 @@ func TestNormalOperationsCacheDisabled(t *testing.T) {
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 		"reverse_dns_enrichment.cache.enabled":                   false,
 	}
-	ts := testSetup(t, overrides, true, nil)
+	ts := testSetup(t, overrides, true, nil, 0)
 
 	var wg sync.WaitGroup
 
@@ -221,7 +224,7 @@ func TestRateLimiter(t *testing.T) {
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 		"reverse_dns_enrichment.rate_limiter.limit_per_sec":      1,
 	}
-	ts := testSetup(t, overrides, true, nil)
+	ts := testSetup(t, overrides, true, nil, 0)
 
 	// IP addresses in private range
 	for i := range 20 {
@@ -279,6 +282,7 @@ func TestRateLimiterThrottled(t *testing.T) {
 				&net.DNSError{Err: "test timeout error", IsTimeout: true},
 			}},
 		},
+		0,
 	)
 
 	var wg sync.WaitGroup
@@ -457,7 +461,7 @@ func TestChannelFullRequestsDroppedWhenRateLimited(t *testing.T) {
 		"reverse_dns_enrichment.rate_limiter.enabled":            true,
 		"reverse_dns_enrichment.rate_limiter.limit_per_sec":      1,
 	}
-	ts := testSetup(t, overrides, true, nil)
+	ts := testSetup(t, overrides, true, nil, 0)
 
 	var wg sync.WaitGroup
 
@@ -509,7 +513,7 @@ func TestCacheHitInProgress(t *testing.T) {
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 		"reverse_dns_enrichment.rate_limiter.limit_per_sec":      1,
 	}
-	ts := testSetup(t, overrides, true, nil)
+	ts := testSetup(t, overrides, true, nil, 0)
 
 	var wg sync.WaitGroup
 
@@ -581,6 +585,7 @@ func TestRetries(t *testing.T) {
 				fmt.Errorf("test error")},
 			},
 		},
+		0,
 	)
 
 	var wg sync.WaitGroup
@@ -668,6 +673,7 @@ func TestRetriesExceeded(t *testing.T) {
 				fmt.Errorf("test error3")},
 			},
 		},
+		0,
 	)
 
 	var wg sync.WaitGroup
@@ -725,6 +731,7 @@ func TestIsNotFound(t *testing.T) {
 				&net.DNSError{Err: "no such host", IsNotFound: true}},
 			},
 		},
+		0,
 	)
 
 	var wg sync.WaitGroup
@@ -775,7 +782,7 @@ func TestCacheMaxSize(t *testing.T) {
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 		"reverse_dns_enrichment.cache.max_size":                  5,
 	}
-	ts := testSetup(t, overrides, true, nil)
+	ts := testSetup(t, overrides, true, nil, 0)
 
 	var wg sync.WaitGroup
 
@@ -823,7 +830,7 @@ func TestCacheExpiration(t *testing.T) {
 		"reverse_dns_enrichment.cache.entry_ttl":                 time.Duration(100) * time.Millisecond,
 		"reverse_dns_enrichment.cache.clean_interval":            time.Duration(1) * time.Second,
 	}
-	ts := testSetup(t, overrides, true, nil)
+	ts := testSetup(t, overrides, true, nil, 0)
 
 	var wg sync.WaitGroup
 
@@ -874,7 +881,7 @@ func TestCachePersist(t *testing.T) {
 		"run_path": t.TempDir(),
 	}
 
-	ts := testSetup(t, overrides, true, nil)
+	ts := testSetup(t, overrides, true, nil, 0)
 
 	var wg sync.WaitGroup
 
@@ -923,7 +930,7 @@ func TestCachePersist(t *testing.T) {
 	assert.NoError(t, ts.lc.Stop(ts.ctx))
 
 	// create new testsetup, validate that the IP address previously queried and cached is still cached
-	ts = testSetup(t, overrides, true, nil)
+	ts = testSetup(t, overrides, true, nil, 0)
 	ts.validateExpectedGauge(t, "cache_size", 1.0)
 
 	// cache hit should result in sync callback being called the first time the IP address is queried after
@@ -955,7 +962,7 @@ func TestCachePersist(t *testing.T) {
 	// create new testsetup with shorter entryTTL, validate that the IP address previously
 	// cached has new shorter expiration time
 	overrides["reverse_dns_enrichment.cache.entry_ttl"] = time.Duration(100) * time.Millisecond
-	ts = testSetup(t, overrides, true, nil)
+	ts = testSetup(t, overrides, true, nil, 0)
 	ts.validateExpectedGauge(t, "cache_size", 1.0)
 
 	time.Sleep(200 * time.Millisecond)
@@ -985,4 +992,82 @@ func TestCachePersist(t *testing.T) {
 		"cache_miss":        1.0,
 	})
 	ts.validateExpected(t, expectedTelemetry)
+}
+
+func TestGetHostnameSync(t *testing.T) {
+	overrides := map[string]interface{}{
+		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
+	}
+
+	ts := testSetup(t, overrides, true, nil, 0)
+	internalRDNSQuerier := ts.rdnsQuerier.(*rdnsQuerierImpl)
+
+	// Vic to reformat this test
+	// tests := []struct {
+	// 	description string
+	// 	ip          string
+	// 	expected    string
+	// 	errMsg      string
+	// }{
+	// 	{},
+	// }
+
+	ctx, cancel := context.WithTimeout(ts.ctx, 100*time.Second)
+	var hostname string
+	var err error
+
+	// // Test with invalid IP address
+	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "invalid_ip")
+	assert.Error(t, err)
+	assert.Equal(t, "", hostname)
+
+	//Test with IP address not in private range
+	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "8.8.8.8")
+	assert.Error(t, err)
+	assert.Equal(t, "", hostname)
+
+	// // Test with IP address in private range
+	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "192.168.1.100")
+	assert.NoError(t, err)
+	assert.Equal(t, "fakehostname-192.168.1.100", hostname)
+
+	// Test with IP address in private range but cache miss, async look up succeeds
+	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "192.168.1.101")
+	assert.NoError(t, err)
+	assert.Equal(t, "fakehostname-192.168.1.101", hostname)
+
+	// Cache Hit
+	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "192.168.1.100") // cached from earlier test
+	assert.NoError(t, err)
+	assert.Equal(t, "fakehostname-192.168.1.100", hostname)
+
+	// Test with an empty string as input
+	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "")
+	assert.Error(t, err)
+	assert.Equal(t, "", hostname)
+
+	// Test with an IPv6 address
+	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "2001:4860:4860::8888") // Google Public DNS
+	assert.Error(t, err)
+	assert.Equal(t, "", hostname)
+
+	cancel()
+}
+
+func TestGetHostnameSyncTimeouts(t *testing.T) {
+	overrides := map[string]interface{}{
+		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
+	}
+	// Set up with a delay to simulate timeout
+	ts := testSetup(t, overrides, true, nil, 3*time.Second)
+	internalRDNSQuerier := ts.rdnsQuerier.(*rdnsQuerierImpl)
+	ctx, cancel := context.WithTimeout(ts.ctx, 1*time.Millisecond)
+
+	// Test with a timeout exceeding the specified timeout limit
+	hostname, err := internalRDNSQuerier.GetHostnameSync(ctx, "192.168.1.100")
+	assert.Equal(t, "", hostname)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "timeout reached while resolving hostname for IP address 192.168.1.100")
+
+	cancel()
 }

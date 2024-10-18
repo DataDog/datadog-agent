@@ -7,6 +7,8 @@
 package rdnsquerierimpl
 
 import (
+	"context"
+
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 )
 
@@ -28,4 +30,9 @@ func NewNone() Provides {
 func (q *rdnsQuerierImplNone) GetHostname(_ []byte, _ func(string), _ func(string, error)) error {
 	// noop
 	return nil
+}
+
+func (q *rdnsQuerierImplNone) GetHostnameSync(_ context.Context, _ string) (string, error) {
+	// noop
+	return "", nil
 }
