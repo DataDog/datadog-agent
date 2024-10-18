@@ -76,7 +76,6 @@ type rdnsQuerierImpl struct {
 	started bool
 
 	cache cache
-	mutex sync.Mutex
 }
 
 // NewComponent creates a new rdnsquerier component
