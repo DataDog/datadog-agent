@@ -14,12 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
 func TestConsumerCanStartAndStop(t *testing.T) {
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	cfg := NewConfig()
-	ctx, err := getSystemContext(systemContextOptDisableGpuQuery)
+	ctx, err := getSystemContext(testutil.GetBasicNvmlMock())
 	require.NoError(t, err)
 	consumer := NewCudaEventConsumer(handler, cfg, ctx)
 

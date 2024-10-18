@@ -158,16 +158,6 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
 
-	var sysCtxOpts []systemContextOpts
-	if cfg.DisableGpuDeviceQuery {
-		sysCtxOpts = append(sysCtxOpts, systemContextOptDisableGpuQuery)
-	}
-
-	p.sysCtx, err = getSystemContext(sysCtxOpts...)
-	if err != nil {
-		return nil, fmt.Errorf("error getting GPU system info: %w", err)
-	}
-
 	p.startEventConsumer()
 
 	if err := mgr.InitWithOptions(buf, &opts); err != nil {
