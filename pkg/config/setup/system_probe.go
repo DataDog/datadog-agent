@@ -409,7 +409,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// GPU monitoring
 	cfg.BindEnvAndSetDefault(join(gpuNS, "enabled"), false)
-	cfg.BindEnv(join(gpuNS, "nvml_library_path"))
+	cfg.BindEnv(join(gpuNS, "nvml_lib_path"))
 	cfg.BindEnvAndSetDefault(join(gpuNS, "process_scan_interval_seconds"), 5)
 
 	initCWSSystemProbeConfig(cfg)
