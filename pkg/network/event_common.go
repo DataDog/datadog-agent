@@ -311,14 +311,17 @@ type ConnectionStats struct {
 	Pid   uint32
 	NetNS uint32
 
-	SPort            uint16
-	DPort            uint16
-	ConnectionInfo   PackedTypeFamilyDirection
-	SPortIsEphemeral EphemeralPortType
+	SPort          uint16
+	DPort          uint16
+	ConnectionInfo PackedTypeFamilyDirection
 
 	IntraHost bool
 	IsAssured bool
 	IsClosed  bool
+}
+
+func (c *ConnectionStats) SPortIsEphemeral() EphemeralPortType {
+	return IsPortInEphemeralRange(c.ConnectionInfo.Family(), c.ConnectionInfo.Type(), c.SPort)
 }
 
 // Via has info about the routing decision for a flow

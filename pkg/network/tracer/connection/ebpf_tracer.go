@@ -758,8 +758,6 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		stats.ConnectionInfo.SetFamily(network.AFINET6)
 	}
 
-	stats.SPortIsEphemeral = network.IsPortInEphemeralRange(stats.ConnectionInfo.Family(), stats.ConnectionInfo.Type(), t.Sport)
-
 	switch s.ConnectionDirection() {
 	case netebpf.Incoming:
 		stats.ConnectionInfo.SetDirection(network.INCOMING)
