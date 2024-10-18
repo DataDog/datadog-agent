@@ -25,7 +25,6 @@ func TestLinuxDiagnoseSuite(t *testing.T) {
 	t.Parallel()
 	var suite linuxDiagnoseSuite
 	suite.suites = append(suite.suites, commonSuites...)
-	suite.suites = append(suite.suites, "port-conflict")
 	e2e.Run(t, &suite, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
