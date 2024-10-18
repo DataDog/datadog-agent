@@ -199,7 +199,6 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 	tagList.AddLow(tags.ShortImage, image.ShortName)
 	tagList.AddLow(tags.ImageTag, image.Tag)
 	tagList.AddLow(tags.ImageID, image.ID)
-	tagList.AddLow(tags.KubeGPUType, container.Resources.GPUType)
 
 	if container.Runtime == workloadmeta.ContainerRuntimeDocker {
 		if image.Tag != "" {
@@ -229,6 +228,11 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 	// static tags for ECS and EKS Fargate containers
 	for tag, value := range c.staticTags {
 		tagList.AddLow(tag, value)
+	}
+
+	// gpu tags from container resource requests
+	for _, gpuVendor := range container.Resources.GPUVendorList {
+		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
 	}
 
 	low, orch, high, standard := tagList.Compute()
@@ -358,6 +362,11 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 	// namespace annotations as tags
 	for name, value := range pod.NamespaceAnnotations {
 		k8smetadata.AddMetadataAsTags(name, value, c.k8sResourcesAnnotationsAsTags["namespaces"], c.globK8sResourcesAnnotations["namespaces"], tagList)
+	}
+
+	// gpu requested vendor as tags
+	for _, gpuVendor := range pod.GPUVendorList {
+		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
 	}
 
 	kubeServiceDisabled := false
