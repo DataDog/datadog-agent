@@ -7,6 +7,7 @@ package processor
 
 import (
 	"context"
+	"strconv"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -115,6 +116,7 @@ func (p *Processor) Flush(ctx context.Context) {
 				return
 			}
 			msg := <-p.inputChan
+			metrics.ReportComponentIngress(msg, "processor", strconv.Itoa(p.pipelineID))
 			p.processMessage(msg)
 		}
 	}
@@ -135,6 +137,7 @@ func (p *Processor) run() {
 			if !ok { // channel has been closed
 				return
 			}
+			metrics.ReportComponentIngress(msg, "processor", strconv.Itoa(p.pipelineID))
 
 			// if we have to wait for an SDS configuration to start processing & forwarding
 			// the logs, that's here that we buffer the message
@@ -242,6 +245,8 @@ func (p *Processor) processMessage(msg *message.Message) {
 		}
 
 		p.outputChan <- msg
+		metrics.ReportComponentEgress(msg, "processor", strconv.Itoa(p.pipelineID))
+		metrics.ReportComponentIngress(msg, "strategy", strconv.Itoa(p.pipelineID))
 	}
 }
 

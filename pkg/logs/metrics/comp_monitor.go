@@ -1,0 +1,26 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//nolint:revive // TODO(AML) Fix revive linter
+package metrics
+
+import (
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+)
+
+type Size interface {
+	Size() int64
+}
+
+var TlmIngressBytes = telemetry.NewCounter("logs_component", "ingress_bytes", []string{"name", "instance"}, "")
+var TlmEgressBytes = telemetry.NewCounter("logs_component", "egress_bytes", []string{"name", "instance"}, "")
+
+func ReportComponentIngress(size Size, name string, instance string) {
+	TlmIngressBytes.Add(float64(size.Size()), name, instance)
+}
+
+func ReportComponentEgress(size Size, name string, instance string) {
+	TlmEgressBytes.Add(float64(size.Size()), name, instance)
+}

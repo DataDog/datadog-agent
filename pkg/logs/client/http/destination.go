@@ -83,6 +83,7 @@ type Destination struct {
 	// Telemetry
 	expVars       *expvar.Map
 	telemetryName string
+	pipelineID    int
 }
 
 // NewDestination returns a new Destination.
@@ -95,7 +96,8 @@ func NewDestination(endpoint config.Endpoint,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
 	telemetryName string,
-	cfg pkgconfigmodel.Reader) *Destination {
+	cfg pkgconfigmodel.Reader,
+	pipelineID int) *Destination {
 
 	return newDestination(endpoint,
 		contentType,
@@ -104,7 +106,8 @@ func NewDestination(endpoint config.Endpoint,
 		maxConcurrentBackgroundSends,
 		shouldRetry,
 		telemetryName,
-		cfg)
+		cfg,
+		pipelineID)
 }
 
 func newDestination(endpoint config.Endpoint,
@@ -114,7 +117,8 @@ func newDestination(endpoint config.Endpoint,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
 	telemetryName string,
-	cfg pkgconfigmodel.Reader) *Destination {
+	cfg pkgconfigmodel.Reader,
+	pipelineID int) *Destination {
 
 	if maxConcurrentBackgroundSends <= 0 {
 		maxConcurrentBackgroundSends = 1
@@ -152,6 +156,7 @@ func newDestination(endpoint config.Endpoint,
 		expVars:             expVars,
 		telemetryName:       telemetryName,
 		isMRF:               endpoint.IsMRF,
+		pipelineID:          pipelineID,
 	}
 }
 
@@ -348,6 +353,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		// internal error. We should retry these requests.
 		return client.NewRetryableError(errServer)
 	} else {
+		metrics.ReportComponentEgress(payload, "destination", strconv.Itoa(d.pipelineID))
 		return nil
 	}
 }
@@ -422,7 +428,7 @@ func getMessageTimestamp(messages []*message.Message) int64 {
 func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "", cfg)
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "", cfg, 0)
 	return ctx, destination
 }
 
