@@ -41,13 +41,10 @@ func NewReaderConfigManager() (*ReaderConfigManager, error) {
 	}
 
 	cm.procTracker = proctracker.NewProcessTracker(cm.updateProcessInfo)
-	err := cm.procTracker.Start()
-	if err != nil {
-		return nil, err
-	}
+	cm.procTracker.Start()
 
 	reader := NewConfigWriter(cm.updateServiceConfigs)
-	err = reader.Start()
+	err := reader.Start()
 	if err != nil {
 		return nil, err
 	}
