@@ -77,6 +77,10 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		return err
 	}
 
+	if awsEnv.InitOnly() {
+		return nil
+	}
+
 	var fakeIntake *fakeintakeComp.Fakeintake
 	if params.fakeintakeOptions != nil {
 		fakeIntakeOptions := []fakeintake.Option{
