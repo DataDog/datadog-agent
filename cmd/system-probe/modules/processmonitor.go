@@ -32,6 +32,7 @@ var ProcessMonitor = module.Factory{
 	NeedsEBPF: func() bool {
 		return isEventStreamEnabled()
 	},
+	IgnoreForSuccessCheck: true,
 }
 
 var processMonitorModuleConfigNamespaces = []string{"service_monitoring_config"}
