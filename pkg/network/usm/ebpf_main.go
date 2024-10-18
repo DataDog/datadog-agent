@@ -90,8 +90,8 @@ type ebpfProgram struct {
 	disabledProtocols []*protocols.ProtocolSpec
 
 	// Used for connection_protocol data expiration
-	mapCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper]
-	buildMode  buildmode.Type
+	connectionProtocolMapCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper]
+	buildMode                    buildmode.Type
 }
 
 func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfProgram, error) {
@@ -226,11 +226,12 @@ func (e *ebpfProgram) Start() error {
 		}
 		e.connectionProtocolMap = m
 	}
-	mapCleaner, err := e.setupMapCleaner()
+
+	mapCleaner, err := SetupConnectionProtocolMapCleaner(e.connectionProtocolMap)
 	if err != nil {
-		log.Errorf("error creating map cleaner: %s", err)
+		log.Errorf("error creating connection protocol map cleaner: %s", err)
 	} else {
-		e.mapCleaner = mapCleaner
+		e.connectionProtocolMapCleaner = mapCleaner
 	}
 
 	e.enabledProtocols = e.executePerProtocol(e.enabledProtocols, "pre-start",
@@ -271,7 +272,7 @@ func (e *ebpfProgram) Start() error {
 
 // Close stops the ebpf program and cleans up all resources.
 func (e *ebpfProgram) Close() error {
-	e.mapCleaner.Stop()
+	e.connectionProtocolMapCleaner.Stop()
 	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
 	var err error
 	// We need to stop the perf maps and ring buffers before stopping the protocols, as we need to stop sending events
@@ -488,8 +489,8 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 const connProtoTTL = 3 * time.Minute
 const connProtoCleaningInterval = 5 * time.Minute
 
-func (e *ebpfProgram) setupMapCleaner() (*ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper], error) {
-	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper](e.connectionProtocolMap, 1024)
+func SetupConnectionProtocolMapCleaner(connectionProtocolMap *ebpf.Map) (*ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper], error) {
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper](connectionProtocolMap, 1024)
 	if err != nil {
 		return nil, err
 	}
