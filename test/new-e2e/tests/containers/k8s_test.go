@@ -192,6 +192,25 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 	})
 }
 
+func (suite *k8sSuite) TestAdmissionControllerWebhooksExist() {
+	ctx := context.Background()
+	expectedWebhookName := "datadog-webhook"
+
+	suite.Run("agent registered mutating webhook configuration", func() {
+		mutatingConfigs, err := suite.K8sClient.AdmissionregistrationV1().MutatingWebhookConfigurations().List(ctx, metav1.ListOptions{})
+		suite.Require().NoError(err)
+		suite.NotEmpty(mutatingConfigs.Items, "No mutating webhook configuration found")
+		found := false
+		for _, mutatingConfig := range mutatingConfigs.Items {
+			if mutatingConfig.Name == expectedWebhookName {
+				found = true
+				break
+			}
+		}
+		suite.Require().True(found, fmt.Sprintf("None of the mutating webhook configurations have the name '%s'", expectedWebhookName))
+	})
+}
+
 func (suite *k8sSuite) TestVersion() {
 	ctx := context.Background()
 	versionExtractor := regexp.MustCompile(`Commit: ([[:xdigit:]]+)`)
@@ -890,6 +909,38 @@ func (suite *k8sSuite) TestPrometheus() {
 		},
 	})
 }
+
+// // Tests components/datadog/apps/admissioncontroller:k8sDeploymentTagsFromLabels
+// func (suite *k8sSuite) TestAdmissionControllerTagsFromLabels() {
+// 	ctx := context.Background()
+
+// 	namespace := "workload-admissioncontroller"
+// 	deploymentName := "mutate-tagsfromlabels"
+
+// 	pods, err := suite.K8sClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+// 		LabelSelector: fields.OneTermEqualSelector("app", deploymentName).String(),
+// 	})
+// 	suite.Require().NoError(err)
+// 	suite.Require().Len(pods.Items, 1)
+// 	pod := pods.Items[0]
+
+// 	// Assert injected env vars
+// 	env := make(map[string]string)
+// 	for _, envVar := range pod.Spec.Containers[0].Env {
+// 		env[envVar.Name] = envVar.Value
+// 	}
+
+// 	if suite.Contains(env, "DD_ENV") {
+// 		suite.Equal("e2e-env", env["DD_ENV"])
+// 	}
+// 	if suite.Contains(env, "DD_VERSION") {
+// 		suite.Equal("v0.1", env["DD_VERSION"])
+// 	}
+// 	if suite.Contains(env, "DD_SERVICE") {
+// 		suite.Equal(deploymentName, env["DD_SERVICE"])
+// 	}
+
+// }
 
 func (suite *k8sSuite) TestAdmissionControllerWithoutAPMInjection() {
 	suite.testAdmissionControllerPod("workload-mutated", "mutated", "", false)
