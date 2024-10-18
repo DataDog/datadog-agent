@@ -17,16 +17,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/ecs"
 )
 
 type ECSFargateSuite struct {
-	e2e.BaseSuite[ecsCPUStressEnv]
+	e2e.BaseSuite[fargateCPUStressEnv]
 }
 
-func ecsFargateCPUStressProvisioner() e2e.PulumiEnvRunFunc[ecsCPUStressEnv] {
-	return func(ctx *pulumi.Context, env *ecsCPUStressEnv) error {
+type fargateCPUStressEnv struct {
+	environments.ECS
+}
+
+func ecsFargateCPUStressProvisioner() e2e.PulumiEnvRunFunc[fargateCPUStressEnv] {
+	return func(ctx *pulumi.Context, env *fargateCPUStressEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
@@ -50,10 +55,12 @@ func ecsFargateCPUStressProvisioner() e2e.PulumiEnvRunFunc[ecsCPUStressEnv] {
 
 func TestECSFargateTestSuite(t *testing.T) {
 	t.Parallel()
-	s := ECSEC2Suite{}
+	s := ECSFargateSuite{}
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
-		e2e.NewTypedPulumiProvisioner("ecsFargateCPUStress", ecsFargateCPUStressProvisioner(), nil)),
-		e2e.WithDevMode()}
+		e2e.NewTypedPulumiProvisioner("ecsFargateCPUStress", ecsFargateCPUStressProvisioner(), nil),
+	),
+		e2e.WithDevMode(),
+	}
 
 	e2e.Run(t, &s, e2eParams...)
 }
