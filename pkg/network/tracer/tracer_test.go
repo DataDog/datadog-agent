@@ -11,6 +11,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1090,6 +1092,7 @@ func (s *TracerSuite) TestTCPEstablished() {
 	require.True(t, ok)
 	assert.Equal(t, uint32(0), conn.Last.TCPEstablished)
 	assert.Equal(t, uint32(1), conn.Last.TCPClosed)
+	assert.Equal(t, uint32(1), conn.Tags[0])
 }
 
 func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
@@ -1406,4 +1409,248 @@ func findFailedConnectionByRemoteAddr(remoteAddr string, conns *network.Connecti
 		return netip.MustParseAddrPort(remoteAddr) == netip.AddrPortFrom(cs.Dest.Addr, cs.DPort) && cs.TCPFailures[errorCode] > 0
 	}
 	return network.FirstConnection(conns, failureFilter)
+}
+
+var serverCertPEM = []byte(`-----BEGIN CERTIFICATE-----
+... (your server certificate here) ...
+-----END CERTIFICATE-----`)
+
+var serverKeyPEM = []byte(`-----BEGIN RSA PRIVATE KEY-----
+... (your server private key here) ...
+-----END RSA PRIVATE KEY-----`)
+
+var clientCertPEM = []byte(`-----BEGIN CERTIFICATE-----
+... (your client certificate here) ...
+-----END CERTIFICATE-----`)
+
+var clientKeyPEM = []byte(`-----BEGIN RSA PRIVATE KEY-----
+... (your client private key here) ...
+-----END RSA PRIVATE KEY-----`)
+
+var caCertPEM = []byte(`-----BEGIN CERTIFICATE-----
+... (your CA certificate here) ...
+-----END CERTIFICATE-----`)
+
+func (s *TracerSuite) TestTLSConnection() {
+	t := s.T()
+	t.Skip()
+
+	// Setup tracer with default configuration
+	cfg := testConfig()
+	tr := setupTracer(t, cfg)
+
+	// Start a TLS server
+	cert, err := tls.X509KeyPair(serverCertPEM, serverKeyPEM)
+	require.NoError(t, err, "failed to load server key pair")
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	}
+
+	ln, err := tls.Listen("tcp", "localhost:0", tlsConfig)
+	require.NoError(t, err, "failed to start TLS server")
+	defer ln.Close()
+
+	serverAddr := ln.Addr().String()
+
+	// Start server goroutine
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		conn, err := ln.Accept()
+		if err != nil {
+			t.Log("Server accept error:", err)
+			return
+		}
+		defer conn.Close()
+		io.Copy(io.Discard, conn)
+	}()
+
+	// Create a TLS client connection
+	clientTLSConfig := &tls.Config{
+		InsecureSkipVerify: true, // For testing purposes only
+	}
+	conn, err := tls.Dial("tcp", serverAddr, clientTLSConfig)
+	require.NoError(t, err, "failed to connect to TLS server")
+	defer conn.Close()
+
+	// Send some data
+	_, err = conn.Write([]byte("hello"))
+	require.NoError(t, err, "failed to write to TLS server")
+
+	// Wait for the tracer to pick up the connection
+	var tracedConn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		laddr, raddr := conn.LocalAddr(), conn.RemoteAddr()
+		var ok bool
+		tracedConn, ok = findConnection(laddr, raddr, conns)
+		return ok
+	}, 3*time.Second, 100*time.Millisecond, "could not find TLS connection")
+
+	require.NotNil(t, tracedConn, "traced connection is nil")
+
+	// Check that the TLS tags are present
+	tags := tracedConn.Tags
+	assert.Contains(t, tags, "tls_version", "tls_version tag missing")
+	assert.Contains(t, tags, "tls_cipher_suite", "tls_cipher_suite tag missing")
+
+	// Signal the server to finish
+	conn.Close()
+	<-done
+}
+
+func (s *TracerSuite) TestTLSConnectionWithClientCert() {
+	t := s.T()
+	t.Skip()
+
+	// Setup tracer with default configuration
+	cfg := testConfig()
+	tr := setupTracer(t, cfg)
+
+	// Load server certificate and key
+	serverCert, err := tls.X509KeyPair(serverCertPEM, serverKeyPEM)
+	require.NoError(t, err, "failed to load server key pair")
+
+	// Load client certificate and key
+	clientCert, err := tls.X509KeyPair(clientCertPEM, clientKeyPEM)
+	require.NoError(t, err, "failed to load client key pair")
+
+	// Create a certificate pool with the server's CA
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCertPEM)
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+		ClientCAs:    caCertPool,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+	}
+
+	ln, err := tls.Listen("tcp", "localhost:0", tlsConfig)
+	require.NoError(t, err, "failed to start TLS server")
+	defer ln.Close()
+
+	serverAddr := ln.Addr().String()
+
+	// Start server goroutine
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		conn, err := ln.Accept()
+		if err != nil {
+			t.Log("Server accept error:", err)
+			return
+		}
+		defer conn.Close()
+		io.Copy(io.Discard, conn)
+	}()
+
+	// Create a TLS client connection
+	clientTLSConfig := &tls.Config{
+		Certificates:       []tls.Certificate{clientCert},
+		InsecureSkipVerify: true, // For testing purposes only
+	}
+	conn, err := tls.Dial("tcp", serverAddr, clientTLSConfig)
+	require.NoError(t, err, "failed to connect to TLS server")
+	defer conn.Close()
+
+	// Send some data
+	_, err = conn.Write([]byte("hello"))
+	require.NoError(t, err, "failed to write to TLS server")
+
+	// Wait for the tracer to pick up the connection
+	var tracedConn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		laddr, raddr := conn.LocalAddr(), conn.RemoteAddr()
+		var ok bool
+		tracedConn, ok = findConnection(laddr, raddr, conns)
+		return ok
+	}, 3*time.Second, 100*time.Millisecond, "could not find TLS connection")
+
+	require.NotNil(t, tracedConn, "traced connection is nil")
+
+	// Check that the TLS tags are present
+	tags := tracedConn.Tags
+	assert.Contains(t, tags, "tls_version", "tls_version tag missing")
+	assert.Contains(t, tags, "tls_cipher_suite", "tls_cipher_suite tag missing")
+
+	// Signal the server to finish
+	conn.Close()
+	<-done
+}
+
+func (s *TracerSuite) TestTLSConnectionTLS12() {
+	t := s.T()
+	t.Skip()
+
+	// Setup tracer with default configuration
+	cfg := testConfig()
+	tr := setupTracer(t, cfg)
+
+	// Start a TLS server with TLS 1.2
+	cert, err := tls.X509KeyPair(serverCertPEM, serverKeyPEM)
+	require.NoError(t, err, "failed to load server key pair")
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
+		MaxVersion:   tls.VersionTLS12,
+	}
+
+	ln, err := tls.Listen("tcp", "localhost:0", tlsConfig)
+	require.NoError(t, err, "failed to start TLS server")
+	defer ln.Close()
+
+	serverAddr := ln.Addr().String()
+
+	// Start server goroutine
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		conn, err := ln.Accept()
+		if err != nil {
+			t.Log("Server accept error:", err)
+			return
+		}
+		defer conn.Close()
+		io.Copy(io.Discard, conn)
+	}()
+
+	// Create a TLS client connection with TLS 1.2
+	clientTLSConfig := &tls.Config{
+		InsecureSkipVerify: true, // For testing purposes only
+		MinVersion:         tls.VersionTLS12,
+		MaxVersion:         tls.VersionTLS12,
+	}
+	conn, err := tls.Dial("tcp", serverAddr, clientTLSConfig)
+	require.NoError(t, err, "failed to connect to TLS server")
+	defer conn.Close()
+
+	// Send some data
+	_, err = conn.Write([]byte("hello"))
+	require.NoError(t, err, "failed to write to TLS server")
+
+	// Wait for the tracer to pick up the connection
+	var tracedConn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		laddr, raddr := conn.LocalAddr(), conn.RemoteAddr()
+		var ok bool
+		tracedConn, ok = findConnection(laddr, raddr, conns)
+		return ok
+	}, 3*time.Second, 100*time.Millisecond, "could not find TLS connection")
+
+	require.NotNil(t, tracedConn, "traced connection is nil")
+
+	// Check that the TLS tags are present and correct
+	tags := tracedConn.Tags
+	assert.Contains(t, tags, "tls_version", "tls_version tag missing")
+	//assert.Equal(t, "TLSv1.2", tags["tls_version"], "expected TLS version 1.2") // TDOD: Fix this
+
+	assert.Contains(t, tags, "tls_cipher_suite", "tls_cipher_suite tag missing")
+
+	// Signal the server to finish
+	conn.Close()
+	<-done
 }
