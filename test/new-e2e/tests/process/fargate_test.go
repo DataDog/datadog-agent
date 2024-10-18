@@ -9,10 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
 	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
+
+	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
+	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
@@ -43,6 +47,9 @@ func ecsFargateCPUStressProvisioner() e2e.PulumiEnvRunFunc[fargateCPUStressEnv] 
 			ecs.WithAgentOptions(
 				ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "true"),
 			),
+			ecs.WithFargateWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput, apiKeySSMParamName pulumi.StringInput, fakeIntake *fakeintakeComp.Fakeintake) (*ecsComp.Workload, error) {
+				return cpustress.FargateAppDefinition(e, clusterArn, apiKeySSMParamName, fakeIntake)
+			}),
 		)
 
 		if err := ecs.Run(ctx, &env.ECS, params); err != nil {

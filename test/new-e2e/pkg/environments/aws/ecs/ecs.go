@@ -47,6 +47,7 @@ type ProvisionerParams struct {
 	ecsWindowsNodeGroup               bool
 	infraShouldDeployFakeintakeWithLB bool
 	workloadAppFuncs                  []WorkloadAppFunc
+	fargateWorkloadAppFuncs           []FargateWorkloadAppFunc
 	awsEnv                            *aws.Environment
 }
 
@@ -183,6 +184,17 @@ type WorkloadAppFunc func(e aws.Environment, clusterArn pulumi.StringInput) (*ec
 func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.workloadAppFuncs = append(params.workloadAppFuncs, appFunc)
+		return nil
+	}
+}
+
+// FargateWorkloadAppFunc is a function that deploys a Fargate workload app to an ECS cluster
+type FargateWorkloadAppFunc func(e aws.Environment, clusterArn pulumi.StringInput, apiKeySSMParamName pulumi.StringInput, fakeIntake *fakeintakeComp.Fakeintake) (*ecsComp.Workload, error)
+
+// WithFargateWorkloadApp adds a Fargate workload app to the environment
+func WithFargateWorkloadApp(appFunc FargateWorkloadAppFunc) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.fargateWorkloadAppFuncs = append(params.fargateWorkloadAppFuncs, appFunc)
 		return nil
 	}
 }
