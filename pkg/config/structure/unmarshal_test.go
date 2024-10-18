@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/stretchr/testify/assert"
 )
@@ -1260,7 +1261,7 @@ service:
 
 func TestMapGetChildNotFound(t *testing.T) {
 	m := map[string]interface{}{"a": "apple", "b": "banana"}
-	n, err := nodetreemodel.NewNode(m)
+	n, err := nodetreemodel.NewNode(m, model.SourceDefault)
 	assert.NoError(t, err)
 
 	val, err := n.GetChild("a")

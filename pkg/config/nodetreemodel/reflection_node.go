@@ -11,6 +11,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 var (
@@ -34,13 +36,13 @@ func asReflectionNode(v interface{}) (Node, error) {
 	} else if rv.Kind() == reflect.Slice {
 		elems := make([]interface{}, 0, rv.Len())
 		for i := 0; i < rv.Len(); i++ {
-			node, err := NewNode(rv.Index(i).Interface())
+			node, err := NewNode(rv.Index(i).Interface(), model.SourceDefault)
 			if err != nil {
 				return nil, err
 			}
 			elems = append(elems, node)
 		}
-		return newArrayNodeImpl(elems)
+		return newArrayNodeImpl(elems, model.SourceDefault)
 	} else if rv.Kind() == reflect.Map {
 		res := make(map[string]interface{}, rv.Len())
 		mapkeys := rv.MapKeys()
@@ -53,7 +55,7 @@ func asReflectionNode(v interface{}) (Node, error) {
 			}
 			res[kstr] = rv.MapIndex(mk).Interface()
 		}
-		return newMapNodeImpl(res)
+		return newMapNodeImpl(res, model.SourceDefault)
 	}
 	return nil, errUnknownConversion
 }
@@ -73,7 +75,7 @@ func (n *structNodeImpl) GetChild(key string) (Node, error) {
 	if inner.Kind() == reflect.Interface {
 		inner = inner.Elem()
 	}
-	return NewNode(inner.Interface())
+	return NewNode(inner.Interface(), model.SourceDefault)
 }
 
 // ChildrenKeys returns the list of keys of the children of the given node, if it is a map

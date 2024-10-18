@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"gopkg.in/yaml.v2"
 )
 
@@ -69,7 +70,7 @@ func (c *ntmConfig) readConfigurationContent(content []byte) (Node, error) {
 	if err := yaml.Unmarshal(content, &obj); err != nil {
 		return nil, err
 	}
-	root, err := NewNode(obj)
+	root, err := NewNode(obj, model.SourceFile)
 	if err != nil {
 		return nil, err
 	}
