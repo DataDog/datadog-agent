@@ -112,7 +112,9 @@ func newServer(endpoint string, handler http.Handler) (*server, error) {
 	r := mux.NewRouter()
 	r.Handle("/", handler)
 
-	r.Use(validateToken)
+	if util.GetAuthToken() != "" {
+		r.Use(validateToken)
+	}
 
 	s := &http.Server{
 		Addr:      endpoint,
