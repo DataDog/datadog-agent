@@ -28,8 +28,8 @@ type ddExtensionFactory struct {
 	configProviderSettings otelcol.ConfigProviderSettings
 }
 
-// NewFactory creates a factory for HealthCheck extension.
-func NewFactory(factories *otelcol.Factories, configProviderSettings otelcol.ConfigProviderSettings) extension.Factory {
+// NewFactoryForAgent creates a factory for HealthCheck extension.
+func NewFactoryForAgent(factories *otelcol.Factories, configProviderSettings otelcol.ConfigProviderSettings) extension.Factory {
 	return &ddExtensionFactory{
 		factories:              factories,
 		configProviderSettings: configProviderSettings,
