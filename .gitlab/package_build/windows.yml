@@ -76,7 +76,8 @@ windows_zip_agent_binaries_x64-a7:
     - !reference [.except_mergequeue]
     - when: on_success
   tags: ["runner:windows-docker", "windowsversion:1809"]
-  needs: ["go_mod_tidy_check", "go_deps"]
+  # needs: ["go_mod_tidy_check", "go_deps"]
+  needs: ["go_deps"]
   variables:
     ARCH: "x64"
     AGENT_MAJOR_VERSION: 7

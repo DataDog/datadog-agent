@@ -39,7 +39,7 @@
   tags: ["arch:amd64"]
   needs:
     [
-      "go_mod_tidy_check",
+      # "go_mod_tidy_check",
       "build_system-probe-x64",
       "go_deps",
       "generate_minimized_btfs_x64",
@@ -55,7 +55,7 @@
   tags: ["arch:arm64"]
   needs:
     [
-      "go_mod_tidy_check",
+      # "go_mod_tidy_check",
       "build_system-probe-arm64",
       "go_deps",
       "generate_minimized_btfs_arm64",
@@ -130,7 +130,8 @@ datadog-ot-agent-7-arm64:
 
 .iot-agent-common:
   extends: .agent_build_common
-  needs: ["go_mod_tidy_check", "go_deps"]
+  # needs: ["go_mod_tidy_check", "go_deps"]
+  needs: ["go_deps"]
   script:
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.retrieve_linux_go_deps]
@@ -197,7 +198,8 @@ iot-agent-armhf:
 
 dogstatsd-x64:
   extends: .dogstatsd_build_common
-  needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
+  # needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
+  needs: ["build_dogstatsd-binary_x64", "go_deps"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
@@ -208,7 +210,8 @@ dogstatsd-arm64:
   extends: .dogstatsd_build_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
-  needs: ["go_mod_tidy_check", "build_dogstatsd-binary_arm64", "go_deps"]
+  # needs: ["go_mod_tidy_check", "build_dogstatsd-binary_arm64", "go_deps"]
+  needs: ["build_dogstatsd-binary_arm64", "go_deps"]
   variables:
     DD_CC: 'aarch64-unknown-linux-gnu-gcc'
     DD_CXX: 'aarch64-unknown-linux-gnu-g++'

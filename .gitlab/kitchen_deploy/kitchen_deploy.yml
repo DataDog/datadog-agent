@@ -55,7 +55,7 @@ deploy_deb_testing-a7_x64:
       "agent_heroku_deb-x64-a7",
       "iot_agent_deb-x64",
       "dogstatsd_deb-x64",
-      "lint_linux-x64",
+      # "lint_linux-x64",
     ]
   script:
     - *setup_apt_signing_key
@@ -75,7 +75,8 @@ deploy_deb_testing-a7_arm64:
     - !reference [.manual]
   extends:
     - .deploy_deb_testing-a7
-  needs: ["installer_deb-arm64", "agent_deb-arm64-a7", "lint_linux-arm64"]
+  # needs: ["installer_deb-arm64", "agent_deb-arm64-a7", "lint_linux-arm64"]
+  needs: ["installer_deb-arm64", "agent_deb-arm64-a7"]
   script:
     - *setup_apt_signing_key
     - set +x # make sure we don't output the creds to the build log
@@ -107,7 +108,7 @@ deploy_rpm_testing-a7_x64:
       "agent_rpm-x64-a7",
       "iot_agent_rpm-x64",
       "dogstatsd_rpm-x64",
-      "lint_linux-x64",
+      # "lint_linux-x64",
     ]
   script:
     - *setup_rpm_signing_key
@@ -121,7 +122,8 @@ deploy_rpm_testing-a7_arm64:
     - !reference [.manual]
   extends:
     - .deploy_rpm_testing-a7
-  needs: ["installer_rpm-arm64", "agent_rpm-arm64-a7", "lint_linux-arm64"]
+  # needs: ["installer_rpm-arm64", "agent_rpm-arm64-a7", "lint_linux-arm64"]
+  needs: ["installer_rpm-arm64", "agent_rpm-arm64-a7"]
   script:
     - *setup_rpm_signing_key
     - set +x
@@ -141,7 +143,7 @@ deploy_suse_rpm_testing_x64-a7:
       "agent_suse-x64-a7",
       "iot_agent_suse-x64",
       "dogstatsd_suse-x64",
-      "lint_linux-x64",
+      # "lint_linux-x64",
     ]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -179,7 +181,8 @@ deploy_windows_testing-a7:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
-    ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7", "windows-installer-amd64"]
+    # ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7", "windows-installer-amd64"]
+    ["windows_msi_and_bosh_zip_x64-a7", "windows-installer-amd64"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:

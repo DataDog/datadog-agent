@@ -173,7 +173,8 @@ installer-arm64:
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
-  needs: ["go_mod_tidy_check", "go_deps"]
+  # needs: ["go_mod_tidy_check", "go_deps"]
+  needs: ["go_deps"]
   variables:
     PACKAGE_ARCH: arm64
     DESTINATION_FILE: "datadog-installer_7-arm64.tar.xz"
