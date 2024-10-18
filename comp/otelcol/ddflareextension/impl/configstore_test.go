@@ -12,11 +12,12 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
+	"go.opentelemetry.io/collector/component/componenttest"
+
 	converterimpl "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
-	"go.opentelemetry.io/collector/component/componenttest"
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/component"
@@ -38,7 +39,7 @@ func addFactories(factories otelcol.Factories) {
 	factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(nil, nil, nil, nil, nil)
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(nil, nil)
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
-	factories.Extensions[Type] = NewFactory(nil, otelcol.ConfigProviderSettings{})
+	factories.Extensions[Type] = NewFactoryForAgent(nil, otelcol.ConfigProviderSettings{})
 }
 
 func TestGetConfDump(t *testing.T) {
