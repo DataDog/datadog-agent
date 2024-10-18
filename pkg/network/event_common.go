@@ -232,10 +232,35 @@ func (s StatCounters) IsZero() bool {
 // reduce collisions; see PR #17197 for more info.
 type StatCookie = uint64
 
-// ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
-type ConnectionStats struct {
+// ConnectionTuple represents the unique network key for a connection
+type ConnectionTuple struct {
 	Source util.Address
 	Dest   util.Address
+	Pid    uint32
+	NetNS  uint32
+	SPort  uint16
+	DPort  uint16
+	Type   ConnectionType
+	Family ConnectionFamily
+}
+
+func (c ConnectionTuple) String() string {
+	return fmt.Sprintf(
+		"[%s%s] [PID: %d] [ns: %d] [%s:%d ⇄ %s:%d] ",
+		c.Type,
+		c.Family,
+		c.Pid,
+		c.NetNS,
+		c.Source,
+		c.SPort,
+		c.Dest,
+		c.DPort,
+	)
+}
+
+// ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
+type ConnectionStats struct {
+	ConnectionTuple
 
 	IPTranslation *IPTranslation
 	Via           *Via
@@ -253,13 +278,6 @@ type ConnectionStats struct {
 	RTT    uint32 // Stored in µs
 	RTTVar uint32
 
-	Pid   uint32
-	NetNS uint32
-
-	SPort            uint16
-	DPort            uint16
-	Type             ConnectionType
-	Family           ConnectionFamily
 	Direction        ConnectionDirection
 	SPortIsEphemeral EphemeralPortType
 	StaticTags       uint64

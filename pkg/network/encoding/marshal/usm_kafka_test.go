@@ -38,12 +38,12 @@ const (
 
 var (
 	localhost         = util.AddressFromString("127.0.0.1")
-	defaultConnection = network.ConnectionStats{
+	defaultConnection = network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 		Source: localhost,
 		Dest:   localhost,
 		SPort:  clientPort,
 		DPort:  serverPort,
-	}
+	}}
 )
 
 type KafkaSuite struct {
@@ -132,20 +132,20 @@ func (s *KafkaSuite) TestKafkaIDCollisionRegression() {
 	t := s.T()
 	assert := assert.New(t)
 	connections := []network.ConnectionStats{
-		{
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  clientPort,
 			Dest:   localhost,
 			DPort:  serverPort,
 			Pid:    1,
-		},
-		{
+		}},
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  clientPort,
 			Dest:   localhost,
 			DPort:  serverPort,
 			Pid:    2,
-		},
+		}},
 	}
 
 	kafkaKey := kafka.NewKey(
@@ -193,20 +193,20 @@ func (s *KafkaSuite) TestKafkaLocalhostScenario() {
 	t := s.T()
 	assert := assert.New(t)
 	connections := []network.ConnectionStats{
-		{
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  clientPort,
 			Dest:   localhost,
 			DPort:  serverPort,
 			Pid:    1,
-		},
-		{
+		}},
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  serverPort,
 			Dest:   localhost,
 			DPort:  clientPort,
 			Pid:    2,
-		},
+		}},
 	}
 
 	kafkaKey := kafka.NewKey(

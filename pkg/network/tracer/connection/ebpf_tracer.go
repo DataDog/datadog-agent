@@ -314,12 +314,15 @@ func (t *ebpfTracer) Start(callback func(*network.ConnectionStats)) (err error) 
 		return fmt.Errorf("error initializing port binding maps: %s", err)
 	}
 
+	t.closeConsumer.Start(callback)
+	t.failedConnConsumer.Start()
+
 	if err := t.m.Start(); err != nil {
+		t.closeConsumer.Stop()
+		t.failedConnConsumer.Stop()
 		return fmt.Errorf("could not start ebpf manager: %s", err)
 	}
 
-	t.closeConsumer.Start(callback)
-	t.failedConnConsumer.Start()
 	return nil
 }
 
@@ -470,7 +473,7 @@ func removeConnectionFromTelemetry(conn *network.ConnectionStats) {
 }
 
 func (t *ebpfTracer) Remove(conn *network.ConnectionStats) error {
-	util.ConnStatsToTuple(conn, t.removeTuple)
+	util.ConnTupleToEBPFTuple(&conn.ConnectionTuple, t.removeTuple)
 
 	err := t.conns.Delete(t.removeTuple)
 	if err != nil {
@@ -717,13 +720,14 @@ func (t *ebpfTracer) setupMapCleaner(m *manager.Manager) {
 }
 
 func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats, ch *cookieHasher) {
-	*stats = network.ConnectionStats{
+	*stats = network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 		Pid:    t.Pid,
 		NetNS:  t.Netns,
 		Source: t.SourceAddress(),
 		Dest:   t.DestAddress(),
 		SPort:  t.Sport,
 		DPort:  t.Dport,
+	},
 		Monotonic: network.StatCounters{
 			SentBytes:   s.Sent_bytes,
 			RecvBytes:   s.Recv_bytes,

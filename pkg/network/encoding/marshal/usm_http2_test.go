@@ -86,12 +86,12 @@ func testFormatHTTP2Stats(t *testing.T, aggregateByStatusCode bool) {
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
-				{
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: localhost,
 					Dest:   localhost,
 					SPort:  clientPort,
 					DPort:  serverPort,
-				},
+				}},
 			},
 		},
 		HTTP2: map[http.Key]*http.RequestStats{
@@ -172,12 +172,12 @@ func testFormatHTTP2StatsByPath(t *testing.T, aggregateByStatusCode bool) {
 	payload := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
-				{
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: util.AddressFromString("10.1.1.1"),
 					Dest:   util.AddressFromString("10.2.2.2"),
 					SPort:  60000,
 					DPort:  80,
-				},
+				}},
 			},
 		},
 		HTTP2: map[http.Key]*http.RequestStats{
@@ -227,20 +227,20 @@ func testHTTP2IDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 	http2Stats := http.NewRequestStats(aggregateByStatusCode)
 	assert := assert.New(t)
 	connections := []network.ConnectionStats{
-		{
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("1.1.1.1"),
 			SPort:  60000,
 			Dest:   util.AddressFromString("2.2.2.2"),
 			DPort:  80,
 			Pid:    1,
-		},
-		{
+		}},
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("1.1.1.1"),
 			SPort:  60000,
 			Dest:   util.AddressFromString("2.2.2.2"),
 			DPort:  80,
 			Pid:    2,
-		},
+		}},
 	}
 
 	httpKey := http.NewKey(
@@ -297,20 +297,20 @@ func testHTTP2LocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 	cliport := uint16(6000)
 	serverport := uint16(80)
 	connections := []network.ConnectionStats{
-		{
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("127.0.0.1"),
 			SPort:  cliport,
 			Dest:   util.AddressFromString("127.0.0.1"),
 			DPort:  serverport,
 			Pid:    1,
-		},
-		{
+		}},
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("127.0.0.1"),
 			SPort:  serverport,
 			Dest:   util.AddressFromString("127.0.0.1"),
 			DPort:  cliport,
 			Pid:    2,
-		},
+		}},
 	}
 
 	http2Stats := http.NewRequestStats(aggregateByStatusCode)
