@@ -40,8 +40,10 @@ type CDN interface {
 
 // New creates a new CDN.
 func New(env *env.Env, configDBPath string) (CDN, error) {
+	hostTagsGetter := newHostTagsGetter()
+
 	if env.CDNLocalDirPath != "" {
-		return newLocal(env)
+		return newLocal(env, hostTagsGetter)
 	}
-	return newRemote(env, configDBPath)
+	return newRemote(env, hostTagsGetter, configDBPath)
 }

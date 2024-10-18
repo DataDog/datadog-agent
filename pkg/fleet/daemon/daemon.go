@@ -562,7 +562,7 @@ func (d *daemonImpl) resolveRemoteConfigVersion(ctx context.Context, pkg string)
 	}
 	config, err := d.cdn.Get(ctx, pkg)
 	if err != nil {
-		return "", fmt.Errorf("could not get cdn config: %w", err)
+		return "", err
 	}
 	return config.Version(), nil
 }
@@ -602,13 +602,10 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		}
 
 		configVersion, err := d.resolveRemoteConfigVersion(ctx, pkg)
-		if err != nil {
-			log.Errorf("could not get agent remote config version: %v", err)
-		}
 		if err == nil {
 			p.RemoteConfigVersion = configVersion
-		} else if err != cdn.ErrProductNotSupported {
-			log.Warnf("could not get remote config version: %v", err)
+		} else if !errors.Is(err, cdn.ErrProductNotSupported) {
+			log.Errorf("could not get %s remote config version: %v", pkg, err)
 		}
 
 		requestState, ok := d.requestsState[pkg]
