@@ -50,10 +50,6 @@ PyMODINIT_FUNC PyInit_containers(void);
 extern "C" {
 #endif
 
-#ifdef DATADOG_AGENT_TWO
-void Py2_init_containers();
-#endif
-
 void _set_is_excluded_cb(cb_is_excluded_t);
 
 #ifdef __cplusplus
