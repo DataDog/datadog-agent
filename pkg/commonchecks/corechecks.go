@@ -68,7 +68,7 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.Factory())
 	corecheckLoader.RegisterCheck(containerimage.CheckName, containerimage.Factory(store))
 	corecheckLoader.RegisterCheck(containerlifecycle.CheckName, containerlifecycle.Factory(store))
-	corecheckLoader.RegisterCheck(generic.CheckName, generic.Factory(store))
+	corecheckLoader.RegisterCheck(generic.CheckName, generic.Factory(store, tagger))
 
 	// Flavor specific checks
 	corecheckLoader.RegisterCheck(load.CheckName, load.Factory())

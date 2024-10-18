@@ -207,7 +207,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	container7Tags, _ := fakeTagger.Tag("container_id://7", types.HighCardinality)
 	networkProcessor.Process(container7Tags, container7, mockCollector, 0)
 
-	networkProcessor.PostProcess()
+	networkProcessor.PostProcess(fakeTagger)
 
 	// Checking results
 	mockSender.AssertNumberOfCalls(t, "Rate", 12)
