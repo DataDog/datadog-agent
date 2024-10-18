@@ -18,8 +18,11 @@ import (
 )
 
 var (
-	tlmDroppedTooLarge    = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
-	tlmMessageBufferFlush = telemetry.NewCounter("logs_sender_batch_strategy", "message_buffer_flush", []string{"reason"}, "Count of message buffer flushes")
+	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large",
+		[]string{"pipeline"}, "Number of payloads dropped due to being too large")
+	tlmMessageBufferFlush = telemetry.NewCounter("logs_sender_batch_strategy", "message_buffer_flush",
+		[]string{"reason"}, "Count of message buffer flushes")
+	tlmMessageLength = telemetry.NewCounter("logs_sender_batch_strategy", "message_length", nil, "Message length")
 )
 
 // batchStrategy contains all the logic to send logs in batch.

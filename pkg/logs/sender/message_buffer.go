@@ -31,6 +31,7 @@ func (p *MessageBuffer) AddMessage(message *message.Message) bool {
 	if len(p.messageBuffer) < cap(p.messageBuffer) && p.contentSize+contentSize <= p.contentSizeLimit {
 		p.messageBuffer = append(p.messageBuffer, message)
 		p.contentSize += contentSize
+		tlmMessageLength.Add(float64(contentSize))
 		return true
 	}
 	return false
