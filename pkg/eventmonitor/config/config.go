@@ -42,8 +42,8 @@ func NewConfig() *Config {
 }
 
 func getAllKeys(key string) (string, string) {
-	deprecatedKey := sysconfig.FullKeyPath(rsNS, key, ".")
-	newKey := sysconfig.FullKeyPath(evNS, key, ".")
+	deprecatedKey := sysconfig.FullKeyPath(rsNS, key)
+	newKey := sysconfig.FullKeyPath(evNS, key)
 	return deprecatedKey, newKey
 }
 
