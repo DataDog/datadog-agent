@@ -619,7 +619,7 @@ func (a *Agent) errorSampling(now time.Time, ts *info.TagStats, pt *traceutil.Pr
 	numEvents = len(a.getAnalyzedEvents(pt, ts))
 	if sampled {
 		for _, span := range pt.TraceChunk.Spans {
-			if spanIsError(span) {
+			if span.Error != 0 || spanContainsExceptionSpanEvent(span) {
 				span.Meta["_dd.error_tracking_backend_standalone.error"] = "true"
 			} else {
 				span.Meta["_dd.error_tracking_backend_standalone.error"] = "false"
@@ -630,10 +630,26 @@ func (a *Agent) errorSampling(now time.Time, ts *info.TagStats, pt *traceutil.Pr
 	return sampled, numEvents
 }
 
+func spanContainsExceptionSpanEvent(span *pb.Span) bool {
+	if hasExceptionSpanEvents, ok := span.Meta["_dd.span_events.has_exception"]; ok && hasExceptionSpanEvents == "true" {
+		return true
+	}
+	return false
+}
+
 // runErrorSampler runs the agent's configured ErrorSampler if pt contains errors and returns the sampling decision.
 func (a *Agent) runErrorSampler(now time.Time, pt traceutil.ProcessedTrace) (keep bool) {
-	if traceContainsError(pt.TraceChunk.Spans) {
+	if traceContainsErrorOrExceptionSpanEvent(pt.TraceChunk.Spans) {
 		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
+	}
+	return false
+}
+
+func traceContainsErrorOrExceptionSpanEvent(trace pb.Trace) bool {
+	for _, span := range trace {
+		if span.Error != 0 || spanContainsExceptionSpanEvent(span) {
+			return true
+		}
 	}
 	return false
 }
@@ -719,20 +735,9 @@ func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.Proce
 
 func traceContainsError(trace pb.Trace) bool {
 	for _, span := range trace {
-		if spanIsError(span) {
+		if span.Error != 0 {
 			return true
 		}
-	}
-	return false
-}
-
-func spanIsError(span *pb.Span) bool {
-	return span.Error != 0 || spanContainsExceptionSpanEvent(span)
-}
-
-func spanContainsExceptionSpanEvent(span *pb.Span) bool {
-	if hasExceptionSpanEvents, ok := span.Meta["_dd.span_events.has_exception"]; ok && hasExceptionSpanEvents == "true" {
-		return true
 	}
 	return false
 }
