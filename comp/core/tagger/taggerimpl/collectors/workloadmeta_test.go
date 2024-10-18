@@ -852,7 +852,7 @@ func TestHandleKubePod(t *testing.T) {
 					Name:      podName,
 					Namespace: podNamespace,
 				},
-				GPUTypeList: []string{"nvidia"},
+				GPUVendorList: []string{"nvidia"},
 				Containers: []workloadmeta.OrchestratorContainer{
 					{
 						ID:    fullyFleshedContainerID,
@@ -871,7 +871,7 @@ func TestHandleKubePod(t *testing.T) {
 					},
 					LowCardTags: []string{
 						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						"kube_gpu_type:nvidia",
+						"gpu_vendor:nvidia",
 					},
 					StandardTags: []string{},
 				},
@@ -892,7 +892,7 @@ func TestHandleKubePod(t *testing.T) {
 						"image_name:datadog/agent",
 						"image_tag:latest",
 						"short_image:agent",
-						"kube_gpu_type:nvidia",
+						"gpu_vendor:nvidia",
 					}, standardTags...),
 					StandardTags: standardTags,
 				},
@@ -2126,7 +2126,7 @@ func TestHandleContainer(t *testing.T) {
 					Name: containerName,
 				},
 				Resources: workloadmeta.ContainerResources{
-					GPUTypeList: []string{"nvidia"},
+					GPUVendorList: []string{"nvidia"},
 				},
 			},
 			expected: []*types.TagInfo{
@@ -2139,7 +2139,7 @@ func TestHandleContainer(t *testing.T) {
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
-						"kube_gpu_type:nvidia",
+						"gpu_vendor:nvidia",
 					},
 					StandardTags: []string{},
 				},

@@ -145,7 +145,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			&podID,
 		)
 
-		GPUTypes := getGPUTypesFromContainers(initContainerEvents, containerEvents)
+		GPUVendors := getGPUVendorsFromContainers(initContainerEvents, containerEvents)
 
 		podOwners := pod.Owners()
 		owners := make([]workloadmeta.KubernetesPodOwner, 0, len(podOwners))
@@ -177,7 +177,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			IP:                         pod.Status.PodIP,
 			PriorityClass:              pod.Spec.PriorityClassName,
 			QOSClass:                   pod.Status.QOSClass,
-			GPUTypeList:                GPUTypes,
+			GPUVendorList:              GPUVendors,
 			RuntimeClass:               RuntimeClassName,
 			SecurityContext:            PodSecurityContext,
 		}
@@ -316,21 +316,21 @@ func (c *collector) parsePodContainers(
 	return podContainers, events
 }
 
-func getGPUTypesFromContainers(initContainerEvents, containerEvents []workloadmeta.CollectorEvent) []string {
+func getGPUVendorsFromContainers(initContainerEvents, containerEvents []workloadmeta.CollectorEvent) []string {
 	gpuUniqueTypes := make(map[string]bool)
 	for _, event := range append(initContainerEvents, containerEvents...) {
 		container := event.Entity.(*workloadmeta.Container)
-		for _, gpuType := range container.Resources.GPUTypeList {
-			gpuUniqueTypes[gpuType] = true
+		for _, GPUVendor := range container.Resources.GPUVendorList {
+			gpuUniqueTypes[GPUVendor] = true
 		}
 	}
 
-	gpuTypes := make([]string, 0, len(gpuUniqueTypes))
-	for gpuType := range gpuUniqueTypes {
-		gpuTypes = append(gpuTypes, gpuType)
+	GPUVendors := make([]string, 0, len(gpuUniqueTypes))
+	for GPUVendor := range gpuUniqueTypes {
+		GPUVendors = append(GPUVendors, GPUVendor)
 	}
 
-	return gpuTypes
+	return GPUVendors
 }
 
 func extractPodRuntimeClassName(spec *kubelet.Spec) string {
@@ -445,18 +445,18 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 	}
 
 	// extract GPU resource info from the possible GPU sources
-	uniqueGPUType := make(map[string]bool)
+	uniqueGPUVendor := make(map[string]bool)
 	for _, gpuResource := range kubelet.GetGPUResourceNames() {
 		if gpuReq, found := spec.Resources.Requests[gpuResource]; found {
 			resources.GPURequest = pointer.Ptr(uint64(gpuReq.Value()))
-			uniqueGPUType[extractSimpleGPUName(gpuResource)] = true
+			uniqueGPUVendor[extractSimpleGPUName(gpuResource)] = true
 		}
 	}
-	gpuTypeList := make([]string, 0, len(uniqueGPUType))
-	for gpuType := range uniqueGPUType {
-		gpuTypeList = append(gpuTypeList, gpuType)
+	gpuVendorList := make([]string, 0, len(uniqueGPUVendor))
+	for GPUVendor := range uniqueGPUVendor {
+		gpuVendorList = append(gpuVendorList, GPUVendor)
 	}
-	resources.GPUTypeList = gpuTypeList
+	resources.GPUVendorList = gpuVendorList
 
 	return resources
 }

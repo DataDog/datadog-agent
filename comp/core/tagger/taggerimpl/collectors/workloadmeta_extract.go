@@ -231,8 +231,8 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 	}
 
 	// gpu tags from container resource requests
-	for _, GPUType := range container.Resources.GPUTypeList {
-		tagList.AddLow(tags.KubeGPUType, GPUType)
+	for _, gpuVendor := range container.Resources.GPUVendorList {
+		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
 	}
 
 	low, orch, high, standard := tagList.Compute()
@@ -362,8 +362,8 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 	}
 
 	// gpu requested vendor as tags
-	for _, GPUVendor := range pod.GPUTypeList {
-		tagList.AddLow(tags.KubeGPUType, GPUVendor)
+	for _, gpuVendor := range pod.GPUVendorList {
+		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
 	}
 
 	kubeServiceDisabled := false
