@@ -225,7 +225,7 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 					}
 					str.WriteString(string(key))
 					str.WriteString(":")
-					if val, err := json.Marshal(v.AsString()); err == nil {
+					if val, err := json.Marshal(v.AsRaw()); err == nil {
 						str.WriteString(string(val))
 					} else {
 						log.Warnf("Trouble parsing the following attribute value, dropping: %v", v.AsString())

@@ -965,7 +965,7 @@ func TestOTLPHelpers(t *testing.T) {
 		}{
 			{
 				status: ptrace.StatusCodeError,
-				events: makeEventsSlice("exception", map[string]string{
+				events: makeEventsSlice("exception", map[string]any{
 					"exception.message":    "Out of memory",
 					"exception.type":       "mem",
 					"exception.stacktrace": "1/2/3",
@@ -981,7 +981,7 @@ func TestOTLPHelpers(t *testing.T) {
 			},
 			{
 				status: ptrace.StatusCodeError,
-				events: makeEventsSlice("exception", map[string]string{
+				events: makeEventsSlice("exception", map[string]any{
 					"exception.message": "Out of memory",
 				}, 0, 0),
 				out: pb.Span{
@@ -991,7 +991,7 @@ func TestOTLPHelpers(t *testing.T) {
 			},
 			{
 				status: ptrace.StatusCodeError,
-				events: makeEventsSlice("EXCEPTION", map[string]string{
+				events: makeEventsSlice("EXCEPTION", map[string]any{
 					"exception.message": "Out of memory",
 				}, 0, 0),
 				out: pb.Span{
@@ -1001,7 +1001,7 @@ func TestOTLPHelpers(t *testing.T) {
 			},
 			{
 				status: ptrace.StatusCodeError,
-				events: makeEventsSlice("OTher", map[string]string{
+				events: makeEventsSlice("OTher", map[string]any{
 					"exception.message": "Out of memory",
 				}, 0, 0),
 				out: pb.Span{Error: 1},
@@ -1024,7 +1024,7 @@ func TestOTLPHelpers(t *testing.T) {
 			},
 			{
 				status: ptrace.StatusCodeOk,
-				events: makeEventsSlice("exception", map[string]string{
+				events: makeEventsSlice("exception", map[string]any{
 					"exception.message":    "Out of memory",
 					"exception.type":       "mem",
 					"exception.stacktrace": "1/2/3",
@@ -1217,7 +1217,7 @@ func testOTLPConvertSpan(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					"service.version":         "v1.2.3",
 					"w3c.tracestate":          "state",
 					"version":                 "v1.2.3",
-					"events":                  `[{"time_unix_nano":123,"name":"boom","attributes":{"key":"Out of memory","accuracy":"2.4"},"dropped_attributes_count":2},{"time_unix_nano":456,"name":"exception","attributes":{"exception.message":"Out of memory","exception.type":"mem","exception.stacktrace":"1/2/3"},"dropped_attributes_count":2}]`,
+					"events":                  `[{"time_unix_nano":123,"name":"boom","attributes":{"key":"Out of memory","accuracy":2.4},"dropped_attributes_count":2},{"time_unix_nano":456,"name":"exception","attributes":{"exception.message":"Out of memory","exception.type":"mem","exception.stacktrace":"1/2/3"},"dropped_attributes_count":2}]`,
 					"_dd.span_links":          `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","trace_state":"dd=asdf256,ee=jkl;128", "attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
 					"error.msg":               "Out of memory",
 					"error.type":              "mem",
@@ -1343,7 +1343,7 @@ func testOTLPConvertSpan(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					"service.version":         "v1.2.3",
 					"w3c.tracestate":          "state",
 					"version":                 "v1.2.3",
-					"events":                  "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":\"2.4\"},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
+					"events":                  "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
 					"_dd.span_links":          `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","trace_state":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
 					"error.msg":               "Out of memory",
 					"error.type":              "mem",
@@ -1470,7 +1470,7 @@ func testOTLPConvertSpan(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					"w3c.tracestate":          "state",
 					"version":                 "v1.2.3",
 					"otel.trace_id":           "72df520af2bde7a5240031ead750e5f3",
-					"events":                  "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":\"2.4\"},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
+					"events":                  "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
 					"_dd.span_links":          `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","trace_state":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
 					"error.msg":               "Out of memory",
 					"error.type":              "mem",
@@ -2186,7 +2186,7 @@ func testResourceAttributesMap(enableReceiveResourceSpansV2 bool, t *testing.T) 
 	assert.Equal(t, "val", rattr["key"])
 }
 
-func makeEventsSlice(name string, attrs map[string]string, timestamp int, dropped uint32) ptrace.SpanEventSlice {
+func makeEventsSlice(name string, attrs map[string]any, timestamp int, dropped uint32) ptrace.SpanEventSlice {
 	s := ptrace.NewSpanEventSlice()
 	e := s.AppendEmpty()
 	e.SetName(name)
@@ -2198,7 +2198,17 @@ func makeEventsSlice(name string, attrs map[string]string, timestamp int, droppe
 	for _, k := range keys {
 		_, ok := e.Attributes().Get(k)
 		if !ok {
-			e.Attributes().PutStr(k, attrs[k])
+			switch attrs[k].(type) {
+			case []any:
+				s := e.Attributes().PutEmptySlice(k)
+				if v, ok := attrs[k].([]any); ok {
+					s.FromRaw(v)
+				}
+			default:
+				if v, ok := attrs[k].(string); ok {
+					e.Attributes().PutStr(k, v)
+				}
+			}
 		}
 	}
 	e.SetTimestamp(pcommon.Timestamp(timestamp))
@@ -2212,7 +2222,7 @@ func TestMarshalEvents(t *testing.T) {
 		out string
 	}{
 		{
-			in: makeEventsSlice("", map[string]string{
+			in: makeEventsSlice("", map[string]any{
 				"message": "OOM",
 			}, 0, 3),
 			out: `[{
@@ -2223,7 +2233,7 @@ func TestMarshalEvents(t *testing.T) {
 			in:  makeEventsSlice("boom", nil, 0, 0),
 			out: `[{"name":"boom"}]`,
 		}, {
-			in: makeEventsSlice("boom", map[string]string{
+			in: makeEventsSlice("boom", map[string]any{
 				"message": "OOM",
 			}, 0, 3),
 			out: `[{
@@ -2232,7 +2242,7 @@ func TestMarshalEvents(t *testing.T) {
 					"dropped_attributes_count":3
 				}]`,
 		}, {
-			in: makeEventsSlice("boom", map[string]string{
+			in: makeEventsSlice("boom", map[string]any{
 				"message": "OOM",
 			}, 123, 2),
 			out: `[{
@@ -2245,7 +2255,7 @@ func TestMarshalEvents(t *testing.T) {
 			in:  makeEventsSlice("", nil, 0, 2),
 			out: `[{"dropped_attributes_count":2}]`,
 		}, {
-			in: makeEventsSlice("", map[string]string{
+			in: makeEventsSlice("", map[string]any{
 				"message":  "OOM",
 				"accuracy": "2.40",
 			}, 123, 2),
@@ -2258,7 +2268,7 @@ func TestMarshalEvents(t *testing.T) {
 					"dropped_attributes_count":2
 				}]`,
 		}, {
-			in: makeEventsSlice("boom", map[string]string{
+			in: makeEventsSlice("boom", map[string]any{
 				"message":  "OOM",
 				"accuracy": "2.40",
 			}, 123, 0),
@@ -2278,7 +2288,7 @@ func TestMarshalEvents(t *testing.T) {
 					"dropped_attributes_count":2
 				}]`,
 		}, {
-			in: makeEventsSlice("boom", map[string]string{
+			in: makeEventsSlice("boom", map[string]any{
 				"message":  "OOM",
 				"accuracy": "2.4",
 			}, 123, 2),
@@ -2293,11 +2303,11 @@ func TestMarshalEvents(t *testing.T) {
 				}]`,
 		}, {
 			in: (func() ptrace.SpanEventSlice {
-				e1 := makeEventsSlice("boom", map[string]string{
+				e1 := makeEventsSlice("boom", map[string]any{
 					"message":  "OOM",
 					"accuracy": "2.4",
 				}, 123, 2)
-				e2 := makeEventsSlice("exception", map[string]string{
+				e2 := makeEventsSlice("exception", map[string]any{
 					"exception.message":    "OOM",
 					"exception.stacktrace": "1/2/3",
 					"exception.type":       "mem",
@@ -2332,9 +2342,9 @@ func TestMarshalEvents(t *testing.T) {
 func TestMarshalJSONUnsafeEvents(t *testing.T) {
 	name := `something:"nested"`
 	key := `abc\def\`
-	val := `["test\"1\","/test2\\"]`
+	val := []any{`test\"1\`, `/test2\\`}
 
-	events := makeEventsSlice(name, map[string]string{
+	events := makeEventsSlice(name, map[string]any{
 		key: val,
 	}, 0, 3)
 
