@@ -1,7 +1,8 @@
 ---
 .cws_instrumentation-build_common:
   stage: binary_build
-  needs: ["go_mod_tidy_check"]
+  # needs: ["go_mod_tidy_check"]
+  needs: []
   script:
     - inv check-go-version
     - inv -e cws-instrumentation.build
@@ -13,7 +14,8 @@ cws_instrumentation-build_amd64:
     !reference [.on_tag_or_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["go_mod_tidy_check", "go_deps"]
+  # needs: ["go_mod_tidy_check", "go_deps"]
+  needs: ["go_deps"]
   variables:
     ARCH: amd64
   before_script:
@@ -25,7 +27,8 @@ cws_instrumentation-build_arm64:
     !reference [.on_tag_or_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
-  needs: ["go_mod_tidy_check", "go_deps"]
+  # needs: ["go_mod_tidy_check", "go_deps"]
+  needs: ["go_deps"]
   variables:
     ARCH: arm64
   before_script:
