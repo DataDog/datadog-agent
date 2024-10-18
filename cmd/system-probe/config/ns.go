@@ -42,9 +42,14 @@ func evNS(k ...string) string {
 	return NSkey("event_monitoring_config", k...)
 }
 
-// NSkey returns a full key path in the config file by joining multiple path fragments
+// NSkey returns a full key path in the config file by joining the given namespace and the rest of the path fragments
 func NSkey(ns string, pieces ...string) string {
 	return strings.Join(append([]string{ns}, pieces...), ".")
+}
+
+// FullKeyPath returns a full key path in the config file by joining multiple path fragments
+func FullKeyPath(pieces ...string) string {
+	return strings.Join(pieces, ".")
 }
 
 // wcdNS addes 'windows_crash_detection' namespace to config key
