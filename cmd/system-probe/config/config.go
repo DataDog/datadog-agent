@@ -182,7 +182,15 @@ func load() (*types.Config, error) {
 	}
 
 	// Enable process monitor if there are modules that require it (USM, GPU monitoring)
-	if gpuEnabled || usmEnabled {
+	// Options taken from pkg/network/usm/config.NeedProcessMonitor, which we cannot import here
+	// due to a import cycle.
+	// This is a temporary fix until we introduce proper dependency management, see EBPF-589
+	usmNeedsProcessMonitor := (cfg.GetBool(smNS("tls", "native", "enabled")) ||
+		cfg.GetBool(smNS("tls", "go", "enabled")) ||
+		cfg.GetBool(smNS("tls", "istio", "enabled")) ||
+		cfg.GetBool(smNS("tls", "nodejs", "enabled")))
+
+	if gpuEnabled || (usmEnabled && usmNeedsProcessMonitor) {
 		c.EnabledModules[ProcessMonitorModule] = struct{}{}
 	}
 
