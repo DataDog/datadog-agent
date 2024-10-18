@@ -50,6 +50,7 @@ type Container struct {
 	Volumes       []Volume          `json:"Volumes,omitempty"`
 	ExitCode      *int64            `json:"ExitCode,omitempty"`
 	Snapshotter   string            `json:"Snapshotter,omitempty"`
+	RestartCount  int               `json:"RestartCount,omitempty"` // present only in v4
 }
 
 // HealthStatus represents the health status of a container
