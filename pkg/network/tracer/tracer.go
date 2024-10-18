@@ -300,7 +300,7 @@ func newReverseDNS(c *config.Config, telemetrycomp telemetryComponent.Component)
 func (t *Tracer) storeClosedConnection(cs *network.ConnectionStats) {
 	cs.IsClosed = true
 	if t.shouldSkipConnection(cs) {
-		tracerTelemetry.skippedConns.IncWithTags(cs.Type.Tags())
+		tracerTelemetry.skippedConns.IncWithTags(cs.ConnectionInfo.Type().Tags())
 		return
 	}
 
@@ -312,7 +312,7 @@ func (t *Tracer) storeClosedConnection(cs *network.ConnectionStats) {
 
 	t.addProcessInfo(cs)
 
-	tracerTelemetry.closedConns.IncWithTags(cs.Type.Tags())
+	tracerTelemetry.closedConns.IncWithTags(cs.ConnectionInfo.Type().Tags())
 	t.ebpfTracer.GetFailedConnections().MatchFailedConn(cs)
 
 	t.state.StoreClosedConnection(cs)
@@ -416,7 +416,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		conn := &delta.Conns[i]
 		ips[conn.Source] = struct{}{}
 		ips[conn.Dest] = struct{}{}
-		switch conn.Type {
+		switch conn.ConnectionInfo.Type() {
 		case network.UDP:
 			udpConns++
 		case network.TCP:
@@ -518,15 +518,15 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	err = t.ebpfTracer.GetConnections(activeBuffer, func(c *network.ConnectionStats) bool {
 		if t.connectionExpired(c, uint64(latestTime), cachedConntrack) {
 			expired = append(expired, *c)
-			if c.Type == network.TCP {
+			if c.ConnectionInfo.Type() == network.TCP {
 				tracerTelemetry.expiredTCPConns.Inc()
 			}
-			tracerTelemetry.closedConns.IncWithTags(c.Type.Tags())
+			tracerTelemetry.closedConns.IncWithTags(c.ConnectionInfo.Type().Tags())
 			return false
 		}
 
 		if t.shouldSkipConnection(c) {
-			tracerTelemetry.skippedConns.IncWithTags(c.Type.Tags())
+			tracerTelemetry.skippedConns.IncWithTags(c.ConnectionInfo.Type().Tags())
 			return false
 		}
 		return true
@@ -604,7 +604,7 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 }
 
 func (t *Tracer) timeoutForConn(c *network.ConnectionStats) uint64 {
-	if c.Type == network.TCP {
+	if c.ConnectionInfo.Type() == network.TCP {
 		return uint64(t.config.TCPConnTimeout.Nanoseconds())
 	}
 
@@ -740,7 +740,7 @@ func (t *Tracer) connectionExpired(conn *network.ConnectionStats, latestTime uin
 
 	// skip connection check for udp connections or if
 	// the pid for the connection is dead
-	if conn.Type == network.UDP || !procutil.PidExists(int(conn.Pid)) {
+	if conn.ConnectionInfo.Type() == network.UDP || !procutil.PidExists(int(conn.Pid)) {
 		return true
 	}
 

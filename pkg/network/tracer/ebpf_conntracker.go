@@ -208,13 +208,13 @@ func toConntrackTupleFromStats(src *netebpf.ConntrackTuple, stats *network.Conne
 	src.Saddr_l, src.Saddr_h = util.ToLowHigh(stats.Source)
 	src.Daddr_l, src.Daddr_h = util.ToLowHigh(stats.Dest)
 	src.Metadata = 0
-	switch stats.Type {
+	switch stats.ConnectionInfo.Type() {
 	case network.TCP:
 		src.Metadata |= uint32(netebpf.TCP)
 	case network.UDP:
 		src.Metadata |= uint32(netebpf.UDP)
 	}
-	switch stats.Family {
+	switch stats.ConnectionInfo.Family() {
 	case network.AFINET:
 		src.Metadata |= uint32(netebpf.IPv4)
 	case network.AFINET6:

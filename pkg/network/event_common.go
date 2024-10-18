@@ -92,6 +92,47 @@ const (
 	NONE ConnectionDirection = 4 // none
 )
 
+// PackedTypeFamilyDirection packs the ConnectionType, ConnectionFamily, and ConnectionDirection into a single byte
+// The layout is as follows:
+//
+//	| 7 6 5 4 3 2 1 0
+//	|    0   |d-1|f|t|
+type PackedTypeFamilyDirection struct {
+	inner uint8
+}
+
+func NewPackedTypeFamilyDirection(t ConnectionType, f ConnectionFamily, d ConnectionDirection) PackedTypeFamilyDirection {
+	var res PackedTypeFamilyDirection
+	res.SetType(t)
+	res.SetFamily(f)
+	res.SetDirection(d)
+	return res
+}
+
+func (p PackedTypeFamilyDirection) Type() ConnectionType {
+	return ConnectionType(p.inner & 0b1)
+}
+
+func (p *PackedTypeFamilyDirection) SetType(t ConnectionType) {
+	p.inner = (p.inner & ^uint8(0b1)) | uint8(t&0b1)
+}
+
+func (p PackedTypeFamilyDirection) Family() ConnectionFamily {
+	return ConnectionFamily((p.inner >> 1) & 0b1)
+}
+
+func (p *PackedTypeFamilyDirection) SetFamily(f ConnectionFamily) {
+	p.inner = (p.inner & ^uint8(0b10)) | (uint8(f&0b10) << 1)
+}
+
+func (p PackedTypeFamilyDirection) Direction() ConnectionDirection {
+	return ConnectionDirection(((p.inner >> 2) & 0b11) + 1)
+}
+
+func (p *PackedTypeFamilyDirection) SetDirection(d ConnectionDirection) {
+	p.inner = (p.inner & ^uint8(0b1100)) | (uint8(d&0b1100) << 2)
+}
+
 // EphemeralPortType will be either EphemeralUnknown, EphemeralTrue, EphemeralFalse
 type EphemeralPortType uint8
 
@@ -258,9 +299,7 @@ type ConnectionStats struct {
 
 	SPort            uint16
 	DPort            uint16
-	Type             ConnectionType
-	Family           ConnectionFamily
-	Direction        ConnectionDirection
+	ConnectionInfo   PackedTypeFamilyDirection
 	SPortIsEphemeral EphemeralPortType
 	StaticTags       uint64
 	Tags             []*intern.Value
@@ -386,8 +425,8 @@ func BeautifyKey(key string) string {
 func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname) string {
 	str := fmt.Sprintf(
 		"[%s%s] [PID: %d] [%v:%d ⇄ %v:%d] ",
-		c.Type,
-		c.Family,
+		c.ConnectionInfo.Type(),
+		c.ConnectionInfo.Family(),
 		c.Pid,
 		printAddress(c.Source, names[c.Source]),
 		c.SPort,
@@ -405,12 +444,12 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 	}
 
 	str += fmt.Sprintf("(%s) %s sent (+%s), %s received (+%s)",
-		c.Direction,
+		c.ConnectionInfo.Direction(),
 		humanize.Bytes(c.Monotonic.SentBytes), humanize.Bytes(c.Last.SentBytes),
 		humanize.Bytes(c.Monotonic.RecvBytes), humanize.Bytes(c.Last.RecvBytes),
 	)
 
-	if c.Type == TCP {
+	if c.ConnectionInfo.Type() == TCP {
 		str += fmt.Sprintf(
 			", %d retransmits (+%d), RTT %s (± %s), %d established (+%d), %d closed (+%d)",
 			c.Monotonic.Retransmits, c.Last.Retransmits,
@@ -460,7 +499,7 @@ func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
 	n += 8
 
 	// Family (4 bits) + Type (4 bits) = 8 bits
-	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
+	buf[n] = uint8(c.ConnectionInfo.Family())<<4 | uint8(c.ConnectionInfo.Type())
 	n++
 
 	n += copy(buf[n:], laddr.AsSlice()) // 4 or 16 bytes

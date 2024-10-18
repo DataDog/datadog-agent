@@ -166,7 +166,7 @@ type closedConnections struct {
 func (cc *closedConnections) insert(c *ConnectionStats, maxClosedConns uint32) {
 	// If we have reached the limit, drop an empty connection
 	if uint32(len(cc.conns)) >= maxClosedConns {
-		stateTelemetry.closedConnDropped.IncWithTags(c.Type.Tags())
+		stateTelemetry.closedConnDropped.IncWithTags(c.ConnectionInfo.Type().Tags())
 		cc.dropEmpty(c)
 		return
 	}
@@ -1043,7 +1043,7 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 }
 
 func isDNAT(c *ConnectionStats) bool {
-	return c.Direction == OUTGOING &&
+	return c.ConnectionInfo.Direction() == OUTGOING &&
 		c.IPTranslation != nil &&
 		(c.IPTranslation.ReplSrcIP != c.Dest || c.IPTranslation.ReplSrcPort != c.DPort)
 }
@@ -1056,7 +1056,7 @@ func (ns *networkState) determineConnectionIntraHost(connections slice.Chain[Con
 	}
 
 	newConnKey := func(connStat *ConnectionStats, useRAddrAsKey bool) connKey {
-		key := connKey{Type: connStat.Type}
+		key := connKey{Type: connStat.ConnectionInfo.Type()}
 		if useRAddrAsKey {
 			if connStat.IPTranslation == nil {
 				key.Address = connStat.Dest
@@ -1097,7 +1097,7 @@ func (ns *networkState) determineConnectionIntraHost(connections slice.Chain[Con
 				sport: conn.SPort,
 				dst:   conn.IPTranslation.ReplSrcIP,
 				dport: conn.IPTranslation.ReplSrcPort,
-				_type: conn.Type,
+				_type: conn.ConnectionInfo.Type(),
 			}] = struct{}{}
 		}
 	})
@@ -1113,7 +1113,7 @@ func (ns *networkState) determineConnectionIntraHost(connections slice.Chain[Con
 			_, conn.IntraHost = lAddrs[keyWithRAddr]
 		}
 
-		switch conn.Direction {
+		switch conn.ConnectionInfo.Direction() {
 		case OUTGOING:
 			fixOutgoingConnectionDirection(conn)
 		case INCOMING:
@@ -1121,7 +1121,7 @@ func (ns *networkState) determineConnectionIntraHost(connections slice.Chain[Con
 		}
 
 		if conn.IntraHost &&
-			conn.Direction == INCOMING &&
+			conn.ConnectionInfo.Direction() == INCOMING &&
 			conn.IPTranslation != nil {
 			// Remove ip translation from incoming local connections
 			// this is necessary for local connections because of
@@ -1144,7 +1144,7 @@ func (ns *networkState) determineConnectionIntraHost(connections slice.Chain[Con
 				sport: conn.DPort,
 				dst:   conn.Source,
 				dport: conn.SPort,
-				_type: conn.Type,
+				_type: conn.ConnectionInfo.Type(),
 			}]; ok {
 				conn.IPTranslation = nil
 			}
@@ -1173,14 +1173,14 @@ func (ns *networkState) determineConnectionIntraHost(connections slice.Chain[Con
 // non-ephemeral.
 func fixIncomingConnectionDirection(c *ConnectionStats) {
 	// fix only incoming UDP connections
-	if c.Direction != INCOMING || c.Type != UDP {
+	if c.ConnectionInfo.Direction() != INCOMING || c.ConnectionInfo.Type() != UDP {
 		return
 	}
 
-	sourceEphemeral := IsPortInEphemeralRange(c.Family, c.Type, c.SPort) == EphemeralTrue
+	sourceEphemeral := IsPortInEphemeralRange(c.ConnectionInfo.Family(), c.ConnectionInfo.Type(), c.SPort) == EphemeralTrue
 	var destNotEphemeral bool
 	if c.IntraHost {
-		destNotEphemeral = IsPortInEphemeralRange(c.Family, c.Type, c.DPort) != EphemeralTrue
+		destNotEphemeral = IsPortInEphemeralRange(c.ConnectionInfo.Family(), c.ConnectionInfo.Type(), c.DPort) != EphemeralTrue
 	} else {
 		// use a much more restrictive range
 		// for non-ephemeral ports if the
@@ -1188,7 +1188,7 @@ func fixIncomingConnectionDirection(c *ConnectionStats) {
 		destNotEphemeral = c.DPort < 1024
 	}
 	if sourceEphemeral && destNotEphemeral {
-		c.Direction = OUTGOING
+		c.ConnectionInfo.SetDirection(OUTGOING)
 		stateTelemetry.incomingDirectionFixes.Inc()
 	}
 }
@@ -1202,15 +1202,15 @@ func fixIncomingConnectionDirection(c *ConnectionStats) {
 // This function attempts to mitigate that by checking if an outgoing connection is from a non-ephemeral port to
 // an ephemeral port on an intra-host connection
 func fixOutgoingConnectionDirection(c *ConnectionStats) {
-	if c.Direction != OUTGOING || !c.IntraHost {
+	if c.ConnectionInfo.Direction() != OUTGOING || !c.IntraHost {
 		return
 	}
 
-	sourceNotEphemeral := IsPortInEphemeralRange(c.Family, c.Type, c.SPort) != EphemeralTrue
-	destEphemeral := IsPortInEphemeralRange(c.Family, c.Type, c.DPort) == EphemeralTrue
+	sourceNotEphemeral := IsPortInEphemeralRange(c.ConnectionInfo.Family(), c.ConnectionInfo.Type(), c.SPort) != EphemeralTrue
+	destEphemeral := IsPortInEphemeralRange(c.ConnectionInfo.Family(), c.ConnectionInfo.Type(), c.DPort) == EphemeralTrue
 
 	if sourceNotEphemeral && destEphemeral {
-		c.Direction = INCOMING
+		c.ConnectionInfo.SetDirection(INCOMING)
 		stateTelemetry.outgoingDirectionFixes.Inc()
 	}
 }
@@ -1250,7 +1250,7 @@ func newConnectionAggregator(size int, enablePortRollups, processEventConsumerEn
 
 func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, sportRolledUp, dportRolledUp bool) {
 	key.connKey = string(c.ByteKey(a.buf))
-	key.direction = c.Direction
+	key.direction = c.ConnectionInfo.Direction()
 	if a.processEventConsumerEnabled {
 		key.containers.source = c.ContainerID.Source
 	}
@@ -1265,11 +1265,11 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, spor
 	key.containers.dest = c.ContainerID.Dest
 
 	isShortLived := c.IsClosed && (c.Duration > 0 && c.Duration < shortLivedConnectionThreshold)
-	sportRolledUp = c.Direction == OUTGOING
-	dportRolledUp = c.Direction == INCOMING
+	sportRolledUp = c.ConnectionInfo.Direction() == OUTGOING
+	dportRolledUp = c.ConnectionInfo.Direction() == INCOMING
 
 	log.TraceFunc(func() string {
-		return fmt.Sprintf("type=%s isShortLived=%+v sportRolledUp=%+v", c.Type, isShortLived, sportRolledUp)
+		return fmt.Sprintf("type=%s isShortLived=%+v sportRolledUp=%+v", c.ConnectionInfo.Type(), isShortLived, sportRolledUp)
 	})
 	if !isShortLived ||
 		(!sportRolledUp && !dportRolledUp) {

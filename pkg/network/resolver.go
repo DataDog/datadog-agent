@@ -64,14 +64,14 @@ func (r LocalResolver) Resolve(conns slice.Chain[ConnectionStats]) {
 		}
 
 		source, dest := translatedAddrs(conn)
-		if conn.Direction == INCOMING {
+		if conn.ConnectionInfo.Direction() == INCOMING {
 			dest = netip.AddrPortFrom(dest.Addr(), 0)
 		}
 
 		k := connKey{
 			laddr: source,
 			raddr: dest,
-			proto: conn.Type,
+			proto: conn.ConnectionInfo.Type(),
 			netns: conn.NetNS,
 		}
 		if conn.NetNS != 0 {
@@ -96,14 +96,14 @@ func (r LocalResolver) Resolve(conns slice.Chain[ConnectionStats]) {
 		}
 
 		source, dest := translatedAddrs(conn)
-		if conn.Direction == OUTGOING {
+		if conn.ConnectionInfo.Direction() == OUTGOING {
 			source = netip.AddrPortFrom(source.Addr(), 0)
 		}
 
 		k := connKey{
 			laddr: dest,
 			raddr: source,
-			proto: conn.Type,
+			proto: conn.ConnectionInfo.Type(),
 			netns: conn.NetNS,
 		}
 

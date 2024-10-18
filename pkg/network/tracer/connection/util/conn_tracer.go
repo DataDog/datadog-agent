@@ -153,12 +153,12 @@ func ConnStatsToTuple(c *network.ConnectionStats, tup *netebpf.ConnTuple) {
 	tup.Dport = c.DPort
 	tup.Netns = c.NetNS
 	tup.Pid = c.Pid
-	if c.Family == network.AFINET {
+	if c.ConnectionInfo.Family() == network.AFINET {
 		tup.SetFamily(netebpf.IPv4)
 	} else {
 		tup.SetFamily(netebpf.IPv6)
 	}
-	if c.Type == network.TCP {
+	if c.ConnectionInfo.Type() == network.TCP {
 		tup.SetType(netebpf.TCP)
 	} else {
 		tup.SetType(netebpf.UDP)

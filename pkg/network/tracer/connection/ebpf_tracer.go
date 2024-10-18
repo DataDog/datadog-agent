@@ -400,8 +400,8 @@ func (t *ebpfTracer) GetConnections(buffer *network.ConnectionBuffer, filter fun
 		populateConnStats(conn, key, stats, t.ch)
 		connsByTuple[*key] = stats.Cookie
 
-		isTCP := conn.Type == network.TCP
-		switch conn.Family {
+		isTCP := conn.ConnectionInfo.Type() == network.TCP
+		switch conn.ConnectionInfo.Family() {
 		case network.AFINET6:
 			if isTCP {
 				tcp6++
@@ -452,8 +452,8 @@ func updateTelemetry(tcp4 float64, tcp6 float64, udp4 float64, udp6 float64) {
 }
 
 func removeConnectionFromTelemetry(conn *network.ConnectionStats) {
-	isTCP := conn.Type == network.TCP
-	switch conn.Family {
+	isTCP := conn.ConnectionInfo.Type() == network.TCP
+	switch conn.ConnectionInfo.Family() {
 	case network.AFINET6:
 		if isTCP {
 			EbpfTracerTelemetry.connections.Dec("tcp", "v6")
@@ -484,7 +484,7 @@ func (t *ebpfTracer) Remove(conn *network.ConnectionStats) error {
 
 	removeConnectionFromTelemetry(conn)
 
-	if conn.Type == network.TCP {
+	if conn.ConnectionInfo.Type() == network.TCP {
 		// We can ignore the error for this map since it will not always contain the entry
 		_ = t.tcpStats.Delete(t.removeTuple)
 		// We remove the PID from the tuple as it is not used in the retransmits map
@@ -746,27 +746,27 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 	}
 
 	if t.Type() == netebpf.TCP {
-		stats.Type = network.TCP
+		stats.ConnectionInfo.SetType(network.TCP)
 	} else {
-		stats.Type = network.UDP
+		stats.ConnectionInfo.SetType(network.UDP)
 	}
 
 	switch t.Family() {
 	case netebpf.IPv4:
-		stats.Family = network.AFINET
+		stats.ConnectionInfo.SetFamily(network.AFINET)
 	case netebpf.IPv6:
-		stats.Family = network.AFINET6
+		stats.ConnectionInfo.SetFamily(network.AFINET6)
 	}
 
-	stats.SPortIsEphemeral = network.IsPortInEphemeralRange(stats.Family, stats.Type, t.Sport)
+	stats.SPortIsEphemeral = network.IsPortInEphemeralRange(stats.ConnectionInfo.Family(), stats.ConnectionInfo.Type(), t.Sport)
 
 	switch s.ConnectionDirection() {
 	case netebpf.Incoming:
-		stats.Direction = network.INCOMING
+		stats.ConnectionInfo.SetDirection(network.INCOMING)
 	case netebpf.Outgoing:
-		stats.Direction = network.OUTGOING
+		stats.ConnectionInfo.SetDirection(network.OUTGOING)
 	default:
-		stats.Direction = network.OUTGOING
+		stats.ConnectionInfo.SetDirection(network.OUTGOING)
 	}
 
 	if ch != nil {
@@ -775,7 +775,7 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 }
 
 func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats, retransmits uint32) {
-	if conn.Type != network.TCP {
+	if conn.ConnectionInfo.Type() != network.TCP {
 		return
 	}
 

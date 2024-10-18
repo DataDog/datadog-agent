@@ -75,15 +75,15 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 		w.SetPort(int32(conn.DPort))
 		w.SetContainerId(containerID)
 	})
-	builder.SetFamily(uint64(formatFamily(conn.Family)))
-	builder.SetType(uint64(formatType(conn.Type)))
+	builder.SetFamily(uint64(formatFamily(conn.ConnectionInfo.Family())))
+	builder.SetType(uint64(formatType(conn.ConnectionInfo.Type())))
 	builder.SetIsLocalPortEphemeral(uint64(formatEphemeralType(conn.SPortIsEphemeral)))
 	builder.SetLastBytesSent(conn.Last.SentBytes)
 	builder.SetLastBytesReceived(conn.Last.RecvBytes)
 	builder.SetLastPacketsSent(conn.Last.SentPackets)
 	builder.SetLastRetransmits(conn.Last.Retransmits)
 	builder.SetLastPacketsReceived(conn.Last.RecvPackets)
-	builder.SetDirection(uint64(formatDirection(conn.Direction)))
+	builder.SetDirection(uint64(formatDirection(conn.ConnectionInfo.Direction())))
 	builder.SetNetNS(conn.NetNS)
 	if conn.IPTranslation != nil {
 		builder.SetIpTranslation(func(w *model.IPTranslationBuilder) {

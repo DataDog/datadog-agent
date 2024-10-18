@@ -24,7 +24,7 @@ func DNSKey(c *ConnectionStats) (dns.Key, bool) {
 		ClientIP:   clientIP,
 		ClientPort: clientPort,
 	}
-	switch c.Type {
+	switch c.ConnectionInfo.Type() {
 	case TCP:
 		key.Protocol = syscall.IPPROTO_TCP
 	case UDP:

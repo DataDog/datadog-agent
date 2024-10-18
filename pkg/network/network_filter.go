@@ -163,12 +163,12 @@ func IsExcludedConnection(scf []*ConnectionFilter, dcf []*ConnectionFilter, conn
 	}
 
 	if len(scf) > 0 {
-		if findMatchingFilter(scf, conn.Source.Addr, conn.SPort, conn.Type) {
+		if findMatchingFilter(scf, conn.Source.Addr, conn.SPort, conn.ConnectionInfo.Type()) {
 			return true
 		}
 	}
 	if len(dcf) > 0 {
-		if findMatchingFilter(dcf, conn.Dest.Addr, conn.DPort, conn.Type) {
+		if findMatchingFilter(dcf, conn.Dest.Addr, conn.DPort, conn.ConnectionInfo.Type()) {
 			return true
 		}
 	}
