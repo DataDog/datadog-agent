@@ -111,12 +111,7 @@ func OtelSpanToDDSpan(
 	if otelspan.Events().Len() > 0 {
 		ddspan.Meta["events"] = MarshalEvents(otelspan.Events())
 	}
-	for i := range otelspan.Events().Len() {
-		if otelspan.Events().At(i).Name() == "exception" {
-			ddspan.Meta["_dd.span_events.has_exception"] = "true"
-			break
-		}
-	}
+	TagSpanIfContainsExceptionEvent(otelspan, ddspan)
 	if otelspan.Links().Len() > 0 {
 		ddspan.Meta["_dd.span_links"] = MarshalLinks(otelspan.Links())
 	}
@@ -182,6 +177,16 @@ func OtelSpanToDDSpan(
 	Status2Error(otelspan.Status(), otelspan.Events(), ddspan)
 
 	return ddspan
+}
+
+// TagSpanIfContainsExceptionEvent tags spans that contain at least on exception span event.
+func TagSpanIfContainsExceptionEvent(otelspan ptrace.Span, ddspan *pb.Span) {
+	for i := range otelspan.Events().Len() {
+		if otelspan.Events().At(i).Name() == "exception" {
+			ddspan.Meta["_dd.span_events.has_exception"] = "true"
+			return
+		}
+	}
 }
 
 // MarshalEvents marshals events into JSON.
