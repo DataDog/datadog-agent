@@ -31,7 +31,7 @@ const (
 	pngNS                        = "ping"
 	tracerouteNS                 = "traceroute"
 	discoveryNS                  = "discovery"
-	gpuMonitoringNS              = "gpu_monitoring"
+	gpuNS                        = "gpu_monitoring"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultServiceMonitoringJavaAgentArgs is default arguments that are passing to the injected java USM agent
@@ -408,7 +408,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv("fleet_policies_dir")
 
 	// GPU monitoring
-	cfg.BindEnvAndSetDefault(join(gpuMonitoringNS, "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "enabled"), false)
+	cfg.BindEnv(join(gpuNS, "nvml_library_path"))
+	cfg.BindEnvAndSetDefault(join(gpuNS, "process_scan_interval_seconds"), 5)
 
 	initCWSSystemProbeConfig(cfg)
 }
