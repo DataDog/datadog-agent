@@ -44,3 +44,17 @@ packages:
           replace-type:
             # https://github.com/vektra/mockery/issues/331
             - github.com/DataDog/datadog-agent/pkg/serializer/types.stubMessageBody=github.com/DataDog/datadog-agent/pkg/serializer/types.ProcessMessageBody
+
+  # gpu
+  github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvmlmetrics:
+    interfaces:
+      subsystemCollector:
+        config:
+          with-expecter: true
+          mock-build-tags: "linux && test"
+          # subsystemCollector is an internal interface, so we cannot use a mock in a separate package
+          inpackage: true
+          dir: "{{.InterfaceDir}}"
+          filename: "mocks.go"
+          outpkg: nvmlmetrics
+          mockname: mockSubsystemCollector
