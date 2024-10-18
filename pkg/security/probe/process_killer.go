@@ -174,6 +174,12 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 		return false
 	}
 
+	scope := "process"
+	switch kill.Scope {
+	case "container", "process":
+		scope = kill.Scope
+	}
+
 	if p.useDisarmers.Load() {
 		var disarmer *ruleDisarmer
 		p.ruleDisarmersLock.Lock()
@@ -184,13 +190,27 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 		}
 		p.ruleDisarmersLock.Unlock()
 
+		onActionBlockedByDisarmer := func(dt disarmerType) {
+			seclog.Warnf("skipping kill action of rule `%s` because it has been disarmed", rule.ID)
+			ev.ActionReports = append(ev.ActionReports, &KillActionReport{
+				Scope:        scope,
+				Signal:       kill.Signal,
+				Status:       KillActionStatusRuleDisarmed,
+				DisarmerType: string(dt),
+				CreatedAt:    ev.ProcessContext.ExecTime,
+				DetectedAt:   ev.ResolveEventTime(),
+				Pid:          ev.ProcessContext.Pid,
+				rule:         rule,
+			})
+		}
+
 		if disarmer.container.enabled {
 			if containerID := ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext); containerID != "" {
 				if !disarmer.allow(disarmer.containerCache, containerID, func() {
 					disarmer.disarmedCount[containerDisarmerType]++
 					seclog.Warnf("disarming kill action of rule `%s` because more than %d different containers triggered it in the last %s", rule.ID, disarmer.container.capacity, disarmer.container.period)
 				}) {
-					seclog.Warnf("skipping kill action of rule `%s` because it has been disarmed", rule.ID)
+					onActionBlockedByDisarmer(containerDisarmerType)
 					return false
 				}
 			}
@@ -202,16 +222,10 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 				disarmer.disarmedCount[executableDisarmerType]++
 				seclog.Warnf("disarmed kill action of rule `%s` because more than %d different executables triggered it in the last %s", rule.ID, disarmer.executable.capacity, disarmer.executable.period)
 			}) {
-				seclog.Warnf("skipping kill action of rule `%s` because it has been disarmed", rule.ID)
+				onActionBlockedByDisarmer(executableDisarmerType)
 				return false
 			}
 		}
-	}
-
-	scope := "process"
-	switch kill.Scope {
-	case "container", "process":
-		scope = kill.Scope
 	}
 
 	pids, paths, err := p.getProcesses(scope, ev, entry)
@@ -255,10 +269,11 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 	report := &KillActionReport{
 		Scope:      scope,
 		Signal:     kill.Signal,
-		Pid:        ev.ProcessContext.Pid,
+		Status:     KillActionStatusPerformed,
 		CreatedAt:  ev.ProcessContext.ExecTime,
 		DetectedAt: ev.ResolveEventTime(),
 		KilledAt:   killedAt,
+		Pid:        ev.ProcessContext.Pid,
 		rule:       rule,
 	}
 	ev.ActionReports = append(ev.ActionReports, report)
@@ -440,8 +455,8 @@ const (
 type disarmerType string
 
 const (
-	containerDisarmerType  = disarmerType("container")
-	executableDisarmerType = disarmerType("executable")
+	containerDisarmerType  disarmerType = "container"
+	executableDisarmerType disarmerType = "executable"
 )
 
 type ruleDisarmer struct {

@@ -10,15 +10,27 @@ package gpu
 import (
 	"debug/elf"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
+	sectime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 )
 
 // systemContext holds certain attributes about the system that are used by the GPU probe.
 type systemContext struct {
+	// maxGpuThreadsPerDevice maps each device index to the maximum number of threads it can run in parallel
+	maxGpuThreadsPerDevice map[int]int
+
+	// timeResolver allows to resolve kernel-time timestamps
+	timeResolver *sectime.Resolver
+
+	// nvmlLib is the NVML library used to query GPU devices
+	nvmlLib nvml.Interface
+
 	// deviceSmVersions maps each device index to its SM (Compute architecture) version
 	deviceSmVersions map[int]int
 
@@ -40,41 +52,41 @@ func (fd *fileData) updateAccessTime() {
 	fd.lastAccessed = time.Now()
 }
 
-type systemContextOpts string
-
-const (
-	// systemContextOptDisableGpuQuery disables querying GPU devices, useful for tests where no GPU is available
-	systemContextOptDisableGpuQuery systemContextOpts = "disableGpuQuery"
-)
-
-func getSystemContext(opts ...systemContextOpts) (*systemContext, error) {
+func getSystemContext(nvmlLib nvml.Interface) (*systemContext, error) {
 	ctx := &systemContext{
-		fileData: make(map[string]*fileData),
-		pidMaps:  make(map[int]*kernel.ProcMapEntries),
+		maxGpuThreadsPerDevice: make(map[int]int),
+		deviceSmVersions:       make(map[int]int),
+		nvmlLib:                nvmlLib,
 	}
 
-	if !slices.Contains(opts, systemContextOptDisableGpuQuery) {
-		if err := ctx.queryDevices(); err != nil {
-			return nil, fmt.Errorf("error querying devices: %w", err)
-		}
+	if err := ctx.queryDevices(); err != nil {
+		return nil, fmt.Errorf("error querying devices: %w", err)
 	}
 
 	return ctx, nil
 }
 
 func (ctx *systemContext) queryDevices() error {
-	devices, err := cuda.GetGPUDevices()
+	devices, err := getGPUDevices(ctx.nvmlLib)
 	if err != nil {
 		return fmt.Errorf("error getting GPU devices: %w", err)
 	}
 
-	ctx.deviceSmVersions = make(map[int]int)
 	for i, device := range devices {
 		major, minor, ret := device.GetCudaComputeCapability()
 		if err = cuda.WrapNvmlError(ret); err != nil {
 			return fmt.Errorf("error getting SM version: %w", err)
 		}
 		ctx.deviceSmVersions[i] = major*10 + minor
+	}
+
+	for i, device := range devices {
+		maxThreads, err := getMaxThreadsForDevice(device)
+		if err != nil {
+			return fmt.Errorf("error getting max threads for device %s: %w", device, err)
+		}
+
+		ctx.maxGpuThreadsPerDevice[i] = maxThreads
 	}
 
 	return nil
