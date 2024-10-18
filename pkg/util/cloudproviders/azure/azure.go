@@ -89,21 +89,7 @@ var vmIDFetcher = cachedfetch.Fetcher{
 
 // GetHostAliases returns the VM ID from the Azure Metadata api
 func GetHostAliases(ctx context.Context) ([]string, error) {
-	aliases := []string{}
-	vm, err := vmIDFetcher.FetchStringSlice(ctx)
-	if err == nil {
-		aliases = append(aliases, vm...)
-	}
-
-	metadata, err := getMetadata(ctx)
-	if err != nil {
-		return aliases, fmt.Errorf("Azure GetHostAliases: unable to query metadata endpoint: %s", err)
-	}
-
-	if isKubernetesTag(metadata.TagsList) {
-		aliases = append(aliases, metadata.OsProfile.ComputerName)
-	}
-	return aliases, err
+	return vmIDFetcher.FetchStringSlice(ctx)
 }
 
 var resourceGroupNameFetcher = cachedfetch.Fetcher{

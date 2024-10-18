@@ -23,43 +23,22 @@ import (
 
 func TestGetAlias(t *testing.T) {
 	ctx := context.Background()
-	expectedNodeName := "node-name-A"
-	expectedVM := "5d33a910-a7a0-4443-9f01-6a807801b29b"
-	responseIdx := 0
-	responses := []func(w http.ResponseWriter, r *http.Request){
-		func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "text/plain")
-			io.WriteString(w, expectedVM)
-		},
-		func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			io.WriteString(w, fmt.Sprintf(`{
-				"name": "vm-name",
-				"resourceGroupName": "my-resource-group",
-				"subscriptionId": "2370ac56-5683-45f8-a2d4-d1054292facb",
-				"vmId": "b33fa46-6aff-4dfa-be0a-9e922ca3ac6d",
-				"osProfile": {"computerName":"%s"},
-				"tagsList": [{"name":"aks-managed-orchestrator","value":"Kubernetes"}]
-			}`, expectedNodeName))
-		},
-	}
+	expected := "5d33a910-a7a0-4443-9f01-6a807801b29b"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		responses[responseIdx](w, r)
-		responseIdx++
+		w.Header().Set("Content-Type", "text/plain")
+		io.WriteString(w, expected)
 		lastRequest = r
 	}))
-
 	defer ts.Close()
 	metadataURL = ts.URL
 
 	aliases, err := GetHostAliases(ctx)
 	assert.NoError(t, err)
-	require.Len(t, aliases, 2)
-	assert.Equal(t, expectedVM, aliases[0])
-	assert.Equal(t, expectedNodeName, aliases[1])
-	assert.Equal(t, lastRequest.URL.Path, "/metadata/instance/compute")
-	assert.Equal(t, lastRequest.URL.RawQuery, "api-version=2021-02-01")
+	require.Len(t, aliases, 1)
+	assert.Equal(t, expected, aliases[0])
+	assert.Equal(t, lastRequest.URL.Path, "/metadata/instance/compute/vmId")
+	assert.Equal(t, lastRequest.URL.RawQuery, "api-version=2017-04-02&format=text")
 }
 
 func TestGetClusterName(t *testing.T) {
