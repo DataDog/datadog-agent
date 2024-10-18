@@ -20,6 +20,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -108,7 +109,9 @@ func getManifestBuffer(t *testing.T) *ManifestBuffer {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	orchCheck := newCheck(cfg, mockStore).(*OrchestratorCheck)
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+
+	orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
 	mb := NewManifestBuffer(orchCheck)
 	mb.Cfg.MaxBufferedManifests = 2
 	mb.Cfg.ManifestBufferFlushInterval = 3 * time.Second
