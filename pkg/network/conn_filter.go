@@ -39,14 +39,14 @@ func ByDestAddress(a net.Addr) ConnectionFilterFunc {
 // ByType matches connections with the same connection type (TCP/UDP)
 func ByType(ct ConnectionType) ConnectionFilterFunc {
 	return func(c ConnectionStats) bool {
-		return c.Type == ct
+		return c.ConnectionInfo.Type() == ct
 	}
 }
 
 // ByFamily matches connections with the same family (IPv4 / IPv6)
 func ByFamily(f ConnectionFamily) ConnectionFilterFunc {
 	return func(c ConnectionStats) bool {
-		return c.Family == f
+		return c.ConnectionInfo.Family() == f
 	}
 }
 

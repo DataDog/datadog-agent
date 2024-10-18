@@ -195,7 +195,7 @@ func (ctr *realConntracker) GetTranslationForConn(c *network.ConnectionStats) *n
 	k := connKey{
 		src:       netip.AddrPortFrom(c.Source.Addr, c.SPort),
 		dst:       netip.AddrPortFrom(c.Dest.Addr, c.DPort),
-		transport: c.Type,
+		transport: c.ConnectionInfo.Type(),
 	}
 
 	t, ok := ctr.cache.Get(k)
@@ -227,7 +227,7 @@ func (ctr *realConntracker) DeleteTranslation(c *network.ConnectionStats) {
 	k := connKey{
 		src:       netip.AddrPortFrom(c.Source.Addr, c.SPort),
 		dst:       netip.AddrPortFrom(c.Dest.Addr, c.DPort),
-		transport: c.Type,
+		transport: c.ConnectionInfo.Type(),
 	}
 
 	if ctr.cache.Remove(k) {
