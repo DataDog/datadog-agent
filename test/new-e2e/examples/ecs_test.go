@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
 	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
+	tifEcs "github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
 
@@ -28,7 +29,7 @@ type myECSSuite struct {
 }
 
 func TestMyECSSuite(t *testing.T) {
-	e2e.Run(t, &myECSSuite{}, e2e.WithProvisioner(ecs.Provisioner(ecs.WithECSLinuxECSOptimizedNodeGroup(), ecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
+	e2e.Run(t, &myECSSuite{}, e2e.WithProvisioner(ecs.Provisioner(ecs.WithECSOptions(tifEcs.WithLinuxNodeGroup()), ecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
 		return redis.EcsAppDefinition(e, clusterArn)
 	}))))
 }

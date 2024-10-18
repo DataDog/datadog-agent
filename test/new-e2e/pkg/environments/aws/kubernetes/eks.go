@@ -12,6 +12,13 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/dogstatsd"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/mutatedbyadmissioncontroller"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/nginx"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/prometheus"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/tracegen"
 	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
@@ -101,10 +108,10 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		env.FakeIntake = nil
 	}
 
+	workloadWithCRDDeps := []pulumi.Resource{cluster}
 	// Deploy the agent
-	dependsOnSetup := utils.PulumiDependsOn(cluster)
 	if params.agentOptions != nil {
-		params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithPulumiResourceOptions(dependsOnSetup), kubernetesagentparams.WithFakeintake(fakeIntake))
+		params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(cluster)), kubernetesagentparams.WithFakeintake(fakeIntake))
 		kubernetesAgent, err := helm.NewKubernetesAgent(&awsEnv, "eks", cluster.KubeProvider, params.agentOptions...)
 		if err != nil {
 			return err
@@ -113,14 +120,54 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		if err != nil {
 			return err
 		}
+		workloadWithCRDDeps = append(workloadWithCRDDeps, kubernetesAgent)
 	} else {
 		env.Agent = nil
 	}
-
 	// Deploy standalone dogstatsd
 	if params.deployDogstatsd {
 		if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "dogstatsd-standalone", fakeIntake, true, ""); err != nil {
 			return err
+		}
+	}
+
+	if params.deployTestWorkload {
+
+		if _, err := cpustress.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-cpustress", utils.PulumiDependsOn(cluster)); err != nil {
+			return err
+		}
+
+		// dogstatsd clients that report to the Agent
+		if _, err := dogstatsd.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", utils.PulumiDependsOn(cluster)); err != nil {
+			return err
+		}
+
+		// dogstatsd clients that report to the dogstatsd standalone deployment
+		if _, err := dogstatsd.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, dogstatsdstandalone.Socket, utils.PulumiDependsOn(cluster)); err != nil {
+			return err
+		}
+
+		if _, err := tracegen.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-tracegen", utils.PulumiDependsOn(cluster)); err != nil {
+			return err
+		}
+
+		if _, err := prometheus.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-prometheus", utils.PulumiDependsOn(cluster)); err != nil {
+			return err
+		}
+
+		if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-mutated", "workload-mutated-lib-injection", utils.PulumiDependsOn(cluster)); err != nil {
+			return err
+		}
+
+		// These resources cannot be deployed if the Agent is not installed, it requires some CRDs provided by the Helm chart
+		if params.agentOptions != nil {
+			if _, err := nginx.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-nginx", "", true, utils.PulumiDependsOn(workloadWithCRDDeps...)); err != nil {
+				return err
+			}
+
+			if _, err := redis.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-redis", true, utils.PulumiDependsOn(workloadWithCRDDeps...)); err != nil {
+				return err
+			}
 		}
 	}
 
