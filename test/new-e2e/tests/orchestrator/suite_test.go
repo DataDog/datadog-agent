@@ -57,6 +57,10 @@ type k8sSuite struct {
 	K8sClient       *kubernetes.Clientset
 }
 
+func (suite *k8sSuite) GetFakeIntakeClient() *fakeintake.Client {
+	return suite.Fakeintake
+}
+
 func TestKindSuite(t *testing.T) {
 	suite.Run(t, &k8sSuite{})
 }
@@ -159,27 +163,7 @@ func (suite *k8sSuite) printKubeConfig(stackOutput auto.UpResult) {
 
 // summarizeResources prints a summary of the resources collected by the fake input
 func (suite *k8sSuite) summarizeResources() {
-	payloads, err := suite.Fakeintake.GetOrchestratorResources(nil)
-	if err != nil {
-		fmt.Println("failed to get manifest resource from intake")
-		return
-	}
-	latest := map[agentmodel.MessageType]map[string]*aggregator.OrchestratorPayload{}
-	for _, p := range payloads {
-		if _, ok := latest[p.Type]; !ok {
-			latest[p.Type] = map[string]*aggregator.OrchestratorPayload{}
-		}
-		existing, ok := latest[p.Type][p.UID]
-		if !ok || existing.CollectedTime.Before(p.CollectedTime) {
-			latest[p.Type][p.UID] = p
-		}
-	}
-	fmt.Println("Most recently collected resources:")
-	for typ, resources := range latest {
-		for uid, p := range resources {
-			fmt.Printf(" - type:%d, name:%s, uid:%s, collected:%s\n", typ, p.Name, uid, p.CollectedTime.Format(time.RFC3339))
-		}
-	}
+	summarizeResources(suite.Fakeintake)
 }
 
 // summarizeManifests prints a summary of the manifests collected by the fake input
