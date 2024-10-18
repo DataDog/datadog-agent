@@ -21,10 +21,7 @@ import (
 )
 
 func isEventStreamEnabled() bool {
-	eventStreamUSM := pkgconfigsetup.SystemProbe().GetBool("service_monitoring_config.enable_event_stream")
-	eventStreamProcMon := pkgconfigsetup.SystemProbe().GetBool("process_monitoring_config.enable_event_stream")
-
-	return eventStreamUSM || eventStreamProcMon
+	return pkgconfigsetup.SystemProbe().GetBool("service_monitoring_config.enable_event_stream")
 }
 
 // ProcessMonitor - Event monitor Factory
@@ -37,7 +34,7 @@ var ProcessMonitor = module.Factory{
 	},
 }
 
-var processMonitorModuleConfigNamespaces = []string{"process_monitoring_config", "service_monitoring_config"}
+var processMonitorModuleConfigNamespaces = []string{"service_monitoring_config"}
 
 func createProcessMonitorModule(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 	log.Infof("Initializing process monitor...")
