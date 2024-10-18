@@ -630,26 +630,17 @@ func (a *Agent) errorSampling(now time.Time, ts *info.TagStats, pt *traceutil.Pr
 	return sampled, numEvents
 }
 
-func spanContainsExceptionSpanEvent(span *pb.Span) bool {
-	if hasExceptionSpanEvents, ok := span.Meta["_dd.span_events.has_exception"]; ok && hasExceptionSpanEvents == "true" {
-		return true
-	}
-	return false
-}
-
 // runErrorSampler runs the agent's configured ErrorSampler if pt contains errors and returns the sampling decision.
 func (a *Agent) runErrorSampler(now time.Time, pt traceutil.ProcessedTrace) (keep bool) {
-	if traceContainsErrorOrExceptionSpanEvent(pt.TraceChunk.Spans) {
+	if traceContainsError(pt.TraceChunk.Spans, true) {
 		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
 	}
 	return false
 }
 
-func traceContainsErrorOrExceptionSpanEvent(trace pb.Trace) bool {
-	for _, span := range trace {
-		if span.Error != 0 || spanContainsExceptionSpanEvent(span) {
-			return true
-		}
+func spanContainsExceptionSpanEvent(span *pb.Span) bool {
+	if hasExceptionSpanEvents, ok := span.Meta["_dd.span_events.has_exception"]; ok && hasExceptionSpanEvents == "true" {
+		return true
 	}
 	return false
 }
@@ -689,7 +680,7 @@ func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.Proce
 			pt.TraceChunk.Tags[tagDecisionMaker] = probabilitySampling
 			return true, true
 		}
-		if traceContainsError(pt.TraceChunk.Spans) {
+		if traceContainsError(pt.TraceChunk.Spans, false) {
 			return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv), true
 		}
 		return false, true
@@ -726,16 +717,16 @@ func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.Proce
 		return true, true
 	}
 
-	if traceContainsError(pt.TraceChunk.Spans) {
+	if traceContainsError(pt.TraceChunk.Spans, false) {
 		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv), true
 	}
 
 	return false, true
 }
 
-func traceContainsError(trace pb.Trace) bool {
+func traceContainsError(trace pb.Trace, considerExceptionEvents bool) bool {
 	for _, span := range trace {
-		if span.Error != 0 {
+		if span.Error != 0 || (considerExceptionEvents && spanContainsExceptionSpanEvent(span)) {
 			return true
 		}
 	}
