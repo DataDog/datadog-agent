@@ -126,13 +126,12 @@ func newProvides(deps dependencies) provides {
 var _ autodiscovery.Component = (*AutoConfig)(nil)
 
 type listenerCandidate struct {
-	factory        listeners.ServiceListenerFactory
-	config         listeners.Config
-	telemetryStore *acTelemetry.Store
+	factory listeners.ServiceListenerFactory
+	options listeners.ServiceListernerOptions
 }
 
 func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
-	return l.factory(l.config, l.telemetryStore)
+	return l.factory(l.options)
 }
 
 // newAutoConfig creates an AutoConfig instance and starts it.
@@ -339,7 +338,7 @@ func (ac *AutoConfig) fillFlare(fb flaretypes.FlareBuilder) error {
 // Usually, Start and Stop methods should not be in the component interface as it should be handled using Lifecycle hooks.
 // We make exceptions here because we need to disable it at runtime.
 func (ac *AutoConfig) Start() {
-	listeners.RegisterListeners(ac.serviceListenerFactories, ac.wmeta)
+	listeners.RegisterListeners(ac.serviceListenerFactories)
 	providers.RegisterProviders(ac.providerCatalog)
 	setupAcErrors()
 	ac.started = true
@@ -507,7 +506,14 @@ func (ac *AutoConfig) addListenerCandidates(listenerConfigs []pkgconfigsetup.Lis
 			continue
 		}
 		log.Debugf("Listener %s was registered", c.Name)
-		ac.listenerCandidates[c.Name] = &listenerCandidate{factory: factory, config: &c, telemetryStore: ac.telemetryStore}
+		factoryOptions := listeners.ServiceListernerOptions{
+			Config:    &c,
+			Telemetry: ac.telemetryStore,
+			Tagger:    ac.taggerComp,
+			Wmeta:     ac.wmeta,
+		}
+
+		ac.listenerCandidates[c.Name] = &listenerCandidate{factory: factory, options: factoryOptions}
 	}
 }
 

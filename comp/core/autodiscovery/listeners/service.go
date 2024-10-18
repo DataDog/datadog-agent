@@ -36,6 +36,7 @@ type service struct {
 	extraConfig     map[string]string
 	metricsExcluded bool
 	logsExcluded    bool
+	tagger          tagger.Component
 }
 
 var _ Service = &service{}
@@ -89,7 +90,7 @@ func (s *service) GetPorts(_ context.Context) ([]ContainerPort, error) {
 
 // GetTags returns the tags associated with the service.
 func (s *service) GetTags() ([]string, error) {
-	return tagger.Tag(taggercommon.BuildTaggerEntityID(s.entity.GetID()).String(), tagger.ChecksCardinality())
+	return s.tagger.Tag(taggercommon.BuildTaggerEntityID(s.entity.GetID()).String(), s.tagger.ChecksCardinality())
 }
 
 // GetPid returns the process ID of the service.

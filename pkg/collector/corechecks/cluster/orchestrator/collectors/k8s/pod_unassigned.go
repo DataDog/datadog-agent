@@ -9,6 +9,7 @@ package k8s
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
@@ -22,9 +23,9 @@ import (
 )
 
 // NewUnassignedPodCollectorVersions builds the group of collector versions.
-func NewUnassignedPodCollectorVersions(cfg config.Component, store workloadmeta.Component) collectors.CollectorVersions {
+func NewUnassignedPodCollectorVersions(cfg config.Component, store workloadmeta.Component, tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewUnassignedPodCollector(cfg, store),
+		NewUnassignedPodCollector(cfg, store, tagger),
 	)
 }
 
@@ -39,7 +40,7 @@ type UnassignedPodCollector struct {
 
 // NewUnassignedPodCollector creates a new collector for the Kubernetes Pod
 // resource that is not assigned to any node.
-func NewUnassignedPodCollector(cfg config.Component, store workloadmeta.Component) *UnassignedPodCollector {
+func NewUnassignedPodCollector(cfg config.Component, store workloadmeta.Component, tagger tagger.Component) *UnassignedPodCollector {
 	return &UnassignedPodCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
@@ -51,7 +52,7 @@ func NewUnassignedPodCollector(cfg config.Component, store workloadmeta.Componen
 			NodeType:                  orchestrator.K8sPod,
 			Version:                   "v1",
 		},
-		processor: processors.NewProcessor(k8sProcessors.NewPodHandlers(cfg, store)),
+		processor: processors.NewProcessor(k8sProcessors.NewPodHandlers(cfg, store, tagger)),
 	}
 }
 

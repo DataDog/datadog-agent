@@ -72,6 +72,7 @@ type contextResolver struct {
 	bytesByMtype     []uint64
 	dataBytesByMtype []uint64
 	tagsCache        *tags.Store
+	tagger           tagger.Component
 	keyGenerator     *ckey.KeyGenerator
 	taggerBuffer     *tagset.HashingTagsAccumulator
 	metricBuffer     *tagset.HashingTagsAccumulator
@@ -82,7 +83,7 @@ func (cr *contextResolver) generateContextKey(metricSampleContext metrics.Metric
 	return cr.keyGenerator.GenerateWithTags2(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.taggerBuffer, cr.metricBuffer)
 }
 
-func newContextResolver(cache *tags.Store, id string) *contextResolver {
+func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *contextResolver {
 	return &contextResolver{
 		id:               id,
 		contextsByKey:    make(map[ckey.ContextKey]resolverEntry),
@@ -91,6 +92,7 @@ func newContextResolver(cache *tags.Store, id string) *contextResolver {
 		bytesByMtype:     make([]uint64, metrics.NumMetricTypes),
 		dataBytesByMtype: make([]uint64, metrics.NumMetricTypes),
 		tagsCache:        cache,
+		tagger:           tagger,
 		keyGenerator:     ckey.NewKeyGenerator(),
 		taggerBuffer:     tagset.NewHashingTagsAccumulator(),
 		metricBuffer:     tagset.NewHashingTagsAccumulator(),
@@ -99,7 +101,7 @@ func newContextResolver(cache *tags.Store, id string) *contextResolver {
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, timestamp int64) ckey.ContextKey {
-	metricSampleContext.GetTags(cr.taggerBuffer, cr.metricBuffer, tagger.EnrichTags) // tags here are not sorted and can contain duplicates
+	metricSampleContext.GetTags(cr.taggerBuffer, cr.metricBuffer, cr.tagger.EnrichTags) // tags here are not sorted and can contain duplicates
 	defer cr.taggerBuffer.Reset()
 	defer cr.metricBuffer.Reset()
 
@@ -219,9 +221,9 @@ type timestampContextResolver struct {
 	counterExpireTime int64
 }
 
-func newTimestampContextResolver(cache *tags.Store, id string, contextExpireTime, counterExpireTime int64) *timestampContextResolver {
+func newTimestampContextResolver(tagger tagger.Component, cache *tags.Store, id string, contextExpireTime, counterExpireTime int64) *timestampContextResolver {
 	return &timestampContextResolver{
-		resolver: newContextResolver(cache, id),
+		resolver: newContextResolver(tagger, cache, id),
 
 		contextExpireTime: contextExpireTime,
 		counterExpireTime: counterExpireTime,
@@ -279,9 +281,9 @@ type countBasedContextResolver struct {
 	expireCountInterval int64
 }
 
-func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store, id string) *countBasedContextResolver {
+func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store, tagger tagger.Component, id string) *countBasedContextResolver {
 	return &countBasedContextResolver{
-		resolver:            newContextResolver(cache, id),
+		resolver:            newContextResolver(tagger, cache, id),
 		expireCount:         0,
 		expireCountInterval: int64(expireCountInterval),
 	}

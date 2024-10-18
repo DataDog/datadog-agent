@@ -204,7 +204,7 @@ func TestDockerCustomPart(t *testing.T) {
 			CollectVolumeCount: true,
 			CollectEvent:       true,
 		},
-		eventTransformer: newBundledTransformer("testhostname", []string{}),
+		eventTransformer: newBundledTransformer("testhostname", []string{}, fakeTagger),
 		dockerHostname:   "testhostname",
 		containerFilter: &containers.Filter{
 			Enabled:         true,

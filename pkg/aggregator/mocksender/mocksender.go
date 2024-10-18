@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	//nolint:revive // TODO(AML) Fix revive linter
+
+	nnoptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -43,7 +45,8 @@ func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	sharedForwarder := forwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), log, forwarder.NewOptions(pkgconfigsetup.Datadog(), log, nil))
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameimpl.NewHostnameService()))
-	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, compressionimpl.NewMockCompressor(), "")
+	taggerComponent := nnoptagger.NewTaggerClient()
+	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, compressionimpl.NewMockCompressor(), taggerComponent, "")
 
 }
 
