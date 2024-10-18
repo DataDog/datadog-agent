@@ -19,10 +19,11 @@ func getTestFactory(t *testing.T) extension.Factory {
 	factories, err := components()
 	assert.NoError(t, err)
 
-	return NewFactory(&factories, newConfigProviderSettings(uriFromFile("config.yaml"), false))
+	return NewFactoryForAgent(&factories, newConfigProviderSettings(uriFromFile("config.yaml"), false))
 }
 
-func TestNewFactory(t *testing.T) {
+// TestNewFactoryForAgent tests the NewFactoryForAgent function
+func TestNewFactoryForAgent(t *testing.T) {
 	factory := getTestFactory(t)
 	assert.NotNil(t, factory)
 
@@ -37,6 +38,7 @@ func TestNewFactory(t *testing.T) {
 	assert.True(t, ok)
 }
 
+// TestTypeStability tests the Type and ExtensionStability methods
 func TestTypeStability(t *testing.T) {
 	factory := getTestFactory(t)
 	assert.NotNil(t, factory)
