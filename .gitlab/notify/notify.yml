@@ -63,7 +63,7 @@ notify_github:
     - !reference [.except_mergequeue]
     - !reference [.except_main_or_release_branch]
     - !reference [.except_no_tests_no_deploy]
-    - if: $RELEASE_VERSION_7 != ""
+    - if: $RELEASE_VERSION_6 != ""
       changes:
         paths:
           - '**/*.go'
@@ -71,7 +71,7 @@ notify_github:
       when: on_success
     - when: never
   needs:
-    - job: "deploy_deb_testing-a7_x64"
+    - job: "deploy_deb_testing-a6_x64"
       optional: true
   dependencies: []
   allow_failure: true

@@ -1,3 +1,4 @@
+import re
 import sys
 from collections import defaultdict
 from typing import List
@@ -8,6 +9,13 @@ from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
 from tasks.libs.common.check_tools_version import check_tools_version
+from tasks.libs.common.gitlab import (
+    Gitlab,
+    generate_gitlab_full_configuration,
+    get_gitlab_token,
+    get_preset_contexts,
+    load_context,
+)
 from tasks.libs.common.utils import DEFAULT_BRANCH, color_message
 from tasks.libs.copyright import CopyrightLinter
 from tasks.modules import GoModule
@@ -237,3 +245,107 @@ def lint_flavor(
         module_results.append(module_result)
 
     return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command, headless_mode=headless_mode)
+
+
+@task
+def list_ssm_parameters(_):
+    """
+    List all SSM parameters used in the datadog-agent repository.
+    """
+
+    ssm_owner = re.compile(r"^[A-Z].*_SSM_(NAME|KEY): (?P<param>[^ ]+) +# +(?P<owner>.+)$")
+    ssm_params = defaultdict(list)
+    with open(".gitlab-ci.yml") as f:
+        for line in f:
+            m = ssm_owner.match(line.strip())
+            if m:
+                ssm_params[m.group("owner")].append(m.group("param"))
+    for owner in ssm_params.keys():
+        print(f"Owner:{owner}")
+        for param in ssm_params[owner]:
+            print(f"  - {param}")
+
+
+@task
+def ssm_parameters(ctx):
+    """
+    Lint SSM parameters in the datadog-agent repository.
+    """
+    lint_folders = [".circleci", ".github", ".gitlab", "tasks", "test"]
+    repo_files = ctx.run("git ls-files", hide="both")
+    error_files = []
+    for file in repo_files.stdout.split("\n"):
+        if any(file.startswith(f) for f in lint_folders):
+            matched = is_get_parameter_call(file)
+            if matched:
+                error_files.append(matched)
+    if error_files:
+        print("The following files contain unexpected syntax for aws ssm get-parameter:")
+        for file in error_files:
+            print(f"  - {file}")
+        raise Exit(code=1)
+
+
+class SSMParameterCall:
+    def __init__(self, file, line_nb, with_wrapper=False, with_env_var=False):
+        self.file = file
+        self.line_nb = line_nb
+        self.with_wrapper = with_wrapper
+        self.with_env_var = with_env_var
+
+    def __str__(self):
+        message = ""
+        if not self.with_wrapper:
+            message += "Please use the dedicated `aws_ssm_get_wrapper.(sh|ps1)`."
+        if not self.with_env_var:
+            message += " Save your parameter name as environment variable in .gitlab-ci.yml file."
+        return f"{self.file}:{self.line_nb+1}. {message}"
+
+    def __repr__(self):
+        return str(self)
+
+
+def is_get_parameter_call(file):
+    ssm_get = re.compile(r"^.+ssm.get.+$")
+    aws_ssm_call = re.compile(r"^.+ssm get-parameter.+--name +(?P<param>[^ ]+).*$")
+    ssm_wrapper_call = re.compile(r"^.+aws_ssm_get_wrapper.(sh|ps1) +(?P<param>[^ )]+).*$")
+    with open(file) as f:
+        try:
+            for nb, line in enumerate(f):
+                is_ssm_get = ssm_get.match(line.strip())
+                if is_ssm_get:
+                    m = aws_ssm_call.match(line.strip())
+                    if m:
+                        return SSMParameterCall(
+                            file, nb, with_wrapper=False, with_env_var=m.group("param").startswith("$")
+                        )
+                    m = ssm_wrapper_call.match(line.strip())
+                    if m and not m.group("param").startswith("$"):
+                        return SSMParameterCall(file, nb, with_wrapper=True, with_env_var=False)
+        except UnicodeDecodeError:
+            pass
+
+
+@task
+def gitlab_ci(_, test="all", custom_context=None):
+    """
+    Lint Gitlab CI files in the datadog-agent repository.
+    """
+    all_contexts = []
+    if custom_context:
+        all_contexts = load_context(custom_context)
+    else:
+        all_contexts = get_preset_contexts(test)
+    print(f"We will tests {len(all_contexts)} contexts.")
+    for context in all_contexts:
+        print("Test gitlab configuration with context: ", context)
+        config = generate_gitlab_full_configuration(".gitlab-ci.yml", dict(context))
+        gitlab = Gitlab(api_token=get_gitlab_token())
+        res = gitlab.lint(config)
+        status = color_message("valid", "green") if res["valid"] else color_message("invalid", "red")
+        print(f"Config is {status}")
+        if len(res["warnings"]) > 0:
+            print(color_message(f"Warnings: {res['warnings']}", "orange"), file=sys.stderr)
+        if not res["valid"]:
+            print(color_message(f"Errors: {res['errors']}", "red"), file=sys.stderr)
+            raise Exit(code=1)

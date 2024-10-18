@@ -4,7 +4,7 @@ single-machine-performance-workload-checks:
   tags: ["runner:docker"]
   rules: !reference [.on_scheduled_main]
   needs:
-    - job: single_machine_performance-nightly-amd64-a7
+    - job: single_machine_performance-nightly-amd64-a6
       artifacts: false
   artifacts:
     expire_in: 1 weeks
@@ -33,7 +33,7 @@ single-machine-performance-workload-checks:
     - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-gnu/smp smp
     - chmod +x smp
     - CURRENT_DATE=$(date --utc '+%Y_%m_%d')
-    - TARGET_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:nightly-${CI_COMMIT_BRANCH}-${CI_COMMIT_SHA}-7-amd64
+    - TARGET_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:nightly-${CI_COMMIT_BRANCH}-${CI_COMMIT_SHA}-6-amd64
     # Copy the TARGET_IMAGE to SMP for debugging purposes later
     - RUST_LOG="info,aws_config::profile::credentials=error"
     - RUST_LOG_DEBUG="debug,aws_config::profile::credentials=error"

@@ -14,10 +14,3 @@ kitchen_cleanup_azure-a6:
     !reference [.on_kitchen_tests_a6_always]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-
-kitchen_cleanup_azure-a7:
-  extends: .kitchen_cleanup_azure_common
-  rules:
-    !reference [.on_default_kitchen_tests_a7_always]
-  variables:
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7

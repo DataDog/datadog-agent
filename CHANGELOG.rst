@@ -2,22 +2,22 @@
 Release Notes
 =============
 
-.. _Release Notes_7.53.0:
+.. _Release Notes_6.53.0:
 
-7.53.0 / 6.53.0
+6.53.0
 ================
 
-.. _Release Notes_7.53.0_Prelude:
+.. _Release Notes_6.53.0_Prelude:
 
 Prelude
 -------
 
 Release on: 2024-04-30
 
-- Please refer to the `7.53.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7530>`_ for the list of changes on the Core Checks
+- Please refer to the `6.53.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7530>`_ for the list of changes on the Core Checks
 
 
-.. _Release Notes_7.53.0_New Features:
+.. _Release Notes_6.53.0_New Features:
 
 New Features
 ------------
@@ -43,7 +43,7 @@ New Features
   the `datadog.yaml` file. This feature is disabled by default.
 
 
-.. _Release Notes_7.53.0_Enhancement Notes:
+.. _Release Notes_6.53.0_Enhancement Notes:
 
 Enhancement Notes
 -----------------
@@ -92,7 +92,7 @@ Enhancement Notes
 - USM: Handle the HTTP TRACE method.
 
 
-.. _Release Notes_7.53.0_Deprecation Notes:
+.. _Release Notes_6.53.0_Deprecation Notes:
 
 Deprecation Notes
 -----------------
@@ -100,7 +100,7 @@ Deprecation Notes
 - [oracle] Deprecating Oracle integration code. The functionality is fully implemented in the ``oracle-dbm`` check which is now renamed to ``oracle``.
 
 
-.. _Release Notes_7.53.0_Bug Fixes:
+.. _Release Notes_6.53.0_Bug Fixes:
 
 Bug Fixes
 ---------

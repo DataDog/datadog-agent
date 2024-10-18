@@ -16,14 +16,6 @@
   variables:
     MAJOR_VERSION: 6
 
-.deploy_packages_deb-7:
-  extends: .deploy_packages_deb
-  stage: deploy_packages
-  rules:
-    !reference [.on_deploy_a7]
-  variables:
-    MAJOR_VERSION: 7
-
 .deploy_packages_rpm:
   resource_group: rpm_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
@@ -43,14 +35,6 @@
   variables:
     MAJOR_VERSION: 6
 
-.deploy_packages_rpm-7:
-  extends: .deploy_packages_rpm
-  stage: deploy_packages
-  rules:
-    !reference [.on_deploy_a7]
-  variables:
-    MAJOR_VERSION: 7
-
 .deploy_packages_suse_rpm:
   extends: .deploy_packages_rpm
   variables:
@@ -65,14 +49,6 @@
   variables:
     MAJOR_VERSION: 6
 
-.deploy_packages_suse_rpm-7:
-  extends: .deploy_packages_suse_rpm
-  stage: deploy_packages
-  rules:
-    !reference [.on_deploy_a7]
-  variables:
-    MAJOR_VERSION: 7
-
 deploy_packages_oci:
   resource_group: oci_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
@@ -82,7 +58,7 @@ deploy_packages_oci:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   rules:
-    !reference [.on_deploy_a7]
+    !reference [.on_deploy_a6]
   script:
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - set +x
@@ -96,5 +72,5 @@ deploy_packages_oci:
     - go build .
     - ./datadog-package push registry.ddbuild.io/ci/remote-updates/datadog-agent:${VERSION} ${OMNIBUS_PACKAGE_DIR}/datadog-agent-${MAJOR_VERSION}.*.oci.tar
   variables:
-    MAJOR_VERSION: 7
+    MAJOR_VERSION: 6
 

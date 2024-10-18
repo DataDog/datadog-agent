@@ -9,7 +9,7 @@ From the root of the repository, run the following command:
 docker run --rm -it -v "${pwd}:c:\mnt" -e OMNIBUS_TARGET=main -e MAJOR_VERSION=7 -e RELEASE_VERSION=nightly -e PY_RUNTIMES=3 datadog/agent-buildimages-windows_x64:1809 c:\mnt\tasks\winbuildscripts\buildwin.bat
 ```
 
-The above will build the Agent 7 nightly. To build the Agent 6, use the following variables:
+The above will build the Agent 6 nightly. To build the Agent 6, use the following variables:
 - MAJOR_VERSION=6
 - PY_RUNTIMES=2,3
 

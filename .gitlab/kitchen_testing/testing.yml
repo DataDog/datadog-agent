@@ -88,10 +88,10 @@
 .kitchen_agent_a7:
   extends: .kitchen_common_with_junit
   rules:
-    !reference [.on_kitchen_tests_a7]
+    !reference [.on_kitchen_tests_a6]
   variables:
     AGENT_MAJOR_VERSION: 7
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
 
 
 # Kitchen: tests

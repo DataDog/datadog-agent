@@ -23,7 +23,7 @@ jobs:
       - name: Get repo current milestone
         id: current-milestone
         run: |
-          if [[ ${GITHUB_REF##*/} =~ ^7\.[0-9]+\.[0-9]+$ ]]; then
+          if [[ ${GITHUB_REF##*/} =~ ^6\.[0-9]+\.[0-9]+$ ]]; then
             # If we're on a release branch, set the milestone to the latest release milestone found.
             MILESTONE=$(gh release list | grep -o $(echo ${GITHUB_REF##*/} | sed 's/x/[0-9]*/g') | sort -uV | tail -1)
             if [ -z "$MILESTONE" ]; then
@@ -38,8 +38,8 @@ jobs:
               exit 1
             fi
           fi
-          if [[ ! $MILESTONE =~ ^7\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Error: Malformed milestone $MILESTONE. It should be of the form '7.x.y'."
+          if [[ ! $MILESTONE =~ ^6\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Malformed milestone $MILESTONE. It should be of the form '6.x.y'."
             exit 1
           fi
           echo "MILESTONE=$MILESTONE" >> "$GITHUB_OUTPUT"

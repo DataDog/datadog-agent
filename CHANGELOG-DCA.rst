@@ -2,21 +2,21 @@
 Release Notes
 =============
 
-.. _Release Notes_7.53.0:
+.. _Release Notes_6.53.0:
 
-7.53.0 / 6.53.0
+6.53.0
 ================
 
-.. _Release Notes_7.53.0_Prelude:
+.. _Release Notes_6.53.0_Prelude:
 
 Prelude
 -------
 
 Released on: 2024-04-30
-Pinned to datadog-agent v7.53.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7530>`_.
+Pinned to datadog-agent v6.53.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7530>`_.
 
 
-.. _Release Notes_7.53.0_New Features:
+.. _Release Notes_6.53.0_New Features:
 
 New Features
 ------------
@@ -28,7 +28,7 @@ New Features
   Software Composition Analysis via Helm charts.
 
 
-.. _Release Notes_7.53.0_Enhancement Notes:
+.. _Release Notes_6.53.0_Enhancement Notes:
 
 Enhancement Notes
 -----------------

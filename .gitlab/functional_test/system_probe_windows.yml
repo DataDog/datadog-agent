@@ -8,7 +8,7 @@
 
 kitchen_test_system_probe_windows_x64:
   extends:
-    - .kitchen_agent_a7
+    - .kitchen_agent_a6
     - .kitchen_os_windows
     - .kitchen_test_system_probe
     - .kitchen_azure_x64
@@ -20,9 +20,9 @@ kitchen_test_system_probe_windows_x64:
     KITCHEN_OSVERS: "win2016"
     CHEF_VERSION: 14.12.9 # newer versions error out during kitchen setup of azure VM
   before_script:
-    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_DRIVER")
-    - export WINDOWS_DDNPM_VERSION=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_VERSION")
-    - export WINDOWS_DDNPM_SHASUM=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_SHASUM")
+    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION_6::WINDOWS_DDNPM_DRIVER")
+    - export WINDOWS_DDNPM_VERSION=$(inv release.get-release-json-value "$RELEASE_VERSION_6::WINDOWS_DDNPM_VERSION")
+    - export WINDOWS_DDNPM_SHASUM=$(inv release.get-release-json-value "$RELEASE_VERSION_6::WINDOWS_DDNPM_SHASUM")
     - pushd $DD_AGENT_TESTING_DIR
     - tasks/kitchen_setup.sh
   script:

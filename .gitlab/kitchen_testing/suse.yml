@@ -22,18 +22,18 @@
 # Kitchen: scenarios (os * agent * (cloud + arch))
 # -------------------------------
 
-.kitchen_scenario_suse_x64_a7:
+.kitchen_scenario_suse_x64_a6:
   extends:
-    - .kitchen_agent_a7
+    - .kitchen_agent_a6
     - .kitchen_os_suse
     - .kitchen_azure_x64
-  needs: ["deploy_suse_rpm_testing_x64-a7"]
+  needs: ["deploy_suse_rpm_testing_x64-a6"]
 
 # Kitchen: final test matrix (tests * scenarios)
 # ----------------------------------------------
 
-kitchen_suse_process_agent_x64-a7:
+kitchen_suse_process_agent_x64-a6:
   extends:
-    - .kitchen_scenario_suse_x64_a7
+    - .kitchen_scenario_suse_x64_a6
     - .kitchen_test_process_agent
 
