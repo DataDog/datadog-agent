@@ -411,6 +411,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(gpuNS, "enabled"), false)
 	cfg.BindEnv(join(gpuNS, "nvml_lib_path"))
 	cfg.BindEnvAndSetDefault(join(gpuNS, "process_scan_interval_seconds"), 5)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "initial_process_sync"), true)
 
 	initCWSSystemProbeConfig(cfg)
 }

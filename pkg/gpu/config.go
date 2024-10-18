@@ -34,7 +34,7 @@ func NewConfig() *Config {
 	return &Config{
 		Config:                          *ebpf.NewConfig(),
 		ScanTerminatedProcessesInterval: time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(GPUNS, "process_scan_interval_seconds"))) * time.Second,
-		InitialProcessSync:              true,
+		InitialProcessSync:              spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "initial_process_sync")),
 		NVMLLibraryPath:                 spCfg.GetString(sysconfig.FullKeyPath(GPUNS, "nvml_lib_path")),
 	}
 }
