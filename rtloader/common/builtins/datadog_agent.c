@@ -182,7 +182,7 @@ PyObject *get_version(PyObject *self, PyObject *args)
     cb_get_version(&v);
 
     if (v != NULL) {
-        PyObject *retval = PyStringFromCString(v);
+        PyObject *retval = PyUnicode_FromString(v);
         // v is allocated from CGO and thus requires being freed with the
         // cgo_free callback for windows safety.
         cgo_free(v);
@@ -329,7 +329,7 @@ PyObject *get_hostname(PyObject *self, PyObject *args)
     cb_get_hostname(&v);
 
     if (v != NULL) {
-        PyObject *retval = PyStringFromCString(v);
+        PyObject *retval = PyUnicode_FromString(v);
         cgo_free(v);
         return retval;
     }
@@ -359,7 +359,7 @@ PyObject *get_host_tags(PyObject *self, PyObject *args)
     cb_get_host_tags(&v);
 
     if (v != NULL) {
-        PyObject *retval = PyStringFromCString(v);
+        PyObject *retval = PyUnicode_FromString(v);
         cgo_free(v);
         return retval;
     }
@@ -389,7 +389,7 @@ PyObject *get_clustername(PyObject *self, PyObject *args)
     cb_get_clustername(&v);
 
     if (v != NULL) {
-        PyObject *retval = PyStringFromCString(v);
+        PyObject *retval = PyUnicode_FromString(v);
         cgo_free(v);
         return retval;
     }
@@ -591,7 +591,7 @@ static PyObject *read_persistent_cache(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    PyObject *retval = PyStringFromCString(v);
+    PyObject *retval = PyUnicode_FromString(v);
     cgo_free(v);
     return retval;
 }
@@ -804,7 +804,7 @@ static PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs)
         // no error message and a null response. this should never happen so the go code is misbehaving
         PyErr_SetString(PyExc_RuntimeError, "internal error: empty cb_obfuscate_sql response");
     } else {
-        retval = PyStringFromCString(obfQuery);
+        retval = PyUnicode_FromString(obfQuery);
     }
 
     cgo_free(error_message);
@@ -841,7 +841,7 @@ static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObjec
         // no error message and a null response. this should never happen so the go code is misbehaving
         PyErr_SetString(PyExc_RuntimeError, "internal error: empty cb_obfuscate_sql_exec_plan response");
     } else {
-        retval = PyStringFromCString(obfPlan);
+        retval = PyUnicode_FromString(obfPlan);
     }
 
     cgo_free(error_message);
@@ -916,7 +916,7 @@ static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObje
         // no error message and a null response. this should never happen so the go code is misbehaving
         PyErr_SetString(PyExc_RuntimeError, "internal error: empty cb_obfuscate_mongodb_string response");
     } else {
-        retval = PyStringFromCString(obfCmd);
+        retval = PyUnicode_FromString(obfCmd);
     }
 
     cgo_free(error_message);
