@@ -155,6 +155,7 @@ message ECSTask {
   string version = 9;
   ECSLaunchType launchType = 10;
   repeated OrchestratorContainer containers = 11;
+  int64 awsAccountID = 12;
 }
 
 message WorkloadmetaEvent {
