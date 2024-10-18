@@ -25,8 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
 // TODO: Set a minimum kernel version
