@@ -264,7 +264,11 @@ variables:
   AGENT_QA_E2E: agent-qa-e2e  # agent-devx-loops
   ATLASSIAN_WRITE: atlassian-write  # agent-devx-infra
   DOCKER_REGISTRY_RO: dockerhub-readonly  # agent-delivery
+  E2E_AZURE: e2e-azure  # agent-devx-loops
+  E2E_GCP: e2e-gcp  # agent-devx-loops
   GITLAB_TOKEN: gitlab-token  # agent-devx-infra
+  KITCHEN_AWS: kitchen-aws  # agent-devx-loops
+  KITCHEN_AZURE: kitchen-azure  # agent-devx-loops
   INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2  # agent-devx-infra
   MACOS_GITHUB_APP_1: macos-github-app-one  # agent-devx-infra
   MACOS_GITHUB_APP_2: macos-github-app-two  # agent-devx-infra
