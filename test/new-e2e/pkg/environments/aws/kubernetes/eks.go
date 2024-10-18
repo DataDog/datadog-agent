@@ -104,7 +104,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 	// Deploy the agent
 	dependsOnSetup := utils.PulumiDependsOn(cluster)
 	if params.agentOptions != nil {
-		params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithPulumiResourceOptions(dependsOnSetup), kubernetesagentparams.WithFakeintake(fakeIntake))
+		params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithPulumiResourceOptions(dependsOnSetup), kubernetesagentparams.WithFakeintake(fakeIntake), kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}))
 		kubernetesAgent, err := helm.NewKubernetesAgent(&awsEnv, "eks", cluster.KubeProvider, params.agentOptions...)
 		if err != nil {
 			return err

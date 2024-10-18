@@ -190,6 +190,7 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, runParams RunParams)
 
 	// Create Agent if required
 	if params.agentOptions != nil {
+		params.agentOptions = append(params.agentOptions, dockeragentparams.WithTags([]string{"stackid:" + ctx.Stack()}))
 		agent, err := agent.NewDockerAgent(&awsEnv, host, manager, params.agentOptions...)
 		if err != nil {
 			return err
