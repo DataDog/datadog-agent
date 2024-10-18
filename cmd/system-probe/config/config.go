@@ -146,7 +146,8 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(spNS("process_config.enabled")) {
 		c.EnabledModules[ProcessModule] = struct{}{}
 	}
-	if cfg.GetBool(diNS("enabled")) {
+	dynInstEnabled := cfg.GetBool(diNS("enabled"))
+	if dynInstEnabled {
 		c.EnabledModules[DynamicInstrumentationModule] = struct{}{}
 	}
 	if cfg.GetBool(nskey("ebpf_check", "enabled")) {
@@ -190,7 +191,7 @@ func load() (*types.Config, error) {
 		cfg.GetBool(smNS("tls", "istio", "enabled")) ||
 		cfg.GetBool(smNS("tls", "nodejs", "enabled")))
 
-	if gpuEnabled || (usmEnabled && usmNeedsProcessMonitor) {
+	if gpuEnabled || (usmEnabled && usmNeedsProcessMonitor) || dynInstEnabled {
 		c.EnabledModules[ProcessMonitorModule] = struct{}{}
 	}
 
