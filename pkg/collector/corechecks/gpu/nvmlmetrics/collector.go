@@ -60,7 +60,6 @@ func NewCollector(lib nvml.Interface) (*Collector, error) {
 
 // newCollectorWithSubsystems allows specifying which subsystems to use when creating the collector, useful for tests.
 func newCollectorWithSubsystems(lib nvml.Interface, subsystems map[string]subsystemFactory) (*Collector, error) {
-	ret := nvml.SUCCESS
 	coll := &Collector{
 		lib: lib,
 	}

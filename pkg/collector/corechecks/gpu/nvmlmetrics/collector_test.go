@@ -43,7 +43,7 @@ func TestCollectorsGetClosedIfInitFails(t *testing.T) {
 
 	// On the first call, this function returns correctly. On the second it fails.
 	// We need this as we cannot rely on the order of the subsystems in the map.
-	factory := func(lib nvml.Interface, devices []nvml.Device) (subsystemCollector, error) {
+	factory := func(_ nvml.Interface, _ []nvml.Device) (subsystemCollector, error) {
 		if !factorySucceeded {
 			factorySucceeded = true
 			return succeedCollector, nil
@@ -60,7 +60,7 @@ func TestCollectorsGetClosedIfInitFails(t *testing.T) {
 
 func TestCollectorsCollectMetricsEvenInCaseOfFailure(t *testing.T) {
 	dummy := &mockSubsystemCollector{}
-	factory := func(lib nvml.Interface, devices []nvml.Device) (subsystemCollector, error) {
+	factory := func(_ nvml.Interface, _ []nvml.Device) (subsystemCollector, error) {
 		return dummy, nil
 	}
 
