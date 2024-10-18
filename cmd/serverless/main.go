@@ -111,7 +111,7 @@ func runAgent(tagger tagger.Component) {
 	lambdaInitMetricChan := make(chan *serverlessLogs.LambdaInitMetric)
 	//nolint:revive // TODO(SERV) Fix revive linter
 	coldStartSpanId := random.Random.Uint64()
-	metricAgent := startMetricAgent(serverlessDaemon, logChannel, lambdaInitMetricChan)
+	metricAgent := startMetricAgent(serverlessDaemon, logChannel, lambdaInitMetricChan, tagger)
 
 	// Concurrently start heavyweight features
 	var wg sync.WaitGroup
@@ -205,9 +205,10 @@ func setupProxy(appsecProxyProcessor *httpsec.ProxyLifecycleProcessor, ta trace.
 	}
 }
 
-func startMetricAgent(serverlessDaemon *daemon.Daemon, logChannel chan *logConfig.ChannelMessage, lambdaInitMetricChan chan *serverlessLogs.LambdaInitMetric) *metrics.ServerlessMetricAgent {
+func startMetricAgent(serverlessDaemon *daemon.Daemon, logChannel chan *logConfig.ChannelMessage, lambdaInitMetricChan chan *serverlessLogs.LambdaInitMetric, tagger tagger.Component) *metrics.ServerlessMetricAgent {
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
+		Tagger:               tagger,
 	}
 	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	serverlessDaemon.SetStatsdServer(metricAgent)
