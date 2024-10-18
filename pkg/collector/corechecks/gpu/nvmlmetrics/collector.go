@@ -51,7 +51,11 @@ type subsystemCollector interface {
 }
 
 // allSubsystems is a map of all the subsystems that can be used to collect metrics from NVML.
-var allSubsystems = map[string]subsystemFactory{}
+var allSubsystems = map[string]subsystemFactory{
+	fieldsMetricsCollectorName: newFieldsMetricsCollector,
+	gpmMetricsCollectorName:    newGpmMetricsCollector,
+	deviceMetricsCollectorName: newDeviceMetricsCollector,
+}
 
 // NewCollector creates a new Collector that will collect metrics from the given NVML library.
 func NewCollector(lib nvml.Interface) (*Collector, error) {
