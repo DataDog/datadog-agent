@@ -74,13 +74,11 @@ func (ctx *systemContext) queryDevices() error {
 
 	for i, device := range devices {
 		major, minor, ret := device.GetCudaComputeCapability()
-		if err = cuda.WrapNvmlError(ret); err != nil {
+		if err = wrapNvmlError(ret); err != nil {
 			return fmt.Errorf("error getting SM version: %w", err)
 		}
 		ctx.deviceSmVersions[i] = major*10 + minor
-	}
 
-	for i, device := range devices {
 		maxThreads, err := getMaxThreadsForDevice(device)
 		if err != nil {
 			return fmt.Errorf("error getting max threads for device %s: %w", device, err)

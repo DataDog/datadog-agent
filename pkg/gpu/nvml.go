@@ -44,7 +44,7 @@ func getGPUDevices(lib nvml.Interface) ([]nvml.Device, error) {
 	return devices, nil
 }
 
-// GetMaxThreads returns the maximum number of threads that can be run on the
+// getMaxThreadsForDevice returns the maximum number of threads that can be run on the
 // GPU. Each GPU core runs a thread, so this is the number of cores. Do not
 // confuse the number of cores with the number of streaming multiprocessors
 // (SM): the number of cores is equal to the number of SMs multiplied by the
