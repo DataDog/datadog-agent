@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
 	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
@@ -46,6 +47,7 @@ type ProvisionerParams struct {
 	ecsWindowsNodeGroup               bool
 	infraShouldDeployFakeintakeWithLB bool
 	workloadAppFuncs                  []WorkloadAppFunc
+	fargateWorkloadAppFuncs           []FargateWorkloadAppFunc
 	awsEnv                            *aws.Environment
 }
 
@@ -186,6 +188,17 @@ func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
 	}
 }
 
+// FargateWorkloadAppFunc is a function that deploys a Fargate workload app to an ECS cluster
+type FargateWorkloadAppFunc func(e aws.Environment, clusterArn pulumi.StringInput, apiKeySSMParamName pulumi.StringInput, fakeIntake *fakeintakeComp.Fakeintake) (*ecsComp.Workload, error)
+
+// WithFargateWorkloadApp adds a Fargate workload app to the environment
+func WithFargateWorkloadApp(appFunc FargateWorkloadAppFunc) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.fargateWorkloadAppFuncs = append(params.fargateWorkloadAppFuncs, appFunc)
+		return nil
+	}
+}
+
 // Run deploys a ECS environment given a pulumi.Context
 func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) error {
 	var awsEnv aws.Environment
@@ -298,6 +311,11 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 			ctx.Export("agent-ec2-linux-task-arn", agentDaemon.TaskDefinition.Arn())
 			ctx.Export("agent-ec2-linux-task-family", agentDaemon.TaskDefinition.Family())
 			ctx.Export("agent-ec2-linux-task-version", agentDaemon.TaskDefinition.Revision())
+		}
+
+		_, err := cpustress.FargateAppDefinition(awsEnv, ecsCluster.Arn, apiKeyParam.Name, fakeIntake)
+		if err != nil {
+			return err
 		}
 	}
 
