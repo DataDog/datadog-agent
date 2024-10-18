@@ -82,7 +82,7 @@ func newCollectorWithSubsystems(lib nvml.Interface, subsystems map[string]subsys
 	for name, factory := range subsystems {
 		subsystem, err := factory(lib, coll.devices)
 		if err != nil {
-			coll.Close() // Close all previously created subsystems
+			_ = coll.Close() // Close all previously created subsystems
 			return nil, fmt.Errorf("failed to create subsystem %s: %w", name, err)
 		}
 
