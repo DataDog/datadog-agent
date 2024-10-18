@@ -39,20 +39,23 @@ var processMonitorModuleConfigNamespaces = []string{"service_monitoring_config"}
 
 func createProcessMonitorModule(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 	log.Infof("Initializing process monitor...")
-	processMonitor := monitor.GetProcessMonitor()
-	if processMonitor == nil {
+	module := &processMonitorModule{
+		procMon: monitor.GetProcessMonitor(),
+	}
+	if module.procMon == nil {
 		return nil, errors.New("could not get process monitor")
 	}
 
-	err := processMonitor.Initialize(isEventStreamEnabled())
+	err := module.procMon.Initialize(isEventStreamEnabled())
 	if err != nil {
 		return nil, fmt.Errorf("cannot initialize process monitor: %w", err)
 	}
 
-	return &processMonitorModule{}, nil
+	return module, nil
 }
 
 type processMonitorModule struct {
+	procMon *monitor.ProcessMonitor
 }
 
 func (m *processMonitorModule) GetStats() map[string]interface{} {
@@ -64,4 +67,5 @@ func (m *processMonitorModule) Register(_ *module.Router) error {
 }
 
 func (m *processMonitorModule) Close() {
+	m.procMon.Stop()
 }
