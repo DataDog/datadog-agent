@@ -259,8 +259,8 @@ type StatCounters struct {
 	// * Value 1 represents a connection that was established after system-probe started;
 	// * Values greater than 1 should be rare, but can occur when multiple connections
 	//   are established with the same tuple between two agent checks;
-	TCPEstablished uint32
-	TCPClosed      uint32
+	TCPEstablished uint8
+	TCPClosed      uint8
 }
 
 // IsZero returns whether all the stat counter values are zeroes

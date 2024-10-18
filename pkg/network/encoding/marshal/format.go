@@ -97,8 +97,8 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	builder.SetRtt(conn.RTT)
 	builder.SetRttVar(conn.RTTVar)
 	builder.SetIntraHost(conn.IntraHost)
-	builder.SetLastTcpEstablished(conn.Last.TCPEstablished)
-	builder.SetLastTcpClosed(conn.Last.TCPClosed)
+	builder.SetLastTcpEstablished(uint32(conn.Last.TCPEstablished))
+	builder.SetLastTcpClosed(uint32(conn.Last.TCPClosed))
 	builder.SetProtocol(func(w *model.ProtocolStackBuilder) {
 		ps := FormatProtocolStack(conn.ProtocolStack, conn.StaticTags)
 		for _, p := range ps.Stack {
