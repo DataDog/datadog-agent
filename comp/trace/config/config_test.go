@@ -2157,16 +2157,25 @@ func TestOnUpdateAPIKeyCallback(t *testing.T) {
 	assert.Equal(t, 1, n)
 }
 
-func buildConfigComponent(t *testing.T, options ...fx.Option) Component {
+func buildConfigComponent(t *testing.T, coreConfigOptions ...fx.Option) Component {
 	t.Helper()
 
-	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
+	coreConfig := fxutil.Test[corecomp.Component](t,
+		corecomp.MockModule(),
+		fx.Options(coreConfigOptions...),
+	)
+
+	taggerComponent := fxutil.Test[tagger.Mock](t,
+		fx.Replace(coreConfig),
+		taggerimpl.MockModule(),
+	)
 
 	c := fxutil.Test[Component](t, fx.Options(
-		corecomp.MockModule(),
-		fx.Options(options...),
 		fx.Provide(func() tagger.Component {
 			return taggerComponent
+		}),
+		fx.Provide(func() corecomp.Component {
+			return coreConfig
 		}),
 		MockModule(),
 	))
