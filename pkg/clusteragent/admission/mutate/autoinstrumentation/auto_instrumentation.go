@@ -40,7 +40,7 @@ const (
 	mountPath  = "/datadog-lib"
 
 	// defaultMilliCPURequest defines default milli cpu request number.
-	defaultMilliCPURequest int64 = 50 // 0.05 core
+	defaultMilliCPURequest int64 = 300 // 0.3 core
 	// defaultMemoryRequest defines default memory request size.
 	defaultMemoryRequest int64 = 100 * 1024 * 1024 // 100 MB (recommended minimum by Alpine)
 
@@ -651,7 +651,6 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, config extractedPodLib
 }
 
 func initResources() (corev1.ResourceRequirements, error) {
-
 	var resources = corev1.ResourceRequirements{Limits: corev1.ResourceList{}, Requests: corev1.ResourceList{}}
 
 	if pkgconfigsetup.Datadog().IsSet("admission_controller.auto_instrumentation.init_resources.cpu") {
@@ -660,10 +659,16 @@ func initResources() (corev1.ResourceRequirements, error) {
 			return resources, err
 		}
 		resources.Requests[corev1.ResourceCPU] = quantity
-		resources.Limits[corev1.ResourceCPU] = quantity
 	} else {
 		resources.Requests[corev1.ResourceCPU] = *resource.NewMilliQuantity(defaultMilliCPURequest, resource.DecimalSI)
-		resources.Limits[corev1.ResourceCPU] = *resource.NewMilliQuantity(defaultMilliCPURequest, resource.DecimalSI)
+	}
+
+	if pkgconfigsetup.Datadog().IsSet("admission_controller.auto_instrumentation.init_resources.cpu_limit") {
+		quantity, err := resource.ParseQuantity(pkgconfigsetup.Datadog().GetString("admission_controller.auto_instrumentation.init_resources.cpu_limit"))
+		if err != nil {
+			return resources, err
+		}
+		resources.Limits[corev1.ResourceCPU] = quantity
 	}
 
 	if pkgconfigsetup.Datadog().IsSet("admission_controller.auto_instrumentation.init_resources.memory") {
@@ -672,10 +677,16 @@ func initResources() (corev1.ResourceRequirements, error) {
 			return resources, err
 		}
 		resources.Requests[corev1.ResourceMemory] = quantity
-		resources.Limits[corev1.ResourceMemory] = quantity
 	} else {
 		resources.Requests[corev1.ResourceMemory] = *resource.NewQuantity(defaultMemoryRequest, resource.DecimalSI)
-		resources.Limits[corev1.ResourceMemory] = *resource.NewQuantity(defaultMemoryRequest, resource.DecimalSI)
+	}
+
+	if pkgconfigsetup.Datadog().IsSet("admission_controller.auto_instrumentation.init_resources.memory_limit") {
+		quantity, err := resource.ParseQuantity(pkgconfigsetup.Datadog().GetString("admission_controller.auto_instrumentation.init_resources.memory_limit"))
+		if err != nil {
+			return resources, err
+		}
+		resources.Limits[corev1.ResourceMemory] = quantity
 	}
 
 	return resources, nil
