@@ -24,7 +24,6 @@ const (
 	netNS = "network_config"
 	smNS  = "service_monitoring_config"
 	evNS  = "event_monitoring_config"
-	pmNs  = "process_monitoring_config"
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
