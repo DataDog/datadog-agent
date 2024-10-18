@@ -73,7 +73,7 @@ func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error 
 
 	offsetInFile := event.Kernel_addr - entry.Start + entry.Offset
 
-	binaryPath := fmt.Sprintf("/proc/%d/root/%s", sh.key.Pid, entry.Path)
+	binaryPath := fmt.Sprintf("%s/%d/root/%s", sh.sysCtx.procRoot, sh.key.Pid, entry.Path)
 	fileData, err := sh.sysCtx.getFileData(binaryPath)
 	if err != nil {
 		return fmt.Errorf("error getting file data: %w", err)

@@ -21,7 +21,7 @@ import (
 )
 
 func TestKernelLaunchesHandled(t *testing.T) {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock())
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
 	stream := newStreamHandler(&model.StreamKey{}, sysCtx)
 
@@ -80,7 +80,7 @@ func TestKernelLaunchesHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsHandled(t *testing.T) {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock())
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
 	stream := newStreamHandler(&model.StreamKey{}, sysCtx)
 
@@ -151,7 +151,7 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsDetectLeaks(t *testing.T) {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock())
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
 	stream := newStreamHandler(&model.StreamKey{}, sysCtx)
 
@@ -186,7 +186,7 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 }
 
 func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock())
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
 	stream := newStreamHandler(&model.StreamKey{}, sysCtx)
 
@@ -230,7 +230,7 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 }
 
 func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock())
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
 	stream := newStreamHandler(&model.StreamKey{}, sysCtx)
 
@@ -322,7 +322,7 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 }
 
 func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock())
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
 
 	// Set up the caches in system context so no actual queries are done

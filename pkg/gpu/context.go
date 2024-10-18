@@ -39,6 +39,9 @@ type systemContext struct {
 
 	// pidMaps maps each process ID to its memory maps
 	pidMaps map[int]*kernel.ProcMapEntries
+
+	// procRoot is the root directory for process information
+	procRoot string
 }
 
 // fileData holds the symbol table and Fatbin data for a given file.
@@ -52,11 +55,12 @@ func (fd *fileData) updateAccessTime() {
 	fd.lastAccessed = time.Now()
 }
 
-func getSystemContext(nvmlLib nvml.Interface) (*systemContext, error) {
+func getSystemContext(nvmlLib nvml.Interface, procRoot string) (*systemContext, error) {
 	ctx := &systemContext{
 		maxGpuThreadsPerDevice: make(map[int]int),
 		deviceSmVersions:       make(map[int]int),
 		nvmlLib:                nvmlLib,
+		procRoot:               procRoot,
 	}
 
 	if err := ctx.queryDevices(); err != nil {
