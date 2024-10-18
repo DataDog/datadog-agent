@@ -4,7 +4,7 @@ Param(
     [String]
     $installMethod,
 
-    [Parameter(Mandatory=$true,Position=1)]
+    [Parameter(Mandatory=$false,Position=1)]
     [String] 
     $msiDirectory
 )
@@ -74,7 +74,7 @@ if ($installMethod -eq "online") {
         $tempMsi = Join-Path -Path "$msiDirectory" "datadog-agent-$rawAgentVersion-1-x86_64.msi"
         if (!(Test-Path $tempMsi)) {
             Write-Host "Error: Could not find MSI file in $tempMsi"
-            Get-ChildItem "$(Get-Location)\temp"
+            Get-ChildItem "$msiDirectory"
             exit 1 
         }
         $checksum = (Get-FileHash $tempMsi -Algorithm SHA256).Hash
