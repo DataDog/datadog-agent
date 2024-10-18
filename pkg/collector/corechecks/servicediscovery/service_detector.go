@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -62,8 +61,7 @@ func fixupMetadata(meta usm.ServiceMetadata, lang language.Language) usm.Service
 
 // GetServiceName gets the service name based on the command line arguments and
 // the list of environment variables.
-func GetServiceName(cmdline []string, env envs.Variables, root string, lang language.Language, contextMap usm.DetectorContextMap) usm.ServiceMetadata {
-	fs := usm.NewSubDirFS(root)
-	meta, _ := usm.ExtractServiceMetadata(cmdline, env, fs, lang, contextMap)
+func GetServiceName(lang language.Language, ctx usm.DetectionContext) usm.ServiceMetadata {
+	meta, _ := usm.ExtractServiceMetadata(lang, ctx)
 	return fixupMetadata(meta, lang)
 }

@@ -293,7 +293,7 @@ func newSpringBootArchiveSourceFromReader(reader *zip.Reader, patternMap map[str
 // the jar path and the application arguments.
 // When resolving properties, it supports placeholder resolution (a = ${b} -> will lookup then b)
 func (s springBootParser) GetSpringBootAppName(jarname string) (string, bool) {
-	cwd, _ := workingDirFromEnvs(s.ctx.envs)
+	cwd, _ := workingDirFromEnvs(s.ctx.Envs)
 	absName := abs(jarname, cwd)
 	file, err := s.ctx.fs.Open(absName)
 	if err != nil {
@@ -317,9 +317,9 @@ func (s springBootParser) GetSpringBootAppName(jarname string) (string, bool) {
 	log.Debugf("parsing information from spring boot archive: %q", jarname)
 
 	combined := &props.Combined{Sources: []props.PropertyGetter{
-		newArgumentSource(s.ctx.args, "--"),
-		newArgumentSource(s.ctx.args, "-D"),
-		newEnvironmentSource(s.ctx.envs),
+		newArgumentSource(s.ctx.Args, "--"),
+		newArgumentSource(s.ctx.Args, "-D"),
+		newEnvironmentSource(s.ctx.Envs),
 	}}
 
 	// resolved properties referring to other properties (thanks to the Expander)

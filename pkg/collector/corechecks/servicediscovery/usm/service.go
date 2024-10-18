@@ -108,17 +108,24 @@ func newDotnetDetector(ctx DetectionContext) detector {
 
 // DetectionContext allows to detect ServiceMetadata.
 type DetectionContext struct {
-	args       []string
-	envs       envs.Variables
-	fs         fs.SubFS
-	contextMap DetectorContextMap
+	// Pid process PID
+	Pid int
+	// Args the command line arguments of the process
+	Args []string
+	// Envs targeted environment variables of the process
+	Envs envs.Variables
+	// Fs provides access to a file system
+	fs fs.SubFS
+	// DetectorContextMap a map to pass data between detectors, like some paths.
+	ContextMap DetectorContextMap
 }
 
 // NewDetectionContext initializes DetectionContext.
 func NewDetectionContext(args []string, envs envs.Variables, fs fs.SubFS) DetectionContext {
 	return DetectionContext{
-		args: args,
-		envs: envs,
+		Pid:  0,
+		Args: args,
+		Envs: envs,
 		fs:   fs,
 	}
 }
@@ -198,14 +205,8 @@ func serviceNameInjected(envs envs.Variables) bool {
 }
 
 // ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.
-func ExtractServiceMetadata(args []string, envs envs.Variables, fs fs.SubFS, lang language.Language, contextMap DetectorContextMap) (metadata ServiceMetadata, success bool) {
-	dc := DetectionContext{
-		args:       args,
-		envs:       envs,
-		fs:         fs,
-		contextMap: contextMap,
-	}
-	cmd := dc.args
+func ExtractServiceMetadata(lang language.Language, ctx DetectionContext) (metadata ServiceMetadata, success bool) {
+	cmd := ctx.Args
 	if len(cmd) == 0 || len(cmd[0]) == 0 {
 		return
 	}
@@ -213,9 +214,9 @@ func ExtractServiceMetadata(args []string, envs envs.Variables, fs fs.SubFS, lan
 	// We always return a service name from here on
 	success = true
 
-	if value, ok := chooseServiceNameFromEnvs(dc.envs); ok {
+	if value, ok := chooseServiceNameFromEnvs(ctx.Envs); ok {
 		metadata.DDService = value
-		metadata.DDServiceInjected = serviceNameInjected(envs)
+		metadata.DDServiceInjected = serviceNameInjected(ctx.Envs)
 	}
 
 	exe := cmd[0]
@@ -244,7 +245,7 @@ func ExtractServiceMetadata(args []string, envs envs.Variables, fs fs.SubFS, lan
 	}
 
 	if ok {
-		langMeta, ok := detectorProvider(dc).detect(cmd[1:])
+		langMeta, ok := detectorProvider(ctx).detect(cmd[1:])
 
 		// The detector could return a DD Service name (eg. Java, from the
 		// dd.service property), but still fail to generate a service name (ok =
