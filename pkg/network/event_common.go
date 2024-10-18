@@ -278,12 +278,26 @@ type ConnectionStats struct {
 	Source util.Address
 	Dest   util.Address
 
+	Tags       []*intern.Value
+	StaticTags uint64
+
 	IPTranslation *IPTranslation
 	Via           *Via
 
 	Monotonic StatCounters
 
 	Last StatCounters
+
+	ContainerID struct {
+		Source, Dest *intern.Value
+	}
+
+	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
+
+	// TCPFailures stores the number of failures for a POSIX error code
+	TCPFailures map[uint32]uint32
+
+	ProtocolStack protocols.Stack
 
 	Cookie StatCookie
 
@@ -301,23 +315,10 @@ type ConnectionStats struct {
 	DPort            uint16
 	ConnectionInfo   PackedTypeFamilyDirection
 	SPortIsEphemeral EphemeralPortType
-	StaticTags       uint64
-	Tags             []*intern.Value
 
 	IntraHost bool
 	IsAssured bool
 	IsClosed  bool
-
-	ContainerID struct {
-		Source, Dest *intern.Value
-	}
-
-	ProtocolStack protocols.Stack
-
-	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
-
-	// TCPFailures stores the number of failures for a POSIX error code
-	TCPFailures map[uint32]uint32
 }
 
 // Via has info about the routing decision for a flow
