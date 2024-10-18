@@ -16,4 +16,8 @@ type Factory struct {
 	Name             sysconfigtypes.ModuleName
 	ConfigNamespaces []string
 	Fn               func(cfg *sysconfigtypes.Config, deps FactoryDependencies) (Module, error)
+
+	// IgnoreForSuccessCheck can be set to true if system-probe should not consider this module when checking
+	// if at least one module was successfully loaded.
+	IgnoreForSuccessCheck bool
 }
