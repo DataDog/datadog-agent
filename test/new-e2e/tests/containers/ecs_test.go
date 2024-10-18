@@ -78,7 +78,7 @@ func (suite *ecsSuite) SetupSuite() {
 	suite.Require().NoError(fakeintake.Init(suite))
 	suite.Fakeintake = fakeintake.Client()
 
-	clusterSerialized, err := json.Marshal(stackOutput.Outputs["dd-Cluster-ecs-cluster"].Value)
+	clusterSerialized, err := json.Marshal(stackOutput.Outputs["dd-Cluster-ecs"].Value)
 	suite.Require().NoError(err)
 	ecsCluster := &ecsComp.ClusterOutput{}
 	suite.Require().NoError(ecsCluster.Import(clusterSerialized, ecsCluster))
