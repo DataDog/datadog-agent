@@ -36,7 +36,6 @@ func (r railsDetector) detect(_ []string) (ServiceMetadata, bool) {
 	cwd := r.ctx.contextMap[ServiceCwd].(string)
 	absFile := abs("config/application.rb", cwd)
 	if _, err := fs.Stat(r.ctx.fs, absFile); err != nil {
-		log.Debugf("Could not stat (cwd: %v) %v: %v", cwd, absFile, err)
 		return ServiceMetadata{}, false
 	}
 
