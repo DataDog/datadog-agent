@@ -10,11 +10,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
+
+	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
 )
 
 const (
@@ -28,7 +29,17 @@ type ddExtensionFactory struct {
 	configProviderSettings otelcol.ConfigProviderSettings
 }
 
-// NewFactoryForAgent creates a factory for HealthCheck extension.
+// NewFactory creates a factory for Datadog Flare Extension for use with OCB
+func NewFactory() extension.Factory {
+	return extension.NewFactory(
+		metadata.Type,
+		createDefaultConfig,
+		createExtension,
+		metadata.ExtensionStability,
+	)
+}
+
+// NewFactoryForAgent creates a factory for Datadog Flare Extension for the Agent to use.
 func NewFactoryForAgent(factories *otelcol.Factories, configProviderSettings otelcol.ConfigProviderSettings) extension.Factory {
 	return &ddExtensionFactory{
 		factories:              factories,
@@ -36,6 +47,15 @@ func NewFactoryForAgent(factories *otelcol.Factories, configProviderSettings ote
 	}
 }
 
+// createExtension is used for creating extension with OCB
+func createExtension(ctx context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
+	config := &Config{
+		HTTPConfig: cfg.(*Config).HTTPConfig,
+	}
+	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo)
+}
+
+// CreateExtension exports extension creation for use within Datadog Agent
 func (f *ddExtensionFactory) CreateExtension(ctx context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
 	config := &Config{
 		factories:              f.factories,
@@ -45,6 +65,16 @@ func (f *ddExtensionFactory) CreateExtension(ctx context.Context, set extension.
 	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo)
 }
 
+// createDefaultConfig is used for creating default configuration with OCB
+func createDefaultConfig() component.Config {
+	return &Config{
+		HTTPConfig: &confighttp.ServerConfig{
+			Endpoint: fmt.Sprintf("localhost:%d", defaultHTTPPort),
+		},
+	}
+}
+
+// CreateDefaultConfig exports default configuration for use within Datadog Agent
 func (f *ddExtensionFactory) CreateDefaultConfig() component.Config {
 	return &Config{
 		HTTPConfig: &confighttp.ServerConfig{
