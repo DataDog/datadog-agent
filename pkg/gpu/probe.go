@@ -133,7 +133,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 				},
 			},
 		},
-		EbpfConfig:         cfg.Config,
+		EbpfConfig:         &cfg.Config,
 		PerformInitialScan: cfg.InitialProcessSync,
 	}
 
