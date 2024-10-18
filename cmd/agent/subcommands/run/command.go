@@ -116,6 +116,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -155,8 +156,6 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 
 	// runtime init routines
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"

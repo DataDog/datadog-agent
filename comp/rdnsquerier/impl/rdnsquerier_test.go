@@ -1208,3 +1208,24 @@ func TestGetHostnames(t *testing.T) {
 		})
 	}
 }
+
+func TestGetHostnameSyncTimeouts(t *testing.T) {
+	overrides := map[string]interface{}{
+		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
+	}
+	// Set up with a delay to simulate timeout
+	ts := testSetup(t, overrides, true, nil, 3*time.Second)
+	internalRDNSQuerier := ts.rdnsQuerier.(*rdnsQuerierImpl)
+
+	// Test with a timeout exceeding the specified timeout limit
+	hostname, err := internalRDNSQuerier.GetHostnameSync("192.168.1.102", 1*time.Millisecond)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "timeout reached while resolving hostname for IP address 192.168.1.102")
+	assert.Equal(t, "", hostname)
+
+	// Test with the default 2-second timeout
+	hostname, err = internalRDNSQuerier.GetHostnameSync("192.168.1.103")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "timeout reached while resolving hostname for IP address 192.168.1.103")
+	assert.Equal(t, "", hostname)
+}

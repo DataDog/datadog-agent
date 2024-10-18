@@ -8,6 +8,7 @@ package rdnsquerierimpl
 
 import (
 	"context"
+	"time"
 
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 )
@@ -44,7 +45,7 @@ func (q *rdnsQuerierImplNone) GetHostnames(_ context.Context, _ []string) map[st
 	return nil
 }
 
-func (q *rdnsQuerierImplNone) GetHostnameSync(_ string) (string, error) {
+func (q *rdnsQuerierImplNone) GetHostnameSync(_ string, _ ...time.Duration) (string, error) {
 	// noop
 	return "", nil
 }
