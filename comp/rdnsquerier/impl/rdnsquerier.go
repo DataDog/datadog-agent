@@ -293,40 +293,35 @@ func (q *rdnsQuerierImpl) GetHostnameSync(ipAddr string, timeout ...time.Duratio
 
 	var hostname string
 	var err error
-	var mutex sync.Mutex
+	var mu sync.Mutex
 	done := make(chan struct{})
 
 	go func() {
 		defer close(done)
-		var wg sync.WaitGroup
-		wg.Add(1)
 		err = q.GetHostname(
 			netipAddr,
 			func(h string) {
-				mutex.Lock()
+				mu.Lock()
 				hostname = h
-				mutex.Unlock()
-				wg.Done()
+				err = nil
+				mu.Unlock()
 			},
 			func(h string, e error) {
-				mutex.Lock()
+				mu.Lock()
 				hostname = h
 				err = e
-				mutex.Unlock()
-				wg.Done()
+				mu.Unlock()
 			},
 		)
 		if err != nil {
 			q.logger.Tracef("Error resolving reverse DNS enrichment for source IP address: %v error: %v", ipAddr, err)
-			wg.Done()
 		}
-		wg.Wait()
 	}()
 
 	select {
 	case <-done:
-		mutex.Lock()
-		defer mutex.Unlock()
+		mu.Lock()
+		defer mu.Unlock()
 		return hostname, err
 	case <-ctx.Done():
 		return "", fmt.Errorf("timeout reached while resolving hostname for IP address %v", ipAddr)
