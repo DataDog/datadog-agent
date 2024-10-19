@@ -800,8 +800,8 @@ def generate_complexity_summary_for_pr(
         return
 
     summarized_complexity_changes = []
-    max_complexity_rel_change = 0
-    max_complexity_abs_change = 0
+    max_complexity_rel_change = -9e9
+    max_complexity_abs_change = -9e9
     threshold_for_max_limit = 0.85
     programs_now_below_limit, programs_now_above_limit = 0, 0
     for program, entries in sorted(program_complexity.items(), key=lambda x: max(e[2] for e in x[1])):

@@ -40,3 +40,4 @@
 '@datadog/agent-devx-infra': ACIX
 '@datadog/apm-onboarding': APMON
 '@datadog/agent-processing-and-routing': APR
+'@DataDog/container-ecosystems': CECO

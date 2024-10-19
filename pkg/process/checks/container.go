@@ -56,7 +56,7 @@ func (c *ContainerCheck) Init(syscfg *SysProbeConfig, info *HostInfo, _ bool) er
 	c.containerProvider = proccontainers.GetSharedContainerProvider(c.wmeta)
 	c.hostInfo = info
 
-	var tu *net.RemoteSysProbeUtil
+	var tu net.SysProbeUtil
 	var err error
 	if syscfg.NetworkTracerModuleEnabled {
 		// Calling the remote tracer will cause it to initialize and check connectivity

@@ -984,6 +984,19 @@ func (ev *Event) GetProcessAncestorsFilePathLength() []int {
 	return values
 }
 
+// GetProcessAncestorsLength returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsLength() int {
+	if ev.BaseEvent.ProcessContext == nil {
+		return 0
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return 0
+	}
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	return iterator.Len(ctx)
+}
+
 // GetProcessAncestorsPid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsPid() []uint32 {
 	if ev.BaseEvent.ProcessContext == nil {

@@ -32,6 +32,7 @@ func (o *ChownSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
 		Expression: fmt.Sprintf(`chown.file.path == "%s"`, o.filename),
+		Silent:     true,
 	}
 }
 

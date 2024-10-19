@@ -3610,6 +3610,7 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers24(
 	out.SyscallsEventSerializer = new(SyscallsEventSerializer)
 	out.UserContextSerializer = new(UserContextSerializer)
 	out.SyscallContextSerializer = new(SyscallContextSerializer)
+	out.RawPacketSerializer = new(RawPacketSerializer)
 	in.Delim('{')
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
@@ -3820,6 +3821,16 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers24(
 					out.SyscallContextSerializer = new(SyscallContextSerializer)
 				}
 				(*out.SyscallContextSerializer).UnmarshalEasyJSON(in)
+			}
+		case "packet":
+			if in.IsNull() {
+				in.Skip()
+				out.RawPacketSerializer = nil
+			} else {
+				if out.RawPacketSerializer == nil {
+					out.RawPacketSerializer = new(RawPacketSerializer)
+				}
+				(*out.RawPacketSerializer).UnmarshalEasyJSON(in)
 			}
 		case "evt":
 			(out.EventContextSerializer).UnmarshalEasyJSON(in)
@@ -4077,6 +4088,16 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers24(
 			out.RawString(prefix)
 		}
 		(*in.SyscallContextSerializer).MarshalEasyJSON(out)
+	}
+	if in.RawPacketSerializer != nil {
+		const prefix string = ",\"packet\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.RawPacketSerializer).MarshalEasyJSON(out)
 	}
 	if true {
 		const prefix string = ",\"evt\":"

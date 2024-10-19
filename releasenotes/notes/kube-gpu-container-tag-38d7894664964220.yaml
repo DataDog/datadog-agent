@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Introduce new Kubernetes container tag `kube_gpu_type` for the GPU resource requested by a container.
+    Introduce new Kubernetes tag `gpu_vendor` for the GPU resource requested by a container.

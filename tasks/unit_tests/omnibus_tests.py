@@ -42,6 +42,7 @@ def _run_calls_to_string(mock_calls):
         'RELEASE_VERSION_7': 'nightly',
         'S3_OMNIBUS_CACHE_BUCKET': 'omnibus-cache',
         'API_KEY_ORG2': 'api-key',
+        'AGENT_API_KEY_ORG2': 'agent-api-key',
     },
     clear=True,
 )
@@ -60,6 +61,7 @@ class TestOmnibusCache(unittest.TestCase):
             (r'go mod .*', Result()),
             (r'grep .*', Result()),
             (r'aws ssm .*', Result()),
+            (r'vault kv get .*', Result()),
         ]
         for pattern, result in patterns:
             self.mock_ctx.set_result_for('run', re.compile(pattern), result)

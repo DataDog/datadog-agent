@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator
+//go:build kubeapiserver && orchestrator && test
 
 package orchestrator
 
@@ -13,8 +13,16 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
+	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 
 	"github.com/stretchr/testify/assert"
@@ -27,11 +35,17 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-func newCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
+func newCollectorBundle(t *testing.T, chk *OrchestratorCheck) *CollectorBundle {
+	cfg := mockconfig.New(t)
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
 	bundle := &CollectorBundle{
 		discoverCollectors: chk.orchestratorConfig.CollectorDiscoveryEnabled,
 		check:              chk,
-		inventory:          inventory.NewCollectorInventory(),
+		inventory:          inventory.NewCollectorInventory(cfg, mockStore),
 		runCfg: &collectors.CollectorRunConfig{
 			K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
 				APIClient:                   chk.apiClient,
@@ -58,11 +72,18 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	vpaClient := vpa.NewSimpleClientset()
 	crdClient := crd.NewSimpleClientset()
 	cl := &apiserver.APIClient{InformerCl: client, VPAInformerClient: vpaClient, CRDInformerClient: crdClient}
-	orchCheck := newCheck().(*OrchestratorCheck)
+
+	cfg := mockconfig.New(t)
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	orchCheck := newCheck(cfg, mockStore).(*OrchestratorCheck)
 	orchCheck.apiClient = cl
 
 	orchCheck.orchestratorInformerFactory = getOrchestratorInformerFactory(cl)
-	bundle := newCollectorBundle(orchCheck)
+	bundle := newCollectorBundle(t, orchCheck)
 	err := bundle.Initialize()
 	assert.NoError(t, err)
 

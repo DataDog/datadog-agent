@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && arm64
+//go:build linux_bpf
 
 package testutil
 
@@ -119,7 +119,6 @@ func TestGoDI(t *testing.T) {
 		}
 		time.Sleep(time.Second * 2)
 		doCapture = false
-
 	}
 }
 
@@ -196,7 +195,7 @@ var configTemplateText = `
             ],
             "captureSnapshot": false,
             "capture": {
-                "maxReferenceDepth": 3
+                "maxReferenceDepth": 6
             },
             "sampling": {
                 "snapshotsPerSecond": 5000

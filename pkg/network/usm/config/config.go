@@ -78,5 +78,5 @@ func IsUSMSupportedAndEnabled(config *config.Config) bool {
 
 // NeedProcessMonitor returns true if the process monitor is needed for the given configuration
 func NeedProcessMonitor(config *config.Config) bool {
-	return config.EnableNativeTLSMonitoring || config.EnableGoTLSSupport || config.EnableJavaTLSSupport || config.EnableIstioMonitoring || config.EnableNodeJSMonitoring
+	return config.EnableNativeTLSMonitoring || config.EnableGoTLSSupport || config.EnableIstioMonitoring || config.EnableNodeJSMonitoring
 }

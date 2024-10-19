@@ -22,7 +22,6 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/internaltelemetry"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -55,15 +54,15 @@ type Telemetry struct {
 }
 
 // NewTelemetry creates a new telemetry instance
-func NewTelemetry(env *env.Env, service string) (*Telemetry, error) {
+func NewTelemetry(apiKey string, site string, service string) (*Telemetry, error) {
 	endpoint := &traceconfig.Endpoint{
-		Host:   fmt.Sprintf("https://%s.%s", telemetrySubdomain, strings.TrimSpace(env.Site)),
-		APIKey: env.APIKey,
+		Host:   fmt.Sprintf("https://%s.%s", telemetrySubdomain, strings.TrimSpace(site)),
+		APIKey: apiKey,
 	}
 	listener := newTelemetryListener()
 	t := &Telemetry{
-		telemetryClient: internaltelemetry.NewClient(http.DefaultClient, []*traceconfig.Endpoint{endpoint}, service, env.Site == "datad0g.com"),
-		site:            env.Site,
+		telemetryClient: internaltelemetry.NewClient(http.DefaultClient, []*traceconfig.Endpoint{endpoint}, service, site == "datad0g.com"),
+		site:            site,
 		service:         service,
 		listener:        listener,
 		server:          &http.Server{},

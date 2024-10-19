@@ -3,7 +3,10 @@ from __future__ import annotations
 import json
 import sys
 
-from invoke import Context
+from invoke import Context, Exit
+
+from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.utils import gitlab_section
 
 # VPATH as in version path
 GO_VPATH = ".go-version"
@@ -45,27 +48,41 @@ def custom_golangci_v(v: str) -> str:
     return f"{v}-custom-gcl"
 
 
-def current_golangci_lint_v(ctx: Context) -> str:
+def current_golangci_lint_v(ctx: Context, debug: bool = False) -> str:
     """
     Returns the current user golangci-lint version by running golangci-lint --version
     """
-    cmd = "golangci-lint --version"
-    return ctx.run(cmd, hide=True).stdout.split(' ')[3]
+    debug_flag = "--debug" if debug else ""
+    cmd = f"golangci-lint version {debug_flag}"
+    version_output = ctx.run(cmd, hide=True).stdout
+    return version_output if debug else version_output.split(' ')[3]
 
 
-def check_tools_version(ctx: Context, tools_list: list[str]) -> bool:
+def check_tools_version(ctx: Context, tools_list: list[str], debug: bool = False) -> bool:
     """
     Check that each installed tool in tools_list is the version expected for the repo.
     """
-    is_expected_versions = True
+    should_exit = False
     tools_versions = {
-        'go': {'current_v': current_go_v(ctx), 'expected_v': expected_go_repo_v()},
+        'go': {
+            'current_v': current_go_v(ctx),
+            'expected_v': expected_go_repo_v(),
+            'debug': '' if not debug else current_go_v(ctx),
+            'exit_on_error': False,
+            'error_msg': "Warning: If you have linter errors it might be due to version mismatches.",
+        },
         'golangci-lint': {
             'current_v': current_golangci_lint_v(ctx),
             'expected_v': custom_golangci_v(expected_golangci_lint_repo_v(ctx)),
+            'debug': '' if not debug else current_golangci_lint_v(ctx, debug=debug),
+            'exit_on_error': True,
+            'error_msg': "Error: The golanci-lint version you are using is not the correct one. Please run inv -e setup to install the correct version.",
         },
     }
     for tool in tools_list:
+        if debug:
+            with gitlab_section(f"{tool} debug info", collapsed=True):
+                print(tools_versions[tool]['debug'])
         if tool not in tools_versions:
             print(
                 f"Warning: Couldn't check '{tool}' expected version. Supported tools: {list(tools_versions.keys())}",
@@ -74,9 +91,14 @@ def check_tools_version(ctx: Context, tools_list: list[str]) -> bool:
         else:
             current_v, expected_v = tools_versions[tool]['current_v'], tools_versions[tool]['expected_v']
             if current_v != expected_v:
-                is_expected_versions = False
                 print(
-                    f"Warning: Expecting {tool} '{expected_v}' but you have {tool} '{current_v}'. Please fix this as you might encounter issues using the tooling.",
+                    color_message(
+                        f"Expecting {tool} '{expected_v}' but you have {tool} '{current_v}'. Please run inv -e install-tools to fix this as you might encounter issues using the tooling.",
+                        Color.RED,
+                    ),
                     file=sys.stderr,
                 )
-    return is_expected_versions
+                should_exit = should_exit or tools_versions[tool]['exit_on_error']
+    if should_exit:
+        raise Exit(code=1)
+    return True

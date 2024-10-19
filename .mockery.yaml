@@ -29,6 +29,8 @@ packages:
   github.com/DataDog/datadog-agent/pkg/process/net:
     interfaces:
       SysProbeUtil:
+        config:
+          with-expecter: true
   github.com/DataDog/datadog-agent/pkg/process/procutil:
     interfaces:
       Probe:
@@ -40,5 +42,5 @@ packages:
         config:
           mock-build-tags: test
           replace-type:
-          # https://github.com/vektra/mockery/issues/331
-          - github.com/DataDog/datadog-agent/pkg/serializer/types.stubMessageBody=github.com/DataDog/datadog-agent/pkg/serializer/types.ProcessMessageBody
+            # https://github.com/vektra/mockery/issues/331
+            - github.com/DataDog/datadog-agent/pkg/serializer/types.stubMessageBody=github.com/DataDog/datadog-agent/pkg/serializer/types.ProcessMessageBody

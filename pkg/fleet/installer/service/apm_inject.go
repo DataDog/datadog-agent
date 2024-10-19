@@ -153,6 +153,9 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 			return err
 		}
 	}
+	if err := setupAppArmor(ctx); err != nil {
+		return err
+	}
 
 	// Create mandatory dirs
 	err = os.Mkdir("/var/log/datadog/dotnet", 0777)
@@ -239,6 +242,8 @@ func (a *apmInjectorInstaller) Uninstrument(ctx context.Context) error {
 		dockerErr := a.uninstrumentDocker(ctx)
 		errs = append(errs, dockerErr)
 	}
+	appArmorErr := removeAppArmor(ctx)
+	errs = append(errs, appArmorErr)
 
 	return multierr.Combine(errs...)
 }

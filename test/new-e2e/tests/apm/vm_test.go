@@ -406,7 +406,6 @@ func (s *VMFakeintakeSuite) logJournal(force bool) {
 }
 
 func (s *VMFakeintakeSuite) TestAPIKeyRefresh() {
-	s.T().Skip("Skipping this flaking test while we investigate the cause")
 	apiKey1 := strings.Repeat("1", 32)
 	apiKey2 := strings.Repeat("2", 32)
 
@@ -424,13 +423,15 @@ func (s *VMFakeintakeSuite) TestAPIKeyRefresh() {
 api_key: ENC[api_key]
 log_level: debug
 
-secret_refresh_interval: 5
 secret_backend_command: %s
 secret_backend_arguments:
   - %s
 secret_backend_remove_trailing_line_break: true
 secret_backend_command_allow_group_exec_perm: true
 
+agent_ipc:
+  port: 5004
+  config_refresh_interval: 5
 `, secretResolverPath, rootDir)
 
 	s.UpdateEnv(awshost.Provisioner(

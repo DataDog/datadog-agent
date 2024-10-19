@@ -12,7 +12,7 @@ publish_choco_7_x64:
   before_script:
     - $tmpfile = [System.IO.Path]::GetTempFileName()
     - (& "$CI_PROJECT_DIR\tools\ci\fetch_secret.ps1" -parameterName "$Env:CHOCOLATEY_API_KEY" -tempFile "$tmpfile")
-    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - If ($lastExitCode -ne "0") { exit "$lastExitCode" }
     - $chocolateyApiKey=$(cat "$tmpfile")
     - Remove-Item "$tmpfile"
   script:

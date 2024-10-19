@@ -52,8 +52,6 @@ const (
 	KubeContainerName = "kube_container_name"
 	// KubeOwnerRefKind is the tag for the Kubernetes owner reference kind
 	KubeOwnerRefKind = "kube_ownerref_kind"
-	// KubeGPUType is the tag for the Kubernetes Resource GPU type
-	KubeGPUType = "kube_gpu_type"
 
 	// KubePod is the tag for the pod name
 	KubePod = "pod_name"
@@ -90,6 +88,11 @@ const (
 	KubeAppPartOf = "kube_app_part_of"
 	// KubeAppManagedBy is the tag for the "app.kubernetes.io/managed-by" Kubernetes label
 	KubeAppManagedBy = "kube_app_managed_by"
+
+	// GPU related tags
+
+	// KubeGPUVendor the tag for the Kubernetes Resource GPU vendor
+	KubeGPUVendor = "gpu_vendor"
 
 	// OpenshiftDeploymentConfig is the tag for the OpenShift deployment config name
 	OpenshiftDeploymentConfig = "oshift_deployment_config"

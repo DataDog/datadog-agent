@@ -1323,6 +1323,47 @@ CSM Threats event for Linux systems have the following JSON schema:
             ],
             "description": "ProcessCredentialsSerializer serializes the process credentials to JSON"
         },
+        "RawPacket": {
+            "properties": {
+                "device": {
+                    "$ref": "#/$defs/NetworkDevice",
+                    "description": "device is the network device on which the event was captured"
+                },
+                "l3_protocol": {
+                    "type": "string",
+                    "description": "l3_protocol is the layer 3 protocol name"
+                },
+                "l4_protocol": {
+                    "type": "string",
+                    "description": "l4_protocol is the layer 4 protocol name"
+                },
+                "source": {
+                    "$ref": "#/$defs/IPPort",
+                    "description": "source is the emitter of the network event"
+                },
+                "destination": {
+                    "$ref": "#/$defs/IPPort",
+                    "description": "destination is the receiver of the network event"
+                },
+                "size": {
+                    "type": "integer",
+                    "description": "size is the size in bytes of the network event"
+                },
+                "tls": {
+                    "$ref": "#/$defs/TLSContext"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "l3_protocol",
+                "l4_protocol",
+                "source",
+                "destination",
+                "size"
+            ],
+            "description": "RawPacketSerializer defines a raw packet serializer"
+        },
         "SELinuxBoolChange": {
             "properties": {
                 "name": {
@@ -1560,6 +1601,16 @@ CSM Threats event for Linux systems have the following JSON schema:
             "type": "array",
             "description": "SyscallsEventSerializer serializes the syscalls from a syscalls event"
         },
+        "TLSContext": {
+            "properties": {
+                "version": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "TLSContextSerializer defines a tls context serializer"
+        },
         "UserContext": {
             "properties": {
                 "id": {
@@ -1702,6 +1753,9 @@ CSM Threats event for Linux systems have the following JSON schema:
         },
         "syscall": {
             "$ref": "#/$defs/SyscallContext"
+        },
+        "packet": {
+            "$ref": "#/$defs/RawPacket"
         }
     },
     "additionalProperties": false,
@@ -1743,6 +1797,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `syscalls` | $ref | Please see [SyscallsEvent](#syscallsevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `syscall` | $ref | Please see [SyscallContext](#syscallcontext) |
+| `packet` | $ref | Please see [RawPacket](#rawpacket) |
 
 ## `AWSIMDSEvent`
 
@@ -3656,6 +3711,69 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `destination` | Credentials after the operation |
 
 
+## `RawPacket`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "device": {
+            "$ref": "#/$defs/NetworkDevice",
+            "description": "device is the network device on which the event was captured"
+        },
+        "l3_protocol": {
+            "type": "string",
+            "description": "l3_protocol is the layer 3 protocol name"
+        },
+        "l4_protocol": {
+            "type": "string",
+            "description": "l4_protocol is the layer 4 protocol name"
+        },
+        "source": {
+            "$ref": "#/$defs/IPPort",
+            "description": "source is the emitter of the network event"
+        },
+        "destination": {
+            "$ref": "#/$defs/IPPort",
+            "description": "destination is the receiver of the network event"
+        },
+        "size": {
+            "type": "integer",
+            "description": "size is the size in bytes of the network event"
+        },
+        "tls": {
+            "$ref": "#/$defs/TLSContext"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "l3_protocol",
+        "l4_protocol",
+        "source",
+        "destination",
+        "size"
+    ],
+    "description": "RawPacketSerializer defines a raw packet serializer"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `device` | device is the network device on which the event was captured |
+| `l3_protocol` | l3_protocol is the layer 3 protocol name |
+| `l4_protocol` | l4_protocol is the layer 4 protocol name |
+| `source` | source is the emitter of the network event |
+| `destination` | destination is the receiver of the network event |
+| `size` | size is the size in bytes of the network event |
+
+| References |
+| ---------- |
+| [NetworkDevice](#networkdevice) |
+| [IPPort](#ipport) |
+| [TLSContext](#tlscontext) |
+
 ## `SELinuxBoolChange`
 
 
@@ -4042,6 +4160,25 @@ CSM Threats event for Linux systems have the following JSON schema:
     },
     "type": "array",
     "description": "SyscallsEventSerializer serializes the syscalls from a syscalls event"
+}
+
+{{< /code-block >}}
+
+
+
+## `TLSContext`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "version": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "TLSContextSerializer defines a tls context serializer"
 }
 
 {{< /code-block >}}

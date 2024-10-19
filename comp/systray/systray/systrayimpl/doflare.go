@@ -196,7 +196,7 @@ func requestFlare(s *systrayImpl, caseID, customerEmail string) (response string
 		}
 		s.log.Debug("Initiating flare locally.")
 
-		filePath, e = s.flare.Create(nil, e)
+		filePath, e = s.flare.Create(nil, 0, e)
 		if e != nil {
 			s.log.Errorf("The flare zipfile failed to be created: %s\n", e)
 			return

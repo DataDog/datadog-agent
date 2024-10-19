@@ -341,7 +341,7 @@ func TestFilterOpenGrandParentDiscarder(t *testing.T) {
 	testFilterOpenParentDiscarder(t, "grandparent", "parent")
 }
 
-func runAUIDTest(t *testing.T, test *testModule, goSyscallTester, auidOK, auidKO string) {
+func runAUIDTest(t *testing.T, test *testModule, goSyscallTester string, eventType model.EventType, field eval.Field, path string, auidOK, auidKO string) {
 	var cmdWrapper *dockerCmdWrapper
 	cmdWrapper, err := test.StartADocker()
 	if err != nil {
@@ -352,16 +352,20 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester, auidOK, auidKO
 	// reset stats
 	test.statsdClient.Flush()
 
-	if err := waitForOpenProbeEvent(test, func() error {
+	if err := waitForProbeEvent(test, func() error {
 		args := []string{
-			"-login-uid-open-test",
-			"-login-uid-open-path", "/tmp/test-auid",
-			"-login-uid-open-uid", auidOK,
+			"-login-uid-test",
+			"-login-uid-event-type", eventType.String(),
+			"-login-uid-path", "/tmp/test-auid",
+			"-login-uid-value", auidOK,
 		}
 
 		cmd := cmdWrapper.Command(goSyscallTester, args, []string{})
 		return cmd.Run()
-	}, "/tmp/test-auid"); err != nil {
+	}, eventType, eventKeyValueFilter{
+		key:   field,
+		value: path,
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -372,7 +376,7 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester, auidOK, auidKO
 			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
-		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count == 0 {
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:" + eventType.String()); count == 0 {
 			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
@@ -380,16 +384,20 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester, auidOK, auidKO
 	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
 	assert.NoError(t, err)
 
-	if err := waitForOpenProbeEvent(test, func() error {
+	if err := waitForProbeEvent(test, func() error {
 		args := []string{
-			"-login-uid-open-test",
-			"-login-uid-open-path", "/tmp/test-auid",
-			"-login-uid-open-uid", auidKO,
+			"-login-uid-test",
+			"-login-uid-event-type", eventType.String(),
+			"-login-uid-path", "/tmp/test-auid",
+			"-login-uid-value", auidKO,
 		}
 
 		cmd := cmdWrapper.Command(goSyscallTester, args, []string{})
 		return cmd.Run()
-	}, "/tmp/test-auid"); err == nil {
+	}, eventType, eventKeyValueFilter{
+		key:   field,
+		value: path,
+	}); err == nil {
 		t.Fatal("shouldn't get an event")
 	}
 }
@@ -432,15 +440,15 @@ func TestFilterOpenAUIDEqualApprover(t *testing.T) {
 	}
 
 	t.Run("equal-fixed-value", func(t *testing.T) {
-		runAUIDTest(t, test, goSyscallTester, "1005", "6000")
+		runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "1005", "6000")
 	})
 
 	t.Run("equal-zero", func(t *testing.T) {
-		runAUIDTest(t, test, goSyscallTester, "0", "6000")
+		runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "0", "6000")
 	})
 
 	t.Run("equal-unset", func(t *testing.T) {
-		runAUIDTest(t, test, goSyscallTester, "-1", "6000")
+		runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "-1", "6000")
 	})
 }
 
@@ -473,7 +481,7 @@ func TestFilterOpenAUIDLesserApprover(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runAUIDTest(t, test, goSyscallTester, "450", "605")
+	runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "450", "605")
 }
 
 func TestFilterOpenAUIDGreaterApprover(t *testing.T) {
@@ -505,7 +513,7 @@ func TestFilterOpenAUIDGreaterApprover(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runAUIDTest(t, test, goSyscallTester, "1500", "605")
+	runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "1500", "605")
 }
 
 func TestFilterOpenAUIDNotEqualUnsetApprover(t *testing.T) {
@@ -537,7 +545,41 @@ func TestFilterOpenAUIDNotEqualUnsetApprover(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runAUIDTest(t, test, goSyscallTester, "6000", "-1")
+	runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "6000", "-1")
+}
+
+func TestFilterUnlinkAUIDEqualApprover(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_equal_1",
+			Expression: `unlink.file.path =~ "/tmp/test-auid" && process.auid == 1009`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("equal-fixed-value", func(t *testing.T) {
+		runAUIDTest(t, test, goSyscallTester, model.FileUnlinkEventType, "unlink.file.path", "/tmp/test-auid", "1009", "6000")
+	})
 }
 
 func TestFilterDiscarderMask(t *testing.T) {

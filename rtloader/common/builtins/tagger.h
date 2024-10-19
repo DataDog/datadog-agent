@@ -46,16 +46,10 @@
 
 #define TAGGER_MODULE_NAME "tagger"
 
-#ifdef DATADOG_AGENT_THREE
 PyMODINIT_FUNC PyInit_tagger(void);
-#endif
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-
-#ifdef DATADOG_AGENT_TWO
-void Py2_init_tagger();
 #endif
 
 void _set_tags_cb(cb_tags_t);

@@ -11,7 +11,6 @@ package profile
 import (
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"os"
 	"slices"
@@ -188,13 +187,7 @@ func (p *SecurityProfile) NewProcessNodeCallback(_ *activity_tree.ProcessNode) {
 
 // LoadProtoFromFile loads proto profile from file
 func LoadProtoFromFile(filepath string) (*proto.SecurityProfile, error) {
-	f, err := os.Open(filepath)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't open profile: %w", err)
-	}
-	defer f.Close()
-
-	raw, err := io.ReadAll(f)
+	raw, err := os.ReadFile(filepath)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't read profile: %w", err)
 	}

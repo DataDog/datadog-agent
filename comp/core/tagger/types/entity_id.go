@@ -102,11 +102,14 @@ func NewEntityID(prefix EntityIDPrefix, id string) EntityID {
 // NewEntityIDFromString constructs EntityID from a plain string id
 func NewEntityIDFromString(plainStringID string) (EntityID, error) {
 	if taggerutils.ShouldUseCompositeStore() {
-		if !strings.Contains(plainStringID, separator) {
+
+		prefix, id, found := strings.Cut(plainStringID, separator)
+
+		if !found {
 			return nil, fmt.Errorf("unsupported tagger entity id format %q, correct format is `{prefix}://{id}`", plainStringID)
 		}
-		parts := strings.Split(plainStringID, separator)
-		return newCompositeEntityID(EntityIDPrefix(parts[0]), parts[1]), nil
+
+		return newCompositeEntityID(EntityIDPrefix(prefix), id), nil
 	}
 	return newDefaultEntityID(plainStringID), nil
 }

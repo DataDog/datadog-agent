@@ -1043,7 +1043,7 @@ def create_qa_cards(ctx, tag):
     """
     from tasks.libs.releasing.qa import get_labels, setup_ddqa
 
-    version = _create_version_from_match(RC_VERSION_RE.match(tag))
+    version = _create_version_from_match(VERSION_RE.match(tag))
     if not version.rc:
         print(f"{tag} is not a release candidate, skipping")
         return

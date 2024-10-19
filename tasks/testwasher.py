@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 from collections import defaultdict
 
 import yaml
-from invoke import task
+from invoke import Exit, task
 
 from tasks.libs.ciproviders.gitlab_api import (
     resolve_gitlab_ci_configuration,
 )
 from tasks.libs.common.utils import gitlab_section
+from tasks.libs.testing.flakes import get_tests_family_if_failing_tests, is_known_flaky_test
 from tasks.test_core import ModuleTestResult
 
 FLAKY_TEST_INDICATOR = "flakytest: this is a known flaky test"
@@ -40,11 +42,11 @@ class TestWasher:
 
         for package, tests in failing_tests.items():
             non_flaky_failing_tests_in_package = set()
-            known_flaky_tests_parents = self.get_tests_family_if_failing_tests(
+            known_flaky_tests_parents = get_tests_family_if_failing_tests(
                 all_known_flakes[package], failing_tests[package]
             )
             for failing_test in tests:
-                if not self.is_known_flaky_test(failing_test, all_known_flakes[package], known_flaky_tests_parents):
+                if not is_known_flaky_test(failing_test, all_known_flakes[package], known_flaky_tests_parents):
                     non_flaky_failing_tests_in_package.add(failing_test)
             if non_flaky_failing_tests_in_package:
                 non_flaky_failing_tests[package] = non_flaky_failing_tests_in_package
@@ -125,62 +127,23 @@ class TestWasher:
 
         return should_succeed
 
-    def is_known_flaky_test(self, failing_test, known_flaky_tests, known_flaky_tests_parents):
-        """
-        Check if a test is known to be flaky
-        The method should be called with the following arguments:
-        - failing_test: the test that is failing
-        - known_flaky_tests: the set of tests that are known to be flaky
-        - known_flaky_tests_parents: the set of tests that are ancestors of a known flaky test, thus would fail when the flaky leaf test fails
-        If a test is a parent of a test that is known to be flaky, the test should be considered flaky
-        For example:
-        - if TestEKSSuite/TestCPU is known to be flaky, TestEKSSuite/TestCPU/TestCPUUtilization should be considered flaky
-        - if TestEKSSuite/TestCPU is known to be flaky, TestEKSSuite should be considered flaky unless TestEKSSuite/TestCPU is not failing
-        - if TestEKSSuite/TestCPU is known to be flaky, TestEKSSuite/TestMemory should not be considered flaky
-        """
-
-        failing_test_parents = self.get_tests_family([failing_test])
-
-        if any(parent in known_flaky_tests for parent in failing_test_parents):
-            return True
-
-        return failing_test in known_flaky_tests_parents
-
-    def get_tests_family_if_failing_tests(self, test_name_list, failing_tests: set):
-        """
-        Get the parent tests of a list of tests only if the marked test is failing
-        For example with the test ["TestEKSSuite/TestCPU/TestCPUUtilization", "TestKindSuite/TestCPU"]
-        this method should return the set{"TestEKSSuite/TestCPU/TestCPUUtilization", "TestEKSSuite/TestCPU", "TestEKSSuite", "TestKindSuite/TestCPU", "TestKindSuite"}
-        if TestKindSuite/TestCPU and TestEKSSuite/TestCPU/TestCPUUtilization are failing
-        Another example, with the test ["TestEKSSuite/TestCPU/TestCPUUtilization", "TestKindSuite/TestCPU"]
-        if only TestKindSuite/TestCPU is failing, the method should return the set{"TestKindSuite/TestCPU", "TestKindSuite"}
-        """
-        test_name_set = set(test_name_list)
-        marked_tests_failing = failing_tests.intersection(test_name_set)
-        return self.get_tests_family(list(marked_tests_failing))
-
-    def get_tests_family(self, test_name_list):
-        """
-        Get the parent tests of a list of tests
-        For example with the test ["TestEKSSuite/TestCPU/TestCPUUtilization", "TestKindSuite/TestCPU"]
-        this method should return the set{"TestEKSSuite/TestCPU/TestCPUUtilization", "TestEKSSuite/TestCPU", "TestEKSSuite", "TestKindSuite/TestCPU", "TestKindSuite"}
-        """
-        test_family = set(test_name_list)
-        for test_name in test_name_list:
-            while test_name.count('/') > 0:
-                test_name = test_name.rsplit('/', 1)[0]
-                test_family.add(test_name)
-        return test_family
-
 
 @task
-def generate_flake_finder_pipeline(ctx, n=3):
+def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
     """
     Generate a child pipeline where jobs marked with SHOULD_RUN_IN_FLAKES_FINDER are run n times
     """
-
-    # Read gitlab config
-    config = resolve_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
+    if generate_config:
+        # Read gitlab config
+        config = resolve_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
+    else:
+        # Read gitlab config, which is computed and stored in compute_gitlab_ci_config job
+        if not os.path.exists("artifacts/after.gitlab-ci.yml"):
+            raise Exit(
+                "The configuration is not stored as artifact. Please ensure you ran the compute_gitlab_ci_config job, or set generate_config to True"
+            )
+        with open("artifacts/after.gitlab-ci.yml") as f:
+            config = yaml.safe_load(f)[".gitlab-ci.yml"]
 
     # Lets keep only variables and jobs with flake finder variable
     kept_job = {}
@@ -226,6 +189,8 @@ def generate_flake_finder_pipeline(ctx, n=3):
                     and new_job['variables']['E2E_COMMIT_SHA'] == "$CI_COMMIT_SHA"
                 ):
                     new_job['variables']['E2E_COMMIT_SHA'] = "$PARENT_COMMIT_SHA"
+                if 'E2E_PRE_INITIALIZED' in new_job['variables']:
+                    del new_job['variables']['E2E_PRE_INITIALIZED']
             new_job["rules"] = [{"when": "always"}]
             new_job["needs"] = ["go_e2e_deps"]
             new_jobs[f"{job}-{i}"] = new_job

@@ -889,11 +889,11 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     owner_branch_name = owner_branch_name.lower()
 
     assert (
-        owner_branch_name.count('/') == 1
+        owner_branch_name.count('/') >= 1
     ), f'owner_branch_name should be "<owner-name>/<branch-name>" but is {owner_branch_name}'
     assert "'" not in owner_branch_name
 
-    owner, branch = owner_branch_name.split('/')
+    owner, branch = owner_branch_name.split('/', 1)
     no_verify_flag = ' --no-verify' if no_verify else ''
 
     # Can checkout

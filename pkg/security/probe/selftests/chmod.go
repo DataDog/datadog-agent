@@ -31,6 +31,7 @@ func (o *ChmodSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
 		Expression: fmt.Sprintf(`chmod.file.path == "%s"`, o.filename),
+		Silent:     true,
 	}
 }
 

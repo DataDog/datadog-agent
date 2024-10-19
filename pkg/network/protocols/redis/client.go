@@ -13,7 +13,7 @@ import (
 	"crypto/tls"
 	"net"
 
-	"github.com/go-redis/redis/v9"
+	"github.com/redis/go-redis/v9"
 )
 
 // NewClient returns a new redis client.

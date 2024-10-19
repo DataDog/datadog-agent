@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -207,17 +208,13 @@ func reloadDockerConfig(ctx context.Context) (err error) {
 func isDockerInstalled(ctx context.Context) bool {
 	span, _ := tracer.StartSpanFromContext(ctx, "is_docker_installed")
 	defer span.Finish()
-	cmd := exec.CommandContext(ctx, "which", "docker")
-	var outb bytes.Buffer
-	cmd.Stdout = &outb
-	err := cmd.Run()
-	span.SetTag("is_installed", err == nil)
-	if err != nil {
-		log.Warn("installer: failed to check if docker is installed, assuming it isn't: ", err)
+
+	// Docker is installed if the docker binary is in the PATH
+	_, err := exec.LookPath("docker")
+	if err != nil && errors.Is(err, exec.ErrNotFound) {
 		return false
-	}
-	if len(outb.String()) == 0 {
-		log.Warn("installer: docker is not installed on the systemd, skipping docker configuration")
+	} else if err != nil {
+		log.Warn("installer: failed to check if docker is installed, assuming it isn't: ", err)
 		return false
 	}
 	return true

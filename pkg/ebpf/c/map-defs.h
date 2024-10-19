@@ -19,6 +19,9 @@
 #define BPF_PERF_EVENT_ARRAY_MAP(name, value_type) \
     BPF_MAP(name, BPF_MAP_TYPE_PERF_EVENT_ARRAY, u32, value_type, 0, 0, 0)
 
+#define BPF_RINGBUF_MAP(name, value_type) \
+    BPF_MAP(name, BPF_MAP_TYPE_RINGBUF, u32, value_type, 0, 0, 0)
+
 #define BPF_ARRAY_MAP(name, value_type, max_entries) \
     BPF_MAP(name, BPF_MAP_TYPE_ARRAY, u32, value_type, max_entries, 0, 0)
 

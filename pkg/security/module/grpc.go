@@ -19,18 +19,19 @@ import (
 
 // GRPCServer defines a gRPC server
 type GRPCServer struct {
-	server      *grpc.Server
-	netListener net.Listener
-	wg          sync.WaitGroup
-	family      string
-	address     string
+	server  *grpc.Server
+	wg      sync.WaitGroup
+	family  string
+	address string
 }
 
 // NewGRPCServer returns a new gRPC server
 func NewGRPCServer(family string, address string) *GRPCServer {
 	// force socket cleanup of previous socket not cleanup
 	if family == "unix" {
-		_ = os.Remove(address)
+		if err := os.Remove(address); err != nil && !os.IsNotExist(err) {
+			seclog.Errorf("error removing the previous runtime security socket: %v", err)
+		}
 	}
 
 	return &GRPCServer{
@@ -53,8 +54,6 @@ func (g *GRPCServer) Start() error {
 		}
 	}
 
-	g.netListener = ln
-
 	g.wg.Add(1)
 	go func() {
 		defer g.wg.Done()
@@ -73,10 +72,9 @@ func (g *GRPCServer) Stop() {
 		g.server.Stop()
 	}
 
-	if g.netListener != nil {
-		g.netListener.Close()
-		if g.family == "unix" {
-			_ = os.Remove(g.address)
+	if g.family == "unix" {
+		if err := os.Remove(g.address); err != nil && !os.IsNotExist(err) {
+			seclog.Errorf("error removing the runtime security socket: %v", err)
 		}
 	}
 

@@ -615,7 +615,8 @@ func (ad *ActivityDump) ResolveTags() error {
 
 // resolveTags thread unsafe version ot ResolveTags
 func (ad *ActivityDump) resolveTags() error {
-	if len(ad.Tags) >= 10 || len(ad.Metadata.ContainerID) == 0 {
+	selector := ad.GetWorkloadSelector()
+	if selector != nil {
 		return nil
 	}
 

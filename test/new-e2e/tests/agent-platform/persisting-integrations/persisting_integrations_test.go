@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
 	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
@@ -176,20 +177,16 @@ func (is *persistingIntegrationsSuite) PrepareMockedFiles(VMclient *common.TestC
 
 func (is *persistingIntegrationsSuite) InstallNVMLIntegration(VMclient *common.TestClient) {
 	// Make sure that the integration is not installed
-	stdout := VMclient.Host.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration freeze")
-	is.Assert().NotContains(stdout, "datadog-nvml")
+	freezeRequirement := VMclient.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
+	is.Assert().NotContains(freezeRequirement, "datadog-nvml")
 
 	// Install the integration and its dependencies
-	VMclient.Host.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration install -t datadog-nvml==1.0.0")
-	VMclient.Host.MustExecute("sudo runuser -u dd-agent -- /opt/datadog-agent/embedded/bin/pip3 install grpcio pynvml")
+	VMclient.Host.MustExecute("sudo -u dd-agent datadog-agent integration install -t datadog-nvml==1.0.0")
+	VMclient.Host.MustExecute("sudo -u dd-agent /opt/datadog-agent/embedded/bin/pip3 install grpcio pynvml")
 
 	// Check that the integration is installed successfully
-	stdout = VMclient.Host.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration freeze")
-	is.Require().Contains(stdout, "datadog-nvml==1.0.0")
-}
-
-func (is *persistingIntegrationsSuite) GetAgentVersion(VMclient *common.TestClient) string {
-	return VMclient.Host.MustExecute("sudo runuser -u dd-agent -- datadog-agent version")
+	freezeRequirement = VMclient.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
+	is.Require().Contains(freezeRequirement, "datadog-nvml==1.0.0")
 }
 
 func (is *persistingIntegrationsSuite) EnableInstallThirdPartyDepsFlag(VMclient *common.TestClient) string {
@@ -200,7 +197,7 @@ func (is *persistingIntegrationsSuite) SetupAgentStartVersion(VMclient *common.T
 	// By default, pipelineID is set to E2E_PIPELINE_ID, we need to unset it to avoid installing the agent from the pipeline
 	install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.srcVersion), installparams.WithAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")), installparams.WithPipelineID(""))
 	common.CheckInstallation(is.T(), VMclient)
-	return is.GetAgentVersion(VMclient)
+	return VMclient.AgentClient.Version()
 }
 
 func (is *persistingIntegrationsSuite) UpgradeAgentVersion(VMclient *common.TestClient) string {
@@ -212,15 +209,15 @@ func (is *persistingIntegrationsSuite) UpgradeAgentVersion(VMclient *common.Test
 
 	common.CheckInstallation(is.T(), VMclient)
 
-	return is.GetAgentVersion(VMclient)
+	return VMclient.AgentClient.Version()
 }
 
 func (is *persistingIntegrationsSuite) CheckIntegrationInstalled(VMclient *common.TestClient) {
-	stdout := VMclient.Host.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration freeze")
-	is.Assert().Contains(stdout, "datadog-nvml==1.0.0")
+	freezeRequirement := VMclient.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
+	is.Assert().Contains(freezeRequirement, "datadog-nvml==1.0.0")
 }
 
 func (is *persistingIntegrationsSuite) CheckIntegrationNotInstalled(VMclient *common.TestClient) {
-	stdout := VMclient.Host.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration freeze")
-	is.Assert().NotContains(stdout, "datadog-nvml")
+	freezeRequirement := VMclient.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
+	is.Assert().NotContains(freezeRequirement, "datadog-nvml")
 }

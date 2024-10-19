@@ -176,8 +176,8 @@ func (h *Host) WaitForTraceAgentSocketReady() {
 	require.NoError(h.t, err, "trace agent did not become ready")
 }
 
-// BootstraperVersion returns the version of the bootstraper on the host.
-func (h *Host) BootstraperVersion() string {
+// BootstrapperVersion returns the version of the bootstrapper on the host.
+func (h *Host) BootstrapperVersion() string {
 	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-bootstrap version"))
 }
 

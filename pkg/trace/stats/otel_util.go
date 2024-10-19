@@ -6,9 +6,9 @@
 package stats
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 	"slices"
 
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	semconv "go.opentelemetry.io/collector/semconv/v1.17.0"
 
@@ -78,7 +78,7 @@ func OTLPTracesToConcentratorInputs(
 			chunks[ckey] = chunk
 		}
 		_, isTop := topLevelSpans[spanID]
-		chunk.Spans = append(chunk.Spans, otelSpanToDDSpan(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf, peerTagKeys))
+		chunk.Spans = append(chunk.Spans, transform.OtelSpanToDDSpanMinimal(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf, peerTagKeys))
 	}
 
 	inputs := make([]Input, 0, len(chunks))
@@ -97,53 +97,4 @@ func OTLPTracesToConcentratorInputs(
 		})
 	}
 	return inputs
-}
-
-// otelSpanToDDSpan converts an OTel span to a DD span.
-// The converted DD span only has the minimal number of fields for APM stats calculation and is only meant
-// to be used in OTLPTracesToConcentratorInputs. Do not use them for other purposes.
-// TODO(OTEL-1726): use the same function here and in pkg/trace/api/otlp.go
-func otelSpanToDDSpan(
-	otelspan ptrace.Span,
-	otelres pcommon.Resource,
-	lib pcommon.InstrumentationScope,
-	isTopLevel, topLevelByKind bool,
-	conf *config.AgentConfig,
-	peerTagKeys []string,
-) *pb.Span {
-	ddspan := &pb.Span{
-		Service:  traceutil.GetOTelService(otelspan, otelres, true),
-		Name:     traceutil.GetOTelOperationName(otelspan, otelres, lib, conf.OTLPReceiver.SpanNameAsResourceName, conf.OTLPReceiver.SpanNameRemappings, true),
-		Resource: traceutil.GetOTelResource(otelspan, otelres),
-		TraceID:  traceutil.OTelTraceIDToUint64(otelspan.TraceID()),
-		SpanID:   traceutil.OTelSpanIDToUint64(otelspan.SpanID()),
-		ParentID: traceutil.OTelSpanIDToUint64(otelspan.ParentSpanID()),
-		Start:    int64(otelspan.StartTimestamp()),
-		Duration: int64(otelspan.EndTimestamp()) - int64(otelspan.StartTimestamp()),
-		Type:     traceutil.GetOTelSpanType(otelspan, otelres),
-	}
-	spanKind := otelspan.Kind()
-	traceutil.SetMeta(ddspan, "span.kind", traceutil.OTelSpanKindName(spanKind))
-	code := traceutil.GetOTelStatusCode(otelspan)
-	if code != 0 {
-		traceutil.SetMetric(ddspan, tagStatusCode, float64(code))
-	}
-	if otelspan.Status().Code() == ptrace.StatusCodeError {
-		ddspan.Error = 1
-	}
-	if isTopLevel {
-		traceutil.SetTopLevel(ddspan, true)
-	}
-	if isMeasured := traceutil.GetOTelAttrVal(otelspan.Attributes(), false, "_dd.measured"); isMeasured == "1" {
-		traceutil.SetMeasured(ddspan, true)
-	} else if topLevelByKind && (spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer) {
-		// When enable_otlp_compute_top_level_by_span_kind is true, compute stats for client-side spans
-		traceutil.SetMeasured(ddspan, true)
-	}
-	for _, peerTagKey := range peerTagKeys {
-		if peerTagVal := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, false, peerTagKey); peerTagVal != "" {
-			traceutil.SetMeta(ddspan, peerTagKey, peerTagVal)
-		}
-	}
-	return ddspan
 }

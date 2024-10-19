@@ -10,13 +10,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/gorilla/mux"
-	"net"
-	"net/http"
 )
 
 // StatusResponse is the response to the status endpoint.
@@ -111,7 +112,7 @@ func (l *localAPIImpl) status(w http.ResponseWriter, _ *http.Request) {
 		Version:            version.AgentVersion,
 		Packages:           packages,
 		ApmInjectionStatus: apmStatus,
-		RemoteConfigState:  l.daemon.GetRemoteConfigState(),
+		RemoteConfigState:  l.daemon.GetRemoteConfigState().Packages,
 	}
 }
 

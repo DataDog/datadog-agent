@@ -7,10 +7,9 @@ enum static_tags {
     LIBGNUTLS = (1<<0),
     LIBSSL = (1<<1),
     GO = (1<<2),
-    JAVA_TLS = (1<<3),
-    CONN_TLS = (1<<4),
-    ISTIO = (1<<5),
-    NODEJS = (1<<6),
+    CONN_TLS = (1<<3),
+    ISTIO = (1<<4),
+    NODEJS = (1<<5),
 };
 
 #endif

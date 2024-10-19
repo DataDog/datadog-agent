@@ -38,7 +38,7 @@ type connTag = uint64
 const (
 	tagGnuTLS  connTag = 0x01 // network.ConnTagGnuTLS
 	tagOpenSSL connTag = 0x02 // network.ConnTagOpenSSL
-	tagTLS     connTag = 0x10 // network.ConnTagTLS
+	tagTLS     connTag = 0x8  // network.ConnTagTLS
 )
 
 func getBlobWriter(t *testing.T, assert *assert.Assertions, in *network.Connections, marshalerType string) *bytes.Buffer {

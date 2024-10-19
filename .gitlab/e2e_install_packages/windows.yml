@@ -108,7 +108,7 @@ new-e2e-windows-agent-domain-tests-a7-x86_64:
     - !reference [.on_deploy]
     - !reference [.on_e2e_or_windows_installer_changes]
     - !reference [.manual]
-  timeout: 1h15
+  timeout: 1h15m
 
 ## single test for PRs
 ## skipped if the full tests are running

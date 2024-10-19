@@ -103,6 +103,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 			pkgconfigenv.DetectFeatures(c)
 			return c, nil
 		}),
+		fxutil.ProvideOptional[coreconfig.Component](),
 		fx.Provide(func() []string {
 			return append(params.ConfPaths, params.Sets...)
 		}),

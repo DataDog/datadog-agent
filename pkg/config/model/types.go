@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/DataDog/viper"
-	"github.com/spf13/afero"
 )
 
 // Proxy represents the configuration for proxies in the agent
@@ -105,10 +104,9 @@ type Setup interface {
 	// API implemented by viper.Viper
 
 	SetDefault(key string, value interface{})
-	SetFs(fs afero.Fs)
 
 	SetEnvPrefix(in string)
-	BindEnv(input ...string)
+	BindEnv(key string, envvars ...string)
 	SetEnvKeyReplacer(r *strings.Replacer)
 
 	// The following helpers allow a type to be enforce when parsing environment variables. Most of them exists to
@@ -130,26 +128,24 @@ type Setup interface {
 	// If env is provided, it will override the name of the environment variable used for this
 	// config key
 	BindEnvAndSetDefault(key string, val interface{}, env ...string)
-}
-
-// Compound is an interface for retrieving compound elements from the config, plus
-// some misc functions, that should likely be split into another interface
-type Compound interface {
-	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
-	Unmarshal(rawVal interface{}) error
-	UnmarshalExact(rawVal interface{}) error
-
-	ReadInConfig() error
-	ReadConfig(in io.Reader) error
-	MergeConfig(in io.Reader) error
-	MergeConfigMap(cfg map[string]any) error
-	MergeFleetPolicy(configPath string) error
 
 	AddConfigPath(in string)
 	AddExtraConfigPaths(in []string) error
 	SetConfigName(in string)
 	SetConfigFile(in string)
 	SetConfigType(in string)
+}
+
+// Compound is an interface for retrieving compound elements from the config, plus
+// some misc functions, that should likely be split into another interface
+type Compound interface {
+	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
+
+	ReadInConfig() error
+	ReadConfig(in io.Reader) error
+	MergeConfig(in io.Reader) error
+	MergeConfigMap(cfg map[string]any) error
+	MergeFleetPolicy(configPath string) error
 }
 
 // Config represents an object that can load and store configuration parameters

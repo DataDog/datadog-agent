@@ -11,10 +11,10 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -53,7 +53,7 @@ func newJMXLogger(deps dependencies) (jmxlogger.Component, error) {
 	syslogURI := pkglogsetup.GetSyslogURI(pkgconfigsetup.Datadog())
 	jmxLogFile := config.GetString("jmx_log_file")
 	if jmxLogFile == "" {
-		jmxLogFile = path.DefaultJmxLogFile
+		jmxLogFile = defaultpaths.JmxLogFile
 	}
 
 	if config.GetBool("disable_file_logging") {

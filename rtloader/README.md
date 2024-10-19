@@ -15,14 +15,13 @@ RtLoader will `dlopen` the proper backend libraries accordingly.
 ### libdatadog-agent-rtloader
 
 RtLoader exposes its C89-compatible API through `include/datadog_agent_rtloader.h`. By
-using the `make2` and `make3` functions, the corresponding Python backend will
+using the `make3` function, the corresponding Python backend will
 be loaded at runtime. Under the hood the library provides `RtLoader`, a C++ interface
 that must be implemented by any supported backend, see `include/rtloader.h` for details.
 
 ### Two and Three
 
-`libdatadog-agent-three` and `libdatadog-agent-two` libraries provide Python support
-for extending and embedding by linking different versions of the CPython library.
+`libdatadog-agent-three` library provides Python3 support. Python2 isn't supported anymore.
 
 ### Common
 
@@ -33,7 +32,6 @@ Most of the code used to extend the embedded interpreter is there.
 ## Requirements
 
 * C/C++ compiler
-* Python 2.7.x development packages
 * Python 3.12.x development packages
 * Cmake version 3.12 or above
 * Go compiler with `cgo` capabilities to run the tests

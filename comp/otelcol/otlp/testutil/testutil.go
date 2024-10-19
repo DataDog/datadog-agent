@@ -14,7 +14,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"strings"
+	"testing"
 	"time"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata/payload"
@@ -26,6 +26,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/protobuf/proto"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgConfigModel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgConfigSetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -49,8 +50,8 @@ func OTLPConfigFromPorts(bindHost string, gRPCPort uint, httpPort uint) map[stri
 }
 
 // LoadConfig from a given path.
-func LoadConfig(path string) (pkgConfigModel.Reader, error) {
-	cfg := pkgConfigModel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+func LoadConfig(t *testing.T, path string) (pkgConfigModel.Reader, error) {
+	cfg := configmock.New(t)
 	pkgConfigSetup.OTLP(cfg)
 	cfg.SetConfigFile(path)
 	err := cfg.ReadInConfig()

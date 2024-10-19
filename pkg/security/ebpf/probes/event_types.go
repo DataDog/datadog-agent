@@ -12,6 +12,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -449,24 +450,6 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "bind", fentry, EntryAndExit)},
 		},
 
-		// List of probes required to capture DNS events
-		"dns": {
-			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.AllOf{Selectors: NetworkSelectors()},
-				&manager.AllOf{Selectors: NetworkVethSelectors()},
-				kprobeOrFentry("security_socket_bind"),
-			}},
-		},
-
-		// List of probes required to capture IMDS events
-		"imds": {
-			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.AllOf{Selectors: NetworkSelectors()},
-				&manager.AllOf{Selectors: NetworkVethSelectors()},
-				kprobeOrFentry("security_socket_bind"),
-			}},
-		},
-
 		// List of probes required to capture chdir events
 		"chdir": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
@@ -477,11 +460,25 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		},
 	}
 
+	// Add probes required to track network interfaces and map network flows to processes
+	// networkEventTypes: dns, imds, packet
+	networkEventTypes := model.GetEventTypePerCategory(model.NetworkCategory)[model.NetworkCategory]
+	for _, networkEventType := range networkEventTypes {
+		selectorsPerEventTypeStore[networkEventType] = []manager.ProbesSelector{
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				&manager.AllOf{Selectors: NetworkSelectors()},
+				&manager.AllOf{Selectors: NetworkVethSelectors()},
+			}},
+		}
+	}
+
 	// add probes depending on loaded modules
 	loadedModules, err := utils.FetchLoadedModules()
 	if err == nil {
 		if _, ok := loadedModules["nf_nat"]; ok {
-			selectorsPerEventTypeStore["dns"] = append(selectorsPerEventTypeStore["dns"], NetworkNFNatSelectors()...)
+			for _, networkEventType := range networkEventTypes {
+				selectorsPerEventTypeStore[networkEventType] = append(selectorsPerEventTypeStore[networkEventType], NetworkNFNatSelectors()...)
+			}
 		}
 	}
 

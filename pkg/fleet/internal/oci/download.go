@@ -103,7 +103,7 @@ func (d *Downloader) Download(ctx context.Context, packageURL string) (*Download
 		return nil, fmt.Errorf("unsupported package URL scheme: %s", url.Scheme)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("could not download package from %s: %w", packageURL, err)
+		return nil, fmt.Errorf("could not download package: %w", err)
 	}
 	manifest, err := image.Manifest()
 	if err != nil {

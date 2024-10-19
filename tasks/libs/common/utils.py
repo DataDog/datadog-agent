@@ -337,6 +337,11 @@ def get_build_flags(
     if os.getenv('DD_CXX'):
         env['CXX'] = os.getenv('DD_CXX')
 
+    if sys.platform == 'linux':
+        # Enable lazy binding, which seems to be overridden when loading containerd
+        # Required to fix go-nvml compilation (see https://github.com/NVIDIA/go-nvml/issues/18)
+        extldflags += "-Wl,-z,lazy "
+
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
 
@@ -527,7 +532,8 @@ def gitlab_section(section_name, collapsed=False, echo=False):
     """
     - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything
     """
-    section_id = section_name.replace(" ", "_").replace("/", "_")
+    # Replace with "_" every special character (" ", ":", "/", "\") which prevent the section generation
+    section_id = re.sub(r"[ :/\\]", "_", section_name)
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:
@@ -669,7 +675,6 @@ def file_match(word):
         'internal',
         'omnibus',
         'pkg',
-        'pkg-config',
         'rtloader',
         'tasks',
         'test',

@@ -390,7 +390,7 @@ func TestCalendarApp(s OTelTestSuite) {
 		logs, err := s.Env().FakeIntake.Client().FilterLogs(calendarService, fakeintake.WithMessageContaining(logBody))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
-	}, 60*time.Minute, 10*time.Second)
+	}, 30*time.Minute, 10*time.Second)
 }
 
 func createCalendarApp(ctx context.Context, s OTelTestSuite) {
@@ -465,7 +465,7 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite) {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name:            name,
-						Image:           "datadog/opentelemetry-examples:calendar-go-rest-0.15",
+						Image:           "ghcr.io/datadog/apps-calendar-go:main",
 						ImagePullPolicy: "IfNotPresent",
 						Ports: []corev1.ContainerPort{{
 							Name:          "http",

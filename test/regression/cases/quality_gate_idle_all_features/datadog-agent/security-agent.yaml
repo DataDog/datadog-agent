@@ -1,0 +1,13 @@
+# Per https://docs.datadoghq.com/security/cloud_security_management/setup/agent/linux/
+runtime_security_config:
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable Threat Detection
+  enabled: true
+
+compliance_config:
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable CIS benchmarks for Misconfigurations.
+  #
+  enabled: true
+  host_benchmarks:
+    enabled: true

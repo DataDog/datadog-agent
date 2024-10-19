@@ -146,7 +146,7 @@ func preTestsHook() {
 			Debug:           true,
 		}
 
-		err := ptracer.Wrap(args, envs, constants.DefaultEBPFLessProbeAddr, opts)
+		_, err := ptracer.Wrap(args, envs, constants.DefaultEBPFLessProbeAddr, opts)
 		if err != nil {
 			fmt.Printf("unable to trace [%v]: %s", args, err)
 			os.Exit(-1)

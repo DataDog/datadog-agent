@@ -138,7 +138,7 @@ func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
 
 	// At this point we either have `startGroup` with an empty bucket or `aggregate` with a non-empty bucket
 	// so we add the message to the bucket or flush if the bucket will overflow the max content size.
-	if msg.RawDataLen+a.bucket.buffer.Len() > a.maxContentSize {
+	if msg.RawDataLen+a.bucket.buffer.Len() > a.maxContentSize && !a.bucket.isEmpty() {
 		a.bucket.truncate() // Truncate the end of the current bucket
 		a.Flush()
 		a.bucket.truncate() // Truncate the start of the next bucket

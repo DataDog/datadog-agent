@@ -59,9 +59,7 @@
     - ls -l ${OUTPUT_DIR}/
     - datadog-package merge ${OUTPUT_DIR}/*.tar
     # We need to propagate the exact version in the pipeline artifact
-    - cp merged.tar ${OMNIBUS_PACKAGE_DIR}/${MERGED_FILE}
-    # Only the major version is needed in the S3 bucket
-    - $S3_CP_CMD merged.tar $S3_ARTIFACTS_URI/${OCI_PRODUCT}_7_oci.tar
+    - mv merged.tar ${OMNIBUS_PACKAGE_DIR}/${MERGED_FILE}
   artifacts:
     paths:
       - ${OMNIBUS_PACKAGE_DIR}

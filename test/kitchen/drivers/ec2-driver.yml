@@ -198,6 +198,7 @@ platforms:
     <% else %>
     connection_retries: 30
     connection_retry_sleep: 2
+    max_wait_until_ready: 30
     <% end %>
     <% if sles15 || al2022 || al2023 %>
     # The AWS EC2 driver doesn't recognize Amazon Linux 2022 yet,

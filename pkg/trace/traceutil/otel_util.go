@@ -21,11 +21,15 @@ import (
 )
 
 // Util functions for converting OTel semantics to DD semantics.
-// TODO(OTEL-1726): reuse the same mapping code for ReceiveResourceSpans and Concentrator
 
 var (
 	// SignalTypeSet is the OTel attribute set for traces.
 	SignalTypeSet = attribute.NewSet(attribute.String("signal", "traces"))
+)
+
+const (
+	// TagStatusCode is the tag key for http status code.
+	TagStatusCode = "http.status_code"
 )
 
 // IndexOTelSpans iterates over the input OTel spans and returns 3 maps:
@@ -242,8 +246,8 @@ func GetOTelOperationName(
 	return name
 }
 
-// GetOTelHostname returns the DD hostname based on OTel span and resource attributes.
-func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Translator, fallbackHost string) string {
+// GetOtelSource returns the source based on OTel span and resource attributes.
+func GetOtelSource(span ptrace.Span, res pcommon.Resource, tr *attributes.Translator) (source.Source, bool) {
 	ctx := context.Background()
 	src, srcok := tr.ResourceToSource(ctx, res, SignalTypeSet)
 	if !srcok {
@@ -252,6 +256,12 @@ func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Tran
 			srcok = true
 		}
 	}
+	return src, srcok
+}
+
+// GetOTelHostname returns the DD hostname based on OTel span and resource attributes.
+func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Translator, fallbackHost string) string {
+	src, srcok := GetOtelSource(span, res, tr)
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:

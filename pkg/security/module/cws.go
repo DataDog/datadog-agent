@@ -10,10 +10,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"go.uber.org/atomic"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
@@ -30,6 +32,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+)
+
+const (
+	maxSelftestRetry = 3
+	selftestDelay    = 5 * time.Second
 )
 
 // CWSConsumer represents the system-probe module for the runtime security agent
@@ -50,6 +58,7 @@ type CWSConsumer struct {
 	grpcServer    *GRPCServer
 	ruleEngine    *rulesmodule.RuleEngine
 	selfTester    *selftests.SelfTester
+	selfTestRetry *atomic.Int32
 	reloader      ReloaderInterface
 	crtelemetry   *telemetry.ContainersRunningTelemetry
 }
@@ -90,6 +99,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		sendStatsChan: make(chan chan bool, 1),
 		grpcServer:    NewGRPCServer(family, address),
 		selfTester:    selfTester,
+		selfTestRetry: atomic.NewInt32(0),
 		reloader:      NewReloader(),
 		crtelemetry:   crtelemetry,
 	}
@@ -170,11 +180,22 @@ func (c *CWSConsumer) Start() error {
 
 	// we can now wait for self test events
 	cb := func(success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) {
+		seclog.Debugf("self-test results : success : %v, failed : %v, retry %d/%d", success, fails, c.selfTestRetry.Load()+1, maxSelftestRetry)
+
+		if len(fails) > 0 && c.selfTestRetry.Load() < maxSelftestRetry {
+			c.selfTestRetry.Inc()
+
+			time.Sleep(selftestDelay)
+
+			if _, err := c.RunSelfTest(false); err != nil {
+				seclog.Errorf("self-test error: %s", err)
+			}
+			return
+		}
+
 		if c.config.SelfTestSendReport {
 			c.reportSelfTest(success, fails, testEvents)
 		}
-
-		seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
 	}
 	if c.selfTester != nil {
 		go c.selfTester.WaitForResult(cb)
@@ -226,6 +247,9 @@ func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID,
 	tags := []string{
 		fmt.Sprintf("success:%d", len(success)),
 		fmt.Sprintf("fails:%d", len(fails)),
+		fmt.Sprintf("os:%s", runtime.GOOS),
+		fmt.Sprintf("arch:%s", utils.RuntimeArch()),
+		fmt.Sprintf("origin:%s", c.probe.Origin()),
 	}
 	if err := c.statsdClient.Count(metrics.MetricSelfTest, 1, tags, 1.0); err != nil {
 		seclog.Errorf("failed to send self_test metric: %s", err)

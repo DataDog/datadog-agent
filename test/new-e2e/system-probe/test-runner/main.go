@@ -49,6 +49,12 @@ type testConfig struct {
 	testingTools      string
 	extraParams       string
 	extraEnv          string
+	inContainerImage  string
+}
+
+type userProvidedConfig struct {
+	PackagesRunConfig map[string]packageRunConfiguration `json:"filters"`
+	InContainerImage  string                             `json:"testcontainer"`
 }
 
 const ciVisibility = "/ci-visibility"
@@ -119,7 +125,7 @@ func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, e
 	return matches, nil
 }
 
-func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, testConfig *testConfig) []string {
+func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []string, testConfig *testConfig) []string {
 	verbosity := "testname"
 	if testConfig.verbose {
 		verbosity = "standard-verbose"
@@ -132,8 +138,15 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 		fmt.Sprintf("--rerun-fails=%d", testConfig.retryCount),
 		"--rerun-fails-max-failures=100",
 		"--raw-command", "--",
-		filepath.Join(testConfig.testingTools, "go/bin/test2json"), "-t", "-p", pkg, file, "-test.v", fmt.Sprintf("-test.count=%d", testConfig.runCount), "-test.timeout=" + getTimeout(pkg).String(),
+		filepath.Join(testConfig.testingTools, "go/bin/test2json"), "-t", "-p", pkg,
 	}
+	args = append(args, testArgs...)
+	args = append(
+		args,
+		"-test.v",
+		fmt.Sprintf("-test.count=%d", testConfig.runCount),
+		"-test.timeout="+getTimeout(pkg).String(),
+	)
 
 	if testConfig.extraParams != "" {
 		args = append(args, strings.Split(testConfig.extraParams, " ")...)
@@ -213,6 +226,20 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		}
 	}
 
+	buildDir, err := getEBPFBuildDir()
+	if err != nil {
+		return fmt.Errorf("getEBPFBuildDir: %w", err)
+	}
+	bpfDir := filepath.Join(testConfig.testDirRoot, buildDir)
+
+	var testContainer *testContainer
+	if testConfig.inContainerImage != "" {
+		testContainer = newTestContainer(testConfig.inContainerImage, bpfDir)
+		if err := testContainer.start(); err != nil {
+			return fmt.Errorf("error creating test container: %w", err)
+		}
+	}
+
 	for _, testsuite := range testsuites {
 		pkg, err := filepath.Rel(testConfig.testDirRoot, filepath.Dir(testsuite))
 		if err != nil {
@@ -221,17 +248,19 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
 		xmlpath := filepath.Join(xmlDir, fmt.Sprintf("%s.xml", junitfilePrefix))
 		jsonpath := filepath.Join(jsonDir, fmt.Sprintf("%s.json", junitfilePrefix))
-		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuite, testConfig)
+
+		testsuiteArgs := []string{testsuite}
+		if testContainer != nil {
+			testsuiteArgs = testContainer.buildDockerExecArgs(testsuite, "--env", "docker")
+		}
+
+		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuiteArgs, testConfig)
 
 		cmd := exec.Command(filepath.Join(testConfig.testingTools, "go/bin/gotestsum"), args...)
 
-		buildDir, err := getEBPFBuildDir()
-		if err != nil {
-			return fmt.Errorf("getEBPFBuildDir: %w", err)
-		}
 		baseEnv = append(
 			baseEnv,
-			"DD_SYSTEM_PROBE_BPF_DIR="+filepath.Join(testConfig.testDirRoot, buildDir),
+			"DD_SYSTEM_PROBE_BPF_DIR="+bpfDir,
 			"DD_SERVICE_MONITORING_CONFIG_TLS_JAVA_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/network/protocols/tls/java"),
 		)
 		if testConfig.extraEnv != "" {
@@ -284,7 +313,7 @@ func buildTestConfiguration() (*testConfig, error) {
 
 	flag.Parse()
 
-	breakdown := make(map[string]packageRunConfiguration)
+	var userConfig userProvidedConfig
 	if *packageRunConfigPtr != "" {
 		configData, err := os.ReadFile(*packageRunConfigPtr)
 		if err != nil {
@@ -294,7 +323,7 @@ func buildTestConfiguration() (*testConfig, error) {
 
 		dec := json.NewDecoder(bytes.NewReader(configData))
 		dec.DisallowUnknownFields()
-		if err := dec.Decode(&breakdown); err != nil {
+		if err := dec.Decode(&userConfig); err != nil {
 			return nil, err
 		}
 	}
@@ -314,11 +343,12 @@ func buildTestConfiguration() (*testConfig, error) {
 		runCount:          *runCount,
 		verbose:           *verbose,
 		retryCount:        *retryPtr,
-		packagesRunConfig: breakdown,
+		packagesRunConfig: userConfig.PackagesRunConfig,
 		testDirRoot:       root,
 		testingTools:      tools,
 		extraParams:       *extraParams,
 		extraEnv:          *extraEnv,
+		inContainerImage:  userConfig.InContainerImage,
 	}, nil
 }
 

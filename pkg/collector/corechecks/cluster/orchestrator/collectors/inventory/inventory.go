@@ -11,6 +11,8 @@ package inventory
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	k8sCollectors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
 )
@@ -22,7 +24,7 @@ type CollectorInventory struct {
 
 // NewCollectorInventory returns a new inventory containing all known
 // collectors.
-func NewCollectorInventory() *CollectorInventory {
+func NewCollectorInventory(cfg config.Component, store workloadmeta.Component) *CollectorInventory {
 	return &CollectorInventory{
 		collectors: []collectors.CollectorVersions{
 			k8sCollectors.NewClusterCollectorVersions(),
@@ -46,7 +48,7 @@ func NewCollectorInventory() *CollectorInventory {
 			k8sCollectors.NewServiceAccountCollectorVersions(),
 			k8sCollectors.NewStatefulSetCollectorVersions(),
 			k8sCollectors.NewStorageClassCollectorVersions(),
-			k8sCollectors.NewUnassignedPodCollectorVersions(),
+			k8sCollectors.NewUnassignedPodCollectorVersions(cfg, store),
 			k8sCollectors.NewVerticalPodAutoscalerCollectorVersions(),
 			k8sCollectors.NewHorizontalPodAutoscalerCollectorVersions(),
 			k8sCollectors.NewNetworkPolicyCollectorVersions(),

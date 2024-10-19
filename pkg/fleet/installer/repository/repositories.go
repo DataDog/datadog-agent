@@ -11,10 +11,16 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 const (
 	tempDirPrefix = "tmp-i-"
+)
+
+var (
+	fsDisk = filesystem.NewDisk()
 )
 
 // Repositories manages multiple repositories.
@@ -60,6 +66,11 @@ func (r *Repositories) loadRepositories() (map[string]*Repository, error) {
 		repositories[d.Name()] = repo
 	}
 	return repositories, nil
+}
+
+// RootPath returns the root path of the repositories.
+func (r *Repositories) RootPath() string {
+	return r.rootPath
 }
 
 // Get returns the repository for the given package name.
@@ -130,4 +141,23 @@ func (r *Repositories) Cleanup() error {
 // The caller is responsible for cleaning up the directory.
 func (r *Repositories) MkdirTemp() (string, error) {
 	return os.MkdirTemp(r.rootPath, tempDirPrefix+"*")
+}
+
+// AvailableDiskSpace returns the available disk space for the repositories.
+// This will check the underlying partition of the given path. Note that the path must be an existing dir.
+//
+// On Unix, it is computed using `statfs` and is the number of free blocks available to an unprivileged used * block size
+// See https://man7.org/linux/man-pages/man2/statfs.2.html for more details
+// On Windows, it is computed using `GetDiskFreeSpaceExW` and is the number of bytes available
+// See https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getdiskfreespaceexw for more details
+func (r *Repositories) AvailableDiskSpace() (uint64, error) {
+	_, err := os.Stat(r.rootPath)
+	if err != nil {
+		return 0, fmt.Errorf("could not stat root path %s: %w", r.rootPath, err)
+	}
+	s, err := fsDisk.GetUsage(r.rootPath)
+	if err != nil {
+		return 0, err
+	}
+	return s.Available, nil
 }

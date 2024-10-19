@@ -83,6 +83,7 @@ type RequiresNoAgent struct {
 
 	CollectorContrib collectorcontrib.Component
 	URIs             []string
+	Converter        confmap.Converter
 }
 
 // Provides declares the output types from the constructor
@@ -194,13 +195,15 @@ func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
+	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
+	factories.Extensions[ddextension.Type] = ddextension.NewFactory(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
 
 	set := otelcol.CollectorSettings{
 		BuildInfo: buildInfo,
 		Factories: func() (otelcol.Factories, error) {
 			return factories, nil
 		},
-		ConfigProviderSettings: newConfigProviderSettings(reqs.URIs, nil, false),
+		ConfigProviderSettings: newConfigProviderSettings(reqs.URIs, reqs.Converter, true),
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {

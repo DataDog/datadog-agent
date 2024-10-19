@@ -47,6 +47,7 @@ type PlatformProbe interface {
 	DumpDiscarders() (string, error)
 	FlushDiscarders() error
 	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error)
+	OnNewRuleSetLoaded(_ *rules.RuleSet)
 	OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
 	HandleActions(_ *eval.Context, _ *rules.Rule)
 	NewEvent() *model.Event
@@ -229,10 +230,15 @@ func (p *Probe) FlushDiscarders() error {
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+	return p.PlatformProbe.ApplyRuleSet(rs)
+}
+
+// OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
+func (p *Probe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.ruleActionStatsLock.Lock()
 	clear(p.ruleActionStats)
 	p.ruleActionStatsLock.Unlock()
-	return p.PlatformProbe.ApplyRuleSet(rs)
+	p.PlatformProbe.OnNewRuleSetLoaded(rs)
 }
 
 // Snapshot runs the different snapshot functions of the resolvers that
@@ -429,6 +435,11 @@ func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.Rule
 // IsNetworkEnabled returns whether network is enabled
 func (p *Probe) IsNetworkEnabled() bool {
 	return p.Config.Probe.NetworkEnabled
+}
+
+// IsNetworkRawPacketEnabled returns whether network raw packet is enabled
+func (p *Probe) IsNetworkRawPacketEnabled() bool {
+	return p.IsNetworkEnabled() && p.Config.Probe.NetworkRawPacketEnabled
 }
 
 // IsActivityDumpEnabled returns whether activity dump is enabled

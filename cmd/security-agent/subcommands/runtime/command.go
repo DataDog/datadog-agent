@@ -551,6 +551,16 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 			if err := event.SetFieldValue(k, int(value)); err != nil {
 				return nil, err
 			}
+		case []any:
+			if stringSlice, ok := anySliceToStringSlice(v); ok {
+				if err := event.SetFieldValue(k, stringSlice); err != nil {
+					return nil, err
+				}
+			} else {
+				if err := event.SetFieldValue(k, v); err != nil {
+					return nil, err
+				}
+			}
 		default:
 			if err := event.SetFieldValue(k, v); err != nil {
 				return nil, err
@@ -559,6 +569,18 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 	}
 
 	return event, nil
+}
+
+func anySliceToStringSlice(in []any) ([]string, bool) {
+	out := make([]string, len(in))
+	for i, v := range in {
+		val, ok := v.(string)
+		if !ok {
+			return nil, false
+		}
+		out[i] = val
+	}
+	return out, true
 }
 
 func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs *evalCliParams) error {

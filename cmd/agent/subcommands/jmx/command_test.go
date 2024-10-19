@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -64,7 +64,7 @@ func TestCollectCommand(t *testing.T) {
 				require.Equal(t, "collect", cliParams.command)
 				require.Equal(t, "debug", cliParams.jmxLogLevel)      // overrides --log-level
 				require.Equal(t, "debug", coreParams.LogLevelFn(nil)) // overrides --log-level
-				require.True(t, strings.HasPrefix(cliParams.logFile, path.DefaultJMXFlareDirectory))
+				require.True(t, strings.HasPrefix(cliParams.logFile, defaultpaths.JMXFlareDirectory))
 				require.Equal(t, cliParams.logFile, coreParams.LogFileFn(nil))
 				require.Equal(t, "CORE", coreParams.LoggerName())
 				require.Equal(t, true, secretParams.Enabled)

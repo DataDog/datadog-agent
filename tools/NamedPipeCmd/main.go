@@ -6,7 +6,7 @@
 //go:build windows
 
 // Package namedpipecmd is the entrypoint for the NamedPipeCmd tool
-package namedpipecmd
+package main
 
 import (
 	"context"
@@ -26,6 +26,11 @@ var (
 	quiet = flag.Bool("quiet", false, "Only return the exit code on failure, or the JSON output on success")
 )
 
+func printUsage() {
+	fmt.Printf("Usage: NamedPipeCmd.exe -method <GET | POST> -path <URI> [-quiet]\n")
+	fmt.Printf("Example: NamedPipeCmd.exe -method GET -path /debug/stats\n")
+}
+
 func exitWithError(err error) {
 	fmt.Printf("\nError: %s\n", err.Error())
 	os.Exit(1)
@@ -44,15 +49,28 @@ func fprintf(format string, a ...interface{}) {
 
 func main() {
 
+	if len(os.Args) < 3 {
+		printUsage()
+		os.Exit(1)
+	}
+
 	method := flag.String("method", "", "GET or POST")
-	path := flag.String("path", "", "URI path")
-	//payload := flag.String(payload, "", "POST payload")
+	uriPath := flag.String("path", "", "URI path")
 	flag.Parse()
 
-	// This should match SystemProbeProductionPipeName in
+	// This should match SystemProbePipeName in
 	// "github.com/DataDog/datadog-agent/pkg/process/net"
 	pipePath := `\\.\pipe\dd_system_probe`
-	fmt.Printf("Connecting to named pipe %s ... ", pipePath)
+	fprintf("Connecting to named pipe %s ... ", pipePath)
+
+	// The HTTP client still needs the URL as part of the request even though
+	// the underlying transport is a named pipe.
+	url := "http://localhost" + *uriPath
+
+	if (*method != "GET") && (*method != "POST") {
+		fprintf("Invalid HTTP method: %s\n", *method)
+		os.Exit(1)
+	}
 
 	// The Go wrapper for named pipes does not expose buffer size for the client.
 	// It seems the client named pipe is fixed with 4K bytes for its buffer.
@@ -62,7 +80,7 @@ func main() {
 		return
 	}
 
-	fprintf("connected")
+	fprintf("connected.\n")
 
 	defer func() {
 		fprintf("\nClosing named pipe...\n")
@@ -70,24 +88,13 @@ func main() {
 
 	}()
 
-	// The HTTP client still needs the URL as part of the request even though
-	// the underlying transport is a named pipe.
-	method := os.Args[1]
-	uriPath := os.Args[2]
-	url := "http://localhost" + uriPath
-
-	if (*method != "GET") && (*method != "POST") {
-		fprintf("Invalid HTTP method: %s\n", *method)
-		os.Exit(1)
-	}
-
 	// This HTTP client handles formatting and chunked messages.
-	fmt.Printf("Creating HTTP client. ")
+	fprintf("Creating HTTP client. ")
 	httpClient := http.Client{
 		Timeout: 10 * time.Second,
 		Transport: &http.Transport{
 			MaxIdleConns:    2,
-			IdleConnTimeout: 30 * time.Second,
+			IdleConnTimeout: 5 * time.Second,
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 				return pipeClient, nil
 			},
@@ -108,7 +115,7 @@ func main() {
 		options.Ctx = context.Background()
 	}
 
-	fprintf("Creating request. \n")
+	fprintf("Creating request.\n")
 
 	req, err := http.NewRequestWithContext(options.Ctx, *method, url, nil)
 	if err != nil {
@@ -135,8 +142,8 @@ func main() {
 		exitWithError(err)
 	}
 
-	fprintf("Received %d bytes. Status %d\n", len(body), result.StatusCode)
+	fprintf("Received %d bytes. Status: %d\n", len(body), result.StatusCode)
 
-	fmt.Printf("\n---------------------------------------\n\n")
+	fprintf("\n---------------------------------------\n\n")
 	fmt.Printf("%s\n", body)
 }

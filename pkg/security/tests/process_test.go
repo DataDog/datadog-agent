@@ -141,7 +141,7 @@ func TestProcessContext(t *testing.T) {
 		},
 		{
 			ID:         "test_rule_ancestors",
-			Expression: `open.file.path == "{{.Root}}/test-process-ancestors" && process.ancestors[_].file.name in ["sh", "dash", "bash"]`,
+			Expression: `open.file.path == "{{.Root}}/test-process-ancestors" && process.ancestors[A].file.name in ["sh", "dash", "bash"]`,
 		},
 		{
 			ID:         "test_rule_parent",
@@ -149,7 +149,7 @@ func TestProcessContext(t *testing.T) {
 		},
 		{
 			ID:         "test_rule_pid1",
-			Expression: `open.file.path == "{{.Root}}/test-process-pid1" && process.ancestors[_].pid == 1`,
+			Expression: `open.file.path == "{{.Root}}/test-process-pid1" && process.ancestors[A].pid == 1`,
 		},
 		{
 			ID:         "test_rule_args_envs",

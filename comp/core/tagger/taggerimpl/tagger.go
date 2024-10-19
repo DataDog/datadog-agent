@@ -114,10 +114,9 @@ type TaggerClient struct {
 	log log.Component
 }
 
-func createTaggerClient(defaultTagger taggerComp.Component, captureTagger taggerComp.Component, l log.Component) *TaggerClient {
+func createTaggerClient(defaultTagger taggerComp.Component, l log.Component) *TaggerClient {
 	return &TaggerClient{
 		defaultTagger: defaultTagger,
-		captureTagger: captureTagger,
 		log:           l,
 	}
 }
@@ -135,23 +134,24 @@ func newTaggerClient(deps dependencies) provides {
 
 		if err != nil {
 			deps.Log.Errorf("unable to deps.Configure the remote tagger: %s", err)
-			taggerClient = createTaggerClient(local.NewFakeTagger(deps.Config, telemetryStore), nil, deps.Log)
+			taggerClient = createTaggerClient(local.NewFakeTagger(deps.Config, telemetryStore), deps.Log)
 		} else if options.Disabled {
 			deps.Log.Errorf("remote tagger is disabled in clc runner.")
-			taggerClient = createTaggerClient(local.NewFakeTagger(deps.Config, telemetryStore), nil, deps.Log)
+			taggerClient = createTaggerClient(local.NewFakeTagger(deps.Config, telemetryStore), deps.Log)
 		} else {
-			taggerClient = createTaggerClient(remote.NewTagger(options, deps.Config, telemetryStore), nil, deps.Log)
+			filter := types.NewFilterBuilder().Exclude(types.KubernetesPodUID).Build(types.HighCardinality)
+			taggerClient = createTaggerClient(remote.NewTagger(options, deps.Config, telemetryStore, filter), deps.Log)
 		}
 	case taggerComp.NodeRemoteTaggerAgent:
 		options, _ := remote.NodeAgentOptions(deps.Config)
-		taggerClient = createTaggerClient(remote.NewTagger(options, deps.Config, telemetryStore), nil, deps.Log)
+		taggerClient = createTaggerClient(remote.NewTagger(options, deps.Config, telemetryStore, types.NewMatchAllFilter()), deps.Log)
 	case taggerComp.LocalTaggerAgent:
-		taggerClient = createTaggerClient(local.NewTagger(deps.Config, deps.Wmeta, telemetryStore), nil, deps.Log)
+		taggerClient = createTaggerClient(local.NewTagger(deps.Config, deps.Wmeta, telemetryStore), deps.Log)
 	case taggerComp.FakeTagger:
 		// all binaries are expected to provide their own tagger at startup. we
 		// provide a fake tagger for testing purposes, as calling the global
 		// tagger without proper initialization is very common there.
-		taggerClient = createTaggerClient(local.NewFakeTagger(deps.Config, telemetryStore), nil, deps.Log)
+		taggerClient = createTaggerClient(local.NewFakeTagger(deps.Config, telemetryStore), deps.Log)
 	}
 
 	if taggerClient != nil {
@@ -338,14 +338,14 @@ func (t *TaggerClient) AgentTags(cardinality types.TagCardinality) ([]string, er
 func (t *TaggerClient) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
 	t.mux.RLock()
 	if t.captureTagger != nil {
-		tags, err := t.captureTagger.Tag(taggercommon.GetGlobalEntityID().String(), cardinality)
+		tags, err := t.captureTagger.Tag(taggercommon.GetGlobalEntityIDString(), cardinality)
 		if err == nil && len(tags) > 0 {
 			t.mux.RUnlock()
 			return tags, nil
 		}
 	}
 	t.mux.RUnlock()
-	return t.defaultTagger.Tag(taggercommon.GetGlobalEntityID().String(), cardinality)
+	return t.defaultTagger.Tag(taggercommon.GetGlobalEntityIDString(), cardinality)
 }
 
 // globalTagBuilder queries global tags that should apply to all data coming
@@ -353,7 +353,7 @@ func (t *TaggerClient) GlobalTags(cardinality types.TagCardinality) ([]string, e
 func (t *TaggerClient) globalTagBuilder(cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
 	t.mux.RLock()
 	if t.captureTagger != nil {
-		err := t.captureTagger.AccumulateTagsFor(taggercommon.GetGlobalEntityID().String(), cardinality, tb)
+		err := t.captureTagger.AccumulateTagsFor(taggercommon.GetGlobalEntityIDString(), cardinality, tb)
 
 		if err == nil {
 			t.mux.RUnlock()
@@ -361,7 +361,7 @@ func (t *TaggerClient) globalTagBuilder(cardinality types.TagCardinality, tb tag
 		}
 	}
 	t.mux.RUnlock()
-	return t.defaultTagger.AccumulateTagsFor(taggercommon.GetGlobalEntityID().String(), cardinality, tb)
+	return t.defaultTagger.AccumulateTagsFor(taggercommon.GetGlobalEntityIDString(), cardinality, tb)
 }
 
 // List the content of the defaulTagger

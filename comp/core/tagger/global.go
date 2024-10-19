@@ -60,14 +60,6 @@ func GetEntityHash(entityID string, cardinality types.TagCardinality) string {
 	return ""
 }
 
-// StandardTags is an interface function that queries taggerclient singleton
-func StandardTags(entityID string) ([]string, error) {
-	if globalTagger == nil {
-		return nil, fmt.Errorf("a global tagger must be set before calling StandardTags")
-	}
-	return globalTagger.Standard(entityID)
-}
-
 // AgentTags is an interface function that queries taggerclient singleton
 func AgentTags(cardinality types.TagCardinality) ([]string, error) {
 	if globalTagger == nil {
@@ -90,11 +82,6 @@ func List() types.TaggerListResponse {
 		return globalTagger.List()
 	}
 	return types.TaggerListResponse{}
-}
-
-// GetTaggerInstance returns the global Tagger instance
-func GetTaggerInstance() Component {
-	return globalTagger
 }
 
 // SetNewCaptureTagger will set capture tagger in global tagger instance by using provided capture tagger

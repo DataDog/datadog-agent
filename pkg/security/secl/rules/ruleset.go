@@ -340,7 +340,7 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 
 	// ignore event types not supported
 	if _, exists := rs.opts.EventTypeEnabled["*"]; !exists {
-		if _, exists := rs.opts.EventTypeEnabled[eventType]; !exists {
+		if enabled, exists := rs.opts.EventTypeEnabled[eventType]; !exists || !enabled {
 			return nil, &ErrRuleLoad{Rule: pRule, Err: ErrEventTypeNotEnabled}
 		}
 	}

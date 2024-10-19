@@ -216,7 +216,6 @@ func TestInitData(t *testing.T) {
 		"feature_usm_kafka_enabled":                    true,
 		"feature_usm_postgres_enabled":                 true,
 		"feature_usm_redis_enabled":                    true,
-		"feature_usm_java_tls_enabled":                 true,
 		"feature_usm_http2_enabled":                    true,
 		"feature_usm_istio_enabled":                    true,
 		"feature_usm_http_by_status_code_enabled":      true,
@@ -490,7 +489,6 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_redis_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_java_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_http2_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_istio_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_http_by_status_code_enabled"].(bool))
@@ -543,7 +541,6 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_usm_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_java_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_http2_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_istio_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_http_by_status_code_enabled"].(bool))
@@ -644,7 +641,6 @@ dynamic_instrumentation:
 	assert.True(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_postgres_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_redis_enabled"].(bool))
-	assert.True(t, ia.data["feature_usm_java_tls_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_http2_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_istio_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_http_by_status_code_enabled"].(bool))

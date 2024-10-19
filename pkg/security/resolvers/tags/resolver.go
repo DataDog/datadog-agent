@@ -108,7 +108,7 @@ func NewResolver(config *config.Config, telemetry telemetry.Component) Resolver 
 			log.Errorf("unable to configure the remote tagger: %s", err)
 		} else {
 			return &DefaultResolver{
-				tagger: remote.NewTagger(options, pkgconfigsetup.Datadog(), taggerTelemetry.NewStore(telemetry)),
+				tagger: remote.NewTagger(options, pkgconfigsetup.Datadog(), taggerTelemetry.NewStore(telemetry), types.NewMatchAllFilter()),
 			}
 		}
 	}

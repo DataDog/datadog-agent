@@ -363,6 +363,13 @@ func TestGetOTelOperationName(t *testing.T) {
 			normalize: true,
 			expected:  strings.Repeat("a", MaxNameLen),
 		},
+		{
+			name:                   "operation name retrieved from span name, then remapped",
+			sattrs:                 map[string]string{"operation.name": "op"},
+			spanNameRemappings:     map[string]string{"op": "test_result"},
+			spanNameAsResourceName: true,
+			expected:               "test_result",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			span := ptrace.NewSpan()

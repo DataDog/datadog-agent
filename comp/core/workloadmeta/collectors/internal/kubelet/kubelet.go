@@ -145,6 +145,8 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			&podID,
 		)
 
+		GPUVendors := getGPUVendorsFromContainers(initContainerEvents, containerEvents)
+
 		podOwners := pod.Owners()
 		owners := make([]workloadmeta.KubernetesPodOwner, 0, len(podOwners))
 		for _, o := range podOwners {
@@ -175,6 +177,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			IP:                         pod.Status.PodIP,
 			PriorityClass:              pod.Spec.PriorityClassName,
 			QOSClass:                   pod.Status.QOSClass,
+			GPUVendorList:              GPUVendors,
 			RuntimeClass:               RuntimeClassName,
 			SecurityContext:            PodSecurityContext,
 		}
@@ -313,6 +316,23 @@ func (c *collector) parsePodContainers(
 	return podContainers, events
 }
 
+func getGPUVendorsFromContainers(initContainerEvents, containerEvents []workloadmeta.CollectorEvent) []string {
+	gpuUniqueTypes := make(map[string]bool)
+	for _, event := range append(initContainerEvents, containerEvents...) {
+		container := event.Entity.(*workloadmeta.Container)
+		for _, GPUVendor := range container.Resources.GPUVendorList {
+			gpuUniqueTypes[GPUVendor] = true
+		}
+	}
+
+	GPUVendors := make([]string, 0, len(gpuUniqueTypes))
+	for GPUVendor := range gpuUniqueTypes {
+		GPUVendors = append(GPUVendors, GPUVendor)
+	}
+
+	return GPUVendors
+}
+
 func extractPodRuntimeClassName(spec *kubelet.Spec) string {
 	if spec.RuntimeClassName == nil {
 		return ""
@@ -425,13 +445,18 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 	}
 
 	// extract GPU resource info from the possible GPU sources
+	uniqueGPUVendor := make(map[string]bool)
 	for _, gpuResource := range kubelet.GetGPUResourceNames() {
 		if gpuReq, found := spec.Resources.Requests[gpuResource]; found {
 			resources.GPURequest = pointer.Ptr(uint64(gpuReq.Value()))
-			resources.GPUType = extractSimpleGPUName(gpuResource)
-			break
+			uniqueGPUVendor[extractSimpleGPUName(gpuResource)] = true
 		}
 	}
+	gpuVendorList := make([]string, 0, len(uniqueGPUVendor))
+	for GPUVendor := range uniqueGPUVendor {
+		gpuVendorList = append(gpuVendorList, GPUVendor)
+	}
+	resources.GPUVendorList = gpuVendorList
 
 	return resources
 }

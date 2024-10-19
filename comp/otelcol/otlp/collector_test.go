@@ -99,7 +99,7 @@ func TestStartPipelineFromConfig(t *testing.T) {
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.path, func(t *testing.T) {
-			cfg, err := testutil.LoadConfig("./testdata/" + testInstance.path)
+			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
 			pcfg, err := FromAgentConfig(cfg)
 			require.NoError(t, err)

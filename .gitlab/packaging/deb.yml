@@ -7,7 +7,6 @@
     - !reference [.setup_deb_signing_key]
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project ${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
     - !reference [.lint_linux_packages]
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-${DD_PROJECT}_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -68,7 +67,6 @@ agent_deb-arm64-a7:
     - !reference [.setup_deb_signing_key]
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project ${DD_PROJECT} --flavor ot ${OMNIBUS_EXTRA_ARGS}
     - !reference [.lint_linux_packages]
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-ot-agent_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
 
 ot_agent_deb-x64-a7:
   extends: [.package_ot_deb_common, .package_deb_x86, .package_deb_agent_7]
@@ -126,7 +124,6 @@ installer_deb-arm64:
     - !reference [.setup_deb_signing_key]
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor iot
     - !reference [.lint_linux_packages]
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
   artifacts:
     expire_in: 2 weeks
     paths:

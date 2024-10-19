@@ -4374,11 +4374,6 @@ func (ev *Event) GetNetworkDestinationPort() uint16 {
 	return ev.NetworkContext.Destination.Port
 }
 
-// GetNetworkDeviceIfindex returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkDeviceIfindex() uint32 {
-	return ev.NetworkContext.Device.IfIndex
-}
-
 // GetNetworkDeviceIfname returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkDeviceIfname() string {
 	return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
@@ -4735,6 +4730,78 @@ func (ev *Event) GetOpenSyscallStr3() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Open.SyscallContext)
+}
+
+// GetPacketDestinationIp returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketDestinationIp() net.IPNet {
+	if ev.GetEventType().String() != "packet" {
+		return net.IPNet{}
+	}
+	return ev.RawPacket.NetworkContext.Destination.IPNet
+}
+
+// GetPacketDestinationPort returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketDestinationPort() uint16 {
+	if ev.GetEventType().String() != "packet" {
+		return uint16(0)
+	}
+	return ev.RawPacket.NetworkContext.Destination.Port
+}
+
+// GetPacketDeviceIfname returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketDeviceIfname() string {
+	if ev.GetEventType().String() != "packet" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.RawPacket.NetworkContext.Device)
+}
+
+// GetPacketL3Protocol returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketL3Protocol() uint16 {
+	if ev.GetEventType().String() != "packet" {
+		return uint16(0)
+	}
+	return ev.RawPacket.NetworkContext.L3Protocol
+}
+
+// GetPacketL4Protocol returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketL4Protocol() uint16 {
+	if ev.GetEventType().String() != "packet" {
+		return uint16(0)
+	}
+	return ev.RawPacket.NetworkContext.L4Protocol
+}
+
+// GetPacketSize returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketSize() uint32 {
+	if ev.GetEventType().String() != "packet" {
+		return uint32(0)
+	}
+	return ev.RawPacket.NetworkContext.Size
+}
+
+// GetPacketSourceIp returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketSourceIp() net.IPNet {
+	if ev.GetEventType().String() != "packet" {
+		return net.IPNet{}
+	}
+	return ev.RawPacket.NetworkContext.Source.IPNet
+}
+
+// GetPacketSourcePort returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketSourcePort() uint16 {
+	if ev.GetEventType().String() != "packet" {
+		return uint16(0)
+	}
+	return ev.RawPacket.NetworkContext.Source.Port
+}
+
+// GetPacketTlsVersion returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketTlsVersion() uint16 {
+	if ev.GetEventType().String() != "packet" {
+		return uint16(0)
+	}
+	return ev.RawPacket.TLSContext.Version
 }
 
 // GetProcessAncestorsArgs returns the value of the field, resolving if necessary
@@ -6289,6 +6356,19 @@ func (ev *Event) GetProcessAncestorsIsThread() []bool {
 		ptr = iterator.Next()
 	}
 	return values
+}
+
+// GetProcessAncestorsLength returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsLength() int {
+	if ev.BaseEvent.ProcessContext == nil {
+		return 0
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return 0
+	}
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	return iterator.Len(ctx)
 }
 
 // GetProcessAncestorsPid returns the value of the field, resolving if necessary
@@ -10324,6 +10404,22 @@ func (ev *Event) GetPtraceTraceeAncestorsIsThread() []bool {
 		ptr = iterator.Next()
 	}
 	return values
+}
+
+// GetPtraceTraceeAncestorsLength returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeAncestorsLength() int {
+	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if ev.PTrace.Tracee == nil {
+		return 0
+	}
+	if ev.PTrace.Tracee.Ancestor == nil {
+		return 0
+	}
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	return iterator.Len(ctx)
 }
 
 // GetPtraceTraceeAncestorsPid returns the value of the field, resolving if necessary
@@ -15949,6 +16045,22 @@ func (ev *Event) GetSignalTargetAncestorsIsThread() []bool {
 		ptr = iterator.Next()
 	}
 	return values
+}
+
+// GetSignalTargetAncestorsLength returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetAncestorsLength() int {
+	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if ev.Signal.Target == nil {
+		return 0
+	}
+	if ev.Signal.Target.Ancestor == nil {
+		return 0
+	}
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	return iterator.Len(ctx)
 }
 
 // GetSignalTargetAncestorsPid returns the value of the field, resolving if necessary

@@ -11,6 +11,10 @@ func test_struct_with_array(a structWithAnArray) {}
 
 //nolint:all
 //go:noinline
+func test_struct_with_a_slice(s structWithASlice) {}
+
+//nolint:all
+//go:noinline
 func test_struct(x aStruct) {}
 
 //nolint:all
@@ -75,6 +79,7 @@ func ExecuteStructFuncs() {
 	test_ten_strings(tenStrings{})
 	test_struct_and_byte('a', s)
 	test_struct_with_array(structWithAnArray{[5]uint8{1, 2, 3, 4, 5}})
+	test_struct_with_a_slice(structWithASlice{[]uint8{1, 2, 3}})
 
 	tenStr := tenStrings{
 		first:   "one",
@@ -175,6 +180,10 @@ type structWithNoStrings struct {
 
 type structWithAnArray struct {
 	arr [5]uint8
+}
+
+type structWithASlice struct {
+	slice []uint8
 }
 
 type nestedStruct struct {

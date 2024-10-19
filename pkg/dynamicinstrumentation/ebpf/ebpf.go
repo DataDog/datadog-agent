@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && arm64
+//go:build linux_bpf
 
 // Package ebpf provides utility for setting up and instrumenting the bpf code
 // used by dynamic instrumentation
@@ -155,6 +155,7 @@ func CompileBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) erro
 		return err
 	}
 	probe.InstrumentationInfo.BPFObjectFileReader = compiledOutput
+
 	return nil
 }
 

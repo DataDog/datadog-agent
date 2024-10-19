@@ -55,12 +55,13 @@ func TestLoginUID(t *testing.T) {
 	}
 	defer dockerInstance.stop()
 
-	t.Run("login-uid-open-test", func(t *testing.T) {
+	t.Run("open", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			args := []string{
-				"-login-uid-open-test",
-				"-login-uid-open-path", "/tmp/test-auid",
-				"-login-uid-open-uid", "1005",
+				"-login-uid-test",
+				"-login-uid-event-type", "open",
+				"-login-uid-path", "/tmp/test-auid",
+				"-login-uid-value", "1005",
 			}
 
 			cmd := dockerInstance.Command(goSyscallTester, args, []string{})
@@ -72,11 +73,13 @@ func TestLoginUID(t *testing.T) {
 		})
 	})
 
-	t.Run("login-uid-exec-test", func(t *testing.T) {
+	t.Run("exec", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			args := []string{
-				"-login-uid-exec-test",
-				"-login-uid-exec-path", goSyscallTester,
+				"-login-uid-test",
+				"-login-uid-event-type", "exec",
+				"-login-uid-path", goSyscallTester,
+				"-login-uid-value", "1005",
 			}
 
 			cmd := dockerInstance.Command(goSyscallTester, args, []string{})
