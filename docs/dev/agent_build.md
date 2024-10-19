@@ -49,9 +49,8 @@ Also note that the trace agent needs to be built and run separately. For more in
 
 ## Additional details
 
-We use `pkg-config` to make compilers and linkers aware of Python. If you need
-to adjust the build for your specific configuration, add or edit the files within
-the `pkg-config` folder.
+We use `pkg-config` to make compilers and linkers aware of Python. The required .pc files are
+provided automatically when building python through omnibus.
 
 By default, the Agent combines multiple functionalities into a single binary to reduce
 the space used on disk. The `DD_BUNDLED_AGENT` environment variable is used to select

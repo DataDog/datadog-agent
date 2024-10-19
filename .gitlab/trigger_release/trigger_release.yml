@@ -19,7 +19,7 @@
     # agent-release-management creates pipeline for both Agent 6 and Agent 7
     # when triggered with major version 7
     - RELEASE_VERSION="$(inv agent.version --major-version 7 --url-safe --omnibus-format)-1" || exit $?; export RELEASE_VERSION
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN) || exit $?; export GITLAB_TOKEN
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - 'inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-release-management" --git-ref "main"
       --variable ACTION
       --variable AUTO_RELEASE

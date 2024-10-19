@@ -231,6 +231,10 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
         if stack_regex.match(stack_id):
             to_delete_stacks.add(f"organization/e2eci/{stack_id}")
 
+    if len(to_delete_stacks) == 0:
+        print("No stacks to delete")
+        return
+
     print("About to delete the following stacks:", to_delete_stacks)
     with multiprocessing.Pool(len(to_delete_stacks)) as pool:
         res = pool.map(destroy_remote_stack, to_delete_stacks)

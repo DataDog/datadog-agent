@@ -9,6 +9,7 @@
 package sbom
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -19,6 +20,8 @@ import (
 type fileQuerier struct {
 	files []uint64
 	pkgs  []*Package
+
+	lastNegativeCache *fixedSizeQueue[uint64]
 }
 
 /*
@@ -64,10 +67,15 @@ func newFileQuerier(report *trivy.Report) fileQuerier {
 		}
 	}
 
-	return fileQuerier{files: files, pkgs: pkgs}
+	return fileQuerier{files: files, pkgs: pkgs, lastNegativeCache: newFixedSizeQueue[uint64](2)}
 }
 
 func (fq *fileQuerier) queryHash(hash uint64) *Package {
+	// fast path, if no package in the report contains the file
+	if !slices.Contains(fq.files, hash) {
+		return nil
+	}
+
 	var i, pkgIndex uint64
 	for i < uint64(len(fq.files)) {
 		partSize := fq.files[i]
@@ -85,13 +93,29 @@ func (fq *fileQuerier) queryHash(hash uint64) *Package {
 	return nil
 }
 
+func (fq *fileQuerier) queryHashWithNegativeCache(hash uint64) *Package {
+	if fq.lastNegativeCache.contains(hash) {
+		return nil
+	}
+
+	pkg := fq.queryHash(hash)
+	if pkg == nil {
+		if fq.lastNegativeCache == nil {
+			fq.lastNegativeCache = newFixedSizeQueue[uint64](2)
+		}
+		fq.lastNegativeCache.push(hash)
+	}
+
+	return pkg
+}
+
 func (fq *fileQuerier) queryFile(path string) *Package {
-	if pkg := fq.queryHash(murmur3.StringSum64(path)); pkg != nil {
+	if pkg := fq.queryHashWithNegativeCache(murmur3.StringSum64(path)); pkg != nil {
 		return pkg
 	}
 
 	if strings.HasPrefix(path, "/usr") {
-		return fq.queryHash(murmur3.StringSum64(path[4:]))
+		return fq.queryHashWithNegativeCache(murmur3.StringSum64(path[4:]))
 	}
 
 	return nil
@@ -99,4 +123,35 @@ func (fq *fileQuerier) queryFile(path string) *Package {
 
 func (fq *fileQuerier) len() int {
 	return len(fq.files)
+}
+
+type fixedSizeQueue[T comparable] struct {
+	queue   []T
+	maxSize int
+}
+
+func newFixedSizeQueue[T comparable](maxSize int) *fixedSizeQueue[T] {
+	return &fixedSizeQueue[T]{maxSize: maxSize}
+}
+
+func (q *fixedSizeQueue[T]) push(value T) {
+	if len(q.queue) == q.maxSize {
+		q.queue = q.queue[1:]
+	}
+
+	q.queue = append(q.queue, value)
+}
+
+func (q *fixedSizeQueue[T]) contains(value T) bool {
+	if q == nil {
+		return false
+	}
+
+	for _, v := range q.queue {
+		if v == value {
+			return true
+		}
+	}
+
+	return false
 }
