@@ -112,6 +112,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/buf => ./pkg/util/buf/
 	github.com/DataDog/datadog-agent/pkg/util/cache => ./pkg/util/cache
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ./pkg/util/cgroups
+	github.com/DataDog/datadog-agent/pkg/util/clusteragent/endpoint => ./pkg/util/clusteragent/endpoint/
 	github.com/DataDog/datadog-agent/pkg/util/common => ./pkg/util/common
 	github.com/DataDog/datadog-agent/pkg/util/containers/image => ./pkg/util/containers/image
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ./pkg/util/defaultpaths/
@@ -152,6 +153,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/trace v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/clusteragent/endpoint v0.0.1
 	github.com/DataDog/datadog-agent/pkg/util/log v0.57.1
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.57.1
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.57.1

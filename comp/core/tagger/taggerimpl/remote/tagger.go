@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
+	dcaendpoint "github.com/DataDog/datadog-agent/pkg/util/clusteragent/endpoint"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -99,7 +99,7 @@ func CLCRunnerOptions(config config.Component) (Options, error) {
 	}
 
 	if !opts.Disabled {
-		target, err := clusteragent.GetClusterAgentEndpoint()
+		target, err := dcaendpoint.GetClusterAgentEndpoint()
 		if err != nil {
 			return opts, fmt.Errorf("unable to get cluster agent endpoint: %w", err)
 		}
