@@ -382,12 +382,12 @@ func New() *Config {
 		EnableEbpfless: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpfless")),
 
 		// Service Monitoring
-		EnableGoTLSSupport:          cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "enabled")),
-		GoTLSExcludeSelf:            cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "exclude_self")),
-		EnableUSMQuantization:       cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_quantization")),
-		EnableUSMConnectionRollup:   cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_connection_rollup")),
-		EnableUSMRingBuffers:        cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_ring_buffers")),
-		EnableUSMEventStream:        cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_event_stream")),
+		EnableGoTLSSupport:        cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "enabled")),
+		GoTLSExcludeSelf:          cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "exclude_self")),
+		EnableUSMQuantization:     cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_quantization")),
+		EnableUSMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_connection_rollup")),
+		EnableUSMRingBuffers:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_ring_buffers")),
+		EnableUSMEventStream:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_event_stream")),
 	}
 
 	httpRRKey := sysconfig.FullKeyPath(smNS, "http_replace_rules")
