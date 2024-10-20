@@ -375,3 +375,5 @@ github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/grpc_gcp: Copyright 2024 gRPC
 github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/multiendpoint: Copyright 2024 gRPC authors.
 
 github.com/NVIDIA/go-nvml/*: Copyright 2023 NVIDIA CORPORATION
+
+github.com/jonboulle/clockwork: Copyright 2014 Nell Boulle
