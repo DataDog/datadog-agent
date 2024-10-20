@@ -25,7 +25,7 @@ const (
 	maxPathnamesEntries = 96000
 
 	minProcEntries = 16384
-	maxProcEntries = 131072
+	maxProcEntries = 65536
 )
 
 var (
