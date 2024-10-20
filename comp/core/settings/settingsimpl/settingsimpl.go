@@ -197,8 +197,10 @@ func (s *settingsRegistry) GetValue(w http.ResponseWriter, r *http.Request) {
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		switch err.(type) {
 		case *settings.SettingNotFoundError:
+			s.log.Errorf("Unable to get runtime setting %s: setting not found", setting)
 			http.Error(w, string(body), http.StatusBadRequest)
 		default:
+			s.log.Errorf("Unable to get runtime setting %s, error: %v", setting, err)
 			http.Error(w, string(body), http.StatusInternalServerError)
 		}
 		return
@@ -231,8 +233,10 @@ func (s *settingsRegistry) SetValue(w http.ResponseWriter, r *http.Request) {
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		switch err.(type) {
 		case *settings.SettingNotFoundError:
+			s.log.Errorf("Unable to set runtime setting %s: setting not found", setting)
 			http.Error(w, string(body), http.StatusBadRequest)
 		default:
+			s.log.Errorf("Unable to set runtime setting %s, error: %v", setting, err)
 			http.Error(w, string(body), http.StatusInternalServerError)
 		}
 		return
