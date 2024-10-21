@@ -27,8 +27,6 @@ const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
 
 var discoveryVar = expvar.NewMap("snmpDiscovery")
 
-var discoveryVarLock = sync.Mutex{}
-
 // Discovery handles snmp discovery states
 type Discovery struct {
 	config    *checkconfig.CheckConfig
@@ -143,9 +141,6 @@ func (d *Discovery) discoverDevices() {
 		go d.runWorker(w, jobs)
 	}
 
-	discoveryVarLock.Lock()
-	defer discoveryVarLock.Unlock()
-
 	discoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return "scanning" }))
 
 	discoveryTicker := time.NewTicker(time.Duration(d.config.DiscoveryInterval) * time.Second)
@@ -175,8 +170,8 @@ func (d *Discovery) discoverDevices() {
 			default:
 			}
 		}
-		devicesFound := fmt.Sprintf("%d", len(subnet.devices))
-		discoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return devicesFound }))
+		//devicesFound := fmt.Sprintf("%d", len(subnet.devices))
+		//discoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return devicesFound }))
 
 		select {
 		case <-d.stop:
