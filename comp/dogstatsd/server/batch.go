@@ -24,6 +24,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
+// interface requiring all functions expected by the dogstatsd server
+type dogstatsdBatcher interface {
+	appendSample(sample metrics.MetricSample)
+	appendEvent(event *event.Event)
+	appendServiceCheck(serviceCheck *servicecheck.ServiceCheck)
+	appendLateSample(sample metrics.MetricSample)
+	flush()
+}
+
 // batcher batches multiple metrics before submission
 // this struct is not safe for concurrent use
 type batcher struct {

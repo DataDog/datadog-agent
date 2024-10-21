@@ -586,12 +586,12 @@ func TestScanLines(t *testing.T) {
 	messages := []string{"foo", "bar", "baz", "quz", "hax", ""}
 	packet := []byte(strings.Join(messages, "\n"))
 	cnt := 0
-	advance, tok, eol, err := ScanLines(packet, true)
+	advance, tok, eol, err := scanLines(packet, true)
 	for tok != nil && err == nil {
 		cnt++
 		assert.Equal(t, eol, true)
 		packet = packet[advance:]
-		advance, tok, eol, err = ScanLines(packet, true)
+		advance, tok, eol, err = scanLines(packet, true)
 	}
 
 	assert.False(t, eol)
@@ -599,11 +599,11 @@ func TestScanLines(t *testing.T) {
 
 	cnt = 0
 	packet = []byte(strings.Join(messages[0:len(messages)-1], "\n"))
-	advance, tok, eol, err = ScanLines(packet, true)
+	advance, tok, eol, err = scanLines(packet, true)
 	for tok != nil && err == nil {
 		cnt++
 		packet = packet[advance:]
-		advance, tok, eol, err = ScanLines(packet, true)
+		advance, tok, eol, err = scanLines(packet, true)
 	}
 
 	assert.False(t, eol)

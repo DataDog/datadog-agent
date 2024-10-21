@@ -8,7 +8,6 @@ package listeners
 import (
 	"errors"
 	"fmt"
-	"net"
 	"strconv"
 	"time"
 
@@ -41,7 +40,7 @@ func getUDSAncillarySize() int {
 
 // enableUDSPassCred enables credential passing from the kernel for origin detection.
 // That flag can be ignored if origin dection is disabled.
-func enableUDSPassCred(conn *net.UnixConn) error {
+func enableUDSPassCred(conn netUnixConn) error {
 	rawconn, err := conn.SyscallConn()
 	if err != nil {
 		return err
