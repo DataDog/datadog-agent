@@ -47,7 +47,6 @@ const (
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
-	KindHost                   Kind = "host"
 )
 
 // Source is the source name of an entity.
