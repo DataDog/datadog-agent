@@ -167,7 +167,7 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 
 		attacher, err := uprobes.NewUprobeAttacher(GoTLSAttacherName, attacherCfg, m, nil, inspector)
 		if err != nil {
-			return nil, fmt.Errorf("Cannot create uprobe attacher: %w", err)
+			return nil, fmt.Errorf("cannot create uprobe attacher: %w", err)
 		}
 
 		return &goTLSProgram{
