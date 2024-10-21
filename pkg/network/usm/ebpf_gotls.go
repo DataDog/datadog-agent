@@ -226,7 +226,7 @@ func (p *goTLSProgram) GetStats() *protocols.ProtocolStats {
 	return nil
 }
 
-// Stop terminates goTLS main goroutine.
+// Stop terminates the uprobe attacher for GoTLS programs.
 func (p *goTLSProgram) Stop(*manager.Manager) {
 	p.attacher.Stop()
 }
