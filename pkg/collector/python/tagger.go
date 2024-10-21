@@ -23,9 +23,6 @@ import (
 */
 import "C"
 
-// for testing purposes
-var tagsFunc func(entityID string, cardinality types.TagCardinality) ([]string, error)
-
 // Tags bridges towards tagger.Tag to retrieve container tags
 //
 //export Tags
