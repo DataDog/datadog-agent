@@ -189,7 +189,6 @@ func (q *rdnsQuerierImpl) GetHostname(ipAddr []byte, updateHostnameSync func(str
 // If the IP address is in the private address space then the IP address will be resolved to a hostname.
 // The function accepts a timeout duration, which defaults to 2 seconds if not provided.
 func (q *rdnsQuerierImpl) GetHostnameSync(ctx context.Context, ipAddr string) (string, error) {
-
 	q.logger.Infof("ENTERED THE GetHostnameSync FUNCTION with IP address: %s", ipAddr)
 
 	q.internalTelemetry.total.Inc()
@@ -206,48 +205,38 @@ func (q *rdnsQuerierImpl) GetHostnameSync(ctx context.Context, ipAddr string) (s
 	}
 	q.internalTelemetry.private.Inc()
 
-	var hostname string
-	var internalErr error
-	var mu sync.Mutex
-	done := make(chan struct{})
-
-	asyncCallBack := func(h string, e error) {
-		q.logger.Info("ASYNC CALLBACK CALLED")
-		mu.Lock()
-		hostname = h
-		internalErr = e
-		mu.Unlock()
-		q.logger.Infof("Async done with: %s", h)
-		close(done)
-	}
+	var (
+		hostname string
+		mu       sync.Mutex
+		done     = make(chan struct{})
+	)
 
 	err := q.GetHostname(
 		netipAddr,
 		func(h string) {
 			mu.Lock()
+			defer mu.Unlock()
 			hostname = h
-			mu.Unlock()
-			q.logger.Infof("Sync done with: %s", h)
 			close(done)
 		},
-		asyncCallBack,
+		func(h string, e error) {
+			mu.Lock()
+			defer mu.Unlock()
+			hostname = h
+			close(done)
+		},
 	)
 	if err != nil {
 		q.logger.Tracef("Error resolving reverse DNS enrichment for source IP address: %v error: %v", ipAddr, err)
 	}
 
-	for {
-		select {
-		case <-done:
-			mu.Lock()
-			defer mu.Unlock()
-			q.logger.Infof("Returning hostname: %s, err: %v", hostname, err)
-			q.logger.Infof("EXITING THE GetHostnameSync FUNCTION with internalErr: %v", internalErr)
-			return hostname, err
-		case <-ctx.Done():
-			q.logger.Infof("Timed out!")
-			return "", fmt.Errorf("timeout reached while resolving hostname for IP address %v", ipAddr)
-		}
+	select {
+	case <-done:
+		mu.Lock()
+		defer mu.Unlock()
+		return hostname, err
+	case <-ctx.Done():
+		return "", fmt.Errorf("timeout reached while resolving hostname for IP address %v", ipAddr)
 	}
 }
 
