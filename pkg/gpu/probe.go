@@ -211,7 +211,7 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 
 	stats := p.generator.getStats(now)
 	p.generator.cleanupFinishedAggregators()
-	p.consumer.cleanupHandlersMarkedFinished()
+	p.consumer.cleanFinishedHandlers()
 
 	return stats, nil
 }
