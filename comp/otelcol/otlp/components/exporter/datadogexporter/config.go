@@ -183,9 +183,9 @@ type HostMetadataConfig struct {
 
 // Config defines configuration for the Datadog exporter.
 type Config struct {
-	confighttp.ClientConfig      `mapstructure:",squash"` // squash ensures fields are correctly decoded in embedded struct.
-	exporterhelper.QueueSettings `mapstructure:"sending_queue"`
-	configretry.BackOffConfig    `mapstructure:"retry_on_failure"`
+	confighttp.ClientConfig    `mapstructure:",squash"` // squash ensures fields are correctly decoded in embedded struct.
+	exporterhelper.QueueConfig `mapstructure:"sending_queue"`
+	configretry.BackOffConfig  `mapstructure:"retry_on_failure"`
 
 	TagsConfig `mapstructure:",squash"`
 

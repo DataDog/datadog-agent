@@ -63,7 +63,7 @@ func (f *cronjobv1beta1Factory) CreateClient(cfg *rest.Config) (interface{}, err
 	return f.client, nil
 }
 
-func (f *cronjobv1beta1Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *cronjobv1beta1Factory) MetricFamilyGenerators( /*allowAnnotationsList, allowLabelsList []string*/ ) []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(
 			descCronJobAnnotationsName,
@@ -72,7 +72,7 @@ func (f *cronjobv1beta1Factory) MetricFamilyGenerators(allowAnnotationsList, all
 			basemetrics.ALPHA,
 			"",
 			wrapCronJobFunc(func(j *batchv1beta1.CronJob) *metric.Family {
-				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", j.Annotations, allowAnnotationsList)
+				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", j.Annotations /*, allowAnnotationsList*/)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -91,7 +91,7 @@ func (f *cronjobv1beta1Factory) MetricFamilyGenerators(allowAnnotationsList, all
 			basemetrics.STABLE,
 			"",
 			wrapCronJobFunc(func(j *batchv1beta1.CronJob) *metric.Family {
-				labelKeys, labelValues := createPrometheusLabelKeysValues("label", j.Labels, allowLabelsList)
+				labelKeys, labelValues := createPrometheusLabelKeysValues("label", j.Labels /*, allowLabelsList*/)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{

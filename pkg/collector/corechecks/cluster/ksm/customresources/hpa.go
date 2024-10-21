@@ -79,7 +79,7 @@ func (f *hpav2Factory) CreateClient(cfg *rest.Config) (interface{}, error) {
 	return f.client, nil
 }
 
-func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *hpav2Factory) MetricFamilyGenerators( /*allowAnnotationsList, allowLabelsList []string*/ ) []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_info",
@@ -311,7 +311,7 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 			basemetrics.ALPHA,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
-				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", a.Annotations, allowAnnotationsList)
+				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", a.Annotations /*, allowAnnotationsList*/)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -330,7 +330,7 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 			basemetrics.STABLE,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
-				labelKeys, labelValues := createPrometheusLabelKeysValues("label", a.Labels, allowLabelsList)
+				labelKeys, labelValues := createPrometheusLabelKeysValues("label", a.Labels /*, allowLabelsList*/)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{

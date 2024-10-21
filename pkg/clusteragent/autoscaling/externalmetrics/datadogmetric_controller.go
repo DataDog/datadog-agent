@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,7 +48,7 @@ type DatadogMetricController struct {
 	clientSet dynamic.Interface
 	lister    cache.GenericLister
 	synced    cache.InformerSynced
-	workqueue workqueue.RateLimitingInterface
+	workqueue workqueue.TypedRateLimitingInterface[string]
 	store     *DatadogMetricsInternalStore
 	isLeader  func() bool
 	context   context.Context
@@ -65,9 +65,12 @@ func NewDatadogMetricController(client dynamic.Interface, informer dynamicinform
 		clientSet: client,
 		lister:    datadogMetricsInformer.Lister(),
 		synced:    datadogMetricsInformer.Informer().HasSynced,
-		workqueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "datadogmetrics"),
-		store:     store,
-		isLeader:  isLeader,
+		workqueue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.DefaultTypedItemBasedRateLimiter[string](),
+			workqueue.TypedRateLimitingQueueConfig[string]{Name: "datadogmetrics"},
+		),
+		store:    store,
+		isLeader: isLeader,
 	}
 
 	if _, err := datadogMetricsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{

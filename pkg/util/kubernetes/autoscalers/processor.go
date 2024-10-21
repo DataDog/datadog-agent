@@ -19,7 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
+	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 
 	datadogclientcomp "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"

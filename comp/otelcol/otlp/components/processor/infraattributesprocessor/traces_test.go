@@ -129,7 +129,7 @@ func TestInfraAttributesTraceProcessor(t *testing.T) {
 			tc.tagMap[types.NewEntityID("internal", "global-entity-id").String()] = []string{"global:tag"}
 			gc := newTestGenerateIDClient().generateID
 			factory := NewFactory(tc, gc)
-			fmp, err := factory.CreateTracesProcessor(
+			fmp, err := factory.CreateTraces(
 				context.Background(),
 				processortest.NewNopSettings(),
 				cfg,

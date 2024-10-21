@@ -44,13 +44,12 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.2
 	github.com/stretchr/testify v1.9.0
-	go.opentelemetry.io/collector/confmap v0.104.0
-	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.104.0
-	go.opentelemetry.io/collector/confmap/provider/envprovider v0.104.0
-	go.opentelemetry.io/collector/confmap/provider/fileprovider v0.104.0
-	go.opentelemetry.io/collector/confmap/provider/httpprovider v0.104.0
-	go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.104.0
-	go.opentelemetry.io/collector/confmap/provider/yamlprovider v0.104.0
+	go.opentelemetry.io/collector/confmap v1.17.0
+	go.opentelemetry.io/collector/confmap/provider/envprovider v0.111.0
+	go.opentelemetry.io/collector/confmap/provider/fileprovider v0.111.0
+	go.opentelemetry.io/collector/confmap/provider/httpprovider v0.111.0
+	go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.111.0
+	go.opentelemetry.io/collector/confmap/provider/yamlprovider v0.111.0
 
 )
 
@@ -82,8 +81,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/go-viper/mapstructure/v2 v2.0.0-alpha.1 // indirect
-	github.com/hashicorp/go-version v1.7.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.1.0 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -101,6 +99,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
 	github.com/prometheus/client_golang v1.20.2 // indirect
+	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
@@ -113,10 +112,8 @@ require (
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.8.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	go.opentelemetry.io/collector v0.104.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.11.0 // indirect
-	go.opentelemetry.io/otel/metric v1.28.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.28.0 // indirect
+	go.opentelemetry.io/otel/metric v1.30.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.30.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/fx v1.22.2 // indirect

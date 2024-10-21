@@ -54,7 +54,7 @@ func (f *extendedNodeFactory) CreateClient(cfg *rest.Config) (interface{}, error
 // MetricFamilyGenerators returns the extended node metric family generators
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (f *extendedNodeFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *extendedNodeFactory) MetricFamilyGenerators( /*allowAnnotationsList, allowLabelsList []string*/ ) []generator.FamilyGenerator {
 	// At the time of writing this, this is necessary in order for us to have access to the "kubernetes.io/network-bandwidth" resource
 	// type, as the default KSM offering explicitly filters out anything that is prefixed with "kubernetes.io/"
 	// More information can be found here: https://github.com/kubernetes/kube-state-metrics/issues/2027
