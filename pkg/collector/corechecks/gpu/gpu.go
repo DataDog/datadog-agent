@@ -85,14 +85,14 @@ func (m *Check) Run() error {
 		return err
 	}
 
-	sysprobeData, err := m.sysProbeUtil.GetCheck(sysconfig.GPUMonitoringModule)
-	if err != nil {
-		return fmt.Errorf("cannot get data from system-probe: %w", err)
-	}
-
 	snd, err := m.GetSender()
 	if err != nil {
 		return fmt.Errorf("get metric sender: %w", err)
+	}
+
+	sysprobeData, err := m.sysProbeUtil.GetCheck(sysconfig.GPUMonitoringModule)
+	if err != nil {
+		return fmt.Errorf("cannot get data from system-probe: %w", err)
 	}
 
 	// Commit the metrics even in case of an error
