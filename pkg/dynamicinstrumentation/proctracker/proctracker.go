@@ -21,9 +21,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
@@ -31,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"golang.org/x/sys/unix"
 )
 
 type processTrackerCallback func(ditypes.DIProcs)
@@ -62,20 +64,13 @@ func NewProcessTracker(callback processTrackerCallback) *ProcessTracker {
 // Start subscribes to exec and exit events so dynamic instrumentation can be made
 // aware of new processes that may need to be instrumented or instrumented processes
 // that should no longer be instrumented
-func (pt *ProcessTracker) Start() error {
+func (pt *ProcessTracker) Start() {
 
 	unsubscribeExec := pt.pm.SubscribeExec(pt.handleProcessStart)
 	unsubscribeExit := pt.pm.SubscribeExit(pt.handleProcessStop)
 
 	pt.unsubscribe = append(pt.unsubscribe, unsubscribeExec)
 	pt.unsubscribe = append(pt.unsubscribe, unsubscribeExit)
-
-	err := pt.pm.Initialize(false)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // Stop unsubscribes from exec and exit events
