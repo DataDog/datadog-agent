@@ -28,7 +28,8 @@ agent_dmg-x64-a7:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["go_mod_tidy_check"]
+  # needs: ["go_mod_tidy_check"]
+  needs: []
   variables:
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: "3"

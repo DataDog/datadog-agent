@@ -8,7 +8,7 @@
   tags: ["arch:amd64"]
   needs:
     [
-      "go_mod_tidy_check",
+      # "go_mod_tidy_check",
       "build_system-probe-x64",
       "go_deps",
       "generate_minimized_btfs_x64",
