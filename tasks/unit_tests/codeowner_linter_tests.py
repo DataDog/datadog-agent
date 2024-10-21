@@ -27,7 +27,7 @@ class TestCodeownerLinter(unittest.TestCase):
         os.chdir(self.backup_cwd)
 
     def test_all_pkg_have_codeowner(self):
-        codeowner = CodeOwners("\n".join(os.path.join("/pkg/", pkg) for pkg in self.fake_pkgs))
+        codeowner = CodeOwners("\n".join("/pkg/" + pkg for pkg in self.fake_pkgs))
         self.assertFalse(directory_has_packages_without_owner(codeowner))
         self.assertFalse(codeowner_has_orphans(codeowner))
 
