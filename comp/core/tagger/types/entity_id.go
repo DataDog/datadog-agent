@@ -6,11 +6,6 @@
 // Package types defines types used by the Tagger component.
 package types
 
-import (
-	"fmt"
-	"strings"
-)
-
 const separator = "://"
 const separatorLength = len(separator)
 
@@ -48,17 +43,6 @@ func (eid EntityID) String() string {
 // NewEntityID builds and returns an EntityID object
 func NewEntityID(prefix EntityIDPrefix, id string) EntityID {
 	return EntityID{prefix, id}
-}
-
-// NewEntityIDFromString constructs EntityID from a plain string id
-func NewEntityIDFromString(plainStringID string) (EntityID, error) {
-	prefix, id, found := strings.Cut(plainStringID, separator)
-
-	if !found {
-		return EntityID{}, fmt.Errorf("unsupported tagger entity id format %q, correct format is `{prefix}://{id}`", plainStringID)
-	}
-
-	return EntityID{EntityIDPrefix(prefix), id}, nil
 }
 
 const (

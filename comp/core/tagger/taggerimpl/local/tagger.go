@@ -97,10 +97,8 @@ func (t *Tagger) AccumulateTagsFor(entityID types.EntityID, cardinality types.Ta
 }
 
 // Tag returns a copy of the tags for a given entity
-func (t *Tagger) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
-	compositeEntityID, _ := types.NewEntityIDFromString(entityID)
-
-	tags, err := t.getTags(compositeEntityID, cardinality)
+func (t *Tagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
+	tags, err := t.getTags(entityID, cardinality)
 	if err != nil {
 		return nil, err
 	}

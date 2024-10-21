@@ -38,7 +38,7 @@ type Component interface {
 	Stop() error
 	ReplayTagger() ReplayTagger
 	GetTaggerTelemetryStore() *telemetry.Store
-	Tag(entityID string, cardinality types.TagCardinality) ([]string, error)
+	Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error)
 	AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error
 	Standard(entityID types.EntityID) ([]string, error)
 	List() types.TaggerListResponse

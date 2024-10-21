@@ -58,7 +58,7 @@ func ExtractECSTask(task TaskWithContainers) *model.ECSTask {
 	}
 
 	entityID := types.NewEntityID(types.ECSTask, task.Task.EntityID.ID)
-	tags, err := tagger.Tag(entityID.String(), types.HighCardinality)
+	tags, err := tagger.Tag(entityID, types.HighCardinality)
 	if err != nil {
 		log.Debugf("Could not retrieve tags for task: %s", err.Error())
 	}

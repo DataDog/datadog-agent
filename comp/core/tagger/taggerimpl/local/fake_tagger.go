@@ -97,11 +97,10 @@ func (f *FakeTagger) GetTaggerTelemetryStore() *telemetry.Store {
 }
 
 // Tag fake implementation
-func (f *FakeTagger) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
-	id, _ := types.NewEntityIDFromString(entityID)
-	tags := f.store.Lookup(id, cardinality)
+func (f *FakeTagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
+	tags := f.store.Lookup(entityID, cardinality)
 
-	key := f.getKey(id, cardinality)
+	key := f.getKey(entityID, cardinality)
 	if err := f.errors[key]; err != nil {
 		return nil, err
 	}
@@ -111,12 +110,12 @@ func (f *FakeTagger) Tag(entityID string, cardinality types.TagCardinality) ([]s
 
 // GlobalTags fake implementation
 func (f *FakeTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
-	return f.Tag(common.GetGlobalEntityIDString(), cardinality)
+	return f.Tag(common.GetGlobalEntityID(), cardinality)
 }
 
 // AccumulateTagsFor fake implementation
 func (f *FakeTagger) AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
-	tags, err := f.Tag(entityID.String(), cardinality)
+	tags, err := f.Tag(entityID, cardinality)
 	if err != nil {
 		return err
 	}

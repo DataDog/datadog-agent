@@ -88,7 +88,7 @@ func (p *Provider) proberProbeTotal(metricFam *prom.MetricFamily, sender sender.
 			continue
 		}
 
-		tags, _ := tagger.Tag(cID, types.HighCardinality)
+		tags, _ := tagger.Tag(types.NewEntityID(types.ContainerID, cID), types.HighCardinality)
 		if len(tags) == 0 {
 			continue
 		}

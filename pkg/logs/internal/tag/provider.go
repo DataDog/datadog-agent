@@ -24,12 +24,12 @@ type Provider interface {
 
 // EntityTagAdder returns the associated tag for an entity and their cardinality
 type EntityTagAdder interface {
-	Tag(entity string, cardinality types.TagCardinality) ([]string, error)
+	Tag(entity types.EntityID, cardinality types.TagCardinality) ([]string, error)
 }
 
 // provider provides a list of up-to-date tags for a given entity by calling the tagger.
 type provider struct {
-	entityID             string
+	entityID             types.EntityID
 	taggerWarmupDuration time.Duration
 	localTagProvider     Provider
 	clock                clock.Clock
@@ -38,12 +38,12 @@ type provider struct {
 }
 
 // NewProvider returns a new Provider.
-func NewProvider(entityID string, tagAdder EntityTagAdder) Provider {
+func NewProvider(entityID types.EntityID, tagAdder EntityTagAdder) Provider {
 	return newProviderWithClock(entityID, clock.New(), tagAdder)
 }
 
 // newProviderWithClock returns a new provider using the given clock.
-func newProviderWithClock(entityID string, clock clock.Clock, tagAdder EntityTagAdder) Provider {
+func newProviderWithClock(entityID types.EntityID, clock clock.Clock, tagAdder EntityTagAdder) Provider {
 	p := &provider{
 		entityID:             entityID,
 		taggerWarmupDuration: config.TaggerWarmupDuration(pkgconfigsetup.Datadog()),
