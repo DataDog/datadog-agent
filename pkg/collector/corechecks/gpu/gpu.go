@@ -28,7 +28,7 @@ const (
 	gpuMetricsNs     = "gpu."
 	metricNameMemory = gpuMetricsNs + "memory"
 	metricNameUtil   = gpuMetricsNs + "utilization"
-	metricNameMaxMem = gpuMetricsNs + "max_memory"
+	metricNameMaxMem = gpuMetricsNs + "memory.max"
 )
 
 // Check represents the GPU check that will be periodically executed via the Run() function
