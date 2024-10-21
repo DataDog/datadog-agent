@@ -6,6 +6,7 @@
 package report
 
 import (
+	"context"
 	json "encoding/json"
 	"net"
 	"sort"
@@ -217,9 +218,9 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 
 	hostname := ""
 	if rdnsquerier, err := check.GetRDNSQuerierContext(); err == nil {
-		hostname, _ = rdnsquerier.GetHostnameSync(config.IPAddress)
+		ctx, _ := context.WithTimeout(context.Background(), 1*time.Millisecond)
+		hostname, _ = rdnsquerier.GetHostnameSync(ctx, config.IPAddress)
 	}
-	log.Infof("FOUND HOSTNAME: %s", hostname)
 
 	return devicemetadata.DeviceMetadata{
 		ID:             deviceID,
