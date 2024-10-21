@@ -746,7 +746,6 @@ func testHTTPSGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 	// Setup
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPStatsByStatusCode = true
 
 	usmMonitor := setupUSMTLSMonitor(t, cfg)
 
@@ -781,7 +780,6 @@ func testHTTPSGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 	// Setup
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPStatsByStatusCode = true
 
 	usmMonitor := setupUSMTLSMonitor(t, cfg)
 
