@@ -85,7 +85,7 @@ func (t *Tailer) readAvailable() (int, error) {
 			}
 		}
 
-		inBuf := make([]byte, 4096)
+		inBuf := make([]byte, t.readBufferSize)
 		n, err := f.Read(inBuf)
 		bytes += n
 		if n == 0 || err != nil {
