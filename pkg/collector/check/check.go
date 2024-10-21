@@ -45,6 +45,8 @@ type Check interface {
 	ConfigSource() string
 	// IsTelemetryEnabled returns if telemetry is enabled for this check
 	IsTelemetryEnabled() bool
+	// IsHACheck returns if the check is an HA Check
+	IsHACheck() bool
 	// InitConfig returns the init_config configuration of the check
 	InitConfig() string
 	// InstanceConfig returns the instance configuration of the check
