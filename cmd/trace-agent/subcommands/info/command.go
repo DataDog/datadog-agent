@@ -17,6 +17,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -45,6 +46,7 @@ func runTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) err
 		fx.Supply(secrets.NewEnabledParams()),
 		coreconfig.Module(),
 		secretsimpl.Module(),
+		nooptagger.Module(),
 		// TODO: (component)
 		// fx.Supply(logimpl.ForOneShot(params.LoggerName, "off", true)),
 		// log.Module(),

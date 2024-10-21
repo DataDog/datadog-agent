@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -210,7 +211,7 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	require.NoError(t, err)
 	pkgconfigsetup.Datadog().SetDefault("dogstatsd_port", port)
 
-	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000)
+	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000, nooptagger.NewTaggerClient())
 
 	s, err := dogstatsdServer.NewServerlessServer(demux)
 	require.NoError(t, err, "cannot start DSD")

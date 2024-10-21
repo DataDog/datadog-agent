@@ -11,8 +11,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // ContainerPort represents a network port in a Service.
@@ -61,8 +64,16 @@ type Config interface {
 	IsProviderEnabled(string) bool
 }
 
+// ServiceListernerOptions are the service listerner options
+type ServiceListernerOptions struct {
+	Config    Config
+	Telemetry *telemetry.Store
+	Tagger    tagger.Component
+	Wmeta     optional.Option[workloadmeta.Component]
+}
+
 // ServiceListenerFactory builds a service listener
-type ServiceListenerFactory func(Config, *telemetry.Store) (ServiceListener, error)
+type ServiceListenerFactory func(ServiceListernerOptions) (ServiceListener, error)
 
 // Register registers a service listener factory
 func Register(name string,

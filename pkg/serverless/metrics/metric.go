@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -22,6 +23,7 @@ import (
 type ServerlessMetricAgent struct {
 	dogStatsDServer dogstatsdServer.ServerlessDogstatsd
 	tags            []string
+	Tagger          tagger.Component
 	Demux           aggregator.Demultiplexer
 
 	SketchesBucketOffset time.Duration
@@ -76,7 +78,7 @@ func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEn
 	} else {
 		pkgconfigsetup.Datadog().Set(statsDMetricBlocklistKey, buildMetricBlocklist(customerList), model.SourceAgentRuntime)
 	}
-	demux := buildDemultiplexer(multipleEndpointConfig, forwarderTimeout)
+	demux := buildDemultiplexer(multipleEndpointConfig, forwarderTimeout, c.Tagger)
 
 	if demux != nil {
 		statsd, err := dogstatFactory.NewServer(demux)
@@ -121,14 +123,14 @@ func (c *ServerlessMetricAgent) GetExtraTags() []string {
 	return c.tags
 }
 
-func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration) aggregator.Demultiplexer {
+func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration, tagger tagger.Component) aggregator.Demultiplexer {
 	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
 	keysPerDomain, err := multipleEndpointConfig.GetMultipleEndpoints()
 	if err != nil {
 		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 		return nil
 	}
-	return aggregator.InitAndStartServerlessDemultiplexer(keysPerDomain, forwarderTimeout)
+	return aggregator.InitAndStartServerlessDemultiplexer(keysPerDomain, forwarderTimeout, tagger)
 }
 
 func buildMetricBlocklist(userProvidedList []string) []string {

@@ -111,13 +111,13 @@ func runAgent(tagger tagger.Component) {
 	lambdaInitMetricChan := make(chan *serverlessLogs.LambdaInitMetric)
 	//nolint:revive // TODO(SERV) Fix revive linter
 	coldStartSpanId := random.Random.Uint64()
-	metricAgent := startMetricAgent(serverlessDaemon, logChannel, lambdaInitMetricChan)
+	metricAgent := startMetricAgent(serverlessDaemon, logChannel, lambdaInitMetricChan, tagger)
 
 	// Concurrently start heavyweight features
 	var wg sync.WaitGroup
 	wg.Add(3)
 
-	go startTraceAgent(&wg, lambdaSpanChan, coldStartSpanId, serverlessDaemon)
+	go startTraceAgent(&wg, lambdaSpanChan, coldStartSpanId, serverlessDaemon, tagger)
 	go startOtlpAgent(&wg, metricAgent, serverlessDaemon)
 	go startTelemetryCollection(&wg, serverlessID, logChannel, serverlessDaemon, tagger)
 
@@ -205,9 +205,10 @@ func setupProxy(appsecProxyProcessor *httpsec.ProxyLifecycleProcessor, ta trace.
 	}
 }
 
-func startMetricAgent(serverlessDaemon *daemon.Daemon, logChannel chan *logConfig.ChannelMessage, lambdaInitMetricChan chan *serverlessLogs.LambdaInitMetric) *metrics.ServerlessMetricAgent {
+func startMetricAgent(serverlessDaemon *daemon.Daemon, logChannel chan *logConfig.ChannelMessage, lambdaInitMetricChan chan *serverlessLogs.LambdaInitMetric, tagger tagger.Component) *metrics.ServerlessMetricAgent {
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
+		Tagger:               tagger,
 	}
 	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	serverlessDaemon.SetStatsdServer(metricAgent)
@@ -334,9 +335,9 @@ func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAge
 
 }
 
-func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon) {
+func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon, tagger tagger.Component) {
 	defer wg.Done()
-	traceAgent := trace.StartServerlessTraceAgent(pkgconfigsetup.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, lambdaSpanChan, coldStartSpanId)
+	traceAgent := trace.StartServerlessTraceAgent(pkgconfigsetup.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger}, lambdaSpanChan, coldStartSpanId)
 	serverlessDaemon.SetTraceAgent(traceAgent)
 }
 

@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -1086,7 +1087,7 @@ unit_names:
 func TestCheckID(t *testing.T) {
 	check1 := newCheck()
 	check2 := newCheck()
-	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nooptagger.NewTaggerClient(), "", 1*time.Hour)
 
 	// language=yaml
 	rawInstanceConfig1 := []byte(`

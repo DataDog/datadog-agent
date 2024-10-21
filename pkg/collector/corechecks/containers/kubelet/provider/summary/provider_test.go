@@ -361,6 +361,7 @@ func TestProvider_Provide(t *testing.T) {
 				},
 				config,
 				store,
+				fakeTagger,
 			)
 			assert.NoError(t, err)
 

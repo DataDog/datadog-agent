@@ -115,6 +115,7 @@ func (server *apiServer) startCMDServer(
 				server.collector,
 				server.autoConfig,
 				server.endpointProviders,
+				server.taggerComp,
 			)))
 	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	cmdMux.Handle("/", gwmux)

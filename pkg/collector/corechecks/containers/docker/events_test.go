@@ -13,6 +13,7 @@ import (
 	"github.com/docker/docker/api/types/events"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -120,6 +121,9 @@ func TestReportExitCodes(t *testing.T) {
 }
 
 func TestAggregateEvents(t *testing.T) {
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	defer fakeTagger.ResetTagger()
+
 	testCases := []struct {
 		events          []*docker.ContainerEvent
 		filteredActions []string
@@ -234,7 +238,7 @@ func TestAggregateEvents(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run("", func(t *testing.T) {
-			transformer := newBundledTransformer("test-host", tc.filteredActions).(*bundledTransformer)
+			transformer := newBundledTransformer("test-host", tc.filteredActions, fakeTagger).(*bundledTransformer)
 			bundles := transformer.aggregateEvents(tc.events)
 			for _, b := range bundles {
 				// Strip underlying events to ease testing

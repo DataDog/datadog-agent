@@ -10,6 +10,7 @@ package cri
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
@@ -61,6 +62,6 @@ func (cext *criCustomMetricsExtension) Process(tags []string, container *workloa
 }
 
 // PostProcess is called once during each check run, after all calls to `Process`
-func (cext *criCustomMetricsExtension) PostProcess() {
+func (cext *criCustomMetricsExtension) PostProcess(tagger.Component) {
 	cext.criContainerStats = nil
 }

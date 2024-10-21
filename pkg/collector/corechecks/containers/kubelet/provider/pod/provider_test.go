@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -98,6 +99,7 @@ type ProviderTestSuite struct {
 	testServer   *httptest.Server
 	mockSender   *mocksender.MockSender
 	kubeUtil     kubelet.KubeUtilInterface
+	tagger       tagger.Component
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
@@ -139,13 +141,15 @@ func (suite *ProviderTestSuite) SetupTest() {
 		},
 	}
 
+	suite.tagger = fakeTagger
+
 	suite.provider = &Provider{
 		config: config,
 		filter: &containers.Filter{
 			Enabled:         true,
 			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
 		},
-		podUtils: common.NewPodUtils(),
+		podUtils: common.NewPodUtils(fakeTagger),
 	}
 }
 

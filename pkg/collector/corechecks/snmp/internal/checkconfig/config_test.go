@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
@@ -24,7 +25,7 @@ import (
 
 func TestConfigurations(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
-	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nooptagger.NewTaggerClient(), "", 1*time.Hour)
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -325,7 +326,7 @@ profiles:
 
 func TestInlineProfileConfiguration(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
-	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nooptagger.NewTaggerClient(), "", 1*time.Hour)
 
 	// language=yaml
 	rawInstanceConfig := []byte(`

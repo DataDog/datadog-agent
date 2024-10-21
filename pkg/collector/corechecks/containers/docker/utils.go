@@ -12,8 +12,6 @@ import (
 
 	"github.com/docker/docker/api/types/events"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -28,19 +26,6 @@ func getProcessorFilter(legacyFilter *containers.Filter, store workloadmeta.Comp
 			generic.LegacyContainerFilter{OldFilter: legacyFilter, Store: store},
 		},
 	}
-}
-
-func getImageTagsFromContainer(taggerEntityID string, resolvedImageName string, isContainerExcluded bool) ([]string, error) {
-	if isContainerExcluded {
-		return getImageTags(resolvedImageName)
-	}
-
-	containerTags, err := tagger.Tag(taggerEntityID, types.LowCardinality)
-	if err != nil {
-		return nil, err
-	}
-
-	return containerTags, nil
 }
 
 func getImageTags(imageName string) ([]string, error) {

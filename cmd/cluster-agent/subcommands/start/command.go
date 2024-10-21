@@ -373,7 +373,7 @@ func start(log log.Component,
 
 	// Set up check collector
 	registerChecks(wmeta, taggerComp, config)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver), true)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver, taggerComp), true)
 
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)
@@ -590,6 +590,6 @@ func registerChecks(wlm workloadmeta.Component, tagger tagger.Component, cfg con
 	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory())
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(disk.CheckName, disk.Factory())
-	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(wlm, cfg))
+	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(wlm, cfg, tagger))
 	corecheckLoader.RegisterCheck(winproc.CheckName, winproc.Factory())
 }
