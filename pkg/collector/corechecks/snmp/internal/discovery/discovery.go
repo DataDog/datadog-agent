@@ -140,6 +140,10 @@ func (d *Discovery) discoverDevices() {
 	for w := 0; w < d.config.DiscoveryWorkers; w++ {
 		go d.runWorker(w, jobs)
 	}
+	discoveryVar, ok := expvar.Get("snmpDiscovery").(*expvar.Map)
+	if !ok {
+		log.Errorf("subnet %s: Couldn't get SNMP discovery expvar", d.config.Network)
+	}
 
 	discoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return "scanning" }))
 
