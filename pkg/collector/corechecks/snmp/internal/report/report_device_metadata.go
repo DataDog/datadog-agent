@@ -218,12 +218,12 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 
 	hostname := ""
 	if rdnsquerier, err := check.GetRDNSQuerierContext(); err == nil {
-		ctx, ctx_cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
+		ctx, ctxCancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 		hostname, err = rdnsquerier.GetHostnameSync(ctx, config.IPAddress)
 		if err != nil {
 			log.Info("Error getting hostname: %v", err)
 		}
-		ctx_cancel()
+		ctxCancel()
 	}
 
 	return devicemetadata.DeviceMetadata{
