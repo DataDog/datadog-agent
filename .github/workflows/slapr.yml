@@ -11,13 +11,16 @@ permissions: {}
 jobs:
   run_slapr_datadog_agent:
     runs-on: ubuntu-latest
-    # strategy:
-    #   matrix:
-    #     channel_variables:
-    #       - SLACK_AGENT_BUILD_AND_RELEASES_REVIEWS_ID
-    #       - SLACK_AGENT_CI_EXPERIENCE_REVIEWS_ID
-    #       - SLACK_AGENT_DEVELOPER_TOOLS_REVIEWS_ID
     steps:
+      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Checkout PR
+        # run only if triggered manually, otherwise we are already on the right branch and we won't have `pr_number`
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: gh pr checkout ${{ github.event.inputs.pr_number }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: DataDog/slapr@celian/codeowners
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
