@@ -99,8 +99,8 @@ func GetStreamFunc(messageReceiverFunc func() MessageReceiver, streamType, agent
 
 // OpenFileForWriting opens a file for writing
 func OpenFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
-	log.Infof("opening file %s for writing", filePath)
-	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	log.Infof("Opening file %s for writing logs. This file will be used to store streamlog output.", filePath)
+	f, err := os.OpenFile(filePath, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error opening file %s: %v", filePath, err)
 	}

@@ -7,6 +7,7 @@
 package streamlogsimpl
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -78,7 +79,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 // exportStreamLogs export output of stream-logs to a file. Currently used for remote config stream logs
 func exportStreamLogs(la logsAgent.Component, logger logger.Component, streamLogParams *LogParams) error {
 	if err := stream.EnsureDirExists(streamLogParams.FilePath); err != nil {
-		return fmt.Errorf("error creating directory for file %s: %v", streamLogParams.FilePath, err)
+		return fmt.Errorf("error creating directory for file %q: %w", streamLogParams.FilePath, err)
 	}
 	f, bufWriter, err := stream.OpenFileForWriting(streamLogParams.FilePath)
 	if err != nil {
@@ -97,26 +98,28 @@ func exportStreamLogs(la logsAgent.Component, logger logger.Component, streamLog
 	messageReceiver := la.GetMessageReceiver()
 
 	if !messageReceiver.SetEnabled(true) {
-		return fmt.Errorf("unable to enable message receiver, another client is already streaming logs")
+		return errors.New("unable to enable message receiver, another client is already streaming logs")
 	}
 	defer messageReceiver.SetEnabled(false)
 
 	done := make(chan struct{})
-	defer close(done)
 
 	logChan := messageReceiver.Filter(nil, done)
 
 	timer := time.NewTimer(streamLogParams.Duration)
 	defer timer.Stop()
 
+	time.AfterFunc(streamLogParams.Duration, func() {
+		close(done)
+	})
+
 	for {
-		select {
-		case log := <-logChan:
-			if _, err := bufWriter.WriteString(log + "\n"); err != nil {
-				return fmt.Errorf("failed to write to file: %v", err)
-			}
-		case <-timer.C:
+		log, ok := <-logChan
+		if !ok {
 			return nil
+		}
+		if _, err := bufWriter.WriteString(log + "\n"); err != nil {
+			return fmt.Errorf("failed to write to file: %v", err)
 		}
 	}
 }
