@@ -114,10 +114,12 @@ test_job:
   tags: ["arch:amd64"]
   script:
     - !reference [.setup_agent_github_app]
-    - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE token) || exit $?; export ATLASSIAN_PASSWORD
-    - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
-    - pip install ddqa
-    - inv release.create-qa-cards -t 7.59.0-rc.4
+    - SUB=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $KITCHEN_AZURE_SUBSCRIPTION_ID) || exit $?;
+    - TEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $KITCHEN_AZURE_TENANT_ID) || exit $?;
+    - CLI=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $KITCHEN_AZURE_CLIENT_ID) || exit $?;
+    - echo tenant $TEN
+    - echo sub $SUB
+    - echo cli $CLI
   # tags: ["runner:windows-docker", "windowsversion:1809"]
   # variables:
   #   IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
