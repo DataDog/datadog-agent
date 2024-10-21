@@ -1273,7 +1273,7 @@ func TestSampling(t *testing.T) {
 	}
 }
 
-func TestSample(t *testing.T) {
+func TestSampleTrace(t *testing.T) {
 	now := time.Now()
 	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{})}
 	genSpan := func(decisionMaker string, priority sampler.SamplingPriority, err int32) traceutil.ProcessedTrace {
@@ -1351,6 +1351,133 @@ func TestSample(t *testing.T) {
 			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
 			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
 			keep, _ = a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			assert.Equal(t, tt.keepWithFeature, keep)
+			assert.Equal(t, !tt.keepWithFeature, tt.trace.TraceChunk.DroppedTrace)
+		})
+	}
+}
+
+func TestSample(t *testing.T) {
+	now := time.Now()
+	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{})}
+	genSpan := func(decisionMaker string, priority sampler.SamplingPriority, err int32, exceptionInSpanEvent bool) traceutil.ProcessedTrace {
+		root := &pb.Span{
+			Service:  "serv1",
+			Start:    now.UnixNano(),
+			Duration: (100 * time.Millisecond).Nanoseconds(),
+			Metrics:  map[string]float64{"_top_level": 1},
+			Error:    err, // If 1, the Error Sampler will keep the trace, if 0, it will not be sampled
+			Meta:     map[string]string{},
+		}
+		if exceptionInSpanEvent {
+			root.Meta["_dd.span_events.has_exception"] = "true" // the Error Sampler will keep the trace
+		}
+		chunk := testutil.TraceChunkWithSpan(root)
+		if decisionMaker != "" {
+			chunk.Tags["_dd.p.dm"] = decisionMaker
+		}
+		pt := traceutil.ProcessedTrace{TraceChunk: chunk, Root: root}
+		pt.TraceChunk.Priority = int32(priority)
+		return pt
+	}
+	statsd := &statsd.NoOpClient{}
+	tests := map[string]struct {
+		trace           traceutil.ProcessedTrace
+		etsEnabled      bool
+		keep            bool
+		keepWithFeature bool
+	}{
+		"userdrop-error-manual-dm-unsampled": {
+			trace:           genSpan("-4", sampler.PriorityUserDrop, 1, false),
+			keep:            false,
+			keepWithFeature: false,
+		},
+		"userkeep-error-no-dm-sampled": {
+			trace:           genSpan("", sampler.PriorityUserKeep, 1, false),
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"userkeep-error-agent-dm-sampled": {
+			trace:           genSpan("-1", sampler.PriorityUserKeep, 1, false),
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"autodrop-error-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 1, false),
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"autodrop-not-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 0, false),
+			keep:            false,
+			keepWithFeature: false,
+		},
+		"ets-userdrop-error-manual-dm-unsampled": {
+			trace:           genSpan("-4", sampler.PriorityUserDrop, 1, false),
+			etsEnabled:      true,
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"ets-userdrop-errorspanevent-manual-dm-unsampled": {
+			trace:           genSpan("-4", sampler.PriorityUserDrop, 1, false),
+			etsEnabled:      true,
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"ets-userdrop-manual-dm-unsampled": {
+			trace:           genSpan("-4", sampler.PriorityUserDrop, 0, false),
+			etsEnabled:      true,
+			keep:            false,
+			keepWithFeature: false,
+		},
+		"ets-userkeep-error-no-dm-sampled": {
+			trace:           genSpan("", sampler.PriorityUserKeep, 1, false),
+			etsEnabled:      true,
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"ets-userkeep-error-agent-dm-sampled": {
+			trace:           genSpan("-1", sampler.PriorityUserKeep, 1, false),
+			etsEnabled:      true,
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"ets-autodrop-error-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 1, false),
+			etsEnabled:      true,
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"ets-autodrop-errorspanevent-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 0, true),
+			etsEnabled:      true,
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"ets-autodrop-not-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 0, false),
+			etsEnabled:      true,
+			keep:            false,
+			keepWithFeature: false,
+		},
+	}
+	for name, tt := range tests {
+		cfg.ErrorTrackingStandalone = tt.etsEnabled
+		a := &Agent{
+			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg, statsd),
+			ErrorsSampler:     sampler.NewErrorsSampler(cfg, statsd),
+			PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}, statsd),
+			RareSampler:       sampler.NewRareSampler(config.New(), statsd),
+			EventProcessor:    newEventProcessor(cfg, statsd),
+			conf:              cfg,
+		}
+		t.Run(name, func(t *testing.T) {
+			keep, _ := a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			assert.Equal(t, tt.keep, keep)
+			assert.Equal(t, !tt.keep, tt.trace.TraceChunk.DroppedTrace)
+			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
+			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
+			keep, _ = a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keepWithFeature, keep)
 			assert.Equal(t, !tt.keepWithFeature, tt.trace.TraceChunk.DroppedTrace)
 		})
