@@ -1877,7 +1877,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_rename_input_type",
-			Value: mount.GetVFSRenameInputType(p.kernelVersion),
+			Value: getVFSRenameRegisterArgsOrStruct(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "check_helper_call_input",
@@ -2074,6 +2074,24 @@ func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
 	default:
 		return 0
 	}
+}
+
+func getVFSRenameRegisterArgsOrStruct(kernelVersion *kernel.Version) uint64 {
+	if val, err := constantfetch.GetHasVFSRenameStructArgs(); err == nil {
+		if val {
+			return 2
+		}
+		return 1
+	}
+
+	if kernelVersion.Code >= kernel.Kernel5_12 {
+		return 2
+	}
+	if kernelVersion.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) && kernelVersion.Code.Patch() >= 220 {
+		return 2
+	}
+
+	return 1
 }
 
 func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
