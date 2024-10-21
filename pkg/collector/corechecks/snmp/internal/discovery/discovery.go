@@ -8,6 +8,7 @@ package discovery
 
 import (
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"net"
 	"sync"
@@ -23,6 +24,8 @@ import (
 
 const cacheKeyPrefix = "snmp"
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
+
+var discoveryVar = expvar.NewMap("snmpDiscovery")
 
 // Discovery handles snmp discovery states
 type Discovery struct {
@@ -138,6 +141,10 @@ func (d *Discovery) discoverDevices() {
 		go d.runWorker(w, jobs)
 	}
 
+	subnetVar := expvar.String{}
+	subnetVar.Set("scanning")
+	discoveryVar.Set(subnet.config.Network, &subnetVar)
+
 	discoveryTicker := time.NewTicker(time.Duration(d.config.DiscoveryInterval) * time.Second)
 	defer discoveryTicker.Stop()
 	for {
@@ -165,6 +172,9 @@ func (d *Discovery) discoverDevices() {
 			default:
 			}
 		}
+		devicesFound := fmt.Sprintf("%d", len(subnet.devices))
+		subnetVar.Set(devicesFound)
+		//discoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return devicesFound }))
 
 		select {
 		case <-d.stop:
