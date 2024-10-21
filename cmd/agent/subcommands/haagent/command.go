@@ -57,7 +57,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 // setRole set HA agent role
 func setRole(args argsType, config config.Component, logger log.Component) error {
-	logger.Warnf("[HA Agent] args: %+v", args) // TODO: REMOVE ME
 	if len(args) != 1 {
 		return fmt.Errorf("only one argument is expected. %d arguments were given", len(args))
 	}
@@ -77,11 +76,9 @@ func setRole(args argsType, config config.Component, logger log.Component) error
 	}
 	urlstr := fmt.Sprintf("https://%v:%v/agent/role/%s", ipcAddress, config.GetInt("cmd_port"), role)
 
-	fmt.Printf("URL %s\n", urlstr)
-
 	_, e = util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	if e != nil {
-		return fmt.Errorf("Error stopping the agent: %v", e)
+		return fmt.Errorf("error stopping the agent: %v", e)
 	}
 
 	fmt.Printf("Successfully change role to %s\n", role)

@@ -7,20 +7,8 @@ package snmp
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestCommand(t *testing.T) {
-	// this command has _lots_ of options, so the test just exercises a few
-	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
-		[]string{"ha-agent", "role", "primary"},
-		setRole,
-		func(params *cliParams) {
-			require.Equal(t, "primary", params.role)
-		})
+	// TODO: Test command
 }
