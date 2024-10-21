@@ -2176,8 +2176,10 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	}
 
 	// rename offsets
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameRenameStructOldDentry, "struct renamedata", "old_dentry", "linux/fs.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameRenameStructNewDentry, "struct renamedata", "new_dentry", "linux/fs.h")
+	if kv.Code >= kernel.Kernel5_12 || (kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) && kv.Code.Patch() >= 220) {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameRenameStructOldDentry, "struct renamedata", "old_dentry", "linux/fs.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameRenameStructNewDentry, "struct renamedata", "new_dentry", "linux/fs.h")
+	}
 
 	// bpf offsets
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFMapStructID, "struct bpf_map", "id", "linux/bpf.h")
