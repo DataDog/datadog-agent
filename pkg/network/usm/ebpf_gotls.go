@@ -48,11 +48,6 @@ const (
 	GoTLSAttacherName = "go-tls"
 )
 
-type uprobesInfo struct {
-	functionInfo string
-	returnInfo   string
-}
-
 var paramLookupFunctions = map[string]bininspect.ParameterLookupFunction{
 	bininspect.WriteGoTLSFunc: lookup.GetWriteParams,
 	bininspect.ReadGoTLSFunc:  lookup.GetReadParams,
