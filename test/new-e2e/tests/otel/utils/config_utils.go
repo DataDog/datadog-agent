@@ -24,7 +24,7 @@ func TestOTelAgentInstalled(s OTelTestSuite) {
 }
 
 // TestOTelFlare tests that the OTel Agent flare functionality works as expected
-func TestOTelFlare(s OTelTestSuite) {
+func TestOTelFlare(s OTelTestSuite, expectedContents []string) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 
@@ -56,7 +56,6 @@ func TestOTelFlare(s OTelTestSuite) {
 	otelResponseContent, err := flare.GetFileContent(otelResponse)
 	s.T().Log("Got flare otel-response.json", otelResponseContent)
 	require.NoError(s.T(), err)
-	expectedContents := []string{"otel-agent", "ddflare/dd-autoconfigured:", "health_check/dd-autoconfigured:", "pprof/dd-autoconfigured:", "zpages/dd-autoconfigured:", "infraattributes/dd-autoconfigured:", "prometheus/dd-autoconfigured:", "key: '[REDACTED]'"}
 	for _, expected := range expectedContents {
 		assert.Contains(s.T(), otelResponseContent, expected)
 	}
