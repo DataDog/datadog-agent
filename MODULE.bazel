@@ -3,6 +3,23 @@ bazel_dep(name = "gazelle", version = "0.36.0")
 bazel_dep(name = "platforms", version = "0.0.10")
 bazel_dep(name = "rules_pkg", version = "0.10.1")
 bazel_dep(name = "rules_python", version = "0.32.2")
+bazel_dep(name = "rules_foreign_cc", version = "0.13.0")
+bazel_dep(
+    name = "hermetic_cc_toolchain",
+    version = "3.1.0",
+)
+
+#########################
+## Native dependencies ##
+#########################
+
+toolchains = use_extension("@hermetic_cc_toolchain//toolchain:ext.bzl", "toolchains")
+use_repo(toolchains, "zig_sdk")
+register_toolchains(
+    "@zig_sdk//libc_aware/toolchain:linux_amd64_gnu.2.17",
+    "@zig_sdk//libc_aware/toolchain:linux_arm64_gnu.2.23",
+)
+
 
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 python.toolchain(
