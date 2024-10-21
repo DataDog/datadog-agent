@@ -31,6 +31,7 @@ import (
 
 const cmdServerName string = "CMD API Server"
 const cmdServerShortName string = "CMD"
+const maxMessageSize = 4 * 1024 * 1024 // 4 MB
 
 func (server *apiServer) startCMDServer(
 	cmdAddr string,
@@ -48,7 +49,7 @@ func (server *apiServer) startCMDServer(
 
 	// gRPC server
 	authInterceptor := grpcutil.AuthInterceptor(parseToken)
-	const maxMessageSize = 4 * 1024 * 1024 // 4 MB
+
 	opts := []grpc.ServerOption{
 		grpc.Creds(credentials.NewClientTLSFromCert(tlsCertPool, cmdAddr)),
 		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),

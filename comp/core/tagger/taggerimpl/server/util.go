@@ -17,6 +17,9 @@ import (
 //
 // This function assumes that the size of each single item of the initial slice is not larger than maxChunkSize
 func splitBySize[T any](slice []T, maxChunkSize int, computeSize func(T) int) [][]T {
+
+	// TODO: return an iter.Seq[[]T] instead of [][]T once we upgrade to golang v1.23
+	// returning iter.Seq[[]T] has better performance in terms of memory consumption
 	var chunks [][]T
 	currentChunk := []T{}
 	currentSize := 0

@@ -53,6 +53,8 @@ var (
 	apiRouter *mux.Router
 )
 
+const maxMessageSize = 4 * 1024 * 1024 // 4 MB
+
 // StartServer creates the router and starts the HTTP server
 func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component) error {
 	// create the root HTTP router
@@ -122,8 +124,6 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 
 		return struct{}{}, nil
 	})
-
-	const maxMessageSize = 4 * 1024 * 1024 // 4 MB
 
 	opts := []grpc.ServerOption{
 		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
