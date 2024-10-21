@@ -604,7 +604,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.0.0-00010101000000-000000000000
 	github.com/NVIDIA/go-nvml v0.12.4-0
 	github.com/containerd/containerd/api v1.7.19
-	github.com/containerd/errdefs v0.1.0
+	github.com/containerd/errdefs v0.3.0
 	github.com/distribution/reference v0.6.0
 	github.com/jellydator/ttlcache/v3 v3.3.0
 	github.com/kouhin/envflag v0.0.0-20150818174321-0e9a86061649
