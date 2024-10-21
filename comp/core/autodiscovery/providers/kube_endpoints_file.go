@@ -297,6 +297,7 @@ func endpointChecksFromTemplate(tpl integration.Config, ep *v1.Endpoints) []inte
 				Provider:                names.KubeEndpointsFile,
 				Source:                  tpl.Source,
 				IgnoreAutodiscoveryTags: tpl.IgnoreAutodiscoveryTags,
+				CheckTagCardinality:     tpl.CheckTagCardinality,
 			}
 
 			utils.ResolveEndpointConfigAuto(config, ep.Subsets[i].Addresses[j])
