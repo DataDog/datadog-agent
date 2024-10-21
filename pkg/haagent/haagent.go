@@ -8,9 +8,8 @@
 package haagent
 
 import (
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/worker"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
@@ -38,31 +37,12 @@ func SetRole(role string) {
 	runtimeRole.Store(role)
 }
 
-func ShouldRunForCheck(check check.Check) bool {
+func ShouldRunForCheck(check check.Check, checkLogger worker.CheckLogger) bool {
 	// TODO: handle check name generically
-	check.InstanceConfig()
-	checkName := check.String()
-	idSegments := strings.Split(string(check.ID()), ":")
-	checkDigest := idSegments[len(idSegments)-1]
-	log.Warnf("[ShouldRunForCheck] checkID: %s", check.ID())
-	log.Warnf("[ShouldRunForCheck] checkName: %s", checkName)
-	log.Warnf("[ShouldRunForCheck] checkDigest: %s", checkDigest)
-	log.Warnf("[ShouldRunForCheck] check inst %s: `%s`", checkName, check.InstanceConfig())
-	log.Warnf("[ShouldRunForCheck] check InitConfig %s: `%s`", checkName, check.InitConfig())
-	log.Warnf("[ShouldRunForCheck] check IsHACheck %s: `%t`", check.ID(), check.IsHACheck())
-
 	if IsEnabled() && check.IsHACheck() {
 		isPrimary := IsPrimary()
-
-		// TODO: REMOVE ME
-		log.Warnf("[ShouldRunForCheck] name=%s haAgentEnabled=%v role=%s isPrimary=%v",
-			checkName, IsEnabled(), pkgconfigsetup.Datadog().GetString("failover.role"), isPrimary)
-
-		if !isPrimary {
-			return false
-		} else {
-			return true
-		}
+		checkLogger.Debug("Check skipped Agent check is not run since agent is not primary")
+		return isPrimary
 	}
 
 	return true

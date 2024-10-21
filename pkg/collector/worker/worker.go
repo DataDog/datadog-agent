@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/haagent"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -137,6 +138,15 @@ func (w *Worker) Run() {
 		if !w.checksTracker.AddCheck(check) {
 			checkLogger.Debug("Check is already running, skipping execution...")
 			continue
+		}
+
+		if haagent.IsEnabled() && check.IsHACheck() {
+			if !haagent.IsPrimary() {
+				checkLogger.Debug("Check skipped since the agent is not primary")
+
+				w.checksTracker.DeleteCheck(check.ID()) // Remove the check from the running list
+				continue
+			}
 		}
 
 		checkStartTime := time.Now()
