@@ -306,7 +306,7 @@ func (t *ebpfLessTracer) Remove(conn *network.ConnectionStats) error {
 
 // GetMap returns the underlying named map. This is useful if any maps are shared with other eBPF components.
 // An individual ebpfLessTracer implementation may choose which maps to expose via this function.
-func (t *ebpfLessTracer) GetMap(string) *ebpf.Map { return nil }
+func (t *ebpfLessTracer) GetMap(string) (*ebpf.Map, error) { return nil, nil }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
 func (t *ebpfLessTracer) DumpMaps(_ io.Writer, _ ...string) error {

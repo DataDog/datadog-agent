@@ -185,16 +185,16 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	tr.reverseDNS = newReverseDNS(cfg, telemetryComponent)
 	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer)
 
-	// Setup the connection_protocol map cleaner if protocol classification is enabled and USM is disabled
-	if cfg.ProtocolClassificationEnabled && !usmconfig.IsUSMSupportedAndEnabled(cfg) {
-		connectionProtocolMap := tr.ebpfTracer.GetMap(probes.ConnectionProtocolMap)
-		if connectionProtocolMap == nil {
-			log.Warn("could not get connection_protocol map, will not be able to expire connection_protocol data")
-		} else {
-			tr.connectionProtocolMapCleaner, err = usm.SetupConnectionProtocolMapCleaner(connectionProtocolMap)
+	// Set up the connection_protocol map cleaner if protocol classification is enabled
+	if cfg.ProtocolClassificationEnabled || usmconfig.IsUSMSupportedAndEnabled(cfg) {
+		connectionProtocolMap, err := tr.ebpfTracer.GetMap(probes.ConnectionProtocolMap)
+		if err == nil {
+			tr.connectionProtocolMapCleaner, err = setupConnectionProtocolMapCleaner(connectionProtocolMap)
 			if err != nil {
-				log.Warnf("could not setup connection protocol map cleaner: %s", err)
+				log.Warnf("could not set up connection protocol map cleaner: %s", err)
 			}
+		} else {
+			log.Warnf("couldn't get %q map, will not be able to expire connection protocol data: %s", probes.ConnectionProtocolMap, err)
 		}
 	}
 
@@ -851,7 +851,10 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer) *usm.Monitor {
 	}
 
 	// Shared map between NPM and USM
-	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)
+	connectionProtocolMap, err := tracer.GetMap(probes.ConnectionProtocolMap)
+	if err != nil {
+		log.Warnf("couldn't get %q map: %s", probes.ConnectionProtocolMap, err)
+	}
 
 	monitor, err := usm.NewMonitor(c, connectionProtocolMap)
 	if err != nil {
@@ -879,4 +882,23 @@ func (t *Tracer) GetNetworkID(context context.Context) (string, error) {
 		return "", err
 	}
 	return id, nil
+}
+
+const connProtoTTL = 3 * time.Minute
+const connProtoCleaningInterval = 5 * time.Minute
+
+// setupConnectionProtocolMapCleaner sets up a map cleaner for the connectionProtocolMap.
+// It will clean the map every connProtoCleaningInterval if entries are older than connProtoTTL.
+func setupConnectionProtocolMapCleaner(connectionProtocolMap *ebpf.Map) (*ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper], error) {
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper](connectionProtocolMap, 1024)
+	if err != nil {
+		return nil, err
+	}
+
+	ttl := connProtoTTL.Nanoseconds()
+	mapCleaner.Clean(connProtoCleaningInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val netebpf.ProtocolStackWrapper) bool {
+		return (now - int64(val.Updated)) > ttl
+	})
+
+	return mapCleaner, nil
 }
