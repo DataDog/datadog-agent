@@ -734,12 +734,13 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 	emopts := eventmonitor.Opts{
 		StatsdClient: statsdClient,
 		ProbeOpts: sprobe.Opts{
-			StatsdClient:           statsdClient,
-			DontDiscardRuntime:     true,
-			PathResolutionEnabled:  true,
-			SyscallsMonitorEnabled: true,
-			TTYFallbackEnabled:     true,
-			EBPFLessEnabled:        ebpfLessEnabled,
+			StatsdClient:             statsdClient,
+			DontDiscardRuntime:       true,
+			PathResolutionEnabled:    true,
+			EnvsVarResolutionEnabled: true,
+			SyscallsMonitorEnabled:   true,
+			TTYFallbackEnabled:       true,
+			EBPFLessEnabled:          ebpfLessEnabled,
 		},
 	}
 	if opts.staticOpts.tagsResolver != nil {

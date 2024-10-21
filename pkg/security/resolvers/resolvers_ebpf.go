@@ -143,6 +143,9 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	if opts.TTYFallbackEnabled {
 		processOpts.WithTTYFallbackEnabled()
 	}
+	if opts.EnvVarsResolutionEnabled {
+		processOpts.WithEnvsResolutionEnabled()
+	}
 
 	var envVarsResolver *envvars.Resolver
 	if opts.EnvVarsResolutionEnabled {
