@@ -104,12 +104,13 @@ func (m *Check) Run() error {
 	}
 
 	// Set all PIDs to inactive, so we can remove the ones that we don't see
-	// and send the finalization metrics
+	// and send the final metrics
 	for pid := range m.activePIDs {
 		m.activePIDs[pid] = false
 	}
 
 	for pid, pidStats := range stats.PIDStats {
+		// Per-PID metrics are subject to change due to high cardinality
 		tags := []string{fmt.Sprintf("pid:%d", pid)}
 		snd.Gauge(metricNameMemory, float64(pidStats.CurrentMemoryBytes), "", tags)
 		snd.Gauge(metricNameMaxMem, float64(pidStats.MaxMemoryBytes), "", tags)
