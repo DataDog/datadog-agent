@@ -27,6 +27,9 @@ func TestDump(t *testing.T) {
 		Image: wmdef.ContainerImage{
 			Name: "ctr-image",
 		},
+		Resources: wmdef.ContainerResources{
+			GPUVendorList: []string{"nvidia"},
+		},
 		Runtime:       wmdef.ContainerRuntimeDocker,
 		RuntimeFlavor: wmdef.ContainerRuntimeFlavorKata,
 		EnvVars: map[string]string{
@@ -83,6 +86,7 @@ Runtime: docker
 RuntimeFlavor: kata
 Running: false
 ----------- Resources -----------
+GPUVendor: [nvidia]
 `,
 				},
 			},
@@ -120,6 +124,7 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
+GPUVendor: [nvidia]
 Hostname: 
 Network IPs: 
 PID: 0
@@ -178,6 +183,7 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
+GPUVendor: [nvidia]
 Hostname: 
 Network IPs: 
 PID: 1

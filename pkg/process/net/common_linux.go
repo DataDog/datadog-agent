@@ -29,6 +29,7 @@ const (
 	pprofURL             = "http://unix/debug/pprof"
 	languageDetectionURL = "http://unix/" + string(sysconfig.LanguageDetectionModule) + "/detect"
 	discoveryServicesURL = "http://unix/" + string(sysconfig.DiscoveryModule) + "/services"
+	telemetryURL         = "http://unix/telemetry"
 	netType              = "unix"
 )
 

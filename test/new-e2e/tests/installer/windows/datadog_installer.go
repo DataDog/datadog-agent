@@ -8,18 +8,19 @@ package installer
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer"
-	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
+	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
+	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
 const (
@@ -38,6 +39,8 @@ const (
 	ConfigPath string = "C:\\ProgramData\\Datadog\\datadog.yaml"
 	// RegistryKeyPath is the root registry key that the Datadog Installer uses to store some state
 	RegistryKeyPath string = `HKLM:\SOFTWARE\Datadog\Datadog Installer`
+	// NamedPipe is the name of the named pipe used by the Datadog Installer
+	NamedPipe string = `\\.\pipe\dd_installer`
 )
 
 var (
@@ -130,6 +133,11 @@ func (d *DatadogInstaller) RemovePackage(packageName string) (string, error) {
 // RemoveExperiment requests that the Datadog Installer removes a package on the remote host.
 func (d *DatadogInstaller) RemoveExperiment(packageName string) (string, error) {
 	return d.execute(fmt.Sprintf("remove-experiment %s", packageName))
+}
+
+// Status returns the status provided by the running daemon
+func (d *DatadogInstaller) Status() (string, error) {
+	return d.execute("status")
 }
 
 // Params contains the optional parameters for the Datadog Installer Install command

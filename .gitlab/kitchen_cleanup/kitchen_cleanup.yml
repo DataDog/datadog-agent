@@ -8,13 +8,6 @@
 # include:
 #   - .gitlab/kitchen_common/cleanup.yml
 
-kitchen_cleanup_azure-a6:
-  extends: .kitchen_cleanup_azure_common
-  rules:
-    !reference [.on_kitchen_tests_always]
-  variables:
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
-
 kitchen_cleanup_azure-a7:
   extends: .kitchen_cleanup_azure_common
   rules:

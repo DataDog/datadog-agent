@@ -32,7 +32,7 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
-from tasks.libs.common.utils import clean_nested_paths, get_build_flags, gitlab_section
+from tasks.libs.common.utils import clean_nested_paths, get_build_flags, gitlab_section, running_in_ci
 from tasks.libs.releasing.json import _get_release_json_value
 from tasks.modules import DEFAULT_MODULES, GoModule, get_module_by_path
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
@@ -215,7 +215,10 @@ def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_
         print(color_message("All tests passed", "green"))
         return True
 
-    if test_washer:
+    if test_washer or running_in_ci():
+        if not test_washer:
+            print("Test washer is always enabled in the CI, enforcing it")
+
         tw = TestWasher()
         should_succeed = tw.process_module_results(test_results)
         if should_succeed:
@@ -395,15 +398,15 @@ def test(
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, debug=False):
+def integration_tests(ctx, race=False, remote_docker=False, debug=False, timeout=""):
     """
     Run all the available integration tests
     """
     tests = [
-        lambda: agent_integration_tests(ctx, install_deps, race, remote_docker),
-        lambda: dsd_integration_tests(ctx, install_deps, race, remote_docker),
-        lambda: dca_integration_tests(ctx, install_deps, race, remote_docker),
-        lambda: trace_integration_tests(ctx, install_deps, race),
+        lambda: agent_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        lambda: dsd_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        lambda: dca_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        lambda: trace_integration_tests(ctx, race=race, timeout=timeout),
     ]
     for t in tests:
         try:

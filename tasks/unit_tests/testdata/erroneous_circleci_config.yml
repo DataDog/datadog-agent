@@ -107,7 +107,7 @@ jobs:
       - run:
           name: run unit tests
           no_output_timeout: 20m
-          command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 8 --build-stdlib
+          command: inv -e test --rerun-fails=2 --coverage --race --profile --cpus 8 --build-stdlib
 
   integration_tests:
     <<: *job_template

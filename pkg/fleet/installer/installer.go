@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
@@ -39,14 +38,11 @@ const (
 	packageDatadogInstaller = "datadog-installer"
 )
 
-var (
-	fsDisk = filesystem.NewDisk()
-)
-
 // Installer is a package manager that installs and uninstalls packages.
 type Installer interface {
 	IsInstalled(ctx context.Context, pkg string) (bool, error)
 
+	AvailableDiskSpace() (uint64, error)
 	State(pkg string) (repository.State, error)
 	States() (map[string]repository.State, error)
 	ConfigState(pkg string) (repository.State, error)
@@ -59,6 +55,10 @@ type Installer interface {
 	InstallExperiment(ctx context.Context, url string) error
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
+
+	InstallConfigExperiment(ctx context.Context, pkg string, version string) error
+	RemoveConfigExperiment(ctx context.Context, pkg string) error
+	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
 	GarbageCollect(ctx context.Context) error
 
@@ -73,7 +73,7 @@ type installerImpl struct {
 	m sync.Mutex
 
 	env        *env.Env
-	cdn        *cdn.CDN
+	cdn        cdn.CDN
 	db         *db.PackagesDB
 	downloader *oci.Downloader
 	packages   *repository.Repositories
@@ -84,7 +84,7 @@ type installerImpl struct {
 }
 
 // NewInstaller returns a new Package Manager.
-func NewInstaller(env *env.Env, configDBPath string) (Installer, error) {
+func NewInstaller(env *env.Env) (Installer, error) {
 	err := ensureRepositoriesExist()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
@@ -93,7 +93,7 @@ func NewInstaller(env *env.Env, configDBPath string) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
-	cdn, err := cdn.New(env, configDBPath)
+	cdn, err := cdn.New(env, filepath.Join(paths.RunPath, "rc_cmd"))
 	if err != nil {
 		return nil, fmt.Errorf("could not create CDN client: %w", err)
 	}
@@ -108,6 +108,11 @@ func NewInstaller(env *env.Env, configDBPath string) (Installer, error) {
 		userConfigsDir: paths.DefaultUserConfigsDir,
 		packagesDir:    paths.PackagesPath,
 	}, nil
+}
+
+// AvailableDiskSpace returns the available disk space.
+func (i *installerImpl) AvailableDiskSpace() (uint64, error) {
+	return i.packages.AvailableDiskSpace()
 }
 
 // State returns the state of a package.
@@ -172,7 +177,7 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 		log.Infof("package %s version %s is already installed", pkg.Name, pkg.Version)
 		return nil
 	}
-	err = checkAvailableDiskSpace(pkg, i.packagesDir)
+	err = checkAvailableDiskSpace(i.packages, pkg)
 	if err != nil {
 		return fmt.Errorf("not enough disk space: %w", err)
 	}
@@ -181,6 +186,10 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
+	err = i.db.DeletePackage(pkg.Name)
+	if err != nil {
+		return fmt.Errorf("could not remove package installation in db: %w", err)
+	}
 	configDir := filepath.Join(i.userConfigsDir, pkg.Name)
 	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
@@ -221,7 +230,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 	if err != nil {
 		return fmt.Errorf("could not download package: %w", err)
 	}
-	err = checkAvailableDiskSpace(pkg, i.packagesDir)
+	err = checkAvailableDiskSpace(i.packages, pkg)
 	if err != nil {
 		return fmt.Errorf("not enough disk space: %w", err)
 	}
@@ -244,6 +253,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 	if err != nil {
 		return fmt.Errorf("could not set experiment: %w", err)
 	}
+
 	return i.startExperiment(ctx, pkg.Name)
 }
 
@@ -283,6 +293,74 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	defer i.m.Unlock()
 
 	repository := i.packages.Get(pkg)
+	err := repository.PromoteExperiment()
+	if err != nil {
+		return fmt.Errorf("could not promote experiment: %w", err)
+	}
+	return i.promoteExperiment(ctx, pkg)
+}
+
+// InstallConfigExperiment installs an experiment on top of an existing package.
+func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	config, err := i.cdn.Get(ctx, pkg)
+	if err != nil {
+		return fmt.Errorf("could not get cdn config: %w", err)
+	}
+	if config.Version() != version {
+		return fmt.Errorf("version mismatch: expected %s, got %s", config.Version(), version)
+	}
+
+	tmpDir, err := i.packages.MkdirTemp()
+	if err != nil {
+		return fmt.Errorf("could not create temporary directory: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	err = config.Write(tmpDir)
+	if err != nil {
+		return fmt.Errorf("could not write agent config: %w", err)
+	}
+
+	configRepo := i.configs.Get(pkg)
+	err = configRepo.SetExperiment(version, tmpDir)
+	if err != nil {
+		return fmt.Errorf("could not set experiment: %w", err)
+	}
+
+	switch runtime.GOOS {
+	case "windows":
+		return nil // TODO: start config experiment for Windows
+	default:
+		return i.startExperiment(ctx, pkg)
+	}
+}
+
+// RemoveConfigExperiment removes an experiment.
+func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	err := i.stopExperiment(ctx, pkg)
+	if err != nil {
+		return fmt.Errorf("could not stop experiment: %w", err)
+	}
+	repository := i.configs.Get(pkg)
+	err = repository.DeleteExperiment()
+	if err != nil {
+		return fmt.Errorf("could not delete experiment: %w", err)
+	}
+	return nil
+}
+
+// PromoteConfigExperiment promotes an experiment to stable.
+func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	repository := i.configs.Get(pkg)
 	err := repository.PromoteExperiment()
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
@@ -466,14 +544,35 @@ func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 	}
 }
 
-func (i *installerImpl) configurePackage(ctx context.Context, pkg string) error {
+func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err error) {
 	if !i.env.RemotePolicies {
 		return nil
 	}
 
+	span, _ := tracer.StartSpanFromContext(ctx, "configure_package")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+
 	switch pkg {
 	case packageDatadogAgent:
-		return service.ConfigureAgent(ctx, i.cdn, i.configs)
+		config, err := i.cdn.Get(ctx, pkg)
+		if err != nil {
+			return fmt.Errorf("could not get %s CDN config: %w", pkg, err)
+		}
+		tmpDir, err := i.configs.MkdirTemp()
+		if err != nil {
+			return fmt.Errorf("could not create temporary directory: %w", err)
+		}
+		defer os.RemoveAll(tmpDir)
+
+		err = config.Write(tmpDir)
+		if err != nil {
+			return fmt.Errorf("could not write %s config: %w", pkg, err)
+		}
+		err = i.configs.Create(pkg, config.Version(), tmpDir)
+		if err != nil {
+			return fmt.Errorf("could not create %s repository: %w", pkg, err)
+		}
+		return nil
 	default:
 		return nil
 	}
@@ -491,23 +590,19 @@ const (
 // See https://man7.org/linux/man-pages/man2/statfs.2.html for more details
 // On Windows, it is computed using `GetDiskFreeSpaceExW` and is the number of bytes available
 // See https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getdiskfreespaceexw for more details
-func checkAvailableDiskSpace(pkg *oci.DownloadedPackage, path string) error {
+func checkAvailableDiskSpace(repositories *repository.Repositories, pkg *oci.DownloadedPackage) error {
 	requiredDiskSpace := pkg.Size
 	if requiredDiskSpace == 0 {
 		requiredDiskSpace = packageUnknownSize
 	}
 	requiredDiskSpace += installerOverhead
 
-	_, err := os.Stat(path)
+	availableDiskSpace, err := repositories.AvailableDiskSpace()
 	if err != nil {
-		return fmt.Errorf("could not stat path %s: %w", path, err)
+		return fmt.Errorf("could not get available disk space: %w", err)
 	}
-	s, err := fsDisk.GetUsage(path)
-	if err != nil {
-		return err
-	}
-	if s.Available < uint64(requiredDiskSpace) {
-		return fmt.Errorf("not enough disk space at %s: %d bytes available, %d bytes required", path, s.Available, requiredDiskSpace)
+	if availableDiskSpace < uint64(requiredDiskSpace) {
+		return fmt.Errorf("not enough disk space at %s: %d bytes available, %d bytes required", repositories.RootPath(), availableDiskSpace, requiredDiskSpace)
 	}
 	return nil
 }

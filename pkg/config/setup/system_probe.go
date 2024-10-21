@@ -31,6 +31,7 @@ const (
 	pngNS                        = "ping"
 	tracerouteNS                 = "traceroute"
 	discoveryNS                  = "discovery"
+	gpuNS                        = "gpu_monitoring"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultServiceMonitoringJavaAgentArgs is default arguments that are passing to the injected java USM agent
@@ -255,7 +256,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(smjtNS, "allow_regex"), "")
 	cfg.BindEnvAndSetDefault(join(smjtNS, "block_regex"), "")
 	cfg.BindEnvAndSetDefault(join(smjtNS, "dir"), defaultSystemProbeJavaDir)
-	cfg.BindEnvAndSetDefault(join(smNS, "enable_http_stats_by_status_code"), true)
 
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
 	// Default value (100000) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
@@ -375,6 +375,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	eventMonitorBindEnv(cfg, join(evNS, "runtime_compilation.compiled_constants_enabled"))
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.ingress.enabled"), false)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_packet.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.polling_interval"), 20)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "syscalls_monitor.enabled"), false)
 	cfg.BindEnvAndSetDefault(join(evNS, "socket"), defaultEventMonitorAddress)
@@ -400,9 +401,16 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// Discovery config
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(discoveryNS, "cpu_usage_update_delay"), "60s")
 
 	// Fleet policies
 	cfg.BindEnv("fleet_policies_dir")
+
+	// GPU monitoring
+	cfg.BindEnvAndSetDefault(join(gpuNS, "enabled"), false)
+	cfg.BindEnv(join(gpuNS, "nvml_lib_path"))
+	cfg.BindEnvAndSetDefault(join(gpuNS, "process_scan_interval_seconds"), 5)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "initial_process_sync"), true)
 
 	initCWSSystemProbeConfig(cfg)
 }

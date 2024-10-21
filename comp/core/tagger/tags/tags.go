@@ -89,6 +89,11 @@ const (
 	// KubeAppManagedBy is the tag for the "app.kubernetes.io/managed-by" Kubernetes label
 	KubeAppManagedBy = "kube_app_managed_by"
 
+	// GPU related tags
+
+	// KubeGPUVendor the tag for the Kubernetes Resource GPU vendor
+	KubeGPUVendor = "gpu_vendor"
+
 	// OpenshiftDeploymentConfig is the tag for the OpenShift deployment config name
 	OpenshiftDeploymentConfig = "oshift_deployment_config"
 

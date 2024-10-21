@@ -28,17 +28,7 @@ typedef struct rtloader_s rtloader_t;
 struct rtloader_pyobject_s;
 typedef struct rtloader_pyobject_s rtloader_pyobject_t;
 
-// FACTORIES
-/*! \fn rtloader_t *make2(const char *python_home, const char *python_exe, char **error)
-    \brief Factory function to load the python2 backend DLL and create its relevant RtLoader
-    instance.
-    \param python_home A C-string with the path to the PYTHONHOME for said DLL.
-    \param python_exe A C-string with the path to the python interpreter.
-    \param error A C-string pointer output parameter to return error messages.
-    \return A rtloader_t * pointer to the RtLoader instance.
-    \sa rtloader_t
-*/
-DATADOG_AGENT_RTLOADER_API rtloader_t *make2(const char *python_home, const char *python_exe, char **error);
+// FACTORY
 /*! \fn rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
     \brief Factory function to load the python3 backend DLL and create its relevant RtLoader
     instance.
@@ -674,6 +664,17 @@ DATADOG_AGENT_RTLOADER_API void get_pymem_stats(rtloader_t *, pymem_stats_t *);
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 DATADOG_AGENT_RTLOADER_API void set_obfuscate_mongodb_string_cb(rtloader_t *, cb_obfuscate_mongodb_string_t);
+
+/*! \fn void set_emit_agent_telemetry_cb(rtloader_t *, cb_emit_agent_telemetry_t)
+    \brief Sets a callback to be used by rtloader to allow emitting a metric for a given
+    check instance.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_emit_agent_telemetry_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_emit_agent_telemetry_cb(rtloader_t *, cb_emit_agent_telemetry_t);
 
 #ifdef __cplusplus
 }

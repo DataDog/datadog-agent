@@ -64,6 +64,8 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options=''):
         cmake_options += " -G \"Unix Makefiles\""
 
     cmake_args = cmake_options + f" -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH={install_prefix or dev_path}"
+    if os.getenv('DD_CMAKE_TOOLCHAIN'):
+        cmake_args += f' --toolchain {os.getenv("DD_CMAKE_TOOLCHAIN")}'
 
     python_runtimes = python_runtimes.split(',')
 

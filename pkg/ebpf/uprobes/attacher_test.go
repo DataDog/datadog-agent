@@ -273,13 +273,14 @@ func TestMonitor(t *testing.T) {
 		return
 	}
 
+	launchProcessMonitor(t, false)
+
 	config := AttacherConfig{
 		Rules: []*AttachRule{{
 			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
 			Targets:          AttachToExecutable | AttachToSharedLibraries,
 		}},
-		ProcessMonitorEventStream: false,
-		EbpfConfig:                ebpfCfg,
+		EbpfConfig: ebpfCfg,
 	}
 	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
 	require.NoError(t, err)
@@ -450,7 +451,7 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 
 	// Tell the inspector to return a simple symbol
 	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234}
-	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, true, nil)
+	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, nil)
 	inspector.On("Cleanup", mock.Anything).Return(nil)
 
 	// Tell the manager to return no probe when finding an existing one
@@ -511,7 +512,7 @@ func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 
 	// Tell the inspector to return a simple symbol
 	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234, ReturnLocations: []uint64{0x0, 0x1}}
-	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, true, nil)
+	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, nil)
 
 	// Tell the manager to return no probe when finding an existing one
 	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
@@ -593,7 +594,7 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 
 	// Tell the inspector to return a simple symbol
 	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234}
-	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, true, nil)
+	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, nil)
 
 	// Tell the manager to return no probe when finding an existing one
 	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
@@ -653,6 +654,8 @@ func TestUprobeAttacher(t *testing.T) {
 		t.Skip("Kernel version does not support shared libraries")
 		return
 	}
+
+	launchProcessMonitor(t, false)
 
 	buf, err := bytecode.GetReader(ebpfCfg.BPFDir, "uprobe_attacher-test.o")
 	require.NoError(t, err)
@@ -792,7 +795,9 @@ func (s *SharedLibrarySuite) TestSingleFile() {
 			LibraryNameRegex: regexp.MustCompile(`foo-libssl.so`),
 			Targets:          AttachToSharedLibraries,
 		}},
-		EbpfConfig: ebpfCfg,
+		EbpfConfig:                     ebpfCfg,
+		EnablePeriodicScanNewProcesses: false,
+		PerformInitialScan:             false,
 	}
 
 	ua, err := NewUprobeAttacher("test", attachCfg, &MockManager{}, nil, nil)
@@ -809,12 +814,24 @@ func (s *SharedLibrarySuite) TestSingleFile() {
 	require.NoError(t, ua.Start())
 	t.Cleanup(ua.Stop)
 
-	// open files
-	cmd, err := fileopener.OpenFromAnotherProcess(t, fooPath1)
-	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		return methodHasBeenCalledTimes(mockRegistry, "Register", 1)
-	}, 1500*time.Millisecond, 10*time.Millisecond, "received calls %v", mockRegistry.Calls)
+	// We can have missed events so we need to retry
+	var cmd *exec.Cmd
+	waitAndRetryIfFail(t,
+		func() {
+			cmd, err = fileopener.OpenFromAnotherProcess(t, fooPath1)
+			require.NoError(t, err)
+		},
+		func() bool {
+			return methodHasBeenCalledTimes(mockRegistry, "Register", 1)
+		},
+		func(testSuccess bool) {
+			// Only kill the process if the test failed, if it succeeded we want to kill it later
+			// to check if the Unregister call was done correctly
+			if !testSuccess && cmd != nil && cmd.Process != nil {
+				cmd.Process.Kill()
+			}
+		},
+		3, 10*time.Millisecond, 500*time.Millisecond, "did not catch process running, received calls %v", mockRegistry.Calls)
 
 	mockRegistry.AssertCalled(t, "Register", fooPath1, uint32(cmd.Process.Pid), mock.Anything, mock.Anything, mock.Anything)
 

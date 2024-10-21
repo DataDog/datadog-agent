@@ -13,7 +13,6 @@ import (
 	"reflect"
 	"runtime"
 	"time"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -103,6 +102,11 @@ type NetworkContext struct {
 	Source      IPPortContext `field:"source"`      // source of the network packet
 	Destination IPPortContext `field:"destination"` // destination of the network packet
 	Size        uint32        `field:"size"`        // SECLDoc[size] Definition:`Size in bytes of the network packet`
+}
+
+// IsZero returns if there is a network context
+func (nc *NetworkContext) IsZero() bool {
+	return nc.Size == 0
 }
 
 // SpanContext describes a span context
@@ -483,23 +487,60 @@ type ProcessAncestorsIterator struct {
 }
 
 // Front returns the first element
-func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
+func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) *ProcessCacheEntry {
 	if front := ctx.Event.(*Event).ProcessContext.Ancestor; front != nil {
 		it.prev = front
-		return unsafe.Pointer(front)
+		return front
 	}
 
 	return nil
 }
 
 // Next returns the next element
-func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
+func (it *ProcessAncestorsIterator) Next() *ProcessCacheEntry {
 	if next := it.prev.Ancestor; next != nil {
 		it.prev = next
-		return unsafe.Pointer(next)
+		return next
 	}
 
 	return nil
+}
+
+// At returns the element at the given position
+func (it *ProcessAncestorsIterator) At(ctx *eval.Context, regID eval.RegisterID, pos int) *ProcessCacheEntry {
+	if entry := ctx.RegisterCache[regID]; entry != nil && entry.Pos == pos {
+		return entry.Value.(*ProcessCacheEntry)
+	}
+
+	var i int
+
+	ancestor := ctx.Event.(*Event).ProcessContext.Ancestor
+	for ancestor != nil {
+		if i == pos {
+			ctx.RegisterCache[regID] = &eval.RegisterCacheEntry{
+				Pos:   pos,
+				Value: ancestor,
+			}
+			return ancestor
+		}
+		ancestor = ancestor.Ancestor
+		i++
+	}
+
+	return nil
+}
+
+// Len returns the len
+func (it *ProcessAncestorsIterator) Len(ctx *eval.Context) int {
+	var size int
+
+	ancestor := ctx.Event.(*Event).ProcessContext.Ancestor
+	for ancestor != nil {
+		size++
+		ancestor = ancestor.Ancestor
+	}
+
+	return size
 }
 
 // HasParent returns whether the process has a parent
@@ -581,4 +622,16 @@ func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(_ *Event) (*ProcessCacheE
 // ResolveContainerContext stub implementation
 func (dfh *FakeFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerContext, bool) {
 	return nil, false
+}
+
+// TLSContext represents a tls context
+type TLSContext struct {
+	Version uint16 `field:"version"` // SECLDoc[version] Definition:`TLS version`
+}
+
+// RawPacketEvent represents a packet event
+type RawPacketEvent struct {
+	NetworkContext
+
+	TLSContext TLSContext `field:"tls"` // SECLDoc[tls] Definition:`TLS context`
 }

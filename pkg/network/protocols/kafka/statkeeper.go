@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,7 +24,7 @@ type StatKeeper struct {
 
 	// topicNames stores interned versions of the all topics currently stored in
 	// the `StatKeeper`
-	topicNames map[string]string
+	topicNames *intern.StringInterner
 }
 
 // NewStatkeeper creates a new StatKeeper
@@ -32,21 +33,30 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
 		stats:      make(map[Key]*RequestStats),
 		maxEntries: c.MaxKafkaStatsBuffered,
 		telemetry:  telemetry,
-		topicNames: make(map[string]string),
+		topicNames: intern.NewStringInterner(),
 	}
 }
 
 // Process processes the kafka transaction
 func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
-	statKeeper.statsMutex.Lock()
-	defer statKeeper.statsMutex.Unlock()
+	latency := tx.RequestLatency()
+	// Produce requests with acks = 0 do not receive a response, and as a result, have no latency
+	if tx.APIKey() == FetchAPIKey && latency <= 0 {
+		statKeeper.telemetry.invalidLatency.Add(1)
+		return
+	}
 
+	// extractTopicName is an expensive operation but, it is also concurrent safe, so we can do it here
+	// without holding the lock.
 	key := Key{
 		RequestAPIKey:  tx.APIKey(),
 		RequestVersion: tx.APIVersion(),
 		TopicName:      statKeeper.extractTopicName(&tx.Transaction),
 		ConnectionKey:  tx.ConnTuple(),
 	}
+
+	statKeeper.statsMutex.Lock()
+	defer statKeeper.statsMutex.Unlock()
 	requestStats, ok := statKeeper.stats[key]
 	if !ok {
 		if len(statKeeper.stats) >= statKeeper.maxEntries {
@@ -55,13 +65,6 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 		}
 		requestStats = NewRequestStats()
 		statKeeper.stats[key] = requestStats
-	}
-
-	latency := tx.RequestLatency()
-	// Produce requests with acks = 0 do not receive a response, and as a result, have no latency
-	if key.RequestAPIKey == FetchAPIKey && latency <= 0 {
-		statKeeper.telemetry.invalidLatency.Add(1)
-		return
 	}
 
 	requestStats.AddRequest(int32(tx.ErrorCode()), int(tx.RecordsCount()), uint64(tx.Transaction.Tags), latency)
@@ -73,11 +76,10 @@ func (statKeeper *StatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	defer statKeeper.statsMutex.RUnlock()
 	ret := statKeeper.stats // No deep copy needed since `statKeeper.stats` gets reset
 	statKeeper.stats = make(map[Key]*RequestStats)
-	statKeeper.topicNames = make(map[string]string)
 	return ret
 }
 
-func (statKeeper *StatKeeper) extractTopicName(tx *KafkaTransaction) string {
+func (statKeeper *StatKeeper) extractTopicName(tx *KafkaTransaction) *intern.StringValue {
 	// Limit tx.Topic_name_size to not exceed the actual length of tx.Topic_name
 	if uint16(tx.Topic_name_size) > uint16(len(tx.Topic_name)) {
 		log.Debugf("Topic name size was changed from %d, to size: %d", tx.Topic_name_size, len(tx.Topic_name))
@@ -85,14 +87,5 @@ func (statKeeper *StatKeeper) extractTopicName(tx *KafkaTransaction) string {
 	}
 	b := tx.Topic_name[:tx.Topic_name_size]
 
-	// the trick here is that the Go runtime doesn't allocate the string used in
-	// the map lookup, so if we have seen this topic name before, we don't
-	// perform any allocations
-	if v, ok := statKeeper.topicNames[string(b)]; ok {
-		return v
-	}
-
-	v := string(b)
-	statKeeper.topicNames[v] = v
-	return v
+	return statKeeper.topicNames.Get(b)
 }

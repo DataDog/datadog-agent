@@ -190,23 +190,23 @@ func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.Co
 
 // ResolveContainerRuntime retrieves the container runtime managing the container
 func (fh *EBPFFieldHandlers) ResolveContainerRuntime(ev *model.Event, _ *model.ContainerContext) string {
-	if _, found := fh.ResolveContainerContext(ev); !found {
-		return ""
+	if ev.CGroupContext.CGroupFlags != 0 && ev.ContainerContext.ContainerID != "" {
+		return getContainerRuntime(ev.CGroupContext.CGroupFlags)
 	}
 
-	return getContainerRuntime((ev.CGroupContext.CGroupFlags))
+	return ""
 }
 
 // getContainerRuntime returns the container runtime managing the cgroup
 func getContainerRuntime(flags containerutils.CGroupFlags) string {
-	switch {
-	case (uint64(flags) & uint64(containerutils.CGroupManagerCRI)) != 0:
+	switch containerutils.CGroupManager(flags & containerutils.CGroupManagerMask) {
+	case containerutils.CGroupManagerCRI:
 		return string(workloadmeta.ContainerRuntimeContainerd)
-	case (uint64(flags) & uint64(containerutils.CGroupManagerCRIO)) != 0:
+	case containerutils.CGroupManagerCRIO:
 		return string(workloadmeta.ContainerRuntimeCRIO)
-	case (uint64(flags) & uint64(containerutils.CGroupManagerDocker)) != 0:
+	case containerutils.CGroupManagerDocker:
 		return string(workloadmeta.ContainerRuntimeDocker)
-	case (uint64(flags) & uint64(containerutils.CGroupManagerPodman)) != 0:
+	case containerutils.CGroupManagerPodman:
 		return string(workloadmeta.ContainerRuntimePodman)
 	default:
 		return ""
@@ -423,21 +423,27 @@ func (fh *EBPFFieldHandlers) ResolveAsync(ev *model.Event) bool {
 	return ev.Async
 }
 
+func (fh *EBPFFieldHandlers) resolveSBOMFields(ev *model.Event, f *model.FileEvent) {
+	// Force the resolution of file path to be able to map to a package provided file
+	if fh.ResolveFilePath(ev, f) == "" {
+		return
+	}
+
+	if fh.resolvers.SBOMResolver == nil {
+		return
+	}
+
+	if pkg := fh.resolvers.SBOMResolver.ResolvePackage(string(ev.ContainerContext.ContainerID), f); pkg != nil {
+		f.PkgName = pkg.Name
+		f.PkgVersion = pkg.Version
+		f.PkgSrcVersion = pkg.SrcVersion
+	}
+}
+
 // ResolvePackageName resolves the name of the package providing this file
 func (fh *EBPFFieldHandlers) ResolvePackageName(ev *model.Event, f *model.FileEvent) string {
 	if f.PkgName == "" {
-		// Force the resolution of file path to be able to map to a package provided file
-		if fh.ResolveFilePath(ev, f) == "" {
-			return ""
-		}
-
-		if fh.resolvers.SBOMResolver == nil {
-			return ""
-		}
-
-		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(string(ev.ContainerContext.ContainerID), f); pkg != nil {
-			f.PkgName = pkg.Name
-		}
+		fh.resolveSBOMFields(ev, f)
 	}
 	return f.PkgName
 }
@@ -445,18 +451,7 @@ func (fh *EBPFFieldHandlers) ResolvePackageName(ev *model.Event, f *model.FileEv
 // ResolvePackageVersion resolves the version of the package providing this file
 func (fh *EBPFFieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.FileEvent) string {
 	if f.PkgVersion == "" {
-		// Force the resolution of file path to be able to map to a package provided file
-		if fh.ResolveFilePath(ev, f) == "" {
-			return ""
-		}
-
-		if fh.resolvers.SBOMResolver == nil {
-			return ""
-		}
-
-		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(string(ev.ContainerContext.ContainerID), f); pkg != nil {
-			f.PkgVersion = pkg.Version
-		}
+		fh.resolveSBOMFields(ev, f)
 	}
 	return f.PkgVersion
 }
@@ -464,18 +459,7 @@ func (fh *EBPFFieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.Fil
 // ResolvePackageSourceVersion resolves the version of the source package of the package providing this file
 func (fh *EBPFFieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *model.FileEvent) string {
 	if f.PkgSrcVersion == "" {
-		// Force the resolution of file path to be able to map to a package provided file
-		if fh.ResolveFilePath(ev, f) == "" {
-			return ""
-		}
-
-		if fh.resolvers.SBOMResolver == nil {
-			return ""
-		}
-
-		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(string(ev.ContainerContext.ContainerID), f); pkg != nil {
-			f.PkgSrcVersion = pkg.SrcVersion
-		}
+		fh.resolveSBOMFields(ev, f)
 	}
 	return f.PkgSrcVersion
 }

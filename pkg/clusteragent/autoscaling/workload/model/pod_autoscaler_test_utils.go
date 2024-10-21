@@ -29,6 +29,7 @@ type FakePodAutoscalerInternal struct {
 	Generation                int64
 	Spec                      *datadoghq.DatadogPodAutoscalerSpec
 	SettingsTimestamp         time.Time
+	CreationTimestamp         time.Time
 	ScalingValues             ScalingValues
 	HorizontalLastActions     []datadoghq.DatadogPodAutoscalerHorizontalAction
 	HorizontalLastLimitReason string
@@ -51,6 +52,7 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 		generation:                f.Generation,
 		spec:                      f.Spec,
 		settingsTimestamp:         f.SettingsTimestamp,
+		creationTimestamp:         f.CreationTimestamp,
 		scalingValues:             f.ScalingValues,
 		horizontalLastActions:     f.HorizontalLastActions,
 		horizontalLastLimitReason: f.HorizontalLastLimitReason,

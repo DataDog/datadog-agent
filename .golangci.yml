@@ -18,6 +18,8 @@ issues:
   exclude:
     - "Error return value of `io.WriteString` is not checked" # 'errcheck' errors in tools/dep_tree_resolver/go_deps.go
     - "Error return value of `pem.Encode` is not checked" # 'errcheck' errors in test/integration/utils/certificates.go
+    - "Error return value of `c.logErrorNotImplemented` is not checked" # 'errcheck' errors in pkg/config/nodetreemodel/config.go
+    - "Error return value of `n.logErrorNotImplemented` is not checked" # 'errcheck' errors in pkg/config/nodetreemodel/config.go
     - "exported: exported const Exec should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/process/events/model/model_common.go
     - "exported: exported const APIName should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/serverless/trace/inferredspan/constants.go
     - "unnecessary conversion" # 'unconvert' errors in test/integration/utils/certificates_test.go
@@ -582,6 +584,7 @@ linters:
     - gosimple                  # Linter for Go source code that specializes in simplifying code.
     - gocheckcompilerdirectives # Checks Go compiler directives syntax
     - pkgconfigusage            # Linter for checking usage of pkgconfig inside components folder
+    - forbidigo                 # prevent usage of unwanted/deprecated symbol in the code base
 
 linters-settings:
   depguard:
@@ -711,6 +714,18 @@ linters-settings:
       - name: var-naming
       # non-default rules:
       - name: duplicated-imports
+  forbidigo:
+    forbid:
+      - p: ^model.NewConfig.*$
+        pkg: ^github.com/DataDog/datadog-agent/pkg/config/model$
+        msg: use pkg/config/mock instead in tests or the config component
+      - p: ^setup.SetDatadog.*$
+        pkg: ^github.com/DataDog/datadog-agent/pkg/config/setup$
+        msg: use pkg/config/mock instead for tests or the config component
+      - p: ^setup.SetSystemProbe.*$
+        pkg: ^github.com/DataDog/datadog-agent/pkg/config/setup$
+        msg: use pkg/config/mock instead for tests or the config component
+    analyze-types: true
   custom:
     pkgconfigusage:
       type: "module"

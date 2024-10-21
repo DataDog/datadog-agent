@@ -1,5 +1,6 @@
 single-machine-performance-regression_detector:
   stage: functional_test
+  timeout: 1h10m
   rules:
     - !reference [.except_main_or_release_branch]
     - when: on_success
@@ -123,16 +124,80 @@ single-machine-performance-regression_detector:
     # space characters. This avoids
     # https://gitlab.com/gitlab-org/gitlab/-/issues/217231.
     - cat outputs/report.md | sed "s/^\$/$(echo -ne '\uFEFF\u00A0\u200B')/g"
-    - !reference [.install_pr_commenter]
-    # Post HTML report to GitHub
-    - cat outputs/report.md | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME" --header="Regression Detector"
     # Upload JUnit XML outside of Agent CI's tooling because the `junit_upload`
     # invoke task has additional logic that does not seem to apply well to SMP's
     # JUnit XML. Agent CI seems to use `datadog-agent` as the service name when
     # uploading JUnit XML, so the upload command below respects that convention.
-    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$API_KEY_ORG2")" || exit $?; export DATADOG_API_KEY
+    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     - datadog-ci junit upload --service datadog-agent outputs/junit.xml
     # Finally, exit 1 if the job signals a regression else 0.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
       job result
       --submission-metadata submission_metadata
+
+# Shamelessly adapted from golang_deps_commenter job config in
+# golang_deps_diff.yml at commit 01da274032e510d617161cf4e264a53292f44e55.
+single-machine-performance-regression_detector-pr-comment:
+  stage: functional_test
+  rules:
+    - !reference [.except_main_or_release_branch]
+    - when: on_success
+  image:
+    name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3"
+    entrypoint: [""]  # disable entrypoint script for the pr-commenter image
+  tags: ["arch:amd64"]
+  needs:
+    - job: single-machine-performance-regression_detector
+  artifacts:
+    expire_in: 1 weeks
+    paths:
+      - report_as_json_string.txt # for debugging transform to valid JSON string
+      - pr_comment_payload.json  # for debugging PR commenter JSON payload bugs
+  variables:
+    # Not using the entrypoint script for the pr-commenter image
+    FF_KUBERNETES_HONOR_ENTRYPOINT: false
+  allow_failure: true  # allow_failure here should have same setting as in job above
+  script: # ignore error message about no PR, because it happens for dev branches without PRs
+    # We need to transform the Markdown report into a valid JSON string (without
+    # quotes) in order to pass a well-formed payload to the PR commenting
+    # service. Note that on macOS, the "-z" flag is invalid for `sed` (but
+    # should be fine for GNU `sed`). We need to use `sed` to escape newlines
+    # because JSON does not permit (raw) newlines in strings. We use the "-z"
+    # option with `sed` because that option treats its input as
+    # NUL-character-separated (i.e., '\0'-separated, the zero-byte character),
+    # so `sed` does not interpret its input as newline-delimited. We also need
+    # to escape double quotes to distinguish literal quotes in the report from
+    # the double quotes that delimit the value of the "message" field in the
+    # payload.
+    - cat outputs/report.md | sed -z 's/\n/\\n/g' | sed -z 's/"/\\"/g' > report_as_json_string.txt
+    - cat report_as_json_string.txt
+    # Transforming the Markdown report to a valid JSON string is easy to foul
+    # up, so to make debugging easier, we store the payload in a variable to
+    # help debugging.
+    - PR_COMMENT_JSON_PAYLOAD='{"org":"DataDog", "repo":"datadog-agent", "commit":"'"${CI_COMMIT_SHA}"'", "header":"Regression Detector", "message":"'"$(cat report_as_json_string.txt)"'"}'
+    - printf "%s\n" "PR comment JSON payload:${PR_COMMENT_JSON_PAYLOAD}"
+    - printf "%s\n" "${PR_COMMENT_JSON_PAYLOAD}" > pr_comment_payload.json
+    # Craft an HTTPS request to pr-commenter service to post Markdown report to
+    # GitHub, per
+    # https://github.com/DataDog/dd-source/tree/7c941f527fb9c44a73433c7dd0a090d92be7deb4/domains/devex/codex/apps/apis/pr-commenter
+    # and gracefully handle the case when the commit being tested is not a PR
+    - |
+      set +e
+      out=$(curl https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment \
+          -H "$(authanywhere)" \
+          -H "X-DdOrigin: curl" \
+          -X PATCH \
+          -d "${PR_COMMENT_JSON_PAYLOAD}")
+      exitcode=$?
+      set -e
+      if [ -n "${out}" ]; then
+        if [ $exitcode -eq 0 ]; then
+          echo $out
+        else
+          echo $out >&2
+        fi
+      fi
+      if [ "${out}" != "${out/invalid request: no pr found for this commit}" ]; then
+        exit 0
+      fi
+      exit $exitcode

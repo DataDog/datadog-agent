@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -840,6 +841,60 @@ func TestHandleKubePod(t *testing.T) {
 						fmt.Sprintf("kube_namespace:%s", podNamespace),
 					},
 					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "pod with containers requesting gpu resources",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				GPUVendorList: []string{"nvidia"},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:    fullyFleshedContainerID,
+						Name:  containerName,
+						Image: image,
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					EntityID:     podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"gpu_vendor:nvidia",
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source:   podSource,
+					EntityID: fullyFleshedContainerTaggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_id:%s", fullyFleshedContainerID),
+						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
+					},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: append([]string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						fmt.Sprintf("kube_container_name:%s", containerName),
+						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+						"image_name:datadog/agent",
+						"image_tag:latest",
+						"short_image:agent",
+						"gpu_vendor:nvidia",
+					}, standardTags...),
+					StandardTags: standardTags,
 				},
 			},
 		},
@@ -2063,6 +2118,33 @@ func TestHandleContainer(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "gpu tags",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				Resources: workloadmeta.ContainerResources{
+					GPUVendorList: []string{"nvidia"},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:   containerSource,
+					EntityID: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_vendor:nvidia",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2446,7 +2528,7 @@ func assertTagInfoEqual(t *testing.T, expected *types.TagInfo, item *types.TagIn
 
 func assertTagInfoListEqual(t *testing.T, expectedUpdates []*types.TagInfo, updates []*types.TagInfo) {
 	t.Helper()
-	assert.Equal(t, len(expectedUpdates), len(updates))
+	require.Equal(t, len(expectedUpdates), len(updates))
 	for i := 0; i < len(expectedUpdates); i++ {
 		assertTagInfoEqual(t, expectedUpdates[i], updates[i])
 	}
