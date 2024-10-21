@@ -13,7 +13,7 @@ update_rc_build_links:
   script:
     - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE token) || exit $?; export ATLASSIAN_PASSWORD
     - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
-    - python3 -m pip install -r tasks/requirements_release_tasks.txt
+    - python3 -m pip install -r tasks/requirements_release_tasks.txt --break-system-packages
     - PATCH=$(echo "$CI_COMMIT_REF_NAME" | cut -d'.' -f3 | cut -c1)
     - if [[ "$PATCH" == "0" ]]; then PATCH_OPTION=""; else PATCH_OPTION="-p"; fi
     - inv -e release.update-build-links ${CI_COMMIT_REF_NAME} ${PATCH_OPTION}

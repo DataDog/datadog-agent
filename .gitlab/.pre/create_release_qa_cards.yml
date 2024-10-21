@@ -9,6 +9,6 @@ create_release_qa_cards:
     - !reference [.setup_agent_github_app]
     - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE token) || exit $?; export ATLASSIAN_PASSWORD
     - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
-    - pip install ddqa
+    - pip install ddqa --break-system-packages
     - inv release.create-qa-cards -t ${CI_COMMIT_REF_NAME}
   allow_failure: true
