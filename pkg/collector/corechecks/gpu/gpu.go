@@ -36,7 +36,7 @@ type Check struct {
 	core.CheckBase
 	config       *CheckConfig            // config for the check
 	sysProbeUtil processnet.SysProbeUtil // sysProbeUtil is used to communicate with system probe
-	activePIDs   map[uint32]bool         // activePIDs is a set of PIDs that have been seen in the current check
+	activePIDs   map[uint32]bool         // activePIDs is a set of PIDs that have been seen in the current check run
 }
 
 // Factory creates a new check factory
