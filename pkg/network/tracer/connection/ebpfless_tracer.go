@@ -159,20 +159,20 @@ func (t *ebpfLessTracer) processConnection(
 		case layers.LayerTypeIPv4:
 			t.scratchConn.Source = util.AddressFromNetIP(ip4.SrcIP)
 			t.scratchConn.Dest = util.AddressFromNetIP(ip4.DstIP)
-			t.scratchConn.Family = network.AFINET
+			t.scratchConn.ConnectionInfo.SetFamily(network.AFINET)
 		case layers.LayerTypeIPv6:
 			t.scratchConn.Source = util.AddressFromNetIP(ip6.SrcIP)
 			t.scratchConn.Dest = util.AddressFromNetIP(ip6.DstIP)
-			t.scratchConn.Family = network.AFINET6
+			t.scratchConn.ConnectionInfo.SetFamily(network.AFINET6)
 		case layers.LayerTypeTCP:
 			t.scratchConn.SPort = uint16(tcp.SrcPort)
 			t.scratchConn.DPort = uint16(tcp.DstPort)
-			t.scratchConn.Type = network.TCP
+			t.scratchConn.ConnectionInfo.SetType(network.TCP)
 			tcpPresent = true
 		case layers.LayerTypeUDP:
 			t.scratchConn.SPort = uint16(udp.SrcPort)
 			t.scratchConn.DPort = uint16(udp.DstPort)
-			t.scratchConn.Type = network.UDP
+			t.scratchConn.ConnectionInfo.SetType(network.UDP)
 			udpPresent = true
 		}
 	}
@@ -200,20 +200,20 @@ func (t *ebpfLessTracer) processConnection(
 	}
 
 	var err error
-	switch conn.Type {
+	switch conn.ConnectionInfo.Type() {
 	case network.UDP:
 		err = t.udp.process(conn, pktType, udp)
 	case network.TCP:
 		err = t.tcp.process(conn, pktType, ip4, ip6, tcp)
 	default:
-		err = fmt.Errorf("unsupported connection type %d", conn.Type)
+		err = fmt.Errorf("unsupported connection type %d", conn.ConnectionInfo.Type())
 	}
 
 	if err != nil {
 		return fmt.Errorf("error processing connection: %w", err)
 	}
 
-	if conn.Type == network.UDP || conn.Monotonic.TCPEstablished > 0 {
+	if conn.ConnectionInfo.Type() == network.UDP || conn.Monotonic.TCPEstablished > 0 {
 		var ts int64
 		if ts, err = ddebpf.NowNanoseconds(); err != nil {
 			return fmt.Errorf("error getting last updated timestamp for connection: %w", err)
@@ -239,19 +239,19 @@ func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionSt
 	t.m.Lock()
 	defer t.m.Unlock()
 
-	ok := t.boundPorts.Find(conn.Type, conn.SPort)
+	ok := t.boundPorts.Find(conn.ConnectionInfo.Type(), conn.SPort)
 	if ok {
 		// incoming connection
-		conn.Direction = network.INCOMING
+		conn.ConnectionInfo.SetDirection(network.INCOMING)
 		return
 	}
 
-	if conn.Type == network.TCP {
+	if conn.ConnectionInfo.Type() == network.TCP {
 		switch pktType {
 		case unix.PACKET_HOST:
-			conn.Direction = network.INCOMING
+			conn.ConnectionInfo.SetDirection(network.INCOMING)
 		case unix.PACKET_OUTGOING:
-			conn.Direction = network.OUTGOING
+			conn.ConnectionInfo.SetDirection(network.OUTGOING)
 		}
 	}
 }
@@ -377,7 +377,7 @@ func newTCPProcessor() *tcpProcessor {
 }
 
 func (t *tcpProcessor) process(conn *network.ConnectionStats, pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, tcp *layers.TCP) error {
-	payloadLen, err := ebpfless.TCPPayloadLen(conn.Family, ip4, ip6, tcp)
+	payloadLen, err := ebpfless.TCPPayloadLen(conn.ConnectionInfo.Family(), ip4, ip6, tcp)
 	if err != nil {
 		return err
 	}

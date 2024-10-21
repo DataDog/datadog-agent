@@ -96,7 +96,7 @@ func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGe
 // The returned object will include all USM aggregation associated to this connection
 func (bc *USMConnectionIndex[K, V]) Find(c network.ConnectionStats) *USMConnectionData[K, V] {
 	// Early return because USM currently doesn't support any protocol over UDP
-	if c.Type != network.TCP {
+	if c.ConnectionInfo.Type() != network.TCP {
 		return nil
 	}
 
