@@ -10,6 +10,7 @@ package server
 import (
 	"bytes"
 	"fmt"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -57,6 +58,9 @@ func TestNoMappingsConfig(t *testing.T) {
 }
 
 func TestUDSReceiverDisabled(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("UDS isn't supported on windows")
+	}
 	cfg := make(map[string]interface{})
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 	cfg["dogstatsd_no_aggregation_pipeline"] = true // another test may have turned it off

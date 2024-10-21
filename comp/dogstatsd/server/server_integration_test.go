@@ -11,6 +11,7 @@ import (
 	"context"
 	"net"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -128,6 +129,9 @@ func runConnTest(t *testing.T, conn net.Conn, deps serverDeps) {
 }
 
 func TestUDSConn(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("UDS isn't supported on windows")
+	}
 	socketPath := filepath.Join(t.TempDir(), "dsd.socket")
 
 	cfg := make(map[string]interface{})
@@ -151,6 +155,9 @@ func TestUDSConn(t *testing.T) {
 }
 
 func TestUDSReceiverNoDir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("UDS isn't supported on windows")
+	}
 	socketPath := filepath.Join(t.TempDir(), "nonexistent", "dsd.socket") // nonexistent dir, listener should not be set
 
 	cfg := make(map[string]interface{})
