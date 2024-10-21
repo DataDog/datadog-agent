@@ -8,44 +8,70 @@
 package module
 
 import (
+	"bytes"
+	"os"
+	"strconv"
+	"strings"
+
 	"github.com/shirou/gopsutil/v3/process"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // ignoreComms is a list of process names that should not be reported as a service.
 var ignoreComms = map[string]struct{}{
-	"sshd":           {}, // a daemon that handles secure communication
-	"dhclient":       {}, // utility that uses the DHCP to configure network interfaces
-	"systemd":        {}, // manages system and service components for Linux
-	"systemd-resolv": {}, // 'systemd-resolved' a system service that provides network name resolution for local applications
-	"systemd-networ": {}, // 'systemd-networkd' manages network configurations for Linux system
-	"datadog-agent":  {}, // datadog core agent
-	"livenessprobe":  {}, // Kubernetes tool that monitors a container's health
-	"docker-proxy":   {}, // forwards traffic to containers
-	"cilium-agent":   {}, // accepts configuration for networking, load balancing etc.
-	"kubelet":        {}, // Kubernetes agent
-	"chronyd":        {}, // a daemon that implements the Network Time Protocol (NTP)
-	"containerd":     {}, // engine to run containers
-	"dockerd":        {}, // engine to run containers
-	"local-volume-p": {}, // 'local-volume-provisioner' manages the lifecycle of Persistent Volumes
+	"systemd":         {}, // manages system and service components
+	"dhclient":        {}, // utility that uses the DHCP to configure network interfaces
+	"local-volume-pr": {}, // 'local-volume-provisioner' manages the lifecycle of Persistent Volumes
+	"sshd":            {}, // a daemon that handles secure communication
+	"cilium-agent":    {}, // accepts configuration for networking, load balancing etc. (like cilium-agent)
+	"kubelet":         {}, // Kubernetes agent
+	"chronyd":         {}, // a daemon that implements the Network Time Protocol (NTP)
+	"containerd":      {}, // engine to run containers
+	"dockerd":         {}, // engine to run containers and 'docker-proxy'
+	"livenessprobe":   {}, // Kubernetes tool that monitors a container's health
 }
 
-// ignoreComm returns true if process should be ignored
-func ignoreComm(proc *process.Process) bool {
-	comm, err := proc.Name()
-	if err != nil {
-		return false
+// ignoreFamily list of commands that should not be reported as a service.
+var ignoreFamily = map[string]struct{}{
+	"systemd":    {}, // 'systemd-networkd', 'systemd-resolved' etc
+	"datadog":    {}, // datadog processes
+	"containerd": {}, // 'containerd-shim...'
+	"dockerd":    {}, // 'docker-proxy'
+}
+
+// shouldIgnoreComm returns true if process should be ignored
+func shouldIgnoreComm(proc *process.Process) bool {
+	if shouldIgnoreKernelThread(proc) {
+		return true
 	}
-	// The proc.Name() function returns an unpredictable length string when command name is long.
-	// It most likely returns the full command name, taken from /proc/<pid>/cmdline,
-	// but it may occasionally return a 15-byte name, maybe /proc/<pid>/cmdline is not ready yet.
-	// search first 15 bytes of returned command.
-	found := func(comm string, m map[string]struct{}) bool {
-		if len(comm) > 15 {
-			comm = comm[:15]
+	commPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "comm")
+	contents, err := os.ReadFile(commPath)
+	if err != nil {
+		return true
+	}
+
+	dash := bytes.IndexByte(contents, '-')
+	if dash > 0 {
+		_, found := ignoreFamily[string(contents[:dash])]
+		if found {
+			return true
 		}
-		_, found := m[comm]
-		return found
-	}(comm, ignoreComms)
+	}
+
+	comm := strings.TrimSuffix(string(contents), "\n")
+	_, found := ignoreComms[comm]
 
 	return found
+}
+
+// shouldIgnoreKernelThread returns true if process is kernel thread
+func shouldIgnoreKernelThread(proc *process.Process) bool {
+	exePath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "exe")
+	_, err := os.Stat(exePath)
+	if err != nil {
+		// this is a kernel thread if /proc/<pid>/exe could not be found
+		return true
+	}
+	return false
 }

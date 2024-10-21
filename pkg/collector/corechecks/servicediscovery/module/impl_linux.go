@@ -395,7 +395,8 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	if err != nil {
 		return nil
 	}
-	if ignoreComm(proc) {
+
+	if shouldIgnoreComm(proc) {
 		return nil
 	}
 

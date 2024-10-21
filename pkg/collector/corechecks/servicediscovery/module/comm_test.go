@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// This doesn't need BPF, but it's built with this tag to only run with system-probe tests.
-//go:build test && linux_bpf
+//go:build test && linux
 
 package module
 
@@ -13,8 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -24,11 +21,10 @@ import (
 
 	httptestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
-	longComm = "this_is_command_name_longer_than_sixteen_bytes"
+	longComm = "this-is_command-name-longer-than-sixteen-bytes"
 )
 
 // TestIgnoreComm checks that the 'sshd' command is ignored and the 'node' command is not
@@ -67,35 +63,88 @@ func TestIgnoreCommsLengths(t *testing.T) {
 	}
 }
 
-// buildLongProc returns the path of a symbolic link to a binary file
-func buildLongProc(t *testing.T) string {
+// TestIgnoreKernelThread check that kernel thread is ignored
+func TestIgnoreKernelThread(t *testing.T) {
+	proc := &process.Process{
+		Pid: 1,
+	}
+	// Pid=1 is not kernel thread and should not be ignored
+	ignore := shouldIgnoreKernelThread(proc)
+	require.Equal(t, ignore, false)
+
+	// Pid=2 is kernel thread [kthreadd] and should be ignored
+	proc.Pid = 2
+	ignore = shouldIgnoreKernelThread(proc)
+	require.Equal(t, ignore, true)
+}
+
+// buildTestBin returns the path to a binary file
+func buildTestBin(t *testing.T) string {
 	curDir, err := httptestutil.CurDir()
 	require.NoError(t, err)
 
 	serverBin, err := testutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "fake_server")
 	require.NoError(t, err)
 
-	makeAlias(t, longComm, serverBin)
-
-	return filepath.Join(filepath.Dir(serverBin), longComm)
+	return serverBin
 }
 
-// TestLongComm checks that the long command name of process is fetched completely.
-func TestLongComm(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+// TestShouldIgnoreComm check cases of ignored and non-ignored processes
+func TestShouldIgnoreComm(t *testing.T) {
+	testCases := []struct {
+		name   string
+		comm   string
+		ignore bool
+	}{
+		{
+			name:   "should ignore command dockerd-1234",
+			comm:   "dockerd-1234",
+			ignore: true,
+		},
+		{
+			name:   "should ignore command containerd",
+			comm:   "containerd",
+			ignore: true,
+		},
+		{
+			name:   "should ignore command local-volume-provisioner",
+			comm:   "local-volume-provisioner",
+			ignore: true,
+		},
+		{
+			name:   "should not ignore command java-some",
+			comm:   "java-some",
+			ignore: false,
+		},
+		{
+			name:   "should not ignore command long command",
+			comm:   longComm,
+			ignore: false,
+		},
+	}
 
-	bin := buildLongProc(t)
-	cmd := exec.CommandContext(ctx, bin)
-	require.NoError(t, cmd.Start())
+	serverBin := buildTestBin(t)
+	serverDir := filepath.Dir(serverBin)
 
-	proc, err := process.NewProcess(int32(cmd.Process.Pid))
-	require.NoError(t, err)
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(func() { cancel() })
 
-	comm, err := proc.Name()
-	require.NoError(t, err)
-	require.Equal(t, len(comm), len(longComm))
-	require.False(t, ignoreComm(proc))
+			makeAlias(t, test.comm, serverBin)
+			bin := filepath.Join(serverDir, test.comm)
+			cmd := exec.CommandContext(ctx, bin)
+			err := cmd.Start()
+			require.NoError(t, err)
+
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				proc, err := customNewProcess(int32(cmd.Process.Pid))
+				require.NoError(t, err)
+				ignore := shouldIgnoreComm(proc)
+				require.Equal(t, test.ignore, ignore)
+			}, 30*time.Second, 100*time.Millisecond)
+		})
+	}
 }
 
 func makeSymLink(b *testing.B, src string, dst string) {
@@ -111,7 +160,7 @@ func makeSymLink(b *testing.B, src string, dst string) {
 }
 
 // startProcessLongComm starts a process with a long command name, used to benchmark command name extraction.
-func startProcessLongComm(b *testing.B) *process.Process {
+func startProcessLongComm(b *testing.B) *exec.Cmd {
 	b.Helper()
 
 	dstPath := filepath.Join(b.TempDir(), longComm)
@@ -127,21 +176,23 @@ func startProcessLongComm(b *testing.B) *process.Process {
 	if err != nil {
 		b.Fatal(err)
 	}
-	proc, err := customNewProcess(int32(cmd.Process.Pid))
-	if err != nil {
-		b.Fatal(err)
-	}
-	return proc
+
+	return cmd
 }
 
 // BenchmarkProcName benchmarks reading of entire command name from /proc.
 func BenchmarkProcName(b *testing.B) {
-	proc := startProcessLongComm(b)
+	cmd := startProcessLongComm(b)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
+		// create a new process on each iteration to eliminate name caching from the calculation
+		proc, err := customNewProcess(int32(cmd.Process.Pid))
+		if err != nil {
+			b.Fatal(err)
+		}
 		comm, err := proc.Name()
 		if err != nil {
 			b.Fatal(err)
@@ -152,31 +203,21 @@ func BenchmarkProcName(b *testing.B) {
 	}
 }
 
-// getComm reads /rpc/<pid>/comm and returns process command.
-func getComm(proc *process.Process) (string, error) {
-	commPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "comm")
-	contents, err := os.ReadFile(commPath)
-	if err != nil {
-		return "", err
-	}
-
-	return strings.TrimSuffix(string(contents), "\n"), nil
-}
-
-// BenchmarkProcComm benchmarks reading of command name from /proc/<pid>/comm.
-func BenchmarkProcComm(b *testing.B) {
-	proc := startProcessLongComm(b)
+// BenchmarkShouldIgnoreComm benchmarks reading of command name from /proc/<pid>/comm.
+func BenchmarkShouldIgnoreComm(b *testing.B) {
+	cmd := startProcessLongComm(b)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		comm, err := getComm(proc)
+		proc, err := customNewProcess(int32(cmd.Process.Pid))
 		if err != nil {
 			b.Fatal(err)
 		}
-		if len(comm) != 15 {
-			b.Fatalf("wrong comm length, expected: 15, got: %d (%s)", len(comm), comm)
+		ok := shouldIgnoreComm(proc)
+		if ok {
+			b.Fatalf("process should not have been ignored")
 		}
 	}
 }
