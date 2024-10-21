@@ -163,7 +163,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 		}
 
 		// we are calling `deactivationCB` here as some uprobes could be already attached
-		err = deactivationCB(FilePath{ID: pathID})
+		_ = deactivationCB(FilePath{ID: pathID})
 		if r.blocklistByID != nil {
 			// add `pathID` to blocklist so we don't attempt to re-register files
 			// that are problematic for some reason
