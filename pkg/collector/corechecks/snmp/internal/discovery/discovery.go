@@ -141,7 +141,9 @@ func (d *Discovery) discoverDevices() {
 		go d.runWorker(w, jobs)
 	}
 
-	discoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return "scanning" }))
+	subnetVar := expvar.String{}
+	subnetVar.Set("scanning")
+	discoveryVar.Set(subnet.config.Network, &subnetVar)
 
 	discoveryTicker := time.NewTicker(time.Duration(d.config.DiscoveryInterval) * time.Second)
 	defer discoveryTicker.Stop()
@@ -170,7 +172,8 @@ func (d *Discovery) discoverDevices() {
 			default:
 			}
 		}
-		//devicesFound := fmt.Sprintf("%d", len(subnet.devices))
+		devicesFound := fmt.Sprintf("%d", len(subnet.devices))
+		subnetVar.Set(devicesFound)
 		//discoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return devicesFound }))
 
 		select {
