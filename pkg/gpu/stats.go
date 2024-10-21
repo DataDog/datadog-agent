@@ -72,7 +72,7 @@ func (g *statsGenerator) getOrCreateAggregator(streamKey model.StreamKey) *aggre
 		g.aggregators[aggKey] = newAggregator(g.sysCtx)
 	}
 
-	g.aggregators[aggKey].lastCheckKtime = g.lastGenerationKTime
+	g.aggregators[aggKey].lastCheckKtime = uint64(g.lastGenerationKTime)
 	g.aggregators[aggKey].measuredIntervalNs = g.currGenerationKTime - g.lastGenerationKTime
 	return g.aggregators[aggKey]
 }

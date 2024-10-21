@@ -8,10 +8,12 @@
 package gpu
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 )
 
-const nsecPerSec = 1e9
+var nsecPerSec = float64(time.Second.Nanoseconds())
 
 // aggregator is responsible for receiving stream-level data for one process and aggregating it into metrics
 type aggregator struct {
@@ -21,7 +23,7 @@ type aggregator struct {
 
 	// lastCheckKtime is the last kernel time the processor was checked,
 	// required to take into account only data from the current interval.
-	lastCheckKtime int64
+	lastCheckKtime uint64
 
 	// measuredIntervalNs is the interval between the last two checks, in
 	// nanoseconds, required to compute thread seconds used/available for
@@ -56,8 +58,8 @@ func newAggregator(sysCtx *systemContext) *aggregator {
 // processKernelSpan takes a kernel span and computes the thread-seconds used by it during
 // the interval
 func (agg *aggregator) processKernelSpan(span *model.KernelSpan) {
-	tsStart := int64(span.StartKtime)
-	tsEnd := int64(span.EndKtime)
+	tsStart := span.StartKtime
+	tsEnd := span.EndKtime
 
 	// we only want to consider data that was not already processed in the previous interval
 	if agg.lastCheckKtime > tsStart {
