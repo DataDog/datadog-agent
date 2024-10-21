@@ -12,18 +12,23 @@
 package nvmlmetrics
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Collector is the main struct responsible for collecting metrics from the NVML library.
 type Collector struct {
 	lib        nvml.Interface
-	collectors []subsystemCollector
-	devices    []nvml.Device
+	collectors map[nvml.Device][]subsystemCollector
 }
+
+// errUnsupportedDevice is returned when the device does not support the given collector
+var errUnsupportedDevice = errors.New("device does not support the given collector")
 
 // Metric represents a single metric collected from the NVML library.
 type Metric struct {
@@ -33,15 +38,14 @@ type Metric struct {
 }
 
 // subsystemFactory is a function that creates a new subsystemCollector. lib is the NVML
-// library interface, and devices the list of devices that are present in the system in case
-// the subsystem needs to preallocate structures
-type subsystemFactory func(lib nvml.Interface, devices []nvml.Device) (subsystemCollector, error)
+// library interface, and device the device it should collect metrics from
+type subsystemFactory func(lib nvml.Interface, device nvml.Device) (subsystemCollector, error)
 
-// subsystemCollector defines a collector that gets metric from a specific NVML subsystem
+// subsystemCollector defines a collector that gets metric from a specific NVML subsystem and device
 type subsystemCollector interface {
-	// collectMetrics collects metrics from the given NVML device. This method should not fill the tags
+	// collect collects metrics from the given NVML device. This method should not fill the tags
 	// unless they're metric-specific (i.e., all device-specific tags will be added by the Collector itself)
-	collectMetrics(dev nvml.Device) ([]Metric, error)
+	collect() ([]Metric, error)
 
 	// close closes the subsystem and releases any resources it might have allocated
 	close() error
@@ -61,7 +65,8 @@ func NewCollector(lib nvml.Interface) (*Collector, error) {
 // newCollectorWithSubsystems allows specifying which subsystems to use when creating the collector, useful for tests.
 func newCollectorWithSubsystems(lib nvml.Interface, subsystems map[string]subsystemFactory) (*Collector, error) {
 	coll := &Collector{
-		lib: lib,
+		lib:        lib,
+		collectors: make(map[nvml.Device][]subsystemCollector),
 	}
 
 	devCount, ret := lib.DeviceGetCount()
@@ -75,17 +80,18 @@ func newCollectorWithSubsystems(lib nvml.Interface, subsystems map[string]subsys
 			return nil, fmt.Errorf("failed to get device handle for index %d: %s", i, nvml.ErrorString(ret))
 		}
 
-		coll.devices = append(coll.devices, dev)
-	}
+		for name, factory := range subsystems {
+			subsystem, err := factory(lib, dev)
+			if errors.Is(err, errUnsupportedDevice) {
+				log.Warnf("device %s does not support collector %s", dev, name)
+				continue
+			} else if err != nil {
+				_ = coll.Close() // Close all previously created subsystems
+				return nil, fmt.Errorf("failed to create subsystem %s: %w", name, err)
+			}
 
-	for name, factory := range subsystems {
-		subsystem, err := factory(lib, coll.devices)
-		if err != nil {
-			_ = coll.Close() // Close all previously created subsystems
-			return nil, fmt.Errorf("failed to create subsystem %s: %w", name, err)
+			coll.collectors[dev] = append(coll.collectors[dev], subsystem)
 		}
-
-		coll.collectors = append(coll.collectors, subsystem)
 	}
 
 	return coll, nil
@@ -98,14 +104,14 @@ func (coll *Collector) Collect() ([]Metric, error) {
 	var allMetrics []Metric
 	var err error
 
-	for _, dev := range coll.devices {
+	for dev, collectors := range coll.collectors {
 		tags, tagsErr := getTagsFromDevice(dev)
 		if tagsErr != nil {
 			return allMetrics, fmt.Errorf("failed to get tags for device: %w", tagsErr)
 		}
 
-		for _, subsystem := range coll.collectors {
-			metrics, collectErr := subsystem.collectMetrics(dev)
+		for _, subsystem := range collectors {
+			metrics, collectErr := subsystem.collect()
 			if collectErr != nil {
 				err = multierror.Append(err, fmt.Errorf("failed to collect metrics for subsystem %s: %w", subsystem.name(), collectErr))
 			}
@@ -124,9 +130,11 @@ func (coll *Collector) Collect() ([]Metric, error) {
 func (coll *Collector) Close() error {
 	var errs error
 
-	for _, subsystem := range coll.collectors {
-		if err := subsystem.close(); err != nil {
-			errs = multierror.Append(errs, err)
+	for _, collectors := range coll.collectors {
+		for _, subsystem := range collectors {
+			if err := subsystem.close(); err != nil {
+				errs = multierror.Append(errs, err)
+			}
 		}
 	}
 
