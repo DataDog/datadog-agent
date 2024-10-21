@@ -12,7 +12,7 @@ from functools import lru_cache
 import requests
 
 from tasks.libs.common.color import color_message
-from tasks.libs.common.constants import GITHUB_REPO_NAME
+from tasks.libs.common.constants import DEFAULT_AGENT6_BRANCH, GITHUB_REPO_NAME
 
 try:
     import semver
@@ -201,6 +201,9 @@ class GithubAPI:
     def latest_release(self) -> str:
         release = self._repository.get_latest_release()
         return release.title
+
+    def get_releases(self):
+        return self._repository.get_releases()
 
     def latest_unreleased_release_branches(self):
         """
@@ -444,7 +447,7 @@ Make sure that milestone is open before trying again.""",
     ]
 
     if changelog_pr:
-        labels.append("backport/main")
+        labels.append(f"backport/{DEFAULT_AGENT6_BRANCH}" if base_branch.startswith('6.') else "backport/main")
 
     updated_pr = github.update_pr(
         pull_number=pr.number,

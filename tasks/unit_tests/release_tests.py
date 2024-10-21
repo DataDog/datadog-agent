@@ -24,6 +24,7 @@ from tasks.libs.releasing.json import (
 )
 from tasks.libs.releasing.version import _get_highest_repo_version, build_compatible_version_re
 from tasks.libs.types.version import Version
+from tasks.modules import GoModule
 
 MOCK_TMP_DIR = '/tmp/tmp'
 
@@ -1189,3 +1190,16 @@ class TestCheckForChanges(unittest.TestCase):
         ]
         print_mock.assert_has_calls(calls)
         self.assertEqual(print_mock.call_count, 2)
+
+
+class TestDefaultModules(unittest.TestCase):
+    def test_current_default_modules(self):
+        """Verifies that DEFAULT_MODULES can still be serialized and deserialized."""
+
+        with open('tasks/modules.py') as f:
+            contents = f.read()
+
+        modules = release.read_default_modules(contents)
+
+        self.assertGreater(len(modules), 0)
+        self.assertIsInstance(next(iter(modules.values())), GoModule)
