@@ -12,13 +12,10 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"runtime"
 	"sort"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,20 +25,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
-	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
-	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -49,77 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
-
-// This is a copy of the serverDeps struct, but without the server field.
-// We need this to avoid starting multiple server with the same test.
-type depsWithoutServer struct {
-	fx.In
-
-	Config        configComponent.Component
-	Log           log.Component
-	Demultiplexer demultiplexer.FakeSamplerMock
-	Replay        replay.Component
-	PidMap        pidmap.Component
-	Debug         serverdebug.Component
-	WMeta         optional.Option[workloadmeta.Component]
-	Telemetry     telemetry.Component
-}
-
-type serverDeps struct {
-	fx.In
-
-	Config        configComponent.Component
-	Log           log.Component
-	Demultiplexer demultiplexer.FakeSamplerMock
-	Replay        replay.Component
-	PidMap        pidmap.Component
-	Debug         serverdebug.Component
-	WMeta         optional.Option[workloadmeta.Component]
-	Telemetry     telemetry.Component
-	Server        Component
-}
-
-func fulfillDeps(t testing.TB) serverDeps {
-	return fulfillDepsWithConfigOverride(t, map[string]interface{}{})
-}
-
-func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{}) serverDeps {
-	// TODO: https://datadoghq.atlassian.net/browse/AMLII-1948
-	if runtime.GOOS == "darwin" {
-		flake.Mark(t)
-	}
-	return fxutil.Test[serverDeps](t, fx.Options(
-		core.MockBundle(),
-		serverdebugimpl.MockModule(),
-		fx.Replace(configComponent.MockParams{
-			Overrides: overrides,
-		}),
-		replaymock.MockModule(),
-		compressionimpl.MockModule(),
-		pidmapimpl.Module(),
-		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		Module(Params{Serverless: false}),
-	))
-}
-
-func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
-	return fxutil.Test[serverDeps](t, fx.Options(
-		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) configComponent.Component { return configComponent.NewMockFromYAML(t, yaml) }),
-		telemetryimpl.MockModule(),
-		hostnameimpl.MockModule(),
-		serverdebugimpl.MockModule(),
-		replaymock.MockModule(),
-		compressionimpl.MockModule(),
-		pidmapimpl.Module(),
-		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		Module(Params{Serverless: false}),
-	))
-}
 
 func TestNewServer(t *testing.T) {
 	cfg := make(map[string]interface{})
@@ -502,48 +422,6 @@ func TestUDPReceive(t *testing.T) {
 	defer conn.Close()
 
 	testReceive(t, conn, demux)
-}
-
-func TestUDPForward(t *testing.T) {
-	cfg := make(map[string]interface{})
-
-	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
-	require.NoError(t, err)
-
-	pcHost, pcPort, err := net.SplitHostPort(pc.LocalAddr().String())
-	require.NoError(t, err)
-
-	// Setup UDP server to forward to
-	cfg["statsd_forward_port"] = pcPort
-	cfg["statsd_forward_host"] = pcHost
-
-	// Setup dogstatsd server
-	cfg["dogstatsd_port"] = listeners.RandomPortName
-
-	deps := fulfillDepsWithConfigOverride(t, cfg)
-
-	defer pc.Close()
-
-	requireStart(t, deps.Server)
-
-	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
-	require.NoError(t, err)
-	require.NotNil(t, conn)
-	defer conn.Close()
-
-	// Check if message is forwarded
-	message := []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
-
-	_, err = conn.Write(message)
-	require.NoError(t, err, "cannot write to DSD socket")
-
-	_ = pc.SetReadDeadline(time.Now().Add(4 * time.Second))
-
-	buffer := make([]byte, len(message))
-	_, _, err = pc.ReadFrom(buffer)
-	require.NoError(t, err)
-
-	assert.Equal(t, message, buffer)
 }
 
 func TestHistToDist(t *testing.T) {

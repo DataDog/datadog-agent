@@ -52,18 +52,3 @@ func TestUDSReceiverDisabled(t *testing.T) {
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	require.False(t, deps.Server.UdsListenerRunning())
 }
-
-func TestUDSReceiverNoDir(t *testing.T) {
-	socketPath := filepath.Join(t.TempDir(), "nonexistent", "dsd.socket") // nonexistent dir, listener should not be set
-
-	cfg := make(map[string]interface{})
-	cfg["dogstatsd_port"] = listeners.RandomPortName
-	cfg["dogstatsd_no_aggregation_pipeline"] = true // another test may have turned it off
-	cfg["dogstatsd_socket"] = socketPath
-
-	deps := fulfillDepsWithConfigOverride(t, cfg)
-	require.False(t, deps.Server.UdsListenerRunning())
-
-	_, err := net.Dial("unixgram", socketPath)
-	require.Error(t, err, "UDS listener should be closed")
-}
