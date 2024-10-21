@@ -140,12 +140,13 @@ func (w *Worker) Run() {
 			continue
 		}
 
-		if !haagent.ShouldRunForCheck(check) {
-			checkLogger.Debug("HA Agent check is not run since agent is not primary")
-			// TODO: HOW TO SHOW SKIPPED CHECK IN STATUS
-			// Remove the check from the running list
-			w.checksTracker.DeleteCheck(check.ID())
-			continue
+		if haagent.IsEnabled() && check.IsHACheck() {
+			if !haagent.IsPrimary() {
+				checkLogger.Debug("Check skipped since the agent is not primary")
+
+				w.checksTracker.DeleteCheck(check.ID()) // Remove the check from the running list
+				continue
+			}
 		}
 
 		checkStartTime := time.Now()
