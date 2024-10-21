@@ -26,8 +26,11 @@ func TestProbeCanLoad(t *testing.T) {
 		t.Skipf("minimum kernel version %s not met, read %s", minimumKernelVersion, kver)
 	}
 
+	cfg := NewConfig()
+	cfg.InitialProcessSync = false
+	probe, err := NewProbe(cfg, nil)
 	nvmlMock := testutil.GetBasicNvmlMock()
-	probe, err := NewProbe(NewConfig(), ProbeDependencies{NvmlLib: nvmlMock})
+	probe, err := NewProbe(cfg, ProbeDependencies{NvmlLib: nvmlMock})
 	require.NoError(t, err)
 	require.NotNil(t, probe)
 	t.Cleanup(probe.Close)
