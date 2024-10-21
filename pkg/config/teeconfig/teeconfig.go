@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/viper"
-	"github.com/spf13/afero"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -102,12 +101,6 @@ func (t *teeConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[s
 func (t *teeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 	t.baseline.ParseEnvAsSlice(key, fn)
 	t.compare.ParseEnvAsSlice(key, fn)
-}
-
-// SetFs wraps Viper for concurrent access
-func (t *teeConfig) SetFs(fs afero.Fs) {
-	t.baseline.SetFs(fs)
-	t.compare.SetFs(fs)
 }
 
 // IsSet wraps Viper for concurrent access
@@ -212,9 +205,9 @@ func (t *teeConfig) SetEnvPrefix(in string) {
 }
 
 // BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
-func (t *teeConfig) BindEnv(input ...string) {
-	t.baseline.BindEnv(input...)
-	t.compare.BindEnv(input...)
+func (t *teeConfig) BindEnv(key string, envvars ...string) {
+	t.baseline.BindEnv(key, envvars...)
+	t.compare.BindEnv(key, envvars...)
 }
 
 // SetEnvKeyReplacer wraps Viper for concurrent access
@@ -226,16 +219,6 @@ func (t *teeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 // UnmarshalKey wraps Viper for concurrent access
 func (t *teeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error {
 	return t.baseline.UnmarshalKey(key, rawVal, opts...)
-}
-
-// Unmarshal wraps Viper for concurrent access
-func (t *teeConfig) Unmarshal(rawVal interface{}) error {
-	return t.baseline.Unmarshal(rawVal)
-}
-
-// UnmarshalExact wraps Viper for concurrent access
-func (t *teeConfig) UnmarshalExact(rawVal interface{}) error {
-	return t.baseline.UnmarshalExact(rawVal)
 }
 
 // ReadInConfig wraps Viper for concurrent access

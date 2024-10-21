@@ -9,34 +9,17 @@
 name 'pympler'
 default_version "0.7"
 
-if with_python_runtime? "3"
-  dependency 'pip3'
-  dependency 'setuptools3'
-end
-
-if with_python_runtime? "2"
-  dependency 'pip2'
-end
+dependency 'pip3'
+dependency 'setuptools3'
 
 pympler_requirement = "pympler==#{default_version}"
 
 build do
-  if with_python_runtime? "3"
-    if windows_target?
-      python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
-    else
-      python = "#{install_dir}/embedded/bin/python3"
-    end
-    command "#{python} -m pip install #{pympler_requirement}"
+  if windows_target?
+    python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
+  else
+    python = "#{install_dir}/embedded/bin/python3"
   end
-
-  if with_python_runtime? "2"
-    if windows_target?
-      python = "#{windows_safe_path(python_2_embedded)}\\python.exe"
-    else
-      python = "#{install_dir}/embedded/bin/python2"
-    end
-    command "#{python} -m pip install #{pympler_requirement}"
-  end
+  command "#{python} -m pip install #{pympler_requirement}"
 
 end

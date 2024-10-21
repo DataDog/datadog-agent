@@ -72,7 +72,7 @@ def get_file_modifications(
     flags = '--no-renames' if no_renames else ''
 
     modifications = [
-        line.split()
+        line.split('\t')
         for line in ctx.run(f"git diff --name-status {flags} {last_main_commit}", hide=True).stdout.splitlines()
     ]
 

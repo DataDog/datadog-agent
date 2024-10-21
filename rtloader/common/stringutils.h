@@ -73,11 +73,7 @@ char *as_string(PyObject *);
 PyObject *from_yaml(const char *);
 char *as_yaml(PyObject *);
 
-#ifdef DATADOG_AGENT_THREE
-#    define PyStringFromCString(x) PyUnicode_FromString(x)
-#elif defined(DATADOG_AGENT_TWO)
-#    define PyStringFromCString(x) PyString_FromString(x)
-#endif
+#define PyStringFromCString(x) PyUnicode_FromString(x)
 
 #ifdef __cplusplus
 }

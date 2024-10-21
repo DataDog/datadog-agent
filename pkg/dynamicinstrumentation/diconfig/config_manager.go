@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && arm64
+//go:build linux_bpf
 
 // Package diconfig provides utlity that allows dynamic instrumentation to receive and
 // manage probe configurations from users
@@ -249,6 +249,12 @@ generateCompileAttach:
 	err = codegen.GenerateBPFParamsCode(procInfo, probe)
 	if err != nil {
 		log.Info("Couldn't generate BPF programs", err)
+		if !probe.InstrumentationInfo.AttemptedRebuild {
+			log.Info("Removing parameters and attempting to rebuild BPF object", err)
+			probe.InstrumentationInfo.AttemptedRebuild = true
+			probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters = false
+			goto generateCompileAttach
+		}
 		return
 	}
 
