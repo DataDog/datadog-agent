@@ -512,7 +512,6 @@ namespace WixSetup.Datadog_Agent
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.TraceAgent)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                     }
-
             );
             var securityAgentService = GenerateDependentServiceInstaller(
                 new Id("ddagentsecurityservice"),
@@ -533,6 +532,9 @@ namespace WixSetup.Datadog_Agent
             );
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
                 new WixSharp.File(_agentBinaries.Agent, agentService),
+                // Temporary binary for extracting the embedded Python - will be deleted
+                // by the CustomAction
+                new WixSharp.File(new Id("sevenzipr"), @"c:\program files\7-zip\7zr.exe"),
                 // Each EventSource must have KeyPath=yes to avoid having the parent directory placed in the CreateFolder table.
                 // The EventSource supports being a KeyPath.
                 // https://wixtoolset.org/docs/v3/xsd/util/eventsource/
@@ -543,11 +545,8 @@ namespace WixSetup.Datadog_Agent
                     EventMessageFile = $"[BIN]{Path.GetFileName(_agentBinaries.Agent)}",
                     AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                 },
-
                 agentBinDir,
-
                 new WixSharp.File(_agentBinaries.LibDatadogAgentThree)
-
             );
             if (_agentPython.IncludePython2)
             {
