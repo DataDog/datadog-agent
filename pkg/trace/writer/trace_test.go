@@ -257,7 +257,10 @@ func TestResetBuffer(t *testing.T) {
 	runtime.ReadMemStats(&m)
 	assert.Greater(t, m.HeapInuse, uint64(50*1e6))
 
+	w.mu.Lock()
 	w.resetBuffer()
+	w.mu.Unlock()
+
 	runtime.GC()
 	runtime.ReadMemStats(&m)
 	assert.Less(t, m.HeapInuse, uint64(50*1e6))

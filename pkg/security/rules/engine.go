@@ -333,6 +333,9 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 		return fmt.Errorf("failed to flush discarders: %w", err)
 	}
 
+	// reset the probe process killer state once the new ruleset is loaded
+	e.probe.OnNewRuleSetLoaded(rs)
+
 	content, _ := json.Marshal(report)
 	seclog.Debugf("Policy report: %s", content)
 
@@ -481,7 +484,12 @@ func (e *RuleEngine) getEventTypeEnabled() map[eval.EventType]bool {
 	if e.probe.IsNetworkEnabled() {
 		if eventTypes, exists := categories[model.NetworkCategory]; exists {
 			for _, eventType := range eventTypes {
-				enabled[eventType] = true
+				switch eventType {
+				case model.RawPacketEventType.String():
+					enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
+				default:
+					enabled[eventType] = true
+				}
 			}
 		}
 	}

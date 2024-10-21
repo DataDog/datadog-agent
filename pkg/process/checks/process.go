@@ -136,7 +136,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 	p.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
 
-	var tu *net.RemoteSysProbeUtil
+	var tu net.SysProbeUtil
 	var err error
 	if syscfg.NetworkTracerModuleEnabled {
 		// Calling the remote tracer will cause it to initialize and check connectivity
@@ -657,7 +657,7 @@ func skipProcess(
 	return false
 }
 
-func (p *ProcessCheck) getRemoteSysProbeUtil() *net.RemoteSysProbeUtil {
+func (p *ProcessCheck) getRemoteSysProbeUtil() net.SysProbeUtil {
 	if !p.sysProbeConfig.ProcessModuleEnabled {
 		return nil
 	}

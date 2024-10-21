@@ -19,22 +19,12 @@ static PyMethodDef methods[] = {
     { NULL, NULL } // guards
 };
 
-#ifdef DATADOG_AGENT_THREE
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, UTIL_MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit_util(void)
 {
     return PyModule_Create(&module_def);
 }
-#elif defined(DATADOG_AGENT_TWO)
-// in Python2 keep the object alive for the program lifetime
-static PyObject *module;
-
-void Py2_init_util()
-{
-    module = Py_InitModule(UTIL_MODULE_NAME, methods);
-}
-#endif
 
 /*! \fn PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs)
     \brief This function provides a standard set of HTTP headers the caller might want to
