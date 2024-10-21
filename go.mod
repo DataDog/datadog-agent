@@ -298,7 +298,7 @@ require (
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.104.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.54.0 // indirect
 	go.uber.org/atomic v1.11.0
-	go.uber.org/automaxprocs v1.5.3
+	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/dig v1.18.0
 	go.uber.org/fx v1.22.2
 	go.uber.org/multierr v1.11.0
