@@ -987,6 +987,10 @@ func (p *EBPFResolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, bool
 
 // SetProcessEnvs set envs to cache entry
 func (p *EBPFResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
+	if !p.opts.envsResolutionEnabled {
+		return
+	}
+
 	if entry, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		if pce.EnvsTruncated {
 			p.envsTruncated.Inc()
