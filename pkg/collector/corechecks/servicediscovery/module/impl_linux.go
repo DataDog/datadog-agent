@@ -343,6 +343,7 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 	}
 
 	contextMap := make(usm.DetectorContextMap)
+	contextMap[usm.ServiceProc] = proc
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
 	lang := language.FindInArgs(exe, cmdline)
