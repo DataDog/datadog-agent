@@ -15,16 +15,7 @@ import (
 )
 
 func TestAddRequest(t *testing.T) {
-	t.Run("status code", func(t *testing.T) {
-		testAddRequest(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testAddRequest(t, false)
-	})
-}
-
-func testAddRequest(t *testing.T, aggregateByStatusCode bool) {
-	stats := NewRequestStats(aggregateByStatusCode)
+	stats := NewRequestStats()
 	stats.AddRequest(405, 10.0, 1, nil)
 	stats.AddRequest(405, 15.0, 2, nil)
 	stats.AddRequest(405, 20.0, 3, nil)
@@ -33,7 +24,7 @@ func testAddRequest(t *testing.T, aggregateByStatusCode bool) {
 	assert.Nil(t, stats.Data[200])
 	assert.Nil(t, stats.Data[300])
 	assert.Nil(t, stats.Data[500])
-	s := stats.Data[stats.NormalizeStatusCode(405)]
+	s := stats.Data[405]
 
 	if assert.NotNil(t, s) {
 		assert.Equal(t, 3, s.Count)
@@ -46,23 +37,14 @@ func testAddRequest(t *testing.T, aggregateByStatusCode bool) {
 }
 
 func TestCombineWith(t *testing.T) {
-	t.Run("status code", func(t *testing.T) {
-		testCombineWith(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testCombineWith(t, false)
-	})
-}
-
-func testCombineWith(t *testing.T, aggregateByStatusCode bool) {
-	stats := NewRequestStats(aggregateByStatusCode)
+	stats := NewRequestStats()
 	for i := uint16(100); i <= 500; i += 100 {
 		assert.Nil(t, stats.Data[i])
 	}
 
-	stats2 := NewRequestStats(aggregateByStatusCode)
-	stats3 := NewRequestStats(aggregateByStatusCode)
-	stats4 := NewRequestStats(aggregateByStatusCode)
+	stats2 := NewRequestStats()
+	stats3 := NewRequestStats()
+	stats4 := NewRequestStats()
 	stats2.AddRequest(405, 10.0, 2, nil)
 	stats3.AddRequest(405, 15.0, 3, nil)
 	stats4.AddRequest(405, 20.0, 4, nil)
@@ -75,7 +57,7 @@ func testCombineWith(t *testing.T, aggregateByStatusCode bool) {
 	assert.Nil(t, stats.Data[200])
 	assert.Nil(t, stats.Data[300])
 	assert.Nil(t, stats.Data[500])
-	s := stats.Data[stats.NormalizeStatusCode(405)]
+	s := stats.Data[405]
 
 	if assert.NotNil(t, s) {
 		assert.Equal(t, 3.0, s.Latencies.GetCount())

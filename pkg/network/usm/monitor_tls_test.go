@@ -39,9 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
-	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
-	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -455,98 +453,6 @@ func isRequestIncluded(allStats map[http.Key]*http.RequestStats, req *nethttp.Re
 	return false
 }
 
-func (s *tlsSuite) TestJavaInjection() {
-	t := s.T()
-	t.Skip("JavaTLS tests are currently disabled")
-
-	cfg := config.New()
-	cfg.EnableHTTPMonitoring = true
-	cfg.EnableJavaTLSSupport = true
-	defaultCfg := cfg
-
-	dir, _ := testutil.CurDir()
-	testdataDir := filepath.Join(dir, "../protocols/tls/java/testdata")
-	legacyJavaDir := cfg.JavaDir
-	// create a fake agent-usm.jar based on TestAgentLoaded.jar by forcing cfg.JavaDir
-	fakeAgentDir, err := os.MkdirTemp("", "fake.agent-usm.jar.")
-	require.NoError(t, err)
-	defer os.RemoveAll(fakeAgentDir)
-	_, err = nettestutil.RunCommand("install -m444 " + filepath.Join(testdataDir, "TestAgentLoaded.jar") + " " + filepath.Join(fakeAgentDir, "agent-usm.jar"))
-	require.NoError(t, err)
-
-	tests := []struct {
-		name            string
-		context         testContext
-		preTracerSetup  func(t *testing.T)
-		postTracerSetup func(t *testing.T)
-		validation      func(t *testing.T, monitor *Monitor)
-		teardown        func(t *testing.T)
-	}{
-		{
-			// Test the java jdk client https request is working
-			name: "java_jdk_client_httpbin_docker_withTLSClassification_java15",
-			preTracerSetup: func(t *testing.T) {
-				cfg.JavaDir = legacyJavaDir
-				cfg.ProtocolClassificationEnabled = true
-				cfg.CollectTCPv4Conns = true
-				cfg.CollectTCPv6Conns = true
-
-				serverDoneFn := testutil.HTTPServer(t, "0.0.0.0:5443", testutil.Options{
-					EnableTLS: true,
-				})
-				t.Cleanup(serverDoneFn)
-			},
-			postTracerSetup: func(t *testing.T) {
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://host.docker.internal:5443/200/anything/java-tls-request", "./", regexp.MustCompile("Response code = .*")), "Failed running Java version")
-			},
-			validation: func(t *testing.T, monitor *Monitor) {
-				// Iterate through active connections until we find connection created above
-				require.Eventually(t, func() bool {
-					stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
-					if stats == nil {
-						return false
-					}
-					for key, stats := range stats {
-						if key.Path.Content.Get() == "/200/anything/java-tls-request" {
-							t.Log("path content found")
-
-							req, exists := stats.Data[200]
-							if !exists {
-								t.Logf("wrong response, not 200 : %#+v", key)
-								continue
-							}
-
-							if req.StaticTags != network.ConnTagJava {
-								t.Logf("tag not java : %#+v", key)
-								continue
-							}
-							return true
-						}
-					}
-
-					return false
-				}, 4*time.Second, 100*time.Millisecond, "couldn't find http connection matching: https://host.docker.internal:5443/200/anything/java-tls-request")
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.teardown != nil {
-				t.Cleanup(func() {
-					tt.teardown(t)
-				})
-			}
-			cfg = defaultCfg
-			if tt.preTracerSetup != nil {
-				tt.preTracerSetup(t)
-			}
-			usmMonitor := setupUSMTLSMonitor(t, cfg)
-			tt.postTracerSetup(t)
-			tt.validation(t, usmMonitor)
-		})
-	}
-}
-
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	t.Skip("skipping GoTLS tests while we investigate their flakiness")
 
@@ -840,7 +746,6 @@ func testHTTPSGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 	// Setup
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPStatsByStatusCode = true
 
 	usmMonitor := setupUSMTLSMonitor(t, cfg)
 
@@ -875,7 +780,6 @@ func testHTTPSGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 	// Setup
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPStatsByStatusCode = true
 
 	usmMonitor := setupUSMTLSMonitor(t, cfg)
 

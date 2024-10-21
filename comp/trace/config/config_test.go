@@ -2578,3 +2578,20 @@ func TestDisableReceiverConfig(t *testing.T) {
 
 	assert.False(t, cfg.ReceiverEnabled)
 }
+
+func TestOnUpdateAPIKeyCallback(t *testing.T) {
+	var n int
+	callback := func(_, _ string) {
+		n++
+	}
+
+	config := fxutil.Test[Component](t, fx.Options(
+		corecomp.MockModule(),
+		MockModule(),
+	))
+	config.OnUpdateAPIKey(callback)
+
+	configC := config.(*cfg)
+	configC.updateAPIKey("foo", "bar")
+	assert.Equal(t, 1, n)
+}

@@ -39,7 +39,7 @@ type EBPFCheckConfig struct {
 // EBPFCheck grabs eBPF map/program/perf buffer metrics
 type EBPFCheck struct {
 	config       *EBPFCheckConfig
-	sysProbeUtil *processnet.RemoteSysProbeUtil
+	sysProbeUtil processnet.SysProbeUtil
 	core.CheckBase
 }
 

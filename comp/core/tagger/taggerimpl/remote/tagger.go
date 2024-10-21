@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -56,6 +57,7 @@ type Tagger struct {
 
 	streamCtx    context.Context
 	streamCancel context.CancelFunc
+	filter       *types.Filter
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -112,12 +114,13 @@ func CLCRunnerOptions(config config.Component) (Options, error) {
 
 // NewTagger returns an allocated tagger. You still have to run Init()
 // once the config package is ready.
-func NewTagger(options Options, cfg config.Component, telemetryStore *telemetry.Store) *Tagger {
+func NewTagger(options Options, cfg config.Component, telemetryStore *telemetry.Store, filter *types.Filter) *Tagger {
 	return &Tagger{
 		options:        options,
 		cfg:            cfg,
 		store:          newTagStore(cfg, telemetryStore),
 		telemetryStore: telemetryStore,
+		filter:         filter,
 	}
 }
 
@@ -263,13 +266,8 @@ func (t *Tagger) List() types.TaggerListResponse {
 // Subscribe returns a channel that receives a slice of events whenever an entity is
 // added, modified or deleted. It can send an initial burst of events only to the new
 // subscriber, without notifying all of the others.
-func (t *Tagger) Subscribe(cardinality types.TagCardinality) chan []types.EntityEvent {
-	return t.store.subscribe(cardinality)
-}
-
-// Unsubscribe ends a subscription to entity events and closes its channel.
-func (t *Tagger) Unsubscribe(ch chan []types.EntityEvent) {
-	t.store.unsubscribe(ch)
+func (t *Tagger) Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
+	return t.store.subscribe(subscriptionID, filter)
 }
 
 func (t *Tagger) run() {
@@ -397,8 +395,15 @@ func (t *Tagger) startTaggerStream(maxElapsed time.Duration) error {
 			}),
 		)
 
+		prefixes := make([]string, 0)
+		for prefix := range t.filter.GetPrefixes() {
+			prefixes = append(prefixes, string(prefix))
+		}
+
 		t.stream, err = t.client.TaggerStreamEntities(t.streamCtx, &pb.StreamTagsRequest{
-			Cardinality: pb.TagCardinality_HIGH,
+			Cardinality: pb.TagCardinality(t.filter.GetCardinality()),
+			StreamingID: uuid.New().String(),
+			Prefixes:    prefixes,
 		})
 		if err != nil {
 			log.Infof("unable to establish stream, will possibly retry: %s", err)

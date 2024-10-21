@@ -25,7 +25,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -79,6 +78,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -183,17 +183,11 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(status.NewInformationProvider(statuscollector.Provider{})),
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
 				compressionimpl.Module(),
-				demultiplexerimpl.Module(),
+				// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
+				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithFlushInterval(0))),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewNoopParams()),
 				eventplatformimpl.Module(eventplatforParams),
 				eventplatformreceiverimpl.Module(),
-				fx.Provide(func() demultiplexerimpl.Params {
-					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-					params := demultiplexerimpl.NewDefaultParams()
-					params.FlushInterval = 0
-					return params
-				}),
-
 				fx.Supply(
 					status.Params{
 						PythonVersionGetFunc: python.GetPythonVersion,
@@ -260,7 +254,7 @@ func run(
 	cliParams *cliParams,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
-	_ tagger.Component,
+	tagger tagger.Component,
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
@@ -295,7 +289,7 @@ func run(
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
 	pkgcollector.InitPython(common.GetPythonPaths()...)
-	commonchecks.RegisterChecks(wmeta, config, telemetry)
+	commonchecks.RegisterChecks(wmeta, tagger, config, telemetry)
 
 	common.LoadComponents(secretResolver, wmeta, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
@@ -659,11 +653,11 @@ func runCheck(cliParams *cliParams, c check.Check, _ aggregator.Demultiplexer) *
 }
 
 func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
-	_ = os.Mkdir(path.DefaultCheckFlareDirectory, os.ModeDir)
+	_ = os.Mkdir(defaultpaths.CheckFlareDirectory, os.ModeDir)
 
 	// Windows cannot accept ":" in file names
 	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
-	flarePath := filepath.Join(path.DefaultCheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
+	flarePath := filepath.Join(defaultpaths.CheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
 
 	scrubbed, err := scrubber.ScrubBytes(checkFileOutput.Bytes())
 	if err != nil {

@@ -16,6 +16,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/skydive-project/go-debouncer"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
@@ -42,6 +43,8 @@ type RCPolicyProvider struct {
 	debouncer            *debouncer.Debouncer
 	dumpPolicies         bool
 	setEnforcementCb     func(bool)
+
+	isStarted *atomic.Bool
 }
 
 var _ rules.PolicyProvider = (*RCPolicyProvider)(nil)
@@ -72,6 +75,7 @@ func NewRCPolicyProvider(dumpPolicies bool, setEnforcementCallback func(bool)) (
 		client:           c,
 		dumpPolicies:     dumpPolicies,
 		setEnforcementCb: setEnforcementCallback,
+		isStarted:        atomic.NewBool(false),
 	}
 	r.debouncer = debouncer.New(debounceDelay, r.onNewPoliciesReady)
 
@@ -88,6 +92,8 @@ func (r *RCPolicyProvider) Start() {
 	r.client.SubscribeAll(state.ProductCWSCustom, client.NewListener(r.rcCustomsUpdateCallback, r.rcStateChanged))
 
 	r.client.Start()
+
+	r.isStarted.Store(true)
 }
 
 func (r *RCPolicyProvider) rcStateChanged(state bool) {
@@ -209,6 +215,10 @@ func (r *RCPolicyProvider) onNewPoliciesReady() {
 
 // Close stops the client
 func (r *RCPolicyProvider) Close() error {
+	if !r.isStarted.Load() {
+		return nil
+	}
+
 	r.debouncer.Stop()
 	r.client.Close()
 	return nil

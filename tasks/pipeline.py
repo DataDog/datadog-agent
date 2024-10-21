@@ -85,14 +85,15 @@ def check_deploy_pipeline(repo: Project, git_ref: str, release_version_6, releas
 
     match = re.match(v7_pattern, git_ref)
 
+    # TODO(@spencergilbert): remove cross reference check when all references to a6 are removed
     if release_version_6 and match:
         # release_version_6 is not empty and git_ref matches v7 pattern, construct v6 tag and check.
         tag_name = "6." + "".join(match.groups())
         try:
             repo.tags.get(tag_name)
-        except GitlabError as e:
+        except GitlabError:
             print(f"Cannot find GitLab v6 tag {tag_name} while trying to build git ref {git_ref}")
-            raise Exit(code=1) from e
+            print("v6 tags are no longer created, this check will be removed in a later commit")
 
         print(f"Successfully cross checked v6 tag {tag_name} and git ref {git_ref}")
     else:
@@ -888,11 +889,11 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     owner_branch_name = owner_branch_name.lower()
 
     assert (
-        owner_branch_name.count('/') == 1
+        owner_branch_name.count('/') >= 1
     ), f'owner_branch_name should be "<owner-name>/<branch-name>" but is {owner_branch_name}'
     assert "'" not in owner_branch_name
 
-    owner, branch = owner_branch_name.split('/')
+    owner, branch = owner_branch_name.split('/', 1)
     no_verify_flag = ' --no-verify' if no_verify else ''
 
     # Can checkout
