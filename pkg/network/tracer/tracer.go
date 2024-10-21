@@ -888,7 +888,7 @@ const connProtoTTL = 3 * time.Minute
 const connProtoCleaningInterval = 5 * time.Minute
 
 // setupConnectionProtocolMapCleaner sets up a map cleaner for the connectionProtocolMap.
-// It will clean the map every connProtoCleaningInterval if entries are older than connProtoTTL.
+// It will run every connProtoCleaningInterval and delete entries older than connProtoTTL.
 func setupConnectionProtocolMapCleaner(connectionProtocolMap *ebpf.Map) (*ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper], error) {
 	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper](connectionProtocolMap, 1024)
 	if err != nil {
