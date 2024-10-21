@@ -219,7 +219,7 @@ func (q *rdnsQuerierImpl) GetHostnameSync(ctx context.Context, ipAddr string) (s
 			hostname = h
 			close(done)
 		},
-		func(h string, e error) {
+		func(h string, _ error) {
 			mu.Lock()
 			defer mu.Unlock()
 			hostname = h
