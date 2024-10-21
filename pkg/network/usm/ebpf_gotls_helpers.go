@@ -338,10 +338,6 @@ func getReturnError(result *bininspect.Result, funcName string) (gotls.Location,
 	}
 }
 
-func makeReturnUID(uid string, returnNumber int) string {
-	return fmt.Sprintf("%s_%x", uid, returnNumber)
-}
-
 func boolToBinary(value bool) uint8 {
 	if value {
 		return 1
