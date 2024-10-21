@@ -20,14 +20,6 @@
     methods. A fresh reference to the module is created here. This function is python3
     only.
 */
-/*! \fn void Py2_init_containers()
-    \brief Initializes the containers builtin python module.
-
-    The containers python builtin is created and registered here as per the module_def
-    PyMethodDef definition in `containers.c` with the corresponding C-implemented python
-    methods. A fresh reference to the module is created here. This function is python2
-    only.
-*/
 /*! \fn void _set_is_excluded_cb(cb_is_excluded_t)
     \brief Sets a callback to be used by rtloader to determine if a container is excluded
     from metric collection.
