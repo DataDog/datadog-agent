@@ -129,8 +129,12 @@ type Config struct {
 
 	// NetworkEnabled defines if the network probes should be activated
 	NetworkEnabled bool
+
 	// NetworkIngressEnabled defines if the network ingress probes should be activated
 	NetworkIngressEnabled bool
+
+	// NetworkRawPacketEnabled defines if the network raw packet is enabled
+	NetworkRawPacketEnabled bool
 
 	// StatsPollingInterval determines how often metrics should be polled
 	StatsPollingInterval time.Duration
@@ -169,6 +173,7 @@ func NewConfig() (*Config, error) {
 		EnvsWithValue:                getStringSlice("envs_with_value"),
 		NetworkEnabled:               getBool("network.enabled"),
 		NetworkIngressEnabled:        getBool("network.ingress.enabled"),
+		NetworkRawPacketEnabled:      getBool("network.raw_packet.enabled"),
 		StatsPollingInterval:         time.Duration(getInt("events_stats.polling_interval")) * time.Second,
 		SyscallsMonitorEnabled:       getBool("syscalls_monitor.enabled"),
 

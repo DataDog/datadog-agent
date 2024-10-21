@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -92,7 +93,7 @@ func (suite *LauncherTestSuite) TestSendLog() {
 	assert.Equal(suite.T(), foundSource.Config.Type, config.FileType)
 	assert.Equal(suite.T(), foundSource.Config.Source, "foo")
 	assert.Equal(suite.T(), foundSource.Config.Service, "bar")
-	expectedPath := filepath.Join(suite.s.runPath, suite.s.integrationToFile[id].filename)
+	expectedPath := suite.s.integrationToFile[id].fileWithPath
 
 	assert.Equal(suite.T(), logSample, <-fileLogChan)
 	assert.Equal(suite.T(), expectedPath, <-filepathChan)
@@ -112,8 +113,8 @@ func (suite *LauncherTestSuite) TestZeroCombinedUsageMaxFileCreated() {
 	suite.s.combinedUsageMax = 0
 
 	filename := "sample_integration_123.log"
-	filepath := filepath.Join(suite.s.runPath, filename)
-	file, err := os.Create(filepath)
+	fileWithPath := filepath.Join(suite.s.runPath, filename)
+	file, err := os.Create(fileWithPath)
 	assert.Nil(suite.T(), err)
 
 	file.Close()
@@ -142,11 +143,11 @@ func (suite *LauncherTestSuite) TestZeroCombinedUsageMaxFileNotCreated() {
 }
 
 func (suite *LauncherTestSuite) TestSmallCombinedUsageMax() {
-	suite.s.combinedUsageMax = 10
+	suite.s.combinedUsageMax = 15
 
 	filename := "sample_integration_123.log"
-	filepath := filepath.Join(suite.s.runPath, filename)
-	file, err := os.Create(filepath)
+	fileWithPath := filepath.Join(suite.s.runPath, filename)
+	file, err := os.Create(fileWithPath)
 	assert.Nil(suite.T(), err)
 
 	file.Close()
@@ -154,32 +155,41 @@ func (suite *LauncherTestSuite) TestSmallCombinedUsageMax() {
 	suite.s.Start(nil, nil, nil, nil)
 
 	// Launcher should write this log
-	writtenLog := "sample"
+	shortLog := "sample"
 	integrationLog := integrations.IntegrationLog{
-		Log:           writtenLog,
+		Log:           shortLog,
 		IntegrationID: "sample_integration:123",
 	}
 	suite.s.receiveLogs(integrationLog)
-	fileStat, err := os.Stat(filepath)
+	fileStat, err := os.Stat(fileWithPath)
 	assert.Nil(suite.T(), err)
-	assert.Equal(suite.T(), fileStat.Size(), int64(len(writtenLog)+1))
+	assert.Equal(suite.T(), fileStat.Size(), int64(len(shortLog)+1))
 
-	// Launcher should delete file for this log
-	unwrittenLog := "sample log two"
+	// Launcher should delete and remake the log file for this log since it would break combinedUsageMax threshold
+	longLog := "sample log two"
 	integrationLogTwo := integrations.IntegrationLog{
-		Log:           unwrittenLog,
+		Log:           longLog,
 		IntegrationID: "sample_integration:123",
 	}
 	suite.s.receiveLogs(integrationLogTwo)
+	_, err = os.Stat(fileWithPath)
+	assert.Nil(suite.T(), err)
 
-	_, err = os.Stat(filepath)
-	assert.True(suite.T(), os.IsNotExist(err))
+	// Launcher should skip writing this log since it's larger than combinedUsageMax
+	unwrittenLog := "this log is too long"
+	unwrittenIntegrationLog := integrations.IntegrationLog{
+		Log:           unwrittenLog,
+		IntegrationID: "sample_integration:123",
+	}
+	suite.s.receiveLogs(unwrittenIntegrationLog)
+	_, err = os.Stat(fileWithPath)
+	assert.Nil(suite.T(), err)
 
 	// Remake the file
 	suite.s.receiveLogs(integrationLog)
-	fileStat, err = os.Stat(filepath)
+	fileStat, err = os.Stat(fileWithPath)
 	assert.Nil(suite.T(), err)
-	assert.Equal(suite.T(), fileStat.Size(), int64(len(writtenLog)+1))
+	assert.Equal(suite.T(), fileStat.Size(), int64(len(shortLog)+1))
 }
 
 func (suite *LauncherTestSuite) TestWriteLogToFile() {
@@ -214,12 +224,12 @@ func (suite *LauncherTestSuite) TestWriteMultipleLogsToFile() {
 // TestDeleteFile tests that deleteFile properly deletes the correct file
 func (suite *LauncherTestSuite) TestDeleteFile() {
 	filename := "testfile.log"
-	filepath := filepath.Join(suite.s.runPath, filename)
-	file, err := os.Create(filepath)
-	fileinfo := &fileInfo{filename: filename, size: int64(0)}
+	fileWithPath := filepath.Join(suite.s.runPath, filename)
+	file, err := os.Create(fileWithPath)
+	fileinfo := &fileInfo{fileWithPath: fileWithPath, size: int64(0)}
 	assert.Nil(suite.T(), err)
 
-	info, err := os.Stat(filepath)
+	info, err := os.Stat(fileWithPath)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), int64(0), info.Size(), "Newly created file size not zero")
 
@@ -228,14 +238,14 @@ func (suite *LauncherTestSuite) TestDeleteFile() {
 	file.Write(data)
 	file.Close()
 
-	info, err = os.Stat(filepath)
+	info, err = os.Stat(fileWithPath)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), int64(2*1024*1024), info.Size())
 
 	err = suite.s.deleteFile(fileinfo)
 	assert.Nil(suite.T(), err)
 
-	_, err = os.Stat(filepath)
+	_, err = os.Stat(fileWithPath)
 	assert.True(suite.T(), os.IsNotExist(err))
 }
 
@@ -280,8 +290,8 @@ func (suite *LauncherTestSuite) TestFileExceedsSingleFileLimit() {
 	suite.s.fileSizeMax = oneMB
 
 	filename := "sample_integration_123.log"
-	filepath := filepath.Join(suite.s.runPath, filename)
-	file, err := os.Create(filepath)
+	fileWithPath := filepath.Join(suite.s.runPath, filename)
+	file, err := os.Create(fileWithPath)
 	assert.Nil(suite.T(), err)
 
 	file.Write(make([]byte, oneMB))
@@ -307,7 +317,8 @@ func (suite *LauncherTestSuite) TestScanInitialFiles() {
 	filename := "sample_integration_123.log"
 	fileSize := int64(1 * 1024 * 1024)
 
-	file, err := os.Create(filepath.Join(suite.s.runPath, filename))
+	fileWithPath := filepath.Join(suite.s.runPath, filename)
+	file, err := os.Create(fileWithPath)
 	assert.Nil(suite.T(), err)
 
 	data := make([]byte, fileSize)
@@ -319,7 +330,7 @@ func (suite *LauncherTestSuite) TestScanInitialFiles() {
 	actualFileInfo := suite.s.integrationToFile[fileID]
 
 	assert.NotEmpty(suite.T(), suite.s.integrationToFile)
-	assert.Equal(suite.T(), actualFileInfo.filename, filename)
+	assert.Equal(suite.T(), actualFileInfo.fileWithPath, fileWithPath)
 	assert.Equal(suite.T(), fileSize, actualFileInfo.size)
 	assert.Equal(suite.T(), fileSize, suite.s.combinedUsageSize)
 }
@@ -330,7 +341,8 @@ func (suite *LauncherTestSuite) TestCreateFileAfterScanInitialFile() {
 	filename := "sample_integration_123.log"
 	fileSize := int64(1 * 1024 * 1024)
 
-	file, err := os.Create(filepath.Join(suite.s.runPath, filename))
+	fileWithPath := filepath.Join(suite.s.runPath, filename)
+	file, err := os.Create(fileWithPath)
 	assert.Nil(suite.T(), err)
 
 	data := make([]byte, fileSize)
@@ -342,7 +354,7 @@ func (suite *LauncherTestSuite) TestCreateFileAfterScanInitialFile() {
 	scannedFile := suite.s.integrationToFile[fileID]
 
 	assert.NotEmpty(suite.T(), suite.s.integrationToFile)
-	assert.Equal(suite.T(), filename, scannedFile.filename)
+	assert.Equal(suite.T(), fileWithPath, scannedFile.fileWithPath)
 	assert.Equal(suite.T(), fileSize, scannedFile.size)
 	assert.Equal(suite.T(), fileSize, suite.s.combinedUsageSize)
 
@@ -379,19 +391,28 @@ func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 	suite.s.combinedUsageMax = 3 * 1024 * 1024
 
 	// Given 3 files exist
-	filename1 := "sample_integration1_123.log"
-	filename2 := "sample_integration2_123.log"
-	filename3 := "sample_integration3_123.log"
-	files := [3]string{filename1, filename2, filename3}
+	fileWithPath1 := filepath.Join(suite.s.runPath, "sample_integration1_123.log")
+	fileWithPath2 := filepath.Join(suite.s.runPath, "sample_integration2_123.log")
+	fileWithPath3 := filepath.Join(suite.s.runPath, "sample_integration3_123.log")
+	fileNames := [3]string{fileWithPath1, fileWithPath2, fileWithPath3}
 
 	//  And I write 1Mb to each file in seq order
 	dataOneMB := make([]byte, 1*1024*1024)
-	for _, filename := range files {
-		file, err := os.Create(filepath.Join(suite.s.runPath, filename))
+	for _, fileWithPath := range fileNames {
+		file, err := os.Create(fileWithPath)
 		require.NoError(suite.T(), err)
 		_, _ = file.Write(dataOneMB)
 		_ = file.Close()
 	}
+
+	// If the files have the same timestamp, scanInitialFiles will detect them in
+	// random order. Setting their modified time manually allows the
+	// scanInitialFiles function to detect them in a deterministic manner
+	modTime := time.Now()
+	accessTime := time.Now()
+	os.Chtimes(fileWithPath1, accessTime, modTime.Add(-2*time.Minute))
+	os.Chtimes(fileWithPath2, accessTime, modTime.Add(-1*time.Minute))
+	os.Chtimes(fileWithPath3, accessTime, modTime)
 
 	suite.s.Start(nil, nil, nil, nil)
 
@@ -404,8 +425,8 @@ func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 	suite.s.receiveLogs(integrationLog)
 
 	var actualSize int64
-	for _, filename := range files {
-		file, err := os.Stat(filepath.Join(suite.s.runPath, filename))
+	for _, fileWithPath := range fileNames {
+		file, err := os.Stat(fileWithPath)
 		require.Nil(suite.T(), err)
 		actualSize += file.Size()
 	}

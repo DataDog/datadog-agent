@@ -28,7 +28,7 @@
       - START_MAJOR_VERSION: [5, 6, 7]
         END_MAJOR_VERSION: [7]
   script:
-    - DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $INSTALL_SCRIPT_API_KEY ) || exit $?; export DATADOG_AGENT_API_KEY
+    - DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $INSTALL_SCRIPT_API_KEY_ORG2 token ) || exit $?; export DATADOG_AGENT_API_KEY
     - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION --test-washer
 
 .new-e2e_script_upgrade_persisting_integrations:
@@ -38,7 +38,7 @@
     TEAM: agent-delivery
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH --flavor $FLAVOR
   script:
-    - DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $INSTALL_SCRIPT_API_KEY ) || exit $?; export DATADOG_AGENT_API_KEY
+    - DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $INSTALL_SCRIPT_API_KEY_ORG2 token) || exit $?; export DATADOG_AGENT_API_KEY
     - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version 7 --test-washer
 
 .new-e2e_rpm:
@@ -48,5 +48,5 @@
     TEAM: agent-delivery
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH
   script:
-    - DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $INSTALL_SCRIPT_API_KEY) || exit $?; export DATADOG_AGENT_API_KEY
+    - DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $INSTALL_SCRIPT_API_KEY_ORG2 token) || exit $?; export DATADOG_AGENT_API_KEY
     - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --test-washer

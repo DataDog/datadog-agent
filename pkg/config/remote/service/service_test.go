@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -24,7 +23,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
@@ -158,10 +157,8 @@ var testRCKey = msgpgo.RemoteConfigKey{
 }
 
 func newTestService(t *testing.T, api *mockAPI, uptane *mockCoreAgentUptane, clock clock.Clock) *CoreAgentService {
-	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("hostname", "test-hostname")
-	defer cfg.SetWithoutSource("hostname", "")
 
 	dir := t.TempDir()
 	cfg.SetWithoutSource("run_path", dir)
@@ -960,7 +957,7 @@ func TestOrgStatus(t *testing.T) {
 }
 
 func TestWithTraceAgentEnv(t *testing.T) {
-	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	cfg := configmock.New(t)
 	dir := t.TempDir()
 	cfg.SetWithoutSource("run_path", dir)
 
@@ -979,7 +976,7 @@ func TestWithTraceAgentEnv(t *testing.T) {
 }
 
 func TestWithDatabaseFileName(t *testing.T) {
-	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("run_path", "/tmp")
 
 	baseRawURL := "https://localhost"
@@ -1020,7 +1017,7 @@ func TestWithRefreshInterval(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+			cfg := configmock.New(t)
 			cfg.SetWithoutSource("run_path", "/tmp")
 
 			baseRawURL := "https://localhost"
@@ -1117,7 +1114,7 @@ type clientTTLTest struct {
 }
 
 func TestWithDirectorRootOverride(t *testing.T) {
-	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("run_path", "/tmp")
 
 	baseRawURL := "https://localhost"

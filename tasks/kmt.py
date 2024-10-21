@@ -751,7 +751,7 @@ def prepare(
     domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
     assert len(domains) > 0, err_msg
 
-    _prepare(ctx, stack, component, arch, packages, verbose, ci, compile_only, domains=domains)
+    _prepare(ctx, stack, component, arch_obj, packages, verbose, ci, compile_only, domains=domains)
 
 
 def _prepare(
@@ -1021,13 +1021,6 @@ def kmt_sysprobe_prepare(
                     rule="gotestsuite",
                     pool="gobuild",
                     variables=variables,
-                )
-
-            if pkg.endswith("java"):
-                nw.build(
-                    inputs=[os.path.join(pkg, "agent-usm.jar")],
-                    outputs=[os.path.join(target_path, "agent-usm.jar")],
-                    rule="copyfiles",
                 )
 
         # handle testutils and testdata separately since they are
