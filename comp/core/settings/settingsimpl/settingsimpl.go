@@ -247,7 +247,9 @@ func (s *settingsRegistry) SetRole(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	role := vars["role"]
 
-	s.log.Infof("Got a request to change a role: %s", role)
+	prevRole := haagent.GetRole()
+
+	s.log.Infof("Got a request to change role: %s -> %s", role, prevRole)
 
 	haagent.SetRole(role)
 
