@@ -77,7 +77,7 @@ func ShouldRunForCheck(check check.Check) bool {
 	log.Warnf("[ShouldRunForCheck] check inst %s: `%s`", checkName, check.InstanceConfig())
 	log.Warnf("[ShouldRunForCheck] check InitConfig %s: `%s`", checkName, check.InitConfig())
 
-	if IsEnabled() && checkName == "snmp" {
+	if IsEnabled() && check.IsHACheck() {
 		mode := pkgconfigsetup.Datadog().GetString("ha_agent.mode")
 
 		if mode == "distributed" {
