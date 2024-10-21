@@ -131,10 +131,10 @@ func TestProbeCanGenerateStats(t *testing.T) {
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
 	require.NotNil(t, stats)
-	require.NotEmpty(t, stats.PIDStats)
-	require.Contains(t, stats.PIDStats, uint32(cmd.Process.Pid))
+	require.NotEmpty(t, stats.ProcessStats)
+	require.Contains(t, stats.ProcessStats, uint32(cmd.Process.Pid))
 
-	pidStats := stats.PIDStats[uint32(cmd.Process.Pid)]
+	pidStats := stats.ProcessStats[uint32(cmd.Process.Pid)]
 	require.Greater(t, pidStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, pidStats.MaxMemoryBytes, uint64(100))
 

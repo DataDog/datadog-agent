@@ -109,7 +109,7 @@ func (m *Check) Run() error {
 		m.activePIDs[pid] = false
 	}
 
-	for pid, pidStats := range stats.PIDStats {
+	for pid, pidStats := range stats.ProcessStats {
 		// Per-PID metrics are subject to change due to high cardinality
 		tags := []string{fmt.Sprintf("pid:%d", pid)}
 		snd.Gauge(metricNameMemory, float64(pidStats.CurrentMemoryBytes), "", tags)

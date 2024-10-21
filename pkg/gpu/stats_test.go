@@ -74,9 +74,9 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	checkKtime := ktime + int64(checkDuration)
 	stats := statsGen.getStats(checkKtime)
 	require.NotNil(t, stats)
-	require.Contains(t, stats.PIDStats, pid)
+	require.Contains(t, stats.ProcessStats, pid)
 
-	pidStats := stats.PIDStats[pid]
+	pidStats := stats.ProcessStats[pid]
 	require.Equal(t, allocSize, pidStats.CurrentMemoryBytes)
 	require.Equal(t, allocSize, pidStats.MaxMemoryBytes)
 
@@ -125,9 +125,9 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	checkKtime := ktime + int64(checkDuration)
 	stats := statsGen.getStats(checkKtime)
 	require.NotNil(t, stats)
-	require.Contains(t, stats.PIDStats, pid)
+	require.Contains(t, stats.ProcessStats, pid)
 
-	pidStats := stats.PIDStats[pid]
+	pidStats := stats.ProcessStats[pid]
 	require.Equal(t, uint64(0), pidStats.CurrentMemoryBytes)
 	require.Equal(t, allocSize, pidStats.MaxMemoryBytes)
 
@@ -196,9 +196,9 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	checkKtime := ktime + int64(checkDuration)
 	stats := statsGen.getStats(checkKtime)
 	require.NotNil(t, stats)
-	require.Contains(t, stats.PIDStats, pid)
+	require.Contains(t, stats.ProcessStats, pid)
 
-	pidStats := stats.PIDStats[pid]
+	pidStats := stats.ProcessStats[pid]
 	require.Equal(t, uint64(allocSize), pidStats.CurrentMemoryBytes)
 	require.Equal(t, allocSize*2, pidStats.MaxMemoryBytes)
 

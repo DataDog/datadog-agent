@@ -61,5 +61,5 @@ type PIDStats struct {
 // GPUStats contains the past and current data for all streams, including kernel spans and allocations.
 // This is the data structure that is sent to the agent
 type GPUStats struct {
-	PIDStats map[uint32]PIDStats `json:"pid_stats"`
+	ProcessStats map[uint32]PIDStats `json:"pid_stats"`
 }

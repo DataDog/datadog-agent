@@ -54,11 +54,11 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	g.setNormalizationFactor()
 
 	stats := model.GPUStats{
-		PIDStats: make(map[uint32]model.PIDStats),
+		ProcessStats: make(map[uint32]model.PIDStats),
 	}
 
 	for pid, aggr := range g.aggregators {
-		stats.PIDStats[pid] = aggr.getStats()
+		stats.ProcessStats[pid] = aggr.getStats()
 	}
 
 	g.lastGenerationKTime = g.currGenerationKTime
