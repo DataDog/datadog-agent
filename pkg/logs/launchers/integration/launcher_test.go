@@ -104,7 +104,7 @@ func (suite *LauncherTestSuite) TestSendLog() {
 func (suite *LauncherTestSuite) TestNegativeCombinedUsageMax() {
 	suite.s.combinedUsageMax = -1
 	err := suite.s.scanInitialFiles(suite.s.runPath)
-	assert.NotNil(suite.T(), err)
+	assert.Error(suite.T(), err)
 }
 
 // TestZeroCombinedUsageMax ensures the launcher won't panic when
@@ -115,7 +115,7 @@ func (suite *LauncherTestSuite) TestZeroCombinedUsageMaxFileCreated() {
 	filename := "sample_integration_123.log"
 	fileWithPath := filepath.Join(suite.s.runPath, filename)
 	file, err := os.Create(fileWithPath)
-	assert.Nil(suite.T(), err)
+	assert.NoError(suite.T(), err)
 
 	file.Close()
 
@@ -162,7 +162,7 @@ func (suite *LauncherTestSuite) TestSmallCombinedUsageMax() {
 	}
 	suite.s.receiveLogs(integrationLog)
 	fileStat, err := os.Stat(fileWithPath)
-	assert.Nil(suite.T(), err)
+	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), fileStat.Size(), int64(len(shortLog)+1))
 
 	// Launcher should delete and remake the log file for this log since it would break combinedUsageMax threshold
@@ -173,7 +173,7 @@ func (suite *LauncherTestSuite) TestSmallCombinedUsageMax() {
 	}
 	suite.s.receiveLogs(integrationLogTwo)
 	_, err = os.Stat(fileWithPath)
-	assert.Nil(suite.T(), err)
+	assert.NoError(suite.T(), err)
 
 	// Launcher should skip writing this log since it's larger than combinedUsageMax
 	unwrittenLog := "this log is too long"
@@ -183,12 +183,12 @@ func (suite *LauncherTestSuite) TestSmallCombinedUsageMax() {
 	}
 	suite.s.receiveLogs(unwrittenIntegrationLog)
 	_, err = os.Stat(fileWithPath)
-	assert.Nil(suite.T(), err)
+	assert.NoError(suite.T(), err)
 
 	// Remake the file
 	suite.s.receiveLogs(integrationLog)
 	fileStat, err = os.Stat(fileWithPath)
-	assert.Nil(suite.T(), err)
+	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), fileStat.Size(), int64(len(shortLog)+1))
 }
 
@@ -206,13 +206,13 @@ func (suite *LauncherTestSuite) TestWriteLogToFile() {
 func (suite *LauncherTestSuite) TestWriteMultipleLogsToFile() {
 	var err error
 	err = suite.s.writeLogToFileFunction(suite.testPath, "line 1")
-	require.Nil(suite.T(), err, "error writing line 1")
+	require.NoError(suite.T(), err, "error writing line 1")
 
 	err = suite.s.writeLogToFileFunction(suite.testPath, "line 2")
-	require.Nil(suite.T(), err, "error writing line 2")
+	require.NoError(suite.T(), err, "error writing line 2")
 
 	err = suite.s.writeLogToFileFunction(suite.testPath, "line 3")
-	require.Nil(suite.T(), err, "error writing line 3")
+	require.NoError(suite.T(), err, "error writing line 3")
 
 	fileContents, err := os.ReadFile(suite.testPath)
 
@@ -239,11 +239,11 @@ func (suite *LauncherTestSuite) TestDeleteFile() {
 	file.Close()
 
 	info, err = os.Stat(fileWithPath)
-	assert.Nil(suite.T(), err)
+	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), int64(2*1024*1024), info.Size())
 
 	err = suite.s.deleteFile(fileinfo)
-	assert.Nil(suite.T(), err)
+	assert.NoError(suite.T(), err)
 
 	_, err = os.Stat(fileWithPath)
 	assert.True(suite.T(), os.IsNotExist(err))
@@ -292,7 +292,7 @@ func (suite *LauncherTestSuite) TestFileExceedsSingleFileLimit() {
 	filename := "sample_integration_123.log"
 	fileWithPath := filepath.Join(suite.s.runPath, filename)
 	file, err := os.Create(fileWithPath)
-	assert.Nil(suite.T(), err)
+	assert.NoError(suite.T(), err)
 
 	file.Write(make([]byte, oneMB))
 	file.Close()
@@ -319,7 +319,7 @@ func (suite *LauncherTestSuite) TestScanInitialFiles() {
 
 	fileWithPath := filepath.Join(suite.s.runPath, filename)
 	file, err := os.Create(fileWithPath)
-	assert.Nil(suite.T(), err)
+	assert.NoError(suite.T(), err)
 
 	data := make([]byte, fileSize)
 	file.Write(data)
@@ -343,7 +343,7 @@ func (suite *LauncherTestSuite) TestCreateFileAfterScanInitialFile() {
 
 	fileWithPath := filepath.Join(suite.s.runPath, filename)
 	file, err := os.Create(fileWithPath)
-	assert.Nil(suite.T(), err)
+	assert.NoError(suite.T(), err)
 
 	data := make([]byte, fileSize)
 	file.Write(data)
@@ -408,11 +408,10 @@ func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 	// If the files have the same timestamp, scanInitialFiles will detect them in
 	// random order. Setting their modified time manually allows the
 	// scanInitialFiles function to detect them in a deterministic manner
-	modTime := time.Now()
-	accessTime := time.Now()
-	os.Chtimes(fileWithPath1, accessTime, modTime.Add(-2*time.Minute))
-	os.Chtimes(fileWithPath2, accessTime, modTime.Add(-1*time.Minute))
-	os.Chtimes(fileWithPath3, accessTime, modTime)
+	now := time.Now()
+	os.Chtimes(fileWithPath1, now, now.Add(-2*time.Minute))
+	os.Chtimes(fileWithPath2, now, now.Add(-1*time.Minute))
+	os.Chtimes(fileWithPath3, now, now)
 
 	suite.s.Start(nil, nil, nil, nil)
 
@@ -427,7 +426,7 @@ func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 	var actualSize int64
 	for _, fileWithPath := range fileNames {
 		file, err := os.Stat(fileWithPath)
-		require.Nil(suite.T(), err)
+		require.NoError(suite.T(), err)
 		actualSize += file.Size()
 	}
 
@@ -451,9 +450,9 @@ func (suite *LauncherTestSuite) TestInitialLogsExceedTotalUsageMultipleFiles() {
 	dataOneMB := make([]byte, oneMB)
 
 	file1, err := os.Create(filepath.Join(suite.s.runPath, filename1))
-	assert.Nil(suite.T(), err)
+	assert.NoError(suite.T(), err)
 	file2, err := os.Create(filepath.Join(suite.s.runPath, filename2))
-	assert.Nil(suite.T(), err)
+	assert.NoError(suite.T(), err)
 
 	file1.Write(dataOneMB)
 	file2.Write(dataOneMB)
@@ -476,7 +475,7 @@ func (suite *LauncherTestSuite) TestInitialLogExceedsTotalUsageSingleFile() {
 	dataTwoMB := make([]byte, 2*oneMB)
 
 	file, err := os.Create(filepath.Join(suite.s.runPath, filename))
-	assert.Nil(suite.T(), err)
+	assert.NoError(suite.T(), err)
 
 	file.Write(dataTwoMB)
 	file.Close()
@@ -504,9 +503,9 @@ func (suite *LauncherTestSuite) TestScanInitialFilesDeletesProperly() {
 
 	name := filepath.Join(suite.s.runPath, filename1)
 	file1, err := os.Create(name)
-	assert.Nil(suite.T(), err)
+	assert.NoError(suite.T(), err)
 	file2, err := os.Create(filepath.Join(suite.s.runPath, filename2))
-	assert.Nil(suite.T(), err)
+	assert.NoError(suite.T(), err)
 
 	dataOneMB := make([]byte, oneMB)
 	file1.Write(dataOneMB)
@@ -538,8 +537,15 @@ func TestLauncherTestSuite(t *testing.T) {
 // file system. There will be errors but it should handle them gracefully.
 func TestReadOnlyFileSystem(t *testing.T) {
 	readOnlyDir := filepath.Join(t.TempDir(), "readonly")
+	// Make dir readonly
 	err := os.Mkdir(readOnlyDir, 0444)
-	assert.Nil(t, err, "Unable to make tempdir readonly")
+	assert.NoError(t, err, "Unable to make tempdir readonly")
+
+	defer func(dir string) {
+		// remove readonly dir
+		_ = os.Chmod(dir, 0644)
+		_ = os.RemoveAll(dir)
+	}(readOnlyDir)
 
 	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.run_path", readOnlyDir)
 
