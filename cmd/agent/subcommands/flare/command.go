@@ -126,8 +126,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					InitHelper: common.GetWorkloadmetaInit(),
 					NoInstance: !cliParams.forceLocal, //if forceLocal is true, we want to run workloadmeta
 				}),
-				taggerimpl.OptionalModule(),
-				autodiscoveryimpl.OptionalModule(), // if forceLocal is true, we will start autodiscovery (loadComponents) later
+				taggerimpl.Module(),
+				autodiscoveryimpl.Module(), // if forceLocal is true, we will start autodiscovery (loadComponents) later
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				compressionimpl.Module(),
 				diagnosesendermanagerimpl.Module(),

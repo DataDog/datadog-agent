@@ -105,6 +105,7 @@ func (n *noopTagger) DogstatsdCardinality() types.TagCardinality {
 	return types.LowCardinality
 }
 
+// NewTaggerClient returns a new noop tagger client
 func NewTaggerClient() tagger.Component {
 	return &noopTagger{}
 }

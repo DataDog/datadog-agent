@@ -21,8 +21,7 @@ import (
 
 	//nolint:revive // TODO(AML) Fix revive linter
 
-	nnoptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -42,10 +41,10 @@ func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
 	log := logimpl.NewTemporaryLoggerWithoutInit()
-	sharedForwarder := forwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), log, forwarder.NewOptions(pkgconfigsetup.Datadog(), log, nil))
+	sharedForwarder := defaultforwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), log, defaultforwarder.NewOptions(pkgconfigsetup.Datadog(), log, nil))
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameimpl.NewHostnameService()))
-	taggerComponent := nnoptagger.NewTaggerClient()
+	taggerComponent := nooptagger.NewTaggerClient()
 	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, compressionimpl.NewMockCompressor(), taggerComponent, "")
 
 }

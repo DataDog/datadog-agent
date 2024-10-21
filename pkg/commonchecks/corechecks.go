@@ -96,8 +96,8 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(docker.CheckName, docker.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(sbom.CheckName, sbom.Factory(store, cfg))
 	corecheckLoader.RegisterCheck(kubelet.CheckName, kubelet.Factory(store))
-	corecheckLoader.RegisterCheck(containerd.CheckName, containerd.Factory(store))
-	corecheckLoader.RegisterCheck(cri.CheckName, cri.Factory(store))
+	corecheckLoader.RegisterCheck(containerd.CheckName, containerd.Factory(store, tagger))
+	corecheckLoader.RegisterCheck(cri.CheckName, cri.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(ciscosdwan.CheckName, ciscosdwan.Factory())
 	corecheckLoader.RegisterCheck(servicediscovery.CheckName, servicediscovery.Factory(store))
 }
