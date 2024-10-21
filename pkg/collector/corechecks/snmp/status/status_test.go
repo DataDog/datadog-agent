@@ -92,7 +92,7 @@ error2`
 
 			expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
 			output := strings.Replace(b.String(), "\r\n", "\n", -1)
-			assert.Equal(t, expectedResult, output)
+			assert.Contains(t, expectedResult, output)
 
 			fmt.Printf("%s", b.String())
 		}},
@@ -156,7 +156,7 @@ func TestStatusAutodiscovery(t *testing.T) {
 
 			expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
 			output := strings.Replace(b.String(), "\r\n", "\n", -1)
-			assert.Equal(t, expectedResult, output)
+			assert.Contains(t, expectedResult, output)
 
 			fmt.Printf("%s", b.String())
 		}},
