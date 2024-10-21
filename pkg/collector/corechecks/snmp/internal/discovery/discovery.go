@@ -140,12 +140,12 @@ func (d *Discovery) discoverDevices() {
 	for w := 0; w < d.config.DiscoveryWorkers; w++ {
 		go d.runWorker(w, jobs)
 	}
-	discoveryVar, ok := expvar.Get("snmpDiscovery").(*expvar.Map)
+	discoveryMapVar, ok := expvar.Get("snmpDiscovery").(*expvar.Map)
 	if !ok {
 		log.Errorf("subnet %s: Couldn't get SNMP discovery expvar", d.config.Network)
 	}
 
-	discoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return "scanning" }))
+	discoveryMapVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return "scanning" }))
 
 	discoveryTicker := time.NewTicker(time.Duration(d.config.DiscoveryInterval) * time.Second)
 	defer discoveryTicker.Stop()
@@ -175,7 +175,7 @@ func (d *Discovery) discoverDevices() {
 			}
 		}
 		devicesFound := fmt.Sprintf("%d", len(subnet.devices))
-		discoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return devicesFound }))
+		discoveryMapVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return devicesFound }))
 
 		select {
 		case <-d.stop:
