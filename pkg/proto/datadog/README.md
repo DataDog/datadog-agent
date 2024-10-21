@@ -9,9 +9,9 @@ files we will need three different grpc-related packages:
 
 ### Install
 
-Run the following:
+From the repository root run the following:
 ```
-go install github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger github.com/golang/protobuf/protoc-gen-go
+inv setup
 ```
 This should drop all required binaries in your `$GOPATH/bin`
 
@@ -21,25 +21,23 @@ elsewhere take precedence (`which` is your friend).
 
 ### Code Generation
 
-Chdir yourself into this directory (`cmd/agent/api/pb`), and run
-the following commands:
+From the repository root run the following:
 
 ```
-protoc -I. --go_out=plugins=grpc,paths=source_relative:. api.proto
-protoc -I. --grpc-gateway_out=logtostderr=true,paths=source_relative:. api.proto
+inv generate-protobuf
 ```
 
 Those two will generate the protobuf golang definitions _and_ the
 gRPC gateway code that will allow us to serve the API also as a 
 REST application.
 
+### Notes
 
-### Note/ToDo
+We are currently pinned to fairly old versions for some of the 
+protobuf/grpc dependencies and tooling. These are required as a
+consequence of third-party libraries (most notably etcd). Please
+see `go.mod` and `internal/tools/proto/go.mod` to understand the
+version requirements. 
 
-At the time of this writing we had been using the dev branch for
-all the grpc projects we pull binaries for when we [install](#install)
-as we had been experiencing some issues with prior versions (ie. 1.12.2). 
-
-This should probably be formally addressed such that the versions
-of the packages tracked by gomod is the same we pull for the 
-binaries. This should be part of the bootstrapping steps.
+The tooling in place should help our protobuf versions be consistent
+across the board.
