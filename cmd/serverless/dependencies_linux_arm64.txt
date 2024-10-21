@@ -150,7 +150,6 @@ github.com/DataDog/datadog-agent/pkg/config/utils
 github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis
 github.com/DataDog/datadog-agent/pkg/errors
 github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels
-github.com/DataDog/datadog-agent/pkg/languagedetection/util
 github.com/DataDog/datadog-agent/pkg/logs/auditor
 github.com/DataDog/datadog-agent/pkg/logs/client
 github.com/DataDog/datadog-agent/pkg/logs/client/http
