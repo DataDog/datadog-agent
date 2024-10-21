@@ -74,6 +74,10 @@ func (m *mockLongRunningCheck) IsTelemetryEnabled() bool {
 	args := m.Called()
 	return args.Bool(0)
 }
+func (m *mockLongRunningCheck) IsHACheck() bool {
+	args := m.Called()
+	return args.Bool(0)
+}
 
 func (m *mockLongRunningCheck) InitConfig() string {
 	args := m.Called()
