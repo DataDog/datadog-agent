@@ -32,6 +32,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
@@ -69,12 +70,17 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 	enrichedTags := make([]string, 0, len(extraTags)+len(dimensions.Tags()))
 	enrichedTags = append(enrichedTags, extraTags...)
 	enrichedTags = append(enrichedTags, dimensions.Tags()...)
-
-	entityTags, err := tagger.LegacyTag(dimensions.OriginID(), t.cardinality)
+	prefix, id, err := common.ExtractPrefixAndID(dimensions.OriginID())
 	if err != nil {
-		log.Tracef("Cannot get tags for entity %s: %s", dimensions.OriginID(), err)
+		entityID := types.NewEntityID(prefix, id)
+		entityTags, err := tagger.Tag(entityID, t.cardinality)
+		if err != nil {
+			log.Tracef("Cannot get tags for entity %s: %s", dimensions.OriginID(), err)
+		} else {
+			enrichedTags = append(enrichedTags, entityTags...)
+		}
 	} else {
-		enrichedTags = append(enrichedTags, entityTags...)
+		log.Tracef("Cannot get tags for entity %s: %s", dimensions.OriginID(), err)
 	}
 
 	globalTags, err := tagger.GlobalTags(t.cardinality)
