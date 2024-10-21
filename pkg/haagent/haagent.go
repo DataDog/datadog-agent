@@ -33,5 +33,6 @@ func GetRole() string {
 }
 
 func SetRole(role string) {
+	// TODO: Need validation
 	roleStore.Store(role)
 }
