@@ -129,12 +129,12 @@ func (agg *aggregator) getStats() model.PIDStats {
 	stats.MaxMemoryBytes = uint64(maxValue)
 
 	// Flush the data that we used
-	agg.flushProcessedStats()
+	agg.flush()
 
 	return stats
 }
 
-func (agg *aggregator) flushProcessedStats() {
+func (agg *aggregator) flush() {
 	agg.currentAllocs = agg.currentAllocs[:0]
 	agg.pastAllocs = agg.pastAllocs[:0]
 	agg.totalThreadSecondsUsed = 0
