@@ -986,3 +986,46 @@ func TestCachePersist(t *testing.T) {
 	})
 	ts.validateExpected(t, expectedTelemetry)
 }
+
+func TestGetHostnameSync(t *testing.T) {
+	overrides := map[string]interface{}{
+		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
+	}
+	ts := testSetup(t, overrides, true, nil)
+	internalRDNSQuerier := ts.rdnsQuerier.(*rdnsQuerierImpl)
+
+	// Test with invalid IP address
+	hostname, err := internalRDNSQuerier.GetHostnameSync("invalid_ip")
+	assert.Error(t, err)
+	assert.Equal(t, "", hostname)
+
+	// Test with IP address not in private range
+	hostname, err = internalRDNSQuerier.GetHostnameSync("8.8.8.8")
+	assert.NoError(t, err)
+	assert.Equal(t, "", hostname)
+
+	// Test with IP address in private range
+	hostname, err = internalRDNSQuerier.GetHostnameSync("192.168.1.100")
+	assert.NoError(t, err)
+	assert.NotEqual(t, "", hostname)
+
+	// Test with IP address in private range but cache miss
+	hostname, err = internalRDNSQuerier.GetHostnameSync("192.168.1.101")
+	assert.NoError(t, err)
+	assert.NotEqual(t, "", hostname)
+
+	// // Test with a valid IP address that resolves to a hostname
+	hostname, err = internalRDNSQuerier.GetHostnameSync("192.168.1.100") // cached from earlier test
+	assert.NoError(t, err)
+	assert.Equal(t, "fakehostname-192.168.1.100", hostname)
+
+	// Test with an empty string as input
+	hostname, err = internalRDNSQuerier.GetHostnameSync("")
+	assert.Error(t, err)
+	assert.Equal(t, "", hostname)
+
+	// Test with an IPv6 address
+	hostname, err = internalRDNSQuerier.GetHostnameSync("2001:4860:4860::8888") // Google Public DNS
+	assert.Error(t, err)
+	assert.Equal(t, "", hostname)
+}
