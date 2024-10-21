@@ -50,7 +50,9 @@ type StandardRulesConfig struct {
 // StandardRulesDefaults contains consts defaults information for
 // standard rules.
 type StandardRulesDefaults struct {
-	IncludedKeywordsCharCount uint32 `json:"included_keywords_char_count"`
+	IncludedKeywordsCharCount uint32   `json:"included_keywords_char_count"`
+	ExcludedKeywordsCharCount uint32   `json:"excluded_keywords_char_count"`
+	ExcludedKeywords          []string `json:"excluded_keywords"`
 }
 
 // RuleConfig of rule as sent by the Remote Configuration.
@@ -67,8 +69,9 @@ type RuleConfig struct {
 
 // ProximityKeywords definition in RC config.
 type ProximityKeywords struct {
-	Keywords       []string `json:"keywords"`
-	CharacterCount uint32   `json:"character_count"`
+	Keywords               []string `json:"keywords"`
+	CharacterCount         uint32   `json:"character_count"`
+	UseRecommendedKeywords bool     `json:"use_recommended_keywords"`
 }
 
 // RuleDefinition definition in RC config.
