@@ -62,7 +62,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.32.5
 	github.com/aws/aws-sdk-go-v2/config v1.28.5
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.190.0
-	github.com/aws/aws-sdk-go-v2/service/eks v1.44.1
+	github.com/aws/aws-sdk-go-v2/service/eks v1.51.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.55.2
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/docker/cli v27.4.0+incompatible
