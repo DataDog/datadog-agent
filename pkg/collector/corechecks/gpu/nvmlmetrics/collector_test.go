@@ -13,11 +13,21 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-// GetBasicNvmlMock returns a mock of the nvml.Interface with a single device with 10 cores,
+func getBasicNvmlDeviceMock() nvml.Device {
+	return &nvmlmock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return "GPU-123", nvml.SUCCESS
+		},
+		GetNameFunc: func() (string, nvml.Return) {
+			return "Tesla UltraMegaPower", nvml.SUCCESS
+		},
+	}
+}
+
+// getBasicNvmlMock returns a mock of the nvml.Interface with a single device with 10 cores,
 // useful for basic tests that need only the basic interaction with NVML to be working.
 func getBasicNvmlMock() *nvmlmock.Interface {
 	return &nvmlmock.Interface{
@@ -25,14 +35,7 @@ func getBasicNvmlMock() *nvmlmock.Interface {
 			return 1, nvml.SUCCESS
 		},
 		DeviceGetHandleByIndexFunc: func(int) (nvml.Device, nvml.Return) {
-			return &nvmlmock.Device{
-				GetUUIDFunc: func() (string, nvml.Return) {
-					return "GPU-123", nvml.SUCCESS
-				},
-				GetNameFunc: func() (string, nvml.Return) {
-					return "Tesla UltraMegaPower", nvml.SUCCESS
-				},
-			}, nvml.SUCCESS
+			return getBasicNvmlDeviceMock(), nvml.SUCCESS
 		},
 	}
 }
@@ -43,7 +46,7 @@ func TestCollectorsGetClosedIfInitFails(t *testing.T) {
 
 	// On the first call, this function returns correctly. On the second it fails.
 	// We need this as we cannot rely on the order of the subsystems in the map.
-	factory := func(_ nvml.Interface, _ []nvml.Device) (subsystemCollector, error) {
+	factory := func(_ nvml.Interface, _ nvml.Device) (subsystemCollector, error) {
 		if !factorySucceeded {
 			factorySucceeded = true
 			return succeedCollector, nil
@@ -60,7 +63,7 @@ func TestCollectorsGetClosedIfInitFails(t *testing.T) {
 
 func TestCollectorsCollectMetricsEvenInCaseOfFailure(t *testing.T) {
 	dummy := &mockSubsystemCollector{}
-	factory := func(_ nvml.Interface, _ []nvml.Device) (subsystemCollector, error) {
+	factory := func(_ nvml.Interface, _ nvml.Device) (subsystemCollector, error) {
 		return dummy, nil
 	}
 
@@ -71,11 +74,13 @@ func TestCollectorsCollectMetricsEvenInCaseOfFailure(t *testing.T) {
 	// change the collectors so that they're executed in the order we want
 	succeedCollector := &mockSubsystemCollector{}
 	failCollector := &mockSubsystemCollector{}
-	collector.collectors = []subsystemCollector{succeedCollector, failCollector}
+	collector.collectors = map[nvml.Device][]subsystemCollector{
+		getBasicNvmlDeviceMock(): {succeedCollector, failCollector},
+	}
 
-	succeedCollector.EXPECT().collectMetrics(mock.Anything).Return([]Metric{{Name: "succeed"}}, nil)
+	succeedCollector.EXPECT().collect().Return([]Metric{{Name: "succeed"}}, nil)
 	succeedCollector.EXPECT().name().Return("succeed").Maybe()
-	failCollector.EXPECT().collectMetrics(mock.Anything).Return(nil, errors.New("failure"))
+	failCollector.EXPECT().collect().Return(nil, errors.New("failure"))
 	failCollector.EXPECT().name().Return("fail").Maybe()
 
 	metrics, err := collector.Collect()
