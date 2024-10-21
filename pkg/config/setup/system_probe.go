@@ -31,7 +31,7 @@ const (
 	pngNS                        = "ping"
 	tracerouteNS                 = "traceroute"
 	discoveryNS                  = "discovery"
-	gpuMonitoringNS              = "gpu_monitoring"
+	gpuNS                        = "gpu_monitoring"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultServiceMonitoringJavaAgentArgs is default arguments that are passing to the injected java USM agent
@@ -256,7 +256,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(smjtNS, "allow_regex"), "")
 	cfg.BindEnvAndSetDefault(join(smjtNS, "block_regex"), "")
 	cfg.BindEnvAndSetDefault(join(smjtNS, "dir"), defaultSystemProbeJavaDir)
-	cfg.BindEnvAndSetDefault(join(smNS, "enable_http_stats_by_status_code"), true)
 
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
 	// Default value (100000) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
@@ -408,7 +407,10 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv("fleet_policies_dir")
 
 	// GPU monitoring
-	cfg.BindEnvAndSetDefault(join(gpuMonitoringNS, "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "enabled"), false)
+	cfg.BindEnv(join(gpuNS, "nvml_lib_path"))
+	cfg.BindEnvAndSetDefault(join(gpuNS, "process_scan_interval_seconds"), 5)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "initial_process_sync"), true)
 
 	initCWSSystemProbeConfig(cfg)
 }

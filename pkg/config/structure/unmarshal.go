@@ -51,7 +51,7 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 	if rawval == nil {
 		return nil
 	}
-	source, err := nodetreemodel.NewNode(rawval)
+	source, err := nodetreemodel.NewNode(rawval, cfg.GetSource(key))
 	if err != nil {
 		return err
 	}

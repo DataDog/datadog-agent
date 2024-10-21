@@ -31,6 +31,7 @@ import (
 
 const cmdServerName string = "CMD API Server"
 const cmdServerShortName string = "CMD"
+const maxMessageSize = 4 * 1024 * 1024 // 4 MB
 
 func (server *apiServer) startCMDServer(
 	cmdAddr string,
@@ -48,10 +49,13 @@ func (server *apiServer) startCMDServer(
 
 	// gRPC server
 	authInterceptor := grpcutil.AuthInterceptor(parseToken)
+
 	opts := []grpc.ServerOption{
 		grpc.Creds(credentials.NewClientTLSFromCert(tlsCertPool, cmdAddr)),
 		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
 		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
+		grpc.MaxRecvMsgSize(maxMessageSize),
+		grpc.MaxSendMsgSize(maxMessageSize),
 	}
 
 	s := grpc.NewServer(opts...)
@@ -59,7 +63,7 @@ func (server *apiServer) startCMDServer(
 	pb.RegisterAgentSecureServer(s, &serverSecure{
 		configService:    server.rcService,
 		configServiceMRF: server.rcServiceMRF,
-		taggerServer:     taggerserver.NewServer(server.taggerComp),
+		taggerServer:     taggerserver.NewServer(server.taggerComp, maxMessageSize),
 		taggerComp:       server.taggerComp,
 		// TODO(components): decide if workloadmetaServer should be componentized itself
 		workloadmetaServer: workloadmetaServer.NewServer(server.wmeta),

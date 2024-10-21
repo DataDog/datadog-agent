@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -23,14 +24,28 @@ import (
 )
 
 var _ module.Module = &GPUMonitoringModule{}
-var gpuMonitoringConfigNamespaces = []string{gpu.GPUConfigNS}
+var gpuMonitoringConfigNamespaces = []string{gpu.GPUNS}
 
 // GPUMonitoring Factory
 var GPUMonitoring = module.Factory{
 	Name:             config.GPUMonitoringModule,
 	ConfigNamespaces: gpuMonitoringConfigNamespaces,
-	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
-		t, err := gpu.NewProbe(gpu.NewConfig(), nil)
+	Fn: func(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
+
+		c := gpu.NewConfig()
+		probeDeps := gpu.ProbeDependencies{
+			Telemetry: deps.Telemetry,
+			//if the config parameter doesn't exist or is empty string, the default value is used as defined in go-nvml library
+			//(https://github.com/NVIDIA/go-nvml/blob/main/pkg/nvml/lib.go#L30)
+			NvmlLib: nvml.New(nvml.WithLibraryPath(c.NVMLLibraryPath)),
+		}
+
+		ret := probeDeps.NvmlLib.Init()
+		if ret != nvml.SUCCESS && ret != nvml.ERROR_ALREADY_INITIALIZED {
+			return nil, fmt.Errorf("unable to initialize NVML library: %v", ret)
+		}
+
+		t, err := gpu.NewProbe(c, probeDeps)
 		if err != nil {
 			return nil, fmt.Errorf("unable to start GPU monitoring: %w", err)
 		}
