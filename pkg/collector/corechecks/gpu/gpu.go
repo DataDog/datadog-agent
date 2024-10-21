@@ -52,11 +52,6 @@ func newCheck() check.Check {
 	}
 }
 
-// Cancel cancels the check
-func (m *Check) Cancel() {
-	m.CheckBase.Cancel()
-}
-
 // Configure parses the check configuration and init the check
 func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
 	if err := m.CommonConfigure(senderManager, initConfig, config, source); err != nil {
