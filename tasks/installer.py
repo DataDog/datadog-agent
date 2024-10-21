@@ -2,6 +2,7 @@
 installer namespaced tasks
 """
 
+import base64
 import os
 import shutil
 
@@ -71,6 +72,37 @@ def build(
     cmd += f"-o {installer_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags} {strip_flags}\" {REPO_PATH}/cmd/installer"
 
     ctx.run(cmd, env=env)
+
+
+@task
+def build_linux_script(
+    ctx,
+):
+    '''
+    Builds the linux script that is used to install the agent on linux.
+    '''
+    amd64_path = os.path.join(BIN_PATH, "bootstrapper-linux-amd64")
+    arm64_path = os.path.join(BIN_PATH, "bootstrapper-linux-arm64")
+    ctx.run(
+        f'inv -e installer.build --bootstrapper --rebuild --no-no-strip-binary --output-bin {amd64_path} --no-cgo',
+        env={'GOOS': 'linux', 'GOARCH': 'amd64'},
+    )
+    ctx.run(
+        f'inv -e installer.build --bootstrapper --rebuild --no-no-strip-binary --output-bin {arm64_path} --no-cgo',
+        env={'GOOS': 'linux', 'GOARCH': 'arm64'},
+    )
+    with open(amd64_path, 'rb') as f:
+        amd64_b64 = base64.b64encode(f.read()).decode('utf-8').replace('\n', '')
+    with open(arm64_path, 'rb') as f:
+        arm64_b64 = base64.b64encode(f.read()).decode('utf-8').replace('\n', '')
+
+    with open('pkg/fleet/installer/setup.sh') as f:
+        setup_content = f.read()
+    setup_content = setup_content.replace('INSTALLER_BIN_LINUX_AMD64', amd64_b64)
+    setup_content = setup_content.replace('INSTALLER_BIN_LINUX_ARM64', arm64_b64)
+
+    with open(os.path.join(BIN_PATH, 'setup.sh'), 'w') as f:
+        f.write(setup_content)
 
 
 @task
