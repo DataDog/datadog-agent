@@ -84,6 +84,7 @@ func (suite *LauncherTestSuite) TestSendLog() {
 	id := "123456789"
 
 	suite.s.Start(nil, nil, nil, nil)
+	defer suite.s.Stop()
 	suite.integrationsComp.RegisterIntegration(id, *mockConf)
 
 	logSample := "hello world"
@@ -120,6 +121,7 @@ func (suite *LauncherTestSuite) TestZeroCombinedUsageMaxFileCreated() {
 	file.Close()
 
 	suite.s.Start(nil, nil, nil, nil)
+	defer suite.s.Stop()
 
 	integrationLog := integrations.IntegrationLog{
 		Log:           "sample log",
@@ -133,6 +135,7 @@ func (suite *LauncherTestSuite) TestZeroCombinedUsageMaxFileNotCreated() {
 	suite.s.combinedUsageMax = 0
 
 	suite.s.Start(nil, nil, nil, nil)
+	defer suite.s.Stop()
 
 	integrationLog := integrations.IntegrationLog{
 		Log:           "sample log",
@@ -153,6 +156,7 @@ func (suite *LauncherTestSuite) TestSmallCombinedUsageMax() {
 	file.Close()
 
 	suite.s.Start(nil, nil, nil, nil)
+	defer suite.s.Stop()
 
 	// Launcher should write this log
 	shortLog := "sample"
@@ -298,6 +302,7 @@ func (suite *LauncherTestSuite) TestFileExceedsSingleFileLimit() {
 	file.Close()
 
 	suite.s.Start(nil, nil, nil, nil)
+	defer suite.s.Stop()
 
 	integrationLog := integrations.IntegrationLog{
 		Log:           "sample log",
@@ -371,6 +376,7 @@ func (suite *LauncherTestSuite) TestCreateFileAfterScanInitialFile() {
 	}
 
 	suite.s.Start(nil, nil, nil, nil)
+	defer suite.s.Stop()
 	suite.integrationsComp.RegisterIntegration(fileID, *mockConf)
 	assert.Equal(suite.T(), 1, len(suite.s.integrationToFile))
 
@@ -414,6 +420,7 @@ func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 	os.Chtimes(fileWithPath3, now, now)
 
 	suite.s.Start(nil, nil, nil, nil)
+	defer suite.s.Stop()
 
 	integrationLog := integrations.IntegrationLog{
 		Log:           "sample log",
@@ -460,6 +467,7 @@ func (suite *LauncherTestSuite) TestInitialLogsExceedTotalUsageMultipleFiles() {
 	file2.Close()
 
 	suite.s.Start(nil, nil, nil, nil)
+	defer suite.s.Stop()
 
 	assert.Equal(suite.T(), oneMB, suite.s.combinedUsageSize)
 	assert.Equal(suite.T(), 2, len(suite.s.integrationToFile))
@@ -481,6 +489,7 @@ func (suite *LauncherTestSuite) TestInitialLogExceedsTotalUsageSingleFile() {
 	file.Close()
 
 	suite.s.Start(nil, nil, nil, nil)
+	defer suite.s.Stop()
 
 	assert.Equal(suite.T(), int64(0), suite.s.combinedUsageSize)
 	assert.Equal(suite.T(), 1, len(suite.s.integrationToFile))
@@ -541,12 +550,6 @@ func TestReadOnlyFileSystem(t *testing.T) {
 	err := os.Mkdir(readOnlyDir, 0444)
 	assert.NoError(t, err, "Unable to make tempdir readonly")
 
-	defer func(dir string) {
-		// remove readonly dir
-		_ = os.Chmod(dir, 0644)
-		_ = os.RemoveAll(dir)
-	}(readOnlyDir)
-
 	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.run_path", readOnlyDir)
 
 	integrationsComp := integrationsmock.Mock()
@@ -559,6 +562,14 @@ func TestReadOnlyFileSystem(t *testing.T) {
 	id := "123456789"
 
 	s.Start(nil, nil, nil, nil)
+	defer func(dir string, l *Launcher) {
+		// Stop Launcher before removing readonly dir
+		l.Stop()
+		// remove readonly dir
+		_ = os.Chmod(dir, 0644)
+		_ = os.RemoveAll(dir)
+	}(readOnlyDir, s)
+
 	integrationsComp.RegisterIntegration(id, *mockConf)
 
 	logSample := "hello world"
