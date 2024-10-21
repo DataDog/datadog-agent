@@ -2,7 +2,11 @@ Param(
     [Parameter(Mandatory=$true,Position=0)]
     [ValidateSet("offline", "online")]
     [String]
-    $installMethod
+    $installMethod,
+
+    [Parameter(Mandatory=$false,Position=1)]
+    [String] 
+    $msiDirectory
 )
 
 $ErrorActionPreference = 'Stop';
@@ -15,12 +19,12 @@ $env:chocolateyUseWindowsCompression = 'true'; Invoke-Expression ((New-Object Sy
 pip3 install -r requirements.txt
 
 $outputDirectory = "c:\mnt\build-out"
-$rawAgentVersion = (inv agent.version)
+$rawAgentVersion = (inv agent.version --url-safe --major-version 7)
 $copyright = "Datadog {0}" -f (Get-Date).Year
 
 $releasePattern = "(\d+\.\d+\.\d+)"
 $releaseCandidatePattern = "(\d+\.\d+\.\d+)-rc\.(\d+)"
-$develPattern = "(\d+\.\d+\.\d+)-devel\+git\.\d+\.(.+)"
+$develPattern = "(\d+\.\d+\.\d+)-devel\.git\.\d+\.(.+)"
 
 $nuspecFile = "c:\mnt\chocolatey\datadog-agent-online.nuspec"
 $licensePath = "c:\mnt\chocolatey\tools-online\LICENSE.txt"
@@ -61,25 +65,24 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DataDog/datadog-agent/
 
 Write-Host "Generating Chocolatey $installMethod package version $agentVersion in $outputDirectory"
 
-Write-Host ("Downloading {0}" -f $url)
-$statusCode = -1
-try {
-    $tempMsi = "$(Get-Location)\ddagent.msi"
-    Remove-Item $tempMsi -ErrorAction Ignore
-    (New-Object net.webclient).Downloadfile($url, $tempMsi)
-    $checksum = (Get-FileHash $tempMsi -Algorithm SHA256).Hash
-    Remove-Item $tempMsi
-}
-catch {
-    Write-Host "Could not generate checksum for package $($url): $($_)"
-    exit 4
-}
-
 if (!(Test-Path $outputDirectory)) {
     New-Item -ItemType Directory -Path $outputDirectory
 }
 
 if ($installMethod -eq "online") {
+    try {
+        $tempMsi = Join-Path -Path "$msiDirectory" "datadog-agent-$rawAgentVersion-1-x86_64.msi"
+        if (!(Test-Path $tempMsi)) {
+            Write-Host "Error: Could not find MSI file in $tempMsi"
+            Get-ChildItem "$msiDirectory"
+            exit 1 
+        }
+        $checksum = (Get-FileHash $tempMsi -Algorithm SHA256).Hash
+    } 
+    catch {
+        Write-Host "Error: Could not generate checksum for package $($tempMsi): $($_)"
+        exit 4
+    }
     # Set the $url in the install script
     (Get-Content $installScript).replace('$__url_from_ci__', '"' +  $url  + '"').replace('$__checksum_from_ci__', '"' +  $checksum  + '"') | Set-Content $installScript
 }
