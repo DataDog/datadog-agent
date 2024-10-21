@@ -57,8 +57,8 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 		PIDStats: make(map[uint32]model.PIDStats),
 	}
 
-	for pid, aggregator := range g.aggregators {
-		stats.PIDStats[pid] = aggregator.getStats()
+	for pid, aggr := range g.aggregators {
+		stats.PIDStats[pid] = aggr.getStats()
 	}
 
 	g.lastGenerationKTime = g.currGenerationKTime
@@ -81,20 +81,20 @@ func (g *statsGenerator) configureNormalizationFactor() {
 	// As we compute the utilization based on the number of threads launched by the kernel, we need to
 	// normalize the utilization if we get above 100%, as the GPU can enqueue threads.
 	totalGPUUtilization := 0.0
-	for _, aggregator := range g.aggregators {
-		totalGPUUtilization += aggregator.getGPUUtilization()
+	for _, aggr := range g.aggregators {
+		totalGPUUtilization += aggr.getGPUUtilization()
 	}
 
 	normFactor := max(1.0, totalGPUUtilization)
 
-	for _, aggregator := range g.aggregators {
-		aggregator.setGPUUtilizationNormalizationFactor(normFactor)
+	for _, aggr := range g.aggregators {
+		aggr.setGPUUtilizationNormalizationFactor(normFactor)
 	}
 }
 
 func (g *statsGenerator) cleanupFinishedAggregators() {
-	for pid, aggregator := range g.aggregators {
-		if aggregator.processEnded {
+	for pid, aggr := range g.aggregators {
+		if aggr.processEnded {
 			delete(g.aggregators, pid)
 		}
 	}
