@@ -31,13 +31,20 @@ import (
 )
 
 const (
-	CalendarService      = "calendar-rest-go"
-	TelemetrygenService  = "telemetrygen-job"
-	Env                  = "e2e"
-	Version              = "1.0"
-	CustomAttribute      = "custom.attribute"
+	// CalendarService represents the service tag value of the calendar app
+	CalendarService = "calendar-rest-go"
+	// TelemetrygenService represents the service tag value of telemetrygen
+	TelemetrygenService = "telemetrygen-job"
+	// Env represents the environment tag value
+	Env = "e2e"
+	// Version represents the version tag value
+	Version = "1.0"
+	// CustomAttribute represents a custom attribute tag key
+	CustomAttribute = "custom.attribute"
+	// CustomAttributeValue represents a custom attribute tag value
 	CustomAttributeValue = "true"
-	LogBody              = "random date"
+	// LogBody represents the default log body from calendar app
+	LogBody = "random date"
 )
 
 // OTelTestSuite is an interface for the OTel e2e test suite.
@@ -316,6 +323,7 @@ func TestPrometheusMetrics(s OTelTestSuite) {
 	s.T().Log("Got otelcol_datadog_trace_agent_trace_writer_spans", traceAgentMetrics)
 }
 
+// CreateTelemetrygenJob deploys a telemetrygen job with the given parameters
 func CreateTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry string, options []string) {
 	var ttlSecondsAfterFinished int32 = 0 //nolint:revive // We want to see this is explicitly set to 0
 	var backOffLimit int32 = 4
@@ -393,6 +401,7 @@ func TestCalendarApp(s OTelTestSuite) {
 	}, 30*time.Minute, 10*time.Second)
 }
 
+// CreateCalendarApp deploys a calendar app with the given parameters
 func CreateCalendarApp(ctx context.Context, s OTelTestSuite) {
 	var replicas int32 = 1
 	name := fmt.Sprintf("calendar-rest-go-%v", strings.ReplaceAll(strings.ToLower(s.T().Name()), "/", "-"))
@@ -537,6 +546,7 @@ func CreateCalendarApp(ctx context.Context, s OTelTestSuite) {
 	require.NoError(s.T(), err, "Could not properly start deployment")
 }
 
+// TestInfraTags verifies that the given infra tags are received as expected
 func TestInfraTags(t *testing.T, tags map[string]string, iaParams IAParams) {
 	assert.NotNil(t, tags["kube_deployment"])
 	assert.NotNil(t, tags["kube_qos"])
@@ -562,6 +572,7 @@ func TestInfraTags(t *testing.T, tags map[string]string, iaParams IAParams) {
 	}
 }
 
+// GetContainerTags extracts container tags from the given tracer payload
 func GetContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string, bool) {
 	ctags, ok := tp.Tags["_dd.tags.container"]
 	if !ok {
@@ -571,6 +582,7 @@ func GetContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string,
 	return GetTagMapFromSlice(t, splits), true
 }
 
+// GetTagMapFromSlice converts a slice of tags to a string map
 func GetTagMapFromSlice(t *testing.T, tagSlice []string) map[string]string {
 	m := make(map[string]string)
 	for _, s := range tagSlice {
