@@ -34,7 +34,7 @@ func NewSyncDestination(endpoint config.Endpoint,
 	cfg pkgconfigmodel.Reader) *SyncDestination {
 
 	return &SyncDestination{
-		destination:    newDestination(endpoint, contentType, destinationsContext, time.Second*10, 1, false, telemetryName, cfg),
+		destination:    newDestination(endpoint, contentType, destinationsContext, time.Second*10, 1, false, telemetryName, cfg, 0),
 		senderDoneChan: senderDoneChan,
 	}
 }
