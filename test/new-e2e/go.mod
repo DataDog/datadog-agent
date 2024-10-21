@@ -59,7 +59,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20241018132225-15203a025239
+	github.com/DataDog/test-infra-definitions v0.0.0-20241021084109-294789d173be
 	github.com/aws/aws-sdk-go-v2 v1.32.2
 	github.com/aws/aws-sdk-go-v2/config v1.27.40
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.164.2
@@ -73,11 +73,11 @@ require (
 	github.com/kr/pretty v0.3.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pkg/sftp v1.13.6
-	github.com/pulumi/pulumi-aws/sdk/v6 v6.54.2
+	github.com/pulumi/pulumi-aws/sdk/v6 v6.56.1
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.16.1
 	github.com/pulumi/pulumi-eks/sdk/v2 v2.7.8 // indirect
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.17.1
-	github.com/pulumi/pulumi/sdk/v3 v3.134.1
+	github.com/pulumi/pulumi/sdk/v3 v3.137.0
 	github.com/samber/lo v1.47.0
 	github.com/stretchr/testify v1.9.0
 	github.com/xeipuuv/gojsonschema v1.2.0
@@ -324,11 +324,11 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/pelletier/go-toml v1.2.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.60.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.67.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.56.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.59.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.67.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.59.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.60.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.67.0 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v6 v6.67.1 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.4 // indirect
