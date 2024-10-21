@@ -34,7 +34,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.59.0-rc.4
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.59.0-rc.5
 	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/collector/component v0.104.0
 	go.opentelemetry.io/collector/confmap v0.104.0
@@ -48,25 +48,25 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/tagger v0.59.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.59.0-rc.4 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/tagger v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.59.0-rc.5 // indirect
 	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
