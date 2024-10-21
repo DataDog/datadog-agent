@@ -28,8 +28,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// kataRuntimePrefix is the prefix used by Kata Containers runtime
-const kataRuntimePrefix = "io.containerd.kata"
+const (
+	// kataRuntimePrefix is the prefix used by Kata Containers runtime
+	kataRuntimePrefix    = "io.containerd.kata"
+	defaultRestartPolicy = "no"
+)
 
 // buildWorkloadMetaContainer generates a workloadmeta.Container from a containerd.Container
 func buildWorkloadMetaContainer(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf, store workloadmeta.Component) (workloadmeta.Container, error) {
@@ -112,7 +115,7 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 	if info.Labels[restart.StatusLabel] == string(containerd.Running) {
 		restartCount, _ = strconv.Atoi(info.Labels[restart.CountLabel])
 	}
-	restartPolicy := "no"
+	restartPolicy := defaultRestartPolicy
 	if policy := info.Labels[restart.PolicyLabel]; policy != "" {
 		restartPolicy = policy
 	}
