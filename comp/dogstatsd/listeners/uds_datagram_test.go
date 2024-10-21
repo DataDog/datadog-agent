@@ -10,7 +10,6 @@
 package listeners
 
 import (
-	"net"
 	"testing"
 	"time"
 
@@ -56,16 +55,14 @@ func TestUDSDatagramReceive(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
-	s.Listen()
 	defer s.Stop()
-	conn, err := net.Dial("unixgram", socketPath)
-	assert.Nil(t, err)
-	defer conn.Close()
 
-	conn.Write([]byte{})
-	conn.Write(contents0)
-	conn.Write(contents1)
+	mConn := defaultMUnixConn(s.(*UDSDatagramListener).conn.LocalAddr(), false)
+	mConn.Write([]byte{})
+	mConn.Write(contents0)
+	mConn.Write(contents1)
 
+	go s.(*UDSDatagramListener).handleConnection(mConn, func(c netUnixConn) error { return c.Close() })
 	select {
 	case pkts := <-packetsChannel:
 		assert.Equal(t, 3, len(pkts))
@@ -132,5 +129,4 @@ func TestUDSDatagramReceive(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
-
 }

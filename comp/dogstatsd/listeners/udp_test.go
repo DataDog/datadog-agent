@@ -7,6 +7,7 @@
 package listeners
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -73,22 +74,13 @@ func TestUDPListenerTelemetry(t *testing.T) {
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
 	s, err := NewUDPListener(packetChannel, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
 	require.NotNil(t, s)
-
 	assert.Nil(t, err)
 
+	mConn := defaultMConn(s.conn.LocalAddr(), []byte("hello world"))
+	s.conn.Close()
+	s.conn = mConn
 	s.Listen()
 	defer s.Stop()
-
-	conn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", port))
-	require.Nil(t, err)
-
-	defer func() {
-		err := conn.Close()
-		assert.Nil(t, err)
-	}()
-
-	_, err = conn.Write([]byte("hello world"))
-	require.Nil(t, err)
 
 	select {
 	case pkts := <-packetChannel:
@@ -128,13 +120,11 @@ func TestUDPReceive(t *testing.T) {
 	s, err := NewUDPListener(packetChannel, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
 	require.Nil(t, err)
 	require.NotNil(t, s)
+	mockConn := defaultMConn(s.conn.LocalAddr(), contents)
+	s.conn.Close()
+	s.conn = mockConn
 	s.Listen()
 	defer s.Stop()
-	conn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", port))
-	assert.Nil(t, err)
-	require.NotNil(t, conn)
-	defer conn.Close()
-	conn.Write(contents)
 
 	select {
 	case pkts := <-packetChannel:
@@ -223,4 +213,33 @@ func getLocalIP() string {
 		}
 	}
 	return ""
+}
+
+func defaultMConn(addr net.Addr, bs ...[]byte) *udpMock {
+	return &udpMock{bufferList: append([][]byte{}, bs...), address: addr}
+}
+
+type udpMock struct {
+	bufferList [][]byte
+	address    net.Addr
+	nextMsg    int
+}
+
+func (conn udpMock) LocalAddr() net.Addr {
+	return conn.address
+}
+
+func (conn *udpMock) ReadFrom(b []byte) (int, net.Addr, error) {
+	if conn.nextMsg == len(conn.bufferList) {
+		return 0, conn.address, errors.New("Attempted use of closed network connection")
+	}
+	buffer := conn.bufferList[conn.nextMsg]
+	conn.nextMsg++
+	n := copy(b, buffer)
+
+	return n, conn.address, nil
+}
+
+func (conn udpMock) Close() error {
+	return nil
 }
