@@ -85,6 +85,8 @@ func TestStatusWithProfileError(t *testing.T) {
 			assert.NoError(t, err)
 
 			expectedTextOutput := `
+  Profiles
+  ========
   foobar: error1
 error2`
 
