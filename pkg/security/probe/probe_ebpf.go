@@ -1963,10 +1963,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 	}
 
 	resolversOpts := resolvers.Opts{
-		PathResolutionEnabled: probe.Opts.PathResolutionEnabled,
-		TagsResolver:          probe.Opts.TagsResolver,
-		UseRingBuffer:         useRingBuffers,
-		TTYFallbackEnabled:    probe.Opts.TTYFallbackEnabled,
+		PathResolutionEnabled:    probe.Opts.PathResolutionEnabled,
+		EnvVarsResolutionEnabled: probe.Opts.EnvsVarResolutionEnabled,
+		TagsResolver:             probe.Opts.TagsResolver,
+		UseRingBuffer:            useRingBuffers,
+		TTYFallbackEnabled:       probe.Opts.TTYFallbackEnabled,
 	}
 
 	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts, telemetry)
