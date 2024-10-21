@@ -90,12 +90,13 @@ func GetHasVFSRenameStructArgs() (bool, error) {
 		return false, err
 	}
 
-	switch len(proto.Params) {
-	case 0: // error
+	if len(proto.Params) == 0 {
 		return false, errors.New("vfs_rename has no parameters")
-	case 1: // int vfs_rename(struct renamedata *rd)
-		return true, nil
-	default: // int vfs_rename(struct inode *old_dir, struct dentry *old_dentry, struct inode *new_dir, struct dentry *new_dentry, struct inode **delegated_inode, unsigned int flags)
-		return false, nil
 	}
+
+	if len(proto.Params) == 1 && proto.Params[0].Name == "rd" {
+		return true, nil
+	}
+
+	return false, nil
 }
