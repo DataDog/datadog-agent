@@ -77,6 +77,12 @@ func (t *teeConfig) GetKnownKeysLowercased() map[string]interface{} {
 	return t.baseline.GetKnownKeysLowercased()
 }
 
+// SetReady marks the config as ready for use
+func (t *teeConfig) SetReady() {
+	t.baseline.SetReady()
+	t.compare.SetReady()
+}
+
 // ParseEnvAsStringSlice registers a transformer function to parse an an environment variables as a []string.
 func (t *teeConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
 	t.baseline.ParseEnvAsStringSlice(key, fn)

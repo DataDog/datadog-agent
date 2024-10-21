@@ -45,7 +45,8 @@ func (c *ntmConfig) readInConfig() error {
 	if err != nil {
 		return err
 	}
-	c.root = root
+	// TODO: config created from yaml is currently ignored, instead merge it with default
+	_ = root
 	return nil
 }
 
