@@ -1066,7 +1066,7 @@ def create_github_release(_ctx, version, draft=True):
     notes = []
 
     for section, filename in sections:
-        text = pandoc.write(pandoc.read(file=filename), format="markdown_strict")
+        text = pandoc.write(pandoc.read(file=filename), format="markdown_strict", options=["--wrap=none"])
 
         header_found = False
         lines = []
