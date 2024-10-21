@@ -49,13 +49,13 @@ type ProbeDependencies struct {
 
 // Probe represents the GPU monitoring probe
 type Probe struct {
-	mgr       *ddebpf.Manager
-	cfg       *Config
-	consumer  *cudaEventConsumer
-	attacher  *uprobes.UprobeAttacher
-	generator *statsGenerator
-	deps      ProbeDependencies
-	sysCtx    *systemContext
+	mgr            *ddebpf.Manager
+	cfg            *Config
+	consumer       *cudaEventConsumer
+	attacher       *uprobes.UprobeAttacher
+	statsGenerator *statsGenerator
+	deps           ProbeDependencies
+	sysCtx         *systemContext
 }
 
 // NewProbe starts the GPU monitoring probe
@@ -172,7 +172,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 	}
 
 	p.startEventConsumer()
-	p.generator = newStatsGenerator(p.sysCtx, now, p.consumer.streamHandlers)
+	p.statsGenerator = newStatsGenerator(p.sysCtx, now, p.consumer.streamHandlers)
 
 	if err := mgr.InitWithOptions(buf, &opts); err != nil {
 		return nil, fmt.Errorf("failed to init manager: %w", err)
@@ -209,8 +209,8 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 		return nil, fmt.Errorf("error getting current time: %w", err)
 	}
 
-	stats := p.generator.getStats(now)
-	p.generator.cleanupFinishedAggregators()
+	stats := p.statsGenerator.getStats(now)
+	p.statsGenerator.cleanupFinishedAggregators()
 	p.consumer.cleanFinishedHandlers()
 
 	return stats, nil
