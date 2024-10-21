@@ -73,7 +73,6 @@
 /.gitlab/e2e/*                                       @DataDog/agent-devx-infra @DataDog/agent-devx-loops
 /.gitlab/e2e_install_packages/*                      @DataDog/agent-delivery
 /.gitlab/e2e_pre_test/*                              @DataDog/agent-devx-infra @DataDog/agent-devx-loops
-/.gitlab/junit_upload/*                              @DataDog/agent-devx-infra
 /.gitlab/kernel_matrix_testing/*                     @DataDog/agent-devx-infra @DataDog/ebpf-platform
 /.gitlab/lint/*                                      @DataDog/agent-devx-infra
 /.gitlab/maintenance_jobs/*                          @DataDog/agent-devx-infra @DataDog/agent-devx-loops
@@ -159,8 +158,7 @@
 /.gitlab/common/container_publish_job_templates.yml  @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/container_build/                            @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/container_build/include.yml                 @DataDog/container-integrations @DataDog/agent-delivery
-/.gitlab/container_build/docker_windows_agent6.yml   @DataDog/agent-delivery @DataDog/windows-agent
-/.gitlab/container_build/docker_windows_agent7.yml   @DataDog/agent-delivery @DataDog/windows-agent
+/.gitlab/container_build/docker_windows*             @DataDog/agent-delivery @DataDog/windows-agent
 
 /.gitlab/dev_container_deploy/                       @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/dev_container_deploy/fakeintake.yml         @DataDog/agent-devx-loops
@@ -235,7 +233,6 @@
 /cmd/system-probe/modules/tcp_queue_tracer* @DataDog/container-integrations
 /cmd/system-probe/modules/traceroute*   @DataDog/network-device-monitoring @Datadog/Networks
 /cmd/system-probe/modules/ping*         @DataDog/network-device-monitoring
-/cmd/system-probe/modules/service_discover* @DataDog/universal-service-monitoring
 /cmd/system-probe/modules/language_detection* @DataDog/processes @DataDog/universal-service-monitoring
 /cmd/system-probe/modules/dynamic_instrumentation* @DataDog/debugger
 /cmd/system-probe/windows_resources/    @DataDog/windows-kernel-integrations
@@ -334,7 +331,6 @@
 /pkg/commonchecks/                      @DataDog/agent-metrics-logs
 /pkg/cli/                               @DataDog/agent-shared-components
 /pkg/cli/subcommands/clusterchecks      @DataDog/container-platform
-/pkg/dogstatsd/                         @DataDog/agent-metrics-logs
 /pkg/discovery/                         @DataDog/universal-service-monitoring
 /pkg/errors/                            @DataDog/agent-shared-components
 /pkg/gohai                              @DataDog/agent-shared-components
