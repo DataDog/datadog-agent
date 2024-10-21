@@ -646,6 +646,10 @@ func TestExtractLibInfo(t *testing.T) {
 			lang:  "ruby",
 			image: "registry/dd-lib-ruby-init:v2",
 		},
+		{
+			lang:  "php",
+			image: "registry/dd-lib-php-init:v1",
+		},
 	}
 
 	var mockConfig model.Config
@@ -1360,6 +1364,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		"ruby":   "v2",
 		"dotnet": "v3",
 		"js":     "v5",
+		"php":    "v1",
 	}
 
 	defaultLibrariesFor := func(languages ...string) map[string]string {
