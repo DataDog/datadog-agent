@@ -161,6 +161,7 @@ new-e2e-ndm*                           @DataDog/network-device-monitoring
 new-e2e-npm*                           @DataDog/Networks
 new-e2e-cws*                           @DataDog/agent-security
 new-e2e-orchestrator*                  @DataDog/container-app
+new-e2e-otel*                          @DataDog/opentelemetry
 e2e_pre_test*                          @DataDog/agent-devx-loops
 new-e2e-remote-config*                 @DataDog/remote-config
 new-e2e-installer*                     @DataDog/fleet
@@ -170,6 +171,7 @@ new-e2e-windows-systemprobe            @DataDog/windows-kernel-integrations
 new-e2e-windows-security-agent         @DataDog/windows-kernel-integrations
 new-e2e_windows_powershell_module_test @DataDog/windows-kernel-integrations
 new-e2e-eks-cleanup-on-failure         @DataDog/agent-devx-loops
+new-e2e-gpu*                           @DataDog/ebpf-platform
 
 # Kernel matrix testing
 upload_dependencies*              @DataDog/ebpf-platform

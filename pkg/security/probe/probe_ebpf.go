@@ -545,7 +545,7 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 }
 
 func eventWithNoProcessContext(eventType model.EventType) bool {
-	return eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
+	return eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.RawPacketEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
 }
 
 func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
@@ -1255,11 +1255,13 @@ func (p *EBPFProbe) isNeededForSecurityProfile(eventType eval.EventType) bool {
 }
 
 func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
-	if eventType == "dns" && !p.config.Probe.NetworkEnabled {
-		return false
-	}
-	if eventType == "imds" && (!p.config.Probe.NetworkEnabled || !p.config.Probe.NetworkIngressEnabled) {
-		return false
+	switch eventType {
+	case "dns":
+		return p.probe.IsNetworkEnabled()
+	case "imds":
+		return p.probe.IsNetworkEnabled() && p.config.Probe.NetworkIngressEnabled
+	case "packet":
+		return p.probe.IsNetworkRawPacketEnabled()
 	}
 	return true
 }
