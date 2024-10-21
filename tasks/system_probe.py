@@ -33,6 +33,7 @@ from tasks.libs.common.utils import (
     get_build_flags,
     get_common_test_args,
     get_gobin,
+    get_root,
     parse_kernel_version,
 )
 from tasks.libs.releasing.version import get_version_numeric_only
@@ -605,6 +606,57 @@ def ninja_generate(
         ninja_cgo_type_files(nw)
 
 
+def build_libpcap_static(ctx, dev_dir: str):
+    release = "1.10.5"
+    target_file = os.path.join(dev_dir, "lib", "libpcap.a")
+    cgo_flags = {
+        'CGO_CFLAGS': f"-I{os.path.join(dev_dir, 'include')}",
+        'CGO_LDFLAGS': f"-L{os.path.join(dev_dir, 'lib')}",
+    }
+    if os.path.exists(target_file):
+        version = ctx.run(f"strings {target_file} | grep -E '^libpcap version' | cut -d ' ' -f 3").stdout.strip()
+        if version == release:
+            return cgo_flags
+    dist_dir = os.path.join(dev_dir, "dist")
+    lib_dir = os.path.join(dist_dir, f"libpcap-{release}")
+    ctx.run(f"rm -rf {lib_dir}")
+    with ctx.cd(dist_dir):
+        ctx.run(f"curl -L https://www.tcpdump.org/release/libpcap-{release}.tar.xz | tar xJ")
+    with ctx.cd(lib_dir):
+        config_opts = [
+            f"--prefix={dev_dir}",
+            "--disable-shared",
+            "--disable-largefile",
+            "--disable-instrument-functions",
+            "--disable-remote",
+            "--disable-usb",
+            "--disable-netmap",
+            "--disable-bluetooth",
+            "--disable-dbus",
+            "--disable-rdma",
+        ]
+        ctx.run(f"./configure {' '.join(config_opts)}")
+        ctx.run("make install")
+    ctx.run(f"rm -f {os.path.join(dev_dir, 'bin', 'pcap-config')}")
+    ctx.run(f"rm -rf {os.path.join(dev_dir, 'share')}")
+    ctx.run(f"rm -rf {os.path.join(dev_dir, 'lib', 'pkgconfig')}")
+    ctx.run(f"rm -rf {lib_dir}")
+    ctx.run(f"strip -g {target_file}")
+    return cgo_flags
+
+
+def get_libpcap_cgo_flags(ctx, install_path: str = None):
+    if install_path is not None:
+        return {
+            'CGO_CFLAGS': f"-I{os.path.join(install_path, 'embedded', 'include')}",
+            'CGO_LDFLAGS': f"-L{os.path.join(install_path, 'embedded', 'lib')}",
+        }
+    repo_dir = get_root()
+    if repo_dir is None or repo_dir == "":
+        raise Exit("could not find the root of the repository")
+    return build_libpcap_static(ctx, dev_dir=f"{repo_dir}/dev")
+
+
 @task
 def build(
     ctx,
@@ -696,6 +748,15 @@ def build_sysprobe_binary(
         arch=arch_obj,
         static=static,
     )
+
+    if not is_windows:
+        cgo_flags = get_libpcap_cgo_flags(ctx, install_path)
+        # append system-probe CGO-related environment variables to any existing ones
+        for k, v in cgo_flags.items():
+            if k in env:
+                env[k] += f" {v}"
+            else:
+                env[k] = v
 
     build_tags = get_default_build_tags(build="system-probe")
     if bundle_ebpf:

@@ -34,6 +34,7 @@ from tasks.system_probe import (
     build_cws_object_files,
     check_for_ninja,
     copy_ebpf_and_related_files,
+    get_libpcap_cgo_flags,
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
 )
@@ -227,11 +228,12 @@ def ninja_ebpf_probe_syscall_tester(nw, build_dir):
     )
 
 
-def build_go_syscall_tester(ctx, build_dir):
+def build_go_syscall_tester(ctx, build_dir, cgo_flags):
     syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
     syscall_tester_exe_file = os.path.join(build_dir, "syscall_go_tester")
     ctx.run(
-        f"go build -o {syscall_tester_exe_file} -tags syscalltesters,osusergo,netgo -ldflags=\"-extldflags=-static\" {syscall_tester_go_dir}/syscall_go_tester.go"
+        f"go build -o {syscall_tester_exe_file} -tags syscalltesters,osusergo,netgo -ldflags=\"-extldflags=-static\" {syscall_tester_go_dir}/syscall_go_tester.go",
+        env=cgo_flags,
     )
     return syscall_tester_exe_file
 
@@ -326,7 +328,7 @@ def create_dir_if_needed(dir):
 
 @task
 def build_embed_syscall_tester(
-    ctx, arch: str | Arch = CURRENT_ARCH, static=True, compiler="clang", ebpf_compiler="clang"
+    ctx, cgo_flags, arch: str | Arch = CURRENT_ARCH, static=True, compiler="clang", ebpf_compiler="clang"
 ):
     arch = Arch.from_str(arch)
     check_for_ninja(ctx)
@@ -346,7 +348,7 @@ def build_embed_syscall_tester(
         ninja_ebpf_probe_syscall_tester(nw, go_dir)
 
     ctx.run(f"ninja -f {nf_path}")
-    build_go_syscall_tester(ctx, build_dir)
+    build_go_syscall_tester(ctx, build_dir, cgo_flags)
 
 
 @task
@@ -369,6 +371,7 @@ def build_functional_tests(
     ebpf_compiler='clang',
 ):
     if not is_windows:
+        cgo_flags = get_libpcap_cgo_flags(ctx)
         if not skip_object_files:
             build_cws_object_files(
                 ctx,
@@ -379,7 +382,7 @@ def build_functional_tests(
                 bundle_ebpf=bundle_ebpf,
                 ebpf_compiler=ebpf_compiler,
             )
-        build_embed_syscall_tester(ctx, compiler=syscall_tester_compiler, ebpf_compiler=ebpf_compiler)
+        build_embed_syscall_tester(ctx, cgo_flags, compiler=syscall_tester_compiler, ebpf_compiler=ebpf_compiler)
 
     arch = Arch.from_str(arch)
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, arch=arch)
@@ -395,6 +398,13 @@ def build_functional_tests(
 
         if bundle_ebpf:
             build_tags.append("ebpf_bindata")
+
+        # append system-probe CGO-related environment variables to any existing ones
+        for k, v in cgo_flags.items():
+            if k in env:
+                env[k] += f" {v}"
+            else:
+                env[k] = v
 
     if static:
         build_tags.extend(["osusergo", "netgo"])
