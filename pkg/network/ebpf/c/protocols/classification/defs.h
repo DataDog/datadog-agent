@@ -103,7 +103,7 @@ typedef struct {
 // `protocol_stack_t` is embedded in the `conn_stats_t` type, which is used
 // across the whole NPM kernel code. If we added the 64-bit timestamp field
 // directly to `protocol_stack_t`, we would go from 4 bytes to 12 bytes, which
-// bloats the eBPF stack size of some NPM probes.  Using the wrapper type
+// bloats the eBPF stack size of some NPM probes. Using the wrapper type
 // prevents that, because we pretty much only store the wrapper type in the
 // connection_protocol map, but elsewhere in the code we're still using
 // protocol_stack_t, so this is change is "transparent" to most of the code.

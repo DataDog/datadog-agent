@@ -401,6 +401,10 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		},
+		probes.EnhancedTLSTagsMap: {
+			MaxEntries: e.cfg.MaxTrackedConnections,
+			EditorFlag: manager.EditMaxEntries,
+		},
 		tupleByPidFDMap: {
 			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
