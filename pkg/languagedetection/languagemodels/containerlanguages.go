@@ -3,14 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package util
+package languagemodels
 
 import (
 	"fmt"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"reflect"
 	"sort"
 	"strings"
+
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
 
 ////////////////////////////////

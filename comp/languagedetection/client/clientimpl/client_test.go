@@ -31,8 +31,6 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 )
 
 type MockDCAClient struct {
@@ -116,14 +114,14 @@ func TestClientEnabled(t *testing.T) {
 
 func TestClientSend(t *testing.T) {
 	client, respCh := newTestClient(t)
-	containers := langUtil.ContainersLanguages{
-		langUtil.Container{
+	containers := languagemodels.ContainersLanguages{
+		languagemodels.Container{
 			Name: "java-cont",
 			Init: false,
 		}: {
 			"java": {},
 		},
-		langUtil.Container{
+		languagemodels.Container{
 			Name: "go-cont",
 			Init: true,
 		}: {
@@ -170,14 +168,14 @@ func TestClientSend(t *testing.T) {
 
 func TestClientSendFreshPods(t *testing.T) {
 	client, _ := newTestClient(t)
-	containers := langUtil.ContainersLanguages{
-		langUtil.Container{
+	containers := languagemodels.ContainersLanguages{
+		languagemodels.Container{
 			Name: "java-cont",
 			Init: false,
 		}: {
 			"java": {},
 		},
-		langUtil.Container{
+		languagemodels.Container{
 			Name: "go-cont",
 			Init: true,
 		}: {
@@ -361,15 +359,15 @@ func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 		batch{
 			"nginx-pod-name": {
 				namespace: "nginx-pod-namespace",
-				containerInfo: langUtil.ContainersLanguages{
-					langUtil.Container{
+				containerInfo: languagemodels.ContainersLanguages{
+					languagemodels.Container{
 						Name: "nginx-cont-name",
 						Init: false,
 					}: {
 						"java": {},
 					},
 
-					langUtil.Container{
+					languagemodels.Container{
 						Name: "nginx-cont-name",
 						Init: true,
 					}: {
@@ -551,14 +549,14 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 		batch{
 			"nginx-pod-name": {
 				namespace: "nginx-pod-namespace",
-				containerInfo: langUtil.ContainersLanguages{
-					langUtil.Container{
+				containerInfo: languagemodels.ContainersLanguages{
+					languagemodels.Container{
 						Name: "nginx-cont-name",
 						Init: false,
 					}: {
 						"java": {},
 					},
-					langUtil.Container{
+					languagemodels.Container{
 						Name: "nginx-cont-name",
 						Init: true,
 					}: {
@@ -970,8 +968,8 @@ func TestRun(t *testing.T) {
 	expectedBatch := batch{
 		"nginx-pod-name1": {
 			namespace: "nginx-pod-namespace1",
-			containerInfo: langUtil.ContainersLanguages{
-				langUtil.Container{
+			containerInfo: languagemodels.ContainersLanguages{
+				languagemodels.Container{
 					Name: "nginx-cont-name1",
 					Init: false,
 				}: {"java": {}},
@@ -1023,8 +1021,8 @@ func TestRun(t *testing.T) {
 	b := batch{
 		"nginx-pod-name2": {
 			namespace: "nginx-pod-namespace2",
-			containerInfo: langUtil.ContainersLanguages{
-				langUtil.Container{
+			containerInfo: languagemodels.ContainersLanguages{
+				languagemodels.Container{
 					Name: "nginx-cont-name2",
 					Init: false,
 				}: {"go": {}},
@@ -1037,8 +1035,8 @@ func TestRun(t *testing.T) {
 		},
 		"nginx-pod-name1": {
 			namespace: "nginx-pod-namespace1",
-			containerInfo: langUtil.ContainersLanguages{
-				langUtil.Container{
+			containerInfo: languagemodels.ContainersLanguages{
+				languagemodels.Container{
 					Name: "nginx-cont-name1",
 					Init: false,
 				}: {"java": {}},
@@ -1051,8 +1049,8 @@ func TestRun(t *testing.T) {
 		},
 		"python-pod-name3": {
 			namespace: "python-pod-namespace3",
-			containerInfo: langUtil.ContainersLanguages{
-				langUtil.Container{
+			containerInfo: languagemodels.ContainersLanguages{
+				languagemodels.Container{
 					Name: "python-cont-name3",
 					Init: false,
 				}: {"python": {}},
@@ -1094,8 +1092,8 @@ func TestRun(t *testing.T) {
 	b = batch{
 		"nginx-pod-name1": {
 			namespace: "nginx-pod-namespace1",
-			containerInfo: langUtil.ContainersLanguages{
-				langUtil.Container{
+			containerInfo: languagemodels.ContainersLanguages{
+				languagemodels.Container{
 					Name: "nginx-cont-name1",
 					Init: false,
 				}: {"java": {}},
@@ -1124,22 +1122,22 @@ func protoToBatch(protoMessage *pbgo.ParentLanguageAnnotationRequest) batch {
 	res := make(batch)
 
 	for _, podDetail := range protoMessage.PodDetails {
-		cInfo := make(langUtil.ContainersLanguages)
+		cInfo := make(languagemodels.ContainersLanguages)
 
 		for _, container := range podDetail.ContainerDetails {
-			languageSet := make(langUtil.LanguageSet)
+			languageSet := make(languagemodels.LanguageSet)
 			for _, lang := range container.Languages {
-				languageSet.Add(langUtil.Language(lang.Name))
+				languageSet.Add(languagemodels.LanguageName(lang.Name))
 			}
-			cInfo[*langUtil.NewContainer(container.ContainerName)] = languageSet
+			cInfo[*languagemodels.NewContainer(container.ContainerName)] = languageSet
 		}
 
 		for _, container := range podDetail.InitContainerDetails {
-			languageSet := make(langUtil.LanguageSet)
+			languageSet := make(languagemodels.LanguageSet)
 			for _, lang := range container.Languages {
-				languageSet.Add(langUtil.Language(lang.Name))
+				languageSet.Add(languagemodels.LanguageName(lang.Name))
 			}
-			cInfo[*langUtil.NewContainer(container.ContainerName)] = languageSet
+			cInfo[*languagemodels.NewContainer(container.ContainerName)] = languageSet
 		}
 
 		podInfo := podInfo{

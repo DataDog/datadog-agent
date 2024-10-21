@@ -24,7 +24,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -250,7 +250,7 @@ type MockDeployment struct {
 	DeploymentName  string
 	Namespace       string
 	IsInitContainer bool
-	Languages       util.LanguageSet
+	Languages       languagemodels.LanguageSet
 }
 
 // FakeStoreWithDeployment sets up a fake workloadmeta with the given
@@ -264,11 +264,11 @@ func FakeStoreWithDeployment(t *testing.T, deployments []MockDeployment) workloa
 	))
 
 	for _, d := range deployments {
-		langSet := util.LanguageSet{}
+		langSet := languagemodels.LanguageSet{}
 		for lang := range d.Languages {
 			langSet.Add(lang)
 		}
-		container := util.Container{
+		container := languagemodels.Container{
 			Name: d.ContainerName,
 			Init: d.IsInitContainer,
 		}
@@ -278,7 +278,7 @@ func FakeStoreWithDeployment(t *testing.T, deployments []MockDeployment) workloa
 				Kind: workloadmeta.KindKubernetesDeployment,
 				ID:   fmt.Sprintf("%s/%s", d.Namespace, d.DeploymentName),
 			},
-			InjectableLanguages: util.ContainersLanguages{
+			InjectableLanguages: languagemodels.ContainersLanguages{
 				container: langSet,
 			},
 		})

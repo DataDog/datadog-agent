@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 )
 
@@ -853,11 +852,11 @@ type KubernetesDeployment struct {
 
 	// InjectableLanguages indicate containers languages that can be injected by the admission controller
 	// These languages are determined by parsing the deployment annotations
-	InjectableLanguages langUtil.ContainersLanguages
+	InjectableLanguages languagemodels.ContainersLanguages
 
 	// DetectedLanguages languages indicate containers languages detected and reported by the language
 	// detection server.
-	DetectedLanguages langUtil.ContainersLanguages
+	DetectedLanguages languagemodels.ContainersLanguages
 }
 
 // GetID implements Entity#GetID.
@@ -893,7 +892,7 @@ func (d KubernetesDeployment) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Service :", d.Service)
 	_, _ = fmt.Fprintln(&sb, "Version :", d.Version)
 
-	langPrinter := func(containersLanguages langUtil.ContainersLanguages) {
+	langPrinter := func(containersLanguages languagemodels.ContainersLanguages) {
 		initContainersInfo := make([]string, 0, len(containersLanguages))
 		containersInfo := make([]string, 0, len(containersLanguages))
 

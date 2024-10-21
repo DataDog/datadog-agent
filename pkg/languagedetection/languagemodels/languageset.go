@@ -3,16 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package util
+package languagemodels
 
 import (
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"reflect"
 	"time"
-)
 
-// Language represents a language name
-type Language string
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+)
 
 ////////////////////////////////
 //                            //
@@ -21,11 +19,11 @@ type Language string
 ////////////////////////////////
 
 // LanguageSet represents a set of languages
-type LanguageSet map[Language]struct{}
+type LanguageSet map[LanguageName]struct{}
 
 // Add adds a new language to the language set
 // returns false if the language is already included in the set, and true otherwise
-func (s LanguageSet) Add(language Language) bool {
+func (s LanguageSet) Add(language LanguageName) bool {
 	_, found := s[language]
 	s[language] = struct{}{}
 	return !found
@@ -49,7 +47,7 @@ func (s LanguageSet) ToProto() []*pbgo.Language {
 ////////////////////////////////
 
 // TimedLanguageSet handles storing sets of languages along with their expiration times
-type TimedLanguageSet map[Language]time.Time
+type TimedLanguageSet map[LanguageName]time.Time
 
 // RemoveExpired removes all expired languages from the set
 // Returns true if at least one language is expired and removed
@@ -66,20 +64,20 @@ func (s TimedLanguageSet) RemoveExpired() bool {
 
 // Add adds a new language to the language set with an expiration time
 // returns false if the language is already included in the set, and true otherwise
-func (s TimedLanguageSet) Add(language Language, expiration time.Time) bool {
+func (s TimedLanguageSet) Add(language LanguageName, expiration time.Time) bool {
 	_, found := s[language]
 	s[language] = expiration
 	return !found
 }
 
 // Has returns whether the set contains a specific language
-func (s TimedLanguageSet) Has(language Language) bool {
+func (s TimedLanguageSet) Has(language LanguageName) bool {
 	_, found := s[language]
 	return found
 }
 
 // Remove deletes a language from the language set
-func (s TimedLanguageSet) Remove(language Language) {
+func (s TimedLanguageSet) Remove(language LanguageName) {
 	delete(s, language)
 }
 

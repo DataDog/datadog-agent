@@ -11,8 +11,6 @@ import (
 	"context"
 	"testing"
 
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
-
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
@@ -62,7 +60,7 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 								Labels:    map[string]string{"test-label": "test-value", "tags.datadoghq.com/env": "env"},
 							},
 							Env:                 "env",
-							InjectableLanguages: make(langUtil.ContainersLanguages),
+							InjectableLanguages: make(languagemodels.ContainersLanguages),
 						},
 					},
 				},
@@ -107,14 +105,14 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 									"internal.dd.datadoghq.com/init.redis.detected_langs": "go,python",
 								},
 							},
-							InjectableLanguages: langUtil.ContainersLanguages{
-								*langUtil.NewContainer("nginx"): {
-									langUtil.Language(languagemodels.Go):   {},
-									langUtil.Language(languagemodels.Java): {},
+							InjectableLanguages: languagemodels.ContainersLanguages{
+								*languagemodels.NewContainer("nginx"): {
+									languagemodels.Go:   {},
+									languagemodels.Java: {},
 								},
-								*langUtil.NewInitContainer("redis"): {
-									langUtil.Language(languagemodels.Go):     {},
-									langUtil.Language(languagemodels.Python): {},
+								*languagemodels.NewInitContainer("redis"): {
+									languagemodels.Go:     {},
+									languagemodels.Python: {},
 								},
 							},
 						},

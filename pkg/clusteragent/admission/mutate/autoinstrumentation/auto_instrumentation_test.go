@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -3185,10 +3185,10 @@ func mustWebhook(t *testing.T, wmeta workloadmeta.Component) *Webhook {
 	return webhook
 }
 
-func languageSetOf(languages ...string) util.LanguageSet {
-	set := util.LanguageSet{}
+func languageSetOf(languages ...string) languagemodels.LanguageSet {
+	set := languagemodels.LanguageSet{}
 	for _, l := range languages {
-		_ = set.Add(util.Language(l))
+		_ = set.Add(languagemodels.LanguageName(l))
 	}
 	return set
 }
