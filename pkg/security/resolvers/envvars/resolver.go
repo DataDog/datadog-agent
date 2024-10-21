@@ -37,5 +37,9 @@ func NewEnvVarsResolver(cfg *config.Config) *Resolver {
 
 // ResolveEnvVars resolves a pid
 func (r *Resolver) ResolveEnvVars(pid uint32) ([]string, bool, error) {
+	// we support the r == nil, for when env vars resolution is disabled
+	if r == nil {
+		return nil, false, nil
+	}
 	return utils.EnvVars(r.priorityEnvs, pid, model.MaxArgsEnvsSize)
 }
