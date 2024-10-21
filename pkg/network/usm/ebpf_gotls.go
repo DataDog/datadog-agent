@@ -45,8 +45,8 @@ const (
 	connWriteRetProbe = "uprobe__crypto_tls_Conn_Write__return"
 	connCloseProbe    = "uprobe__crypto_tls_Conn_Close"
 
-	// UsmGoTLSAttacherName holds the name used for the uprobe attacher of go-tls programs. Used for tests.
-	UsmGoTLSAttacherName = "go-tls"
+	// GoTLSAttacherName holds the name used for the uprobe attacher of go-tls programs. Used for tests.
+	GoTLSAttacherName = "go-tls"
 )
 
 type uprobesInfo struct {
@@ -185,7 +185,7 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 			binNoSymbolsMetric:          libtelemetry.NewCounter("usm.go_tls.missing_symbols", libtelemetry.OptPrometheus),
 		}
 
-		attacher, err := uprobes.NewUprobeAttacher(UsmGoTLSAttacherName, attacherCfg, m, nil, inspector)
+		attacher, err := uprobes.NewUprobeAttacher(GoTLSAttacherName, attacherCfg, m, nil, inspector)
 		if err != nil {
 			return nil, fmt.Errorf("Cannot create uprobe attacher: %w", err)
 		}

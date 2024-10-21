@@ -650,7 +650,7 @@ func TestOldConnectionRegression(t *testing.T) {
 		usmMonitor := setupUSMTLSMonitor(t, cfg)
 
 		// Ensure this test program is being traced
-		utils.WaitForProgramsToBeTraced(t, UsmGoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
 
 		// The HTTPServer used here effectively works as an "echo" servers and
 		// returns back in the response whatever it received in the request
@@ -721,7 +721,7 @@ func TestLimitListenerRegression(t *testing.T) {
 		usmMonitor := setupUSMTLSMonitor(t, cfg)
 
 		// Ensure this test program is being traced
-		utils.WaitForProgramsToBeTraced(t, UsmGoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
 
 		// Issue multiple HTTP requests
 		for i := 0; i < 10; i++ {
@@ -781,7 +781,7 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config, isHTTP2 bo
 
 	// spin-up goTLS client and issue requests after initialization
 	command, runRequests := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences, isHTTP2)
-	utils.WaitForProgramsToBeTraced(t, UsmGoTLSAttacherName, command.Process.Pid, utils.ManualTracingFallbackEnabled)
+	utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, command.Process.Pid, utils.ManualTracingFallbackEnabled)
 	runRequests()
 	checkRequests(t, usmMonitor, expectedOccurrences, reqs, isHTTP2)
 }
@@ -818,7 +818,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config, isHTTP
 		reqs[req] = false
 	}
 
-	utils.WaitForProgramsToBeTraced(t, UsmGoTLSAttacherName, command.Process.Pid, utils.ManualTracingFallbackEnabled)
+	utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, command.Process.Pid, utils.ManualTracingFallbackEnabled)
 	issueRequestsFn()
 	checkRequests(t, usmMonitor, expectedOccurrences, reqs, isHTTP2)
 }
