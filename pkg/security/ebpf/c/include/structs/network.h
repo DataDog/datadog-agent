@@ -83,7 +83,7 @@ struct network_context_t {
     u16 l4_protocol;
 };
 
-struct raw_packet_t {
+struct raw_packet_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
