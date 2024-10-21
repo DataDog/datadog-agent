@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
@@ -37,7 +38,7 @@ const (
 	Injected Instrumentation = "injected"
 )
 
-type detector func(pid int, args []string, envs map[string]string, contextMap usm.DetectorContextMap) Instrumentation
+type detector func(pid int, args []string, envs envs.Variables, contextMap usm.DetectorContextMap) Instrumentation
 
 var (
 	detectorMap = map[language.Language]detector{
@@ -52,7 +53,7 @@ var (
 )
 
 // Detect attempts to detect the type of APM instrumentation for the given service.
-func Detect(pid int, args []string, envs map[string]string, lang language.Language, contextMap usm.DetectorContextMap) Instrumentation {
+func Detect(pid int, args []string, envs envs.Variables, lang language.Language, contextMap usm.DetectorContextMap) Instrumentation {
 	// first check to see if the DD_INJECTION_ENABLED is set to tracer
 	if isInjected(envs) {
 		return Injected
@@ -66,8 +67,8 @@ func Detect(pid int, args []string, envs map[string]string, lang language.Langua
 	return None
 }
 
-func isInjected(envs map[string]string) bool {
-	if val, ok := envs["DD_INJECTION_ENABLED"]; ok {
+func isInjected(envs envs.Variables) bool {
+	if val, ok := envs.Get("DD_INJECTION_ENABLED"); ok {
 		parts := strings.Split(val, ",")
 		for _, v := range parts {
 			if v == "tracer" {
@@ -96,7 +97,7 @@ const (
 // goDetector detects APM instrumentation for Go binaries by checking for
 // the presence of the dd-trace-go symbols in the ELF. This only works for
 // unstripped binaries.
-func goDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorContextMap) Instrumentation {
+func goDetector(pid int, _ []string, _ envs.Variables, _ usm.DetectorContextMap) Instrumentation {
 	exePath := kernel.HostProc(strconv.Itoa(pid), "exe")
 
 	elfFile, err := elf.Open(exePath)
@@ -142,7 +143,7 @@ func pythonDetectorFromMapsReader(reader io.Reader) Instrumentation {
 // For example:
 // 7aef453fc000-7aef453ff000 rw-p 0004c000 fc:06 7895473  /home/foo/.local/lib/python3.10/site-packages/ddtrace/internal/_encoding.cpython-310-x86_64-linux-gnu.so
 // 7aef45400000-7aef45459000 r--p 00000000 fc:06 7895588  /home/foo/.local/lib/python3.10/site-packages/ddtrace/internal/datadog/profiling/libdd_wrapper.so
-func pythonDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorContextMap) Instrumentation {
+func pythonDetector(pid int, _ []string, _ envs.Variables, _ usm.DetectorContextMap) Instrumentation {
 	mapsPath := kernel.HostProc(strconv.Itoa(pid), "maps")
 	mapsFile, err := os.Open(mapsPath)
 	if err != nil {
@@ -172,7 +173,7 @@ func isNodeInstrumented(f fs.File) bool {
 // To check for APM instrumentation, we try to find a package.json in
 // the parent directories of the service. If found, we then check for a
 // `dd-trace` entry to be present.
-func nodeDetector(_ int, _ []string, _ map[string]string, contextMap usm.DetectorContextMap) Instrumentation {
+func nodeDetector(_ int, _ []string, _ envs.Variables, contextMap usm.DetectorContextMap) Instrumentation {
 	pkgJSONPath, ok := contextMap[usm.NodePackageJSONPath]
 	if !ok {
 		log.Debugf("could not get package.json path from context map")
@@ -199,7 +200,7 @@ func nodeDetector(_ int, _ []string, _ map[string]string, contextMap usm.Detecto
 	return None
 }
 
-func javaDetector(_ int, args []string, envs map[string]string, _ usm.DetectorContextMap) Instrumentation {
+func javaDetector(_ int, args []string, envs envs.Variables, _ usm.DetectorContextMap) Instrumentation {
 	ignoreArgs := map[string]bool{
 		"-version":     true,
 		"-Xshare:dump": true,
@@ -229,7 +230,7 @@ func javaDetector(_ int, args []string, envs map[string]string, _ usm.DetectorCo
 		"JDPA_OPTS",
 	}
 	for _, name := range toolOptionEnvs {
-		if val, ok := envs[name]; ok {
+		if val, ok := envs.Get(name); ok {
 			if strings.Contains(val, "-javaagent:") && strings.Contains(val, "dd-java-agent.jar") {
 				return Provided
 			}
@@ -265,8 +266,8 @@ func dotNetDetectorFromMapsReader(reader io.Reader) Instrumentation {
 // maps file. Note that this does not work for single-file deployments.
 //
 // 785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267 /home/foo/.../publish/Datadog.Trace.dll
-func dotNetDetector(pid int, _ []string, envs map[string]string, _ usm.DetectorContextMap) Instrumentation {
-	if val, ok := envs["CORECLR_ENABLE_PROFILING"]; ok && val == "1" {
+func dotNetDetector(pid int, _ []string, envs envs.Variables, _ usm.DetectorContextMap) Instrumentation {
+	if val, ok := envs.Get("CORECLR_ENABLE_PROFILING"); ok && val == "1" {
 		return Provided
 	}
 

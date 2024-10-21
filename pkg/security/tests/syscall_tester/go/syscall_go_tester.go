@@ -42,11 +42,10 @@ var (
 	userSessionExecutable string
 	userSessionOpenPath   string
 	syscallDriftTest      bool
-	loginUIDOpenTest      bool
-	loginUIDOpenPath      string
-	loginUIDOpenUID       int
-	loginUIDExecTest      bool
-	loginUIDExecPath      string
+	loginUIDTest          bool
+	loginUIDPath          string
+	loginUIDEventType     string
+	loginUIDValue         int
 )
 
 //go:embed ebpf_probe.o
@@ -232,35 +231,39 @@ func setSelfLoginUID(uid int) error {
 	return nil
 }
 
-func RunLoginUIDOpenTest() error {
-	if loginUIDOpenUID != -1 {
-		if err := setSelfLoginUID(loginUIDOpenUID); err != nil {
+func RunLoginUIDTest() error {
+	if loginUIDValue != -1 {
+		if err := setSelfLoginUID(loginUIDValue); err != nil {
 			return err
 		}
 	}
 
-	// open test file to trigger an event
-	f, err := os.OpenFile(loginUIDOpenPath, os.O_RDWR|os.O_CREATE, 0755)
-	if err != nil {
-		return fmt.Errorf("couldn't create test-auid file: %v", err)
-	}
-	defer os.Remove(loginUIDOpenPath)
+	switch loginUIDEventType {
+	case "open":
+		// open test file to trigger an event
+		f, err := os.OpenFile(loginUIDPath, os.O_RDWR|os.O_CREATE, 0755)
+		if err != nil {
+			return fmt.Errorf("couldn't create test-auid file: %v", err)
+		}
+		defer os.Remove(loginUIDPath)
 
-	if err = f.Close(); err != nil {
-		return fmt.Errorf("couldn't close test file: %v", err)
-	}
-	return nil
-}
-
-func RunLoginUIDExecTest() error {
-	if err := setSelfLoginUID(1005); err != nil {
-		return err
-	}
-
-	// exec ls to trigger an execution with auid = 1005
-	cmd := exec.Command(loginUIDExecPath)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("'%s' execution returned an error: %v", loginUIDExecPath, err)
+		if err = f.Close(); err != nil {
+			return fmt.Errorf("couldn't close test file: %v", err)
+		}
+	case "exec":
+		cmd := exec.Command(loginUIDPath)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("'%s' execution returned an error: %v", loginUIDPath, err)
+		}
+	case "unlink":
+		f, err := os.OpenFile(loginUIDPath, os.O_RDWR|os.O_CREATE, 0755)
+		if err != nil {
+			return fmt.Errorf("couldn't create test-auid file: %v", err)
+		}
+		f.Close()
+		os.Remove(loginUIDPath)
+	default:
+		panic("unknown event type")
 	}
 	return nil
 }
@@ -277,11 +280,10 @@ func main() {
 	flag.BoolVar(&cleanupIMDSTest, "cleanup-imds-test", false, "when set, removes the dummy interface of the IMDS test")
 	flag.BoolVar(&runIMDSTest, "run-imds-test", false, "when set, binds an IMDS server locally and sends a query to it")
 	flag.BoolVar(&syscallDriftTest, "syscall-drift-test", false, "when set, runs the syscall drift test")
-	flag.BoolVar(&loginUIDOpenTest, "login-uid-open-test", false, "when set, runs the login_uid open test")
-	flag.StringVar(&loginUIDOpenPath, "login-uid-open-path", "", "file used for the login_uid open test")
-	flag.IntVar(&loginUIDOpenUID, "login-uid-open-uid", 0, "uid used for the login_uid open test")
-	flag.BoolVar(&loginUIDExecTest, "login-uid-exec-test", false, "when set, runs the login_uid exec test")
-	flag.StringVar(&loginUIDExecPath, "login-uid-exec-path", "", "path to the executable to run during the login_uid exec test")
+	flag.BoolVar(&loginUIDTest, "login-uid-test", false, "when set, runs the login_uid open test")
+	flag.StringVar(&loginUIDPath, "login-uid-path", "", "file used for the login_uid open test")
+	flag.StringVar(&loginUIDEventType, "login-uid-event-type", "", "event type used for the login_uid open test")
+	flag.IntVar(&loginUIDValue, "login-uid-value", 0, "uid used for the login_uid open test")
 
 	flag.Parse()
 
@@ -337,14 +339,8 @@ func main() {
 		}
 	}
 
-	if loginUIDOpenTest {
-		if err := RunLoginUIDOpenTest(); err != nil {
-			panic(err)
-		}
-	}
-
-	if loginUIDExecTest {
-		if err := RunLoginUIDExecTest(); err != nil {
+	if loginUIDTest {
+		if err := RunLoginUIDTest(); err != nil {
 			panic(err)
 		}
 	}
