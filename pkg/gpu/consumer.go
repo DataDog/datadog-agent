@@ -170,3 +170,11 @@ func (c *cudaEventConsumer) checkClosedProcesses() {
 		}
 	}
 }
+
+func (c *cudaEventConsumer) cleanupHandlersMarkedFinished() {
+	for key, handler := range c.streamHandlers {
+		if handler.processEnded {
+			delete(c.streamHandlers, key)
+		}
+	}
+}
