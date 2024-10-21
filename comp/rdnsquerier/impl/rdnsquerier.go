@@ -9,7 +9,9 @@ package rdnsquerierimpl
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/netip"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -179,6 +181,63 @@ func (q *rdnsQuerierImpl) GetHostname(ipAddr []byte, updateHostnameSync func(str
 	}
 
 	return nil
+}
+
+// GetHostnameSync attempts to resolve the hostname for the given IP address synchronously.
+// If the IP address is invalid then an error is returned.
+// If the IP address is not in the private address space then it is ignored - no lookup is performed and nil error is returned.
+// If the IP address is in the private address space then the IP address will be resolved to a hostname.
+// The function accepts a timeout duration, which defaults to 2 seconds if not provided.
+func (q *rdnsQuerierImpl) GetHostnameSync(ctx context.Context, ipAddr string) (string, error) {
+	q.logger.Infof("ENTERED THE GetHostnameSync FUNCTION with IP address: %s", ipAddr)
+
+	q.internalTelemetry.total.Inc()
+
+	netipAddr := net.ParseIP(ipAddr).To4()
+	if netipAddr == nil {
+		q.internalTelemetry.invalidIPAddress.Inc()
+		return "", fmt.Errorf("invalid IP address %v", ipAddr)
+	}
+
+	if !netipAddr.IsPrivate() {
+		q.logger.Tracef("Reverse DNS Enrichment IP address %s is not in the private address space", netipAddr)
+		return "", fmt.Errorf("IP address %v is not in the private address space", netipAddr)
+	}
+	q.internalTelemetry.private.Inc()
+
+	var (
+		hostname string
+		mu       sync.Mutex
+		done     = make(chan struct{})
+	)
+
+	err := q.GetHostname(
+		netipAddr,
+		func(h string) {
+			mu.Lock()
+			defer mu.Unlock()
+			hostname = h
+			close(done)
+		},
+		func(h string, _ error) {
+			mu.Lock()
+			defer mu.Unlock()
+			hostname = h
+			close(done)
+		},
+	)
+	if err != nil {
+		q.logger.Tracef("Error resolving reverse DNS enrichment for source IP address: %v error: %v", ipAddr, err)
+	}
+
+	select {
+	case <-done:
+		mu.Lock()
+		defer mu.Unlock()
+		return hostname, err
+	case <-ctx.Done():
+		return "", fmt.Errorf("timeout reached while resolving hostname for IP address %v", ipAddr)
+	}
 }
 
 func (q *rdnsQuerierImpl) start(_ context.Context) error {
