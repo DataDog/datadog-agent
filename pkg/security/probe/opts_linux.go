@@ -21,6 +21,8 @@ type Opts struct {
 	StatsdClient statsd.ClientInterface
 	// PathResolutionEnabled defines if the path resolution is enabled
 	PathResolutionEnabled bool
+	// EnvsVarResolutionEnabled defines if environment variables resolution is enabled
+	EnvsVarResolutionEnabled bool
 	// TagsResolver will override the default one. Mainly here for tests.
 	TagsResolver tags.Resolver
 	// SyscallsMonitorEnabled enable syscalls map monitor

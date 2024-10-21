@@ -14,6 +14,7 @@ import (
 // UpdateEventMonitorOpts adapt the event monitor options
 func UpdateEventMonitorOpts(opts *eventmonitor.Opts, config *config.Config) {
 	opts.ProbeOpts.PathResolutionEnabled = true
+	opts.ProbeOpts.EnvsVarResolutionEnabled = true
 	opts.ProbeOpts.TTYFallbackEnabled = true
 	opts.ProbeOpts.SyscallsMonitorEnabled = config.Probe.SyscallsMonitorEnabled
 	opts.ProbeOpts.EBPFLessEnabled = config.RuntimeSecurity.EBPFLessEnabled

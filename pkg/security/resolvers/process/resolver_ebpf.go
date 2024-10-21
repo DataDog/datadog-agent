@@ -1436,7 +1436,7 @@ func (p *EBPFResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
 	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver mount.ResolverInterface,
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
-	pathResolver spath.ResolverInterface, opts *ResolverOpts) (*EBPFResolver, error) {
+	pathResolver spath.ResolverInterface, envVarsResolver *envvars.Resolver, opts *ResolverOpts) (*EBPFResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint64, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
@@ -1471,7 +1471,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		userGroupResolver:         userGroupResolver,
 		timeResolver:              timeResolver,
 		pathResolver:              pathResolver,
-		envVarsResolver:           envvars.NewEnvVarsResolver(config),
+		envVarsResolver:           envVarsResolver,
 	}
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)
