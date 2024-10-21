@@ -15,7 +15,8 @@ import (
 
 var nsecPerSec = float64(time.Second.Nanoseconds())
 
-// aggregator is responsible for receiving stream-level data for one process and aggregating it into metrics
+// aggregator is responsible for receiving multiple stream-level data for one process and aggregating it into metrics
+// This struct is necessary as a single process might have multiple CUDA streams
 type aggregator struct {
 	// totalThreadSecondsUsed is the total amount of thread-seconds used by the
 	// GPU in the current interval
