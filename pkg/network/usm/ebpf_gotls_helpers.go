@@ -97,6 +97,10 @@ func (p *goTLSBinaryInspector) Inspect(fpath utils.FilePath, requests []uprobes.
 
 // Cleanup removes the inspection result for the binary at the given path from the map.
 func (p *goTLSBinaryInspector) Cleanup(fpath utils.FilePath) {
+	if p.offsetsDataMap == nil {
+		log.Warnf("offsetsDataMap is nil, cannot remove inspection result")
+	}
+
 	binID := fpath.ID
 	key := &gotls.TlsBinaryId{
 		Id_major: unix.Major(binID.Dev),
@@ -116,6 +120,10 @@ func (p *goTLSBinaryInspector) Cleanup(fpath utils.FilePath) {
 // addInspectionResultToMap runs a binary inspection and adds the result to the
 // map that's being read by the probes, indexed by the binary's inode number `ino`.
 func (p *goTLSBinaryInspector) addInspectionResultToMap(binID utils.PathIdentifier, result *bininspect.Result) error {
+	if p.offsetsDataMap == nil {
+		return errors.New("offsetsDataMap is nil, cannot write inspection result")
+	}
+
 	offsetsData, err := inspectionResultToProbeData(result)
 	if err != nil {
 		return fmt.Errorf("error while parsing inspection result: %w", err)
