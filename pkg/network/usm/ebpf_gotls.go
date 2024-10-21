@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"regexp"
 	"time"
 
 	"github.com/cilium/ebpf"
@@ -54,20 +53,6 @@ type uprobesInfo struct {
 	returnInfo   string
 }
 
-var functionToProbes = map[string]uprobesInfo{
-	bininspect.ReadGoTLSFunc: {
-		functionInfo: connReadProbe,
-		returnInfo:   connReadRetProbe,
-	},
-	bininspect.WriteGoTLSFunc: {
-		functionInfo: connWriteProbe,
-		returnInfo:   connWriteRetProbe,
-	},
-	bininspect.CloseGoTLSFunc: {
-		functionInfo: connCloseProbe,
-	},
-}
-
 var paramLookupFunctions = map[string]bininspect.ParameterLookupFunction{
 	bininspect.WriteGoTLSFunc: lookup.GetWriteParams,
 	bininspect.ReadGoTLSFunc:  lookup.GetReadParams,
@@ -89,11 +74,6 @@ type goTLSProgram struct {
 	attacher  *uprobes.UprobeAttacher
 	inspector *goTLSBinaryInspector
 	cfg       *config.Config
-	manager   *manager.Manager
-
-	// Path to the process/container's procfs
-	procRoot string
-	registry *utils.FileRegistry
 }
 
 var goTLSSpec = &protocols.ProtocolSpec{
@@ -192,8 +172,6 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 
 		return &goTLSProgram{
 			cfg:       c,
-			manager:   m,
-			procRoot:  c.ProcRoot,
 			inspector: inspector,
 			attacher:  attacher,
 		}, nil
@@ -252,22 +230,6 @@ func (p *goTLSProgram) GetStats() *protocols.ProtocolStats {
 func (p *goTLSProgram) Stop(*manager.Manager) {
 	p.attacher.Stop()
 }
-
-var (
-	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace)-agent|system-probe|agent)")
-)
-
-// DetachPID detaches the provided PID from the eBPF program.
-func (p *goTLSProgram) DetachPID(pid uint32) error {
-	return p.registry.Unregister(pid)
-}
-
-var (
-	// ErrSelfExcluded is returned when the PID is the same as the agent's PID.
-	ErrSelfExcluded = errors.New("self-excluded")
-	// ErrInternalDDogProcessRejected is returned when the PID is an internal datadog process.
-	ErrInternalDDogProcessRejected = errors.New("internal datadog process rejected")
-)
 
 // GoTLSAttachPID attaches Go TLS hooks on the binary of process with
 // provided PID, if Go TLS is enabled.
