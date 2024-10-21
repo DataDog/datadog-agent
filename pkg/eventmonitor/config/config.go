@@ -27,6 +27,8 @@ type Config struct {
 
 	// ProcessConsumerEnabled defines if the process-agent wants to receive kernel events
 	ProcessConsumerEnabled bool
+
+	EnvVarsResolutionEnabled bool
 }
 
 // NewConfig creates a config for the event monitoring module
@@ -38,6 +40,9 @@ func NewConfig() *Config {
 
 		// consumers
 		ProcessConsumerEnabled: getBool("process.enabled"),
+
+		// options
+		EnvVarsResolutionEnabled: pkgconfigsetup.SystemProbe().GetBool(sysconfig.FullKeyPath(evNS, "env_vars_resolution.enabled")),
 	}
 }
 
