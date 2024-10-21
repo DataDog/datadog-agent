@@ -30,6 +30,7 @@ import (
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -126,8 +127,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					InitHelper: common.GetWorkloadmetaInit(),
 					NoInstance: !cliParams.forceLocal, //if forceLocal is true, we want to run workloadmeta
 				}),
+				fx.Provide(tagger.NewTaggerParams),
 				taggerimpl.Module(),
 				autodiscoveryimpl.Module(), // if forceLocal is true, we will start autodiscovery (loadComponents) later
+				fx.Provide(func(ac autodiscovery.Component) optional.Option[autodiscovery.Component] {
+					return optional.NewOption[autodiscovery.Component](ac)
+				}),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				compressionimpl.Module(),
 				diagnosesendermanagerimpl.Module(),
@@ -282,7 +287,7 @@ func makeFlare(flareComp flare.Component,
 	_ sysprobeconfig.Component,
 	cliParams *cliParams,
 	_ optional.Option[workloadmeta.Component],
-	_ optional.Option[tagger.Component]) error {
+	_ tagger.Component) error {
 	var (
 		profile flare.ProfileData
 		err     error
