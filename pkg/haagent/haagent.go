@@ -8,23 +8,16 @@ package haagent
 
 import (
 	"strings"
-	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
 )
 
 // TODO: SHOULD BE A COMPONENT WITH STATE
-// TODO: SHOULD BE A COMPONENT WITH STATE
-// TODO: SHOULD BE A COMPONENT WITH STATE
-// TODO: SHOULD BE A COMPONENT WITH STATE
 
 var runtimeRole = atomic.NewString("")
-var assignedDistributedChecks []string
-var assignedDistributedChecksMutex = sync.Mutex{}
 
 func IsEnabled() bool {
 	return pkgconfigsetup.Datadog().GetBool("failover.enabled")
@@ -36,33 +29,12 @@ func IsPrimary() bool {
 	if runtRole != "" {
 		currentRole = runtRole
 	}
-	// TODO: REMOVE ME
 	log.Infof("[IsPrimary] currentRole: %v", currentRole)
 	return currentRole == "primary"
 }
 
-func GetInitialRole() string {
-	return pkgconfigsetup.Datadog().GetString("failover.role")
-}
-
-func GetRole() string {
-	return runtimeRole.Load()
-}
-
 func SetRole(role string) {
 	runtimeRole.Store(role)
-}
-
-func GetChecks() []string {
-	assignedDistributedChecksMutex.Lock()
-	defer assignedDistributedChecksMutex.Unlock()
-	return assignedDistributedChecks
-}
-
-func SetChecks(checks []string) {
-	assignedDistributedChecksMutex.Lock()
-	defer assignedDistributedChecksMutex.Unlock()
-	assignedDistributedChecks = utils.CopyStrings(checks)
 }
 
 func ShouldRunForCheck(check check.Check) bool {
@@ -93,12 +65,4 @@ func ShouldRunForCheck(check check.Check) bool {
 	}
 
 	return true
-}
-
-func IsDistributedCheck(checkName string) bool {
-	// TODO: handle check name generically
-	if IsEnabled() && checkName == "snmp" {
-		return true
-	}
-	return false
 }
