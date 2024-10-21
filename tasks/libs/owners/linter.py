@@ -5,9 +5,7 @@ from tasks.libs.common.color import color_message
 
 
 def directory_has_packages_without_owner(owners, folder="pkg"):
-    """
-    Check every package in `pkg` has an owner
-    """
+    """Check every package in `pkg` has an owner"""
 
     error = False
 
@@ -25,9 +23,7 @@ def directory_has_packages_without_owner(owners, folder="pkg"):
 
 
 def codeowner_has_orphans(owners):
-    """
-    Check that every rule in codeowners file point to an existing file/directory
-    """
+    """Check that every rule in codeowners file point to an existing file/directory"""
 
     err_invalid_rule_path = False
     err_orphans_path = False
@@ -61,9 +57,7 @@ def codeowner_has_orphans(owners):
 
 
 def _get_static_root(pattern):
-    """
-    _get_static_root returns the longest prefix path from the pattern without any wildcards.
-    """
+    """_get_static_root returns the longest prefix path from the pattern without any wildcards."""
     result = "."
 
     if not pattern.startswith("/"):
@@ -80,8 +74,7 @@ def _get_static_root(pattern):
 
 
 def _is_pattern_in_fs(path, pattern):
-    """
-    Checks if a given pattern matches any file within the specified path.
+    """Checks if a given pattern matches any file within the specified path.
 
     Args:
         path (str): The file or directory path to search within.
