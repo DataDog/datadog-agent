@@ -46,6 +46,9 @@ const gpuEnabledAMI = "ami-0f71e237bb2ba34be" // Ubuntu 22.04 with GPU drivers
 
 // TestGPUSuite runs tests for the VM interface to ensure its implementation is correct.
 func TestGPUSuite(t *testing.T) {
+	// Marked as flaky pending removal of unattended-upgrades in the AMI
+	flake.Mark(t)
+
 	provisioner := awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(
 			ec2.WithInstanceType("g4dn.xlarge"),
