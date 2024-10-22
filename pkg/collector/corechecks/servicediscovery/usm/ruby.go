@@ -42,7 +42,7 @@ func (r railsDetector) detect(_ []string) (ServiceMetadata, bool) {
 		if p, ok := procEntry.(*process.Process); ok {
 			proc = p
 		} else {
-			log.Error("could not get process object in rails detector")
+			log.Errorf("could not get process object in rails detector: got type %T", procEntry)
 		}
 	}
 
