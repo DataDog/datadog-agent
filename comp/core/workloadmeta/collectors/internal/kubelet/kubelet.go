@@ -421,7 +421,7 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 func extractGPUVendor(gpuNamePrefix kubelet.ResourceName) string {
 	gpuVendor := ""
 	switch gpuNamePrefix {
-	case kubelet.ResourcePrefixNvidiaGPU:
+	case kubelet.ResourcePrefixNvidiaMIG, kubelet.ResourceGenericNvidiaGPU:
 		gpuVendor = "nvidia"
 	case kubelet.ResourcePrefixAMDGPU:
 		gpuVendor = "amd"
@@ -451,12 +451,13 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 		resourceKeys = append(resourceKeys, resourceName)
 	}
 
-	for _, gpuResourcePrefix := range kubelet.GetGPUResourcePrefixes() {
+	for _, gpuResourceName := range kubelet.GetGPUResourceNames() {
 		for _, resourceKey := range resourceKeys {
-			if strings.HasPrefix(string(resourceKey), string(gpuResourcePrefix)) {
+			if strings.HasPrefix(string(resourceKey), string(gpuResourceName)) {
 				if gpuReq, found := spec.Resources.Requests[resourceKey]; found {
 					resources.GPURequest = pointer.Ptr(uint64(gpuReq.Value()))
-					uniqueGPUVendor[extractGPUVendor(gpuResourcePrefix)] = true
+					uniqueGPUVendor[extractGPUVendor(gpuResourceName)] = true
+					break
 				}
 			}
 		}
