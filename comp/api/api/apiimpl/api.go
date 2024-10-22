@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -40,6 +41,7 @@ func Module() fxutil.Module {
 type apiServer struct {
 	dogstatsdServer   dogstatsdServer.Component
 	capture           replay.Component
+	cfg               config.Component
 	pidMap            pidmap.Component
 	secretResolver    secrets.Component
 	rcService         optional.Option[rcservice.Component]
@@ -69,6 +71,7 @@ type dependencies struct {
 	RcServiceMRF          optional.Option[rcservicemrf.Component]
 	AuthToken             authtoken.Component
 	Tagger                tagger.Component
+	Cfg                   config.Component
 	AutoConfig            autodiscovery.Component
 	LogsAgentComp         optional.Option[logsAgent.Component]
 	WorkloadMeta          workloadmeta.Component
@@ -91,6 +94,7 @@ func newAPIServer(deps dependencies) api.Component {
 		rcServiceMRF:      deps.RcServiceMRF,
 		authToken:         deps.AuthToken,
 		taggerComp:        deps.Tagger,
+		cfg:               deps.Cfg,
 		autoConfig:        deps.AutoConfig,
 		logsAgentComp:     deps.LogsAgentComp,
 		wmeta:             deps.WorkloadMeta,

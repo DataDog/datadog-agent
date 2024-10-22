@@ -30,14 +30,14 @@ const (
 // Server is a grpc server that streams tagger entities
 type Server struct {
 	taggerComponent tagger.Component
-	maxMessageSize  int
+	maxEventSize    int
 }
 
 // NewServer returns a new Server
-func NewServer(t tagger.Component, maxMessageSize int) *Server {
+func NewServer(t tagger.Component, maxEventSize int) *Server {
 	return &Server{
 		taggerComponent: t,
-		maxMessageSize:  maxMessageSize,
+		maxEventSize:    maxEventSize,
 	}
 }
 
@@ -89,7 +89,7 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 			}
 
 			// Split events into chunks and send each one
-			chunks := splitEvents(responseEvents, s.maxMessageSize)
+			chunks := splitEvents(responseEvents, s.maxEventSize)
 			for _, chunk := range chunks {
 				err = grpc.DoWithTimeout(func() error {
 					return out.Send(&pb.StreamTagsResponse{
