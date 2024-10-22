@@ -73,8 +73,8 @@ repos:
       types_or: [c, c++]
       pass_filenames: false
     - # dotnet format is available on Linux, see https://learn.microsoft.com/en-us/dotnet/core/install/linux
-      id: dotnet-format-win-installer
-      name: dotnet-format-win-installer
+      id: dotnet-format-installer
+      name: dotnet-format-installer
       description: Format .net file of the MSI installer
       language: system
       # The dotnet format tool requires a solution file to operate.
