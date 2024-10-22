@@ -32,7 +32,7 @@ namespace WixSetup.Datadog_Agent
 
         // Source directories
         private const string InstallerSource = @"C:\opt\datadog-agent";
-        private const string BinSource = @"C:\opt\datadog-agent\bin";
+        private const string BinSource = @"C:\opt\datadog-agent\bin\agent";
         private const string EtcSource = @"C:\omnibus-ruby\src\etc\datadog-agent";
 
         private readonly AgentBinaries _agentBinaries;
@@ -281,7 +281,7 @@ namespace WixSetup.Datadog_Agent
                     .First(x => x.HasAttribute("Id", value => value == "AGENT"))
                     .AddElement("Directory", "Id=DRIVER; Name=driver")
                     .AddElement("Merge",
-                        $"Id=ddnpminstall; SourceFile={BinSource}\\agent\\DDNPM.msm; DiskId=1; Language=1033");
+                        $"Id=ddnpminstall; SourceFile={BinSource}\\DDNPM.msm; DiskId=1; Language=1033");
                 document
                     .FindAll("Feature")
                     .First(x => x.HasAttribute("Id", value => value == "MainApplication"))
@@ -294,7 +294,7 @@ namespace WixSetup.Datadog_Agent
                         .FindAll("Directory")
                         .First(x => x.HasAttribute("Id", value => value == "AGENT"))
                         .AddElement("Merge",
-                            $"Id=ddapminstall; SourceFile={BinSource}\\agent\\ddapminstall.msm; DiskId=1; Language=1033");
+                            $"Id=ddapminstall; SourceFile={BinSource}\\ddapminstall.msm; DiskId=1; Language=1033");
                     document
                         .FindAll("Feature")
                         .First(x => x.HasAttribute("Id", value => value == "MainApplication"))
@@ -304,7 +304,7 @@ namespace WixSetup.Datadog_Agent
                     .FindAll("Directory")
                     .First(x => x.HasAttribute("Id", value => value == "AGENT"))
                     .AddElement("Merge",
-                        $"Id=ddprocmoninstall; SourceFile={BinSource}\\agent\\ddprocmon.msm; DiskId=1; Language=1033");
+                        $"Id=ddprocmoninstall; SourceFile={BinSource}\\ddprocmon.msm; DiskId=1; Language=1033");
                 document
                     .FindAll("Feature")
                     .First(x => x.HasAttribute("Id", value => value == "MainApplication"))
