@@ -26,7 +26,7 @@ const cacheKeyPrefix = "snmp"
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
 
 var (
-	discoveryVar     = expvar.NewMap("snmpDiscovery")
+	discoveryVar              = expvar.NewMap("snmpDiscovery")
 	devicesScannedInSubnetVar = expvar.Map{}
 	devicesFoundInSubnetVar   = expvar.Map{}
 )
