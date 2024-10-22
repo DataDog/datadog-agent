@@ -12,6 +12,11 @@ jobs:
   run_slapr_datadog_agent:
     runs-on: ubuntu-latest
     steps:
+      - name: Event path
+        run: |
+          echo ${{ github.event_path }}
+          echo
+          cat ${{ github.event_path }}
       - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           ref: ${{ github.head_ref }}
