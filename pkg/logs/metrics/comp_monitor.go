@@ -52,7 +52,7 @@ func (u *UtilizationMonitor) Start() {
 }
 
 func (u *UtilizationMonitor) Stop() {
-	TlmUtilization.Add(u.inUse/(u.idle+u.idle), u.name, u.instance)
+	TlmUtilization.Add(u.inUse/(u.idle+u.inUse), u.name, u.instance)
 	u.inUse += float64(time.Since(u.startInUse) / time.Millisecond)
 	u.startIdle = time.Now()
 }
