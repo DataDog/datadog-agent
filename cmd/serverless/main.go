@@ -386,7 +386,6 @@ func startRCService(functionARN string) *remoteconfig.CoreAgentService {
 	}
 	tagsGetter := func() []string {
 		arn, parseErr := arn.Parse(functionARN)
-		log.Debugf("HERE: --- Parsing %s", functionARN)
 		if parseErr != nil {
 			return []string{}
 		}
