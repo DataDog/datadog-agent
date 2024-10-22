@@ -91,21 +91,21 @@ type ResourceName string
 
 // Resources name
 const (
-	ResourceCPU ResourceName = "cpu"
 	// Kubernetes GPU resource types by vendor as shown below
 	// https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
-	ResourceNvidiaGPU        ResourceName = "nvidia.com/gpu"
-	ResourceAMDGPU           ResourceName = "amd.com/gpu"
-	ResourceIntelGPUi915     ResourceName = "gpu.intel.com/i915"
-	ResourceIntelGPUxe       ResourceName = "gpu.intel.com/xe"
+	ResourcePrefixNvidiaGPU ResourceName = "nvidia.com/"
+	ResourcePrefixIntelGPU  ResourceName = "gpu.intel.com/"
+	ResourcePrefixAMDGPU    ResourceName = "amd.com/"
+
+	ResourceCPU              ResourceName = "cpu"
 	ResourceMemory           ResourceName = "memory"
 	ResourceStorage          ResourceName = "storage"
 	ResourceEphemeralStorage ResourceName = "ephemeral-storage"
 )
 
-// GetGPUResourceNames returns the list of GPU resource names
-func GetGPUResourceNames() []ResourceName {
-	return []ResourceName{ResourceNvidiaGPU, ResourceAMDGPU, ResourceIntelGPUi915, ResourceIntelGPUxe}
+// GetGPUResourcePrefixes returns the list of GPU resource prefixes
+func GetGPUResourcePrefixes() []ResourceName {
+	return []ResourceName{ResourcePrefixNvidiaGPU, ResourcePrefixIntelGPU, ResourcePrefixAMDGPU}
 }
 
 // ResourceList is the type of fields in Pod.Spec.Containers.Resources
