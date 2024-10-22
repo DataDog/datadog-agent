@@ -8,7 +8,7 @@ import yaml
 
 from tasks.kernel_matrix_testing.tool import Exit
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS
-from tasks.pipeline import GitlabYamlLoader
+from tasks.libs.ciproviders.gitlab_api import GitlabYamlLoader
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import (

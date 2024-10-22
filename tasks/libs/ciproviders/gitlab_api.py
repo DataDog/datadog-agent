@@ -120,6 +120,24 @@ def refresh_pipeline(pipeline: ProjectPipeline):
     pipeline.refresh()
 
 
+class GitlabReference(yaml.YAMLObject):
+    def __init__(self, refs):
+        self.refs = refs
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}=(refs={self.refs}'
+
+
+def reference_constructor(loader, node):
+    return GitlabReference(loader.construct_sequence(node))
+
+
+def GitlabYamlLoader():
+    loader = yaml.SafeLoader
+    loader.add_constructor('!reference', reference_constructor)
+    return loader
+
+
 class GitlabCIDiff:
     def __init__(
         self,
@@ -1250,3 +1268,51 @@ def full_config_get_all_stages(full_config: dict) -> set[str]:
         all_stages.update(config.get("stages", []))
 
     return all_stages
+
+
+def update_test_infra_def(file_path, image_tag):
+    """
+    Override TEST_INFRA_DEFINITIONS_BUILDIMAGES in `.gitlab/common/test_infra_version.yml` file
+    """
+    with open(file_path) as gl:
+        file_content = gl.readlines()
+    with open(file_path, "w") as gl:
+        for line in file_content:
+            test_infra_def = re.search(r"TEST_INFRA_DEFINITIONS_BUILDIMAGES:\s*(\w+)", line)
+            if test_infra_def:
+                gl.write(line.replace(test_infra_def.group(1), image_tag))
+            else:
+                gl.write(line)
+
+
+def update_gitlab_config(file_path, image_tag, test_version):
+    """
+    Override variables in .gitlab-ci.yml file
+    """
+    with open(file_path) as gl:
+        file_content = gl.readlines()
+    gitlab_ci = yaml.load("".join(file_content), Loader=GitlabYamlLoader())
+    # TEST_INFRA_DEFINITION_BUILDIMAGE label format differs from other buildimages
+    suffixes = [
+        name
+        for name in gitlab_ci["variables"]
+        if name.endswith("SUFFIX") and not name.startswith("TEST_INFRA_DEFINITION")
+    ]
+    images = [name.replace("_SUFFIX", "") for name in suffixes]
+    with open(file_path, "w") as gl:
+        for line in file_content:
+            if any(re.search(rf"{suffix}:", line) for suffix in suffixes):
+                if test_version:
+                    gl.write(line.replace('""', '"_test_only"'))
+                else:
+                    gl.write(line.replace('"_test_only"', '""'))
+            elif any(re.search(rf"{image}:", line) for image in images):
+                current_version = re.search(r"v\d+-\w+", line)
+                if current_version:
+                    gl.write(line.replace(current_version.group(0), image_tag))
+                else:
+                    raise RuntimeError(
+                        f"Unable to find a version matching the v<pipelineId>-<commitId> pattern in line {line}"
+                    )
+            else:
+                gl.write(line)
