@@ -4,19 +4,13 @@ all_content = """filegroup(name = "all", srcs = glob(["**"]), visibility = ["//v
 
 # Defines a "zlib" target for the lib
 bazel_dep(name = "zlib", version = "1.3.1")
-# ZLIB_VERSION = "1.3.1"
-# http_archive(
-#     name = "zlib",
-#     build_file_content = all_content,
-#     url = "https://zlib.net/fossils/zlib-{0}.tar.gz".format(ZLIB_VERSION),
-#     sha256 = "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
-#     strip_prefix = "zlib-{0}".format(ZLIB_VERSION),
-# )
 
 # Defines a "bz2" target for the lib, "bzip2" for the CLI tool
 bazel_dep(name = "bzip2", version = "1.0.8")
+
 # Defines a "libyaml" target for the lib
 bazel_dep(name = "libyaml", version = "0.2.5")
+
 # Defines a "lzma" target for the lib, "xz" for the CLI tools
 bazel_dep(name = "xz", version = "5.4.5.bcr.5")
 
@@ -29,12 +23,11 @@ http_archive(
     strip_prefix = "file-{0}".format(FILE_VERSION)
 )
 
-# BZIP2_VERSION = "1.0.8"
-# http_archive(
-#     name = "bzip2",
-#     build_file_content = all_content,
-#     url = "https://fossies.org/linux/misc/bzip2-{0}.tar.gz".format(BZIP2_VERSION),
-#     sha256 = "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
-#     strip_prefix = "bzip2-{0}".format(BZIP2_VERSION),
-# )
-
+OPENSSL_VERSION = "3.3.2"
+http_archive(
+    name="openssl",
+    build_file_content = all_content,
+    url = "https://www.openssl.org/source/openssl-{0}.tar.gz".format(OPENSSL_VERSION),
+    sha256="2e8a40b01979afe8be0bbfb3de5dc1c6709fedb46d6c89c10da114ab5fc3d281",
+    strip_prefix="openssl-{0}".format(OPENSSL_VERSION),
+)
