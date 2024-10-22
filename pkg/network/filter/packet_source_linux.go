@@ -129,9 +129,6 @@ func (p *AFPacketSource) SetBPF(filter []bpf.RawInstruction) error {
 	return p.TPacket.SetBPF(filter)
 }
 
-// NoPacketType is what getPktType returns when addPktType is not turned on.
-const NoPacketType = 0xff
-
 // VisitPackets starts reading packets from the source
 func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func(data []byte, info PacketInfo, t time.Time) error) error {
 	pktInfo := &AFPacketInfo{}
@@ -158,7 +155,8 @@ func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func(data []by
 			return err
 		}
 
-		for _, data := range stats.AncillaryData {
+		foo := append([]interface{}{afpacket.AncillaryVLAN{VLAN: 0}}, stats.AncillaryData...)
+		for _, data := range foo {
 			// if addPktType = true, AncillaryData will contain an AncillaryPktType element;
 			// however, it might not be the first element, so scan through.
 			pktType, ok := data.(afpacket.AncillaryPktType)
