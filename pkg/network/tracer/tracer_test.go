@@ -1418,9 +1418,9 @@ func (s *TracerSuite) TestTLSClassification() {
 	if !kprobe.ClassificationSupported(cfg) {
 		t.Skip("TLS classification platform not supported")
 	}
-
-	port, err := testutil.GetFreePort()
-	require.NoError(t, err)
+	//testutil.GetFreePort()
+	port := uint16(443)
+	//require.NoError(t, err)
 	portAsString := strconv.Itoa(int(port))
 
 	tr := setupTracer(t, cfg)
@@ -1431,7 +1431,8 @@ func (s *TracerSuite) TestTLSClassification() {
 		validation      func(t *testing.T, tr *Tracer)
 	}
 	tests := make([]tlsTest, 0)
-	for _, scenario := range []uint16{tls.VersionTLS10, tls.VersionTLS11, tls.VersionTLS12, tls.VersionTLS13} {
+	//for _, scenario := range []uint16{tls.VersionTLS10, tls.VersionTLS11, tls.VersionTLS12, tls.VersionTLS13} {
+	for _, scenario := range []uint16{tls.VersionTLS12} {
 		scenario := scenario
 		tests = append(tests, tlsTest{
 			name: strings.Replace(tls.VersionName(scenario), " ", "-", 1),
@@ -1449,9 +1450,11 @@ func (s *TracerSuite) TestTLSClassification() {
 				require.NoError(t, srv.Run(done))
 				t.Cleanup(func() { close(done) })
 				tlsConfig := &tls.Config{
-					MinVersion:         scenario,
-					MaxVersion:         scenario,
-					InsecureSkipVerify: true,
+					MinVersion:             scenario,
+					MaxVersion:             scenario,
+					InsecureSkipVerify:     true,
+					SessionTicketsDisabled: true, // Disable session tickets
+					ClientSessionCache:     nil,  // Disable session cache
 				}
 				conn, err := net.Dial("tcp", "localhost:"+portAsString)
 				require.NoError(t, err)

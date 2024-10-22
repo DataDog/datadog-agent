@@ -158,7 +158,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    if (is_fully_classified(protocol_stack) || is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION)) {
+    if (is_fully_classified(protocol_stack) ) {
         return;
     }
 
@@ -169,11 +169,30 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
     protocol_t app_layer_proto = get_protocol_from_stack(protocol_stack, LAYER_APPLICATION);
 
-    if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) && is_tls(skb, skb_info.data_off, &skb_tup)) {
+    tls_record_header_t tls_hdr = {0};
+
+    if (is_tls(skb, skb_info.data_off, &tls_hdr)) {
         // TLS classification
         update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
-        // The connection is TLS encrypted, thus we cannot classify the protocol
-        // using the socket filter and therefore we can bail out;
+
+        // Parse TLS payload
+        tls_enhanced_tags_t *tags = get_or_create_tls_enhanced_tags(&skb_tup);
+        if (tags) {
+            // Parse the TLS payload and update the tags
+            int ret = parse_tls_payload(skb, skb_info.data_off, &tls_hdr, tags);
+            log_debug("adamk\n");
+            log_debug("adamk tls classification: parse_tls_payload=%d", ret);
+            ret++;
+            log_debug("adamk tls classification: client version 1=%d", tags->client_tags.offered_versions[0]);
+            log_debug("adamk tls classification: server version=%d", tags->server_tags.version);
+            log_debug("adamk tls classification: server cipher=%d", tags->server_tags.cipher_suite);
+        }
+        // The connection is TLS encrypted, thus we cannot further classify the protocol
+        // using the socket filter and can bail out;
+        return;
+    }
+
+    if(is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION)) {
         return;
     }
 
