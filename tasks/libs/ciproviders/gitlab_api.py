@@ -1267,7 +1267,7 @@ def update_test_infra_def(file_path, image_tag):
                 gl.write(line)
 
 
-def update_gitlab_config(file_path, image_tag, test_version):
+def update_gitlab_config(file_path, tag, images="", test=True):
     """
     Override variables in .gitlab-ci.yml file
     """
@@ -1275,27 +1275,44 @@ def update_gitlab_config(file_path, image_tag, test_version):
         file_content = gl.readlines()
     yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
     gitlab_ci = yaml.safe_load("".join(file_content))
-    # TEST_INFRA_DEFINITION_BUILDIMAGE label format differs from other buildimages
-    suffixes = [
-        name
-        for name in gitlab_ci["variables"]
-        if name.endswith("SUFFIX") and not name.startswith("TEST_INFRA_DEFINITION")
-    ]
-    images = [name.replace("_SUFFIX", "") for name in suffixes]
+    variables_to_update = filter_variables(gitlab_ci['variables'].keys(), images)
+    output = modify_content(file_content, tag, variables_to_update, test=test)
     with open(file_path, "w") as gl:
-        for line in file_content:
-            if any(re.search(rf"{suffix}:", line) for suffix in suffixes):
-                if test_version:
-                    gl.write(line.replace('""', '"_test_only"'))
+        gl.writelines(output)
+    return variables_to_update
+
+
+def filter_variables(variables, images):
+    if images == "":
+        prefix = "DATADOG_AGENT_"
+    else:
+        if images.casefold() == "all":
+            images = ""
+        prefix = "CI_IMAGE_"
+    suffix = "_SUFFIX"
+    for variable in variables:
+        if (
+            variable.startswith(prefix)
+            and variable.endswith(suffix)
+            and any(image in variable.casefold() for image in images.casefold().split(","))
+        ):
+            yield variable.removeprefix(prefix).removesuffix(suffix)
+
+
+def modify_content(lines, tag, variables, test=True):
+    output = []
+    tag_pattern = re.compile(r"v\d+-\w+")
+    for line in lines:
+        if any(variable in line for variable in variables):
+            if "SUFFIX" in line:
+                if test:
+                    output.append(line.replace('""', '"_test_only"'))
                 else:
-                    gl.write(line.replace('"_test_only"', '""'))
-            elif any(re.search(rf"{image}:", line) for image in images):
-                current_version = re.search(r"v\d+-\w+", line)
-                if current_version:
-                    gl.write(line.replace(current_version.group(0), image_tag))
-                else:
-                    raise RuntimeError(
-                        f"Unable to find a version matching the v<pipelineId>-<commitId> pattern in line {line}"
-                    )
+                    output.append(line.replace('"_test_only"', '""'))
             else:
-                gl.write(line)
+                is_tag = tag_pattern.search(line)
+                if is_tag:
+                    output.append(line.replace(is_tag.group(), tag))
+        else:
+            output.append(line)
+    return output

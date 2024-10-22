@@ -12,17 +12,22 @@ from tasks.libs.common.color import color_message
 
 @task(
     help={
-        "image_tag": "tag from build_image with format v<build_id>_<commit_id>",
-        "test_version": "Is a test image or not",
+        "tag": "tag from build_image with format v<build_id>_<commit_id>",
+        "images": "The image(s) to update, comma separated. If empty, updates the DATADOG_AGENT_ buildimages. Can be a incomplete pattern, e.g. 'deb,rpm' will update all deb and rpm images. deb_x64 will update only one image. Use `all` to update all images",
+        "test": "Is a test image or not",
     }
 )
-def update(_: Context, image_tag: str, test_version: bool = True):
+def update(_: Context, tag: str, images: str = "", test: bool = True):
     """
-    Update local files to run with new image_tag from agent-buildimages
-    Use --no-test-version to commit without the _test_only suffixes
+    Update local files to use a new version of dedicated images from agent-buildimages
+    Use --no-test to commit without the _test_only suffixes
     """
-    update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
-    update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
+    modified = update_gitlab_config(".gitlab-ci.yml", tag, images, test=test)
+    message = ", ".join(modified)
+    if images == "" or images == "all" or "circle" in images:
+        update_circleci_config(".circleci/config.yml", tag, test_version=test)
+        message += ", circleci"
+    print(f"Updated {message}")
 
 
 @task(help={"commit_sha": "commit sha from the test-infra-definitions repository"})
@@ -85,16 +90,34 @@ This PR updates the current Golang version ([`{old_go_version}`]({old_go_version
     },
     autoprint=True,
 )
-def get_tag(_, file_path=".gitlab-ci.yml"):
+def get_tag(_, file_path=".gitlab-ci.yml", image_type=None):
     """
     Print the current image tag of the given Gitlab configuration file (default: ".gitlab-ci.yml")
     """
     yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
     with open(file_path) as gl:
         gitlab_ci = yaml.safe_load(gl)
-    if "variables" not in gitlab_ci or "DATADOG_AGENT_BUILDIMAGES" not in gitlab_ci["variables"]:
+    if "variables" not in gitlab_ci:
         raise Exit(
-            color_message(f"Impossible to find the version of image in {file_path} configuration file", "red"),
+            f'[{color_message("ERROR", "red")}] - No variables in gitlab configuration file {file_path}',
             code=1,
         )
-    return gitlab_ci["variables"]["DATADOG_AGENT_BUILDIMAGES"]
+
+    if image_type is None:
+        return gitlab_ci["variables"].get(
+            "DATADOG_AGENT_BUILDIMAGES",
+            f'{color_message("Not found", "red")}: DATAOG_AGENT_BUILDIMAGES is not defined in the configuration',
+        )
+    else:
+        available_images = set()
+        for key in gitlab_ci["variables"].keys():
+            if key.startswith("CI_IMAGE"):
+                available_images.add(
+                    key.removeprefix("CI_IMAGE_").replace("_VERSION", "").replace("_SUFFIX", "").casefold()
+                )
+                if image_type in key.casefold():
+                    return gitlab_ci["variables"][key]
+        raise Exit(
+            f'{color_message("ERROR", "red")}: {image_type} is not defined in the configuration. Available images: {", ".join(available_images)}',
+            code=1,
+        )
