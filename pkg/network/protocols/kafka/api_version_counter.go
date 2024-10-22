@@ -15,7 +15,7 @@ import (
 
 const (
 	minSupportedAPIVersion = 1
-	maxSupportedAPIVersion = 11
+	maxSupportedAPIVersion = 12
 )
 
 // apiVersionCounter is a Kafka API version aware counter, it has a counter for each supported Kafka API version.
