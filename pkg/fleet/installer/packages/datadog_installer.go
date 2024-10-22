@@ -60,7 +60,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error adding dd-agent user to dd-agent group: %w", err)
 	}
-	ddAgentUID, ddAgentGID, err := getAgentIDs()
+	ddAgentUID, ddAgentGID, err := GetAgentIDs()
 	if err != nil {
 		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
 	}
@@ -165,8 +165,8 @@ func SetupInstaller(ctx context.Context) (err error) {
 	return startInstallerStable(ctx)
 }
 
-// getAgentIDs returns the UID and GID of the dd-agent user and group.
-func getAgentIDs() (uid, gid int, err error) {
+// GetAgentIDs returns the UID and GID of the dd-agent user and group.
+func GetAgentIDs() (uid, gid int, err error) {
 	ddAgentUser, err := user.Lookup("dd-agent")
 	if err != nil {
 		return -1, -1, fmt.Errorf("dd-agent user not found: %w", err)

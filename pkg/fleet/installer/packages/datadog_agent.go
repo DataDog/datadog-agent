@@ -92,7 +92,7 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	if err = os.MkdirAll("/etc/datadog-agent", 0755); err != nil {
 		return fmt.Errorf("failed to create /etc/datadog-agent: %v", err)
 	}
-	ddAgentUID, ddAgentGID, err := getAgentIDs()
+	ddAgentUID, ddAgentGID, err := GetAgentIDs()
 	if err != nil {
 		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
 	}
@@ -218,7 +218,7 @@ func chownRecursive(path string, uid int, gid int, ignorePaths []string) error {
 
 // StartAgentExperiment starts the agent experiment
 func StartAgentExperiment(ctx context.Context) error {
-	ddAgentUID, ddAgentGID, err := getAgentIDs()
+	ddAgentUID, ddAgentGID, err := GetAgentIDs()
 	if err != nil {
 		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
 	}
