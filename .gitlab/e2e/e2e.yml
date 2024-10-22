@@ -573,33 +573,6 @@ new-e2e-cspm:
     TARGETS: ./tests/cspm
     TEAM: cspm
   timeout: 35m
-
-new-e2e-dev-gke-autopilot:
-  extends: .new_e2e_template
-  rules:
-    - when: on_success
-  needs:
-    - !reference [.needs_new_e2e_template]
-    - qa_agent
-    - qa_dca
-    - qa_dogstatsd
-  variables:
-    TARGETS: ./examples/
-    EXTRA_PARAMS: --run TestGKEAutopilotSuite
-    TEAM: dev-gke-autopilot
-
-new-e2e-dev-gke-autopilot-now:
-  extends: .new_e2e_template
-  rules:
-    - when: on_success
-  needs:
-    - !reference [.needs_new_e2e_template]
-  variables:
-    E2E_PIPELINE_ID: ""
-    E2E_COMMIT_SHA: ""
-    TARGETS: ./examples/
-    EXTRA_PARAMS: --run TestGKEAutopilotSuite
-    TEAM: dev-gke-autopilot
  
 new-e2e-gpu:
   extends: .new_e2e_template
