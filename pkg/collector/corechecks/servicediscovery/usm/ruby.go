@@ -35,7 +35,16 @@ func newRailsDetector(ctx DetectionContext) detector {
 // project is created. This file should contain a `module` declaration with the
 // application name.
 func (r railsDetector) detect(_ []string) (ServiceMetadata, bool) {
-	proc := r.ctx.contextMap[ServiceProc].(*process.Process)
+	var proc *process.Process
+
+	if procEntry, ok := r.ctx.ContextMap[ServiceProc]; ok {
+		if p, ok := procEntry.(*process.Process); ok {
+			proc = p
+		} else {
+			log.Error("could not get process object in rails detector")
+		}
+	}
+
 	cwd, err := proc.Cwd()
 	if err != nil {
 		log.Debugf("could not get cwd of process: %s", err)
