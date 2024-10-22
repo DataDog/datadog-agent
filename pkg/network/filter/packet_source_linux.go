@@ -9,6 +9,7 @@
 package filter
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -129,6 +130,21 @@ func (p *AFPacketSource) SetBPF(filter []bpf.RawInstruction) error {
 	return p.TPacket.SetBPF(filter)
 }
 
+// getPktType gets whether this packet capture was incoming or outgoing.
+// incoming: unix.PACKET_HOST
+// outgoing: unix.PACKET_OUTGOING
+func getPktType(stats gopacket.CaptureInfo) (uint8, error) {
+	// since we set addPktType = true, AncillaryData will contain an AncillaryPktType element;
+	// however, it might not be the first element, so scan through.
+	for _, data := range stats.AncillaryData {
+		pktType, ok := data.(afpacket.AncillaryPktType)
+		if ok {
+			return pktType.Type, nil
+		}
+	}
+	return 0, errors.New("ancillary data didn't contain AncillaryPktType (make sure addPktType = true)")
+}
+
 // VisitPackets starts reading packets from the source
 func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func(data []byte, info PacketInfo, t time.Time) error) error {
 	pktInfo := &AFPacketInfo{}
@@ -155,7 +171,11 @@ func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func(data []by
 			return err
 		}
 
-		pktInfo.PktType = stats.AncillaryData[0].(afpacket.AncillaryPktType).Type
+		pktType, err := getPktType(stats)
+		if err != nil {
+			return err
+		}
+		pktInfo.PktType = pktType
 		if err := visit(data, pktInfo, stats.Timestamp); err != nil {
 			return err
 		}
