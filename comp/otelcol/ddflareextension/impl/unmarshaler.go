@@ -34,18 +34,18 @@ type configSettings struct {
 
 // unmarshal the configSettings from a confmap.Conf.
 // After the config is unmarshalled, `Validate()` must be called to validate.
-func unmarshal(v *confmap.Conf, factories otelcol.Factories) (*configSettings, error) {
+func unmarshal(v *confmap.Conf, factories otelcol.Factories, ocb bool) (*configSettings, error) {
 
 	telFactory := telemetry.NewFactory()
 	defaultTelConfig := *telFactory.CreateDefaultConfig().(*telemetry.Config)
 
 	// Unmarshal top level sections and validate.
 	cfg := &configSettings{
-		Receivers:  newConfigs(factories.Receivers),
-		Processors: newConfigs(factories.Processors),
-		Exporters:  newConfigs(factories.Exporters),
-		Connectors: newConfigs(factories.Connectors),
-		Extensions: newConfigs(factories.Extensions),
+		Receivers:  newConfigs(factories.Receivers, ocb),
+		Processors: newConfigs(factories.Processors, ocb),
+		Exporters:  newConfigs(factories.Exporters, ocb),
+		Connectors: newConfigs(factories.Connectors, ocb),
+		Extensions: newConfigs(factories.Extensions, ocb),
 		// TODO: Add a component.ServiceFactory to allow this to be defined by the Service.
 		Service: service.Config{
 			Telemetry: defaultTelConfig,
@@ -59,10 +59,12 @@ type configs[F component.Factory] struct {
 	cfgs map[component.ID]component.Config
 
 	factories map[component.Type]F
+
+	ocb bool
 }
 
-func newConfigs[F component.Factory](factories map[component.Type]F) *configs[F] {
-	return &configs[F]{factories: factories}
+func newConfigs[F component.Factory](factories map[component.Type]F, ocb bool) *configs[F] {
+	return &configs[F]{factories: factories, ocb: ocb}
 }
 
 func (c *configs[F]) Configs() map[component.ID]component.Config {
@@ -74,33 +76,35 @@ func (c *configs[F]) Unmarshal(conf *confmap.Conf) error {
 	if err := conf.Unmarshal(&rawCfgs); err != nil {
 		return err
 	}
+	if !c.ocb {
+		// Prepare resulting map.
+		c.cfgs = make(map[component.ID]component.Config)
+		// Iterate over raw configs and create a config for each.
+		for id := range rawCfgs {
+			// Find factory based on component kind and type that we read from config source.
+			factory, ok := c.factories[id.Type()]
+			if !ok {
+				return errorUnknownType(id, maps.Keys(c.factories))
+			}
 
-	// Prepare resulting map.
-	c.cfgs = make(map[component.ID]component.Config)
-	// Iterate over raw configs and create a config for each.
-	for id := range rawCfgs {
-		// Find factory based on component kind and type that we read from config source.
-		factory, ok := c.factories[id.Type()]
-		if !ok {
-			return errorUnknownType(id, maps.Keys(c.factories))
+			// Get the configuration from the confmap.Conf to preserve internal representation.
+			sub, err := conf.Sub(id.String())
+			if err != nil {
+				return errorUnmarshalError(id, err)
+			}
+
+			// Create the default config for this component.
+			cfg := factory.CreateDefaultConfig()
+
+			// Now that the default config struct is created we can Unmarshal into it,
+			// and it will apply user-defined config on top of the default.
+			if err := sub.Unmarshal(&cfg); err != nil {
+				return errorUnmarshalError(id, err)
+			}
+
+			c.cfgs[id] = cfg
 		}
 
-		// Get the configuration from the confmap.Conf to preserve internal representation.
-		sub, err := conf.Sub(id.String())
-		if err != nil {
-			return errorUnmarshalError(id, err)
-		}
-
-		// Create the default config for this component.
-		cfg := factory.CreateDefaultConfig()
-
-		// Now that the default config struct is created we can Unmarshal into it,
-		// and it will apply user-defined config on top of the default.
-		if err := sub.Unmarshal(&cfg); err != nil {
-			return errorUnmarshalError(id, err)
-		}
-
-		c.cfgs[id] = cfg
 	}
 
 	return nil

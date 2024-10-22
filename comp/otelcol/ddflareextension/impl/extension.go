@@ -37,6 +37,7 @@ type ddExtension struct {
 	info        component.BuildInfo
 	debug       extensionDef.DebugSourceResponse
 	configStore *configStore
+	ocb         bool
 }
 
 var _ extension.Extension = (*ddExtension)(nil)
@@ -51,7 +52,7 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 	var cfg *configSettings
 	var err error
 
-	if cfg, err = unmarshal(conf, *ext.cfg.factories); err != nil {
+	if cfg, err = unmarshal(conf, *ext.cfg.factories, ext.ocb); err != nil {
 		return fmt.Errorf("cannot unmarshal the configuration: %w", err)
 	}
 
@@ -137,6 +138,7 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 		debug: extensionDef.DebugSourceResponse{
 			Sources: map[string]extensionDef.OTelFlareSource{},
 		},
+		ocb: true,
 	}
 	var err error
 	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext)
