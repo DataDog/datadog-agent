@@ -22,7 +22,6 @@ import (
 
 	"github.com/DataDog/viper"
 	"github.com/mohae/deepcopy"
-	"github.com/spf13/afero"
 	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -72,10 +71,29 @@ var sources = []Source{
 	SourceCLI,
 }
 
+// sourcesPriority give each source a priority, the higher the more important a source. This is used when merging
+// configuration tree (a higher priority overwrites a lower one).
+var sourcesPriority = map[Source]int{
+	SourceDefault:            0,
+	SourceUnknown:            1,
+	SourceFile:               2,
+	SourceEnvVar:             3,
+	SourceFleetPolicies:      4,
+	SourceAgentRuntime:       5,
+	SourceLocalConfigProcess: 6,
+	SourceRC:                 7,
+	SourceCLI:                8,
+}
+
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
 type ValueWithSource struct {
 	Source Source
 	Value  interface{}
+}
+
+// IsGreaterThan returns true if the current source is of higher priority than the one given as a parameter
+func (s Source) IsGreaterThan(x Source) bool {
+	return sourcesPriority[s] > sourcesPriority[x]
 }
 
 // String casts Source into a string
@@ -277,13 +295,6 @@ func (c *safeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) 
 	c.Lock()
 	defer c.Unlock()
 	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
-}
-
-// SetFs wraps Viper for concurrent access
-func (c *safeConfig) SetFs(fs afero.Fs) {
-	c.Lock()
-	defer c.Unlock()
-	c.Viper.SetFs(fs)
 }
 
 // IsSet wraps Viper for concurrent access

@@ -51,7 +51,6 @@ var (
 		kafka.Spec,
 		postgres.Spec,
 		redis.Spec,
-		javaTLSSpec,
 		// opensslSpec is unique, as we're modifying its factory during runtime to allow getting more parameters in the
 		// factory.
 		opensslSpec,

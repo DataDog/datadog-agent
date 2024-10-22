@@ -13,6 +13,7 @@ import (
 	"regexp"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/rlimit"
 
@@ -36,16 +37,27 @@ const (
 
 const consumerChannelSize = 4096
 
+// ProbeDependencies holds the dependencies for the probe
+type ProbeDependencies struct {
+	// Telemetry is the telemetry component
+	Telemetry telemetry.Component
+
+	// NvmlLib is the NVML library interface
+	NvmlLib nvml.Interface
+}
+
 // Probe represents the GPU monitoring probe
 type Probe struct {
 	mgr      *ddebpf.Manager
 	cfg      *Config
 	consumer *cudaEventConsumer
 	attacher *uprobes.UprobeAttacher
+	deps     ProbeDependencies
+	sysCtx   *systemContext
 }
 
 // NewProbe starts the GPU monitoring probe
-func NewProbe(cfg *Config, telemetryComponent telemetry.Component) (*Probe, error) {
+func NewProbe(cfg *Config, deps ProbeDependencies) (*Probe, error) {
 	log.Debugf("starting GPU monitoring probe...")
 	kv, err := kernel.HostVersion()
 	if err != nil {
@@ -62,7 +74,7 @@ func NewProbe(cfg *Config, telemetryComponent telemetry.Component) (*Probe, erro
 	}
 	err = ddebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
 		var err error
-		probe, err = startGPUProbe(buf, opts, telemetryComponent, cfg)
+		probe, err = startGPUProbe(buf, opts, deps, cfg)
 		if err != nil {
 			return fmt.Errorf("cannot start GPU monitoring probe: %s", err)
 		}
@@ -76,7 +88,7 @@ func NewProbe(cfg *Config, telemetryComponent telemetry.Component) (*Probe, erro
 	return probe, nil
 }
 
-func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, _ telemetry.Component, cfg *Config) (*Probe, error) {
+func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDependencies, cfg *Config) (*Probe, error) {
 	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
 		Maps: []*manager.Map{
 			{Name: cudaAllocCacheMap},
@@ -121,7 +133,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, _ telemetry.C
 				},
 			},
 		},
-		EbpfConfig:         cfg.Config,
+		EbpfConfig:         &cfg.Config,
 		PerformInitialScan: cfg.InitialProcessSync,
 	}
 
@@ -138,6 +150,12 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, _ telemetry.C
 		mgr:      mgr,
 		cfg:      cfg,
 		attacher: attacher,
+		deps:     deps,
+	}
+
+	p.sysCtx, err = getSystemContext(deps.NvmlLib)
+	if err != nil {
+		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
 
 	p.startEventConsumer()

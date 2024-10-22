@@ -243,6 +243,9 @@ core,github.com/Microsoft/hcsshim/internal/wclayer,MIT,Copyright (c) 2015 Micros
 core,github.com/Microsoft/hcsshim/internal/winapi,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/osversion,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/pkg/ociwclayer,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
+core,github.com/NVIDIA/go-nvml/pkg/dl,Apache-2.0,Copyright 2023 NVIDIA CORPORATION
+core,github.com/NVIDIA/go-nvml/pkg/nvml,Apache-2.0,Copyright 2023 NVIDIA CORPORATION
+core,github.com/NVIDIA/go-nvml/pkg/nvml/mock,Apache-2.0,Copyright 2023 NVIDIA CORPORATION
 core,github.com/NYTimes/gziphandler,Apache-2.0,Copyright 2016-2017 The New York Times Company
 core,github.com/OneOfOne/xxhash,Apache-2.0,Copyright (c) 2014 Ahmed W. (OneOfOne)
 core,github.com/ProtonMail/go-crypto/bitcurves,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -744,6 +747,7 @@ core,github.com/containerd/containerd/contrib/seccomp/kernelversion,Apache-2.0,"
 core,github.com/containerd/containerd/defaults,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/diff,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/diff/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/errdefs,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/events,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/events/exchange,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/filters,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -2838,19 +2842,27 @@ core,gopkg.in/DataDog/dd-trace-go.v1/internal,Apache-2.0,"Copyright 2016-Present
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/config,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/graphqlsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/grpcsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/httpsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/httpsec/types,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/ossec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/sharedsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/sqlsec/types,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/sqlsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/trace,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/usersec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/waf,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/waf/actions,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/waf/addresses,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/graphqlsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/grpcsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/httpsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/ossec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/sharedsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/sqlsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/trace,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/trace/httptrace,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/trace,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/usersec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/waf,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/civisibility/constants,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/civisibility/utils,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/datastreams,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/globalconfig,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/hostname,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
