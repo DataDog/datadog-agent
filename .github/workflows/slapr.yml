@@ -12,11 +12,6 @@ jobs:
   run_slapr_datadog_agent:
     runs-on: ubuntu-latest
     steps:
-      - name: Event path
-        run: |
-          echo ${{ github.event_path }}
-          echo
-          cat ${{ github.event_path }}
       - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           ref: ${{ github.head_ref }}
@@ -30,6 +25,7 @@ jobs:
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           # SLACK_CHANNEL_ID: "${{ secrets.? }}"
+          SLAPR_MULTICHANNEL: "true"
           SLACK_API_TOKEN: "${{ secrets.SLACK_API_TOKEN }}"
           SLAPR_BOT_USER_ID: "${{ secrets.SLAPR_BOT_USER_ID }}"
           SLAPR_EMOJI_REVIEW_STARTED: "review_started"
