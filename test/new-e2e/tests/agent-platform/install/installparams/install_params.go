@@ -27,14 +27,14 @@ type Params struct {
 // Option alias to a functional option changing a given Params instance
 type Option func(*Params)
 
-const DefaultMajorVersion = "7"
+const defaultMajorVersion = "7"
 
 // NewParams creates a new instance of Install params
 func NewParams(options ...Option) *Params {
 	majorVersion, found := os.LookupEnv("E2E_MAJOR_VERSION")
 
 	if !found {
-		majorVersion = DefaultMajorVersion
+		majorVersion = defaultMajorVersion
 	}
 
 	p := &Params{
