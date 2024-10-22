@@ -19,6 +19,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../comp/def
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../comp/netflow/payload
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def => ../../comp/otelcol/ddflareextension/def
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../pkg/config/model
@@ -46,6 +47,7 @@ replace (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.122
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.56.2
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.2
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.2
@@ -316,11 +318,18 @@ require (
 	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
+	github.com/go-viper/mapstructure/v2 v2.0.0-alpha.1 // indirect
+	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
+	github.com/knadh/koanf/maps v0.1.1 // indirect
+	github.com/knadh/koanf/providers/confmap v0.1.0 // indirect
+	github.com/knadh/koanf/v2 v2.1.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20220913051719-115f729f3c8c // indirect
 	github.com/magiconair/properties v1.8.1 // indirect
+	github.com/mitchellh/copystructure v1.2.0 // indirect
+	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/pelletier/go-toml v1.2.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
@@ -338,4 +347,12 @@ require (
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
+	go.opentelemetry.io/collector/component v0.104.0 // indirect
+	go.opentelemetry.io/collector/config/configtelemetry v0.104.0 // indirect
+	go.opentelemetry.io/collector/confmap v0.104.0 // indirect
+	go.opentelemetry.io/collector/extension v0.104.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.11.0 // indirect
+	go.opentelemetry.io/collector/pdata v1.11.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap v1.27.0 // indirect
 )
