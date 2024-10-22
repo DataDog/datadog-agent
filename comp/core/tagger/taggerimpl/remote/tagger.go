@@ -28,9 +28,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	dcaendpoint "github.com/DataDog/datadog-agent/pkg/util/clusteragent/endpoint"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -99,7 +99,7 @@ func CLCRunnerOptions(config config.Component) (Options, error) {
 	}
 
 	if !opts.Disabled {
-		target, err := dcaendpoint.GetClusterAgentEndpoint()
+		target, err := utils.GetClusterAgentEndpoint()
 		if err != nil {
 			return opts, fmt.Errorf("unable to get cluster agent endpoint: %w", err)
 		}

@@ -261,7 +261,6 @@ github.com/DataDog/datadog-agent/pkg/util/cgroups
 github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure
 github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce
 github.com/DataDog/datadog-agent/pkg/util/clusteragent
-github.com/DataDog/datadog-agent/pkg/util/clusteragent/endpoint
 github.com/DataDog/datadog-agent/pkg/util/common
 github.com/DataDog/datadog-agent/pkg/util/containers
 github.com/DataDog/datadog-agent/pkg/util/containers/image

@@ -23,9 +23,9 @@ import (
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-	dcaendpoint "github.com/DataDog/datadog-agent/pkg/util/clusteragent/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -118,7 +118,7 @@ func GetClusterAgentClient() (DCAClientInterface, error) {
 func (c *DCAClient) init() error {
 	var err error
 
-	c.clusterAgentAPIEndpoint, err = dcaendpoint.GetClusterAgentEndpoint()
+	c.clusterAgentAPIEndpoint, err = utils.GetClusterAgentEndpoint()
 	if err != nil {
 		return err
 	}
