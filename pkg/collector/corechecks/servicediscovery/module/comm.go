@@ -37,14 +37,11 @@ var ignoreFamily = map[string]struct{}{
 	"systemd":    {}, // 'systemd-networkd', 'systemd-resolved' etc
 	"datadog":    {}, // datadog processes
 	"containerd": {}, // 'containerd-shim...'
-	"dockerd":    {}, // 'docker-proxy'
+	"docker":     {}, // 'docker-proxy'
 }
 
 // shouldIgnoreComm returns true if process should be ignored
 func shouldIgnoreComm(proc *process.Process) bool {
-	if shouldIgnoreKernelThread(proc) {
-		return true
-	}
 	commPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "comm")
 	contents, err := os.ReadFile(commPath)
 	if err != nil {
@@ -63,15 +60,4 @@ func shouldIgnoreComm(proc *process.Process) bool {
 	_, found := ignoreComms[comm]
 
 	return found
-}
-
-// shouldIgnoreKernelThread returns true if process is kernel thread
-func shouldIgnoreKernelThread(proc *process.Process) bool {
-	exePath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "exe")
-	_, err := os.Stat(exePath)
-	if err != nil {
-		// this is a kernel thread if /proc/<pid>/exe could not be found
-		return true
-	}
-	return false
 }

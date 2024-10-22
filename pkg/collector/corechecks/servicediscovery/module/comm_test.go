@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shirou/gopsutil/v3/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -63,21 +62,6 @@ func TestIgnoreCommsLengths(t *testing.T) {
 	}
 }
 
-// TestIgnoreKernelThread check that kernel thread is ignored
-func TestIgnoreKernelThread(t *testing.T) {
-	proc := &process.Process{
-		Pid: 1,
-	}
-	// Pid=1 is not kernel thread and should not be ignored
-	ignore := shouldIgnoreKernelThread(proc)
-	require.Equal(t, ignore, false)
-
-	// Pid=2 is kernel thread [kthreadd] and should be ignored
-	proc.Pid = 2
-	ignore = shouldIgnoreKernelThread(proc)
-	require.Equal(t, ignore, true)
-}
-
 // buildTestBin returns the path to a binary file
 func buildTestBin(t *testing.T) string {
 	curDir, err := httptestutil.CurDir()
@@ -97,8 +81,8 @@ func TestShouldIgnoreComm(t *testing.T) {
 		ignore bool
 	}{
 		{
-			name:   "should ignore command dockerd-1234",
-			comm:   "dockerd-1234",
+			name:   "should ignore command docker-proxy",
+			comm:   "docker-proxy",
 			ignore: true,
 		},
 		{
