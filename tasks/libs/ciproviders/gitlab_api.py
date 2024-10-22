@@ -1276,6 +1276,7 @@ def update_gitlab_config(file_path, tag, images="", test=True):
     yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
     gitlab_ci = yaml.safe_load("".join(file_content))
     variables_to_update = filter_variables(gitlab_ci['variables'].keys(), images)
+    print(f"Updating variables in {file_path} with tag {tag} for images {images}")
     output = modify_content(file_content, tag, variables_to_update, test=test)
     with open(file_path, "w") as gl:
         gl.writelines(output)
