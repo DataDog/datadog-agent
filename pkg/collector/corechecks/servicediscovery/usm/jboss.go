@@ -93,7 +93,7 @@ func newJbossExtractor(ctx DetectionContext) vendorExtractor {
 // It detects if the instance is standalone or part of a cluster (domain). It returns a slice of jeeDeployment and a bool.
 // That will be false in case no deployments have been found
 func (j jbossExtractor) findDeployedApps(domainHome string) ([]jeeDeployment, bool) {
-	baseDir, ok := extractJavaPropertyFromArgs(j.cxt.args, jbossHomeDirSysProp)
+	baseDir, ok := extractJavaPropertyFromArgs(j.cxt.Args, jbossHomeDirSysProp)
 	if !ok {
 		log.Debug("jboss: unable to extract the home directory")
 		return nil, false
@@ -102,15 +102,15 @@ func (j jbossExtractor) findDeployedApps(domainHome string) ([]jeeDeployment, bo
 	// real life, but the tests do do it. JBoss/WildFly docs imply that this is
 	// normally an absolute path (since it's set to JBOSS_HOME by default and a
 	// lot of other paths are resolved relative to this one).
-	if cwd, ok := workingDirFromEnvs(j.cxt.envs); ok {
+	if cwd, ok := workingDirFromEnvs(j.cxt.Envs); ok {
 		baseDir = abs(baseDir, cwd)
 	}
-	serverName, domainMode := jbossExtractServerName(j.cxt.args)
+	serverName, domainMode := jbossExtractServerName(j.cxt.Args)
 	if domainMode && len(serverName) == 0 {
 		log.Debug("jboss: domain mode with missing server name")
 		return nil, false
 	}
-	configFile := jbossExtractConfigFileName(j.cxt.args, domainMode)
+	configFile := jbossExtractConfigFileName(j.cxt.Args, domainMode)
 	var deployments []jbossServerDeployment
 	var err error
 	if domainMode {

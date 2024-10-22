@@ -8,6 +8,7 @@ package nodetreemodel
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,7 +21,7 @@ func TestNewReflectionNode(t *testing.T) {
 	n, err := NewNode(Object{
 		Name: "test",
 		Num:  7,
-	})
+	}, model.SourceDefault)
 	assert.NoError(t, err)
 
 	keys, err := n.ChildrenKeys()

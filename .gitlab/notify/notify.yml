@@ -25,7 +25,7 @@ notify:
   resource_group: notification
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_READ_API_TOKEN) || exit $?; export GITLAB_TOKEN
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
     - |
@@ -53,7 +53,7 @@ send_pipeline_stats:
   when: always
   dependencies: []
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_READ_API_TOKEN) || exit $?; export GITLAB_TOKEN
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - invoke -e notify.send-stats
 
@@ -114,8 +114,8 @@ notify_gitlab_ci_changes:
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
 
 .failure_summary_setup:
-  - SLACK_API_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT_CI_TOKEN) || exit $?; export SLACK_API_TOKEN
-  - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_READ_API_TOKEN) || exit $?; export GITLAB_TOKEN
+  - SLACK_API_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_API_TOKEN
+  - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
   - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
   - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
 
