@@ -98,7 +98,8 @@ func (p *goTLSBinaryInspector) Inspect(fpath utils.FilePath, requests []uprobes.
 // Cleanup removes the inspection result for the binary at the given path from the map.
 func (p *goTLSBinaryInspector) Cleanup(fpath utils.FilePath) {
 	if p.offsetsDataMap == nil {
-		log.Warnf("offsetsDataMap is nil, cannot remove inspection result")
+		log.Warn("offsetsDataMap is nil, cannot remove inspection result")
+		return
 	}
 
 	binID := fpath.ID
