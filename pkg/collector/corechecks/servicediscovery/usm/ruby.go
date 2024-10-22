@@ -6,6 +6,7 @@
 package usm
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -88,7 +89,7 @@ func (r railsDetector) findRailsApplicationName(filename string) (string, error)
 	matches := moduleRegexp.FindSubmatch(bytes)
 	if len(matches) < 2 {
 		// No match found
-		return "", fmt.Errorf("could not find Ruby module name")
+		return "", errors.New("could not find Ruby module name")
 	}
 
 	return string(matches[1]), nil
