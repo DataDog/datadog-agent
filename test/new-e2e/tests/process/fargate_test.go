@@ -63,7 +63,7 @@ func TestECSFargateTestSuite(t *testing.T) {
 	s := ECSFargateSuite{}
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
 		e2e.NewTypedPulumiProvisioner("ecsFargateCPUStress", ecsFargateCPUStressProvisioner(), nil),
-	), e2e.WithDevMode(),
+	),
 	}
 
 	e2e.Run(t, &s, e2eParams...)
