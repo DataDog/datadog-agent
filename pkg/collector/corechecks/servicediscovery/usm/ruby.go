@@ -58,7 +58,6 @@ func (r railsDetector) detect(_ []string) (ServiceMetadata, bool) {
 // findRailsApplicationName scans the `config/application.rb` file to find the
 // Rails application name.
 func (r railsDetector) findRailsApplicationName(filename string) (string, bool) {
-	log.Debugf("findRailsApplicationName")
 	file, err := r.ctx.fs.Open(filename)
 	if err != nil {
 		log.Debugf("could not open application.rb")
