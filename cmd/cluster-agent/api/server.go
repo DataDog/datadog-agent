@@ -132,8 +132,10 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	}
 
 	grpcSrv := grpc.NewServer(opts...)
+	// event size should be small enough to fit within the grpc max message size
+	maxEventSize := maxMessageSize / 2
 	pb.RegisterAgentSecureServer(grpcSrv, &serverSecure{
-		taggerServer: taggerserver.NewServer(taggerComp, maxMessageSize/2),
+		taggerServer: taggerserver.NewServer(taggerComp, maxEventSize),
 	})
 
 	timeout := pkgconfigsetup.Datadog().GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second

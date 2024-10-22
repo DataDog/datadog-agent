@@ -61,12 +61,14 @@ func (server *apiServer) startCMDServer(
 		grpc.MaxSendMsgSize(maxMessageSize),
 	}
 
+	// event size should be small enough to fit within the grpc max message size
+	maxEventSize := maxMessageSize / 2
 	s := grpc.NewServer(opts...)
 	pb.RegisterAgentServer(s, &grpcServer{})
 	pb.RegisterAgentSecureServer(s, &serverSecure{
 		configService:    server.rcService,
 		configServiceMRF: server.rcServiceMRF,
-		taggerServer:     taggerserver.NewServer(server.taggerComp, maxMessageSize/2),
+		taggerServer:     taggerserver.NewServer(server.taggerComp, maxEventSize),
 		taggerComp:       server.taggerComp,
 		// TODO(components): decide if workloadmetaServer should be componentized itself
 		workloadmetaServer: workloadmetaServer.NewServer(server.wmeta),
