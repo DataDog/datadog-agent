@@ -9,7 +9,9 @@
 package paths
 
 import (
+	"fmt"
 	"path/filepath"
+	"slices"
 	"syscall"
 	"unsafe"
 
@@ -78,6 +80,47 @@ func CreateInstallerDataDir() error {
 		return err
 	}
 
+	return nil
+}
+
+// IsInstallerDataDirSecure return nil if the Datadog Installer data directory is owned by Administrators or SYSTEM,
+// otherwise an error is returned.
+//
+// CreateInstallerDataDir sets the owner to Administrators and is called during bootstrap.
+// Unprivileged users (users without SeTakeOwnershipPrivilege) cannot set the owner to Administrators.
+func IsInstallerDataDirSecure() error {
+	allowedWellKnownSids := []windows.WELL_KNOWN_SID_TYPE{
+		windows.WinBuiltinAdministratorsSid,
+		windows.WinLocalSystemSid,
+	}
+
+	// get security info
+	sd, err := windows.GetNamedSecurityInfo(datadogInstallerData, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION)
+	if err != nil {
+		return fmt.Errorf("failed to get security info: %w", err)
+	}
+	// ensure owner is admin or system
+	owner, _, err := sd.Owner()
+	if err != nil {
+		return fmt.Errorf("failed to get owner: %w", err)
+	}
+	if owner == nil {
+		return fmt.Errorf("owner is nil")
+	}
+	var allowedSids []*windows.SID
+	for _, id := range allowedWellKnownSids {
+		sid, err := windows.CreateWellKnownSid(id)
+		if err != nil {
+			return fmt.Errorf("failed to create well known sid %v: %w", id, err)
+		}
+		allowedSids = append(allowedSids, sid)
+	}
+	ownerInAllowedList := slices.ContainsFunc(allowedSids, func(sid *windows.SID) bool {
+		return windows.EqualSid(owner, sid)
+	})
+	if !ownerInAllowedList {
+		return fmt.Errorf("installer data directory has unexpected owner: %v", owner.String())
+	}
 	return nil
 }
 
