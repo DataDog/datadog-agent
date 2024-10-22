@@ -33,6 +33,7 @@ func (r *ReplaceableSource) Replace(source *LogSource) {
 	r.Lock()
 	defer r.Unlock()
 	r.source = source
+	r.source.Status.Success()
 }
 
 // Status gets the underlying status
