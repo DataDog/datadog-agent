@@ -119,6 +119,7 @@ func StartServerlessTraceAgent(enabled bool, loadConfig Load, lambdaSpanChan cha
 				lambdaSpanChan:  lambdaSpanChan,
 				ddOrigin:        getDDOrigin(),
 			}
+
 			ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
 			if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) && rcService != nil {
 				api.AttachEndpoint(api.Endpoint{
@@ -136,7 +137,6 @@ func StartServerlessTraceAgent(enabled bool, loadConfig Load, lambdaSpanChan cha
 				cancel: cancel,
 			}
 		}
-
 	} else {
 		log.Info("Trace agent is disabled")
 	}
