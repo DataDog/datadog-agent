@@ -27,3 +27,5 @@ func GetSystemProbeConntrackHost(socketPath string) ([]byte, error) {
 	}
 	return probeUtil.GetConnTrackHost()
 }
+
+func GetSystemProbeBtfInfo(socketPath string) ([]byte, error) {}

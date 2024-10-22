@@ -41,6 +41,20 @@ func LoadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.O
 	}
 	return loader.loadCOREAsset(filename, startFn)
 }
+func GetBtfLoaderInfo() (string, error) {
+	loader, err := coreLoader(NewConfig())
+	if err != nil {
+		return "", err
+	}
+	res, _, err := loader.btfLoader.Get()
+	if err != nil {
+		return "", err
+	}
+	if res == nil {
+		return "", errors.New("GetBtfLoaderInfo expected result from btfLoader")
+	}
+	return res.String(), nil
+}
 
 func (c *coreAssetLoader) loadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.Options) error) error {
 	var result ebpftelemetry.COREResult
