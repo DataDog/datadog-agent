@@ -87,7 +87,7 @@ func (r railsDetector) findRailsApplicationName(filename string) (string, bool) 
 	return "", false
 }
 
-// Converts a PascalCasedWord to a snake_cased_word.
+// railsUnderscore converts a PascalCasedWord to a snake_cased_word.
 // It keeps uppercase acronyms together when converting (e.g. "HTTPServer" -> "http_server").
 func railsUnderscore(pascalCasedWord string) string {
 	snake := matchFirstCap.ReplaceAllString(pascalCasedWord, "${1}_${2}")
