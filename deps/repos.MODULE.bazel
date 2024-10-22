@@ -40,3 +40,12 @@ http_archive(
     sha256="9e936811f9fad11dbca33ca19bd97c55c52eb3ca15901f27ade046cc79e69e87",
     strip_prefix="libxcrypt-{0}".format(LIBXCRYPT_VERSION),
 )
+
+LIBFFI_VERSION = "3.2.1"
+http_archive(
+    name="libffi",
+    build_file_content = all_content,
+    url = "https://sourceware.org/ftp/libffi/libffi-{0}.tar.gz".format(LIBFFI_VERSION),
+    sha256="d06ebb8e1d9a22d19e38d63fdb83954253f39bedc5d46232a05645685722ca37",
+    strip_prefix="libffi-{0}".format(LIBFFI_VERSION),
+)

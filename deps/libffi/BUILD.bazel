@@ -1,0 +1,19 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name="build",
+    lib_source = "@libffi//:all",
+    configure_options = [
+        "--disable-doc",
+        "--disable-multi-os-directory",
+    ],
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libffi.so",
+        ],
+    }),
+)
+
+
+
+
