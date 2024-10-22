@@ -1,0 +1,40 @@
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+all_content = """filegroup(name = "all", srcs = glob(["**"]), visibility = ["//visibility:public"])"""
+
+# Defines a "zlib" target for the lib
+bazel_dep(name = "zlib", version = "1.3.1")
+# ZLIB_VERSION = "1.3.1"
+# http_archive(
+#     name = "zlib",
+#     build_file_content = all_content,
+#     url = "https://zlib.net/fossils/zlib-{0}.tar.gz".format(ZLIB_VERSION),
+#     sha256 = "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
+#     strip_prefix = "zlib-{0}".format(ZLIB_VERSION),
+# )
+
+# Defines a "bz2" target for the lib, "bzip2" for the CLI tool
+bazel_dep(name = "bzip2", version = "1.0.8")
+# Defines a "libyaml" target for the lib
+bazel_dep(name = "libyaml", version = "0.2.5")
+# Defines a "lzma" target for the lib, "xz" for the CLI tools
+bazel_dep(name = "xz", version = "5.4.5.bcr.5")
+
+FILE_VERSION = "5.45"
+http_archive(
+    name = "file",
+    build_file_content = all_content,
+    url = "http://ftp.astron.com/pub/file/file-{0}.tar.gz".format(FILE_VERSION),
+    sha256 = "fc97f51029bb0e2c9f4e3bffefdaf678f0e039ee872b9de5c002a6d09c784d82",
+    strip_prefix = "file-{0}".format(FILE_VERSION)
+)
+
+# BZIP2_VERSION = "1.0.8"
+# http_archive(
+#     name = "bzip2",
+#     build_file_content = all_content,
+#     url = "https://fossies.org/linux/misc/bzip2-{0}.tar.gz".format(BZIP2_VERSION),
+#     sha256 = "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
+#     strip_prefix = "bzip2-{0}".format(BZIP2_VERSION),
+# )
+

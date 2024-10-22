@@ -1,0 +1,21 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name="build",
+    lib_source = "@file//:all",
+    out_lib_dir = ".libs",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libmagic.so",
+            "libmagic.so.1",
+            "libmagic.so.1.0.0",
+        ],
+    }),
+    deps = [
+        "@xz//:lzma",
+        "@zlib//:zlib",
+        "@bzip2//:bz2"
+    ]
+)
+
+

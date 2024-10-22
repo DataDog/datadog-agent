@@ -20,6 +20,8 @@ register_toolchains(
     "@zig_sdk//toolchain:linux_arm64_gnu.2.23",
 )
 
+# Make our 3rd parties depencency repositories known
+include('//deps:repos.MODULE.bazel')
 
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 python.toolchain(
