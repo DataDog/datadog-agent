@@ -53,9 +53,9 @@ func applyContext(ruleDef *rules.RuleDefinition, opts SECLRuleOpts) {
 
 	if len(context) == 0 {
 		return
-	} else {
-		ruleDef.Expression = fmt.Sprintf("%s && (%s)", ruleDef.Expression, fmt.Sprintf(`container.tags in [%s]`, strings.Join(context, ", ")))
 	}
+
+	ruleDef.Expression = fmt.Sprintf("%s && (%s)", ruleDef.Expression, fmt.Sprintf(`container.tags in [%s]`, strings.Join(context, ", ")))
 }
 
 func getGroupID(opts SECLRuleOpts) string {
