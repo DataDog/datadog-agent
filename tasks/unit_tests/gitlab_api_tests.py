@@ -541,7 +541,6 @@ class TestFilterVariables(unittest.TestCase):
 
 class TestModifyContent(unittest.TestCase):
     gitlab_ci = None
-    erroneous_file = "tasks/unit-tests/testdata/erroneous_gitlab-ci.yml"
 
     def setUp(self) -> None:
         with open(".gitlab-ci.yml") as gl:

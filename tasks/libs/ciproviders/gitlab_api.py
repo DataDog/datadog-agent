@@ -1275,8 +1275,7 @@ def update_gitlab_config(file_path, tag, images="", test=True):
         file_content = gl.readlines()
     yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
     gitlab_ci = yaml.safe_load("".join(file_content))
-    variables_to_update = filter_variables(gitlab_ci['variables'].keys(), images)
-    print(f"Updating variables in {file_path} with tag {tag} for images {images}")
+    variables_to_update = list(filter_variables(gitlab_ci['variables'].keys(), images))
     output = modify_content(file_content, tag, variables_to_update, test=test)
     with open(file_path, "w") as gl:
         gl.writelines(output)
@@ -1314,6 +1313,8 @@ def modify_content(lines, tag, variables, test=True):
                 is_tag = tag_pattern.search(line)
                 if is_tag:
                     output.append(line.replace(is_tag.group(), tag))
+                else:
+                    output.append(line)
         else:
             output.append(line)
     return output
