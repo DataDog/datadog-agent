@@ -148,6 +148,7 @@ func (suite *PodTestSuite) SetupSuite() {
 	))
 
 	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
+	suite.tagger = fakeTagger
 
 	suite.check = &Check{
 		sender:    sender,

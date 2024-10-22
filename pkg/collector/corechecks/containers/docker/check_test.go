@@ -210,7 +210,8 @@ func TestDockerCustomPart(t *testing.T) {
 			Enabled:         true,
 			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
 		},
-		store: fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
+		store:  fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
+		tagger: fakeTagger,
 	}
 
 	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)
@@ -290,6 +291,7 @@ func TestContainersRunning(t *testing.T) {
 		dockerHostname:  "testhostname",
 		containerFilter: &containers.Filter{},
 		store:           fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
+		tagger:          fakeTagger,
 	}
 
 	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)
@@ -345,6 +347,7 @@ func TestProcess_CPUSharesMetric(t *testing.T) {
 		instance:       &DockerConfig{},
 		processor:      *processor,
 		dockerHostname: "testhostname",
+		tagger:         fakeTagger,
 	}
 
 	err := check.runProcessor(mockSender)

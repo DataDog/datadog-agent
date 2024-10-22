@@ -117,6 +117,7 @@ func TestRaceFlushVersusAddSample(t *testing.T) {
 	}
 	metricAgent := &ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
+		Tagger:               nooptagger.NewTaggerClient(),
 	}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &ValidMetricConfigMocked{}, &MetricDogStatsD{})

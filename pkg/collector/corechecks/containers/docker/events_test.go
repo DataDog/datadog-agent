@@ -21,8 +21,12 @@ import (
 )
 
 func TestReportExitCodes(t *testing.T) {
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	defer fakeTagger.ResetTagger()
+
 	dockerCheck := &DockerCheck{
 		instance: &DockerConfig{},
+		tagger:   fakeTagger,
 	}
 
 	dockerCheck.setOkExitCodes()
@@ -88,6 +92,7 @@ func TestReportExitCodes(t *testing.T) {
 		instance: &DockerConfig{
 			OkExitCodes: []int{0},
 		},
+		tagger: fakeTagger,
 	}
 
 	dockerCheck.setOkExitCodes()
@@ -154,6 +159,7 @@ func TestAggregateEvents(t *testing.T) {
 						"unfiltered_action": 1,
 					},
 					alertType: event.AlertTypeInfo,
+					tagger:    fakeTagger,
 				},
 			},
 		},
@@ -193,6 +199,7 @@ func TestAggregateEvents(t *testing.T) {
 						"other_action":      1,
 					},
 					alertType: event.AlertTypeInfo,
+					tagger:    fakeTagger,
 				},
 			},
 		},
@@ -225,6 +232,7 @@ func TestAggregateEvents(t *testing.T) {
 						"other_action":      1,
 					},
 					alertType: event.AlertTypeInfo,
+					tagger:    fakeTagger,
 				},
 				"other_image": {
 					imageName: "other_image",
@@ -232,6 +240,7 @@ func TestAggregateEvents(t *testing.T) {
 						"other_action": 1,
 					},
 					alertType: event.AlertTypeInfo,
+					tagger:    fakeTagger,
 				},
 			},
 		},

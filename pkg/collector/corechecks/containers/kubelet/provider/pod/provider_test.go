@@ -150,6 +150,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
 		},
 		podUtils: common.NewPodUtils(fakeTagger),
+		tagger:   fakeTagger,
 	}
 }
 

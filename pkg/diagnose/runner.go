@@ -472,6 +472,7 @@ func NewSuitesDeps(
 		SecretResolver: secretResolver,
 		WMeta:          wmeta,
 		AC:             ac,
+		Tagger:         tagger,
 	}
 }
 

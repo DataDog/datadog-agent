@@ -25,6 +25,7 @@ type TaskHandlers struct {
 	tagger tagger.Component
 }
 
+// NewTaskHandlers returns a new TaskHandlers.
 func NewTaskHandlers(tagger tagger.Component) *TaskHandlers {
 	return &TaskHandlers{
 		tagger: tagger,

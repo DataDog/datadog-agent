@@ -284,7 +284,9 @@ func testSubmitEventPlatformEvent(t *testing.T) {
 	sender.AssertEventPlatformEvent(t, []byte("raw-event"), "dbm-sample")
 }
 
-func scopeInitCheckContext(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component], tagger tagger.Component) func() {
-	initializeCheckContext(senderManager, logReceiver, tagger)
+func scopeInitCheckContext(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component], taggerComp tagger.Component) func() {
+	// Ensure the check context is released before initializing a new one
+	releaseCheckContext()
+	initializeCheckContext(senderManager, logReceiver, taggerComp)
 	return releaseCheckContext
 }
