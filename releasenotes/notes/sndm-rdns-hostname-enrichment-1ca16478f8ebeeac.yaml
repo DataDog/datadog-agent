@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Added support for enrighing SNMP IPs with hostnames via rDNS lookups
+    Added support for enriching SNMP IPs with hostnames through rDNS lookups
