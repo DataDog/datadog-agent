@@ -63,6 +63,10 @@ func TestNativeShortLivedProcess(t *testing.T) {
 	cfg := config.New()
 	cfg.EnableNativeTLSMonitoring = true
 
+	if !usmconfig.TLSSupported(cfg) {
+		t.Skip("shared library tracing not supported for this platform")
+	}
+
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
