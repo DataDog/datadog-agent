@@ -170,6 +170,10 @@ variables:
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
   TEST_INFRA_DEFINITIONS_BUILDIMAGES: 59215b0d47c4
+  CI_IMAGE_DEB_X64_VERSION: "interstellar"
+  CI_IMAGE_DEB_X64_SUFFIX: ""
+  CI_IMAGE_RPM_ARM64_VERSION: "gravity"
+  CI_IMAGE_RPM_ARM64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
