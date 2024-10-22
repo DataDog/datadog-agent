@@ -8,7 +8,6 @@ package utils
 import (
 	"fmt"
 	"regexp"
-	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -227,7 +226,7 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternMatchOpts) 
 	return "", false
 }
 
-// BuildPatterns find and build patterns for the path in the ruleset
+// BuildPatterns finds and builds patterns for the path in the ruleset
 func BuildPatterns(ruleset []*rules.RuleDefinition) []*rules.RuleDefinition {
 	for _, rule := range ruleset {
 		findAndReplacePatterns(&rule.Expression)
@@ -236,50 +235,59 @@ func BuildPatterns(ruleset []*rules.RuleDefinition) []*rules.RuleDefinition {
 }
 
 func findAndReplacePatterns(expression *string) {
-
 	re := regexp.MustCompile(`\[(.*?)\]`)
 	matches := re.FindAllStringSubmatch(*expression, -1)
+
 	for _, match := range matches {
 		if len(match) > 1 {
 			arrayContent := match[1]
 			paths := replacePatterns(strings.Split(arrayContent, ","))
-			// reconstruct the modified array as a string
+			// Reconstruct the modified array as a string
 			modifiedArrayString := "[" + strings.Join(paths, ", ") + "]"
-			// replace the original array with the modified array in the input string
+			// Replace the original array with the modified array in the input string
 			*expression = strings.Replace(*expression, match[0], modifiedArrayString, 1)
 		}
 	}
-
 }
 
 func replacePatterns(paths []string) []string {
-	var result []string
+	// Using a map to eliminate duplicates efficiently
+	result := make(map[string]struct{})
+
 	for _, pattern := range paths {
 		strippedPattern := strings.Trim(pattern, `~" `)
-		initalLength := len(result)
+		processed := false
 
 		for _, path := range paths {
-			strippedPath := strings.Trim(path, `~" `)
 			if pattern == path {
 				continue
 			}
 
+			strippedPath := strings.Trim(path, `~" `)
 			pathPatternMatchOpts := determinePatternMatchOpts(strippedPath)
 
 			finalPath, ok := PathPatternBuilder(strippedPattern, strippedPath, pathPatternMatchOpts)
 			if ok {
 				finalPath = fmt.Sprintf("~\"%s\"", finalPath)
-				result = append(result, finalPath)
+				result[finalPath] = struct{}{}
+				processed = true
+				break // Exit the inner loop once a match is found
 			}
 		}
-		if len(result) == initalLength {
-			result = append(result, strings.Trim(pattern, ` `))
+
+		// If no match was found, add the original pattern
+		if !processed {
+			result[strippedPattern] = struct{}{}
 		}
 	}
-	// remove duplicates
-	slices.Sort(result)
-	result = slices.Compact(result)
-	return result
+
+	// Convert the map to a slice
+	finalResult := make([]string, 0, len(result))
+	for path := range result {
+		finalResult = append(finalResult, path)
+	}
+
+	return finalResult
 }
 
 func determinePatternMatchOpts(path string) PathPatternMatchOpts {
@@ -289,9 +297,9 @@ func determinePatternMatchOpts(path string) PathPatternMatchOpts {
 	}
 
 	if containsExceptions(path) {
-		pathPatternMatchOpts.PrefixNodeRequired = 3
-
+		pathPatternMatchOpts.PrefixNodeRequired = 4
 	}
+
 	return pathPatternMatchOpts
 }
 
