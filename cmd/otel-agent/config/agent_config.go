@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -176,10 +177,38 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	if addr := ddc.Traces.Endpoint; addr != "" {
 		pkgconfig.Set("apm_config.apm_dd_url", addr, pkgconfigmodel.SourceFile)
 	}
-	if ddc.Traces.ComputeTopLevelBySpanKind {
-		pkgconfig.Set("apm_config.features", []string{"enable_otlp_compute_top_level_by_span_kind"}, pkgconfigmodel.SourceFile)
+
+	if apmConfigFeaturesEnv, found := os.LookupEnv("DD_APM_FEATURES"); found {
+		pkgconfig.Set("apm_config.features", strings.Split(apmConfigFeaturesEnv, ","), pkgconfigmodel.SourceEnvVar)
+	} else if acfg := cfg.Get("apm_config"); acfg != nil {
+		if acfgmap, ok := acfg.(map[string]any); ok {
+			if v, ok := acfgmap["features"]; ok {
+				if features, ok := v.([]interface{}); ok {
+					success := true
+					var featuresStrings []string
+					for _, feature := range features {
+						if fstr, ok := feature.(string); ok {
+							featuresStrings = append(featuresStrings, fstr)
+						} else {
+							success = false
+							break
+						}
+					}
+					if success {
+						pkgconfig.Set("apm_config.features", featuresStrings, pkgconfigmodel.SourceFile)
+					}
+				}
+			}
+		}
 	}
 
+	if pkgconfig.Get("apm_config.features") == nil {
+		apmConfigFeatures := []string{"enable_receive_resource_spans_v2"}
+		if ddc.Traces.ComputeTopLevelBySpanKind {
+			apmConfigFeatures = append(apmConfigFeatures, "enable_otlp_compute_top_level_by_span_kind")
+		}
+		pkgconfig.Set("apm_config.features", apmConfigFeatures, pkgconfigmodel.SourceDefault)
+	}
 	return pkgconfig, nil
 }
 
