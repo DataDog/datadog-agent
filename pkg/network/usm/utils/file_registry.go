@@ -13,8 +13,8 @@ import (
 	"os"
 	"sync"
 
+	"github.com/cihub/seelog"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
-
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
@@ -244,7 +244,9 @@ func (r *FileRegistry) GetRegisteredProcesses() map[uint32]struct{} {
 
 // Log state of `FileRegistry`
 func (r *FileRegistry) Log() {
-	log.Debugf("file_registry summary: program=%s %s", r.telemetry.programName, r.telemetry.metricGroup.Summary())
+	if log.ShouldLog(seelog.DebugLvl) {
+		log.Debugf("file_registry summary: program=%s %s", r.telemetry.programName, r.telemetry.metricGroup.Summary())
+	}
 }
 
 // Clear removes all registrations calling their deactivation callbacks
