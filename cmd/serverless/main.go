@@ -8,9 +8,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -18,7 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -43,6 +47,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
+	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 )
 
 // AWS Lambda is writing the Lambda function files in /var/task, we want the
@@ -113,11 +119,18 @@ func runAgent(tagger tagger.Component) {
 	coldStartSpanId := random.Random.Uint64()
 	metricAgent := startMetricAgent(serverlessDaemon, logChannel, lambdaInitMetricChan)
 
+	// Start RC service if remote configuration is enabled
+	var rcService *remoteconfig.CoreAgentService
+	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
+		functionARN := serverlessDaemon.ExecutionContext.GetCurrentState().ARN
+		rcService = startRCService(functionARN)
+	}
+
 	// Concurrently start heavyweight features
 	var wg sync.WaitGroup
 	wg.Add(3)
 
-	go startTraceAgent(&wg, lambdaSpanChan, coldStartSpanId, serverlessDaemon)
+	go startTraceAgent(&wg, lambdaSpanChan, coldStartSpanId, serverlessDaemon, rcService)
 	go startOtlpAgent(&wg, metricAgent, serverlessDaemon)
 	go startTelemetryCollection(&wg, serverlessID, logChannel, serverlessDaemon, tagger)
 
@@ -262,9 +275,10 @@ func setupLambdaAgentOverrides() {
 	// TODO(duncanista): figure out how this is used and if it's necessary for Serverless
 	pkgconfigsetup.Datadog().Set("dogstatsd_socket", "", model.SourceAgentRuntime)
 
-	// Disable remote configuration for now as it just spams the debug logs
-	// and provides no value.
-	os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
+	// Disable remote configuration unless explicitly enabled
+	if strings.ToLower(os.Getenv("DD_REMOTE_CONFIGURATION_ENABLED")) != "true" {
+		os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
+	}
 }
 
 func startColdStartSpanCreator(lambdaSpanChan chan *pb.Span, lambdaInitMetricChan chan *serverlessLogs.LambdaInitMetric, serverlessDaemon *daemon.Daemon, coldStartSpanId uint64) {
@@ -334,10 +348,67 @@ func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAge
 
 }
 
-func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon) {
+func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon, rcService *remoteconfig.CoreAgentService) {
 	defer wg.Done()
-	traceAgent := trace.StartServerlessTraceAgent(pkgconfigsetup.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, lambdaSpanChan, coldStartSpanId)
+	traceAgent := trace.StartServerlessTraceAgent(pkgconfigsetup.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, lambdaSpanChan, coldStartSpanId, rcService)
 	serverlessDaemon.SetTraceAgent(traceAgent)
+}
+
+func startRCService(functionARN string) *remoteconfig.CoreAgentService {
+	pkgconfigsetup.Datadog().Set("run_path", "/tmp/datadog-agent", model.SourceAgentRuntime)
+	apiKey := pkgconfigsetup.Datadog().GetString("api_key")
+	if pkgconfigsetup.Datadog().IsSet("remote_configuration.api_key") {
+		apiKey = pkgconfigsetup.Datadog().GetString("remote_configuration.api_key")
+	}
+	apiKey = configUtils.SanitizeAPIKey(apiKey)
+	baseRawURL := configUtils.GetMainEndpoint(pkgconfigsetup.Datadog(), "https://config.", "remote_configuration.rc_dd_url")
+	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(pkgconfigsetup.Datadog())
+
+	options := []remoteconfig.Option{
+		remoteconfig.WithAPIKey(apiKey),
+		remoteconfig.WithTraceAgentEnv(traceAgentEnv),
+		remoteconfig.WithConfigRootOverride(pkgconfigsetup.Datadog().GetString("site"), pkgconfigsetup.Datadog().GetString("remote_configuration.config_root")),
+		remoteconfig.WithDirectorRootOverride(pkgconfigsetup.Datadog().GetString("site"), pkgconfigsetup.Datadog().GetString("remote_configuration.director_root")),
+		remoteconfig.WithRcKey(pkgconfigsetup.Datadog().GetString("remote_configuration.key")),
+	}
+
+	if pkgconfigsetup.Datadog().IsSet("remote_configuration.refresh_interval") {
+		options = append(options, remoteconfig.WithRefreshInterval(pkgconfigsetup.Datadog().GetDuration("remote_configuration.refresh_interval"), "remote_configuration.refresh_interval"))
+	}
+	if pkgconfigsetup.Datadog().IsSet("remote_configuration.max_backoff_interval") {
+		options = append(options, remoteconfig.WithMaxBackoffInterval(pkgconfigsetup.Datadog().GetDuration("remote_configuration.max_backoff_interval"), "remote_configuration.max_backoff_interval"))
+	}
+	if pkgconfigsetup.Datadog().IsSet("remote_configuration.clients.ttl_seconds") {
+		options = append(options, remoteconfig.WithClientTTL(pkgconfigsetup.Datadog().GetDuration("remote_configuration.clients.ttl_seconds"), "remote_configuration.clients.ttl_seconds"))
+	}
+	if pkgconfigsetup.Datadog().IsSet("remote_configuration.clients.cache_bypass_limit") {
+		options = append(options, remoteconfig.WithClientCacheBypassLimit(pkgconfigsetup.Datadog().GetInt("remote_configuration.clients.cache_bypass_limit"), "remote_configuration.clients.cache_bypass_limit"))
+	}
+	tagsGetter := func() []string {
+		arn, parseErr := arn.Parse(functionARN)
+		log.Debugf("HERE: --- Parsing %s", functionARN)
+		if parseErr != nil {
+			return []string{}
+		}
+		return []string{fmt.Sprintf("aws_account_id:%s", arn.AccountID), fmt.Sprintf("region:%s", arn.Region)}
+	}
+
+	configService, err := remoteconfig.NewService(
+		pkgconfigsetup.Datadog(),
+		"Remote Config",
+		baseRawURL,
+		"",
+		tagsGetter,
+		&rctelemetryreporterimpl.DdRcTelemetryReporter{},
+		version.AgentVersion,
+		options...,
+	)
+	if err != nil {
+		log.Errorf("unable to create remote config service: %w", err)
+		return nil
+	}
+	configService.Start()
+	return configService
 }
 
 func setupApiKey() bool {
