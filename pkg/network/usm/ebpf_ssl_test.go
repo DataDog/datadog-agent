@@ -82,4 +82,8 @@ func TestNativeShortLivedProcess(t *testing.T) {
 	}
 
 	require.False(t, utils.IsBlocked(t, "shared_libraries", lib))
+
+	cmd, err := fileopener.OpenFromAnotherProcess(t, lib)
+	require.NoError(t, err)
+	utils.WaitForProgramsToBeTraced(t, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 }
