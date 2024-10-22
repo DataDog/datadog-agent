@@ -6,6 +6,7 @@
 package integration
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"os"
 	"path/filepath"
 	"testing"
@@ -537,6 +538,15 @@ func TestLauncherTestSuite(t *testing.T) {
 // TestReadOnlyFileSystem ensures the launcher doesn't panic in a read-only
 // file system. There will be errors but it should handle them gracefully.
 func TestReadOnlyFileSystem(t *testing.T) {
+	/*
+		Currently this test fails randomly with:
+			1729313171735561634 [Info] Successfully created integrations log file: /tmp/TestReadOnlyFileSystem4096893197/001/readonly/integrations/123456789.log
+				testing.go:1231: TempDir RemoveAll cleanup: unlinkat /tmp/TestReadOnlyFileSystem4096893197/001/readonly/integrations: directory not empty
+		This looks like an issue with the Launcher still writing data to the "read-only" directory (which isn't read only
+		as we run these tests in a container with root).
+	*/
+	flake.Mark(t)
+
 	readOnlyDir := filepath.Join(t.TempDir(), "readonly")
 	err := os.Mkdir(readOnlyDir, 0444)
 	assert.NoError(t, err, "Unable to make tempdir readonly")
