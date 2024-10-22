@@ -234,6 +234,7 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 					j++
 				} else {
 					log.Errorf("Error parsing the following attribute key on span event %v, dropping attribute: %v", e.Name(), k)
+					e.SetDroppedAttributesCount(e.DroppedAttributesCount() + 1)
 				}
 				j++
 				return true
