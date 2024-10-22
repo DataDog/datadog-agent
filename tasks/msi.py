@@ -290,7 +290,8 @@ def build(
     sign_file(ctx, os.path.join(build_outdir, 'AgentCustomActions.dll'))
 
     # We embed this 7zip standalone binary in the installer, sign it too
-    sign_file(ctx, 'C:\\Program Files\\7-zip\\7zr.exe')
+    shutil.copy2('C:\\Program Files\\7-zip\\7zr.exe', AGENT_BIN_SOURCE_DIR)
+    sign_file(ctx, os.path.join(AGENT_BIN_SOURCE_DIR, '7zr.exe'))
 
     # Run WixSetup.exe to generate the WXS and other input files
     with timed("Building WXS"):
