@@ -23,12 +23,22 @@ func TestGenerateNameFromRailsApplicationRb(t *testing.T) {
 	}{
 		{
 			name:     "name is found",
-			path:     "./testdata/application.rb",
+			path:     "./testdata/ruby/application.rb",
 			expected: "rails_hello",
 		},
 		{
 			name:     "name not found",
-			path:     "./testdata/application_invalid.rb",
+			path:     "./testdata/ruby/application_invalid.rb",
+			expected: "",
+		},
+		{
+			name:     "accronym in module name",
+			path:     "./testdata/ruby/application_accronym.rb",
+			expected: "http_server",
+		},
+		{
+			name:     "file does not exists",
+			path:     "./testdata/ruby/application_does_not_exist.rb",
 			expected: "",
 		},
 	}
@@ -38,10 +48,11 @@ func TestGenerateNameFromRailsApplicationRb(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			instance := &railsDetector{ctx: DetectionContext{
 				fs:         NewSubDirFS(full),
-				contextMap: make(DetectorContextMap),
+				ContextMap: make(DetectorContextMap),
 			}}
-			value, ok := instance.findRailsApplicationName(tt.path)
-			assert.Equal(t, len(tt.expected) > 0, ok)
+			value, err := instance.findRailsApplicationName(tt.path)
+			t.Log(err)
+			assert.Equal(t, len(tt.expected) > 0, err == nil)
 			assert.Equal(t, tt.expected, railsUnderscore(value))
 		})
 	}
