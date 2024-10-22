@@ -1,0 +1,32 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name = "openssl",
+    configure_command = "config",
+    configure_options = [
+        "no-idea",
+        "no-mdc2",
+        "no-rc5",
+        "shared",
+        "no-ssl3",
+        "no-gost",
+        # Probably not needed if bazel can copy the file wherever it is
+        "--libdir=lib",
+        "zlib",
+    ],
+    lib_source = "@openssl//:all",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libssl.so",
+            "libssl.so.3",
+            "libcrypto.so",
+            "libcrypto.so.3",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        "@bzip2//:bz2",
+        "@xz//:lzma",
+        "@zlib",
+    ],
+)

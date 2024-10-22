@@ -1,0 +1,15 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name = "libtasn1",
+    configure_options = [
+        "--disable-static",
+    ],
+    lib_source = "@libtasn1//:all",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libtasn1.so",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+)

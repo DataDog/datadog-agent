@@ -1,0 +1,18 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name = "libacl",
+    configure_options = [
+        "--disable-static",
+    ],
+    lib_source = "@libacl//:all",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libacl.so",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        "//deps/libattr",
+    ],
+)

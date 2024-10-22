@@ -1,0 +1,22 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name = "elfutils",
+    configure_options = [
+        "--disable-debuginfod",
+        "--disable-libdebuginfod",
+        "--disable-nls",
+    ],
+    lib_source = "@elfutils//:all",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libelf.so",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        "@bzip2//:bz2",
+        "@xz//:lzma",
+        "@zlib",
+    ],
+)
