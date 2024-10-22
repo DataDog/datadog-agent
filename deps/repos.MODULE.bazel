@@ -31,3 +31,12 @@ http_archive(
     sha256="2e8a40b01979afe8be0bbfb3de5dc1c6709fedb46d6c89c10da114ab5fc3d281",
     strip_prefix="openssl-{0}".format(OPENSSL_VERSION),
 )
+
+LIBXCRYPT_VERSION = "4.4.28"
+http_archive(
+    name="libxcrypt",
+    build_file_content = all_content,
+    url = "https://github.com/besser82/libxcrypt/releases/download/v{0}/libxcrypt-{0}.tar.xz".format(LIBXCRYPT_VERSION),
+    sha256="9e936811f9fad11dbca33ca19bd97c55c52eb3ca15901f27ade046cc79e69e87",
+    strip_prefix="libxcrypt-{0}".format(LIBXCRYPT_VERSION),
+)

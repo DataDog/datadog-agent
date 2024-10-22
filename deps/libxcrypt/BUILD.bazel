@@ -1,0 +1,22 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name="build",
+    lib_source = "@libxcrypt//:all",
+    configure_options = [
+        "--disable-obsolete-api"
+    ],
+    deps = [
+        "@zlib//:zlib",
+        "@bzip2//:bz2",
+        "@xz//:lzma",
+    ],
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libcrypt.so",
+        ],
+    }),
+)
+
+
+
