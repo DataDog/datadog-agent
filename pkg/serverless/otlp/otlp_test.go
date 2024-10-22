@@ -65,7 +65,7 @@ func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", grpcEndpoint)
 
 	// setup trace agent
-	traceAgent := trace.StartServerlessTraceAgent(true, &trace.LoadConfig{Path: "./testdata/valid.yml"}, nil, 0)
+	traceAgent := trace.StartServerlessTraceAgent(true, &trace.LoadConfig{Path: "./testdata/valid.yml"}, nil, 0, nil)
 	defer traceAgent.Stop()
 	assert.NotNil(traceAgent)
 	traceChan := make(chan struct{})
