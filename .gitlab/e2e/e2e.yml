@@ -120,6 +120,7 @@ new-e2e-containers-eks-init:
     TEAM: container-integrations
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_INIT_ONLY: "true"
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
   allow_failure: true
 
 new-e2e-containers-eks:
@@ -256,6 +257,7 @@ new-e2e-npm-eks-init:
     TEAM: network-performance-monitoring
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_INIT_ONLY: "true"
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
   allow_failure: true
 
 new-e2e-npm-eks:
@@ -302,6 +304,7 @@ new-e2e-cws:
     - qa_agent
     - qa_dca
   variables:
+    SHOULD_RUN_IN_FLAKES_FINDER: "false" # Currently broken in flake finder ADXT-687
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
     CWS_INSTRUMENTATION_FULLIMAGEPATH: 669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
@@ -471,6 +474,7 @@ new-e2e-windows-systemprobe:
   variables:
     TARGETS: ./tests/sysprobe-functional
     TEAM: windows-kernel-integrations
+    SHOULD_RUN_IN_FLAKES_FINDER: "false" # Currently broken in flake finder ADXT-687
 
 new-e2e-windows-security-agent:
   extends: .new_e2e_template
@@ -498,6 +502,8 @@ new-e2e-otel-eks-init:
     TEAM: otel
     EXTRA_PARAMS: --run TestOTelAgentIAEKS
     E2E_INIT_ONLY: "true"
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
+
   allow_failure: true
 
 new-e2e-otel-eks:
