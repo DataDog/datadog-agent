@@ -1,0 +1,64 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name = "python3",
+    configure_options = [
+        "--enable-ipv6",
+        "--with-ensurepip=yes",
+        "--enable-shared",
+        "--without-static-libpython",
+        "--with-dbmliborder=",
+        # Fixes an issue with __DATE__ being set to undefined `redacted`
+        # https://github.com/bazelbuild/rules_foreign_cc/issues/239#issuecomment-478167267
+        "CPPFLAGS='-Dredacted=\\\"redacted\\\"'",
+        "--with-openssl=$$EXT_BUILD_DEPS/openssl",
+        "--enable-optimizations",
+    ] + select({
+        "@platforms//os:macos": [
+            "--with-universal-archs=intel",
+        ],
+        "//conditions:default": [],
+    }),
+    copts = [
+        "-O3",
+    ],
+    env = {
+        "OPT": "-DNDEBUG -fwrapv",
+        # manually provide some dependencies cflags/ldflags instead of
+        # relying on pkg-config
+        "BZIP2_CFLAGS": "-I.",
+        "BZIP2_LIBS": "-lbz2",
+        # "LIBFFI_CFLAGS": "-I.",
+        # "LIBFFI_LIBS": "-lffi",
+        # Ensure we don't use the system provided .pc
+        "PKG_CONFIG_LIBDIR": "/does/not/exist",
+        # Allow python to test its modules at build time
+        "LD_LIBRARY_PATH": "$$EXT_BUILD_DEPS/lib:$$EXT_BUILD_DEPS/openssl/lib:$$EXT_BUILD_DEPS/libxcrypt/lib",
+    },
+    install_prefix = "py_install",
+    lib_source = "@python3//:all",
+    out_binaries = [
+        "python3",
+        "pip3",
+        "python3.12",
+    ],
+    out_data_dirs = [
+        "lib/python3.12/",
+    ],
+    out_shared_libs = [
+        "libpython3.12.so",
+        "libpython3.so",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//deps/libffi",
+        "//deps/libxcrypt",
+        "//deps/openssl",
+        "@bzip2//:bz2",
+        "@libyaml",
+        "@ncurses",
+        "@sqlite3",
+        "@xz//:lzma",
+        "@zlib",
+    ],
+)

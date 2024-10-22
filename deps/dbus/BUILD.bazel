@@ -1,0 +1,24 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name = "dbus",
+    configure_options = [
+        "--disable-static",
+        "--disable-doxygen-docs",
+        "--disable-ducktype-docs",
+        "--disable-xml-docs",
+        "--disable-stats",
+        "--disable-tests",
+        "--without-x",
+    ],
+    lib_source = "@dbus//:all",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libdbus-1.so",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        "//deps/expat",
+    ],
+)

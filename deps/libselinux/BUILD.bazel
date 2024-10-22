@@ -1,0 +1,35 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "make")
+
+make(
+    name = "libselinux",
+    env = {
+        "PKG_CONFIG_LIBDIR": "/does/not/exist",
+        # libselinux linker scripts refers to an undefined symbol on 32bits arch
+        # simply ignore it as it is not meant to exist nor be used on 64bits archs
+        # In addition libselinux uses pkg-config to find libpcre2 ldflags, but the BCR
+        # rules don't generate/ship those, so we just provide the flag directly.
+        "LDFLAGS": "-Wl,--undefined-version -lpcre2",
+        # libselinux uses DESTDIR, rules_foreign_cc uses INSTALLDIR
+        "DESTDIR": "$$INSTALLDIR",
+        # and finally, libsepol prefixes some dest variables with $PREFIX
+        # and copy into $(DESTDIR)/$(FOO) which ends up copying to
+        # $(DESTDIR)/$(PREFIX)/$(FOO), which amouts to $(DESTDIR)/$(DESTDIR)/$(FOO)
+        # We workaround this by enforcing prefix-less values
+        "LIBDIR": "/lib",
+        "INCLUDEDIR": "/include",
+    },
+    lib_source = "@libselinux//:all",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libselinux.so",
+        ],
+    }),
+    targets = [
+        "install",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//deps/libsepol",
+        "@pcre2",
+    ],
+)

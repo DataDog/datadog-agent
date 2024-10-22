@@ -37,3 +37,371 @@ crate.from_cargo(
     ],
 )
 use_repo(crate, "sds_deps")
+
+all_content = """filegroup(name = "all", srcs = glob(["**"]), visibility = ["//visibility:public"])"""
+
+# Defines a "zlib" target for the lib
+bazel_dep(name = "zlib", version = "1.3.1.bcr.3")
+
+# Defines a "bz2" target for the lib, "bzip2" for the CLI tool
+bazel_dep(name = "bzip2", version = "1.0.8")
+
+# Defines a "libyaml" target for the lib
+bazel_dep(name = "libyaml", version = "0.2.5")
+
+# Defines a "lzma" target for the lib, "xz" for the CLI tools
+bazel_dep(name = "xz", version = "5.4.5.bcr.5")
+
+FILE_VERSION = "5.45"
+
+http_archive(
+    name = "file",
+    build_file_content = all_content,
+    sha256 = "fc97f51029bb0e2c9f4e3bffefdaf678f0e039ee872b9de5c002a6d09c784d82",
+    strip_prefix = "file-{0}".format(FILE_VERSION),
+    url = "http://ftp.astron.com/pub/file/file-{0}.tar.gz".format(FILE_VERSION),
+)
+
+OPENSSL_VERSION = "3.3.2"
+
+http_archive(
+    name = "openssl",
+    build_file_content = all_content,
+    sha256 = "2e8a40b01979afe8be0bbfb3de5dc1c6709fedb46d6c89c10da114ab5fc3d281",
+    strip_prefix = "openssl-{0}".format(OPENSSL_VERSION),
+    url = "https://www.openssl.org/source/openssl-{0}.tar.gz".format(OPENSSL_VERSION),
+)
+
+LIBXCRYPT_VERSION = "4.4.37"
+
+http_archive(
+    name = "libxcrypt",
+    build_file_content = all_content,
+    sha256 = "902aa2976f959b5ebe55679b1722b8479f8f13cd4ce2ef432b0a84ae298fffd0",
+    strip_prefix = "libxcrypt-{0}".format(LIBXCRYPT_VERSION),
+    url = "https://github.com/besser82/libxcrypt/releases/download/v{0}/libxcrypt-{0}.tar.xz".format(LIBXCRYPT_VERSION),
+)
+
+LIBFFI_VERSION = "3.4.6"
+
+http_archive(
+    name = "libffi",
+    build_file_content = all_content,
+    sha256 = "b0dea9df23c863a7a50e825440f3ebffabd65df1497108e5d437747843895a4e",
+    strip_prefix = "libffi-{0}".format(LIBFFI_VERSION),
+    url = "https://github.com/libffi/libffi/releases/download/v{0}/libffi-{0}.tar.gz".format(LIBFFI_VERSION),
+)
+
+# Defines a "ncurses" target for the lib.
+# There are also "form", "menu", "panel" lib targets and "make_hash" binary
+bazel_dep(name = "ncurses", version = "6.4.20221231.bcr.2")
+
+# Defines a "sqlite3" target for the lib
+bazel_dep(name = "sqlite3", version = "3.46.1")
+
+PYTHON3_VERSION = "3.12.6"
+
+http_archive(
+    name = "python3",
+    build_file_content = all_content,
+    patch_args = ["-p1"],
+    patch_tool = "patch",
+    patches = [
+        "//deps/python3:patches/0001-don-t-attempt-to-provide-soname.patch",
+        "//deps/python3:patches/0001-remove-inclusions-prior-to-Python.h.patch",
+    ],
+    sha256 = "85a4c1be906d20e5c5a69f2466b00da769c221d6a684acfd3a514dbf5bf10a66",
+    strip_prefix = "Python-{0}".format(PYTHON3_VERSION),
+    url = "https://python.org/ftp/python/{0}/Python-{0}.tgz".format(PYTHON3_VERSION),
+)
+
+ATTR_VERSION = "2.5.2"
+
+http_archive(
+    name = "libattr",
+    build_file_content = all_content,
+    sha256 = "f2e97b0ab7ce293681ab701915766190d607a1dba7fae8a718138150b700a70b",
+    strip_prefix = "attr-{0}".format(ATTR_VERSION),
+    url = "http://download.savannah.nongnu.org/releases/attr/attr-{0}.tar.xz".format(ATTR_VERSION),
+)
+
+# Defines a curl target for the lib
+# We probable don't want to use the bazel_dep for long since it doesn't seem
+# to link with openssl but with mbedtls.
+bazel_dep(name = "curl", version = "8.8.0")
+
+EXPAT_VERSION = "2.5.0"
+
+http_archive(
+    name = "expat",
+    build_file_content = all_content,
+    sha256 = "6b902ab103843592be5e99504f846ec109c1abb692e85347587f237a4ffa1033",
+    strip_prefix = "expat-{0}".format(EXPAT_VERSION),
+    url = "https://github.com/libexpat/libexpat/releases/download/R_{0}/expat-{1}.tar.gz".format(
+        EXPAT_VERSION.replace(".", "_"),
+        EXPAT_VERSION,
+    ),
+)
+
+DBUS_VERSION = "1.14.10"
+
+http_archive(
+    name = "dbus",
+    build_file_content = all_content,
+    sha256 = "ba1f21d2bd9d339da2d4aa8780c09df32fea87998b73da24f49ab9df1e36a50f",
+    strip_prefix = "dbus-{0}".format(DBUS_VERSION),
+    url = "https://dbus.freedesktop.org/releases/dbus/dbus-{0}.tar.xz".format(DBUS_VERSION),
+)
+
+LIBACL_VERSION = "2.3.1"
+
+http_archive(
+    name = "libacl",
+    build_file_content = all_content,
+    sha256 = "c0234042e17f11306c23c038b08e5e070edb7be44bef6697fb8734dcff1c66b1",
+    strip_prefix = "acl-{0}".format(LIBACL_VERSION),
+    url = "http://download.savannah.nongnu.org/releases/acl/acl-{0}.tar.xz".format(LIBACL_VERSION),
+)
+
+LIBGPG_ERROR_VERSION = "1.51"
+
+http_archive(
+    name = "libgpg-error",
+    build_file_content = all_content,
+    sha256 = "be0f1b2db6b93eed55369cdf79f19f72750c8c7c39fc20b577e724545427e6b2",
+    strip_prefix = "libgpg-error-{0}".format(LIBGPG_ERROR_VERSION),
+    url = "https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-{0}.tar.bz2".format(LIBGPG_ERROR_VERSION),
+)
+
+LIBGCRYPT_VERSION = "1.11.0"
+
+http_archive(
+    name = "libgcrypt",
+    build_file_content = all_content,
+    patch_args = ["-p1"],
+    patch_tool = "patch",
+    patches = [
+        "//deps/libgcrypt:patches/0001-disable-tests-build.patch",
+    ],
+    sha256 = "09120c9867ce7f2081d6aaa1775386b98c2f2f246135761aae47d81f58685b9c",
+    strip_prefix = "libgcrypt-{0}".format(LIBGCRYPT_VERSION),
+    url = "https://www.gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-{0}.tar.bz2".format(LIBGCRYPT_VERSION),
+)
+
+# Defines a pcre2 target for the lib
+bazel_dep(name = "pcre2", version = "10.43")
+
+LIBSEPOL_VERSION = "3.5"
+
+http_archive(
+    name = "libsepol",
+    build_file_content = all_content,
+    patch_args = ["-p1"],
+    patch_tool = "patch",
+    patches = [
+        "//deps/libsepol:patches/ln_no_relative.patch",
+        "//deps/libsepol:patches/fix_shlibdir.patch",
+    ],
+    sha256 = "78fdaf69924db780bac78546e43d9c44074bad798c2c415d0b9bb96d065ee8a2",
+    strip_prefix = "libsepol-{0}".format(LIBSEPOL_VERSION),
+    url = "https://github.com/SELinuxProject/selinux/releases/download/{0}/libsepol-{0}.tar.gz".format(LIBSEPOL_VERSION),
+)
+
+LIBSELINUX_VERSION = "3.8"
+
+http_archive(
+    name = "libselinux",
+    build_file_content = all_content,
+    patch_args = ["-p2"],
+    patch_tool = "patch",
+    patches = [
+        "//deps/libselinux:patches/0002-don-t-include-the-prefix-twice-in-lib-include-dest-d.patch",
+    ],
+    sha256 = "0c3756bca047c9270281d7c4dcdecd000b72e38a183c930661eba9690839b541",
+    strip_prefix = "libselinux-{0}".format(LIBSELINUX_VERSION),
+    url = "https://github.com/SELinuxProject/selinux/releases/download/{0}/libselinux-{0}.tar.gz".format(LIBSELINUX_VERSION),
+)
+
+LIBXML2_VERSION = "2.12.6"
+
+http_archive(
+    name = "libxml2",
+    build_file_content = all_content,
+    sha256 = "889c593a881a3db5fdd96cc9318c87df34eb648edfc458272ad46fd607353fbb",
+    strip_prefix = "libxml2-{0}".format(LIBXML2_VERSION),
+    url = "https://download.gnome.org/sources/libxml2/2.12/libxml2-{0}.tar.xz".format(LIBXML2_VERSION),
+)
+
+LIBXSLT_VERSION = "1.1.39"
+
+http_archive(
+    name = "libxslt",
+    build_file_content = all_content,
+    patch_args = ["-p1"],
+    patch_tool = "patch",
+    patches = [
+        "//deps/libxslt:patches/0001-extensions-always-include-stdlib.h.patch",
+    ],
+    sha256 = "2a20ad621148339b0759c4d4e96719362dee64c9a096dbba625ba053846349f0",
+    strip_prefix = "libxslt-{0}".format(LIBXSLT_VERSION),
+    url = "https://download.gnome.org/sources/libxslt/1.1/libxslt-{0}.tar.xz".format(LIBXSLT_VERSION),
+)
+
+POPT_VERSION = "1.19"
+
+http_archive(
+    name = "popt",
+    build_file_content = all_content,
+    patch_args = ["-p1"],
+    patch_tool = "patch",
+    patches = [
+        "//deps/popt:patches/0001-remove-_init-_fini-from-exported-symbols.patch",
+    ],
+    sha256 = "c25a4838fc8e4c1c8aacb8bd620edb3084a3d63bf8987fdad3ca2758c63240f9",
+    strip_prefix = "popt-{0}".format(POPT_VERSION),
+    url = "http://ftp.rpm.org/popt/releases/popt-1.x/popt-{0}.tar.gz".format(POPT_VERSION),
+)
+
+ELFUTILS_VERSION = "0.192"
+
+http_archive(
+    name = "elfutils",
+    build_file_content = all_content,
+    patch_tool = "patch",
+    patches = [
+        # Patch the Makefile.in, not the makefile.am:
+        # patching the .am files requires autoconf to run, which requires configure_in_place to
+        # be specified.
+        # However when configuring & building in place, we end up including the "stack" binary
+        # that gets built by elfutils instead of the <stack> standard c++ header, due to "-I." and
+        # the fact that the built arfifacts are colocated with the sources
+        "//deps/elfutils:patches/elfutils-rpath-link-in.patch",
+    ],
+    sha256 = "616099beae24aba11f9b63d86ca6cc8d566d968b802391334c91df54eab416b4",
+    strip_prefix = "elfutils-{0}".format(ELFUTILS_VERSION),
+    url = "https://sourceware.org/elfutils/ftp/{0}/elfutils-{0}.tar.bz2".format(ELFUTILS_VERSION),
+)
+
+# Defines a zstd target for the lib
+bazel_dep(name = "zstd", version = "1.5.6")
+
+LIBDB_VERSION = "5.3.28"
+
+http_archive(
+    name = "libdb",
+    build_file_content = all_content,
+    patch_args = ["-p1"],
+    patch_tool = "patch",
+    patches = [
+        "//deps/libdb:patches/0002-fix-configure-checks.patch",
+    ],
+    sha256 = "e0a992d740709892e81f9d93f06daf305cf73fb81b545afe72478043172c3628",
+    strip_prefix = "db-{0}".format(LIBDB_VERSION),
+    url = "https://github.com/berkeleydb/libdb/releases/download/v{0}/db-{0}.tar.gz".format(LIBDB_VERSION),
+)
+
+# Defies a "liblua" target for the lib
+bazel_dep(name = "lua", version = "5.4.6")
+
+RPM_VERSION = "4.18.1"
+
+http_archive(
+    name = "rpm",
+    build_file_content = all_content,
+    sha256 = "37f3b42c0966941e2ad3f10fde3639824a6591d07197ba8fd0869ca0779e1f56",
+    strip_prefix = "rpm-{0}".format(RPM_VERSION),
+    url = "http://ftp.rpm.org/releases/rpm-4.18.x/rpm-{0}.tar.bz2".format(RPM_VERSION),
+)
+
+UTIL_LINUX_VERSION = "2.40.4"
+
+http_archive(
+    name = "util-linux",
+    build_file_content = all_content,
+    sha256 = "5b3b1435c02ba201ebaa5066bb391965a614b61721155dfb7f7b6569e95b0627",
+    strip_prefix = "util-linux-{0}".format(UTIL_LINUX_VERSION),
+    url = "https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v2.40/util-linux-{0}.tar.gz".format(UTIL_LINUX_VERSION),
+)
+
+NETTLE_VERSION = "3.9.1"
+
+http_archive(
+    name = "nettle",
+    build_file_content = all_content,
+    sha256 = "ccfeff981b0ca71bbd6fbcb054f407c60ffb644389a5be80d6716d5b550c6ce3",
+    strip_prefix = "nettle-{0}".format(NETTLE_VERSION),
+    url = "https://ftp.gnu.org/gnu/nettle/nettle-{0}.tar.gz".format(NETTLE_VERSION),
+)
+
+GMP_VERSION = "6.3.0"
+
+http_archive(
+    name = "gmp",
+    build_file_content = all_content,
+    sha256 = "a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898",
+    strip_prefix = "gmp-{0}".format(GMP_VERSION),
+    url = "https://ftp.dimensiondata.com/mirrors/ftp.gnu.org/gmp/gmp-{0}.tar.xz".format(GMP_VERSION),
+)
+
+LIBTASN1_VERSION = "4.19.0"
+
+http_archive(
+    name = "libtasn1",
+    build_file_content = all_content,
+    sha256 = "1613f0ac1cf484d6ec0ce3b8c06d56263cc7242f1c23b30d82d23de345a63f7a",
+    strip_prefix = "libtasn1-{0}".format(LIBTASN1_VERSION),
+    url = "https://ftp.gnu.org/gnu/libtasn1/libtasn1-{0}.tar.gz".format(LIBTASN1_VERSION),
+)
+
+GNUTLS_VERSION = "3.7.10"
+
+http_archive(
+    name = "gnutls",
+    build_file_content = all_content,
+    sha256 = "b6e4e8bac3a950a3a1b7bdb0904979d4ab420a81e74de8636dd50b467d36f5a9",
+    strip_prefix = "gnutls-{0}".format(GNUTLS_VERSION),
+    url = "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.7/gnutls-{0}.tar.xz".format(GNUTLS_VERSION),
+)
+
+XMLSEC_VERSION = "1.3.7"
+
+http_archive(
+    name = "xmlsec",
+    build_file_content = all_content,
+    sha256 = "d82e93b69b8aa205a616b62917a269322bf63a3eaafb3775014e61752b2013ea",
+    strip_prefix = "xmlsec1-{0}".format(XMLSEC_VERSION),
+    url = "https://github.com/lsh123/xmlsec/releases/download/{0}/xmlsec1-{0}.tar.gz".format(XMLSEC_VERSION),
+)
+
+OPENSCAP_VERSION = "1.3.10"
+
+http_archive(
+    name = "openscap",
+    build_file_content = all_content,
+    patch_args = ["-p1"],
+    patch_tool = "patch",
+    patches = [
+        "//deps/openscap:patches/fsdev-ignore-host.patch",
+        "//deps/openscap:patches/memusage-cgroup.patch",
+        "//deps/openscap:patches/oscap-io.patch",
+        "//deps/openscap:patches/oval_probe_session_reset.patch",
+        "//deps/openscap:patches/rpm-verbosity-err.patch",
+        "//deps/openscap:patches/session-print-syschar.patch",
+        "//deps/openscap:patches/systemd-dbus-address.patch",
+        "//deps/openscap:patches/0001-add-missing-include-dirs.patch",
+        "//deps/openscap:patches/0002-ensure-we-know-where-to-find-ACL-headers.patch",
+    ],
+    sha256 = "0d023ff3fbdec617768ea5977fd3bb6702dfef4ae595da9a5bbc6ecc6ac9e575",
+    strip_prefix = "openscap-{0}".format(OPENSCAP_VERSION),
+    url = "https://github.com/OpenSCAP/openscap/releases/download/{0}/openscap-{0}.tar.gz".format(OPENSCAP_VERSION),
+)
+
+LIBTOOL_VERSION = "2.5.4"
+
+http_archive(
+    name = "libtool",
+    build_file_content = all_content,
+    sha256 = "da8ebb2ce4dcf46b90098daf962cffa68f4b4f62ea60f798d0ef12929ede6adf",
+    strip_prefix = "libtool-{0}".format(LIBTOOL_VERSION),
+    url = "https://ftpmirror.gnu.org/libtool/libtool-{0}.tar.gz".format(LIBTOOL_VERSION),
+)

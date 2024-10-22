@@ -1,0 +1,34 @@
+From 9eee1a8995af94250b5ce429e4be908dbc363ec6 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Tue, 3 Dec 2024 08:39:39 +0100
+Subject: [PATCH] don't attempt to provide soname
+
+this isn't supported by zig
+---
+ Makefile.pre.in | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Makefile.pre.in b/Makefile.pre.in
+index 40951a8af7..c84303b6e6 100644
+--- a/Makefile.pre.in
++++ b/Makefile.pre.in
+@@ -817,14 +817,14 @@ $(LIBRARY): $(LIBRARY_OBJS)
+ 
+ libpython$(LDVERSION).so: $(LIBRARY_OBJS) $(DTRACE_OBJS)
+ 	if test $(INSTSONAME) != $(LDLIBRARY); then \
+-		$(BLDSHARED) -Wl,-h$(INSTSONAME) -o $(INSTSONAME) $(LIBRARY_OBJS) $(MODLIBS) $(SHLIBS) $(LIBC) $(LIBM); \
++		$(BLDSHARED) -o $(INSTSONAME) $(LIBRARY_OBJS) $(MODLIBS) $(SHLIBS) $(LIBC) $(LIBM); \
+ 		$(LN) -f $(INSTSONAME) $@; \
+ 	else \
+ 		$(BLDSHARED) -o $@ $(LIBRARY_OBJS) $(MODLIBS) $(SHLIBS) $(LIBC) $(LIBM); \
+ 	fi
+ 
+ libpython3.so:	libpython$(LDVERSION).so
+-	$(BLDSHARED) $(NO_AS_NEEDED) -o $@ -Wl,-h$@ $^
++	$(BLDSHARED) $(NO_AS_NEEDED) -o $@ $^
+ 
+ libpython$(LDVERSION).dylib: $(LIBRARY_OBJS)
+ 	 $(CC) -dynamiclib -Wl,-single_module $(PY_CORE_LDFLAGS) -undefined dynamic_lookup -Wl,-install_name,$(prefix)/lib/libpython$(LDVERSION).dylib -Wl,-compatibility_version,$(VERSION) -Wl,-current_version,$(VERSION) -o $@ $(LIBRARY_OBJS) $(DTRACE_OBJS) $(SHLIBS) $(LIBC) $(LIBM); \
+-- 
+2.34.1
+

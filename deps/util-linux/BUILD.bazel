@@ -1,0 +1,21 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name = "util-linux",
+    configure_options = [
+        "--disable-nls",
+        "--disable-asciidoc",
+        "--disable-all-programs",
+        "--enable-libblkid",
+        "--disable-static",
+    ],
+    lib_source = "@util-linux//:all",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libblkid.so",
+            "libblkid.so.1",
+            "libblkid.so.1.1.0",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+)

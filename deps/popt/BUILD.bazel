@@ -1,0 +1,19 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name = "popt",
+    configure_options = [
+        "--disable-static",
+        "--disable-nls",
+    ],
+    lib_source = "@popt//:all",
+    out_data_dirs = [
+        "lib/pkgconfig",
+    ],
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libpopt.so",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+)

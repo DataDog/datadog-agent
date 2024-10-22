@@ -1,0 +1,24 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name = "libxslt",
+    configure_options = [
+        "--with-libxml-prefix=$$EXT_BUILD_DEPS/libxml2",
+        "--without-python",
+        "--without-crypto",
+        "--without-profiler",
+        "--without-debugger",
+        "--disable-static",
+    ],
+    lib_source = "@libxslt//:all",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libxslt.so",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        "//deps/libxml2",
+        "@xz//:lzma",
+    ],
+)
