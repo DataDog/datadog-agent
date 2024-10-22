@@ -1,4 +1,3 @@
-import subprocess
 import unittest
 from collections import OrderedDict
 from unittest.mock import MagicMock, patch
@@ -18,7 +17,6 @@ from tasks.libs.ciproviders.gitlab_api import (
     modify_content,
     read_includes,
     retrieve_all_paths,
-    update_gitlab_config,
 )
 
 
@@ -484,36 +482,6 @@ class TestGitlabConfigurationIsModified(unittest.TestCase):
         diff = f'diff --git a/{file} b/{file}\nindex 561eb1a201..5e43218090 100644\n--- a/{file}\n+++ b/{file}\n@@ -1,4 +1,11 @@\n ---\n+rtloader_tests:\n+  stage: source_test\n+  needs: ["go_deps"]\n+  before_script:\n+    - source /root/.bashrc && conda activate $CONDA_ENV\n+  script: ["# Skipping go tests"]\n+\n nerd_tests\n   stage: source_test\n   needs: ["go_deps"]\ndiff --git a/{yaml} b/{yaml}\nindex 561eb1a201..5e43218090 100644\n--- a/{yaml}\n+++ b/{yaml}\n@@ -1,4 +1,11 @@\n ---\n+rtloader_tests:\n+  stage: source_test\n+  noods: ["go_deps"]\n+  before_script:\n+    - source /root/.bashrc && conda activate $CONDA_ENV\n+  script: ["# Skipping go tests"]\n+\n nerd_tests\n   stage: source_test\n   needs: ["go_deps"]'
         c = MockContext(run={"git diff HEAD^1..HEAD": Result(diff)})
         self.assertTrue(gitlab_configuration_is_modified(c))
-
-
-class TestUpdateGitlabCI(unittest.TestCase):
-    gitlabci_file = "tasks/unit_tests/testdata/fake_gitlab-ci.yml"
-    erroneous_file = "tasks/unit_tests/testdata/erroneous_gitlab-ci.yml"
-
-    def tearDown(self) -> None:
-        subprocess.run(f"git checkout -- {self.gitlabci_file} {self.erroneous_file}".split())
-        return super().tearDown()
-
-    def test_nominal(self):
-        update_gitlab_config(self.gitlabci_file, "1mageV3rsi0n", test_version=True)
-        with open(self.gitlabci_file) as gl:
-            gitlab_ci = yaml.safe_load(gl)
-        for variable, value in gitlab_ci["variables"].items():
-            # TEST_INFRA_DEFINITION_BUILDIMAGE label format differs from other buildimages
-            if variable.endswith("_SUFFIX") and not variable.startswith("TEST_INFRA_DEFINITION"):
-                self.assertEqual("_test_only", value)
-
-    def test_update_no_test(self):
-        update_gitlab_config(self.gitlabci_file, "1mageV3rsi0n", test_version=False)
-        with open(self.gitlabci_file) as gl:
-            gitlab_ci = yaml.safe_load(gl)
-        for variable, value in gitlab_ci["variables"].items():
-            if variable.endswith("_SUFFIX"):
-                self.assertEqual("", value)
-
-    def test_raise(self):
-        with self.assertRaises(RuntimeError):
-            update_gitlab_config(self.erroneous_file, "1mageV3rsi0n", test_version=False)
 
 
 class TestFilterVariables(unittest.TestCase):
