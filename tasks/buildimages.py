@@ -25,7 +25,7 @@ def update(_: Context, tag: str, images: str = "", test: bool = True):
     modified = update_gitlab_config(".gitlab-ci.yml", tag, images, test=test)
     message = ", ".join(modified)
     if images == "" or images == "all" or "circle" in images:
-        update_circleci_config(".circleci/config.yml", tag, test_version=test)
+        update_circleci_config(".circleci/config.yml", tag, test=test)
         message += ", circleci"
     print(f"Updated {message}")
 
@@ -49,7 +49,7 @@ def update_test_infra_definitions(ctx: Context, commit_sha: str, go_mod_only: bo
         "new_build_image_tag": "The new build image tag",
         "old_go_version": "The old Go version",
         "new_go_version": "The new Go version",
-        "test_version": "Flag to indicate if this is a test version",
+        "test": "Flag to indicate if this is a test version",
     },
     autoprint=True,
 )
@@ -59,13 +59,13 @@ def generate_pr_body(
     new_build_image_tag: str,
     old_go_version: str,
     new_go_version: str,
-    test_version: bool = False,
+    test: bool = False,
 ):
     """
     Generate the PR body used for buildimages-update Github workflow
     """
     buildimages_workflow_url = "https://github.com/DataDog/datadog-agent/actions/workflows/buildimages-update.yml"
-    test_version_str = "(test version)" if test_version else ""
+    test_version_str = "(test version)" if test else ""
     compare_url = f"https://github.com/DataDog/datadog-agent-buildimages/compare/{old_build_image_tag.split('-')[1]}...{new_build_image_tag.split('-')[1]}"
     pr_body = f"""This PR was automatically created by the [Update buildimages Github Workflow]({buildimages_workflow_url}).
 
@@ -87,6 +87,7 @@ This PR updates the current Golang version ([`{old_go_version}`]({old_go_version
 @task(
     help={
         "file_path": "path of the Gitlab configuration YAML file",
+        "image_type": "The type of image to get the tag for. Used for CI_IMAGE_ variables",
     },
     autoprint=True,
 )
@@ -112,9 +113,7 @@ def get_tag(_, file_path=".gitlab-ci.yml", image_type=None):
         available_images = set()
         for key in gitlab_ci["variables"].keys():
             if key.startswith("CI_IMAGE"):
-                available_images.add(
-                    key.removeprefix("CI_IMAGE_").replace("_VERSION", "").replace("_SUFFIX", "").casefold()
-                )
+                available_images.add(key.removeprefix("CI_IMAGE_").replace("_SUFFIX", "").casefold())
                 if image_type in key.casefold():
                     return gitlab_ci["variables"][key]
         raise Exit(

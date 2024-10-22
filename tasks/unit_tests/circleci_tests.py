@@ -23,7 +23,7 @@ class TestUpdateCircleCI(unittest.TestCase):
         return super().tearDown()
 
     def test_nominal(self):
-        update_circleci_config(self.circleci_test, "1m4g3", test_version=True)
+        update_circleci_config(self.circleci_test, "1m4g3", test=True)
         with open(self.circleci_test) as gl:
             circle_ci = yaml.safe_load(gl)
         full_image = circle_ci['templates']['job_template']['docker'][0]['image']
@@ -32,7 +32,7 @@ class TestUpdateCircleCI(unittest.TestCase):
         self.assertEqual("1m4g3", version)
 
     def test_update_no_test(self):
-        update_circleci_config(self.circleci_test, "1m4g3", test_version=False)
+        update_circleci_config(self.circleci_test, "1m4g3", test=False)
         with open(self.circleci_test) as gl:
             circle_ci = yaml.safe_load(gl)
         full_image = circle_ci['templates']['job_template']['docker'][0]['image']
@@ -42,4 +42,4 @@ class TestUpdateCircleCI(unittest.TestCase):
 
     def test_raise(self):
         with self.assertRaises(RuntimeError):
-            update_circleci_config(self.erroneous_file, "1m4g3", test_version=False)
+            update_circleci_config(self.erroneous_file, "1m4g3", test=False)
