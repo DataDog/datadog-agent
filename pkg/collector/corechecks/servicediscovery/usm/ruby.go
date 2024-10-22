@@ -6,6 +6,7 @@
 package usm
 
 import (
+	"fmt"
 	"io"
 	"io/fs"
 	"regexp"
@@ -56,8 +57,9 @@ func (r railsDetector) detect(_ []string) (ServiceMetadata, bool) {
 		return ServiceMetadata{}, false
 	}
 
-	name, ok := r.findRailsApplicationName(absFile)
-	if !ok {
+	name, err := r.findRailsApplicationName(absFile)
+	if err != nil {
+		log.Debugf("could not find ruby application name: %s", err)
 		return ServiceMetadata{}, false
 	}
 
@@ -66,33 +68,30 @@ func (r railsDetector) detect(_ []string) (ServiceMetadata, bool) {
 
 // findRailsApplicationName scans the `config/application.rb` file to find the
 // Rails application name.
-func (r railsDetector) findRailsApplicationName(filename string) (string, bool) {
+func (r railsDetector) findRailsApplicationName(filename string) (string, error) {
 	file, err := r.ctx.fs.Open(filename)
 	if err != nil {
-		log.Debugf("could not open application.rb")
-		return "", false
+		return "", fmt.Errorf("could not open application.rb: %w", err)
 	}
 	defer file.Close()
 
 	reader, err := SizeVerifiedReader(file)
 	if err != nil {
-		log.Debugf("skipping application.rb (%q): %v", filename, err)
-		return "", true
+		return "", fmt.Errorf("skipping application.rb (%q): %w", filename, err)
 	}
 
 	bytes, err := io.ReadAll(reader)
 	if err != nil {
-		log.Debugf("unable to read application.rb (%q): %v", filename, err)
-		return "", true
+		return "", fmt.Errorf("unable to read application.rb (%q): %w", filename, err)
 	}
 
 	matches := moduleRegexp.FindSubmatch(bytes)
 	if matches != nil {
-		return string(matches[1]), true
+		return string(matches[1]), nil
 	}
 
 	// No match found
-	return "", false
+	return "", fmt.Errorf("could not find Ruby module name")
 }
 
 // railsUnderscore converts a PascalCasedWord to a snake_cased_word.
