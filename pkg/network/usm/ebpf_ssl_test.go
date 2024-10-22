@@ -9,16 +9,18 @@ package usm
 
 import (
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/stretchr/testify/require"
 )
 
 func testArch(t *testing.T, arch string) {
@@ -55,4 +57,25 @@ func TestArchAmd64(t *testing.T) {
 
 func TestArchArm64(t *testing.T) {
 	testArch(t, "arm64")
+}
+
+func TestNativeShortLivedProcess(t *testing.T) {
+	cfg := config.New()
+	cfg.EnableNativeTLSMonitoring = true
+
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+
+	libmmap := filepath.Join(curDir, "testdata", "site-packages", "ddtrace")
+	lib := filepath.Join(libmmap, fmt.Sprintf("libssl.so.%s", runtime.GOARCH))
+
+	monitor := setupUSMTLSMonitor(t, cfg)
+	require.NotNil(t, monitor)
+
+	for i := 0; i < 10; i++ {
+		cmd := exec.Command("cat", lib)
+		require.NoError(t, cmd.Run())
+	}
+
+	require.False(t, utils.IsBlocked(t, "shared_libraries", lib))
 }
