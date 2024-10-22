@@ -86,12 +86,12 @@ func (r railsDetector) findRailsApplicationName(filename string) (string, error)
 	}
 
 	matches := moduleRegexp.FindSubmatch(bytes)
-	if matches != nil {
-		return string(matches[1]), nil
+	if len(matches) < 2 {
+		// No match found
+		return "", fmt.Errorf("could not find Ruby module name")
 	}
 
-	// No match found
-	return "", fmt.Errorf("could not find Ruby module name")
+	return string(matches[1]), nil
 }
 
 // railsUnderscore converts a PascalCasedWord to a snake_cased_word.
