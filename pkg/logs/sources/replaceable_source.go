@@ -32,7 +32,6 @@ func NewReplaceableSource(source *LogSource) *ReplaceableSource {
 func (r *ReplaceableSource) Replace(source *LogSource) {
 	r.Lock()
 	defer r.Unlock()
-	source.Status = r.source.Status
 	r.source = source
 }
 
