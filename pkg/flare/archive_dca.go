@@ -69,6 +69,7 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)                  //nolint:errcheck
 	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment) //nolint:errcheck
 	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)                          //nolint:errcheck
+	fb.AddFileFromFunc("datadog-agent-cr.yaml", getDatadogAgentManifest)           //nolint:errcheck
 	fb.AddFileFromFunc("envvars.log", getEnvVars)                                  //nolint:errcheck
 	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)                           //nolint:errcheck
 	fb.AddFileFromFunc("tagger-list.json", getDCATaggerList)                       //nolint:errcheck
