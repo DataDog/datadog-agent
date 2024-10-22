@@ -54,13 +54,14 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 		}
 	}
 
-	g.setNormalizationFactor()
+	normFactor := g.getNormalizationFactor()
 
 	stats := model.GPUStats{
 		ProcessStats: make(map[uint32]model.PIDStats),
 	}
 
 	for pid, aggr := range g.aggregators {
+		aggr.setGPUUtilizationNormalizationFactor(normFactor)
 		stats.ProcessStats[pid] = aggr.getStats()
 	}
 
@@ -85,17 +86,13 @@ func (g *statsGenerator) getOrCreateAggregator(streamKey model.StreamKey) *aggre
 // normalization. Because we compute the utilization based on the number of
 // threads launched by the kernel, we need to normalize the utilization if we
 // get above 100%, as the GPU can enqueue threads.
-func (g *statsGenerator) setNormalizationFactor() {
+func (g *statsGenerator) getNormalizationFactor() float64 {
 	totalGPUUtilization := 0.0
 	for _, aggr := range g.aggregators {
 		totalGPUUtilization += aggr.getGPUUtilization()
 	}
 
-	normFactor := max(1.0, totalGPUUtilization)
-
-	for _, aggr := range g.aggregators {
-		aggr.setGPUUtilizationNormalizationFactor(normFactor)
-	}
+	return max(1.0, totalGPUUtilization)
 }
 
 func (g *statsGenerator) cleanupFinishedAggregators() {
