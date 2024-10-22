@@ -14,6 +14,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry"
+	"github.com/Microsoft/go-winio"
 	"golang.org/x/sys/windows"
 )
 
@@ -66,7 +67,13 @@ func CreateInstallerDataDir() error {
 	// - Administrators: Full Control (propagates to children)
 	// - PROTECTED: does not inherit permissions from parent
 	sddl := "O:BAGBA:D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
-	err := createDirectoryAndResetTreeWithSDDL(datadogInstallerData, sddl)
+	// The following privileges are required to modify the security descriptor,
+	// and are granted to Administrators by default:
+	//  - SeTakeOwnershipPrivilege - Required to set the owner
+	privilegesRequired := []string{"SeTakeOwnershipPrivilege"}
+	err := winio.RunWithPrivileges(privilegesRequired, func() error {
+		return createDirectoryAndResetTreeWithSDDL(datadogInstallerData, sddl)
+	})
 	if err != nil {
 		return err
 	}
