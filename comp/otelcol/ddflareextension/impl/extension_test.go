@@ -61,7 +61,7 @@ func getTestExtension(t *testing.T) (ddflareextension.Component, error) {
 	info := component.NewDefaultBuildInfo()
 	cfg := getExtensionTestConfig(t)
 
-	return NewExtension(c, cfg, telemetry, info)
+	return NewExtensionForAgent(c, cfg, telemetry, info)
 }
 
 func getResponseToHandlerRequest(t *testing.T, tokenOverride string) *httptest.ResponseRecorder {
@@ -109,7 +109,7 @@ func getResponseToHandlerRequest(t *testing.T, tokenOverride string) *httptest.R
 	return rr
 }
 
-func TestNewExtension(t *testing.T) {
+func TestNewExtensionForAgent(t *testing.T) {
 	ext, err := getTestExtension(t)
 	assert.NoError(t, err)
 	assert.NotNil(t, ext)

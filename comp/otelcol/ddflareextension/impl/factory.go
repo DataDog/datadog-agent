@@ -12,6 +12,7 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
 
@@ -50,7 +51,9 @@ func NewFactoryForAgent(factories *otelcol.Factories, configProviderSettings ote
 // createExtension is used for creating extension with OCB
 func createExtension(ctx context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
 	config := &Config{
-		HTTPConfig: cfg.(*Config).HTTPConfig,
+		HTTPConfig:             cfg.(*Config).HTTPConfig,
+		factories:              &otelcol.Factories{},
+		configProviderSettings: otelcol.ConfigProviderSettings{ResolverSettings: confmap.ResolverSettings{URIs: []string{"test"}, ProviderFactories: []confmap.ProviderFactory{}}},
 	}
 	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo)
 }
@@ -62,7 +65,7 @@ func (f *ddExtensionFactory) CreateExtension(ctx context.Context, set extension.
 		configProviderSettings: f.configProviderSettings,
 	}
 	config.HTTPConfig = cfg.(*Config).HTTPConfig
-	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo)
+	return NewExtensionForAgent(ctx, config, set.TelemetrySettings, set.BuildInfo)
 }
 
 // createDefaultConfig is used for creating default configuration with OCB

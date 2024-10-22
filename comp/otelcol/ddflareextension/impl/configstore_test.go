@@ -56,7 +56,7 @@ func TestGetConfDump(t *testing.T) {
 		factories:              &factories,
 		configProviderSettings: newConfigProviderSettings(uriFromFile("simple-dd/config.yaml"), false),
 	}
-	extension, err := NewExtension(context.TODO(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{})
+	extension, err := NewExtensionForAgent(context.TODO(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{})
 	assert.NoError(t, err)
 
 	ext, ok := extension.(*ddExtension)

@@ -91,6 +91,7 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 		}
 
 		uri, err := extractor(exconf)
+		fmt.Sprintln("uri: ", uri)
 
 		var uris []string
 		switch extension.Type().String() {
@@ -126,8 +127,27 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 	return nil
 }
 
-// NewExtension creates a new instance of the extension.
+// NewExtension creates a new instance of the extension when building with ocb
 func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo) (extensionDef.Component, error) {
+	ext := &ddExtension{
+		cfg:         cfg,
+		telemetry:   telemetry,
+		info:        info,
+		configStore: &configStore{},
+		debug: extensionDef.DebugSourceResponse{
+			Sources: map[string]extensionDef.OTelFlareSource{},
+		},
+	}
+	var err error
+	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext)
+	if err != nil {
+		return nil, err
+	}
+	return ext, nil
+}
+
+// NewExtensionForAgent creates a new instance of the extension when building with Agent Fx.
+func NewExtensionForAgent(_ context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo) (extensionDef.Component, error) {
 	ocpProvided, err := otelcol.NewConfigProvider(cfg.configProviderSettings)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create configprovider: %w", err)

@@ -16,7 +16,7 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			extensionimpl.NewExtension,
+			extensionimpl.NewExtensionForAgent,
 		),
 		fxutil.ProvideOptional[extension.Component](),
 	)
