@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"path"
 	"regexp"
 	"strings"
 
@@ -53,7 +54,7 @@ func (r railsDetector) detect(_ []string) (ServiceMetadata, bool) {
 		return ServiceMetadata{}, false
 	}
 
-	absFile := abs("config/application.rb", cwd)
+	absFile := path.Join(cwd, "config/application.rb")
 	if _, err := fs.Stat(r.ctx.fs, absFile); err != nil {
 		return ServiceMetadata{}, false
 	}
