@@ -460,7 +460,6 @@ func getSharedFxOption() fx.Option {
 					"multi_region_failover.failover_metrics": internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_metrics", "Enable/disable redirection of metrics to failover region."),
 					"multi_region_failover.failover_logs":    internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_logs", "Enable/disable redirection of logs to failover region."),
 					"internal_profiling":                     commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"),
-					"enable_streamlogs":                      commonsettings.NewEnableStreamLogsRuntimeSetting(),
 				},
 				Config: config,
 			}
