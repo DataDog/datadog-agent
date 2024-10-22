@@ -84,6 +84,7 @@ type Destination struct {
 	expVars       *expvar.Map
 	telemetryName string
 	pipelineID    int
+	monitor       *metrics.UtilizationMonitor
 }
 
 // NewDestination returns a new Destination.
@@ -157,6 +158,7 @@ func newDestination(endpoint config.Endpoint,
 		telemetryName:       telemetryName,
 		isMRF:               endpoint.IsMRF,
 		pipelineID:          pipelineID,
+		monitor:             metrics.NewUtilizationMonitor("destination", strconv.Itoa(pipelineID)),
 	}
 }
 
@@ -191,6 +193,7 @@ func (d *Destination) run(input chan *message.Payload, output chan *message.Payl
 	var startIdle = time.Now()
 
 	for p := range input {
+		d.monitor.Start()
 		idle := float64(time.Since(startIdle) / time.Millisecond)
 		d.expVars.AddFloat(expVarIdleMsMapKey, idle)
 		tlmIdle.Add(idle, d.telemetryName)
@@ -202,6 +205,7 @@ func (d *Destination) run(input chan *message.Payload, output chan *message.Payl
 		d.expVars.AddFloat(expVarInUseMsMapKey, inUse)
 		tlmInUse.Add(inUse, d.telemetryName)
 		startIdle = time.Now()
+		d.monitor.Stop()
 	}
 	// Wait for any pending concurrent sends to finish or terminate
 	d.wg.Wait()

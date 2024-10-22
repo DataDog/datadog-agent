@@ -39,6 +39,7 @@ type Processor struct {
 	diagnosticMessageReceiver diagnostic.MessageReceiver
 	mu                        sync.Mutex
 	hostname                  hostnameinterface.Component
+	monitor                   *metrics.UtilizationMonitor
 
 	sds sdsProcessor
 }
@@ -74,6 +75,7 @@ func New(cfg pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message,
 		done:                      make(chan struct{}),
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 		hostname:                  hostname,
+		monitor:                   metrics.NewUtilizationMonitor("processor", strconv.Itoa(pipelineID)),
 
 		sds: sdsProcessor{
 			// will immediately starts buffering if it has been configured as so
@@ -137,6 +139,7 @@ func (p *Processor) run() {
 			if !ok { // channel has been closed
 				return
 			}
+			p.monitor.Start()
 			metrics.ReportComponentIngress(msg, "processor", strconv.Itoa(p.pipelineID))
 
 			// if we have to wait for an SDS configuration to start processing & forwarding
@@ -152,6 +155,7 @@ func (p *Processor) run() {
 			p.mu.Lock() // block here if we're trying to flush synchronously
 			//nolint:staticcheck
 			p.mu.Unlock()
+			p.monitor.Stop()
 
 		// SDS reconfiguration
 		// -------------------

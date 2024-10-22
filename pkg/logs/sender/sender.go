@@ -40,6 +40,7 @@ type Sender struct {
 	senderDoneChan chan *sync.WaitGroup
 	flushWg        *sync.WaitGroup
 	pipelineID     int
+	monitor        *metrics.UtilizationMonitor
 }
 
 // NewSender returns a new sender.
@@ -54,6 +55,7 @@ func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, ou
 		senderDoneChan: senderDoneChan,
 		flushWg:        flushWg,
 		pipelineID:     pipelineID,
+		monitor:        metrics.NewUtilizationMonitor("sender", strconv.Itoa(pipelineID)),
 	}
 }
 

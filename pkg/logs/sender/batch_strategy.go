@@ -39,6 +39,7 @@ type batchStrategy struct {
 	stopChan        chan struct{} // closed when the goroutine has finished
 	clock           clock.Clock
 	pipelineID      int
+	monitor         *metrics.UtilizationMonitor
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
@@ -85,6 +86,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 		pipelineName:    pipelineName,
 		clock:           clock,
 		pipelineID:      pipelineID,
+		monitor:         metrics.NewUtilizationMonitor("strategy", strconv.Itoa(pipelineID)),
 	}
 }
 
@@ -127,6 +129,8 @@ func (s *batchStrategy) Start() {
 }
 
 func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *message.Payload) {
+	s.monitor.Start()
+	defer s.monitor.Stop()
 	if m.Origin != nil {
 		m.Origin.LogSource.LatencyStats.Add(m.GetLatency())
 	}
@@ -147,6 +151,8 @@ func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *mess
 // flushBuffer sends all the messages that are stored in the buffer and forwards them
 // to the next stage of the pipeline.
 func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
+	s.monitor.Start()
+	defer s.monitor.Stop()
 	if s.buffer.IsEmpty() {
 		return
 	}
