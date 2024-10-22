@@ -404,7 +404,7 @@ func startRCService(functionARN string) *remoteconfig.CoreAgentService {
 		options...,
 	)
 	if err != nil {
-		log.Errorf("unable to create remote config service: %w", err)
+		log.Errorf("unable to create remote config service: %v", err)
 		return nil
 	}
 	configService.Start()
