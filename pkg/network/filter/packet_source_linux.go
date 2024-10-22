@@ -155,7 +155,14 @@ func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func(data []by
 			return err
 		}
 
-		pktInfo.PktType = stats.AncillaryData[0].(afpacket.AncillaryPktType).Type
+		for _, data := range stats.AncillaryData {
+			// if addPktType = true, AncillaryData will contain an AncillaryPktType element;
+			// however, it might not be the first element, so scan through.
+			pktType, ok := data.(afpacket.AncillaryPktType)
+			if ok {
+				pktInfo.PktType = pktType.Type
+			}
+		}
 		if err := visit(data, pktInfo, stats.Timestamp); err != nil {
 			return err
 		}
