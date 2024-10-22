@@ -1,0 +1,18 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name = "libffi",
+    configure_options = [
+        "--disable-doc",
+        "--disable-multi-os-directory",
+    ],
+    lib_source = "@libffi//:all",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libffi.so",
+            "libffi.so.8",
+            "libffi.so.8.1.4",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+)

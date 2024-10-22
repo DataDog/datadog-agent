@@ -1,0 +1,27 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name = "libxcrypt",
+    configure_options = [
+        "--disable-obsolete-api",
+        "--disable-werror",
+        "--enable-shared",
+        "--disable-static",
+        # https://github.com/besser82/libxcrypt/issues/181
+        "--disable-symvers",
+    ],
+    lib_source = "@libxcrypt//:all",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libcrypt.so",
+            "libcrypt.so.2",
+            "libcrypt.so.2.0.0",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        "@bzip2//:bz2",
+        "@xz//:lzma",
+        "@zlib",
+    ],
+)

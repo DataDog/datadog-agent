@@ -1,0 +1,24 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name = "gnutls",
+    configure_options = [
+        "--disable-non-suiteb-curves",
+        "--with-included-unistring",
+        "--without-p11-kit",
+        "--disable-hardware-acceleration",
+        "--disable-static",
+    ],
+    lib_source = "@gnutls//:all",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libgnutls.so",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        "//deps/gmp",
+        "//deps/libtasn1",
+        "//deps/nettle",
+    ],
+)

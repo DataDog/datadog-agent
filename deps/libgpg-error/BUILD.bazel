@@ -1,0 +1,19 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name = "libgpg-error",
+    configure_options = [
+        "--enable-maintainer-mode",
+        "--disable-tests",
+        "--disable-doc",
+        "--disable-languages",
+        "--disable-static",
+    ],
+    lib_source = "@libgpg-error//:all",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libgpg-error.so",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+)

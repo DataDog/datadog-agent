@@ -1,0 +1,12 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "make")
+
+make(
+    name = "libsepol",
+    lib_source = "@libsepol//:all",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libsepol.so.2",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+)

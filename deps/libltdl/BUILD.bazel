@@ -1,0 +1,16 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name = "libltdl",
+    configure_options = [
+    ],
+    lib_source = "@libtool//:all",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libltdl.so.7.3.3",
+            "libltdl.so.7",
+            "libltdl.so",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+)

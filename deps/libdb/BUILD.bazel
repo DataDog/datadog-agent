@@ -1,0 +1,16 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name = "libdb",
+    configure_command = "dist/configure",
+    configure_options = [
+        "--disable-static",
+    ],
+    lib_source = "@libdb//:all",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libdb.so",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+)

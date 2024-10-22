@@ -1,0 +1,16 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name = "libattr",
+    configure_options = [
+        "--disable-static",
+        "--disable-nls",
+    ],
+    lib_source = "@libattr//:all",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libattr.so",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,55 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    # naming this "rpm" would cause issues with the makefiles which attempt to
+    # remove the "rpm" bin, while it would be a directory
+    name = "librpm",
+    configure_options = [
+        "--enable-sqlite=yes",
+        "--enable-bdb-ro=yes",
+        "--disable-nls",
+        "--disable-openmp",
+        "--disable-plugins",
+        "--without-archive",
+        "--without-selinux",
+        "--without-imaevm",
+        "--without-cap",
+        "--without-acl",
+        "--without-audit",
+        "--without-readline",
+        "--with-crypto=openssl",
+        "--localstatedir=/var",
+        "--disable-static",
+    ],
+    env = {
+        "SQLITE_CFLAGS": "-I$$EXT_BUILD_DEPS/include",
+        "SQLITE_LIBS": "-L$$EXT_BUILD_DEPS/lib -lsqlite3",
+        "LUA_CFLAGS": "-I$$EXT_BUILD_DEPS/include",
+        "LUA_LIBS": "-L$$EXT_BUILD_DEPS/lib -lliblua",
+    },
+    lib_source = "@rpm//:all",
+    out_data_dirs = [
+        "lib/pkgconfig",
+    ],
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "librpmio.so.9.4.0",
+            "librpmio.so.9",
+            "librpmio.so",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        "//deps/elfutils",
+        "//deps/file",
+        "//deps/libdb",
+        "//deps/libgcrypt",
+        "//deps/libgpg-error",
+        "//deps/openssl",
+        "//deps/popt",
+        "@lua//:liblua",
+        "@sqlite3",
+        "@zlib",
+        "@zstd",
+    ],
+)
