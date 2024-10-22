@@ -17,7 +17,7 @@ import (
 )
 
 // StreamHandler is responsible for receiving events from a single CUDA stream and generating
-// stats from them.
+// kernel spans and memory allocations from them.
 type StreamHandler struct {
 	kernelLaunches []gpuebpf.CudaKernelLaunch
 	memAllocEvents map[uint64]gpuebpf.CudaMemEvent
@@ -134,6 +134,8 @@ func (sh *StreamHandler) getPastData(flush bool) *model.StreamData {
 	return data
 }
 
+// getCurrentData returns the current state of the stream (kernels that are still running, and allocations that haven't been freed)
+// as this data needs to be treated differently from past/finished data.
 func (sh *StreamHandler) getCurrentData(now uint64) *model.StreamData {
 	if len(sh.kernelLaunches) == 0 && len(sh.memAllocEvents) == 0 {
 		return nil

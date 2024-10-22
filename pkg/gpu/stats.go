@@ -11,7 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 )
 
-// statsGenerator connects to the active stream handlers and generates stats for the GPU monitoring.
+// statsGenerator connects to the active stream handlers and generates stats for the GPU monitoring, by distributing
+// the data to the aggregators which are responsible for computing the metrics.
 type statsGenerator struct {
 	streamHandlers      map[model.StreamKey]*StreamHandler // streamHandlers contains the map of active stream handlers.
 	lastGenerationKTime int64                              // lastGenerationTime is the kernel time of the last stats generation.
@@ -30,6 +31,8 @@ func newStatsGenerator(sysCtx *systemContext, currKTime int64, streamHandlers ma
 	}
 }
 
+// getStats takes data from all active stream handlers, aggregates them and returns the per-process GPU stats.
+// This function gets called by the Probe when it receives a data request in the GetAndFlush method
 func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	g.currGenerationKTime = nowKtime
 
@@ -72,14 +75,17 @@ func (g *statsGenerator) getOrCreateAggregator(streamKey model.StreamKey) *aggre
 		g.aggregators[aggKey] = newAggregator(g.sysCtx)
 	}
 
+	// Update the last check time and the measured interval, as these change between check runs
 	g.aggregators[aggKey].lastCheckKtime = uint64(g.lastGenerationKTime)
 	g.aggregators[aggKey].measuredIntervalNs = g.currGenerationKTime - g.lastGenerationKTime
 	return g.aggregators[aggKey]
 }
 
+// getNormalizationFactor returns the factor to use for utilization
+// normalization. Because we compute the utilization based on the number of
+// threads launched by the kernel, we need to normalize the utilization if we
+// get above 100%, as the GPU can enqueue threads.
 func (g *statsGenerator) setNormalizationFactor() {
-	// As we compute the utilization based on the number of threads launched by the kernel, we need to
-	// normalize the utilization if we get above 100%, as the GPU can enqueue threads.
 	totalGPUUtilization := 0.0
 	for _, aggr := range g.aggregators {
 		totalGPUUtilization += aggr.getGPUUtilization()

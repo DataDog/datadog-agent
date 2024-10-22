@@ -58,7 +58,9 @@ type Probe struct {
 	sysCtx         *systemContext
 }
 
-// NewProbe starts the GPU monitoring probe
+// NewProbe starts the GPU monitoring probe, setting up the eBPF program and the uprobes, the
+// consumers for the events generated from the uprobes, and the stats generator to aggregate the data from
+// streams into per-process GPU stats.
 func NewProbe(cfg *Config, deps ProbeDependencies) (*Probe, error) {
 	log.Debugf("starting GPU monitoring probe...")
 	kv, err := kernel.HostVersion()
@@ -226,6 +228,6 @@ func (p *Probe) startEventConsumer() {
 		},
 	}
 	p.mgr.RingBuffers = append(p.mgr.RingBuffers, rb)
-	p.consumer = NewCudaEventConsumer(handler, p.cfg)
+	p.consumer = newCudaEventConsumer(handler, p.cfg)
 	p.consumer.Start()
 }

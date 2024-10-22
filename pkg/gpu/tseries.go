@@ -9,7 +9,8 @@ import (
 	"slices"
 )
 
-// tseriesBuilder is a helper to build a time series of events with duration
+// tseriesBuilder is a helper to get the last value and the max value of a timeseries, without actually having
+// to store the entire timeseries.
 type tseriesBuilder struct {
 	points []tsPoint
 }
