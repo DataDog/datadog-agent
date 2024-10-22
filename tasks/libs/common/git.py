@@ -45,9 +45,54 @@ def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterabl
                 yield file
 
 
+def get_file_modifications(
+    ctx, base_branch=None, added=False, modified=False, removed=False, only_names=False, no_renames=False
+) -> list[tuple[str, str]]:
+    """Gets file status changes for the current branch compared to the base branch.
+
+    If no filter is provided, will return all the files.
+
+    Args:
+        added: Include added files
+        modified: Include modified files
+        removed: Include removed files
+        only_names: Return only the file names without the status
+        no_renames: Do not include renamed files
+
+    Returns:
+        A list of (status, filename)
+    """
+
+    from tasks.libs.releasing.json import _get_release_json_value
+
+    base_branch = base_branch or _get_release_json_value('base_branch')
+
+    last_main_commit = ctx.run(f"git merge-base HEAD origin/{base_branch}", hide=True).stdout.strip()
+
+    flags = '--no-renames' if no_renames else ''
+
+    modifications = [
+        line.split('\t')
+        for line in ctx.run(f"git diff --name-status {flags} {last_main_commit}", hide=True).stdout.splitlines()
+    ]
+
+    if added or modified or removed:
+        modifications = [
+            (status, file)
+            for status, file in modifications
+            if (added and status == "A") or (modified and status in "MCRT") or (removed and status == "D")
+        ]
+
+    if only_names:
+        modifications = [file for _, file in modifications]
+
+    return modifications
+
+
 def get_modified_files(ctx, base_branch="main") -> list[str]:
-    last_main_commit = ctx.run(f"git merge-base HEAD origin/{base_branch}", hide=True).stdout
-    return ctx.run(f"git diff --name-only --no-renames {last_main_commit}", hide=True).stdout.splitlines()
+    return get_file_modifications(
+        ctx, base_branch=base_branch, added=True, modified=True, only_names=True, no_renames=True
+    )
 
 
 def get_current_branch(ctx) -> str:

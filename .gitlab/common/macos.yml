@@ -27,6 +27,6 @@
     # Installing the job dependencies
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt
     - pyenv rehash
-    - inv -e rtloader.make --python-runtimes $PYTHON_RUNTIMES
+    - inv -e rtloader.make
     - inv -e rtloader.install
     - inv -e install-tools

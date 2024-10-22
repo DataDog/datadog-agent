@@ -13,8 +13,8 @@ import (
 	"os"
 	"sync"
 
+	"github.com/cihub/seelog"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
-
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
@@ -171,7 +171,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 		}
 
 		// we are calling `deactivationCB` here as some uprobes could be already attached
-		err = deactivationCB(FilePath{ID: pathID})
+		_ = deactivationCB(FilePath{ID: pathID})
 		if r.blocklistByID != nil {
 			// add `pathID` to blocklist so we don't attempt to re-register files
 			// that are problematic for some reason
@@ -244,7 +244,9 @@ func (r *FileRegistry) GetRegisteredProcesses() map[uint32]struct{} {
 
 // Log state of `FileRegistry`
 func (r *FileRegistry) Log() {
-	log.Debugf("file_registry summary: program=%s %s", r.telemetry.programName, r.telemetry.metricGroup.Summary())
+	if log.ShouldLog(seelog.DebugLvl) {
+		log.Debugf("file_registry summary: program=%s %s", r.telemetry.programName, r.telemetry.metricGroup.Summary())
+	}
 }
 
 // Clear removes all registrations calling their deactivation callbacks

@@ -8,6 +8,11 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Favor finding Python by location rather than by version
+if (POLICY CMP0094)
+    cmake_policy(SET CMP0094 NEW)
+endif()
+
 if(WIN32)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin )
     SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -mwin32")
@@ -19,17 +24,10 @@ if(ARCH_I386)
 endif()
 
 ## Config options
-option(DISABLE_PYTHON2 "Do not build Python2 support")
-option(DISABLE_PYTHON3 "Do not build Python3 support")
 option(BUILD_DEMO "Build the demo app" ON)
 
 ## Add Build Targets
-if (NOT DISABLE_PYTHON2)
-    add_subdirectory(two)
-endif()
-if (NOT DISABLE_PYTHON3)
-    add_subdirectory(three)
-endif()
+add_subdirectory(three)
 add_subdirectory(rtloader)
 add_subdirectory(test)
 if (BUILD_DEMO)

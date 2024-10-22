@@ -332,11 +332,6 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		return nil, err
 	}
 
-	envs, err := getEnvs(proc)
-	if err != nil {
-		return nil, err
-	}
-
 	exe, err := proc.Exe()
 	if err != nil {
 		return nil, err
@@ -347,16 +342,26 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		return nil, err
 	}
 
-	contextMap := make(usm.DetectorContextMap)
-	contextMap[usm.ServiceProc] = proc
-
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
 	lang := language.FindInArgs(exe, cmdline)
 	if lang == "" {
 		lang = language.FindUsingPrivilegedDetector(s.privilegedDetector, proc.Pid)
 	}
-	nameMeta := servicediscovery.GetServiceName(cmdline, envs, root, lang, contextMap)
-	apmInstrumentation := apm.Detect(int(proc.Pid), cmdline, envs, lang, contextMap)
+	env, err := getTargetEnvs(proc)
+	if err != nil {
+		return nil, err
+	}
+
+	contextMap := make(usm.DetectorContextMap)
+	contextMap[usm.ServiceProc] = proc
+
+	fs := usm.NewSubDirFS(root)
+	ctx := usm.NewDetectionContext(cmdline, env, fs)
+	ctx.Pid = int(proc.Pid)
+	ctx.ContextMap = contextMap
+
+	nameMeta := servicediscovery.GetServiceName(lang, ctx)
+	apmInstrumentation := apm.Detect(lang, ctx)
 
 	return &serviceInfo{
 		generatedName:      nameMeta.Name,

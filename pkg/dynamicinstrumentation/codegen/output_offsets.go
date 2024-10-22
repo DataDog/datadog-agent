@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && arm64
+//go:build linux_bpf
 
 package codegen
 
@@ -61,9 +61,11 @@ func flattenParameters(params []ditypes.Parameter) []ditypes.Parameter {
 	flattenedParams := []ditypes.Parameter{}
 	for i := range params {
 		kind := reflect.Kind(params[i].Kind)
-		if kind == reflect.Slice {
+		if kind == reflect.Slice || kind == reflect.String {
 			// Slices don't get flattened as we need the underlying type.
 			// We populate the slice's template using that type.
+			//
+			// Strings also don't get flattened as we need the underlying length.
 			flattenedParams = append(flattenedParams, params[i])
 		} else if hasHeader(kind) {
 			paramHeader := params[i]

@@ -259,7 +259,7 @@ func bootstrapCommand() *cobra.Command {
 			return bootstrapper.Bootstrap(ctx, b.env)
 		},
 	}
-	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to bootstrap with")
+	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 10*time.Minute, "timeout to bootstrap with")
 	return cmd
 }
 
@@ -277,7 +277,7 @@ func setupCommand() *cobra.Command {
 			return installer.Setup(ctx, cmd.env)
 		},
 	}
-	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to install with")
+	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 10*time.Minute, "timeout to install with")
 	return cmd
 }
 

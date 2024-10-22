@@ -24,7 +24,6 @@ func runtimeAfterFork()
 func runtimeAfterForkInChild()
 
 //go:norace
-//nolint:unused
 func forkExec(argv0 string, argv []string, envv []string, creds Creds, prog *syscall.SockFprog) (int, error) {
 	argv0p, err := syscall.BytePtrFromString(argv0)
 	if err != nil {
@@ -41,6 +40,20 @@ func forkExec(argv0 string, argv []string, envv []string, creds Creds, prog *sys
 		return 0, err
 	}
 
+	pid, errno := forkExec1(argv0p, argvp, envvp, creds, prog)
+	if errno != 0 {
+		exit(errno)
+	}
+
+	return pid, nil
+}
+
+// forkExec1 does the actual forking and execing, it should have the smallest possible stack to not overflow
+// because of the `nosplit`
+//
+//go:norace
+//go:nosplit
+func forkExec1(argv0 *byte, argv []*byte, envv []*byte, creds Creds, prog *syscall.SockFprog) (int, syscall.Errno) {
 	syscall.ForkLock.Lock()
 
 	// no more go runtime calls
@@ -52,11 +65,7 @@ func forkExec(argv0 string, argv []string, envv []string, creds Creds, prog *sys
 		runtimeAfterFork()
 
 		syscall.ForkLock.Unlock()
-
-		if errno != 0 {
-			err = errno
-		}
-		return int(pid), err
+		return int(pid), errno
 	}
 
 	// in the child, no more go runtime calls
@@ -64,17 +73,17 @@ func forkExec(argv0 string, argv []string, envv []string, creds Creds, prog *sys
 
 	pid, _, errno = syscall.RawSyscall(syscall.SYS_GETPID, 0, 0, 0)
 	if errno != 0 {
-		exit(errno)
+		return 0, errno
 	}
 
 	_, _, errno = syscall.RawSyscall(syscall.SYS_PTRACE, uintptr(syscall.PTRACE_TRACEME), 0, 0)
 	if errno != 0 {
-		exit(errno)
+		return 0, errno
 	}
 
 	_, _, errno = syscall.RawSyscall6(syscall.SYS_PRCTL, unix.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0, 0)
 	if errno != 0 {
-		exit(errno)
+		return 0, errno
 	}
 
 	const (
@@ -85,19 +94,19 @@ func forkExec(argv0 string, argv []string, envv []string, creds Creds, prog *sys
 	if prog != nil {
 		_, _, errno = syscall.RawSyscall(unix.SYS_SECCOMP, mode, tsync, uintptr(unsafe.Pointer(prog)))
 		if errno != 0 {
-			exit(errno)
+			return 0, errno
 		}
 	}
 
 	_, _, errno = syscall.RawSyscall(syscall.SYS_KILL, pid, uintptr(syscall.SIGSTOP), 0)
 	if errno != 0 {
-		exit(errno)
+		return 0, errno
 	}
 
 	if creds.GID != nil {
 		_, _, errno = syscall.RawSyscall(syscall.SYS_SETGID, uintptr(*creds.GID), 0, 0)
 		if errno != 0 {
-			exit(errno)
+			return 0, errno
 		}
 
 	}
@@ -105,21 +114,18 @@ func forkExec(argv0 string, argv []string, envv []string, creds Creds, prog *sys
 	if creds.UID != nil {
 		_, _, errno = syscall.RawSyscall(syscall.SYS_SETUID, uintptr(*creds.UID), 0, 0)
 		if errno != 0 {
-			exit(errno)
+			return 0, errno
 		}
 	}
 
-	_, _, err = syscall.RawSyscall(syscall.SYS_EXECVE,
-		uintptr(unsafe.Pointer(argv0p)),
-		uintptr(unsafe.Pointer(&argvp[0])),
-		uintptr(unsafe.Pointer(&envvp[0])))
+	_, _, errno = syscall.RawSyscall(syscall.SYS_EXECVE,
+		uintptr(unsafe.Pointer(argv0)),
+		uintptr(unsafe.Pointer(&argv[0])),
+		uintptr(unsafe.Pointer(&envv[0])))
 
-	return 0, err
+	return 0, errno
 }
 
-//nolint:unused
 func exit(errno syscall.Errno) {
-	for {
-		_, _, _ = syscall.RawSyscall(syscall.SYS_EXIT, uintptr(errno), 0, 0)
-	}
+	_, _, _ = syscall.RawSyscall(syscall.SYS_EXIT, uintptr(errno), 0, 0)
 }
