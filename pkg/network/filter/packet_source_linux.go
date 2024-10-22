@@ -155,8 +155,7 @@ func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func(data []by
 			return err
 		}
 
-		foo := append([]interface{}{afpacket.AncillaryVLAN{VLAN: 0}}, stats.AncillaryData...)
-		for _, data := range foo {
+		for _, data := range stats.AncillaryData {
 			// if addPktType = true, AncillaryData will contain an AncillaryPktType element;
 			// however, it might not be the first element, so scan through.
 			pktType, ok := data.(afpacket.AncillaryPktType)
