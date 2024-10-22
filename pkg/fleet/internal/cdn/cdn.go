@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"regexp"
-	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 )
@@ -42,13 +41,12 @@ type CDN interface {
 // New creates a new CDN.
 func New(env *env.Env, configDBPath string) (CDN, error) {
 	if !env.RemotePolicies {
-		return nil, nil
+		return newNoop()
 	}
 	if env.CDNLocalDirPath != "" {
 		return newLocal(env)
 	}
-	if !env.CDNEnabled && runtime.GOOS != "windows" {
-		// Windows can't use the direct CDN yet as it breaks the static binary build
+	if !env.CDNEnabled {
 		return newDirect(env, configDBPath)
 	}
 	return newRegular(env, configDBPath)
