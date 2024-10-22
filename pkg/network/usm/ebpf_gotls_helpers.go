@@ -49,26 +49,26 @@ type goTLSBinaryInspector struct {
 var _ uprobes.BinaryInspector = &goTLSBinaryInspector{}
 
 // Inspect extracts the metadata required to attach to a Go binary from the ELF file at the given path.
-func (p *goTLSBinaryInspector) Inspect(fpath utils.FilePath, requests []uprobes.SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error) {
+func (p *goTLSBinaryInspector) Inspect(fpath utils.FilePath, requests []uprobes.SymbolRequest) (map[string]bininspect.FunctionMetadata, error) {
 	start := time.Now()
 
 	path := fpath.HostPath
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, false, fmt.Errorf("could not open file %s, %w", path, err)
+		return nil, fmt.Errorf("could not open file %s, %w", path, err)
 	}
 	defer f.Close()
 
 	elfFile, err := elf.NewFile(f)
 	if err != nil {
-		return nil, false, fmt.Errorf("file %s could not be parsed as an ELF file: %w", path, err)
+		return nil, fmt.Errorf("file %s could not be parsed as an ELF file: %w", path, err)
 	}
 
 	functionsConfig := make(map[string]bininspect.FunctionConfiguration, len(requests))
 	for _, req := range requests {
 		lookupFunc, ok := p.paramLookupFunctions[req.Name]
 		if !ok {
-			return nil, false, fmt.Errorf("no parameter lookup function found for function %s", req.Name)
+			return nil, fmt.Errorf("no parameter lookup function found for function %s", req.Name)
 		}
 
 		functionsConfig[req.Name] = bininspect.FunctionConfiguration{
@@ -82,17 +82,17 @@ func (p *goTLSBinaryInspector) Inspect(fpath utils.FilePath, requests []uprobes.
 		if errors.Is(err, elf.ErrNoSymbols) {
 			p.binNoSymbolsMetric.Add(1)
 		}
-		return nil, false, fmt.Errorf("error extracting inspection data from %s: %w", path, err)
+		return nil, fmt.Errorf("error extracting inspection data from %s: %w", path, err)
 	}
 
 	if err := p.addInspectionResultToMap(fpath.ID, inspectionResult); err != nil {
-		return nil, false, fmt.Errorf("failed adding inspection rules: %w", err)
+		return nil, fmt.Errorf("failed adding inspection rules: %w", err)
 	}
 
 	elapsed := time.Since(start)
 	p.binAnalysisMetric.Add(elapsed.Milliseconds())
 
-	return inspectionResult.Functions, true, nil
+	return inspectionResult.Functions, nil
 }
 
 // Cleanup removes the inspection result for the binary at the given path from the map.
