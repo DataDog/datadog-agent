@@ -8,13 +8,14 @@
     # Selecting the current Go version
     - |
       eval $(gimme $(cat .go-version))
-      export GOPATH=$GOROOT`
+      export GOPATH=$GOROOT
     # Selecting the current Python version
     - |
       pyenv virtualenv $PYTHON_VERSION datadog-agent-python-$PYTHON_VERSION
       pyenv activate datadog-agent-python-$PYTHON_VERSION
     - !reference [.check_right_python_version]
-    - !reference [.list_go_versions, .list_python_versions]
+    - !reference [.list_go_versions]
+    - !reference [.list_python_versions]
     # Installing the job dependencies
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt
     - pyenv rehash
