@@ -87,7 +87,7 @@ func TestNativeShortLivedProcess(t *testing.T) {
 	monitor := setupUSMTLSMonitor(t, cfg)
 	require.NotNil(t, monitor)
 
-	pids := make([]uint32, 10)
+	pids := make([]uint32, 0, 10)
 	for i := 0; i < 10; i++ {
 		cmd := exec.Command("cat", lib)
 		require.NoError(t, cmd.Run())
