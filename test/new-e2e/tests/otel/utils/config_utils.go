@@ -89,8 +89,8 @@ func validateConfigs(t *testing.T, expectedCfg string, actualCfg string) {
 	var actualConfRaw map[string]any
 	require.NoError(t, yaml.Unmarshal([]byte(actualCfg), &actualConfRaw))
 
-	// traces, metrics and logs endpoints are set to the fake intake address in the config
-	// these endpoints should be ignored in the comparison
+	// Traces, metrics and logs endpoints are set dynamically to the fake intake address in the config
+	// These endpoints vary from test to test and should be ignored in the comparison
 	exps, _ := actualConfRaw["exporters"].(map[string]any)
 	ddExp, _ := exps["datadog"].(map[string]any)
 	tcfg := ddExp["traces"].(map[string]any)
@@ -100,8 +100,9 @@ func validateConfigs(t *testing.T, expectedCfg string, actualCfg string) {
 	lcfg := ddExp["logs"].(map[string]any)
 	delete(lcfg, "endpoint")
 
-	var expectedConfRaw map[string]any
-	require.NoError(t, yaml.Unmarshal([]byte(expectedCfg), &expectedConfRaw))
+	actualCfgBytes, err := yaml.Marshal(actualConfRaw)
+	require.NoError(t, err)
+	actualCfg = string(actualCfgBytes)
 
-	assert.Equal(t, expectedConfRaw, actualConfRaw)
+	assert.YAMLEq(t, expectedCfg, actualCfg)
 }
