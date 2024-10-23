@@ -56,7 +56,7 @@ func newCheck() check.Check {
 func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
 	if err := m.CommonConfigure(senderManager, initConfig, config, source); err != nil {
 		return err
-	}
+
 	if err := yaml.Unmarshal(config, m.config); err != nil {
 		return fmt.Errorf("invalid gpu check config: %w", err)
 	}
@@ -89,14 +89,13 @@ func (m *Check) Run() error {
 	if err != nil {
 		return fmt.Errorf("get metric sender: %w", err)
 	}
+	// Commit the metrics even in case of an error
+	defer snd.Commit()
 
 	sysprobeData, err := m.sysProbeUtil.GetCheck(sysconfig.GPUMonitoringModule)
 	if err != nil {
 		return fmt.Errorf("cannot get data from system-probe: %w", err)
 	}
-
-	// Commit the metrics even in case of an error
-	defer snd.Commit()
 
 	stats, ok := sysprobeData.(model.GPUStats)
 	if !ok {
