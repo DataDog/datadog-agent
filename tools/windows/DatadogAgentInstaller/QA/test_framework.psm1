@@ -146,7 +146,7 @@ class TestSuite {
                     }
                     Write-Host "Ok recording has stopped"
                 }
-                Copy-Item -Path "C:\$Using:defenderEtlFile" -Destination $PSScriptRoot\$defenderEtlFile -FromSession (New-PSSession -VMName $context.VMName -Credential $context.VMCredentials)
+                Copy-Item -Path "C:\$defenderEtlFile" -Destination $PSScriptRoot\$defenderEtlFile -FromSession (New-PSSession -VMName $context.VMName -Credential $context.VMCredentials)
                 Get-MpPerformanceReport -Path $PSScriptRoot\$defenderEtlFile -TopScans:10 -TopProcesses:10 -TopExtensions:10
             }
         }
