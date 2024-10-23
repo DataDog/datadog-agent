@@ -18,3 +18,8 @@ func GetSystemProbeConntrackCached(_ string) ([]byte, error) {
 func GetSystemProbeConntrackHost(_ string) ([]byte, error) {
 	return nil, errors.New("GetSystemProbeConntrackHost is not supported without the process agent on linux")
 }
+
+// GetSystemProbeBTFLoaderInfo is not supported without the process agent on linux
+func GetSystemProbeBTFLoaderInfo(socketPath string) ([]byte, error) {
+	return nil, errors.New("GetSystemProbeBTFLoaderInfo is not supported without the process agent on linux")
+}
