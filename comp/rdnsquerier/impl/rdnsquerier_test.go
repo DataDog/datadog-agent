@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Test that the rdnsQuerier starts and stops as expected.
@@ -1002,56 +1003,70 @@ func TestGetHostnameSync(t *testing.T) {
 	ts := testSetup(t, overrides, true, nil, 0)
 	internalRDNSQuerier := ts.rdnsQuerier.(*rdnsQuerierImpl)
 
-	// Vic to reformat this test
-	// tests := []struct {
-	// 	description string
-	// 	ip          string
-	// 	expected    string
-	// 	errMsg      string
-	// }{
-	// 	{},
-	// }
+	tts := map[string]struct {
+		ip       string
+		timeout  time.Duration
+		expected string
+		errMsg   string
+	}{
+		"invalid_ip should error": {
+			ip:       "invalid_ip",
+			timeout:  1 * time.Second,
+			expected: "",
+			errMsg:   "invalid IP address",
+		},
+		"public IPv4 should return empty no error": {
+			ip:       "8.8.8.8",
+			timeout:  1 * time.Second,
+			expected: "",
+			errMsg:   "",
+		},
+		"private IPv4 not in cache should return hostname": {
+			ip:       "192.168.1.100",
+			timeout:  1 * time.Second,
+			expected: "fakehostname-192.168.1.100",
+			errMsg:   "",
+		},
+		"private IPv4 in cache should return hostname": {
+			ip:       "192.168.1.100",
+			timeout:  1 * time.Second,
+			expected: "fakehostname-192.168.1.100",
+			errMsg:   "",
+		},
+		"public IPv6 should return empty no error": {
+			ip:       "2001:4860:4860::8888",
+			timeout:  1 * time.Second,
+			expected: "",
+			errMsg:   "",
+		},
+		"private IPv6 not in cache should return hostname": {
+			ip:       "fd00::1",
+			timeout:  1 * time.Second,
+			expected: "fakehostname-fd00::1",
+			errMsg:   "",
+		},
+		"private IPv6 in cache should return hostname": {
+			ip:       "fd00::1",
+			timeout:  1 * time.Second,
+			expected: "fakehostname-fd00::1",
+			errMsg:   "",
+		},
+	}
 
-	ctx, cancel := context.WithTimeout(ts.ctx, 100*time.Second)
-	var hostname string
-	var err error
-
-	// // Test with invalid IP address
-	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "invalid_ip")
-	assert.Error(t, err)
-	assert.Equal(t, "", hostname)
-
-	//Test with IP address not in private range
-	// hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "8.8.8.8")
-	// assert.Error(t, err)
-	// assert.Equal(t, "", hostname)
-
-	// // Test with IP address in private range
-	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "192.168.1.100")
-	assert.NoError(t, err)
-	assert.Equal(t, "fakehostname-192.168.1.100", hostname)
-
-	// Test with IP address in private range but cache miss, async look up succeeds
-	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "192.168.1.101")
-	assert.NoError(t, err)
-	assert.Equal(t, "fakehostname-192.168.1.101", hostname)
-
-	// Cache Hit
-	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "192.168.1.100") // cached from earlier test
-	assert.NoError(t, err)
-	assert.Equal(t, "fakehostname-192.168.1.100", hostname)
-
-	// Test with an empty string as input
-	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "")
-	assert.Error(t, err)
-	assert.Equal(t, "", hostname)
-
-	// Test with an IPv6 address
-	// hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "2001:4860:4860::8888") // Google Public DNS
-	// assert.Error(t, err)
-	// assert.Equal(t, "", hostname)
-
-	cancel()
+	for name, tt := range tts {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(ts.ctx, tt.timeout)
+			defer cancel()
+			hostname, err := internalRDNSQuerier.GetHostnameSync(ctx, tt.ip)
+			if tt.errMsg != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tt.expected, hostname)
+		})
+	}
 }
 
 func TestGetHostnameSyncTimeouts(t *testing.T) {
