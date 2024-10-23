@@ -133,28 +133,26 @@ notify_failure_summary_on_pipeline:
 # Send failure summary notifications daily and weekly
 notify_failure_summary_daily:
   extends: .failure_summary_job
-  # rules:
-  #   - if: $CI_COMMIT_BRANCH != "main" || $CI_PIPELINE_SOURCE != "schedule"
-  #     when: never
-  #   - !reference [.on_deploy_nightly_repo_branch_always]
-  needs: []
+  rules:
+    - if: $CI_COMMIT_BRANCH != "main" || $CI_PIPELINE_SOURCE != "schedule"
+      when: never
+    - !reference [.on_deploy_nightly_repo_branch_always]
   script:
     - !reference [.failure_summary_setup]
-    - inv -e notify.failure-summary-send-notifications --daily-summary --dry-run
-    # - weekday="$(date --utc '+%A')"
-    # - |
-    #   if [ "$weekday" = "Sunday" ] || [ "$weekday" = "Monday" ]; then
-    #     echo "Skipping daily summary on $weekday"
-    #     exit
-    #   fi
-    # # Daily
-    # - inv -e notify.failure-summary-send-notifications --daily-summary
-    # # Send weekly if necessary (note that this workflow is usually triggered early in the morning)
-    # - |
-    #   if [ "$weekday" = "Friday" ]; then
-    #     echo 'Sending weekly summary'
-    #     inv -e notify.failure-summary-send-notifications --weekly-summary
-    #   fi
+    - weekday="$(date --utc '+%A')"
+    - |
+      if [ "$weekday" = "Sunday" ] || [ "$weekday" = "Monday" ]; then
+        echo "Skipping daily summary on $weekday"
+        exit
+      fi
+    # Daily
+    - inv -e notify.failure-summary-send-notifications --daily-summary
+    # Send weekly if necessary (note that this workflow is usually triggered early in the morning)
+    - |
+      if [ "$weekday" = "Friday" ]; then
+        echo 'Sending weekly summary'
+        inv -e notify.failure-summary-send-notifications --weekly-summary
+      fi
 
 close_failing_tests_stale_issues:
   stage: notify
