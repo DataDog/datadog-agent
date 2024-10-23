@@ -8,6 +8,6 @@
 ---
 features:
   - |
-    Introducing the Error Tracking Standalone config option. Only span chunks
+    APM: Introducing the Error Tracking Standalone config option. Only span chunks
     that contain errors or exception OpenTelemetry span events are taken into
     consideration by sampling.
