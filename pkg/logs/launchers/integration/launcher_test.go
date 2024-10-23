@@ -249,7 +249,7 @@ func (suite *LauncherTestSuite) TestDeleteFile() {
 	err = suite.s.deleteFile(fileinfo)
 	assert.NoError(suite.T(), err)
 
-	_, err = os.Stat(fileWithPath)
+	_, err = suite.fs.Stat(fileWithPath)
 	assert.True(suite.T(), os.IsNotExist(err))
 }
 
@@ -414,9 +414,9 @@ func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 	// scanInitialFiles function to detect them in a deterministic manner
 	modTime := time.Now()
 	accessTime := time.Now()
-	os.Chtimes(fileWithPath1, accessTime, modTime.Add(-2*time.Minute))
-	os.Chtimes(fileWithPath2, accessTime, modTime.Add(-1*time.Minute))
-	os.Chtimes(fileWithPath3, accessTime, modTime)
+	suite.fs.Chtimes(fileWithPath1, accessTime, modTime.Add(-2*time.Minute))
+	suite.fs.Chtimes(fileWithPath2, accessTime, modTime.Add(-1*time.Minute))
+	suite.fs.Chtimes(fileWithPath3, accessTime, modTime)
 
 	suite.s.Start(nil, nil, nil, nil)
 
