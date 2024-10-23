@@ -476,6 +476,31 @@ func (r *RemoteSysProbeUtil) GetConnTrackHost() ([]byte, error) {
 	return data, nil
 }
 
+// GetBTFLoaderInfo queries ebpf_btf_loader to get information about where btf files came from
+func (r *RemoteSysProbeUtil) GetBTFLoaderInfo() ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, ebpfBTFLoaderURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(`GetEbpfBtfInfo got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
+	}
+
+	return data, nil
+}
+
 func (r *RemoteSysProbeUtil) init() error {
 	resp, err := r.httpClient.Get(statsURL)
 	if err != nil {
