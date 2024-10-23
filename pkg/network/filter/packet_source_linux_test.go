@@ -10,6 +10,7 @@ package filter
 import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/afpacket"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 	"testing"
@@ -53,7 +54,8 @@ func expectAncillaryPktType(t *testing.T, ancillaryData []interface{}, pktType u
 
 		// convert to linux packet info
 		pktInfo := info.(*AFPacketInfo)
-		require.Equal(t, pktType, pktInfo.PktType)
+		// use assert so that we close the exit channel on failure
+		assert.Equal(t, pktType, pktInfo.PktType)
 
 		// trigger exit so it only reads one packet
 		close(exit)
