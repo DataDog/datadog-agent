@@ -7,6 +7,7 @@
 package metrics
 
 import (
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -16,16 +17,71 @@ type Size interface {
 	Size() int64
 }
 
-var TlmIngressBytes = telemetry.NewCounter("logs_component", "ingress_bytes", []string{"name", "instance"}, "")
-var TlmEgressBytes = telemetry.NewCounter("logs_component", "egress_bytes", []string{"name", "instance"}, "")
+// var TlmIngressBytes = telemetry.NewCounter("logs_component", "ingress_bytes", []string{"name", "instance"}, "")
+// var TlmEgressBytes = telemetry.NewCounter("logs_component", "egress_bytes", []string{"name", "instance"}, "")
 var TlmUtilization = telemetry.NewGauge("logs_component", "utilization", []string{"name", "instance"}, "")
+var TlmCapacity = telemetry.NewGauge("logs_component", "capacity", []string{"name", "instance"}, "")
+
+type IngressMonitor struct {
+	ingress  int64
+	egress   int64
+	max      int64
+	name     string
+	instance string
+	ticker   *time.Ticker
+}
+
+func (i *IngressMonitor) AddIngress(size int64) {
+	i.ingress += size
+	i.sample()
+	i.reportIfNeeded()
+}
+
+func (i *IngressMonitor) AddEgress(size int64) {
+	i.egress += size
+	i.sample()
+	i.reportIfNeeded()
+}
+
+func (i *IngressMonitor) sample() {
+	new := i.ingress - i.egress
+	if new > i.max {
+		i.max = new
+	}
+}
+func (i *IngressMonitor) reportIfNeeded() {
+	select {
+	case <-i.ticker.C:
+		TlmCapacity.Set(float64(i.max), i.name, i.instance)
+		i.max = 0
+	default:
+	}
+}
+
+var Monitors = make(map[string]*IngressMonitor)
+var MonitorsLock = sync.RWMutex{}
+
+func getMonitor(name string, instance string) *IngressMonitor {
+	MonitorsLock.RLock()
+	if Monitors[name+instance] == nil {
+		MonitorsLock.RUnlock()
+		MonitorsLock.Lock()
+		Monitors[name+instance] = &IngressMonitor{name: name, instance: instance, ticker: time.NewTicker(5 * time.Second)}
+		MonitorsLock.Unlock()
+	} else {
+		defer MonitorsLock.RUnlock()
+	}
+	return Monitors[name+instance]
+}
 
 func ReportComponentIngress(size Size, name string, instance string) {
-	TlmIngressBytes.Add(float64(size.Size()), name, instance)
+	m := getMonitor(name, instance)
+	m.AddIngress(size.Size())
 }
 
 func ReportComponentEgress(size Size, name string, instance string) {
-	TlmEgressBytes.Add(float64(size.Size()), name, instance)
+	m := getMonitor(name, instance)
+	m.AddEgress(size.Size())
 }
 
 type UtilizationMonitor struct {
