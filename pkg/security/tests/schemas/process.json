@@ -160,25 +160,46 @@
                 },
                 "mount_source": {
                     "type": "string",
-                    "enum": ["device", "mount_id", "snapshot"]
+                    "enum": [
+                        "device",
+                        "mount_id",
+                        "snapshot"
+                    ]
                 },
                 "mount_origin": {
                     "type": "string",
-                    "enum": ["procfs", "event", "unshare"]
+                    "enum": [
+                        "procfs",
+                        "event",
+                        "unshare"
+                    ]
                 }
             },
             "required": [
-                "path",
                 "name",
                 "inode",
                 "mode",
-                "mount_id",
                 "filesystem",
                 "uid",
                 "gid",
                 "modification_time",
                 "change_time"
-            ]
+            ],
+            "if": {
+                "not": {
+                    "properties": {
+                        "filesystem": {
+                            "const": "tmpfs"
+                        }
+                    }
+                }
+            },
+            "then": {
+                "required": [
+                    "path",
+                    "mount_id"
+                ]
+            }
         },
         "container": {
             "$ref": "/schemas/container.json"
