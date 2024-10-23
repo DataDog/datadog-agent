@@ -44,7 +44,7 @@ snmp_listener:
 `))
 	assert.NoError(t, err)
 	_, configListeners = DiscoverComponentsFromConfig()
-	assert.Len(t, configListeners, 1)
+	require.Len(t, configListeners, 1)
 	assert.Equal(t, "snmp", configListeners[0].Name)
 
 	err = pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
