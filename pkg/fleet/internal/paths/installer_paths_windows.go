@@ -58,24 +58,62 @@ func init() {
 
 // CreateInstallerDataDir creates the root directory for the installer data and sets permissions
 // to ensure that only Administrators have write access to the directory tree.
+//
+// bootstrap runs before the MSI, so it must create the directory with the correct permissions.
 func CreateInstallerDataDir() error {
-	// Since bootstrap can run and use this path before the Installer MSI creates it
-	// we need to make sure the path is created with the correct permissions.
-	// This is of concern because Windows by default grants Users write access to ProgramData.
-	// Permissions:
+	targetDir := datadogInstallerData
+
+	// Desired permissions:
 	// - OWNER: Administrators
 	// - GROUP: Administrators
 	// - SYSTEM: Full Control (propagates to children)
 	// - Administrators: Full Control (propagates to children)
 	// - PROTECTED: does not inherit permissions from parent
 	sddl := "O:BAGBA:D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
+
 	// The following privileges are required to modify the security descriptor,
 	// and are granted to Administrators by default:
 	//  - SeTakeOwnershipPrivilege - Required to set the owner
 	privilegesRequired := []string{"SeTakeOwnershipPrivilege"}
-	err := winio.RunWithPrivileges(privilegesRequired, func() error {
-		return createDirectoryAndResetTreeWithSDDL(datadogInstallerData, sddl)
+	return winio.RunWithPrivileges(privilegesRequired, func() error {
+		return secureCreateDirectory(targetDir, sddl)
 	})
+}
+
+func secureCreateDirectory(path string, sddl string) error {
+	// Try to create the directory with the desired permissions.
+	// We avoid TOCTOU issues because CreateDirectory fails if the directory already exists.
+	// This is of concern because Windows by default grants Users write access to ProgramData.
+	err := createDirectoryWithSDDL(path, sddl)
+	if err != nil && err != windows.ERROR_ALREADY_EXISTS {
+		// return other errors, ERROR_ALREADY_EXISTS is handled below
+		return err
+	}
+	if err == nil {
+		// directory securely created, we're done
+		return nil
+	}
+
+	// creation failed because the directory already exists.
+	// Our options here are to:
+	// (a) Fail the install because the directory was created by an unknown party
+	// (b) Attempt to reset the permissions to the expected state
+	// We choose option (b) because it allows us to modify the permissions in the future.
+	// We check the owner to ensure it is Administrators or SYSTEM before changing the permissions,
+	// as the owner cannot be set to Administrators by a non-privileged user.
+	err = isDirSecure(path)
+	if err != nil {
+		// The directory owner is not Administrators or SYSTEM, so may have been created
+		// by an unknown party. Adjusting the permissions may not be safe, as it won't affect
+		// already open handles, so we fail the install.
+		return err
+	}
+
+	// The owner is Administrators or SYSTEM, so we can be resonably sure the directory and its
+	// original permissions were created by an Administrator. If the Administrator created
+	// the directory insecurely, we'll reset the permissions here, but we can't account
+	// for damage that might have already been done.
+	err = treeResetNamedSecurityInfoWithSDDL(path, sddl)
 	if err != nil {
 		return err
 	}
@@ -87,15 +125,20 @@ func CreateInstallerDataDir() error {
 // otherwise an error is returned.
 //
 // CreateInstallerDataDir sets the owner to Administrators and is called during bootstrap.
-// Unprivileged users (users without SeTakeOwnershipPrivilege) cannot set the owner to Administrators.
+// Unprivileged users (users without SeTakeOwnershipPrivilege/SeRestorePrivilege) cannot set the owner to Administrators.
 func IsInstallerDataDirSecure() error {
+	targetDir := datadogInstallerData
+	return isDirSecure(targetDir)
+}
+
+func isDirSecure(targetDir string) error {
 	allowedWellKnownSids := []windows.WELL_KNOWN_SID_TYPE{
 		windows.WinBuiltinAdministratorsSid,
 		windows.WinLocalSystemSid,
 	}
 
 	// get security info
-	sd, err := windows.GetNamedSecurityInfo(datadogInstallerData, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION)
+	sd, err := windows.GetNamedSecurityInfo(targetDir, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION)
 	if err != nil {
 		return fmt.Errorf("failed to get security info: %w", err)
 	}
@@ -124,7 +167,9 @@ func IsInstallerDataDirSecure() error {
 	return nil
 }
 
-func createDirectoryAndResetTreeWithSDDL(path string, sddl string) error {
+// createDirectoryWithSDDL creates a directory with the specified SDDL string, returns
+// an error if the directory already exists.
+func createDirectoryWithSDDL(path string, sddl string) error {
 	sd, err := windows.SecurityDescriptorFromString(sddl)
 	if err != nil {
 		return err
@@ -137,14 +182,9 @@ func createDirectoryAndResetTreeWithSDDL(path string, sddl string) error {
 
 	// create directory with security descriptor
 	err = windows.CreateDirectory(windows.StringToUTF16Ptr(path), sa)
-	if err != nil && err != windows.ERROR_ALREADY_EXISTS {
-		return err
-	}
-	// CreateDirectory does NOT apply the security descriptor if the directory already exists
-	// so we need to set it explicitly.
-	// Additionally, if the directory/tree already exists, we need to reset the children, too.
-	err = treeResetNamedSecurityInfoFromSecurityDescriptor(path, sd)
 	if err != nil {
+		// CreateDirectory does not apply the security descriptor if the directory already exists
+		// so treat it as an error if the directory already exists.
 		return err
 	}
 
