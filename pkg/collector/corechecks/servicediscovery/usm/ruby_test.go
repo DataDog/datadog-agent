@@ -69,3 +69,50 @@ func TestGenerateNameFromRailsApplicationRb(t *testing.T) {
 		})
 	}
 }
+
+func TestRailsUnderscore(t *testing.T) {
+	tests := []struct {
+		name     string
+		given    string
+		expected string
+	}{
+		{
+			name:     "one word",
+			given:    "Service",
+			expected: "service",
+		},
+		{
+			name:     "accronym is preserved",
+			given:    "HTTPServer",
+			expected: "http_server",
+		},
+		{
+			name:     "numbers in module name",
+			given:    "HTTP2Server",
+			expected: "http2_server",
+		},
+		{
+			name:     "multiple words",
+			given:    "VeryLongServiceName",
+			expected: "very_long_service_name",
+		},
+		// NOTE: the following cases should never happen in practice
+		{
+			name:     "already snake case",
+			given:    "service_name",
+			expected: "service_name",
+		},
+		{
+			name:     "empty name",
+			given:    "",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := railsUnderscore([]byte(tt.given))
+			assert.Equal(t, tt.expected, string(got))
+		})
+	}
+}
