@@ -8,6 +8,7 @@ package utils
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -226,8 +227,9 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternMatchOpts) 
 	return "", false
 }
 
-// BuildPatterns finds and builds patterns for the path in the ruleset
+// BuildPatterns find and build patterns for the path in the ruleset
 func BuildPatterns(ruleset []*rules.RuleDefinition) []*rules.RuleDefinition {
+
 	for _, rule := range ruleset {
 		findAndReplacePatterns(&rule.Expression)
 	}
@@ -235,59 +237,50 @@ func BuildPatterns(ruleset []*rules.RuleDefinition) []*rules.RuleDefinition {
 }
 
 func findAndReplacePatterns(expression *string) {
+
 	re := regexp.MustCompile(`\[(.*?)\]`)
 	matches := re.FindAllStringSubmatch(*expression, -1)
-
 	for _, match := range matches {
 		if len(match) > 1 {
 			arrayContent := match[1]
 			paths := replacePatterns(strings.Split(arrayContent, ","))
-			// Reconstruct the modified array as a string
+			// reconstruct the modified array as a string
 			modifiedArrayString := "[" + strings.Join(paths, ", ") + "]"
-			// Replace the original array with the modified array in the input string
+			// replace the original array with the modified array in the input string
 			*expression = strings.Replace(*expression, match[0], modifiedArrayString, 1)
 		}
 	}
+
 }
 
 func replacePatterns(paths []string) []string {
-	// Using a map to eliminate duplicates efficiently
-	result := make(map[string]struct{})
-
+	var result []string
 	for _, pattern := range paths {
 		strippedPattern := strings.Trim(pattern, `~" `)
-		processed := false
+		initalLength := len(result)
 
 		for _, path := range paths {
+			strippedPath := strings.Trim(path, `~" `)
 			if pattern == path {
 				continue
 			}
 
-			strippedPath := strings.Trim(path, `~" `)
 			pathPatternMatchOpts := determinePatternMatchOpts(strippedPath)
 
 			finalPath, ok := PathPatternBuilder(strippedPattern, strippedPath, pathPatternMatchOpts)
 			if ok {
 				finalPath = fmt.Sprintf("~\"%s\"", finalPath)
-				result[finalPath] = struct{}{}
-				processed = true
-				break // Exit the inner loop once a match is found
+				result = append(result, finalPath)
 			}
 		}
-
-		// If no match was found, add the original pattern
-		if !processed {
-			result[strippedPattern] = struct{}{}
+		if len(result) == initalLength {
+			result = append(result, strings.Trim(pattern, ` `))
 		}
 	}
-
-	// Convert the map to a slice
-	finalResult := make([]string, 0, len(result))
-	for path := range result {
-		finalResult = append(finalResult, path)
-	}
-
-	return finalResult
+	// remove duplicates
+	slices.Sort(result)
+	result = slices.Compact(result)
+	return result
 }
 
 func determinePatternMatchOpts(path string) PathPatternMatchOpts {
@@ -299,7 +292,6 @@ func determinePatternMatchOpts(path string) PathPatternMatchOpts {
 	if containsExceptions(path) {
 		pathPatternMatchOpts.PrefixNodeRequired = 4
 	}
-
 	return pathPatternMatchOpts
 }
 
@@ -312,4 +304,28 @@ func containsExceptions(path string) bool {
 		}
 	}
 	return false
+}
+
+// CheckForPatterns replace patterns like uuid with *
+func CheckForPatterns(path string) string {
+	uuidRegex := regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+	dateRegex := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`) // Date in YYYY-MM-DD format
+	numericRegex := regexp.MustCompile(`^\d+$`)            // Any purely numeric subpath
+	hexRegex := regexp.MustCompile(`^[0-9a-fA-F]+$`)       // Hexadecimal pattern
+	patternsWithSeparatorRegex := regexp.MustCompile(`^\.*\d+([._-]\d+)*([._-]\d+)*$`)
+
+	// Split the path into subpaths
+	subpaths := strings.Split(path, "/")
+
+	// Check each subpath against defined patterns
+	for i, subpath := range subpaths {
+		if uuidRegex.MatchString(subpath) || dateRegex.MatchString(subpath) || numericRegex.MatchString(subpath) || hexRegex.MatchString(subpath) || patternsWithSeparatorRegex.MatchString(subpath) {
+			subpaths[i] = "*"
+		}
+	}
+
+	if slices.Contains(subpaths, "*") {
+		return fmt.Sprintf("~\"%s\"", strings.Join(subpaths, "/"))
+	}
+	return fmt.Sprintf("\"%s\"", strings.Join(subpaths, "/"))
 }
