@@ -37,7 +37,6 @@ namespace WixSetup.Datadog_Agent
 
         private readonly AgentBinaries _agentBinaries;
         private readonly AgentFeatures _agentFeatures = new();
-        private readonly AgentPython _agentPython = new();
         private readonly AgentVersion _agentVersion;
         private readonly AgentCustomActions _agentCustomActions = new();
         private readonly AgentInstallerUI _agentInstallerUi;
@@ -363,10 +362,6 @@ namespace WixSetup.Datadog_Agent
                 new DirFiles($@"{InstallerSource}\*.txt"),
                 new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3")
             );
-            if (_agentPython.IncludePython2)
-            {
-                datadogAgentFolder.AddFile(new CompressedDir(this, "embedded2", $@"{InstallerSource}\embedded2"));
-            }
 
             // Recursively delete/backup all files/folders in these paths, they will be restored
             // on rollback. By default WindowsInstller only removes the files it tracks, and these paths
@@ -549,10 +544,6 @@ namespace WixSetup.Datadog_Agent
                 new WixSharp.File(_agentBinaries.LibDatadogAgentThree)
 
             );
-            if (_agentPython.IncludePython2)
-            {
-                targetBinFolder.AddFile(new WixSharp.File(_agentBinaries.LibDatadogAgentTwo));
-            }
 
             return targetBinFolder;
         }

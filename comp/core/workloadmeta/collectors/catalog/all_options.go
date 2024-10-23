@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/docker"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/ecs"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/ecsfargate"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/host"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubeapiserver"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubelet"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubemetadata"
@@ -46,6 +45,5 @@ func getCollectorOptions() []fx.Option {
 		remoteworkloadmeta.GetFxOptions(),
 		remoteWorkloadmetaParams(),
 		processcollector.GetFxOptions(),
-		host.GetFxOptions(),
 	}
 }

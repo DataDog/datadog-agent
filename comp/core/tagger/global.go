@@ -37,7 +37,7 @@ func UnlockGlobalTaggerClient() {
 }
 
 // GetEntity returns the hash for the provided entity id.
-func GetEntity(entityID string) (*types.Entity, error) {
+func GetEntity(entityID types.EntityID) (*types.Entity, error) {
 	if globalTagger == nil {
 		return nil, fmt.Errorf("a global tagger must be set before calling GetEntity")
 	}
@@ -53,7 +53,7 @@ func Tag(entity string, cardinality types.TagCardinality) ([]string, error) {
 }
 
 // GetEntityHash is an interface function that queries taggerclient singleton
-func GetEntityHash(entityID string, cardinality types.TagCardinality) string {
+func GetEntityHash(entityID types.EntityID, cardinality types.TagCardinality) string {
 	if globalTagger != nil {
 		return globalTagger.GetEntityHash(entityID, cardinality)
 	}

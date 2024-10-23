@@ -70,8 +70,16 @@ repos:
       description: clang-format
       entry: 'inv pre-commit.check-winclang-format'
       language: system
-      types_or: [c, c++, c#]
+      types_or: [c, c++]
       pass_filenames: false
+    - # dotnet format is available on Linux, see https://learn.microsoft.com/en-us/dotnet/core/install/linux
+      id: dotnet-format-installer
+      name: dotnet-format-installer
+      description: Format .net file of the MSI installer
+      language: system
+      # The dotnet format tool requires a solution file to operate.
+      entry: dotnet format ./tools/windows/DatadogAgentInstaller --include 
+      types: [c#]
     - id: go-mod-tidy
       name: go-mod-tidy
       description: check that all go.mod files are tidy
