@@ -10,7 +10,6 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
-	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -278,25 +277,20 @@ func (q *rdnsQuerierImpl) GetHostnameSync(ctx context.Context, ipAddr string) (s
 	}
 	q.internalTelemetry.private.Inc()
 
-	var (
-		hostname string
-		mu       sync.Mutex
-		done     = make(chan struct{})
-	)
+	hostnameChan := make(chan string, 1)
+	asyncErrChan := make(chan error, 1)
 
 	err = q.cache.getHostname(
 		netipAddr.String(),
+		// only 1 of these callbacks will be executed
+		// so we don't risk a panic here
 		func(h string) {
-			mu.Lock()
-			defer mu.Unlock()
-			hostname = h
-			close(done)
+			hostnameChan <- h
+			asyncErrChan <- nil
 		},
-		func(h string, _ error) {
-			mu.Lock()
-			defer mu.Unlock()
-			hostname = h
-			close(done)
+		func(h string, e error) {
+			hostnameChan <- h
+			asyncErrChan <- e
 		},
 	)
 	if err != nil {
@@ -304,9 +298,9 @@ func (q *rdnsQuerierImpl) GetHostnameSync(ctx context.Context, ipAddr string) (s
 	}
 
 	select {
-	case <-done:
-		mu.Lock()
-		defer mu.Unlock()
+	case hostname := <-hostnameChan:
+		asyncErr := <-asyncErrChan // this is okay because we know that as soon as we send hostname, we send asyncErr
+		err = multierr.Append(err, asyncErr)
 		return hostname, err
 	case <-ctx.Done():
 		return "", fmt.Errorf("timeout reached while resolving hostname for IP address %v", ipAddr)
