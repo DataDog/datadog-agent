@@ -7,12 +7,12 @@ package usm
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
 	"path"
 	"regexp"
-	"strings"
 
 	"github.com/shirou/gopsutil/v3/process"
 
@@ -65,39 +65,39 @@ func (r railsDetector) detect(_ []string) (ServiceMetadata, bool) {
 		return ServiceMetadata{}, false
 	}
 
-	return NewServiceMetadata(railsUnderscore(name)), true
+	return NewServiceMetadata(string(name)), true
 }
 
 // findRailsApplicationName scans the `config/application.rb` file to find the
 // Rails application name.
-func (r railsDetector) findRailsApplicationName(filename string) (string, error) {
+func (r railsDetector) findRailsApplicationName(filename string) ([]byte, error) {
 	file, err := r.ctx.fs.Open(filename)
 	if err != nil {
-		return "", fmt.Errorf("could not open application.rb: %w", err)
+		return nil, fmt.Errorf("could not open application.rb: %w", err)
 	}
 	defer file.Close()
 
 	reader, err := SizeVerifiedReader(file)
 	if err != nil {
-		return "", fmt.Errorf("skipping application.rb (%q): %w", filename, err)
+		return nil, fmt.Errorf("skipping application.rb (%q): %w", filename, err)
 	}
 
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		matches := moduleRegexp.FindSubmatch(scanner.Bytes())
 		if len(matches) >= 2 {
-			return string(matches[1]), nil
+			return railsUnderscore(matches[1]), nil
 		}
 	}
 
 	// No match found
-	return "", errors.New("could not find Ruby module name")
+	return nil, errors.New("could not find Ruby module name")
 }
 
 // railsUnderscore converts a PascalCasedWord to a snake_cased_word.
 // It keeps uppercase acronyms together when converting (e.g. "HTTPServer" -> "http_server").
-func railsUnderscore(pascalCasedWord string) string {
-	snake := matchFirstCap.ReplaceAllString(pascalCasedWord, "${1}_${2}")
-	snake = matchAllCap.ReplaceAllString(snake, "${1}_${2}")
-	return strings.ToLower(snake)
+func railsUnderscore(pascalCasedWord []byte) []byte {
+	snake := matchFirstCap.ReplaceAll(pascalCasedWord, []byte("${1}_${2}"))
+	snake = matchAllCap.ReplaceAll(snake, []byte("${1}_${2}"))
+	return bytes.ToLower(snake)
 }

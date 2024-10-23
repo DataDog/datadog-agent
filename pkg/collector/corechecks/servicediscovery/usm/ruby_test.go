@@ -57,16 +57,15 @@ func TestGenerateNameFromRailsApplicationRb(t *testing.T) {
 			}}
 
 			value, err := instance.findRailsApplicationName(tt.path)
-			value = railsUnderscore(value)
 
 			if tt.shouldError {
 				assert.Error(t, err, "did not get an error when we should have. Got service name: %s", value)
-				assert.True(t, len(tt.expected) == 0, "got an non-empty result: %s", value)
+				assert.Nil(t, value, "got an non-empty result: %s", value)
 				return
 			}
 
 			assert.True(t, len(tt.expected) > 0, "got an empty result")
-			assert.Equal(t, tt.expected, value)
+			assert.Equal(t, tt.expected, string(value))
 		})
 	}
 }
