@@ -353,6 +353,8 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 	}
 
 	contextMap := make(usm.DetectorContextMap)
+	contextMap[usm.ServiceProc] = proc
+
 	fs := usm.NewSubDirFS(root)
 	ctx := usm.NewDetectionContext(cmdline, env, fs)
 	ctx.Pid = int(proc.Pid)
