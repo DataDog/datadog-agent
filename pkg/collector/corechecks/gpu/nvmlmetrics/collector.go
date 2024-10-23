@@ -92,8 +92,8 @@ func newCollectorWithSubsystems(lib nvml.Interface, subsystems map[string]subsys
 				log.Warnf("device %s does not support collector %s", dev, name)
 				continue
 			} else if err != nil {
-				_ = coll.Close() // Close all previously created subsystems
-				return nil, fmt.Errorf("failed to create subsystem %s: %w", name, err)
+				log.Warnf("failed to create subsystem %s: %s", name, err)
+				continue
 			}
 
 			coll.collectors[dev] = append(coll.collectors[dev], subsystem)

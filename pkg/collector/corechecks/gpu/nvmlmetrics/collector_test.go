@@ -40,7 +40,7 @@ func getBasicNvmlMock() *nvmlmock.Interface {
 	}
 }
 
-func TestCollectorsGetClosedIfInitFails(t *testing.T) {
+func TestCollectorsStillInitIfOneFails(t *testing.T) {
 	succeedCollector := &mockSubsystemCollector{}
 	factorySucceeded := false
 
@@ -54,11 +54,9 @@ func TestCollectorsGetClosedIfInitFails(t *testing.T) {
 		return nil, errors.New("failure")
 	}
 
-	succeedCollector.EXPECT().close().Return(nil)
-
 	collector, err := newCollectorWithSubsystems(getBasicNvmlMock(), map[string]subsystemFactory{"ok": factory, "fail": factory})
-	require.Nil(t, collector)
-	require.Error(t, err)
+	require.NotNil(t, collector)
+	require.NoError(t, err)
 }
 
 func TestCollectorsCollectMetricsEvenInCaseOfFailure(t *testing.T) {
