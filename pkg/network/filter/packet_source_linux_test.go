@@ -49,7 +49,7 @@ func expectAncillaryPktType(t *testing.T, ancillaryData []interface{}, pktType u
 		// convert to linux packet info
 		pktInfo := info.(*AFPacketInfo)
 		require.Equal(t, pktType, pktInfo.PktType)
-		// trigger exit so it only reads one packegt
+		// trigger exit so it only reads one packet
 		exit <- struct{}{}
 		return nil
 	})
