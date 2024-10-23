@@ -29,7 +29,12 @@ const (
 
 // Collector is the main struct responsible for collecting metrics from the NVML library.
 type Collector struct {
-	lib        nvml.Interface
+	// lib is the NVML library interface
+	lib nvml.Interface
+
+	// collectors is a map of subsystems that can be used to collect metrics.
+	// Each device has its own list of collectors, as support for each collector
+	// might vary between devices
 	collectors map[nvml.Device][]subsystemCollector
 }
 
