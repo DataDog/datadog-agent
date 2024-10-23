@@ -64,9 +64,8 @@ func (t *Tagger) Stop() error {
 }
 
 // Tag returns tags for a given entity at the desired cardinality.
-func (t *Tagger) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
-	id, _ := types.NewEntityIDFromString(entityID)
-	tags := t.store.Lookup(id, cardinality)
+func (t *Tagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
+	tags := t.store.Lookup(entityID, cardinality)
 	return tags, nil
 }
 
