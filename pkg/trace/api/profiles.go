@@ -88,14 +88,14 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 	}
 
 	// Azure Container App metadata
-	if subscriptionId, ok := r.conf.GlobalTags["subscription_id"]; ok {
-		tags.WriteString(fmt.Sprintf(",subscription_id:%s", subscriptionId))
+	if subscriptionID, ok := r.conf.GlobalTags["subscription_id"]; ok {
+		tags.WriteString(fmt.Sprintf(",subscription_id:%s", subscriptionID))
 	}
 	if resourceGroup, ok := r.conf.GlobalTags["resource_group"]; ok {
 		tags.WriteString(fmt.Sprintf(",resource_group:%s", resourceGroup))
 	}
-	if resourceId, ok := r.conf.GlobalTags["resource_id"]; ok {
-		tags.WriteString(fmt.Sprintf(",resource_id:%s", resourceId))
+	if resourceID, ok := r.conf.GlobalTags["resource_id"]; ok {
+		tags.WriteString(fmt.Sprintf(",resource_id:%s", resourceID))
 	}
 
 	return newProfileProxy(r.conf, targets, keys, tags.String(), r.statsd)
