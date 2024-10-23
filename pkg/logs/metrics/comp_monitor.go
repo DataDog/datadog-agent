@@ -23,6 +23,7 @@ var TlmUtilization = telemetry.NewGauge("logs_component", "utilization", []strin
 var TlmCapacity = telemetry.NewGauge("logs_component", "capacity", []string{"name", "instance"}, "")
 
 type IngressMonitor struct {
+	sync.Mutex
 	ingress  int64
 	egress   int64
 	max      int64
@@ -32,12 +33,16 @@ type IngressMonitor struct {
 }
 
 func (i *IngressMonitor) AddIngress(size int64) {
+	i.Lock()
+	defer i.Unlock()
 	i.ingress += size
 	i.sample()
 	i.reportIfNeeded()
 }
 
 func (i *IngressMonitor) AddEgress(size int64) {
+	i.Lock()
+	defer i.Unlock()
 	i.egress += size
 	i.sample()
 	i.reportIfNeeded()
