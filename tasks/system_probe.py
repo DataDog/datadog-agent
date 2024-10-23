@@ -740,7 +740,13 @@ def build_sysprobe_binary(
 
     ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path, major_version=major_version, arch=arch_obj)
 
-    if not is_windows:
+    build_tags = get_default_build_tags(build="system-probe")
+    if bundle_ebpf:
+        build_tags.append(BUNDLE_TAG)
+    if strip_binary:
+        ldflags += ' -s -w'
+
+    if not is_windows and "pcap" in build_tags:
         cgo_flags = get_libpcap_cgo_flags(ctx, install_path)
         # append system-probe CGO-related environment variables to any existing ones
         for k, v in cgo_flags.items():
@@ -748,12 +754,6 @@ def build_sysprobe_binary(
                 env[k] += f" {v}"
             else:
                 env[k] = v
-
-    build_tags = get_default_build_tags(build="system-probe")
-    if bundle_ebpf:
-        build_tags.append(BUNDLE_TAG)
-    if strip_binary:
-        ldflags += ' -s -w'
 
     if os.path.exists(binary):
         os.remove(binary)
