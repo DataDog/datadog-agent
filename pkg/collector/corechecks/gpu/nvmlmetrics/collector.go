@@ -70,10 +70,7 @@ func NewCollector(lib nvml.Interface) (*Collector, error) {
 
 // newCollectorWithSubsystems allows specifying which subsystems to use when creating the collector, useful for tests.
 func newCollectorWithSubsystems(lib nvml.Interface, subsystems map[string]subsystemFactory) (*Collector, error) {
-	coll := &Collector{
-		lib:        lib,
-		collectors: make(map[nvml.Device][]subsystemCollector),
-	}
+	collectors := make(map[nvml.Device][]subsystemCollector)
 
 	devCount, ret := lib.DeviceGetCount()
 	if ret != nvml.SUCCESS {
@@ -81,7 +78,7 @@ func newCollectorWithSubsystems(lib nvml.Interface, subsystems map[string]subsys
 	}
 
 	for i := 0; i < devCount; i++ {
-		dev, ret := coll.lib.DeviceGetHandleByIndex(i)
+		dev, ret := lib.DeviceGetHandleByIndex(i)
 		if ret != nvml.SUCCESS {
 			return nil, fmt.Errorf("failed to get device handle for index %d: %s", i, nvml.ErrorString(ret))
 		}
@@ -96,11 +93,14 @@ func newCollectorWithSubsystems(lib nvml.Interface, subsystems map[string]subsys
 				continue
 			}
 
-			coll.collectors[dev] = append(coll.collectors[dev], subsystem)
+			collectors[dev] = append(collectors[dev], subsystem)
 		}
 	}
 
-	return coll, nil
+	return &Collector{
+		lib:        lib,
+		collectors: collectors,
+	}, nil
 }
 
 // Collect collects metrics from all the subsystems and returns them. It will try to return as many
