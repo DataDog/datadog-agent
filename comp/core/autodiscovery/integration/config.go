@@ -97,6 +97,9 @@ type Config struct {
 	// IgnoreAutodiscoveryTags is used to ignore tags coming from autodiscovery
 	IgnoreAutodiscoveryTags bool `json:"ignore_autodiscovery_tags"` // (include in digest: true)
 
+	// CheckTagCardinality is used to override the default tag cardinality in the agent configuration
+	CheckTagCardinality string `json:"check_tag_cardinality"` // (include in digest: false)
+
 	// MetricsExcluded is whether metrics collection is disabled (set by
 	// container listeners only)
 	MetricsExcluded bool `json:"metrics_excluded"` // (include in digest: false)
