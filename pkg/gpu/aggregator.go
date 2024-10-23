@@ -8,12 +8,8 @@
 package gpu
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 )
-
-var nsecPerSec = float64(time.Second.Nanoseconds())
 
 // aggregator is responsible for receiving multiple stream-level data for one process and aggregating it into metrics
 // This struct is necessary as a single process might have multiple CUDA streams
