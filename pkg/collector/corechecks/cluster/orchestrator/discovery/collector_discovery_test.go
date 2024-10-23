@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -32,7 +33,9 @@ func TestWalkAPIResources(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	inventory := inventory.NewCollectorInventory(cfg, mockStore)
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+
+	inventory := inventory.NewCollectorInventory(cfg, mockStore, fakeTagger)
 	provider := NewAPIServerDiscoveryProvider()
 
 	preferredResources := []*v1.APIResourceList{

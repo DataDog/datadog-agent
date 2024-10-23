@@ -126,6 +126,7 @@ func setupRoutes(t *testing.T) *mux.Router {
 		deps.Collector,
 		deps.Ac,
 		deps.EndpointProviders,
+		deps.Tagger,
 	)
 
 	return router

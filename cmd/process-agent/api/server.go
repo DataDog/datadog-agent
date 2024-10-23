@@ -15,6 +15,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
@@ -27,6 +28,7 @@ type APIServerDeps struct {
 	WorkloadMeta workloadmeta.Component
 	Status       status.Component
 	Settings     settings.Component
+	Tagger       tagger.Component
 }
 
 func injectDeps(deps APIServerDeps, handler func(APIServerDeps, http.ResponseWriter, *http.Request)) http.HandlerFunc {

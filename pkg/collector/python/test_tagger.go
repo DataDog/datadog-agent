@@ -14,8 +14,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 /*
@@ -35,21 +38,14 @@ int arraylen(char **array, int max_len) {
 */
 import "C"
 
-func tagsMock(string, types.TagCardinality) ([]string, error) {
-	return []string{"tag1", "tag2", "tag3"}, nil
-}
-
-func tagsMockNull(string, types.TagCardinality) ([]string, error) {
-	return nil, nil
-}
-
-func tagsMockEmpty(string, types.TagCardinality) ([]string, error) {
-	return []string{}, nil
-}
-
 func testTags(t *testing.T) {
-	tagsFunc = tagsMock
-	defer func() { tagsFunc = tagger.Tag }()
+	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	logReceiver := optional.NewNoneOption[integrations.Component]()
+	tagger := taggerimpl.SetupFakeTagger(t)
+	tagger.SetTags("test", "foo", []string{"tag1", "tag2", "tag3"}, nil, nil, nil)
+	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
+	defer tagger.ResetTagger()
+	defer release()
 
 	id := C.CString("test")
 	defer C.free(unsafe.Pointer(id))
@@ -67,8 +63,13 @@ func testTags(t *testing.T) {
 }
 
 func testTagsNull(t *testing.T) {
-	tagsFunc = tagsMockNull
-	defer func() { tagsFunc = tagger.Tag }()
+	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	logReceiver := optional.NewNoneOption[integrations.Component]()
+	tagger := taggerimpl.SetupFakeTagger(t)
+	tagger.SetTags("test", "foo", nil, nil, nil, nil)
+	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
+	defer tagger.ResetTagger()
+	defer release()
 
 	id := C.CString("test")
 	defer C.free(unsafe.Pointer(id))
@@ -78,8 +79,13 @@ func testTagsNull(t *testing.T) {
 }
 
 func testTagsEmpty(t *testing.T) {
-	tagsFunc = tagsMockEmpty
-	defer func() { tagsFunc = tagger.Tag }()
+	sender := mocksender.NewMockSender(checkid.ID("testID"))
+	logReceiver := optional.NewNoneOption[integrations.Component]()
+	tagger := taggerimpl.SetupFakeTagger(t)
+	tagger.SetTags("test", "foo", []string{}, nil, nil, nil)
+	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
+	defer tagger.ResetTagger()
+	defer release()
 
 	id := C.CString("test")
 	defer C.free(unsafe.Pointer(id))

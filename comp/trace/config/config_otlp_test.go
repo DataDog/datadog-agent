@@ -17,18 +17,12 @@ import (
 	"go.uber.org/fx"
 
 	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestFullYamlConfigWithOTLP(t *testing.T) {
-
-	config := fxutil.Test[Component](t, fx.Options(
-		corecomp.MockModule(),
-		fx.Replace(corecomp.MockParams{
-			Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
-		}),
-		MockModule(),
-	))
+	config := buildConfigComponent(t, fx.Replace(corecomp.MockParams{
+		Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+	}))
 	cfg := config.Object()
 
 	require.NotNil(t, cfg)

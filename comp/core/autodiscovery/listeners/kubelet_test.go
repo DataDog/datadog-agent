@@ -12,7 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (
@@ -512,5 +515,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 func newKubeletListener(t *testing.T) (*KubeletListener, *testWorkloadmetaListener) {
 	wlm := newTestWorkloadmetaListener(t)
 
-	return &KubeletListener{workloadmetaListener: wlm}, wlm
+	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
+
+	return &KubeletListener{workloadmetaListener: wlm, tagger: taggerComponent}, wlm
 }

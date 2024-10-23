@@ -10,6 +10,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -20,7 +21,7 @@ import (
 // LoaderFactory helps to defer actual instantiation of Check Loaders,
 // mostly helpful with code involving calls to cgo (for example, the Python
 // interpreter might not be initialized when `init`ing a package)
-type LoaderFactory func(sender.SenderManager, optional.Option[integrations.Component]) (check.Loader, error)
+type LoaderFactory func(sender.SenderManager, optional.Option[integrations.Component], tagger.Component) (check.Loader, error)
 
 var factoryCatalog = make(map[int][]LoaderFactory)
 var loaderCatalog = []check.Loader{}
@@ -32,7 +33,7 @@ func RegisterLoader(order int, factory LoaderFactory) {
 }
 
 // LoaderCatalog returns the loaders sorted by desired sequence order
-func LoaderCatalog(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component]) []check.Loader {
+func LoaderCatalog(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component], tagger tagger.Component) []check.Loader {
 	// the catalog is supposed to be built only once, don't see a clear
 	// use case to add Loaders at runtime
 	once.Do(func() {
@@ -47,7 +48,7 @@ func LoaderCatalog(senderManager sender.SenderManager, logReceiver optional.Opti
 		// the final slice of loaders
 		for _, k := range keys {
 			for _, factory := range factoryCatalog[k] {
-				loader, err := factory(senderManager, logReceiver)
+				loader, err := factory(senderManager, logReceiver, tagger)
 				if err != nil {
 					log.Infof("Failed to instantiate %s: %v", loader, err)
 					continue

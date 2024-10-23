@@ -23,6 +23,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -54,6 +55,7 @@ func TestFlareCreation(t *testing.T) {
 				func() types.FlareCallback { return realProvider },
 				fx.ResultTags(`group:"flare"`),
 			)),
+			nooptagger.Module(),
 		),
 	)
 
@@ -75,6 +77,7 @@ func TestRunProviders(t *testing.T) {
 		fx.Provide(func() diagnosesendermanager.Component { return nil }),
 		fx.Provide(func() Params { return Params{} }),
 		collector.NoneModule(),
+		nooptagger.Module(),
 		fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
 		fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
 		// provider a nil FlareCallback

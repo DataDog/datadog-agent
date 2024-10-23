@@ -14,6 +14,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -44,15 +45,17 @@ type CRICheck struct {
 	instance  *CRIConfig
 	processor generic.Processor
 	store     workloadmeta.Component
+	tagger    tagger.Component
 }
 
 // Factory is exported for integration testing
-func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+func Factory(store workloadmeta.Component, tagger tagger.Component) optional.Option[func() check.Check] {
 	return optional.NewOption(func() check.Check {
 		return &CRICheck{
 			CheckBase: core.NewCheckBase(CheckName),
 			instance:  &CRIConfig{},
 			store:     store,
+			tagger:    tagger,
 		}
 	})
 }
@@ -81,7 +84,7 @@ func (c *CRICheck) Configure(senderManager sender.SenderManager, _ uint64, confi
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
-	c.processor = generic.NewProcessor(metrics.GetProvider(optional.NewOption(c.store)), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(containerFilter, c.store))
+	c.processor = generic.NewProcessor(metrics.GetProvider(optional.NewOption(c.store)), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(containerFilter, c.store), c.tagger)
 	if c.instance.CollectDisk {
 		c.processor.RegisterExtension("cri-custom-metrics", &criCustomMetricsExtension{criGetter: func() (cri.CRIClient, error) {
 			return cri.GetUtil()

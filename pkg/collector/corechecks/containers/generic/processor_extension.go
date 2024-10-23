@@ -8,6 +8,7 @@ package generic
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -27,5 +28,5 @@ type ProcessorExtension interface {
 	Process(tags []string, container *workloadmeta.Container, collector metrics.Collector, cacheValidity time.Duration)
 
 	// PostProcess is called once during each check run, after all calls to `Process`
-	PostProcess()
+	PostProcess(tagger tagger.Component)
 }

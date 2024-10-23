@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -58,15 +60,15 @@ func (lt *LoaderThree) Load(_ sender.SenderManager, _ integration.Config, _ inte
 
 func TestLoaderCatalog(t *testing.T) {
 	l1 := LoaderOne{}
-	factory1 := func(sender.SenderManager, optional.Option[integrations.Component]) (check.Loader, error) {
+	factory1 := func(sender.SenderManager, optional.Option[integrations.Component], tagger.Component) (check.Loader, error) {
 		return l1, nil
 	}
 	l2 := LoaderTwo{}
-	factory2 := func(sender.SenderManager, optional.Option[integrations.Component]) (check.Loader, error) {
+	factory2 := func(sender.SenderManager, optional.Option[integrations.Component], tagger.Component) (check.Loader, error) {
 		return l2, nil
 	}
 	var l3 *LoaderThree
-	factory3 := func(sender.SenderManager, optional.Option[integrations.Component]) (check.Loader, error) {
+	factory3 := func(sender.SenderManager, optional.Option[integrations.Component], tagger.Component) (check.Loader, error) {
 		return l3, errors.New("error")
 	}
 
@@ -75,7 +77,8 @@ func TestLoaderCatalog(t *testing.T) {
 	RegisterLoader(30, factory3)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := optional.NewNoneOption[integrations.Component]()
-	require.Len(t, LoaderCatalog(senderManager, logReceiver), 2)
-	assert.Equal(t, l1, LoaderCatalog(senderManager, logReceiver)[1])
-	assert.Equal(t, l2, LoaderCatalog(senderManager, logReceiver)[0])
+	tagger := nooptagger.NewTaggerClient()
+	require.Len(t, LoaderCatalog(senderManager, logReceiver, tagger), 2)
+	assert.Equal(t, l1, LoaderCatalog(senderManager, logReceiver, tagger)[1])
+	assert.Equal(t, l2, LoaderCatalog(senderManager, logReceiver, tagger)[0])
 }

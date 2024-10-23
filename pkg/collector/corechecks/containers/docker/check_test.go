@@ -50,7 +50,7 @@ func TestDockerCheckGenericPart(t *testing.T) {
 	}
 
 	// Inject mock processor in check
-	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil))
+	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger)
 	processor.RegisterExtension("docker-custom-metrics", &dockerCustomMetricsExtension{})
 
 	// Create Docker check
@@ -204,13 +204,14 @@ func TestDockerCustomPart(t *testing.T) {
 			CollectVolumeCount: true,
 			CollectEvent:       true,
 		},
-		eventTransformer: newBundledTransformer("testhostname", []string{}),
+		eventTransformer: newBundledTransformer("testhostname", []string{}, fakeTagger),
 		dockerHostname:   "testhostname",
 		containerFilter: &containers.Filter{
 			Enabled:         true,
 			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
 		},
-		store: fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
+		store:  fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
+		tagger: fakeTagger,
 	}
 
 	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)
@@ -290,6 +291,7 @@ func TestContainersRunning(t *testing.T) {
 		dockerHostname:  "testhostname",
 		containerFilter: &containers.Filter{},
 		store:           fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
+		tagger:          fakeTagger,
 	}
 
 	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)
@@ -303,6 +305,9 @@ func TestContainersRunning(t *testing.T) {
 }
 
 func TestProcess_CPUSharesMetric(t *testing.T) {
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	defer fakeTagger.ResetTagger()
+
 	containersMeta := []*workloadmeta.Container{
 		generic.CreateContainerMeta("docker", "cID100"),
 		generic.CreateContainerMeta("docker", "cID101"),
@@ -334,7 +339,7 @@ func TestProcess_CPUSharesMetric(t *testing.T) {
 	}
 
 	// Inject mock processor in check
-	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil))
+	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger)
 	processor.RegisterExtension("docker-custom-metrics", &dockerCustomMetricsExtension{})
 
 	// Create Docker check
@@ -342,6 +347,7 @@ func TestProcess_CPUSharesMetric(t *testing.T) {
 		instance:       &DockerConfig{},
 		processor:      *processor,
 		dockerHostname: "testhostname",
+		tagger:         fakeTagger,
 	}
 
 	err := check.runProcessor(mockSender)
