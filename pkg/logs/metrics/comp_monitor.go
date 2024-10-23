@@ -35,6 +35,7 @@ type UtilizationMonitor struct {
 	startInUse time.Time
 	name       string
 	instance   string
+	ticker     *time.Ticker
 }
 
 func NewUtilizationMonitor(name, instance string) *UtilizationMonitor {
@@ -43,6 +44,7 @@ func NewUtilizationMonitor(name, instance string) *UtilizationMonitor {
 		startInUse: time.Now(),
 		name:       name,
 		instance:   instance,
+		ticker:     time.NewTicker(5 * time.Second),
 	}
 }
 
@@ -54,5 +56,12 @@ func (u *UtilizationMonitor) Start() {
 func (u *UtilizationMonitor) Stop() {
 	u.inUse += float64(time.Since(u.startInUse) / time.Millisecond)
 	u.startIdle = time.Now()
-	TlmUtilization.Set(u.inUse/(u.idle+u.inUse), u.name, u.instance)
+	select {
+	case <-u.ticker.C:
+		TlmUtilization.Set(u.inUse/(u.idle+u.inUse), u.name, u.instance)
+		u.idle = 0
+		u.inUse = 0
+	default:
+	}
+
 }
