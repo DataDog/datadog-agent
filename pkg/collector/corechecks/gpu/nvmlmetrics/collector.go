@@ -21,6 +21,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	tagVendor    = "gpu_vendor:nvidia"
+	tagNameModel = "gpu_model"
+	tagNameUUID  = "gpu_uuid"
+)
+
 // Collector is the main struct responsible for collecting metrics from the NVML library.
 type Collector struct {
 	lib        nvml.Interface
@@ -105,10 +111,7 @@ func (coll *Collector) Collect() ([]Metric, error) {
 	var err error
 
 	for dev, collectors := range coll.collectors {
-		tags, tagsErr := getTagsFromDevice(dev)
-		if tagsErr != nil {
-			return allMetrics, fmt.Errorf("failed to get tags for device: %w", tagsErr)
-		}
+		tags := getTagsFromDevice(dev)
 
 		for _, subsystem := range collectors {
 			metrics, collectErr := subsystem.collect()
@@ -142,20 +145,22 @@ func (coll *Collector) Close() error {
 }
 
 // getTagsFromDevice returns the tags associated with the given NVML device.
-func getTagsFromDevice(dev nvml.Device) ([]string, error) {
+func getTagsFromDevice(dev nvml.Device) []string {
+	tags := []string{tagVendor}
+
 	uuid, ret := dev.GetUUID()
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("failed to get device UUID: %s", nvml.ErrorString(ret))
+	if ret == nvml.SUCCESS {
+		tags = append(tags, fmt.Sprintf("%s:%s", tagNameUUID, uuid))
+	} else {
+		log.Warnf("failed to get device UUID: %s", nvml.ErrorString(ret))
 	}
 
 	name, ret := dev.GetName()
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("failed to get device name: %s", nvml.ErrorString(ret))
+	if ret == nvml.SUCCESS {
+		tags = append(tags, fmt.Sprintf("%s:%s", tagNameModel, name))
+	} else {
+		log.Warnf("failed to get device name: %s", nvml.ErrorString(ret))
 	}
 
-	return []string{
-		fmt.Sprintf("gpu_device_uuid:%s", uuid),
-		fmt.Sprintf("gpu_device_model:%s", name),
-		"gpu_device_vendor:nvidia",
-	}, nil
+	return tags
 }
