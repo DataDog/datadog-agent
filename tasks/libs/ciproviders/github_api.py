@@ -370,6 +370,14 @@ class GithubAPI:
         """
         return self._repository.create_label(name, color, description)
 
+    def create_release(self, tag, message, draft=True):
+        return self._repository.create_git_release(
+            tag=tag,
+            name=tag,
+            message=message,
+            draft=draft,
+        )
+
 
 def get_github_teams(users):
     for user in users:

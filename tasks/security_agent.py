@@ -159,7 +159,7 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
             ctx.run(f"touch {docker_context}/agent")
             core_agent_dest = "/dev/null"
 
-        copy_ebpf_and_related_files(ctx, docker_context, copy_usm_jar=False)
+        copy_ebpf_and_related_files(ctx, docker_context)
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image
@@ -610,8 +610,6 @@ def docker_functional_tests(
     cmd += '-v ./pkg/security/tests:/tests {image_tag} sleep 3600'
 
     args = {
-        "GOPATH": get_gopath(ctx),
-        "REPO_PATH": REPO_PATH,
         "container_name": container_name,
         "caps": ' '.join(f"--cap-add {cap}" for cap in capabilities),
         "image_tag": image_tag,

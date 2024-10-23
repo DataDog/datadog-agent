@@ -874,15 +874,15 @@ def build_run_config(run: str | None, packages: list[str]):
     c: dict[str, Any] = {}
 
     if len(packages) == 0:
-        return {"*": {"exclude": False}}
+        return {"filters": {"*": {"exclude": False}}}
 
     for p in packages:
         if p[:2] == "./":
             p = p[2:]
         if run is not None:
-            c[p] = {"run-only": [run]}
+            c["filters"][p] = {"run-only": [run]}
         else:
-            c[p] = {"exclude": False}
+            c["filters"][p] = {"exclude": False}
 
     return c
 
@@ -1021,13 +1021,6 @@ def kmt_sysprobe_prepare(
                     rule="gotestsuite",
                     pool="gobuild",
                     variables=variables,
-                )
-
-            if pkg.endswith("java"):
-                nw.build(
-                    inputs=[os.path.join(pkg, "agent-usm.jar")],
-                    outputs=[os.path.join(target_path, "agent-usm.jar")],
-                    rule="copyfiles",
                 )
 
         # handle testutils and testdata separately since they are

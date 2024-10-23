@@ -128,7 +128,7 @@ single-machine-performance-regression_detector:
     # invoke task has additional logic that does not seem to apply well to SMP's
     # JUnit XML. Agent CI seems to use `datadog-agent` as the service name when
     # uploading JUnit XML, so the upload command below respects that convention.
-    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$API_KEY_ORG2")" || exit $?; export DATADOG_API_KEY
+    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     - datadog-ci junit upload --service datadog-agent outputs/junit.xml
     # Finally, exit 1 if the job signals a regression else 0.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}

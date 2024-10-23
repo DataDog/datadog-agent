@@ -273,13 +273,14 @@ func TestMonitor(t *testing.T) {
 		return
 	}
 
+	launchProcessMonitor(t, false)
+
 	config := AttacherConfig{
 		Rules: []*AttachRule{{
 			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
 			Targets:          AttachToExecutable | AttachToSharedLibraries,
 		}},
-		ProcessMonitorEventStream: false,
-		EbpfConfig:                ebpfCfg,
+		EbpfConfig: ebpfCfg,
 	}
 	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
 	require.NoError(t, err)
@@ -654,6 +655,8 @@ func TestUprobeAttacher(t *testing.T) {
 		return
 	}
 
+	launchProcessMonitor(t, false)
+
 	buf, err := bytecode.GetReader(ebpfCfg.BPFDir, "uprobe_attacher-test.o")
 	require.NoError(t, err)
 	t.Cleanup(func() { buf.Close() })
@@ -821,8 +824,10 @@ func (s *SharedLibrarySuite) TestSingleFile() {
 		func() bool {
 			return methodHasBeenCalledTimes(mockRegistry, "Register", 1)
 		},
-		func() {
-			if cmd != nil && cmd.Process != nil {
+		func(testSuccess bool) {
+			// Only kill the process if the test failed, if it succeeded we want to kill it later
+			// to check if the Unregister call was done correctly
+			if !testSuccess && cmd != nil && cmd.Process != nil {
 				cmd.Process.Kill()
 			}
 		},
