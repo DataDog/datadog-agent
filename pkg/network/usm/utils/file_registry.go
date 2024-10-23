@@ -118,10 +118,6 @@ var (
 	ErrPathIsAlreadyRegistered = errors.New("path is already registered")
 )
 
-// RegisterHook is a testing hook that will be called when a PID is being
-// handled in the Register function.
-var RegisterHook func(uint32)
-
 // Register inserts or updates a new file registration within to the `FileRegistry`;
 //
 // If no current registration exists for the given `PathIdentifier`, we execute
@@ -142,10 +138,6 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 	defer r.m.Unlock()
 	if r.stopped {
 		return errAlreadyStopped
-	}
-
-	if RegisterHook != nil {
-		RegisterHook(pid)
 	}
 
 	if r.blocklistByID != nil {
@@ -188,7 +180,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 		// /proc/PID/root/...), since we can't be certain that ErrNotExist is
 		// always correctly propagated from the activation callback.
 		if _, statErr := os.Stat(path.HostPath); errors.Is(statErr, os.ErrNotExist) {
-			return statErr
+			return errors.Join(statErr, err)
 		}
 
 		if r.blocklistByID != nil {

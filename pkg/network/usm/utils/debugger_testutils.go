@@ -104,16 +104,3 @@ func WaitForPathToBeBlocked(t *testing.T, programType string, path string) {
 		return false
 	}, time.Second*5, time.Millisecond*100, "path %v is not blocked in %v", path, programType)
 }
-
-// IsBlocked checks if the specified path is blocked from tracing.
-func IsBlocked(t *testing.T, programType string, path string) bool {
-	pathID, err := NewPathIdentifier(path)
-	require.NoError(t, err)
-	blocked := debugger.GetBlockedPathIDs(programType)
-	for _, id := range blocked {
-		if id == pathID {
-			return true
-		}
-	}
-	return false
-}
