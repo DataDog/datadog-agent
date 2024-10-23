@@ -142,8 +142,6 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
 			case workloadmeta.KindContainerImageMetadata:
 				tagInfos = append(tagInfos, c.handleContainerImage(ev)...)
-			case workloadmeta.KindHost:
-				tagInfos = append(tagInfos, c.handleHostTags(ev)...)
 			case workloadmeta.KindKubernetesMetadata:
 				tagInfos = append(tagInfos, c.handleKubeMetadata(ev)...)
 			case workloadmeta.KindProcess:
@@ -294,17 +292,6 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
 			StandardTags:         standard,
-		},
-	}
-}
-
-func (c *WorkloadMetaCollector) handleHostTags(ev workloadmeta.Event) []*types.TagInfo {
-	hostTags := ev.Entity.(*workloadmeta.HostTags)
-	return []*types.TagInfo{
-		{
-			Source:      hostSource,
-			EntityID:    types.NewEntityID("internal", "global-entity-id"),
-			LowCardTags: hostTags.HostTags,
 		},
 	}
 }
