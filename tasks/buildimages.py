@@ -107,7 +107,7 @@ def get_tag(_, file_path=".gitlab-ci.yml", image_type=None):
     if image_type is None:
         return gitlab_ci["variables"].get(
             "DATADOG_AGENT_BUILDIMAGES",
-            f'{color_message("Not found", "red")}: DATAOG_AGENT_BUILDIMAGES is not defined in the configuration',
+            f'{color_message("Not found", "red")}: DATADOG_AGENT_BUILDIMAGES is not defined in the configuration',
         )
     else:
         available_images = set()
