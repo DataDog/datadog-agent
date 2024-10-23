@@ -6,9 +6,9 @@
 package usm
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"path"
 	"regexp"
@@ -82,18 +82,16 @@ func (r railsDetector) findRailsApplicationName(filename string) (string, error)
 		return "", fmt.Errorf("skipping application.rb (%q): %w", filename, err)
 	}
 
-	bytes, err := io.ReadAll(reader)
-	if err != nil {
-		return "", fmt.Errorf("unable to read application.rb (%q): %w", filename, err)
+	scanner := bufio.NewScanner(reader)
+	for scanner.Scan() {
+		matches := moduleRegexp.FindSubmatch(scanner.Bytes())
+		if len(matches) >= 2 {
+			return string(matches[1]), nil
+		}
 	}
 
-	matches := moduleRegexp.FindSubmatch(bytes)
-	if len(matches) < 2 {
-		// No match found
-		return "", errors.New("could not find Ruby module name")
-	}
-
-	return string(matches[1]), nil
+	// No match found
+	return "", errors.New("could not find Ruby module name")
 }
 
 // railsUnderscore converts a PascalCasedWord to a snake_cased_word.
