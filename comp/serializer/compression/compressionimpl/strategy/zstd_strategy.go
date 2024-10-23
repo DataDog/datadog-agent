@@ -30,7 +30,9 @@ func NewZstdStrategy(level int) *ZstdStrategy {
 
 // Compress will compress the data with zstd
 func (s *ZstdStrategy) Compress(src []byte) ([]byte, error) {
-	return zstd.CompressLevel(nil, src, s.level)
+	ctx := zstd.NewCtx()
+	return ctx.CompressLevel(nil, src, s.level)
+	//return zstd.CompressLevel(nil, src, s.level)
 }
 
 // Decompress will decompress the data with zstd
