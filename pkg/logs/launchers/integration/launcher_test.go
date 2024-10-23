@@ -6,11 +6,12 @@
 package integration
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/spf13/afero"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,9 +40,11 @@ type LauncherTestSuite struct {
 	source           *sources.LogSource
 	integrationsComp integrations.Component
 	s                *Launcher
+	fs               afero.Fs
 }
 
 func (suite *LauncherTestSuite) SetupTest() {
+	suite.fs = afero.NewMemMapFs()
 	suite.pipelineProvider = mock.NewMockProvider()
 	suite.outputChan = suite.pipelineProvider.NextPipelineChan()
 	suite.integrationsComp = integrationsmock.Mock()
@@ -53,7 +56,7 @@ func (suite *LauncherTestSuite) SetupTest() {
 	// it will try and create `/opt/datadog` directory and fail
 	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.run_path", suite.testDir)
 
-	suite.s = NewLauncher(sources.NewLogSources(), suite.integrationsComp)
+	suite.s = NewLauncher(suite.fs, sources.NewLogSources(), suite.integrationsComp)
 	suite.s.fileSizeMax = 10 * 1024 * 1024
 	status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources([]*sources.LogSource{suite.source}))
 	suite.s.runPath = suite.testDir
@@ -76,7 +79,7 @@ func (suite *LauncherTestSuite) TestSendLog() {
 
 	filepathChan := make(chan string)
 	fileLogChan := make(chan string)
-	suite.s.writeLogToFileFunction = func(logFilePath, log string) error {
+	suite.s.writeLogToFileFunction = func(_ afero.Fs, logFilePath, log string) error {
 		fileLogChan <- log
 		filepathChan <- logFilePath
 		return nil
@@ -115,7 +118,7 @@ func (suite *LauncherTestSuite) TestZeroCombinedUsageMaxFileCreated() {
 
 	filename := "sample_integration_123.log"
 	fileWithPath := filepath.Join(suite.s.runPath, filename)
-	file, err := os.Create(fileWithPath)
+	file, err := suite.fs.Create(fileWithPath)
 	assert.NoError(suite.T(), err)
 
 	file.Close()
@@ -148,7 +151,7 @@ func (suite *LauncherTestSuite) TestSmallCombinedUsageMax() {
 
 	filename := "sample_integration_123.log"
 	fileWithPath := filepath.Join(suite.s.runPath, filename)
-	file, err := os.Create(fileWithPath)
+	file, err := suite.fs.Create(fileWithPath)
 	assert.NoError(suite.T(), err)
 
 	file.Close()
@@ -162,7 +165,7 @@ func (suite *LauncherTestSuite) TestSmallCombinedUsageMax() {
 		IntegrationID: "sample_integration:123",
 	}
 	suite.s.receiveLogs(integrationLog)
-	fileStat, err := os.Stat(fileWithPath)
+	fileStat, err := suite.fs.Stat(fileWithPath)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), fileStat.Size(), int64(len(shortLog)+1))
 
@@ -173,7 +176,7 @@ func (suite *LauncherTestSuite) TestSmallCombinedUsageMax() {
 		IntegrationID: "sample_integration:123",
 	}
 	suite.s.receiveLogs(integrationLogTwo)
-	_, err = os.Stat(fileWithPath)
+	_, err = suite.fs.Stat(fileWithPath)
 	assert.NoError(suite.T(), err)
 
 	// Launcher should skip writing this log since it's larger than combinedUsageMax
@@ -183,22 +186,22 @@ func (suite *LauncherTestSuite) TestSmallCombinedUsageMax() {
 		IntegrationID: "sample_integration:123",
 	}
 	suite.s.receiveLogs(unwrittenIntegrationLog)
-	_, err = os.Stat(fileWithPath)
+	_, err = suite.fs.Stat(fileWithPath)
 	assert.NoError(suite.T(), err)
 
 	// Remake the file
 	suite.s.receiveLogs(integrationLog)
-	fileStat, err = os.Stat(fileWithPath)
+	fileStat, err = suite.fs.Stat(fileWithPath)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), fileStat.Size(), int64(len(shortLog)+1))
 }
 
 func (suite *LauncherTestSuite) TestWriteLogToFile() {
 	logText := "hello world"
-	err := suite.s.writeLogToFileFunction(suite.testPath, logText)
+	err := suite.s.writeLogToFileFunction(suite.fs, suite.testPath, logText)
 	require.Nil(suite.T(), err)
 
-	fileContents, err := os.ReadFile(suite.testPath)
+	fileContents, err := afero.ReadFile(suite.s.fs, suite.testPath)
 
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), logText+"\n", string(fileContents))
@@ -206,16 +209,16 @@ func (suite *LauncherTestSuite) TestWriteLogToFile() {
 
 func (suite *LauncherTestSuite) TestWriteMultipleLogsToFile() {
 	var err error
-	err = suite.s.writeLogToFileFunction(suite.testPath, "line 1")
+	err = suite.s.writeLogToFileFunction(suite.fs, suite.testPath, "line 1")
 	require.Nil(suite.T(), err, "error writing line 1")
 
-	err = suite.s.writeLogToFileFunction(suite.testPath, "line 2")
+	err = suite.s.writeLogToFileFunction(suite.fs, suite.testPath, "line 2")
 	require.Nil(suite.T(), err, "error writing line 2")
 
-	err = suite.s.writeLogToFileFunction(suite.testPath, "line 3")
+	err = suite.s.writeLogToFileFunction(suite.fs, suite.testPath, "line 3")
 	require.Nil(suite.T(), err, "error writing line 3")
 
-	fileContents, err := os.ReadFile(suite.testPath)
+	fileContents, err := afero.ReadFile(suite.fs, suite.testPath)
 
 	assert.NoError(suite.T(), err)
 	expectedContent := "line 1\nline 2\nline 3\n"
@@ -226,11 +229,11 @@ func (suite *LauncherTestSuite) TestWriteMultipleLogsToFile() {
 func (suite *LauncherTestSuite) TestDeleteFile() {
 	filename := "testfile.log"
 	fileWithPath := filepath.Join(suite.s.runPath, filename)
-	file, err := os.Create(fileWithPath)
+	file, err := suite.fs.Create(fileWithPath)
 	fileinfo := &fileInfo{fileWithPath: fileWithPath, size: int64(0)}
 	assert.NoError(suite.T(), err)
 
-	info, err := os.Stat(fileWithPath)
+	info, err := suite.fs.Stat(fileWithPath)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), int64(0), info.Size(), "Newly created file size not zero")
 
@@ -239,7 +242,7 @@ func (suite *LauncherTestSuite) TestDeleteFile() {
 	file.Write(data)
 	file.Close()
 
-	info, err = os.Stat(fileWithPath)
+	info, err = suite.fs.Stat(fileWithPath)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), int64(2*1024*1024), info.Size())
 
@@ -292,7 +295,7 @@ func (suite *LauncherTestSuite) TestFileExceedsSingleFileLimit() {
 
 	filename := "sample_integration_123.log"
 	fileWithPath := filepath.Join(suite.s.runPath, filename)
-	file, err := os.Create(fileWithPath)
+	file, err := suite.fs.Create(fileWithPath)
 	assert.NoError(suite.T(), err)
 
 	file.Write(make([]byte, oneMB))
@@ -319,7 +322,7 @@ func (suite *LauncherTestSuite) TestScanInitialFiles() {
 	fileSize := int64(1 * 1024 * 1024)
 
 	fileWithPath := filepath.Join(suite.s.runPath, filename)
-	file, err := os.Create(fileWithPath)
+	file, err := suite.fs.Create(fileWithPath)
 	assert.NoError(suite.T(), err)
 
 	data := make([]byte, fileSize)
@@ -343,7 +346,7 @@ func (suite *LauncherTestSuite) TestCreateFileAfterScanInitialFile() {
 	fileSize := int64(1 * 1024 * 1024)
 
 	fileWithPath := filepath.Join(suite.s.runPath, filename)
-	file, err := os.Create(fileWithPath)
+	file, err := suite.fs.Create(fileWithPath)
 	assert.NoError(suite.T(), err)
 
 	data := make([]byte, fileSize)
@@ -365,7 +368,7 @@ func (suite *LauncherTestSuite) TestCreateFileAfterScanInitialFile() {
 
 	filepathChan := make(chan string)
 	fileLogChan := make(chan string)
-	suite.s.writeLogToFileFunction = func(logFilePath, log string) error {
+	suite.s.writeLogToFileFunction = func(_ afero.Fs, logFilePath, log string) error {
 		fileLogChan <- log
 		filepathChan <- logFilePath
 		return nil
@@ -400,7 +403,7 @@ func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 	//  And I write 1Mb to each file in seq order
 	dataOneMB := make([]byte, 1*1024*1024)
 	for _, fileWithPath := range fileNames {
-		file, err := os.Create(fileWithPath)
+		file, err := suite.fs.Create(fileWithPath)
 		require.NoError(suite.T(), err)
 		_, _ = file.Write(dataOneMB)
 		_ = file.Close()
@@ -427,7 +430,7 @@ func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 
 	var actualSize int64
 	for _, fileWithPath := range fileNames {
-		file, err := os.Stat(fileWithPath)
+		file, err := suite.fs.Stat(fileWithPath)
 		require.Nil(suite.T(), err)
 		actualSize += file.Size()
 	}
@@ -451,9 +454,9 @@ func (suite *LauncherTestSuite) TestInitialLogsExceedTotalUsageMultipleFiles() {
 
 	dataOneMB := make([]byte, oneMB)
 
-	file1, err := os.Create(filepath.Join(suite.s.runPath, filename1))
+	file1, err := suite.fs.Create(filepath.Join(suite.s.runPath, filename1))
 	assert.NoError(suite.T(), err)
-	file2, err := os.Create(filepath.Join(suite.s.runPath, filename2))
+	file2, err := suite.fs.Create(filepath.Join(suite.s.runPath, filename2))
 	assert.NoError(suite.T(), err)
 
 	file1.Write(dataOneMB)
@@ -476,7 +479,7 @@ func (suite *LauncherTestSuite) TestInitialLogExceedsTotalUsageSingleFile() {
 	filename := "sample_integration1_123.log"
 	dataTwoMB := make([]byte, 2*oneMB)
 
-	file, err := os.Create(filepath.Join(suite.s.runPath, filename))
+	file, err := suite.fs.Create(filepath.Join(suite.s.runPath, filename))
 	assert.NoError(suite.T(), err)
 
 	file.Write(dataTwoMB)
@@ -492,9 +495,9 @@ func (suite *LauncherTestSuite) TestInitialLogExceedsTotalUsageSingleFile() {
 // properly deletes log files once the sum of sizes for the scanned files is too
 // large
 func (suite *LauncherTestSuite) TestScanInitialFilesDeletesProperly() {
-	err := os.RemoveAll(suite.s.runPath)
+	err := suite.fs.RemoveAll(suite.s.runPath)
 	assert.NoError(suite.T(), err)
-	os.MkdirAll(suite.s.runPath, 0755)
+	suite.fs.MkdirAll(suite.s.runPath, 0755)
 	assert.NoError(suite.T(), err)
 
 	oneMB := int64(1 * 1024 * 1024)
@@ -504,9 +507,9 @@ func (suite *LauncherTestSuite) TestScanInitialFilesDeletesProperly() {
 	filename2 := "sample_integration2_123.log"
 
 	name := filepath.Join(suite.s.runPath, filename1)
-	file1, err := os.Create(name)
+	file1, err := suite.fs.Create(name)
 	assert.NoError(suite.T(), err)
-	file2, err := os.Create(filepath.Join(suite.s.runPath, filename2))
+	file2, err := suite.fs.Create(filepath.Join(suite.s.runPath, filename2))
 	assert.NoError(suite.T(), err)
 
 	dataOneMB := make([]byte, oneMB)
@@ -518,7 +521,7 @@ func (suite *LauncherTestSuite) TestScanInitialFilesDeletesProperly() {
 	suite.s.scanInitialFiles(suite.s.runPath)
 
 	// make sure there is only one file in the directory
-	files, err := os.ReadDir(suite.s.runPath)
+	files, err := afero.ReadDir(suite.s.fs, suite.s.runPath)
 	assert.NoError(suite.T(), err)
 
 	fileCount := 0
@@ -538,23 +541,14 @@ func TestLauncherTestSuite(t *testing.T) {
 // TestReadOnlyFileSystem ensures the launcher doesn't panic in a read-only
 // file system. There will be errors but it should handle them gracefully.
 func TestReadOnlyFileSystem(t *testing.T) {
-	/*
-		Currently this test fails randomly with:
-			1729313171735561634 [Info] Successfully created integrations log file: /tmp/TestReadOnlyFileSystem4096893197/001/readonly/integrations/123456789.log
-				testing.go:1231: TempDir RemoveAll cleanup: unlinkat /tmp/TestReadOnlyFileSystem4096893197/001/readonly/integrations: directory not empty
-		This looks like an issue with the Launcher still writing data to the "read-only" directory (which isn't read only
-		as we run these tests in a container with root).
-	*/
-	flake.Mark(t)
-
-	readOnlyDir := filepath.Join(t.TempDir(), "readonly")
-	err := os.Mkdir(readOnlyDir, 0444)
+	fs := afero.NewMemMapFs()
+	readOnlyDir, err := afero.TempDir(fs, "readonly", t.Name())
 	assert.NoError(t, err, "Unable to make tempdir readonly")
 
 	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.run_path", readOnlyDir)
 
 	integrationsComp := integrationsmock.Mock()
-	s := NewLauncher(sources.NewLogSources(), integrationsComp)
+	s := NewLauncher(afero.NewReadOnlyFs(fs), sources.NewLogSources(), integrationsComp)
 
 	// Check the launcher doesn't block on receiving channels
 	mockConf := &integration.Config{}
@@ -580,7 +574,7 @@ func TestCombinedDiskUsageFallback(t *testing.T) {
 	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.integrations_logs_total_usage", totalUsage)
 
 	integrationsComp := integrationsmock.Mock()
-	s := NewLauncher(sources.NewLogSources(), integrationsComp)
+	s := NewLauncher(afero.NewOsFs(), sources.NewLogSources(), integrationsComp)
 
 	assert.Equal(t, s.combinedUsageMax, int64(totalUsage*1024*1024))
 }
