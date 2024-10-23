@@ -41,64 +41,64 @@ func init() {
 // DefaultScrubber, but can be used to initialize other, custom scrubbers with
 // the default replacers.
 func AddDefaultReplacers(scrubber *Scrubber) {
+	// API key
 	hintedAPIKeyReplacer := Replacer{
 		// If hinted, mask the value regardless if it doesn't match 32-char hexadecimal string
 		Regex: regexp.MustCompile(`(api_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{5})\b`),
 		Hints: []string{"api_key", "apikey"},
 		Repl:  []byte(`$1***************************$2`),
-	}
+	} // DONE
+	apiKeyReplacerYAML := Replacer{
+		Regex: regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
+		Repl:  []byte(`$1$2"***************************$3"`),
+	} // TODO: try to see how to re-do that
+	apiKeyReplacer := Replacer{
+		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
+		Repl:  []byte(`***************************$1`),
+	} // DONE
+
+	// APP key
 	hintedAPPKeyReplacer := Replacer{
 		// If hinted, mask the value regardless if it doesn't match 40-char hexadecimal string
 		Regex: regexp.MustCompile(`(ap(?:p|plication)_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{5})\b`),
 		Hints: []string{"app_key", "appkey", "application_key"},
 		Repl:  []byte(`$1***********************************$2`),
-	}
+	} // Done
+	appKeyReplacerYAML := Replacer{
+		Regex: regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
+		Repl:  []byte(`$1$2"***********************************$3"`),
+	} // TODO: try to see how to re-do that
+	appKeyReplacer := Replacer{
+		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
+		Repl:  []byte(`***********************************$1`),
+	} // DONE
+	rcAppKeyReplacer := Replacer{
+		Regex: regexp.MustCompile(`\bDDRCM_[A-Z0-9]+([A-Z0-9]{5})\b`),
+		Repl:  []byte(`***********************************$1`),
+	} // DONE
 
+	// Bearer token
 	// replacers are check one by one in order. We first try to scrub 64 bytes token, keeping the last 5 digit. If
 	// the token has a different size we scrub it entirely.
 	hintedBearerReplacer := Replacer{
 		Regex: regexp.MustCompile(`\bBearer [a-fA-F0-9]{59}([a-fA-F0-9]{5})\b`),
 		Hints: []string{"Bearer"},
 		Repl:  []byte(`Bearer ***********************************************************$1`),
-	}
+	} // DONE
 	// For this one we match any characters
 	hintedBearerInvalidReplacer := Replacer{
 		Regex: regexp.MustCompile(`\bBearer\s+[^*]+\b`),
 		Hints: []string{"Bearer"},
 		Repl:  []byte("Bearer " + defaultReplacement),
-	}
+	} // FAILED: regexp eat too much since sds does not seems to do line by line matching
 
-	apiKeyReplacerYAML := Replacer{
-		Regex: regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
-		Repl:  []byte(`$1$2"***************************$3"`),
-	}
-	apiKeyReplacer := Replacer{
-		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
-		Repl:  []byte(`***************************$1`),
-	}
-	appKeyReplacerYAML := Replacer{
-		Regex: regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
-		Repl:  []byte(`$1$2"***********************************$3"`),
-	}
-	appKeyReplacer := Replacer{
-		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
-		Repl:  []byte(`***********************************$1`),
-	}
-	rcAppKeyReplacer := Replacer{
-		Regex: regexp.MustCompile(`\bDDRCM_[A-Z0-9]+([A-Z0-9]{5})\b`),
-		Repl:  []byte(`***********************************$1`),
-	}
+	// Password
 	// URI Generic Syntax
 	// https://tools.ietf.org/html/rfc3986
 	uriPasswordReplacer := Replacer{
 		Regex: regexp.MustCompile(`(?i)([a-z][a-z0-9+-.]+://|\b)([^:]+):([^\s|"]+)@`),
 		Repl:  []byte(`$1$2:********@`),
 	}
-	yamlPasswordReplacer := matchYAMLKeyPart(
-		`(pass(word)?|pwd)`,
-		[]string{"pass", "pwd"},
-		[]byte(`$1 "********"`),
-	)
 	passwordReplacer := Replacer{
 		// this regex has three parts:
 		// * key: case-insensitive, optionally quoted (pass | password | pswd | pwd), not anchored to match on args like --mysql_password= etc.
@@ -108,6 +108,24 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		// replace the 3rd capture group (password string) with ********
 		Repl: []byte(`$1$2********`),
 	}
+
+	certReplacer := Replacer{
+		/*
+		   Try to match as accurately as possible. RFC 7468's ABNF
+		   Backreferences are not available in go, so we cannot verify
+		   here that the BEGIN label is the same as the END label.
+		*/
+		Regex: regexp.MustCompile(`-----BEGIN (?:.*)-----[A-Za-z0-9=\+\/\s]*-----END (?:.*)-----`),
+		Hints: []string{"BEGIN"},
+		Repl:  []byte(`********`),
+	}
+
+	// ============ Object rules ============
+	yamlPasswordReplacer := matchYAMLKeyPart(
+		`(pass(word)?|pwd)`,
+		[]string{"pass", "pwd"},
+		[]byte(`$1 "********"`),
+	)
 	tokenReplacer := matchYAMLKeyEnding(
 		`token`,
 		[]string{"token"},
@@ -123,17 +141,8 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		"community_strings",
 		[]byte(`$1 "********"`),
 	)
-	certReplacer := Replacer{
-		/*
-		   Try to match as accurately as possible. RFC 7468's ABNF
-		   Backreferences are not available in go, so we cannot verify
-		   here that the BEGIN label is the same as the END label.
-		*/
-		Regex: regexp.MustCompile(`-----BEGIN (?:.*)-----[A-Za-z0-9=\+\/\s]*-----END (?:.*)-----`),
-		Hints: []string{"BEGIN"},
-		Repl:  []byte(`********`),
-	}
 
+	// ============ Object Only rules ============
 	// The following replacers works on YAML object only
 
 	apiKeyYaml := matchYAMLOnly(
@@ -150,7 +159,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 			}
 			return defaultReplacement
 		},
-	)
+	) // WONT DO
 
 	appKeyYaml := matchYAMLOnly(
 		`ap(?:p|plication)_?key`,
@@ -166,7 +175,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 			}
 			return defaultReplacement
 		},
-	)
+	) // WONT DO
 
 	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
