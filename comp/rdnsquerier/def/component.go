@@ -14,6 +14,6 @@ import (
 
 // Component is the component type.
 type Component interface {
-	GetHostname([]byte, func(string), func(string, error)) error
+	GetHostnameAsync([]byte, func(string), func(string, error)) error
 	GetHostnameSync(context.Context, string) (string, error)
 }

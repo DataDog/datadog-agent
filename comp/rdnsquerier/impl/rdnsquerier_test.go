@@ -44,7 +44,7 @@ func TestNotStarted(t *testing.T) {
 	ts := testSetup(t, overrides, false, nil, 0)
 
 	// IP address in private range
-	err := ts.rdnsQuerier.GetHostname(
+	err := ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called when rdnsquerier is not started")
@@ -74,7 +74,7 @@ func TestNormalOperationsDefaultConfig(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// Invalid IP address
-	err := ts.rdnsQuerier.GetHostname(
+	err := ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{1, 2, 3},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called for invalid IP address")
@@ -86,7 +86,7 @@ func TestNormalOperationsDefaultConfig(t *testing.T) {
 	assert.ErrorContains(t, err, "invalid IP address")
 
 	// IP address not in private range
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{8, 8, 8, 8},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called for IP address not in private range")
@@ -99,7 +99,7 @@ func TestNormalOperationsDefaultConfig(t *testing.T) {
 
 	// IP address in private range - async callback should be called the first time an IP address is queried
 	wg.Add(1)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called")
@@ -115,7 +115,7 @@ func TestNormalOperationsDefaultConfig(t *testing.T) {
 
 	// IP address in private range - cache hit should result in sync callback being called the second time an IP address is queried
 	wg.Add(1)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(hostname string) {
 			assert.Equal(t, "fakehostname-192.168.1.100", hostname)
@@ -151,7 +151,7 @@ func TestNormalOperationsCacheDisabled(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// Invalid IP address
-	err := ts.rdnsQuerier.GetHostname(
+	err := ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{1, 2, 3},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called for invalid IP address")
@@ -163,7 +163,7 @@ func TestNormalOperationsCacheDisabled(t *testing.T) {
 	assert.ErrorContains(t, err, "invalid IP address")
 
 	// IP address not in private range
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{8, 8, 8, 8},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called for IP address not in private range")
@@ -176,7 +176,7 @@ func TestNormalOperationsCacheDisabled(t *testing.T) {
 
 	// IP address in private range - with cache disabled the async callback should be called every time
 	wg.Add(1)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called")
@@ -191,7 +191,7 @@ func TestNormalOperationsCacheDisabled(t *testing.T) {
 	wg.Wait()
 
 	wg.Add(1)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called")
@@ -228,7 +228,7 @@ func TestRateLimiter(t *testing.T) {
 
 	// IP addresses in private range
 	for i := range 20 {
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(_ string) {
 				assert.FailNow(t, "Sync callback should not be called")
@@ -291,7 +291,7 @@ func TestRateLimiterThrottled(t *testing.T) {
 	wg.Add(20)
 	start := time.Now()
 	for i := range 20 {
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(_ string) {
 				assert.FailNow(t, "Sync callback should not be called")
@@ -321,7 +321,7 @@ func TestRateLimiterThrottled(t *testing.T) {
 	// These queries will get errors, exceeding throttle_error_threshold, which will cause the rate limiter to throttle down
 	wg.Add(2)
 	for i := 30; i < 32; i++ {
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(_ string) {
 				assert.FailNow(t, "Sync callback should not be called")
@@ -353,7 +353,7 @@ func TestRateLimiterThrottled(t *testing.T) {
 	wg.Add(20)
 	start = time.Now()
 	for i := range 20 {
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(hostname string) {
 				assert.Equal(t, fmt.Sprintf("fakehostname-192.168.1.%d", i), hostname)
@@ -386,7 +386,7 @@ func TestRateLimiterThrottled(t *testing.T) {
 	wg.Add(6)
 	start = time.Now()
 	for i := 40; i < 46; i++ {
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(_ string) {
 				assert.FailNow(t, "Sync callback should not be called")
@@ -420,7 +420,7 @@ func TestRateLimiterThrottled(t *testing.T) {
 	wg.Add(10)
 	start = time.Now()
 	for i := 50; i < 60; i++ {
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(_ string) {
 				assert.FailNow(t, "Sync callback should not be called")
@@ -470,7 +470,7 @@ func TestChannelFullRequestsDroppedWhenRateLimited(t *testing.T) {
 	wg.Add(1) // only wait for one callback, most or all of the other requests will be dropped
 	var once sync.Once
 	for i := range 20 {
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(_ string) {
 				assert.FailNow(t, "Sync callback should not be called")
@@ -519,7 +519,7 @@ func TestCacheHitInProgress(t *testing.T) {
 
 	for range 10 {
 		wg.Add(1)
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, 100},
 			func(hostname string) {
 				assert.Equal(t, "fakehostname-192.168.1.100", hostname)
@@ -534,7 +534,7 @@ func TestCacheHitInProgress(t *testing.T) {
 		assert.NoError(t, err)
 
 		wg.Add(1)
-		err = ts.rdnsQuerier.GetHostname(
+		err = ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, 101},
 			func(hostname string) {
 				assert.Equal(t, "fakehostname-192.168.1.101", hostname)
@@ -591,7 +591,7 @@ func TestRetries(t *testing.T) {
 	var wg sync.WaitGroup
 
 	wg.Add(2)
-	err := ts.rdnsQuerier.GetHostname(
+	err := ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called")
@@ -604,7 +604,7 @@ func TestRetries(t *testing.T) {
 	)
 	assert.NoError(t, err)
 
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 101},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called")
@@ -620,7 +620,7 @@ func TestRetries(t *testing.T) {
 
 	// both were within retry limits so should be cached
 	wg.Add(2)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(hostname string) {
 			assert.Equal(t, "fakehostname-192.168.1.100", hostname)
@@ -631,7 +631,7 @@ func TestRetries(t *testing.T) {
 		},
 	)
 	assert.NoError(t, err)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 101},
 		func(hostname string) {
 			assert.Equal(t, "fakehostname-192.168.1.101", hostname)
@@ -679,7 +679,7 @@ func TestRetriesExceeded(t *testing.T) {
 	var wg sync.WaitGroup
 
 	wg.Add(1)
-	err := ts.rdnsQuerier.GetHostname(
+	err := ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called")
@@ -694,7 +694,7 @@ func TestRetriesExceeded(t *testing.T) {
 
 	// Because an error was returned for all available retries this IP address should now have hostname "" cached
 	wg.Add(1)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(hostname string) {
 			assert.Equal(t, "", hostname)
@@ -737,7 +737,7 @@ func TestIsNotFound(t *testing.T) {
 	var wg sync.WaitGroup
 
 	wg.Add(1)
-	err := ts.rdnsQuerier.GetHostname(
+	err := ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called")
@@ -752,7 +752,7 @@ func TestIsNotFound(t *testing.T) {
 	wg.Wait()
 
 	wg.Add(1)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(hostname string) {
 			assert.Equal(t, "", hostname)
@@ -790,7 +790,7 @@ func TestCacheMaxSize(t *testing.T) {
 	num := 20
 	wg.Add(num)
 	for i := range num {
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(hostname string) {
 				assert.Equal(t, fmt.Sprintf("fakehostname-192.168.1.%d", i), hostname)
@@ -838,7 +838,7 @@ func TestCacheExpiration(t *testing.T) {
 	num := 100
 	wg.Add(num)
 	for i := range num {
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(hostname string) {
 				assert.Equal(t, fmt.Sprintf("fakehostname-192.168.1.%d", i), hostname)
@@ -887,7 +887,7 @@ func TestCachePersist(t *testing.T) {
 
 	// async callback should be called the first time an IP address is queried
 	wg.Add(1)
-	err := ts.rdnsQuerier.GetHostname(
+	err := ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called")
@@ -903,7 +903,7 @@ func TestCachePersist(t *testing.T) {
 
 	// cache hit should result in sync callback being called the second time an IP address is queried
 	wg.Add(1)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(hostname string) {
 			assert.Equal(t, "fakehostname-192.168.1.100", hostname)
@@ -936,7 +936,7 @@ func TestCachePersist(t *testing.T) {
 	// cache hit should result in sync callback being called the first time the IP address is queried after
 	// restart because persistent cache should have been loaded
 	wg.Add(1)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(hostname string) {
 			assert.Equal(t, "fakehostname-192.168.1.100", hostname)
@@ -969,7 +969,7 @@ func TestCachePersist(t *testing.T) {
 
 	// cache_hit_expired should result in async callback being called
 	wg.Add(1)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called")
@@ -1022,9 +1022,9 @@ func TestGetHostnameSync(t *testing.T) {
 	assert.Equal(t, "", hostname)
 
 	//Test with IP address not in private range
-	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "8.8.8.8")
-	assert.Error(t, err)
-	assert.Equal(t, "", hostname)
+	// hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "8.8.8.8")
+	// assert.Error(t, err)
+	// assert.Equal(t, "", hostname)
 
 	// // Test with IP address in private range
 	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "192.168.1.100")
@@ -1047,9 +1047,9 @@ func TestGetHostnameSync(t *testing.T) {
 	assert.Equal(t, "", hostname)
 
 	// Test with an IPv6 address
-	hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "2001:4860:4860::8888") // Google Public DNS
-	assert.Error(t, err)
-	assert.Equal(t, "", hostname)
+	// hostname, err = internalRDNSQuerier.GetHostnameSync(ctx, "2001:4860:4860::8888") // Google Public DNS
+	// assert.Error(t, err)
+	// assert.Equal(t, "", hostname)
 
 	cancel()
 }

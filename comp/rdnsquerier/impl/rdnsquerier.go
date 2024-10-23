@@ -9,7 +9,6 @@ package rdnsquerierimpl
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/netip"
 	"sync"
 
@@ -159,7 +158,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 // If the hostname for the IP address is immediately available (i.e. cache is enabled and entry is cached) then the updateHostnameSync callback
 // will be invoked synchronously, otherwise a query is sent to a channel to be processed asynchronously.  If the channel is full then an error
 // is returned.  When the request completes the updateHostnameAsync callback will be invoked asynchronously.
-func (q *rdnsQuerierImpl) GetHostname(ipAddr []byte, updateHostnameSync func(string), updateHostnameAsync func(string, error)) error {
+func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostnameSync func(string), updateHostnameAsync func(string, error)) error {
 	q.internalTelemetry.total.Inc()
 
 	netipAddr, ok := netip.AddrFromSlice(ipAddr)
@@ -169,7 +168,7 @@ func (q *rdnsQuerierImpl) GetHostname(ipAddr []byte, updateHostnameSync func(str
 	}
 
 	if !netipAddr.IsPrivate() {
-		q.logger.Tracef("Reverse DNS Enrichment IP address %s is not in the private address space", netipAddr)
+		q.logger.Tracef("Reverse DNS Enrichment IP address %s is not in the private address space", ipAddr)
 		return nil
 	}
 	q.internalTelemetry.private.Inc()
@@ -177,10 +176,9 @@ func (q *rdnsQuerierImpl) GetHostname(ipAddr []byte, updateHostnameSync func(str
 	err := q.cache.getHostname(netipAddr.String(), updateHostnameSync, updateHostnameAsync)
 	if err != nil {
 		q.logger.Debugf("Reverse DNS Enrichment cache.getHostname() for addr %s returned error: %v", netipAddr.String(), err)
-		return err
 	}
 
-	return nil
+	return err
 }
 
 // GetHostnameSync attempts to resolve the hostname for the given IP address synchronously.
@@ -189,19 +187,17 @@ func (q *rdnsQuerierImpl) GetHostname(ipAddr []byte, updateHostnameSync func(str
 // If the IP address is in the private address space then the IP address will be resolved to a hostname.
 // The function accepts a timeout duration, which defaults to 2 seconds if not provided.
 func (q *rdnsQuerierImpl) GetHostnameSync(ctx context.Context, ipAddr string) (string, error) {
-	q.logger.Infof("ENTERED THE GetHostnameSync FUNCTION with IP address: %s", ipAddr)
-
 	q.internalTelemetry.total.Inc()
 
-	netipAddr := net.ParseIP(ipAddr).To4()
-	if netipAddr == nil {
+	netipAddr, err := netip.ParseAddr(ipAddr)
+	if err != nil {
 		q.internalTelemetry.invalidIPAddress.Inc()
-		return "", fmt.Errorf("invalid IP address %v", ipAddr)
+		return "", fmt.Errorf("invalid IP address %s: %v", ipAddr, err)
 	}
 
 	if !netipAddr.IsPrivate() {
-		q.logger.Tracef("Reverse DNS Enrichment IP address %s is not in the private address space", netipAddr)
-		return "", fmt.Errorf("IP address %v is not in the private address space", netipAddr)
+		q.logger.Tracef("Reverse DNS Enrichment IP address %s is not in the private address space", ipAddr)
+		return "", nil
 	}
 	q.internalTelemetry.private.Inc()
 
@@ -211,8 +207,8 @@ func (q *rdnsQuerierImpl) GetHostnameSync(ctx context.Context, ipAddr string) (s
 		done     = make(chan struct{})
 	)
 
-	err := q.GetHostname(
-		netipAddr,
+	err = q.cache.getHostname(
+		netipAddr.String(),
 		func(h string) {
 			mu.Lock()
 			defer mu.Unlock()
@@ -227,7 +223,7 @@ func (q *rdnsQuerierImpl) GetHostnameSync(ctx context.Context, ipAddr string) (s
 		},
 	)
 	if err != nil {
-		q.logger.Tracef("Error resolving reverse DNS enrichment for source IP address: %v error: %v", ipAddr, err)
+		q.logger.Debugf("Reverse DNS Enrichment cache.getHostname() for addr %s returned error: %v", netipAddr.String(), err)
 	}
 
 	select {
