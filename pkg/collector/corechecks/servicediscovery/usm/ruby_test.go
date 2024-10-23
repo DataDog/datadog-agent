@@ -17,29 +17,34 @@ import (
 
 func TestGenerateNameFromRailsApplicationRb(t *testing.T) {
 	tests := []struct {
-		name     string
-		path     string
-		expected string
+		name        string
+		path        string
+		expected    string
+		shouldError bool
 	}{
 		{
-			name:     "name is found",
-			path:     "./testdata/ruby/application.rb",
-			expected: "rails_hello",
+			name:        "name is found",
+			path:        "./testdata/ruby/application.rb",
+			expected:    "rails_hello",
+			shouldError: false,
 		},
 		{
-			name:     "name not found",
-			path:     "./testdata/ruby/application_invalid.rb",
-			expected: "",
+			name:        "name not found",
+			path:        "./testdata/ruby/application_invalid.rb",
+			expected:    "",
+			shouldError: true,
 		},
 		{
-			name:     "accronym in module name",
-			path:     "./testdata/ruby/application_accronym.rb",
-			expected: "http_server",
+			name:        "accronym in module name",
+			path:        "./testdata/ruby/application_accronym.rb",
+			expected:    "http_server",
+			shouldError: false,
 		},
 		{
-			name:     "file does not exists",
-			path:     "./testdata/ruby/application_does_not_exist.rb",
-			expected: "",
+			name:        "file does not exists",
+			path:        "./testdata/ruby/application_does_not_exist.rb",
+			expected:    "",
+			shouldError: true,
 		},
 	}
 	full, err := filepath.Abs("testdata/root")
@@ -50,10 +55,18 @@ func TestGenerateNameFromRailsApplicationRb(t *testing.T) {
 				fs:         NewSubDirFS(full),
 				ContextMap: make(DetectorContextMap),
 			}}
+
 			value, err := instance.findRailsApplicationName(tt.path)
-			t.Log(err)
-			assert.Equal(t, len(tt.expected) > 0, err == nil)
-			assert.Equal(t, tt.expected, railsUnderscore(value))
+			value = railsUnderscore(value)
+
+			if tt.shouldError {
+				assert.Error(t, err, "did not get an error when we should have. Got service name: %s", value)
+				assert.True(t, len(tt.expected) == 0, "got an non-empty result: %s", value)
+				return
+			}
+
+			assert.True(t, len(tt.expected) > 0, "got an empty result")
+			assert.Equal(t, tt.expected, value)
 		})
 	}
 }
