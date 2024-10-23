@@ -27,7 +27,7 @@ func TestGroupByConnection(t *testing.T) {
 		true,
 		http.MethodGet,
 	)
-	val1 := http.NewRequestStats(false)
+	val1 := http.NewRequestStats()
 	val1.AddRequest(100, 10.0, 0, nil)
 
 	key2 := http.NewKey(
@@ -39,7 +39,7 @@ func TestGroupByConnection(t *testing.T) {
 		true,
 		http.MethodGet,
 	)
-	val2 := http.NewRequestStats(false)
+	val2 := http.NewRequestStats()
 	val2.AddRequest(200, 10.0, 0, nil)
 
 	// Connection 2
@@ -52,7 +52,7 @@ func TestGroupByConnection(t *testing.T) {
 		true,
 		http.MethodGet,
 	)
-	val3 := http.NewRequestStats(false)
+	val3 := http.NewRequestStats()
 	val3.AddRequest(300, 10.0, 0, nil)
 
 	key4 := http.NewKey(
@@ -64,7 +64,7 @@ func TestGroupByConnection(t *testing.T) {
 		true,
 		http.MethodGet,
 	)
-	val4 := http.NewRequestStats(false)
+	val4 := http.NewRequestStats()
 	val4.AddRequest(400, 10.0, 0, nil)
 
 	data := map[http.Key]*http.RequestStats{

@@ -318,6 +318,7 @@ func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgM
 	if err != nil {
 		return nil, fmt.Errorf("unable to get mounts for image %s, err: %w", imgMeta.ID, err)
 	}
+
 	layers := extractLayersFromOverlayFSMounts(mounts)
 	if len(layers) == 0 {
 		return nil, fmt.Errorf("unable to extract layers from overlayfs mounts %+v for image %s", mounts, imgMeta.ID)

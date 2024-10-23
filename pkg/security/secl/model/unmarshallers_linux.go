@@ -1332,13 +1332,13 @@ func (e *RawPacketEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	if layer := packet.Layer(layers.LayerTypeUDP); layer != nil {
 		if rl, ok := layer.(*layers.UDP); ok {
-			e.L4Protocol = uint16(layers.LayerTypeUDP)
+			e.L4Protocol = unix.IPPROTO_UDP
 			e.Source.Port = uint16(rl.SrcPort)
 			e.Destination.Port = uint16(rl.DstPort)
 		}
 	} else if layer := packet.Layer(layers.LayerTypeTCP); layer != nil {
 		if rl, ok := layer.(*layers.TCP); ok {
-			e.L4Protocol = uint16(layers.IPProtocolTCP)
+			e.L4Protocol = unix.IPPROTO_TCP
 			e.Source.Port = uint16(rl.SrcPort)
 			e.Destination.Port = uint16(rl.DstPort)
 		}

@@ -46,7 +46,7 @@
       -e COVERAGE_CACHE_FLAG="${COVERAGE_CACHE_FLAG}"
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\unittests.bat
-    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - If ($lastExitCode -ne "0") { exit "$lastExitCode" }
   variables:
     TEST_OUTPUT_FILE: test_output.json
   artifacts:
