@@ -405,6 +405,19 @@ def validate_msi_createfolder_table(db, allowlist):
           this behavior was also present in the original installer so leave them for now.
     """
 
+    # Skip if CreateFolder table does not exist
+    with MsiClosing(db.OpenView("Select `Name` From `_Tables`")) as view:
+        view.Execute(None)
+        record = view.Fetch()
+        tables = set()
+        while record:
+            tables.add(record.GetString(1))
+            record = view.Fetch()
+        if "CreateFolder" not in tables:
+            print("skipping validation, CreateFolder table not found in MSI")
+            return
+
+    print("Validating MSI CreateFolder table")
     with MsiClosing(db.OpenView("Select Directory_ FROM CreateFolder")) as view:
         view.Execute(None)
         record = view.Fetch()
