@@ -16,8 +16,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
-	"net"
-	"net/url"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -106,60 +105,13 @@ func getNSID() uint64 {
 
 // simpleHTTPRequest used to avoid importing the crypto golang package
 func simpleHTTPRequest(uri string) ([]byte, error) {
-	u, err := url.Parse(uri)
+	resp, err := http.Get(uri)
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
-	addr := u.Host
-	if u.Port() == "" {
-		addr += ":80"
-	}
-
-	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
-	if err != nil {
-		return nil, err
-	}
-
-	client, err := net.DialTCP("tcp", nil, tcpAddr)
-	if err != nil {
-		return nil, err
-	}
-	defer client.Close()
-
-	path := u.Path
-	if path == "" {
-		path = "/"
-	}
-
-	req := fmt.Sprintf("GET %s?%s HTTP/1.0\nHost: %s\nConnection: close\n\n", path, u.RawQuery, u.Hostname())
-
-	_, err = client.Write([]byte(req))
-	if err != nil {
-		return nil, err
-	}
-
-	var body []byte
-	buf := make([]byte, 256)
-
-	for {
-		n, err := client.Read(buf)
-		if err != nil {
-			if err != io.EOF {
-				return nil, err
-			}
-			break
-		}
-		body = append(body, buf[:n]...)
-	}
-
-	offset := bytes.Index(body, []byte{'\r', '\n', '\r', '\n'})
-	if offset < 0 {
-
-		return nil, errors.New("unable to parse http response")
-	}
-
-	return body[offset+2:], nil
+	return io.ReadAll(resp.Body)
 }
 
 func fillProcessCwd(process *Process) error {
