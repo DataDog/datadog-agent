@@ -78,7 +78,6 @@ func (s *Sender) run() {
 	unreliableDestinations := buildDestinationSenders(s.config, s.destinations.Unreliable, sink, s.bufferSize)
 
 	for payload := range s.inputChan {
-		Z
 		s.monitor.Start()
 		var startInUse = time.Now()
 		senderDoneWg := &sync.WaitGroup{}
