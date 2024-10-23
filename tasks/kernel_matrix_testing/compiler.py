@@ -11,8 +11,8 @@ from invoke.context import Context
 from invoke.runners import Result
 
 from tasks.kernel_matrix_testing.tool import Exit, info, warn
+from tasks.libs.ciproviders.gitlab_api import GitlabYamlLoader
 from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
-from tasks.pipeline import GitlabYamlLoader
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import PathOrStr

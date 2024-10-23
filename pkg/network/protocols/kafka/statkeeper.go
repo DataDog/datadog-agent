@@ -42,7 +42,7 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 	latency := tx.RequestLatency()
 	// Produce requests with acks = 0 do not receive a response, and as a result, have no latency
 	if tx.APIKey() == FetchAPIKey && latency <= 0 {
-		statKeeper.telemetry.invalidLatency.Add(1)
+		statKeeper.telemetry.invalidLatency.Add(int64(tx.RecordsCount()))
 		return
 	}
 
@@ -60,7 +60,7 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 	requestStats, ok := statKeeper.stats[key]
 	if !ok {
 		if len(statKeeper.stats) >= statKeeper.maxEntries {
-			statKeeper.telemetry.dropped.Add(1)
+			statKeeper.telemetry.dropped.Add(int64(tx.RecordsCount()))
 			return
 		}
 		requestStats = NewRequestStats()
