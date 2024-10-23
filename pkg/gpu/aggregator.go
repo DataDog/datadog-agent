@@ -8,6 +8,8 @@
 package gpu
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 )
 
@@ -63,7 +65,7 @@ func (agg *aggregator) processKernelSpan(span *model.KernelSpan) {
 		tsStart = agg.lastCheckKtime
 	}
 
-	durationSec := float64(tsEnd-tsStart) / nsecPerSec
+	durationSec := float64(tsEnd-tsStart) / float64(time.Second.Nanoseconds())
 	maxThreads := uint64(agg.sysCtx.maxGpuThreadsPerDevice[0])                                // TODO: MultiGPU support not enabled yet
 	agg.totalThreadSecondsUsed += durationSec * float64(min(span.AvgThreadCount, maxThreads)) // we can't use more threads than the GPU has
 }
@@ -88,7 +90,7 @@ func (agg *aggregator) processCurrentData(data *model.StreamData) {
 
 // getGpuUtilization computes the utilization of the GPU as the average of the
 func (agg *aggregator) getGPUUtilization() float64 {
-	intervalSecs := float64(agg.measuredIntervalNs) / nsecPerSec
+	intervalSecs := float64(agg.measuredIntervalNs) / float64(time.Second.Nanoseconds())
 	if intervalSecs > 0 {
 		// TODO: MultiGPU support not enabled yet
 		availableThreadSeconds := float64(agg.sysCtx.maxGpuThreadsPerDevice[0]) * intervalSecs
