@@ -24,19 +24,19 @@ func TestGenerateNameFromRailsApplicationRb(t *testing.T) {
 	}{
 		{
 			name:        "name is found",
-			path:        "./testdata/ruby/application.rb",
+			path:        "./testdata/ruby/app.rb",
 			expected:    "rails_hello",
 			shouldError: false,
 		},
 		{
 			name:        "name not found",
-			path:        "./testdata/ruby/application_invalid.rb",
+			path:        "./testdata/ruby/app_invalid.rb",
 			expected:    "",
 			shouldError: true,
 		},
 		{
 			name:        "accronym in module name",
-			path:        "./testdata/ruby/application_accronym.rb",
+			path:        "./testdata/ruby/app_accronym.rb",
 			expected:    "http_server",
 			shouldError: false,
 		},
