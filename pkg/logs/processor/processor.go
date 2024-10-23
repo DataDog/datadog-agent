@@ -7,6 +7,7 @@ package processor
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -22,6 +23,8 @@ import (
 // UnstructuredProcessingMetricName collects how many rules are used on unstructured
 // content for tailers capable of processing both unstructured and structured content.
 const UnstructuredProcessingMetricName = "datadog.logs_agent.tailer.unstructured_processing"
+
+const sdsSamplingScannerID = 10000
 
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan.
@@ -40,6 +43,7 @@ type Processor struct {
 	hostname                  hostnameinterface.Component
 
 	sds sdsProcessor
+	sdsSampling
 }
 
 type sdsProcessor struct {
@@ -55,13 +59,16 @@ type sdsProcessor struct {
 	scanner *sds.Scanner // configured through RC
 }
 
+type sdsSampling struct {
+	enabled bool
+	idx     uint64
+	scanner *sds.Scanner
+}
+
 // New returns an initialized Processor.
 func New(cfg pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
 	pipelineID int) *Processor {
-
-	waitForSDSConfig := sds.ShouldBufferUntilSDSConfiguration(cfg)
-	maxBufferSize := sds.WaitForConfigurationBufferMaxSize(cfg)
 
 	return &Processor{
 		pipelineID:                pipelineID,
@@ -76,9 +83,13 @@ func New(cfg pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message,
 
 		sds: sdsProcessor{
 			// will immediately starts buffering if it has been configured as so
-			buffering:     waitForSDSConfig,
-			maxBufferSize: maxBufferSize,
+			buffering:     sds.ShouldBufferUntilSDSConfiguration(cfg),
+			maxBufferSize: sds.WaitForConfigurationBufferMaxSize(cfg),
 			scanner:       sds.CreateScanner(pipelineID),
+		},
+		sdsSampling: sdsSampling{
+			enabled: sds.IsSamplesAnalysisEnabled(cfg),
+			scanner: sds.CreateScanner(sdsSamplingScannerID),
 		},
 	}
 }
@@ -156,9 +167,80 @@ func (p *Processor) run() {
 		case order := <-p.ReconfigChan:
 			p.mu.Lock()
 			p.applySDSReconfiguration(order)
+			if p.sdsSampling.enabled {
+				p.applySamplesAnalysisReconfiguration(order)
+			}
 			p.mu.Unlock()
 		}
 	}
+}
+
+func (p *Processor) applySamplesAnalysisReconfiguration(order sds.ReconfigureOrder) {
+	if order.Type != sds.StandardRules {
+		return
+	}
+
+	if p.sdsSampling.scanner != nil {
+		p.sdsSampling.scanner.Delete()
+		p.sdsSampling.scanner = nil
+	}
+
+	p.sdsSampling.scanner = sds.CreateScanner(sdsSamplingScannerID)
+
+	_, err := p.sdsSampling.scanner.Reconfigure(order)
+	if err != nil {
+		log.Error("can't reconfigure the SDS sampling scanner:", err)
+		return
+	}
+
+	if p.autoconfigSamplesAnalysis() {
+		log.Info("SDS samples analysis scanner reconfigured.")
+	}
+}
+
+// autoconfigSDSSampling reconfigures the SDS samples analyse scanner used
+// to report detection of sensitive data in logs.
+func (p *Processor) autoconfigSamplesAnalysis() bool {
+	if p.sdsSampling.scanner == nil {
+		return false
+	}
+
+	rules := p.sdsSampling.scanner.CreateSDSSamplingRules()
+
+	// simulate an RC config
+	rc := sds.RulesConfig{
+		ID:          "sds-sampling",
+		Name:        "sds-sampling",
+		Rules:       rules,
+		IsEnabled:   true,
+		Description: "SDS sampling",
+	}
+
+	data, err := json.Marshal(rc)
+	if err != nil {
+		log.Error("can't prepare the configuration for the SDS sampling scanner", err)
+		return false
+	}
+
+	// reconfigure the sampling scanner
+	order := sds.ReconfigureOrder{
+		Type:         sds.AgentConfig,
+		Config:       data,
+		ResponseChan: make(chan sds.ReconfigureResponse),
+	}
+
+	isActive, err := p.sdsSampling.scanner.Reconfigure(order)
+	if err != nil {
+		log.Error("can't reconfigure the SDS sampling scanner:", err)
+		return false
+	}
+
+	if !isActive {
+		log.Error("SDS sampling scanner is not active after reconfiguration")
+		return false
+	}
+
+	return true
 }
 
 func (p *Processor) applySDSReconfiguration(order sds.ReconfigureOrder) {
@@ -249,6 +331,19 @@ func (p *Processor) processMessage(msg *message.Message) {
 // it applies the change directly on the Message content.
 func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	var content []byte = msg.GetContent()
+
+	// SDS samples analyse
+	// -------------------
+
+	if p.sdsSampling.enabled && p.sdsSampling.scanner != nil {
+		p.sdsSampling.idx++ // note(remy): we don't really mind overflowing the uint64
+		// TODO(remy): configurable % of scanned logs
+		if (p.sdsSampling.idx % 10) == 0 {
+			if err := p.sdsSampling.scanner.Analyse(content); err != nil {
+				log.Error("can't analyse event:", err)
+			}
+		}
+	}
 
 	// Use the internal scrubbing implementation of the Agent
 	// ---------------------------

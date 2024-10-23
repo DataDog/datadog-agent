@@ -14,12 +14,16 @@ import (
 
 type ReconfigureOrderType string
 
-const waitForConfigField = "logs_config.sds.wait_for_configuration"
-const waitForConfigBufferMaxSizeField = "logs_config.sds.buffer_max_size"
-const waitForConfigDefaultBufferMaxSize = 1024 * 1024 * 500
+const (
+	waitForConfigField              = "logs_config.sds.wait_for_configuration"
+	waitForConfigBufferMaxSizeField = "logs_config.sds.buffer_max_size"
+	sdsSamplesAnalysisConfigField   = "logs_config.sds.samples_analysis.enabled"
 
-const waitForConfigNoCollection = "no_collection"
-const waitForConfigBuffer = "buffer"
+	waitForConfigDefaultBufferMaxSize = 1024 * 1024 * 500
+
+	waitForConfigNoCollection = "no_collection"
+	waitForConfigBuffer       = "buffer"
+)
 
 const (
 	// StandardRules triggers the storage of a new set of standard rules
@@ -102,4 +106,13 @@ func WaitForConfigurationBufferMaxSize(cfg pkgconfigmodel.Reader) int {
 		v = waitForConfigDefaultBufferMaxSize
 	}
 	return v
+}
+
+// IsSamplesAnalysis returns whether the SDS samples analysis is enabled or not.
+func IsSamplesAnalysisEnabled(cfg pkgconfigmodel.Reader) bool {
+	if cfg == nil {
+		return false
+	}
+
+	return SDSEnabled && cfg.GetBool(sdsSamplesAnalysisConfigField)
 }

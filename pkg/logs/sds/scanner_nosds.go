@@ -48,3 +48,13 @@ func (s *Scanner) IsReady() bool { return false }
 func (s *Scanner) Scan(_ []byte, _ *message.Message) (bool, []byte, error) {
 	return false, nil, nil
 }
+
+// Analyse mocks the Analyse function.
+func (s *Scanner) Analyse(_ []byte) error {
+	return nil
+}
+
+// CreateSDSSamplingRules mocks creating SDS sampling rules.
+func (s *Scanner) CreateSDSSamplingRules() []RuleConfig {
+	return nil
+}

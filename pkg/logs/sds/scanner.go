@@ -22,9 +22,12 @@ import (
 	sds "github.com/DataDog/dd-sensitive-data-scanner/sds-go/go"
 )
 
-const ScannedTag = "sds_agent:true"
-
 const SDSEnabled = true
+
+const (
+	ScannedTag     = "sds_agent:true"
+	analysesMetric = "datadog.agent.sds.samples_analyse"
+)
 
 var (
 	tlmSDSRulesState = telemetry.NewGaugeWithOpts("sds", "rules", []string{"pipeline", "state"},
@@ -34,7 +37,7 @@ var (
 	tlmSDSReconfigSuccess = telemetry.NewCounterWithOpts("sds", "reconfiguration_success", []string{"pipeline", "type"},
 		"Count of SDS reconfiguration success.", telemetry.Options{DefaultMetric: true})
 	tlmSDSProcessingLatency = telemetry.NewSimpleHistogram("sds", "processing_latency", "Processing latency histogram",
-	                 []float64{10, 250, 500, 2000, 5000, 10000}) // unit: us
+		[]float64{10, 250, 500, 2000, 5000, 10000}) // unit: us
 )
 
 // Scanner wraps an SDS Scanner implementation, adds reconfiguration
@@ -392,6 +395,36 @@ func (s *Scanner) Scan(event []byte, msg *message.Message) (bool, []byte, error)
 	return scanResult.Mutated, scanResult.Event, err
 }
 
+// Analyse scans the given event and emit a metric containing information
+// on the match.
+func (s *Scanner) Analyse(event []byte) error {
+	s.Lock()
+	defer s.Unlock()
+
+	if event == nil || len(event) == 0 {
+		return nil
+	}
+
+	scanResult, err := s.Scanner.Scan(event)
+	if err != nil {
+		return fmt.Errorf("Scanner.Analyse: %v", err)
+	}
+
+	if len(scanResult.Matches) > 0 {
+		for _, match := range scanResult.Matches {
+			if rc, err := s.GetRuleByIdx(match.RuleIdx); err != nil {
+				log.Warnf("can't apply rule tags: %v", err)
+			} else {
+				// per match, emit an increment with the concerned tags
+				telemetry.GetStatsTelemetryProvider().Count(analysesMetric, 1, rc.Tags)
+				log.Info("Found a match:", rc.Tags)
+			}
+		}
+	}
+
+	return nil
+}
+
 // GetRuleByIdx returns the configured rule by its idx, referring to the idx
 // that the SDS scanner writes in its internal response.
 func (s *Scanner) GetRuleByIdx(idx uint32) (RuleConfig, error) {
@@ -433,4 +466,44 @@ func (s *Scanner) IsReady() bool {
 	}
 
 	return true
+}
+
+// CreateSDSSamplingRules uses the internal standard rules list to buidl an
+// user config scanning all logs. The MatchAction is none to not mutate the log.
+func (s *Scanner) CreateSDSSamplingRules() []RuleConfig {
+	rules := make([]RuleConfig, 0)
+	// create one user config rule per std rule
+	for id, stdRule := range s.standardRules {
+		if len(stdRule.Definitions) == 0 {
+			continue
+		}
+
+		pattern := stdRule.Definitions[len(stdRule.Definitions)-1].Pattern
+
+		// only supports rules with a regex pattern
+		if pattern == "" {
+			continue
+		}
+
+		userConfig := RuleConfig{
+			ID:          id + "-sampling",
+			Name:        id + "-sampling name",
+			Description: id + "-sampling description",
+			Tags:        append([]string{}, stdRule.Tags...),
+			Definition: RuleDefinition{
+				StandardRuleID: id,
+				Pattern:        pattern,
+			},
+			MatchAction: MatchAction{
+				Type: matchActionRCNone,
+			},
+			IncludedKeywords: ProximityKeywords{
+				Keywords:       stdRule.Definitions[len(stdRule.Definitions)-1].DefaultIncludedKeywords,
+				CharacterCount: 30,
+			},
+			IsEnabled: true,
+		}
+		rules = append(rules, userConfig)
+	}
+	return rules
 }

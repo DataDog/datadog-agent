@@ -1581,6 +1581,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// SDS logs blocking mechanism
 	config.BindEnvAndSetDefault("logs_config.sds.wait_for_configuration", "")
 	config.BindEnvAndSetDefault("logs_config.sds.buffer_max_size", 0)
+	// SDS samples analysis
+	config.BindEnvAndSetDefault("logs_config.sds.samples_analysis.enabled", false)
 }
 
 func vector(config pkgconfigmodel.Setup) {
