@@ -1,9 +1,6 @@
 import os
 
-import boto3
 from invoke import task
-
-ec2 = boto3.client('ec2')
 
 
 @task
@@ -15,6 +12,9 @@ def launch_instance(_ctx, ami_id, key_name, instance_type='t2.medium'):
     Run: aws-vault exec sso-agent-qa-account-admin -- deva ami.launch-instance --ami-id ami-0eef9d92ec044bc94 --key-name your-key-name
     Then: ssh -i ~/.ssh/your-key.pem user@ip
     """
+    import boto3
+
+    ec2 = boto3.client('ec2')
     response = ec2.run_instances(
         ImageId=ami_id,
         InstanceType=instance_type,
@@ -51,6 +51,9 @@ def create_ami(_ctx, instance_id, ami_name, origin_ami, os, usage="test-ami"):
 
     Example: aws-vault exec sso-agent-qa-account-admin -- deva ami.create-ami --instance-id i-054d463dee21bd56f --ami-name test-ami --origin-ami ami-0eef9d92ec044bc94 --os debian-12-x86_64
     """
+    import boto3
+
+    ec2 = boto3.client('ec2')
     response = ec2.create_image(
         InstanceId=instance_id,
         Name=ami_name,
@@ -86,6 +89,9 @@ def delete_ami(_ctx, ami_id):
 
     Example: aws-vault exec sso-agent-qa-account-admin -- deva ami.delete-ami --ami-id ami-0890dd73c014b3a84
     """
+    import boto3
+
+    ec2 = boto3.client('ec2')
     ec2.deregister_image(
         ImageId=ami_id,
     )
