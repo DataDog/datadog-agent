@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
@@ -47,20 +46,6 @@ const (
 	// GoTLSAttacherName holds the name used for the uprobe attacher of go-tls programs. Used for tests.
 	GoTLSAttacherName = "go-tls"
 )
-
-var paramLookupFunctions = map[string]bininspect.ParameterLookupFunction{
-	bininspect.WriteGoTLSFunc: lookup.GetWriteParams,
-	bininspect.ReadGoTLSFunc:  lookup.GetReadParams,
-	bininspect.CloseGoTLSFunc: lookup.GetCloseParams,
-}
-
-var structFieldsLookupFunctions = map[bininspect.FieldIdentifier]bininspect.StructLookupFunction{
-	bininspect.StructOffsetTLSConn:     lookup.GetTLSConnInnerConnOffset,
-	bininspect.StructOffsetTCPConn:     lookup.GetTCPConnInnerConnOffset,
-	bininspect.StructOffsetNetConnFd:   lookup.GetConnFDOffset,
-	bininspect.StructOffsetNetFdPfd:    lookup.GetNetFD_PFDOffset,
-	bininspect.StructOffsetPollFdSysfd: lookup.GetFD_SysfdOffset,
-}
 
 type pid = uint32
 

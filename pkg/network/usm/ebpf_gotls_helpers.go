@@ -22,10 +22,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var paramLookupFunctions = map[string]bininspect.ParameterLookupFunction{
+	bininspect.WriteGoTLSFunc: lookup.GetWriteParams,
+	bininspect.ReadGoTLSFunc:  lookup.GetReadParams,
+	bininspect.CloseGoTLSFunc: lookup.GetCloseParams,
+}
+
+var structFieldsLookupFunctions = map[bininspect.FieldIdentifier]bininspect.StructLookupFunction{
+	bininspect.StructOffsetTLSConn:     lookup.GetTLSConnInnerConnOffset,
+	bininspect.StructOffsetTCPConn:     lookup.GetTCPConnInnerConnOffset,
+	bininspect.StructOffsetNetConnFd:   lookup.GetConnFDOffset,
+	bininspect.StructOffsetNetFdPfd:    lookup.GetNetFD_PFDOffset,
+	bininspect.StructOffsetPollFdSysfd: lookup.GetFD_SysfdOffset,
+}
 
 // goTLSBinaryInspector is a BinaryInspector that inspects Go binaries, dealing with the specifics of Go binaries
 // such as the argument passing convention and the lack of uprobes
