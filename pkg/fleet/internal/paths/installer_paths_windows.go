@@ -68,8 +68,9 @@ func CreateInstallerDataDir() error {
 	// - GROUP: Administrators
 	// - SYSTEM: Full Control (propagates to children)
 	// - Administrators: Full Control (propagates to children)
+	// - Everyone: 0x1200a9 List folder contents (propagates to container children only, so no access to file content)
 	// - PROTECTED: does not inherit permissions from parent
-	sddl := "O:BAGBA:D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
+	sddl := "O:BAGBA:D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;CI;0x1200a9;;;WD)"
 
 	// The following privileges are required to modify the security descriptor,
 	// and are granted to Administrators by default:
