@@ -37,23 +37,30 @@ func mockCaptureInfo(ancillaryData []interface{}) gopacket.CaptureInfo {
 }
 
 func expectAncillaryPktType(t *testing.T, ancillaryData []interface{}, pktType uint8) {
-	exit := make(chan struct{}, 1)
-	exit <- struct{}{}
+	exit := make(chan struct{})
+
 	p := mockPacketReader{
 		data: []byte{},
 		ci:   mockCaptureInfo(ancillaryData),
 		err:  nil,
 	}
 
+	visited := false
+
 	err := visitPackets(&p, exit, func(_ []byte, info PacketInfo, _ time.Time) error {
+		// make sure the callback ran since it's responsible for the require call
+		visited = true
+
 		// convert to linux packet info
 		pktInfo := info.(*AFPacketInfo)
 		require.Equal(t, pktType, pktInfo.PktType)
+
 		// trigger exit so it only reads one packet
-		exit <- struct{}{}
+		close(exit)
 		return nil
 	})
 	require.NoError(t, err)
+	require.True(t, visited)
 }
 
 func TestVisitingRegularPacketOutgoing(t *testing.T) {
