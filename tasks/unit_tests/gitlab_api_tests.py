@@ -614,7 +614,7 @@ class TestModifyContent(unittest.TestCase):
 
     def test_update_no_test(self):
         prefix = "CI_IMAGE_"
-        images = ['AGENT_DEPLOY', 'BTF_GEN', 'DEB', 'DD_AGENT_TESTING', 'DOCKER', 'GILBC', 'SYSTEM_PROBE', 'RPM', 'WIN']
+        images = ['AGENT_DEPLOY', 'BTFGEN', 'DEB', 'DD_AGENT_TESTING', 'DOCKER', 'GILBC', 'SYSTEM_PROBE', 'RPM', 'WIN']
         modified = modify_content(self.gitlab_ci, "1mageV3rsi0n", images, test=False)
         yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
         config = yaml.safe_load("".join(modified))
