@@ -32,7 +32,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
 
-	github.com/DataDog/zstd => github.com/StephenWakely/zstd customalloc
+	github.com/DataDog/zstd => github.com/StephenWakely/zstd v0.0.0-20241023120913-f6a4fc7d31ec
 )
 
 require (
