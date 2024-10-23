@@ -102,8 +102,8 @@ func (agg *aggregator) getGPUUtilization() float64 {
 	return 0
 }
 
-// setGPUUtilizationNormalizationFactor sets the factor to normalize GPU utilization
-func (agg *aggregator) setGPUUtilizationNormalizationFactor(factor float64) {
+// setNormalizationFactor sets the factor to normalize GPU utilization
+func (agg *aggregator) setNormalizationFactor(factor float64) {
 	agg.utilizationNormFactor = factor
 }
 
