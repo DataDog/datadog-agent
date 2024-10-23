@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-/*
- * Package gpu contains code for monitoring of GPUs from system probe. The data flow is as follows:
+/* Package gpu contains code for monitoring of GPUs from system probe. The data flow is as follows:
  * 1. The main entry point is the Probe type in probe.go, which sets up the eBPF uprobes for library functions.
  * 2. Library uprobes send events each time those functions are called through an event ringbuffer.
  * 3. The consumer.go file contains the CUDA event consumer, which reads events from the ringbuffer and sends them to the appropriate stream handler.
