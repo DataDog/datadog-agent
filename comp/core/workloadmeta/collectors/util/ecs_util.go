@@ -45,7 +45,8 @@ func ParseV4Task(task v3or4.Task, seen map[workloadmeta.EntityID]struct{}) []wor
 	taskID := arnParts[len(arnParts)-1]
 
 	taskContainers, containerEvents := ParseV4TaskContainers(task, seen)
-	region, awsAccountID := parseRegionAndAWSAccountID(task.TaskARN)
+	region, awsAccountID := ParseRegionAndAWSAccountID(task.TaskARN)
+	log.Infof("Parsing V4 ECS or Fargate Task. Region: %s. Account: %d. TaskARN %s", region, awsAccountID, task.TaskARN)
 
 	entity := &workloadmeta.ECSTask{
 		EntityID: entityID,
@@ -231,8 +232,8 @@ func parseTime(fieldOwner, fieldName, fieldValue string) *time.Time {
 	return &result
 }
 
-// parseRegionAndAWSAccountID parses the region and AWS account ID from a task ARN.
-func parseRegionAndAWSAccountID(taskARN string) (string, int) {
+// ParseRegionAndAWSAccountID parses the region and AWS account ID from a task ARN.
+func ParseRegionAndAWSAccountID(taskARN string) (string, int) {
 	arnParts := strings.Split(taskARN, ":")
 	if len(arnParts) < 5 {
 		return "", 0

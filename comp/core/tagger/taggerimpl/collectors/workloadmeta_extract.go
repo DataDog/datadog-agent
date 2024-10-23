@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
@@ -456,9 +457,13 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	// as of Agent 7.33, tasks have a name internally, but before that
 	// task_name already was task.Family, so we keep it for backwards
 	// compatibility
+	launchTypeFargate := task.LaunchType == workloadmeta.ECSLaunchTypeFargate
+	log.Infof("Addings tags. Is Fargate: %t. AccountInt: %d. AccountStr: %s. Region: %s.", launchTypeFargate, task.AWSAccountID, strconv.Itoa(task.AWSAccountID), task.Region)
 	taskTags.AddLow(tags.TaskName, task.Family)
 	taskTags.AddLow(tags.TaskFamily, task.Family)
 	taskTags.AddLow(tags.TaskVersion, task.Version)
+	taskTags.AddLow(tags.AwsAccount, strconv.Itoa(task.AWSAccountID))
+	taskTags.AddLow(tags.Region, task.Region)
 	taskTags.AddOrchestrator(tags.TaskARN, task.ID)
 
 	if task.ClusterName != "" {
@@ -469,7 +474,6 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	}
 
 	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
-		taskTags.AddLow(tags.Region, task.Region)
 		taskTags.AddLow(tags.AvailabilityZoneDeprecated, task.AvailabilityZone) // Deprecated
 		taskTags.AddLow(tags.AvailabilityZone, task.AvailabilityZone)
 	} else if c.collectEC2ResourceTags {
