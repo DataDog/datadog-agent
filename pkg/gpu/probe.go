@@ -212,10 +212,15 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 	}
 
 	stats := p.statsGenerator.getStats(now)
-	p.statsGenerator.cleanupFinishedAggregators()
-	p.consumer.cleanFinishedHandlers()
+
+	p.cleanupFinished()
 
 	return stats, nil
+}
+
+func (p *Probe) cleanupFinished() {
+	p.statsGenerator.cleanupFinishedAggregators()
+	p.consumer.cleanFinishedHandlers()
 }
 
 func (p *Probe) startEventConsumer() {
