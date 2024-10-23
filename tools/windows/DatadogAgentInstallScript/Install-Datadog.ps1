@@ -6,6 +6,17 @@
 $SCRIPT_VERSION = "1.0.0"
 $GENERAL_ERROR_CODE = 1
 
+# Set some defaults if not provided
+$ddInstallerUrl = $env:DD_INSTALLER_URL
+if (-Not $ddInstallerUrl) {
+   $ddInstallerUrl = "https://s3.amazonaws.com/dd-agent-mstesting/datadog-installer-x86_64.exe"
+}
+
+$ddRemoteUpdates = $env:DD_REMOTE_UPDATES
+if (-Not $ddRemoteUpdates) {
+   $ddRemoteUpdates = "false"
+}
+
 # ExitCodeException can be used to report failures from executables that set $LASTEXITCODE
 class ExitCodeException : Exception {
    [string] $LastExitCode
@@ -15,11 +26,18 @@ class ExitCodeException : Exception {
    }
 }
 
-function Update-ConfigFile($regex, $replacement) {
-   $configFile = Join-Path (Get-ItemPropertyValue -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent" -Name "ConfigRoot") "datadog.yaml"
-   if (-Not $configFile) {
-      $configFile = "C:\\ProgramData\\Datadog\\datadog.yaml"
+function Get-DatadogConfigPath() {
+   if (
+      (Test-Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent") -and
+      ($null -ne (Get-Item -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").GetValue("ConfigRoot"))
+   ) {
+      return (Join-Path (Get-ItemPropertyValue -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent" -Name "ConfigRoot") "datadog.yaml")
    }
+   return "C:\\ProgramData\\Datadog\\datadog.yaml"
+}
+
+function Update-DatadogConfigFile($regex, $replacement) {
+   $configFile = Get-DatadogConfigPath
    if (-Not (Test-Path $configFile)) {
       throw "datadog.yaml doesn't exist"
    }
@@ -44,8 +62,15 @@ function Send-Telemetry($payload) {
       "DD-Api-Key"   = $env:DD_API_KEY
       "Content-Type" = "application/json"
    }
-   $result = Invoke-WebRequest -Uri $telemetryUrl -Method POST -Body $payload -Headers $requestHeaders
-   Write-Host "Sending telemetry: $($result.StatusCode)"
+   try {
+      $result = Invoke-WebRequest -Uri $telemetryUrl -Method POST -Body $payload -Headers $requestHeaders
+      Write-Host "Sending telemetry: $($result.StatusCode)"
+   } catch {
+      # Don't propagate errors when sending telemetry, because our error handling code will also
+      # try to send telemetry.
+      # It's enough to just print a message since there's no further error handling to be done.
+      Write-Host "Error sending telemetry"
+   }
 }
 
 function Show-Error($errorMessage, $errorCode) {
@@ -125,15 +150,36 @@ function Start-ProcessWithOutput {
    return $process.ExitCode
 }
 
-# Set some defaults if not provided
-$ddInstallerUrl = $env:DD_INSTALLER_URL
-if (-Not $ddInstallerUrl) {
-   $ddInstallerUrl = "https://s3.amazonaws.com/dd-agent-mstesting/datadog-installer-x86_64.exe"
+function Test-DatadogAgentPresence() {
+   # Rudimentary check for the Agent presence, the `datadogagent` service should exist, and so should the `InstallPath` key in the registry.
+   # We check that particular key since we use it later in the script to restart the service.
+   return ( 
+      ((Get-Service "datadogagent" -ea silent | Measure-Object).Count -eq 1) -and
+      (Test-Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent") -and
+      ($null -ne (Get-Item -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").GetValue("InstallPath"))
+   )
 }
 
-$ddRemoteUpdates = $env:DD_REMOTE_UPDATES
-if (-Not $ddRemoteUpdates) {
-   $ddRemoteUpdates = "false"
+function Update-DatadogAgentConfig() {
+   if ($env:DD_API_KEY) {
+      Write-Host "Writing DD_API_KEY"
+      Update-DatadogConfigFile "^[ #]*api_key:.*" "api_key: $env:DD_API_KEY"
+   }
+
+   if ($env:DD_SITE) {
+      Write-Host "Writing DD_SITE"
+      Update-DatadogConfigFile "^[ #]*site:.*" "site: $env:DD_SITE"
+   }
+
+   if ($env:DD_URL) {
+      Write-Host "Writing DD_URL"
+      Update-DatadogConfigFile "^[ #]*dd_url:.*" "dd_url: $env:DD_URL"
+   }
+
+   if ($ddRemoteUpdates) {
+      Write-Host "Writing DD_REMOTE_UPDATES"
+      Update-DatadogConfigFile "^[ #]*remote_updates:.*" "remote_updates: $($ddRemoteUpdates.ToLower())"
+   }
 }
 
 try {
@@ -145,11 +191,7 @@ try {
    $myWindowsID = [System.Security.Principal.WindowsIdentity]::GetCurrent()
    $myWindowsPrincipal = new-object System.Security.Principal.WindowsPrincipal($myWindowsID)
    $adminRole = [System.Security.Principal.WindowsBuiltInRole]::Administrator
-   if ($myWindowsPrincipal.IsInRole($adminRole)) {
-      # We are running "as Administrator"
-      $Host.UI.RawUI.WindowTitle = $myInvocation.MyCommand.Definition + "(Elevated)"
-   }
-   else {
+   if (-not $myWindowsPrincipal.IsInRole($adminRole)) {
       # We are not running "as Administrator"
       $newProcess = new-object System.Diagnostics.ProcessStartInfo "PowerShell";
       $newProcess.Arguments = $myInvocation.MyCommand.Definition;
@@ -157,6 +199,26 @@ try {
       $proc = [System.Diagnostics.Process]::Start($newProcess);
       $proc.WaitForExit()
       return $proc.ExitCode
+   }
+
+   # First thing to do is to stop the services if they are started
+   if (Test-DatadogAgentPresence) {
+      Write-Host "Stopping Datadog Agent services"
+      & ((Get-ItemProperty "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").InstallPath + "bin\\agent.exe") stop-service
+   }
+
+   if ((Get-Service "Datadog Installer" -ea silent | Measure-Object).Count -eq 1) {
+      Write-Host "Stopping Datadog Installer service"
+      Stop-Service "Datadog Installer"
+   }
+
+   $configUpdated = $False
+   # Write the config before-hand if it exists, that way if the Agent/Installer services start
+   # once installed, they will have a valid configuration.
+   # This allows the MSI to emit some telemetry as well.
+   if (Test-Path (Get-DatadogConfigPath)) {
+      Update-DatadogAgentConfig
+      $configUpdated = $True
    }
 
    # Powershell does not enable TLS 1.2 by default, & we want it enabled for faster downloads
@@ -177,33 +239,17 @@ try {
    Write-Host "Starting bootstrap process"
    $result = Start-ProcessWithOutput -Path $installer -ArgumentList "bootstrap"
    if ($result -ne 0) {
-      # bootstrap only fails if it fails to install to install the Datadog Installer, so it's possible the Agent was not  installed
+      # bootstrap only fails if it fails to install to install the Datadog Installer, so it's possible the Agent was not installed
       throw [ExitCodeException]::new("Bootstrap failed", $result)
    }
    Write-Host "Bootstrap execution done"
 
-   if (-Not (Test-Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent")) {
+   if (-Not (Test-DatadogAgentPresence)) {
       throw "Agent is not installed"
    }
 
-   if ($env:DD_API_KEY) {
-      Write-Host "Writing DD_API_KEY"
-      Update-ConfigFile "^[ #]*api_key:.*" "api_key: $env:DD_API_KEY"
-   }
-
-   if ($env:DD_SITE) {
-      Write-Host "Writing DD_SITE"
-      Update-ConfigFile "^[ #]*site:.*" "site: $env:DD_SITE"
-   }
-
-   if ($env:DD_URL) {
-      Write-Host "Writing DD_URL"
-      Update-ConfigFile "^[ #]*dd_url:.*" "dd_url: $env:DD_URL"
-   }
-
-   if ($ddRemoteUpdates) {
-      Write-Host "Writing DD_REMOTE_UPDATES"
-      Update-ConfigFile "^[ #]*remote_updates:.*" "remote_updates: $($ddRemoteUpdates.ToLower())"
+   if (-Not ($configUpdated)) {
+      Update-DatadogAgentConfig
    }
 
    Send-Telemetry @"
@@ -223,7 +269,12 @@ try {
    }
 }
 "@
-   Start-Service "Datadog Installer"
+   # The datadog.yaml configuration was potentially modified so restart the services
+   Write-Host "Starting Datadog Installer service"
+   Restart-Service "Datadog Installer"
+   # This command handles restarting the dependent services as well
+   Write-Host "Starting Datadog Agent services"
+   & ((Get-ItemProperty "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").InstallPath + "bin\\agent.exe") restart-service
 }
 catch [ExitCodeException] {
    Show-Error $_.Exception.Message $_.Exception.LastExitCode
@@ -233,6 +284,8 @@ catch {
 }
 finally {
    Write-Host "Cleaning up..."
-   Remove-Item -Force -EA SilentlyContinue $installer
+   if ($installer -and (Test-Path $installer)) {
+      Remove-Item -Force -EA SilentlyContinue $installer
+   }
 }
 Write-Host "Datadog Install Script finished!"

@@ -571,17 +571,6 @@ func GetVFSRemovexattrDentryPosition(kernelVersion *skernel.Version) uint64 {
 	return position
 }
 
-// GetVFSRenameInputType gets VFS rename input type
-func GetVFSRenameInputType(kernelVersion *skernel.Version) uint64 {
-	inputType := uint64(1)
-
-	if kernelVersion.Code != 0 && kernelVersion.Code >= skernel.Kernel5_12 {
-		inputType = 2
-	}
-
-	return inputType
-}
-
 // SendStats sends metrics about the current state of the mount resolver
 func (mr *Resolver) SendStats() error {
 	mr.lock.RLock()

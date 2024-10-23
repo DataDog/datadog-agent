@@ -65,8 +65,11 @@ type RemoteSysProbeUtil struct {
 	tracerouteClient http.Client
 }
 
+// ensure that GetRemoteSystemProbeUtil implements SysProbeUtilGetter
+var _ SysProbeUtilGetter = GetRemoteSystemProbeUtil
+
 // GetRemoteSystemProbeUtil returns a ready to use RemoteSysProbeUtil. It is backed by a shared singleton.
-func GetRemoteSystemProbeUtil(path string) (*RemoteSysProbeUtil, error) {
+func GetRemoteSystemProbeUtil(path string) (SysProbeUtil, error) {
 	err := CheckPath(path)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up remote system probe util, %v", err)
@@ -395,6 +398,31 @@ func (r *RemoteSysProbeUtil) GetDiscoveryServices() (*discoverymodel.ServicesRes
 		return nil, err
 	}
 	return res, nil
+}
+
+// GetTelemetry queries the telemetry endpoint from system-probe.
+func (r *RemoteSysProbeUtil) GetTelemetry() ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, telemetryURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(`GetTelemetry got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
+	}
+
+	return data, nil
 }
 
 func (r *RemoteSysProbeUtil) init() error {

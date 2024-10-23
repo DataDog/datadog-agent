@@ -5,9 +5,25 @@
 
 package sample
 
+type receiver struct {
+	u uint
+}
+
+//nolint:all
+//go:noinline
+func (r *receiver) test_pointer_method_receiver(a int) {}
+
+//nolint:all
+//go:noinline
+func (r receiver) test_method_receiver(a int) {}
+
 //nolint:all
 //go:noinline
 func test_struct_with_array(a structWithAnArray) {}
+
+//nolint:all
+//go:noinline
+func test_struct_with_a_slice(s structWithASlice) {}
 
 //nolint:all
 //go:noinline
@@ -75,6 +91,7 @@ func ExecuteStructFuncs() {
 	test_ten_strings(tenStrings{})
 	test_struct_and_byte('a', s)
 	test_struct_with_array(structWithAnArray{[5]uint8{1, 2, 3, 4, 5}})
+	test_struct_with_a_slice(structWithASlice{[]uint8{1, 2, 3}})
 
 	tenStr := tenStrings{
 		first:   "one",
@@ -109,6 +126,13 @@ func ExecuteStructFuncs() {
 
 	fields := lotsOfFields{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26}
 	test_lots_of_fields(fields)
+
+	rcvr := receiver{1}
+	rcvr.test_method_receiver(2)
+
+	ptrRcvr := &receiver{3}
+	ptrRcvr.test_pointer_method_receiver(4)
+
 }
 
 type emptyStruct struct{}
@@ -175,6 +199,10 @@ type structWithNoStrings struct {
 
 type structWithAnArray struct {
 	arr [5]uint8
+}
+
+type structWithASlice struct {
+	slice []uint8
 }
 
 type nestedStruct struct {

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
@@ -199,7 +200,6 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 	tagList.AddLow(tags.ShortImage, image.ShortName)
 	tagList.AddLow(tags.ImageTag, image.Tag)
 	tagList.AddLow(tags.ImageID, image.ID)
-	tagList.AddLow(tags.KubeGPUType, container.Resources.GPUType)
 
 	if container.Runtime == workloadmeta.ContainerRuntimeDocker {
 		if image.Tag != "" {
@@ -229,6 +229,11 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 	// static tags for ECS and EKS Fargate containers
 	for tag, value := range c.staticTags {
 		tagList.AddLow(tag, value)
+	}
+
+	// gpu tags from container resource requests
+	for _, gpuVendor := range container.Resources.GPUVendorList {
+		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
 	}
 
 	low, orch, high, standard := tagList.Compute()
@@ -357,6 +362,11 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 		k8smetadata.AddMetadataAsTags(name, value, c.k8sResourcesAnnotationsAsTags["namespaces"], c.globK8sResourcesAnnotations["namespaces"], tagList)
 	}
 
+	// gpu requested vendor as tags
+	for _, gpuVendor := range pod.GPUVendorList {
+		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
+	}
+
 	kubeServiceDisabled := false
 	for _, disabledTag := range pkgconfigsetup.Datadog().GetStringSlice("kubernetes_ad_tags_disabled") {
 		if disabledTag == "kube_service" {
@@ -450,6 +460,8 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	taskTags.AddLow(tags.TaskName, task.Family)
 	taskTags.AddLow(tags.TaskFamily, task.Family)
 	taskTags.AddLow(tags.TaskVersion, task.Version)
+	taskTags.AddLow(tags.AwsAccount, strconv.Itoa(task.AWSAccountID))
+	taskTags.AddLow(tags.Region, task.Region)
 	taskTags.AddOrchestrator(tags.TaskARN, task.ID)
 
 	if task.ClusterName != "" {
@@ -460,7 +472,6 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	}
 
 	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
-		taskTags.AddLow(tags.Region, task.Region)
 		taskTags.AddLow(tags.AvailabilityZoneDeprecated, task.AvailabilityZone) // Deprecated
 		taskTags.AddLow(tags.AvailabilityZone, task.AvailabilityZone)
 	} else if c.collectEC2ResourceTags {

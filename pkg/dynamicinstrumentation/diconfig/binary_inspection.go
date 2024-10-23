@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && arm64
+//go:build linux_bpf
 
 package diconfig
 
@@ -73,6 +73,10 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 	if err != nil {
 		return fmt.Errorf("could not determine locations of variables from debug information %w", err)
 	}
+	stringPtrIdentifier := bininspect.FieldIdentifier{StructName: "string", FieldName: "str"}
+	stringLenIdentifier := bininspect.FieldIdentifier{StructName: "string", FieldName: "len"}
+	r.StructOffsets[stringPtrIdentifier] = 0
+	r.StructOffsets[stringLenIdentifier] = 8
 
 	// Use the result from InspectWithDWARF to populate the locations of parameters
 	for functionName, functionMetadata := range r.Functions {
@@ -158,7 +162,7 @@ func assignLocationsInOrder(params []ditypes.Parameter, locations []ditypes.Loca
 	}
 
 	for {
-		if len(stack) == 0 || locationCounter == len(locations) {
+		if len(stack) == 0 || locationCounter >= len(locations) {
 			return
 		}
 		current := stack[len(stack)-1]
@@ -166,7 +170,8 @@ func assignLocationsInOrder(params []ditypes.Parameter, locations []ditypes.Loca
 		if len(current.ParameterPieces) != 0 &&
 			current.Kind != uint(reflect.Array) &&
 			current.Kind != uint(reflect.Pointer) &&
-			current.Kind != uint(reflect.Slice) {
+			current.Kind != uint(reflect.Slice) &&
+			current.Kind != uint(reflect.String) {
 
 			for i := range current.ParameterPieces {
 				stack = append(stack, &current.ParameterPieces[len(current.ParameterPieces)-1-i])
@@ -181,15 +186,33 @@ func assignLocationsInOrder(params []ditypes.Parameter, locations []ditypes.Loca
 
 			if reflect.Kind(current.Kind) == reflect.String {
 				// Strings actually have two locations (pointer, length)
-				// but are shortened to a single one for parsing. The missing
-				// location is taken into account in bpf code, but we need
-				// to make sure it's not assigned to something else here.
+				// but are shortened to a single one for parsing. The location
+				// of the length is stored as a piece of the overall string
+				// which contains the location of the string's address.
+				if len(locations) <= locationCounter+1 ||
+					len(current.ParameterPieces) != 2 {
+					return
+				}
+				stringLengthLocation := locations[locationCounter+1]
+				current.ParameterPieces[1].Location.InReg = stringLengthLocation.InReg
+				current.ParameterPieces[1].Location.Register = stringLengthLocation.Register
+				current.ParameterPieces[1].Location.StackOffset = stringLengthLocation.StackOffset
 				locationCounter++
 			} else if reflect.Kind(current.Kind) == reflect.Slice {
-				// slices actually have three locations (array, length, capacity)
-				// but are shortened to a single one for parsing. The missing
-				// locations are taken into account in bpf code, but we need
-				// to make sure it's not assigned to something else here.
+				// Slices actually have three locations (array, length, capacity)
+				// but are shortened to a single one for parsing. The location
+				// of the length is stored as a piece of the overall slice
+				// which contains the location of the slice's address.
+				// The capacity slice field is ignored.
+				if len(locations) <= locationCounter+1 {
+					return
+				}
+				sliceLength := ditypes.Parameter{}
+				sliceLengthLocation := locations[locationCounter+1]
+				sliceLength.Location.InReg = sliceLengthLocation.InReg
+				sliceLength.Location.Register = sliceLengthLocation.Register
+				sliceLength.Location.StackOffset = sliceLengthLocation.StackOffset
+				current.ParameterPieces = append(current.ParameterPieces, sliceLength)
 				locationCounter += 2
 			}
 			locationCounter++
@@ -203,7 +226,7 @@ func correctTypeSpecificLocations(params []ditypes.Parameter, fieldLocations map
 			correctArrayLocations(&params[i], fieldLocations)
 		} else if params[i].Kind == uint(reflect.Pointer) {
 			correctPointerLocations(&params[i], fieldLocations)
-		} else if params[i].Kind == uint(reflect.Struct) {
+		} else if params[i].Kind == uint(reflect.Struct) || params[i].Kind == uint(reflect.String) {
 			correctStructLocations(&params[i], fieldLocations)
 		}
 	}
