@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
+	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
@@ -23,15 +25,18 @@ type expectAtLeastOneResource struct {
 	timeout time.Duration
 }
 
+type orchSuite interface {
+	GetFakeIntakeClient() *fakeintake.Client
+}
+
 // Assert waits for a resource to appear in the orchestrator payloads, then checks if any of the found payloads pass the
 // supplied test function. If no matching resource is found within the timeout, the test fails.
-func (e expectAtLeastOneResource) Assert(suite *k8sSuite) {
+func (e expectAtLeastOneResource) Assert(suite orchSuite, t require.TestingT) {
 	giveup := time.Now().Add(e.timeout)
 	fmt.Println("trying to " + e.message)
 	for {
-		payloads, err := suite.Fakeintake.GetOrchestratorResources(e.filter)
-		suite.NoError(err, "failed to get resource payloads from intake")
-		//fmt.Printf("found %d resources\n", len(payloads))
+		payloads, err := suite.GetFakeIntakeClient().GetOrchestratorResources(e.filter)
+		require.NoError(t, err, "failed to get resource payloads from intake")
 		for _, p := range payloads {
 			if p != nil && e.test(p) {
 				fmt.Println("success: " + e.message)
@@ -43,7 +48,7 @@ func (e expectAtLeastOneResource) Assert(suite *k8sSuite) {
 		}
 		time.Sleep(5 * time.Second)
 	}
-	suite.Fail("failed to " + e.message)
+	require.Fail(t, "failed to "+e.message)
 }
 
 type manifest struct {
@@ -95,4 +100,28 @@ func (e expectAtLeastOneManifest) Assert(suite *k8sSuite) {
 		time.Sleep(5 * time.Second)
 	}
 	suite.Fail("failed to " + e.message)
+}
+
+func summarizeResources(client *fakeintake.Client) {
+	payloads, err := client.GetOrchestratorResources(nil)
+	if err != nil {
+		fmt.Println("failed to get manifest resource from intake")
+		return
+	}
+	latest := map[agentmodel.MessageType]map[string]*aggregator.OrchestratorPayload{}
+	for _, p := range payloads {
+		if _, ok := latest[p.Type]; !ok {
+			latest[p.Type] = map[string]*aggregator.OrchestratorPayload{}
+		}
+		existing, ok := latest[p.Type][p.UID]
+		if !ok || existing.CollectedTime.Before(p.CollectedTime) {
+			latest[p.Type][p.UID] = p
+		}
+	}
+	fmt.Println("Most recently collected resources:")
+	for typ, resources := range latest {
+		for uid, p := range resources {
+			fmt.Printf(" - type:%d, name:%s, uid:%s, collected:%s\n", typ, p.Name, uid, p.CollectedTime.Format(time.RFC3339))
+		}
+	}
 }
