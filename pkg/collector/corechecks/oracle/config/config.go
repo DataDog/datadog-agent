@@ -9,12 +9,15 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v3"
@@ -25,6 +28,7 @@ const defaultLoader = "core"
 // InitConfig is used to deserialize integration init config.
 type InitConfig struct {
 	MinCollectionInterval int           `yaml:"min_collection_interval"`
+	PropagateAgentTags    *bool         `yaml:"propagate_agent_tags"`
 	CustomQueries         []CustomQuery `yaml:"global_custom_queries"`
 	UseInstantClient      bool          `yaml:"use_instant_client"`
 	Service               string        `yaml:"service"`
@@ -144,6 +148,7 @@ type InstanceConfig struct {
 	ConnectionConfig                   `yaml:",inline"`
 	User                               string                 `yaml:"user"`
 	DBM                                bool                   `yaml:"dbm"`
+	PropagateAgentTags                 *bool                  `yaml:"propagate_agent_tags"`
 	Tags                               []string               `yaml:"tags"`
 	LogUnobfuscatedQueries             bool                   `yaml:"log_unobfuscated_queries"`
 	ObfuscatorOptions                  obfuscate.SQLConfig    `yaml:"obfuscator_options"`
@@ -300,6 +305,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		instance.Tags = append(instance.Tags, fmt.Sprintf("service:%s", service))
 	}
 
+	if shouldPropagateAgentTags(instance.PropagateAgentTags, initCfg.PropagateAgentTags) {
+		agentTags := hosttags.Get(context.Background(), true, pkgconfigsetup.Datadog())
+		instance.Tags = append(instance.Tags, agentTags.System...)
+		instance.Tags = append(instance.Tags, agentTags.GoogleCloudPlatform...)
+	}
+
 	c := &CheckConfig{
 		InstanceConfig: instance,
 		InitConfig:     initCfg,
@@ -335,6 +346,20 @@ func GetConnectData(c InstanceConfig) string {
 		p = fmt.Sprintf("%s/%s", p, c.ServiceName)
 	}
 	return p
+}
+
+// shouldPropagateAgentTags returns true if the agent tags should be propagated to the check
+func shouldPropagateAgentTags(instancePropagateTags, initConfigPropagateTags *bool) bool {
+	if instancePropagateTags != nil {
+		// if the instance has explicitly set the value, return the boolean
+		return *instancePropagateTags
+	}
+	if initConfigPropagateTags != nil {
+		// if the init config has explicitly set the value, return the boolean
+		return *initConfigPropagateTags
+	}
+	// if neither the instance nor the init_config has set the value, return False
+	return false
 }
 
 func warnDeprecated(old string, new string) {
