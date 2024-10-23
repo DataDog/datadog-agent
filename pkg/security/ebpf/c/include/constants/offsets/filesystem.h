@@ -51,7 +51,7 @@ u64 __attribute__((always_inline)) security_have_usernamespace_first_arg(void) {
 u32 __attribute__((always_inline)) get_mount_offset_of_mount_id(void) {
     u64 offset;
     LOAD_CONSTANT("mount_id_offset", offset);
-    return offset ? offset : 284; // offsetof(struct mount, mnt_id)
+    return offset; // offsetof(struct mount, mnt_id)
 }
 
 int __attribute__((always_inline)) get_vfsmount_mount_id(struct vfsmount *mnt) {
