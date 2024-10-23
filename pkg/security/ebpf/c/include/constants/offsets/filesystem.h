@@ -100,7 +100,7 @@ struct dentry *__attribute__((always_inline)) get_mount_mountpoint_dentry(struct
 }
 
 struct vfsmount *__attribute__((always_inline)) get_mount_vfsmount(void *mnt) {
-    return (struct vfsmount *)(mnt + 32);
+    return (struct vfsmount *)(mnt + MNT_OFFSETOF_MNT);
 }
 
 struct dentry *__attribute__((always_inline)) get_vfsmount_dentry(struct vfsmount *mnt) {
