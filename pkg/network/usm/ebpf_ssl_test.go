@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -73,12 +74,26 @@ func TestNativeShortLivedProcess(t *testing.T) {
 	libmmap := filepath.Join(curDir, "testdata", "site-packages", "ddtrace")
 	lib := filepath.Join(libmmap, fmt.Sprintf("libssl.so.%s", runtime.GOARCH))
 
+	var pidMap sync.Map
+	utils.RegisterHook = func(pid uint32) {
+		pidMap.Store(pid, struct{}{})
+	}
+	t.Cleanup(func() {
+		// Will be called after monitor is stopped (due to t.Cleanup() ordering)
+		// so should be race-free.
+		utils.RegisterHook = nil
+	})
+
 	monitor := setupUSMTLSMonitor(t, cfg)
 	require.NotNil(t, monitor)
 
+	pids := make([]uint32, 10)
 	for i := 0; i < 10; i++ {
 		cmd := exec.Command("cat", lib)
 		require.NoError(t, cmd.Run())
+		pid := cmd.Process.Pid
+		require.False(t, utils.IsProgramTraced("shared_libraries", pid))
+		pids = append(pids, uint32(pid))
 	}
 
 	require.False(t, utils.IsBlocked(t, "shared_libraries", lib))
@@ -86,4 +101,19 @@ func TestNativeShortLivedProcess(t *testing.T) {
 	cmd, err := fileopener.OpenFromAnotherProcess(t, lib)
 	require.NoError(t, err)
 	utils.WaitForProgramsToBeTraced(t, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
+
+	// Check at end to avoid any races with parallel registration.  If nothing
+	// has been registered, then the test will pass (nothing will be blocked),
+	// but the result will not be reliable since it would not have verified what
+	// it was trying to verify.
+	registered := false
+	for _, pid := range pids {
+		if _, found := pidMap.Load(uint32(pid)); found {
+			registered = true
+			break
+		}
+	}
+	if !registered {
+		t.Skip("Register never called on process, test result cannot be trusted")
+	}
 }
