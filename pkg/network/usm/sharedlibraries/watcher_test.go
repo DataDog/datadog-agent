@@ -20,10 +20,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/suite"
+	"go.uber.org/atomic"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
@@ -37,6 +38,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+func waitForProcessMonitor(t *testing.T, pm *monitor.ProcessMonitor) {
+	execCounter := atomic.NewInt32(0)
+	execCallback := func(pid uint32) { execCounter.Inc() }
+	execCleanup := pm.SubscribeExec(func(pid uint32) { execCallback(pid) })
+	defer execCleanup()
+
+	exitCounter := atomic.NewInt32(0)
+	// Sanity subscribing a callback.
+	exitCallback := func(pid uint32) { exitCounter.Inc() }
+	exitCleanup := pm.SubscribeExit(func(pid uint32) { exitCallback(pid) })
+	defer exitCleanup()
+
+	require.Eventually(t, func() bool {
+		_ = exec.Command("/bin/echo").Run()
+		return execCounter.Load() > 0 && exitCounter.Load() > 0
+	}, 10*time.Second, time.Millisecond*200)
+}
+
 func launchProcessMonitor(t *testing.T, useEventStream bool) {
 	pm := monitor.GetProcessMonitor()
 	t.Cleanup(pm.Stop)
@@ -44,6 +63,7 @@ func launchProcessMonitor(t *testing.T, useEventStream bool) {
 	if useEventStream {
 		eventmonitortestutil.StartEventMonitor(t, procmontestutil.RegisterProcessMonitorEventConsumer)
 	}
+	waitForProcessMonitor(t, pm)
 }
 
 type SharedLibrarySuite struct {
