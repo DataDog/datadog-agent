@@ -78,6 +78,8 @@ func (s *Sender) run() {
 	unreliableDestinations := buildDestinationSenders(s.config, s.destinations.Unreliable, sink, s.bufferSize)
 
 	for payload := range s.inputChan {
+		Z
+		s.monitor.Start()
 		var startInUse = time.Now()
 		senderDoneWg := &sync.WaitGroup{}
 
@@ -128,6 +130,7 @@ func (s *Sender) run() {
 
 		inUse := float64(time.Since(startInUse) / time.Millisecond)
 		tlmSendWaitTime.Add(inUse)
+		s.monitor.Stop()
 
 		if s.senderDoneChan != nil && s.flushWg != nil {
 			// Wait for all destinations to finish sending the payload
