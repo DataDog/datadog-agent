@@ -103,7 +103,7 @@ func getNSID() uint64 {
 	return stat.Ino
 }
 
-// simpleHTTPRequest used to avoid importing the crypto golang package
+// simpleHTTPRequest simply performs an HTTP GET request and returns the body
 func simpleHTTPRequest(uri string) ([]byte, error) {
 	resp, err := http.Get(uri)
 	if err != nil {
