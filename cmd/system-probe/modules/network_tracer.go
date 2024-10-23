@@ -47,6 +47,8 @@ const inactivityRestartDuration = 20 * time.Minute
 
 var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config"}
 
+const maxConntrackDumpSize = 3000
+
 func createNetworkTracerModule(cfg *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 	ncfg := networkconfig.New()
 
@@ -261,11 +263,11 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, table)
+		writeConntrackTable(table, w)
 	})
 
 	httpMux.HandleFunc("/debug/conntrack/host", func(w http.ResponseWriter, req *http.Request) {
-		ctx, cancelFunc := context.WithTimeout(req.Context(), 30*time.Second)
+		ctx, cancelFunc := context.WithTimeout(req.Context(), 10*time.Second)
 		defer cancelFunc()
 		table, err := nt.tracer.DebugHostConntrack(ctx)
 		if err != nil {
@@ -274,11 +276,11 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, table)
+		writeConntrackTable(table, w)
 	})
 
 	httpMux.HandleFunc("/debug/process_cache", func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancelFunc := context.WithTimeout(r.Context(), 30*time.Second)
+		ctx, cancelFunc := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancelFunc()
 		cache, err := nt.tracer.DebugDumpProcessCache(ctx)
 		if err != nil {
@@ -384,4 +386,12 @@ func writeDisabledProtocolMessage(protocolName string, w http.ResponseWriter) {
 	// We are marshaling a static string, so we can ignore the error
 	buf, _ := json.Marshal(outputString)
 	w.Write(buf)
+}
+
+func writeConntrackTable(table *tracer.DebugConntrackTable, w http.ResponseWriter) {
+	err := table.WriteTo(w, maxConntrackDumpSize)
+	if err != nil {
+		log.Errorf("unable to dump conntrack: %s", err)
+		w.WriteHeader(500)
+	}
 }
