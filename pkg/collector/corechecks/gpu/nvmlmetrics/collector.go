@@ -34,7 +34,7 @@ type Collector struct {
 
 	// collectors is a map of subsystems that can be used to collect metrics.
 	// Each device has its own list of collectors, as support for each collector
-	// might vary between devices
+	// might vary between devices (e.g., not all devices support GPM metrics).
 	collectors map[nvml.Device][]subsystemCollector
 }
 
