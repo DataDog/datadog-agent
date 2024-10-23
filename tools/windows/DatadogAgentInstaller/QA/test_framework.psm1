@@ -120,14 +120,13 @@ class TestSuite {
                             return
                         }
                     }
-                    Write-Host "Ok recording has started"
                 }
             }
 
             Invoke-Command -Credential $context.VMCredentials -VMName $context.VMName -ScriptBlock $finalScript
 
             if ($defenderPerformancePath -ne $null) {
-                $defenderEtlFile = "$($context.QaSessionName)_$($this.SuiteDescription)_defender_trace.etl"
+                $defenderEtlFile = "$($context.QaSessionName)_$($this.SuiteDescription)_$($_.TestDescription)_defender_trace.etl"
 
                 Invoke-Command -Credential $context.VMCredentials -VMName $context.VMName -ScriptBlock:{
                     Write-Host "Stopping Windows Defender tracing"
@@ -144,10 +143,9 @@ class TestSuite {
                             return
                         }
                     }
-                    Write-Host "Ok recording has stopped"
                 }
                 Copy-Item -Path "C:\$defenderEtlFile" -Destination $PSScriptRoot\$defenderEtlFile -FromSession (New-PSSession -VMName $context.VMName -Credential $context.VMCredentials)
-                Get-MpPerformanceReport -Path $PSScriptRoot\$defenderEtlFile -TopScans:10 -TopProcesses:10 -TopExtensions:10
+                Write-Host ((Get-MpPerformanceReport -Path $PSScriptRoot\$defenderEtlFile -TopScans:10 -TopProcesses:10 -TopExtensions:10) | Out-String)
             }
         }
     }
