@@ -27,6 +27,8 @@ type IngressMonitor struct {
 	ingress  int64
 	egress   int64
 	max      int64
+	avg      float64
+	samples  float64
 	name     string
 	instance string
 	ticker   *time.Ticker
@@ -49,16 +51,20 @@ func (i *IngressMonitor) AddEgress(size int64) {
 }
 
 func (i *IngressMonitor) sample() {
-	new := i.ingress - i.egress
-	if new > i.max {
-		i.max = new
-	}
+	i.samples++
+	new := float64(i.ingress - i.egress)
+	i.avg = (i.avg*(i.samples-1) + new) / i.samples
+
+	// if new > i.max {
+	// 	i.max = new
+	// }
 }
 func (i *IngressMonitor) reportIfNeeded() {
 	select {
 	case <-i.ticker.C:
-		TlmCapacity.Set(float64(i.max), i.name, i.instance)
-		i.max = 0
+		TlmCapacity.Set(float64(i.avg), i.name, i.instance)
+		i.avg = 0
+		i.samples = 0
 	default:
 	}
 }
