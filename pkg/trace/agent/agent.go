@@ -632,9 +632,12 @@ func (a *Agent) getAnalyzedEvents(pt *traceutil.ProcessedTrace, ts *info.TagStat
 // samplers, the error sampler is run.
 func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.ProcessedTrace) (keep bool, checkAnalyticsEvents bool) {
 	// ETS: chunks that don't contain errors (or spans with exception span events) are all dropped.
-	if a.conf.ErrorTrackingStandalone && traceContainsError(pt.TraceChunk.Spans, true) {
-		pt.TraceChunk.Tags["_dd.error_tracking_standalone.error"] = "true"
-		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv), false
+	if a.conf.ErrorTrackingStandalone {
+		if traceContainsError(pt.TraceChunk.Spans, true) {
+			pt.TraceChunk.Tags["_dd.error_tracking_standalone.error"] = "true"
+			return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv), false
+		}
+		return false, false
 	}
 
 	// Run this early to make sure the signature gets counted by the RareSampler.
