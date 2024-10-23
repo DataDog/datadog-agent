@@ -106,8 +106,8 @@ func (agg *aggregator) setNormalizationFactor(factor float64) {
 }
 
 // getStats returns the aggregated stats for the process
-func (agg *aggregator) getStats() model.PIDStats {
-	var stats model.PIDStats
+func (agg *aggregator) getStats() model.ProcessStats {
+	var stats model.ProcessStats
 
 	if agg.measuredIntervalNs > 0 {
 		stats.UtilizationPercentage = agg.getGPUUtilization() / agg.utilizationNormFactor

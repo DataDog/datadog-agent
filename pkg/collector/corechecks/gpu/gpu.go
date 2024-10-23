@@ -56,6 +56,7 @@ func newCheck() check.Check {
 func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
 	if err := m.CommonConfigure(senderManager, initConfig, config, source); err != nil {
 		return err
+	}
 
 	if err := yaml.Unmarshal(config, m.config); err != nil {
 		return fmt.Errorf("invalid gpu check config: %w", err)

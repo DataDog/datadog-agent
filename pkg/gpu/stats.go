@@ -57,7 +57,7 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	normFactor := g.getNormalizationFactor()
 
 	stats := model.GPUStats{
-		ProcessStats: make(map[uint32]model.PIDStats),
+		ProcessStats: make(map[uint32]model.ProcessStats),
 	}
 
 	for pid, aggr := range g.aggregators {
