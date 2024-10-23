@@ -68,7 +68,7 @@ func TestSecureCreateDirectory(t *testing.T) {
 func skipIfDontHavePrivileges(t *testing.T, privilegesRequired []string) {
 	user, err := user.Current()
 	require.NoError(t, err)
-	if os.Getenv("CI") != "" || strings.Contains(user.Name, "ContainerAdministrator") {
+	if os.Getenv("CI") != "" || os.Getenv("CI_JOB_ID") != "" || strings.Contains(user.Name, "ContainerAdministrator") {
 		// never skip in CI, we should always have the required privileges and we
 		// want the test to run
 		return
