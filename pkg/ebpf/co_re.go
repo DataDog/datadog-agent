@@ -41,7 +41,9 @@ func LoadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.O
 	}
 	return loader.loadCOREAsset(filename, startFn)
 }
-func GetBtfLoaderInfo() (string, error) {
+
+// Returns where the ebpf BTF files were sourced from
+func GetBTFLoaderInfo() (string, error) {
 	loader, err := coreLoader(NewConfig())
 	if err != nil {
 		return "", err
@@ -51,7 +53,7 @@ func GetBtfLoaderInfo() (string, error) {
 		return "", err
 	}
 	if res == nil {
-		return "", errors.New("GetBtfLoaderInfo expected result from btfLoader")
+		return "", errors.New("GetBTFLoaderInfo expected result from btfLoader")
 	}
 	return res.String(), nil
 }

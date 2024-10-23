@@ -30,6 +30,7 @@ type SysProbeUtil interface {
 	GetTelemetry() ([]byte, error)
 	GetConnTrackCached() ([]byte, error)
 	GetConnTrackHost() ([]byte, error)
+	GetBTFLoaderInfo() ([]byte, error)
 	DetectLanguage(pids []int32) ([]languagemodels.Language, error)
 	GetPprof(path string) ([]byte, error)
 	GetDiscoveryServices() (*discoverymodel.ServicesResponse, error)
