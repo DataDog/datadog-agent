@@ -96,6 +96,9 @@
                 "fsgroup": {
                     "type": "string"
                 },
+                "auid": {
+                    "type": "integer"
+                },
                 "cap_effective": {
                     "type": "array",
                     "items": {
