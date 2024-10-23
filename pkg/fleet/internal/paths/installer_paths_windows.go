@@ -70,7 +70,7 @@ func CreateInstallerDataDir() error {
 	// - Administrators: Full Control (propagates to children)
 	// - Everyone: 0x1200a9 List folder contents (propagates to container children only, so no access to file content)
 	// - PROTECTED: does not inherit permissions from parent
-	sddl := "O:BAGBA:D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;CI;0x1200a9;;;WD)"
+	sddl := "O:BAG:BAD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;CI;0x1200a9;;;WD)"
 
 	// The following privileges are required to modify the security descriptor,
 	// and are granted to Administrators by default:
@@ -173,7 +173,7 @@ func isDirSecure(targetDir string) error {
 func createDirectoryWithSDDL(path string, sddl string) error {
 	sd, err := windows.SecurityDescriptorFromString(sddl)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create security descriptor from sddl %s: %w", sddl, err)
 	}
 	sa := &windows.SecurityAttributes{
 		Length:             uint32(unsafe.Sizeof(windows.SecurityAttributes{})),
@@ -186,7 +186,7 @@ func createDirectoryWithSDDL(path string, sddl string) error {
 	if err != nil {
 		// CreateDirectory does not apply the security descriptor if the directory already exists
 		// so treat it as an error if the directory already exists.
-		return err
+		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
 	return nil
