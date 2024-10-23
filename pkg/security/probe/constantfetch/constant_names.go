@@ -30,6 +30,10 @@ const (
 	OffsetNameFileFpath                 = "file_f_path_offset"
 	OffsetNameMountMntID                = "mount_id_offset"
 
+	// rename
+	OffsetNameRenameStructOldDentry = "vfs_rename_src_dentry_offset"
+	OffsetNameRenameStructNewDentry = "vfs_rename_target_dentry_offset"
+
 	// tracepoints
 	OffsetNameSchedProcessForkParentPid = "sched_process_fork_parent_pid_offset"
 	OffsetNameSchedProcessForkChildPid  = "sched_process_fork_child_pid_offset"
