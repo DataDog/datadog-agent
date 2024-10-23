@@ -749,15 +749,6 @@ def build_sysprobe_binary(
         static=static,
     )
 
-    if not is_windows:
-        cgo_flags = get_libpcap_cgo_flags(ctx, install_path)
-        # append system-probe CGO-related environment variables to any existing ones
-        for k, v in cgo_flags.items():
-            if k in env:
-                env[k] += f" {v}"
-            else:
-                env[k] = v
-
     build_tags = get_default_build_tags(build="system-probe")
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
@@ -767,6 +758,15 @@ def build_sysprobe_binary(
     if static:
         build_tags.extend(["osusergo", "netgo"])
         build_tags = list(set(build_tags).difference({"netcgo"}))
+
+    if not is_windows and "pcap" in build_tags:
+        cgo_flags = get_libpcap_cgo_flags(ctx, install_path)
+        # append system-probe CGO-related environment variables to any existing ones
+        for k, v in cgo_flags.items():
+            if k in env:
+                env[k] += f" {v}"
+            else:
+                env[k] = v
 
     if os.path.exists(binary):
         os.remove(binary)
