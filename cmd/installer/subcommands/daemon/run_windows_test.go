@@ -38,6 +38,8 @@ func (s *daemonTestSuite) TestRunCommand() {
 // Note: this actually instantiates the components, so it will actually start
 // the remote config service etc...
 func (s *daemonTestSuite) TestAppStartsAndStops() {
+	tmpDir := s.T().TempDir()
+	s.T().Setenv("DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH", tmpDir)
 	tempfile, err := os.CreateTemp("", "test-*.yaml")
 	require.NoError(s.T(), err, "failed to create temporary file")
 	defer os.Remove(tempfile.Name())

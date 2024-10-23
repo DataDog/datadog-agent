@@ -9,6 +9,7 @@
 package paths
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -86,9 +87,11 @@ func secureCreateDirectory(path string, sddl string) error {
 	// We avoid TOCTOU issues because CreateDirectory fails if the directory already exists.
 	// This is of concern because Windows by default grants Users write access to ProgramData.
 	err := createDirectoryWithSDDL(path, sddl)
-	if err != nil && err != windows.ERROR_ALREADY_EXISTS {
-		// return other errors, ERROR_ALREADY_EXISTS is handled below
-		return err
+	if err != nil {
+		if !errors.Is(err, windows.ERROR_ALREADY_EXISTS) {
+			// return other errors, ERROR_ALREADY_EXISTS is handled below
+			return err
+		}
 	}
 	if err == nil {
 		// directory securely created, we're done
