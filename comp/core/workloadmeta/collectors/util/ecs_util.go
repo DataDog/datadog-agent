@@ -46,7 +46,6 @@ func ParseV4Task(task v3or4.Task, seen map[workloadmeta.EntityID]struct{}) []wor
 
 	taskContainers, containerEvents := ParseV4TaskContainers(task, seen)
 	region, awsAccountID := ParseRegionAndAWSAccountID(task.TaskARN)
-	log.Infof("Parsing V4 ECS or Fargate Task. Region: %s. Account: %d. TaskARN %s", region, awsAccountID, task.TaskARN)
 
 	entity := &workloadmeta.ECSTask{
 		EntityID: entityID,
