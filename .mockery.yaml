@@ -48,13 +48,13 @@ packages:
   # gpu
   github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvmlmetrics:
     interfaces:
-      subsystemCollector:
+      Collector:
         config:
           with-expecter: true
           mock-build-tags: "linux && test"
-          # subsystemCollector is an internal interface, so we cannot use a mock in a separate package
+          # Need to have it in the same package to avoid import loops!
           inpackage: true
           dir: "{{.InterfaceDir}}"
           filename: "mocks.go"
           outpkg: nvmlmetrics
-          mockname: mockSubsystemCollector
+          mockname: mockCollector

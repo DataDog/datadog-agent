@@ -41,12 +41,12 @@ func getBasicNvmlMock() *nvmlmock.Interface {
 }
 
 func TestCollectorsStillInitIfOneFails(t *testing.T) {
-	succeedCollector := &mockSubsystemCollector{}
+	succeedCollector := &mockCollector{}
 	factorySucceeded := false
 
 	// On the first call, this function returns correctly. On the second it fails.
 	// We need this as we cannot rely on the order of the subsystems in the map.
-	factory := func(_ nvml.Interface, _ nvml.Device) (subsystemCollector, error) {
+	factory := func(_ nvml.Interface, _ nvml.Device, _ []string) (Collector, error) {
 		if !factorySucceeded {
 			factorySucceeded = true
 			return succeedCollector, nil
@@ -54,36 +54,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 		return nil, errors.New("failure")
 	}
 
-	collector, err := newCollectorWithSubsystems(getBasicNvmlMock(), map[string]subsystemFactory{"ok": factory, "fail": factory})
-	require.NotNil(t, collector)
+	collectors, err := buildCollectors(getBasicNvmlMock(), map[string]subsystemFactory{"ok": factory, "fail": factory})
+	require.NotNil(t, collectors)
 	require.NoError(t, err)
-}
-
-func TestCollectorsCollectMetricsEvenInCaseOfFailure(t *testing.T) {
-	dummy := &mockSubsystemCollector{}
-	factory := func(_ nvml.Interface, _ nvml.Device) (subsystemCollector, error) {
-		return dummy, nil
-	}
-
-	collector, err := newCollectorWithSubsystems(getBasicNvmlMock(), map[string]subsystemFactory{"one": factory, "two": factory})
-	require.NotNil(t, collector)
-	require.NoError(t, err)
-
-	// change the collectors so that they're executed in the order we want
-	succeedCollector := &mockSubsystemCollector{}
-	failCollector := &mockSubsystemCollector{}
-	collector.collectors = map[nvml.Device][]subsystemCollector{
-		getBasicNvmlDeviceMock(): {succeedCollector, failCollector},
-	}
-
-	succeedCollector.EXPECT().collect().Return([]Metric{{Name: "succeed"}}, nil)
-	succeedCollector.EXPECT().name().Return("succeed").Maybe()
-	failCollector.EXPECT().collect().Return(nil, errors.New("failure"))
-	failCollector.EXPECT().name().Return("fail").Maybe()
-
-	metrics, err := collector.Collect()
-	require.Error(t, err)
-	require.Len(t, metrics, 1)
-	require.Equal(t, "succeed", metrics[0].Name)
-	require.NotEmpty(t, metrics[0].Tags)
 }

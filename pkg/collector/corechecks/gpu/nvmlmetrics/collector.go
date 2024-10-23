@@ -16,7 +16,6 @@ import (
 	"fmt"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/hashicorp/go-multierror"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -27,19 +26,18 @@ const (
 	tagNameUUID  = "gpu_uuid"
 )
 
-// Collector is the main struct responsible for collecting metrics from the NVML library.
-type Collector struct {
-	// lib is the NVML library interface
-	lib nvml.Interface
+// Collector defines a collector that gets metric from a specific NVML subsystem and device
+type Collector interface {
+	// Collect collects metrics from the given NVML device. This method should not fill the tags
+	// unless they're metric-specific (i.e., all device-specific tags will be added by the Collector itself)
+	Collect() ([]Metric, error)
 
-	// collectors is a map of subsystems that can be used to collect metrics.
-	// Each device has its own list of collectors, as support for each collector
-	// might vary between devices (e.g., not all devices support GPM metrics).
-	collectors map[nvml.Device][]subsystemCollector
+	// Close closes the subsystem and releases any resources it might have allocated
+	Close() error
+
+	// name returns the name of the subsystem
+	Name() string
 }
-
-// errUnsupportedDevice is returned when the device does not support the given collector
-var errUnsupportedDevice = errors.New("device does not support the given collector")
 
 // Metric represents a single metric collected from the NVML library.
 type Metric struct {
@@ -48,34 +46,23 @@ type Metric struct {
 	Tags  []string // Tags holds the tags associated with the metric.
 }
 
+// errUnsupportedDevice is returned when the device does not support the given collector
+var errUnsupportedDevice = errors.New("device does not support the given collector")
+
 // subsystemFactory is a function that creates a new subsystemCollector. lib is the NVML
 // library interface, and device the device it should collect metrics from
-type subsystemFactory func(lib nvml.Interface, device nvml.Device) (subsystemCollector, error)
-
-// subsystemCollector defines a collector that gets metric from a specific NVML subsystem and device
-type subsystemCollector interface {
-	// collect collects metrics from the given NVML device. This method should not fill the tags
-	// unless they're metric-specific (i.e., all device-specific tags will be added by the Collector itself)
-	collect() ([]Metric, error)
-
-	// close closes the subsystem and releases any resources it might have allocated
-	close() error
-
-	// name returns the name of the subsystem
-	name() string
-}
+type subsystemFactory func(lib nvml.Interface, device nvml.Device, tags []string) (Collector, error)
 
 // allSubsystems is a map of all the subsystems that can be used to collect metrics from NVML.
 var allSubsystems = map[string]subsystemFactory{}
 
-// NewCollector creates a new Collector that will collect metrics from the given NVML library.
-func NewCollector(lib nvml.Interface) (*Collector, error) {
-	return newCollectorWithSubsystems(lib, allSubsystems)
+// BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
+func BuildCollectors(lib nvml.Interface) ([]Collector, error) {
+	return buildCollectors(lib, allSubsystems)
 }
 
-// newCollectorWithSubsystems allows specifying which subsystems to use when creating the collector, useful for tests.
-func newCollectorWithSubsystems(lib nvml.Interface, subsystems map[string]subsystemFactory) (*Collector, error) {
-	collectors := make(map[nvml.Device][]subsystemCollector)
+func buildCollectors(lib nvml.Interface, subsystems map[string]subsystemFactory) ([]Collector, error) {
+	var collectors []Collector
 
 	devCount, ret := lib.DeviceGetCount()
 	if ret != nvml.SUCCESS {
@@ -88,8 +75,10 @@ func newCollectorWithSubsystems(lib nvml.Interface, subsystems map[string]subsys
 			return nil, fmt.Errorf("failed to get device handle for index %d: %s", i, nvml.ErrorString(ret))
 		}
 
+		tags := getTagsFromDevice(dev)
+
 		for name, factory := range subsystems {
-			subsystem, err := factory(lib, dev)
+			subsystem, err := factory(lib, dev, tags)
 			if errors.Is(err, errUnsupportedDevice) {
 				log.Warnf("device %s does not support collector %s", dev, name)
 				continue
@@ -98,55 +87,11 @@ func newCollectorWithSubsystems(lib nvml.Interface, subsystems map[string]subsys
 				continue
 			}
 
-			collectors[dev] = append(collectors[dev], subsystem)
+			collectors = append(collectors, subsystem)
 		}
 	}
 
-	return &Collector{
-		lib:        lib,
-		collectors: collectors,
-	}, nil
-}
-
-// Collect collects metrics from all the subsystems and returns them. It will try to return as many
-// metrics as possible, even if some subsystems fail to collect metrics. This means that even if the
-// error return is not nil, the returned metrics might still be useful.
-func (coll *Collector) Collect() ([]Metric, error) {
-	var allMetrics []Metric
-	var err error
-
-	for dev, collectors := range coll.collectors {
-		tags := getTagsFromDevice(dev)
-
-		for _, subsystem := range collectors {
-			metrics, collectErr := subsystem.collect()
-			if collectErr != nil {
-				err = multierror.Append(err, fmt.Errorf("failed to collect metrics for subsystem %s: %w", subsystem.name(), collectErr))
-			}
-
-			for _, metric := range metrics {
-				metric.Tags = append(metric.Tags, tags...)
-				allMetrics = append(allMetrics, metric)
-			}
-		}
-	}
-
-	return allMetrics, err
-}
-
-// Close closes the collector and releases any resources it might have allocated.
-func (coll *Collector) Close() error {
-	var errs error
-
-	for _, collectors := range coll.collectors {
-		for _, subsystem := range collectors {
-			if err := subsystem.close(); err != nil {
-				errs = multierror.Append(errs, err)
-			}
-		}
-	}
-
-	return errs
+	return collectors, nil
 }
 
 // getTagsFromDevice returns the tags associated with the given NVML device.
