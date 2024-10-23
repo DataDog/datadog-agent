@@ -26,7 +26,6 @@ type IngressMonitor struct {
 	sync.Mutex
 	ingress  int64
 	egress   int64
-	max      int64
 	avg      float64
 	samples  float64
 	name     string
@@ -54,10 +53,6 @@ func (i *IngressMonitor) sample() {
 	i.samples++
 	new := float64(i.ingress - i.egress)
 	i.avg = (i.avg*(i.samples-1) + new) / i.samples
-
-	// if new > i.max {
-	// 	i.max = new
-	// }
 }
 func (i *IngressMonitor) reportIfNeeded() {
 	select {
