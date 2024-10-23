@@ -60,7 +60,6 @@ func NetworkSelectors() []manager.ProbesSelector {
 			kprobeOrFentry("dev_new_index"),
 			kretprobeOrFexit("dev_new_index"),
 			kprobeOrFentry("__dev_get_by_index"),
-			kprobeOrFentry("__dev_get_by_name"),
 		}},
 	}
 }
