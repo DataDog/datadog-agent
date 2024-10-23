@@ -8,10 +8,10 @@
 package daemon
 
 import (
-	"golang.org/x/sys/windows"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
+	"golang.org/x/sys/windows"
 	"os"
 	"testing"
 
