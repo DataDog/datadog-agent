@@ -17,6 +17,8 @@
 #define TLS_HANDSHAKE 0x16
 #define TLS_APPLICATION_DATA 0x17
 
+#define SUPPORTED_VERSIONS_EXTENSION 0x002B
+
 /* https://www.rfc-editor.org/rfc/rfc5246#page-19 6.2. Record Layer */
 
 #define TLS_MAX_PAYLOAD_LENGTH (1 << 14)
@@ -104,7 +106,7 @@ static __always_inline bool is_tls(struct __sk_buff *skb, __u64 nh_off, tls_reco
     return true;
 }
 
-// Function to parse ClientHello message
+// parse_client_hello reads the ClientHello message from the TLS handshake and populates select tags
 static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offset, __u32 skb_len, tls_enhanced_tags_t *tags) {
     // Move offset past handshake type (1 byte)
     offset += 1;
@@ -115,7 +117,7 @@ static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offse
         return -1;
     __u32 handshake_length = (handshake_length_bytes[0] << 16) |
                              (handshake_length_bytes[1] << 8) |
-                             (handshake_length_bytes[2]);
+                             handshake_length_bytes[2];
     offset += 3;
 
     // Ensure we don't read beyond the packet
@@ -128,6 +130,10 @@ static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offse
         return -1;
     client_version = bpf_ntohs(client_version);
     offset += 2;
+
+    // Store client_version in tags (in case supported_versions extension is absent)
+    tags->client_tags.offered_versions[0] = client_version;
+    tags->client_tags.num_offered_versions = 1;
 
     // Skip Random (32 bytes)
     offset += 32;
@@ -200,7 +206,7 @@ static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offse
             return -1;
 
         // Check for supported_versions extension (type 43 or 0x002B)
-        if (extension_type == 0x002B) {
+        if (extension_type == SUPPORTED_VERSIONS_EXTENSION) {
             // Parse supported_versions extension
             if (offset + 1 > skb_len)
                 return -1;
@@ -335,7 +341,7 @@ static __always_inline int parse_server_hello(struct __sk_buff *skb, __u64 offse
                 return -1;
 
             // Check for supported_versions extension (type 43 or 0x002B)
-            if (extension_type == 0x002B) {
+            if (extension_type == SUPPORTED_VERSIONS_EXTENSION) {
                 // Parse supported_versions extension
                 if (extension_length != 2)
                     return -1;
@@ -374,10 +380,8 @@ static __always_inline int parse_tls_payload(struct __sk_buff *skb, __u64 nh_off
             return -1;
 
         if (handshake_type == TLS_HANDSHAKE_CLIENT_HELLO) {
-            log_debug("adamk tls classification: client hello");
             return parse_client_hello(skb, offset, skb->len, tags);
         } else if (handshake_type == TLS_HANDSHAKE_SERVER_HELLO) {
-            log_debug("adamk tls classification: server hello");
             return parse_server_hello(skb, offset, skb->len, tags);
         } else {
             return -1;

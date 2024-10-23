@@ -109,6 +109,18 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
     mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
+    // lookup from new map and add info to the connection
+    tls_enhanced_tags_t *tls_tags = get_tls_enhanced_tags(&conn_tuple_copy);
+    if (tls_tags) {
+        // TODO: flush the tags to userspace
+        log_debug("adamk tls classification: client version 1=%d", tls_tags->client_tags.offered_versions[0]);
+        log_debug("adamk tls classification: client version 2=%d", tls_tags->client_tags.offered_versions[1]);
+        log_debug("adamk tls classification: client version 3=%d", tls_tags->client_tags.offered_versions[2]);
+        log_debug("adamk tls classification: server version=%d", tls_tags->server_tags.version);
+        log_debug("adamk tls classification: server cipher=%d", tls_tags->server_tags.cipher_suite);
+    } else {
+        log_debug("adamk tls classification: no tags found");
+    }
 
     conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
     if (!cached_skb_conn_tup_ptr) {
@@ -121,7 +133,17 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
     // lookup from new map and add info to the connection
-    // tls_enhanced_tags_t *tls_tags = get_tls_enhanced_tags(&conn_tuple_copy);
+    tls_tags = get_tls_enhanced_tags(&conn_tuple_copy);
+    if (tls_tags) {
+        // TODO: flush the tags to userspace
+        log_debug("adamk tls classification 2: client version 1=%d", tls_tags->client_tags.offered_versions[0]);
+        log_debug("adamk tls classification 2: client version 2=%d", tls_tags->client_tags.offered_versions[1]);
+        log_debug("adamk tls classification 2: client version 3=%d", tls_tags->client_tags.offered_versions[2]);
+        log_debug("adamk tls classification 2: server version=%d", tls_tags->server_tags.version);
+        log_debug("adamk tls classification 2: server cipher=%d", tls_tags->server_tags.cipher_suite);
+    } else {
+        log_debug("adamk tls classification 2: no tags found");
+    }
 }
 
 static __always_inline void determine_connection_direction(conn_tuple_t *t, conn_stats_ts_t *conn_stats) {

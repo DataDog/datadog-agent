@@ -183,9 +183,6 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
             log_debug("adamk\n");
             log_debug("adamk tls classification: parse_tls_payload=%d", ret);
             ret++;
-            log_debug("adamk tls classification: client version 1=%d", tags->client_tags.offered_versions[0]);
-            log_debug("adamk tls classification: server version=%d", tags->server_tags.version);
-            log_debug("adamk tls classification: server cipher=%d", tags->server_tags.cipher_suite);
         }
         // The connection is TLS encrypted, thus we cannot further classify the protocol
         // using the socket filter and can bail out;
