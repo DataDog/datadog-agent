@@ -80,6 +80,10 @@ func NewFilePath(procRoot, namespacedPath string, pid uint32) (FilePath, error) 
 
 type callback func(FilePath) error
 
+// ErrEnvironment indicates that the error is not with the path itself, so the
+// path itself should not be blocked from further attempts at hooking.
+var ErrEnvironment = errors.New("Environment error, path will not be blocked")
+
 // NewFileRegistry creates a new `FileRegistry` instance
 func NewFileRegistry(programName string) *FileRegistry {
 	blocklistByID, err := simplelru.NewLRU[PathIdentifier, string](2000, nil)
@@ -161,6 +165,10 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 		// indicate that the process is gone, since the process could disappear
 		// between two uprobe registrations.
 		_ = deactivationCB(FilePath{ID: pathID})
+
+		if errors.Is(err, ErrEnvironment) {
+			return err
+		}
 
 		// short living process would be hard to catch and will failed when we try to open the library
 		// so let's failed silently
