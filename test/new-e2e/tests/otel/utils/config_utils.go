@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 
 	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 )
 
 // TestOTelAgentInstalled checks that the OTel Agent is installed in the test suite
@@ -42,27 +43,22 @@ func TestOTelFlare(s OTelTestSuite, providedCfg string, fullCfg string, sources 
 
 	s.T().Log("Getting latest flare")
 	flare, err := s.Env().FakeIntake.Client().GetLatestFlare()
-	require.NoError(s.T(), err, "Failed to get latest flare")
-	otelFolder, otelFlareFolder := false, false
-	var otelResponse string
-	for _, filename := range flare.GetFilenames() {
-		if strings.Contains(filename, "/otel/") {
-			otelFolder = true
-		}
-		if strings.Contains(filename, "/otel/otel-flare/") {
-			otelFlareFolder = true
-		}
-		if strings.Contains(filename, "otel/otel-response.json") {
-			otelResponse = filename
-		}
-	}
-	assert.True(s.T(), otelFolder)
-	assert.True(s.T(), otelFlareFolder)
-	otelResponseContent, err := flare.GetFileContent(otelResponse)
-	s.T().Log("Got flare otel-response.json", otelResponseContent)
 	require.NoError(s.T(), err)
+	otelflares := fetchFromFlare(s.T(), flare)
+	assert.Contains(s.T(), otelflares, "otel/otel-response.json")
+	assert.Contains(s.T(), otelflares, "otel/otel-flare/customer.cfg")
+	assert.Contains(s.T(), otelflares, "otel/otel-flare/env.cfg")
+	assert.Contains(s.T(), otelflares, "otel/otel-flare/environment.json")
+	assert.Contains(s.T(), otelflares, "otel/otel-flare/runtime.cfg")
+	assert.Contains(s.T(), otelflares, "otel/otel-flare/runtime_override.cfg")
+	assert.Contains(s.T(), otelflares, "otel/otel-flare/health_check/dd-autoconfigured.dat")
+	assert.Contains(s.T(), otelflares, "otel/otel-flare/pprof/dd-autoconfigured_debug_pprof_heap.dat")
+	assert.Contains(s.T(), otelflares, "otel/otel-flare/pprof/dd-autoconfigured_debug_pprof_allocs.dat")
+	assert.Contains(s.T(), otelflares, "otel/otel-flare/command.txt")
+	assert.Contains(s.T(), otelflares, "otel/otel-flare/ext.txt")
+
 	var resp extension.Response
-	require.NoError(s.T(), json.Unmarshal([]byte(otelResponseContent), &resp))
+	require.NoError(s.T(), json.Unmarshal([]byte(otelflares["otel/otel-response.json"]), &resp))
 
 	assert.Equal(s.T(), "otel-agent", resp.AgentCommand)
 	assert.Equal(s.T(), "Datadog Agent OpenTelemetry Collector", resp.AgentDesc)
@@ -74,6 +70,8 @@ func TestOTelFlare(s OTelTestSuite, providedCfg string, fullCfg string, sources 
 	srcJSONStr, err := json.Marshal(resp.Sources)
 	require.NoError(s.T(), err)
 	assert.JSONEq(s.T(), sources, string(srcJSONStr))
+
+	assert.Contains(s.T(), otelflares["otel/otel-flare/health_check/dd-autoconfigured.dat"], `"status":"Server available"`)
 }
 
 func getAgentPod(s OTelTestSuite) corev1.Pod {
@@ -83,6 +81,25 @@ func getAgentPod(s OTelTestSuite) corev1.Pod {
 	require.NoError(s.T(), err)
 	require.NotEmpty(s.T(), res.Items)
 	return res.Items[0]
+}
+
+func fetchFromFlare(t *testing.T, flare flare.Flare) map[string]string {
+	otelflares := make(map[string]string)
+	for _, filename := range flare.GetFilenames() {
+		if !strings.Contains(filename, "/otel/") {
+			continue
+		}
+
+		if strings.HasSuffix(filename, ".json") || strings.HasSuffix(filename, ".dat") || strings.HasSuffix(filename, ".txt") || strings.HasSuffix(filename, ".cfg") {
+			cnt, err := flare.GetFileContent(filename)
+			require.NoError(t, err)
+			t.Log("Got otel flare: ", filename, "\n", cnt)
+			parts := strings.SplitN(filename, "/", 2)
+			require.Len(t, parts, 2)
+			otelflares[parts[1]] = cnt
+		}
+	}
+	return otelflares
 }
 
 func validateConfigs(t *testing.T, expectedCfg string, actualCfg string) {
