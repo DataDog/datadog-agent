@@ -298,7 +298,7 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 
 func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	overlayFsReader := NewFS(layers)
-	report, err := c.scanFilesystem(ctx, overlayFsReader, ".", imgMeta, scanOptions)
+	report, err := c.scanFilesystem(ctx, overlayFsReader, "/", imgMeta, scanOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -318,9 +318,10 @@ func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgM
 	if err != nil {
 		return nil, fmt.Errorf("unable to get mounts for image %s, err: %w", imgMeta.ID, err)
 	}
+
 	layers := extractLayersFromOverlayFSMounts(mounts)
 	if len(layers) == 0 {
-		return nil, fmt.Errorf("unable to extract layers from overlayfs mounts for image %s", imgMeta.ID)
+		return nil, fmt.Errorf("unable to extract layers from overlayfs mounts %+v for image %s", mounts, imgMeta.ID)
 	}
 
 	ctx = namespaces.WithNamespace(ctx, imgMeta.Namespace)

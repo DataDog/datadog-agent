@@ -61,8 +61,7 @@ func fixupMetadata(meta usm.ServiceMetadata, lang language.Language) usm.Service
 
 // GetServiceName gets the service name based on the command line arguments and
 // the list of environment variables.
-func GetServiceName(cmdline []string, env map[string]string, root string, lang language.Language, contextMap usm.DetectorContextMap) usm.ServiceMetadata {
-	fs := usm.NewSubDirFS(root)
-	meta, _ := usm.ExtractServiceMetadata(cmdline, env, fs, lang, contextMap)
+func GetServiceName(lang language.Language, ctx usm.DetectionContext) usm.ServiceMetadata {
+	meta, _ := usm.ExtractServiceMetadata(lang, ctx)
 	return fixupMetadata(meta, lang)
 }

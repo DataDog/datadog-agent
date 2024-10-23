@@ -37,6 +37,11 @@ func (m *testPackageManager) IsInstalled(ctx context.Context, pkg string) (bool,
 	return args.Bool(0), args.Error(1)
 }
 
+func (m *testPackageManager) AvailableDiskSpace() (uint64, error) {
+	args := m.Called()
+	return args.Get(0).(uint64), args.Error(1)
+}
+
 func (m *testPackageManager) State(pkg string) (repository.State, error) {
 	args := m.Called(pkg)
 	return args.Get(0).(repository.State), args.Error(1)
@@ -86,6 +91,21 @@ func (m *testPackageManager) PromoteExperiment(ctx context.Context, pkg string) 
 	return args.Error(0)
 }
 
+func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, url string, hash string) error {
+	args := m.Called(ctx, url, hash)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) RemoveConfigExperiment(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) PromoteConfigExperiment(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
 func (m *testPackageManager) GarbageCollect(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
@@ -131,10 +151,10 @@ func (c *testRemoteConfigClient) Subscribe(product string, fn func(update map[st
 	c.listeners[product] = append(c.listeners[product], fn)
 }
 
-func (c *testRemoteConfigClient) SetInstallerState(_ []*pbgo.PackageState) {
+func (c *testRemoteConfigClient) SetInstallerState(_ *pbgo.ClientUpdater) {
 }
 
-func (c *testRemoteConfigClient) GetInstallerState() []*pbgo.PackageState {
+func (c *testRemoteConfigClient) GetInstallerState() *pbgo.ClientUpdater {
 	return nil
 }
 
@@ -188,6 +208,7 @@ type testInstaller struct {
 
 func newTestInstaller(t *testing.T) *testInstaller {
 	pm := &testPackageManager{}
+	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
 	pm.On("States").Return(map[string]repository.State{}, nil)
 	pm.On("ConfigStates").Return(map[string]repository.State{}, nil)
 	rcc := newTestRemoteConfigClient(t)

@@ -47,6 +47,7 @@ type PlatformProbe interface {
 	DumpDiscarders() (string, error)
 	FlushDiscarders() error
 	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error)
+	OnNewRuleSetLoaded(_ *rules.RuleSet)
 	OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
 	HandleActions(_ *eval.Context, _ *rules.Rule)
 	NewEvent() *model.Event
@@ -56,6 +57,7 @@ type PlatformProbe interface {
 	GetEventTags(_ string) []string
 	GetProfileManager() interface{}
 	EnableEnforcement(bool)
+	PlaySnapshot()
 }
 
 // EventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
@@ -228,10 +230,15 @@ func (p *Probe) FlushDiscarders() error {
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+	return p.PlatformProbe.ApplyRuleSet(rs)
+}
+
+// OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
+func (p *Probe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.ruleActionStatsLock.Lock()
 	clear(p.ruleActionStats)
 	p.ruleActionStatsLock.Unlock()
-	return p.PlatformProbe.ApplyRuleSet(rs)
+	p.PlatformProbe.OnNewRuleSetLoaded(rs)
 }
 
 // Snapshot runs the different snapshot functions of the resolvers that
@@ -430,6 +437,11 @@ func (p *Probe) IsNetworkEnabled() bool {
 	return p.Config.Probe.NetworkEnabled
 }
 
+// IsNetworkRawPacketEnabled returns whether network raw packet is enabled
+func (p *Probe) IsNetworkRawPacketEnabled() bool {
+	return p.IsNetworkEnabled() && p.Config.Probe.NetworkRawPacketEnabled
+}
+
 // IsActivityDumpEnabled returns whether activity dump is enabled
 func (p *Probe) IsActivityDumpEnabled() bool {
 	return p.Config.RuntimeSecurity.ActivityDumpEnabled
@@ -448,4 +460,9 @@ func (p *Probe) IsSecurityProfileEnabled() bool {
 // EnableEnforcement sets the enforcement mode
 func (p *Probe) EnableEnforcement(state bool) {
 	p.PlatformProbe.EnableEnforcement(state)
+}
+
+// PlaySnapshot plays the snapshot
+func (p *Probe) PlaySnapshot() {
+	p.PlatformProbe.PlaySnapshot()
 }

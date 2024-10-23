@@ -122,7 +122,7 @@ def _get_environment_for_cache() -> dict:
             "HOSTNAME",
             "HOST_IP",
             "INFOPATH",
-            "INSTALL_SCRIPT_API_KEY",
+            "INSTALL_SCRIPT_API_KEY_ORG2",
             "INTEGRATION_WHEELS_CACHE_BUCKET",
             "IRBRC",
             "KITCHEN_INFRASTRUCTURE_FLAKES_RETRY",
@@ -142,7 +142,6 @@ def _get_environment_for_cache() -> dict:
             "PROCESS_S3_BUCKET",
             "PWD",
             "PROMPT",
-            "PYTHON_RUNTIMES",
             "RESTORE_CACHE_ATTEMPTS",
             "RUSTC_SHA256",
             "SIGN",
@@ -235,9 +234,7 @@ def should_retry_bundle_install(res):
 def send_build_metrics(ctx, overall_duration):
     # We only want to generate those metrics from the CI
     src_dir = os.environ.get('CI_PROJECT_DIR')
-    aws_cmd = "aws"
     if sys.platform == 'win32':
-        aws_cmd = "aws.cmd"
         if src_dir is None:
             src_dir = os.environ.get("REPO_ROOT", os.getcwd())
 
@@ -318,10 +315,16 @@ def send_build_metrics(ctx, overall_duration):
                     'type': 0,
                 }
             )
-    dd_api_key = ctx.run(
-        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
-        hide=True,
-    ).stdout.strip()
+    if sys.platform == 'win32':
+        dd_api_key = ctx.run(
+            f'aws.cmd ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
+            hide=True,
+        ).stdout.strip()
+    else:
+        dd_api_key = ctx.run(
+            f'vault kv get -field=token kv/k8s/gitlab-runner/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}',
+            hide=True,
+        ).stdout.strip()
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}
     r = requests.post("https://api.datadoghq.com/api/v2/series", json={'series': series}, headers=headers)
     if r.ok:
@@ -333,13 +336,15 @@ def send_build_metrics(ctx, overall_duration):
 
 def send_cache_miss_event(ctx, pipeline_id, job_name, job_id):
     if sys.platform == 'win32':
-        aws_cmd = "aws.cmd"
+        dd_api_key = ctx.run(
+            f'aws.cmd ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
+            hide=True,
+        ).stdout.strip()
     else:
-        aws_cmd = "aws"
-    dd_api_key = ctx.run(
-        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
-        hide=True,
-    ).stdout.strip()
+        dd_api_key = ctx.run(
+            f'vault kv get -field=token kv/k8s/gitlab-runner/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}',
+            hide=True,
+        ).stdout.strip()
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}
     payload = {
         'title': 'omnibus cache miss',

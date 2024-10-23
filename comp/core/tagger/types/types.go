@@ -22,6 +22,13 @@ type ApplyFunc[V any] func(EntityID, V)
 type ObjectStore[V any] interface {
 	// Get returns an object with the specified entity ID if it exists in the store
 	Get(EntityID) (V, bool)
+	// GetWithEntityIDStr returns an object with the specified entity ID if it
+	// exists in the store.
+	// This function is needed only for performance reasons. It functions like
+	// Get, but accepts a string instead of an EntityID, creating the EntityID
+	// internally. This reduces the allocations that occur when an EntityID is
+	// passed as a parameter.
+	GetWithEntityIDStr(string) (V, bool)
 	// Set sets a given entityID to a given object in the store
 	Set(EntityID, V)
 	// Unset unsets a given entityID in the store
@@ -196,4 +203,14 @@ func (e EntityIDPrefix) ToUID(id string) string {
 		return ""
 	}
 	return fmt.Sprintf("%s://%s", e, id)
+}
+
+// Subscription can be used by external subscribing components to interact with tagger events
+type Subscription interface {
+	// EventsChan returns a channel on which the subscriber can receive tagger events
+	EventsChan() chan []EntityEvent
+	// ID returns the id of the subscription
+	ID() string
+	// Unsubscribe is used cancel subscription to the tagger
+	Unsubscribe()
 }

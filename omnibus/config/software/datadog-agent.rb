@@ -11,10 +11,13 @@ name 'datadog-agent'
 # creates required build directories
 dependency 'datadog-agent-prepare'
 
-dependency "python2" if with_python_runtime? "2"
-dependency "python3" if with_python_runtime? "3"
+dependency "python3"
 
 dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
+
+# Alternative memory allocator which has better support for memory allocated by cgo calls,
+# especially at higher thread counts.
+dependency "libjemalloc" if linux_target?
 
 dependency 'agent-dependencies'
 dependency 'datadog-agent-dependencies'
@@ -41,24 +44,17 @@ build do
     env = {
         'GOPATH' => gopath.to_path,
         'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
-        "Python2_ROOT_DIR" => "#{windows_safe_path(python_2_embedded)}",
-        "Python3_ROOT_DIR" => "#{windows_safe_path(python_3_embedded)}",
-        "CMAKE_INSTALL_PREFIX" => "#{windows_safe_path(python_2_embedded)}",
     }
     major_version_arg = "%MAJOR_VERSION%"
-    py_runtimes_arg = "%PY_RUNTIMES%"
   else
     env = {
         'GOPATH' => gopath.to_path,
         'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
-        "Python2_ROOT_DIR" => "#{install_dir}/embedded",
-        "Python3_ROOT_DIR" => "#{install_dir}/embedded",
         "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
         "CGO_CFLAGS" => "-I. -I#{install_dir}/embedded/include",
         "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
     }
     major_version_arg = "$MAJOR_VERSION"
-    py_runtimes_arg = "$PY_RUNTIMES"
   end
 
   unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
@@ -67,7 +63,11 @@ build do
   end
 
   # include embedded path (mostly for `pkg-config` binary)
-  env = with_embedded_path(env)
+  env = with_standard_compiler_flags(with_embedded_path(env))
+  default_install_dir = "/opt/datadog-agent"
+  if Omnibus::Config.host_distribution == "ociru"
+    default_install_dir = "#{install_dir}"
+  end
 
   # we assume the go deps are already installed before running omnibus
   if windows_target?
@@ -77,13 +77,13 @@ build do
       do_windows_sysprobe = "--windows-sysprobe"
     end
     command "inv -e rtloader.clean"
-    command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\"", :env => env
+    command "inv -e rtloader.make --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\"\"", :env => env
     command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
-    command "inv -e agent.build #{fips_arg} --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
+    command "inv -e agent.build #{fips_arg }--exclude-rtloader --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
     command "inv -e systray.build --major-version #{major_version_arg} --rebuild", env: env
   else
     command "inv -e rtloader.clean"
-    command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0 -I#{install_dir}/embedded/include\" -DCMAKE_C_FLAGS:=\"-I#{install_dir}/embedded/include\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
+    command "inv -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env
     command "inv -e rtloader.install"
     bundle_arg = bundled_agents ? bundled_agents.map { |k| "--bundle #{k}" }.join(" ") : "--bundle agent"
 
@@ -91,10 +91,10 @@ build do
     if linux_target?
         include_sds = "--include-sds" # we only support SDS on Linux targets for now
     end
-    command "inv -e agent.build #{fips_arg} --exclude-rtloader #{include_sds} --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
+    command "inv -e agent.build #{fips_arg} --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{default_install_dir}/embedded --python-home-2=#{default_install_dir}/embedded --python-home-3=#{default_install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
 
     if heroku_target?
-      command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent --bundle agent", env: env
+      command "inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent --bundle agent", env: env
     end
   end
 
@@ -125,7 +125,7 @@ build do
 
   if not bundled_agents.include? "trace-agent"
     platform = windows_arch_i386? ? "x86" : "x64"
-    command "invoke trace-agent.build #{fips_arg} --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+    command "invoke trace-agent.build #{fips_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
   end
 
   if windows_target?
@@ -136,7 +136,7 @@ build do
 
   # Process agent
   if not bundled_agents.include? "process-agent"
-    command "invoke -e process-agent.build #{fips_arg} --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg} --no-bundle", :env => env
+    command "invoke -e process-agent.build #{fips_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg} --no-bundle", :env => env
   end
 
   if windows_target?
@@ -150,9 +150,9 @@ build do
   if sysprobe_support
     if not bundled_agents.include? "system-probe"
       if windows_target?
-        command "invoke -e system-probe.build #{fips_arg}"
+        command "invoke -e system-probe.build  #{fips_arg}", env: env
       elsif linux_target?
-        command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir} --no-bundle #{fips_arg}"
+        command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir} --no-bundle #{fips_arg}", env: env
       end
     end
 
@@ -271,4 +271,8 @@ build do
         end
       end
   end
+
+  python_scripts_dir = "#{project_dir}/omnibus/python-scripts"
+  mkdir "#{install_dir}/python-scripts"
+  copy "#{python_scripts_dir}/*", "#{install_dir}/python-scripts"
 end

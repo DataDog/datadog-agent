@@ -33,9 +33,11 @@
 '@datadog/database-monitoring': DBMON
 '@datadog/agent-cspm': SEC
 '@datadog/telemetry-and-analytics': AIT
+'@datadog/apm-trace-storage': APMTS
 '@datadog/asm-go': APPSEC
 '@datadog/agent-delivery': BARX
 '@datadog/agent-devx-loops': ADXT
 '@datadog/agent-devx-infra': ACIX
 '@datadog/apm-onboarding': APMON
 '@datadog/agent-processing-and-routing': APR
+'@DataDog/container-ecosystems': CECO

@@ -8,6 +8,7 @@ package replay
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -102,14 +103,9 @@ func (t *Tagger) List() types.TaggerListResponse {
 }
 
 // Subscribe does nothing in the replay tagger this tagger does not respond to events.
-func (t *Tagger) Subscribe(types.TagCardinality) chan []types.EntityEvent {
+func (t *Tagger) Subscribe(_ string, _ *types.Filter) (types.Subscription, error) {
 	// NOP
-	return nil
-}
-
-// Unsubscribe does nothing in the replay tagger this tagger does not respond to events.
-func (t *Tagger) Unsubscribe(chan []types.EntityEvent) {
-	// NOP
+	return nil, fmt.Errorf("not implemented")
 }
 
 // ReplayTagger returns the replay tagger instance

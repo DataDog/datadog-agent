@@ -120,7 +120,7 @@ type Stats struct {
 	LastWarnings             []string  // warnings that occurred in the last run, if any
 	UpdateTimestamp          int64     // latest update to this instance, unix timestamp in seconds
 	m                        sync.Mutex
-	telemetry                bool // do we want telemetry on this Check
+	Telemetry                bool // do we want telemetry on this Check
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
@@ -145,14 +145,14 @@ func NewStats(c StatsCheck) *Stats {
 		CheckVersion:             c.Version(),
 		CheckConfigSource:        c.ConfigSource(),
 		Interval:                 c.Interval(),
-		telemetry:                utils.IsCheckTelemetryEnabled(c.String(), pkgconfigsetup.Datadog()),
+		Telemetry:                utils.IsCheckTelemetryEnabled(c.String(), pkgconfigsetup.Datadog()),
 		EventPlatformEvents:      make(map[string]int64),
 		TotalEventPlatformEvents: make(map[string]int64),
 	}
 
 	// We are interested in a check's run state values even when they are 0 so we
 	// initialize them here explicitly
-	if stats.telemetry && utils.IsTelemetryEnabled(pkgconfigsetup.Datadog()) {
+	if stats.Telemetry && utils.IsTelemetryEnabled(pkgconfigsetup.Datadog()) {
 		tlmRuns.InitializeToZero(stats.CheckName, runCheckFailureTag)
 		tlmRuns.InitializeToZero(stats.CheckName, runCheckSuccessTag)
 	}
@@ -166,7 +166,7 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 	defer cs.m.Unlock()
 
 	cs.LastDelay = calculateCheckDelay(time.Now(), cs, t)
-	if cs.telemetry {
+	if cs.Telemetry {
 		tlmCheckDelay.Set(float64(cs.LastDelay), cs.CheckName)
 	}
 
@@ -176,7 +176,7 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 	cs.LastExecutionTime = tms
 	cs.ExecutionTimes[cs.TotalRuns%uint64(len(cs.ExecutionTimes))] = tms
 	cs.TotalRuns++
-	if cs.telemetry {
+	if cs.Telemetry {
 		tlmExecutionTime.Set(float64(tms), cs.CheckName)
 	}
 	var totalExecutionTime int64
@@ -190,12 +190,12 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 	cs.AverageExecutionTime = totalExecutionTime / int64(ringSize)
 	if err != nil {
 		cs.TotalErrors++
-		if cs.telemetry {
+		if cs.Telemetry {
 			tlmRuns.Inc(cs.CheckName, runCheckFailureTag)
 		}
 		cs.LastError = err.Error()
 	} else {
-		if cs.telemetry {
+		if cs.Telemetry {
 			tlmRuns.Inc(cs.CheckName, runCheckSuccessTag)
 		}
 		cs.LastError = ""
@@ -203,7 +203,7 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 	}
 	cs.LastWarnings = []string{}
 	if len(warnings) != 0 {
-		if cs.telemetry {
+		if cs.Telemetry {
 			tlmWarnings.Add(float64(len(warnings)), cs.CheckName)
 		}
 		for _, w := range warnings {
@@ -216,28 +216,28 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 	if metricStats.MetricSamples > 0 {
 		cs.MetricSamples = metricStats.MetricSamples
 		cs.TotalMetricSamples += uint64(metricStats.MetricSamples)
-		if cs.telemetry {
+		if cs.Telemetry {
 			tlmMetricsSamples.Add(float64(metricStats.MetricSamples), cs.CheckName)
 		}
 	}
 	if metricStats.Events > 0 {
 		cs.Events = metricStats.Events
 		cs.TotalEvents += uint64(metricStats.Events)
-		if cs.telemetry {
+		if cs.Telemetry {
 			tlmEvents.Add(float64(metricStats.Events), cs.CheckName)
 		}
 	}
 	if metricStats.ServiceChecks > 0 {
 		cs.ServiceChecks = metricStats.ServiceChecks
 		cs.TotalServiceChecks += uint64(metricStats.ServiceChecks)
-		if cs.telemetry {
+		if cs.Telemetry {
 			tlmServices.Add(float64(metricStats.ServiceChecks), cs.CheckName)
 		}
 	}
 	if metricStats.HistogramBuckets > 0 {
 		cs.HistogramBuckets = metricStats.HistogramBuckets
 		cs.TotalHistogramBuckets += uint64(metricStats.HistogramBuckets)
-		if cs.telemetry {
+		if cs.Telemetry {
 			tlmHistogramBuckets.Add(float64(metricStats.HistogramBuckets), cs.CheckName)
 		}
 	}
