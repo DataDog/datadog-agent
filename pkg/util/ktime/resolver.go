@@ -5,8 +5,8 @@
 
 //go:build linux
 
-// Package time holds time related files
-package time
+// Package ktime holds time related files
+package ktime
 
 import (
 	"time"

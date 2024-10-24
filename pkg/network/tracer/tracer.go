@@ -38,10 +38,10 @@ import (
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	timeresolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -98,7 +98,7 @@ type Tracer struct {
 
 	processCache *processCache
 
-	timeResolver *timeresolver.Resolver
+	timeResolver *ktime.Resolver
 
 	telemetryComp telemetryComponent.Component
 }
@@ -188,7 +188,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		}
 		telemetry.GetCompatComponent().RegisterCollector(tr.processCache)
 
-		if tr.timeResolver, err = timeresolver.NewResolver(); err != nil {
+		if tr.timeResolver, err = ktime.NewResolver(); err != nil {
 			return nil, fmt.Errorf("could not create time resolver: %w", err)
 		}
 
