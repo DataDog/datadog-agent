@@ -1636,6 +1636,14 @@ api_key:
   #
   # disable_realtime_checks: false
 
+  ## @param infra_agent - object - optional
+  ## Enables Infrastructure Monitoring
+  ##
+  #infra_agent:
+  ## @env DD_INFRA_AGENT_ENABLE - boolean - optional - default: true
+  ## Enables or disables Infrastructure Monitoring
+  # enabled: true
+
 {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for internal profiling.
