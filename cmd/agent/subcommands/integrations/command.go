@@ -87,6 +87,7 @@ type cliParams struct {
 	thirdParty                bool
 	pythonMajorVersion        string
 	unsafeDisableVerification bool
+	logLevelOff               command.LogLevelOff
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -99,6 +100,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 	}
 
+	cliParams.logLevelOff.Register(integrationCmd)
 	integrationCmd.PersistentFlags().CountVarP(&cliParams.verbose, "verbose", "v", "enable verbose logging")
 	integrationCmd.PersistentFlags().BoolVarP(&cliParams.allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
 	integrationCmd.PersistentFlags().BoolVarP(&cliParams.useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
@@ -113,7 +115,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(cliParams),
 			fx.Supply(core.BundleParams{
 				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigMissingOK(true), config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-				LogParams:    log.ForOneShot(command.LoggerName, "off", true),
+				LogParams:    log.ForOneShot(command.LoggerName, cliParams.logLevelOff.Override(), true),
 			}),
 			core.Bundle(),
 		)
