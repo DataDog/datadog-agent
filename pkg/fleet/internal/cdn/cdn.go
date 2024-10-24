@@ -40,8 +40,14 @@ type CDN interface {
 
 // New creates a new CDN.
 func New(env *env.Env, configDBPath string) (CDN, error) {
+	if !env.RemotePolicies {
+		return newNoop()
+	}
 	if env.CDNLocalDirPath != "" {
 		return newLocal(env)
 	}
-	return newRemote(env, configDBPath)
+	if !env.CDNEnabled {
+		return newDirect(env, configDBPath)
+	}
+	return newRegular(env, configDBPath)
 }
