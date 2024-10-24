@@ -451,7 +451,6 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event) {
 	if event.Origin != "ebpfless" {
 		nameFields = append(nameFields,
 			"process.ancestors.file.name",
-			"process.parent.file.path",
 			"process.parent.file.name",
 		)
 	}
@@ -463,7 +462,10 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event) {
 		"process.file.path",
 	}
 	if event.Origin != "ebpfless" {
-		pathFields = append(pathFields, "process.ancestors.file.path")
+		pathFields = append(pathFields,
+			"process.parent.file.path",
+			"process.ancestors.file.path",
+		)
 	}
 
 	pathFieldValid := true
