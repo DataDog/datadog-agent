@@ -138,6 +138,5 @@ func TestProbeCanGenerateStats(t *testing.T) {
 
 	pidStats := stats.ProcessStats[uint32(cmd.Process.Pid)]
 	require.Greater(t, pidStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
-	require.Equal(t, pidStats.MaxMemoryBytes, uint64(100))
-
+	require.Equal(t, pidStats.MaxMemoryBytes, uint64(110))  // 100 allocation + 10 shared kernel mem
 }

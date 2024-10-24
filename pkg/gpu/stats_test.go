@@ -44,6 +44,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	streamID := uint64(120)
 	pidTgid := uint64(pid)<<32 + uint64(pid)
 	skeyKern := model.StreamKey{Pid: pid, Stream: streamID}
+	shmemSize := uint64(10)
 	streamHandlers[skeyKern] = &StreamHandler{
 		processEnded: false,
 		kernelLaunches: []enrichedKernelLaunch{
@@ -51,7 +52,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 				CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
 					Header:          gpuebpf.CudaEventHeader{Ktime_ns: uint64(startKtime), Pid_tgid: pidTgid, Stream_id: streamID},
 					Kernel_addr:     0,
-					Shared_mem_size: 10,
+					Shared_mem_size: shmemSize,
 					Grid_size:       gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
 					Block_size:      gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
 				},
@@ -80,8 +81,8 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	require.Contains(t, stats.ProcessStats, pid)
 
 	pidStats := stats.ProcessStats[pid]
-	require.Equal(t, allocSize, pidStats.CurrentMemoryBytes)
-	require.Equal(t, allocSize, pidStats.MaxMemoryBytes)
+	require.Equal(t, allocSize+shmemSize, pidStats.CurrentMemoryBytes)
+	require.Equal(t, allocSize+shmemSize, pidStats.MaxMemoryBytes)
 
 	// defined kernel is using only 1 core for 9 of the 10 seconds
 	expectedUtil := 1.0 / testutil.DefaultGpuCores * 0.9
@@ -152,6 +153,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	skeyKern := model.StreamKey{Pid: pid, Stream: streamID}
 	pidTgid := uint64(pid)<<32 + uint64(pid)
 	numThreads := uint64(5)
+	shmemSize := uint64(10)
 	streamHandlers[skeyKern] = &StreamHandler{
 		processEnded: false,
 		kernelLaunches: []enrichedKernelLaunch{
@@ -159,7 +161,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 				CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
 					Header:          gpuebpf.CudaEventHeader{Ktime_ns: uint64(startKtime), Pid_tgid: pidTgid, Stream_id: streamID},
 					Kernel_addr:     0,
-					Shared_mem_size: 10,
+					Shared_mem_size: shmemSize,
 					Grid_size:       gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
 					Block_size:      gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
 				},
@@ -204,8 +206,8 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	require.Contains(t, stats.ProcessStats, pid)
 
 	pidStats := stats.ProcessStats[pid]
-	require.Equal(t, uint64(allocSize), pidStats.CurrentMemoryBytes)
-	require.Equal(t, allocSize*2, pidStats.MaxMemoryBytes)
+	require.Equal(t, uint64(allocSize)+shmemSize, pidStats.CurrentMemoryBytes)
+	require.Equal(t, allocSize*2+shmemSize, pidStats.MaxMemoryBytes)
 
 	// numThreads / DefaultGpuCores is the utilization for the
 	threadSecondsUsed := float64(numThreads) * float64(endKtime-startKtime) / 1e9
