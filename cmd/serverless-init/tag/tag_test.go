@@ -82,11 +82,11 @@ func TestGetBaseTagsArrayWithMetadataTags(t *testing.T) {
 	tags := serverlessTag.MapToArray(GetBaseTagsMapWithMetadata(map[string]string{
 		"location":      "mysuperlocation",
 		"othermetadata": "mysuperothermetadatavalue",
-	}, "datadog_sidecar_version"))
+	}, "_dd.datadog_sidecar_version"))
 	sort.Strings(tags)
 	assert.Equal(t, 4, len(tags))
 	assert.Contains(t, tags[0], "_dd.compute_stats:1")
-	assert.Contains(t, tags[1], "datadog_sidecar_version")
+	assert.Contains(t, tags[1], "_dd.datadog_sidecar_version")
 	assert.Equal(t, "location:mysuperlocation", tags[2])
 	assert.Equal(t, "othermetadata:mysuperothermetadatavalue", tags[3])
 }

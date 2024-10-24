@@ -46,7 +46,7 @@ func DetectMode() Conf {
 		return Conf{
 			LoggerName:     loggerNameSidecar,
 			Runner:         RunSidecar,
-			TagVersionMode: "datadog_sidecar_version",
+			TagVersionMode: "_dd.datadog_sidecar_version",
 			EnvDefaults:    envToSet,
 		}
 	}
