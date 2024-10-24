@@ -11,7 +11,8 @@
 cleanup_kitchen_functional_test:
   extends: .kitchen_cleanup_azure_common
   rules:
-    !reference [ .on_system_probe_or_e2e_changes_or_manual ]
+    - !reference [.on_system_probe_or_e2e_changes]
+    - !reference [.manual]
   stage: functional_test_cleanup
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
