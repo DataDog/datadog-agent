@@ -3,12 +3,15 @@ from pathlib import Path
 from tasks.debugging.path_store import PathStore
 
 
-class SymbolStore(PathStore):
+class SymbolStore:
+    def __init__(self, path: Path | str):
+        self.path_store = PathStore(path)
+
     def add(self, version: str, path: str | Path) -> Path:
-        dst = Path(self.path, version, 'symbols')
-        self.add_directory(str(dst), path)
-        return dst
+        k = f'{version}/symbols'
+        self.path_store.add_directory(k, Path(path))
+        return Path(self.path_store.path, k)
 
     def get(self, version: str) -> Path | None:
-        p = Path(self.path, version, 'symbols')
-        return self.get_directory(str(p))
+        k = f'{version}/symbols'
+        return self.path_store.get_directory(k)

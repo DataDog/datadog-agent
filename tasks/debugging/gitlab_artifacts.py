@@ -8,10 +8,10 @@ class Artifacts:
         self.__path_store = path_store
         self._project = project
         self._job = job
-        self._version = None
-        self._pipeline = None
+        self._version = None  # noqa
+        self._pipeline = None  # noqa
 
-    def get(self) -> Path:
+    def get(self) -> Path | None:
         return self.__path_store.get_directory(f"{self.key()}/artifacts")
 
     def add(self, path: str | Path) -> None:
@@ -67,7 +67,7 @@ class ArtifactStore:
     def __init__(self, path: str | Path):
         self.path_store = PathStore(Path(path))
 
-    def add(self, project_id: str, job_id: str, artifacts_path: str | Path = None) -> Artifacts:
+    def add(self, project_id: str, job_id: str, artifacts_path: str | Path | None = None) -> Artifacts:
         artifacts = Artifacts(project_id, job_id, self.path_store)
         if artifacts_path:
             artifacts.add(artifacts_path)
