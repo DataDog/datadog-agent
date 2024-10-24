@@ -34,11 +34,11 @@ class SymbolStore(PathStore):
         super().__init__(path)
 
     def add(self, version: str, path: str | Path) -> Path:
-        dst = Path(self.path, version)
+        dst = Path(self.path, version, 'symbols')
         return super().add(path, dst)
 
     def get(self, version: str) -> Path | None:
-        p = Path(self.path, version)
+        p = Path(self.path, version, 'symbols')
         return super().get(p)
 
 
@@ -46,23 +46,43 @@ class ArtifactStore(PathStore):
     def __iter__(self):
         return iter(self.path.glob('**/*'))
 
-    def add(self, project: str, pipeline: str, job: str, path: str | Path) -> Path:
-        dst = Path(self.path, project, pipeline, job)
+    def add(self, project: str, job: str, path: str | Path) -> Path:
+        k = self.__key(project, job)
+        dst = Path(k, 'artifacts')
         return super().add(path, dst)
 
-    def get(self, project: str, pipeline: str, job: str) -> Path | None:
-        p = Path(self.path, project, pipeline, job)
-        return super().get(p)
+    def get(self, project: str, job: str) -> Path | None:
+        k = self.__key(project, job)
+        k = Path(k, 'artifacts')
+        return super().get(k)
+
+    def add_version(self, project: str, job: str, version: str) -> None:
+        k = self.__key(project, job)
+        if not k.exists():
+            raise ValueError(f"Job {job} not found in artifact store")
+        dst = Path(k, 'version.txt')
+        dst.write_text(version, encoding='utf-8')
+        return dst
+
+    def get_version(self, project: str, job: str) -> str | None:
+        k = self.__key(project, job)
+        if not k.exists():
+            return None
+        version = Path(k, 'version.txt')
+        if not version.exists():
+            return None
+        return version.read_text(encoding='utf-8')
+
+    def __key(self, project: str, job: str) -> Path:
+        return Path(self.path, project, job)
 
 
 def add_gitlab_job_artifacts_to_artifact_store(artifact_store: ArtifactStore, project: Project, job_id: str) -> Path:
     with tempfile.TemporaryDirectory() as temp_dir:
         download_job_artifacts(project, job_id, temp_dir)
         project_id = "datadog-agent"  # TODO: get from project
-        job = project.jobs.get(job_id)
         job_id = str(job_id)
-        pipeline_id = str(job.pipeline["id"])
-        return artifact_store.add(project_id, pipeline_id, job_id, temp_dir)
+        return artifact_store.add(project_id, job_id, temp_dir)
 
 
 class CrashAnalyzerCLI:
@@ -181,10 +201,14 @@ def get_debug_symbols(ctx, job_id=None, version=None):
 
 
 def get_symbols_for_job_id(cli: CrashAnalyzerCLI, job_id: str) -> Path:
-    pipeline_id, package_job_id = get_package_job_id(cli.active_project, job_id)
-    package_artifacts = get_or_fetch_artifacts(
-        cli.artifact_store, cli.active_project, package_job_id, pipeline_id=pipeline_id
-    )
+    version = cli.artifact_store.get_version("datadog-agent", job_id)
+    if version:
+        syms = cli.symbol_store.get(version)
+        if syms:
+            return syms
+    # Need to get the symbols from the package build job in the pipeline
+    package_job_id = get_package_job_id(cli.active_project, job_id)
+    package_artifacts = get_or_fetch_artifacts(cli.artifact_store, cli.active_project, package_job_id)
     for debug_zip in find_debug_zip(package_artifacts):
         debug_zip = Path(debug_zip)
         version = debug_zip.name.removesuffix('.debug.zip')
@@ -193,17 +217,15 @@ def get_symbols_for_job_id(cli: CrashAnalyzerCLI, job_id: str) -> Path:
             with tempfile.TemporaryDirectory() as tmp_dir:
                 extract_agent_symbols(debug_zip, tmp_dir)
                 syms = cli.symbol_store.add(version, tmp_dir)
+    # add a version ref so we can look it up faster next time
+    cli.artifact_store.add_version("datadog-agent", package_job_id, version)
+    cli.artifact_store.add_version("datadog-agent", job_id, version)
     return syms
 
 
-def get_or_fetch_artifacts(
-    artifact_store: ArtifactStore, project: Project, job_id: str, pipeline_id: str = None
-) -> Path:
-    if not pipeline_id:
-        job = project.jobs.get(job_id)
-        pipeline_id = str(job.pipeline["id"])
+def get_or_fetch_artifacts(artifact_store: ArtifactStore, project: Project, job_id: str) -> Path:
     project_id = "datadog-agent"  # TODO: get from project
-    artifacts = artifact_store.get(project_id, pipeline_id, job_id)
+    artifacts = artifact_store.get(project_id, job_id)
     if not artifacts:
         artifacts = add_gitlab_job_artifacts_to_artifact_store(artifact_store, project, job_id)
     return artifacts
@@ -278,7 +300,7 @@ def find_symbol_files(output_dir: str) -> list[str]:
     return list(glob.glob(f"{output_dir}/**/*.exe.debug", recursive=True))
 
 
-def get_package_job_id(project: Project, job_id: str, package_job_name=None) -> tuple[str, str] | None:
+def get_package_job_id(project: Project, job_id: str, package_job_name=None) -> str | None:
     """
     Get the package job ID for the pipeline of the given job.
     """
@@ -291,4 +313,4 @@ def get_package_job_id(project: Project, job_id: str, package_job_name=None) -> 
     jobs = pipeline.jobs.list(iterator=True, per_page=50, scope='success')
     for job in jobs:
         if job.name == package_job_name:
-            return str(pipeline_id), str(job.id)
+            return str(job.id)
