@@ -81,9 +81,9 @@ func getMonitor(name string, instance string) *IngressMonitor {
 		MonitorsLock.Lock()
 		Monitors[name+instance] = &IngressMonitor{name: name, instance: instance, ticker: time.NewTicker(5 * time.Second)}
 		MonitorsLock.Unlock()
-	} else {
-		defer MonitorsLock.RUnlock()
+		MonitorsLock.RLock()
 	}
+	defer MonitorsLock.RUnlock()
 	return Monitors[name+instance]
 }
 
