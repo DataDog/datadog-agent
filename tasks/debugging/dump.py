@@ -128,25 +128,24 @@ def get_cli():
 @task(
     help={
         "job_id": "The job ID to download the dump from",
-        "output_dir": "The directory to save the dump to",
     },
 )
-def debug_job_dump(ctx, job_id=None, output_dir=None):
-    if output_dir is None:
-        output_dir = tempfile.mkdtemp()
+def debug_job_dump(ctx, job_id):
+    cli = get_cli()
+    cli.select_project(get_gitlab_repo())
 
-    if job_id:
-        get_job_dump(ctx, job_id, with_symbols=True, output_dir=output_dir)
-    else:
-        print("Dump files:")
-        for dmp_file in find_dmp_files(output_dir):
-            print('\t', Path(dmp_file).resolve())
-        print("Symbols:")
-        for symbol_file in find_symbol_files(output_dir):
-            print('\t', Path(symbol_file).resolve())
-
-    # prompt user to select a dump file
+    # select dump file
+    package_artifacts = get_or_fetch_artifacts(cli.artifact_store, cli.active_project, job_id)
+    print("Dump files:")
+    for dmp_file in find_dmp_files(package_artifacts):
+        print('\t', Path(dmp_file).resolve())
     dump_file = input("Select a dump file to analyze: ")
+
+    # select symbol file
+    syms = get_symbols_for_job_id(cli, job_id)
+    print("Symbols:")
+    for symbol_file in find_symbol_files(syms):
+        print('\t', Path(symbol_file).resolve())
     symbol_file = input("Select a symbol file to use: ")
 
     # launch windbg and delve
@@ -170,6 +169,7 @@ def get_job_dump(ctx, job_id, with_symbols=False):
     """
     cli = get_cli()
     cli.select_project(get_gitlab_repo())
+
     package_artifacts = get_or_fetch_artifacts(cli.artifact_store, cli.active_project, job_id)
     dmp_files = find_dmp_files(package_artifacts)
     if not dmp_files:
