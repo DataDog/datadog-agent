@@ -68,7 +68,6 @@ func (ctc *testContainer) start() error {
 		"HOST_PROC=/host/proc",
 		"HOST_ETC=/host/etc",
 		"HOST_SYS=/host/sys",
-		"DD_SYSTEM_PROBE_BPF_DIR=/opt/bpf",
 	}
 	for _, env := range envs {
 		args = append(args, "-e", env)
@@ -90,6 +89,12 @@ func (ctc *testContainer) start() error {
 	return nil
 }
 
-func (ctc *testContainer) buildDockerExecArgs(args []string) []string {
-	return append([]string{"docker", "exec", containerName}, args...)
+func (ctc *testContainer) buildDockerExecArgs(args []string, envVars []string) []string {
+	dockerargs := []string{"docker", "exec"}
+	for _, envVar := range envVars {
+		dockerargs = append(dockerargs, "-e", envVar)
+	}
+	dockerargs = append(dockerargs, containerName)
+	dockerargs = append(dockerargs, dockerargs...)
+	return dockerargs
 }

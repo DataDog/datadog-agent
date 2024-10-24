@@ -199,6 +199,21 @@ func createDir(d string) error {
 	return nil
 }
 
+func collectEnvVars(testConfig *testConfig, bpfDir string) []string {
+	var env []string
+	env = append(env, baseEnv...)
+	env = append(env,
+		"DD_SYSTEM_PROBE_BPF_DIR="+bpfDir,
+		"DD_SERVICE_MONITORING_CONFIG_TLS_JAVA_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/network/protocols/tls/java"),
+	)
+
+	if testConfig.extraEnv != "" {
+		env = append(env, strings.Split(testConfig.extraEnv, " ")...)
+	}
+
+	return env
+}
+
 func testPass(testConfig *testConfig, props map[string]string) error {
 	testsuites, err := glob(testConfig.testDirRoot, "testsuite", func(path string) bool {
 		dir, _ := filepath.Rel(testConfig.testDirRoot, filepath.Dir(path))
@@ -232,6 +247,8 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 	}
 	bpfDir := filepath.Join(testConfig.testDirRoot, buildDir)
 
+	envVars := collectEnvVars(testConfig, bpfDir)
+
 	var testContainer *testContainer
 	if testConfig.InContainerImage != "" {
 		testContainer = newTestContainer(testConfig.InContainerImage, bpfDir)
@@ -249,26 +266,15 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		xmlpath := filepath.Join(xmlDir, fmt.Sprintf("%s.xml", junitfilePrefix))
 		jsonpath := filepath.Join(jsonDir, fmt.Sprintf("%s.json", junitfilePrefix))
 
-		var testsuiteArgs []string
+		testsuiteArgs := append([]string{testsuite}, testConfig.AdditionalTestArgs...)
 		if testContainer != nil {
-			testsuiteArgs = testContainer.buildDockerExecArgs(testsuite, testConfig.AdditionalTestArgs)
-		} else {
-			testsuiteArgs = append([]string{testsuite}, testConfig.AdditionalTestArgs...)
+			testsuiteArgs = testContainer.buildDockerExecArgs(testsuiteArgs, envVars)
 		}
 
 		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuiteArgs, testConfig)
-
 		cmd := exec.Command(filepath.Join(testConfig.testingTools, "go/bin/gotestsum"), args...)
 
-		baseEnv = append(
-			baseEnv,
-			"DD_SYSTEM_PROBE_BPF_DIR="+bpfDir,
-			"DD_SERVICE_MONITORING_CONFIG_TLS_JAVA_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/network/protocols/tls/java"),
-		)
-		if testConfig.extraEnv != "" {
-			baseEnv = append(baseEnv, strings.Split(testConfig.extraEnv, " ")...)
-		}
-		cmd.Env = append(cmd.Environ(), baseEnv...)
+		cmd.Env = append(cmd.Environ(), envVars...)
 
 		cmd.Dir = filepath.Dir(testsuite)
 		cmd.Stdout = os.Stdout
