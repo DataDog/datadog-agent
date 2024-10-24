@@ -74,7 +74,7 @@ func (cache *cachedConntrack) exists(c *network.ConnectionStats, netns uint32, p
 	}
 
 	var protoNumber uint8 = unix.IPPROTO_UDP
-	if c.Type == network.TCP {
+	if c.ConnectionInfo.Type() == network.TCP {
 		protoNumber = unix.IPPROTO_TCP
 	}
 
