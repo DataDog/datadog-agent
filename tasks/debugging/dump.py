@@ -135,13 +135,13 @@ def add_gitlab_job_artifacts_to_artifact_store(
 ) -> Artifacts:
     with tempfile.TemporaryDirectory() as temp_dir:
         download_job_artifacts(project, job_id, temp_dir)
-        project_id = "datadog-agent"  # TODO: get from project
+        project_id = project.name
         job_id = str(job_id)
         return artifact_store.add(project_id, job_id, temp_dir)
 
 
 def get_symbols_for_job_id(cli: CrashAnalyzerCLI, job_id: str) -> Path:
-    project_id = "datadog-agent"  # TODO: get from project
+    project_id = cli.active_project.name
     # check if we already have the symbols for this job
     artifact = cli.artifact_store.get(project_id, job_id)
     if artifact and artifact.version:
@@ -169,7 +169,7 @@ def get_symbols_for_job_id(cli: CrashAnalyzerCLI, job_id: str) -> Path:
 
 
 def get_or_fetch_artifacts(artifact_store: ArtifactStore, project: Project, job_id: str) -> Artifacts:
-    project_id = "datadog-agent"  # TODO: get from project
+    project_id = project.name
     artifacts = artifact_store.get(project_id, job_id)
     if not artifacts:
         artifacts = add_gitlab_job_artifacts_to_artifact_store(artifact_store, project, job_id)
