@@ -14,7 +14,7 @@ import (
 )
 
 const remappedRowsMetricsCollectorName = "remapped_rows"
-const remappedRowsMetrixPrefix = "remapped_rows"
+const remappedRowsMetricPrefix = "remapped_rows"
 
 type remappedRowsMetricsCollector struct {
 	device nvml.Device
