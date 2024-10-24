@@ -20,6 +20,6 @@ func GetSystemProbeConntrackHost(_ string) ([]byte, error) {
 }
 
 // GetSystemProbeBTFLoaderInfo is not supported without the process agent on linux
-func GetSystemProbeBTFLoaderInfo(socketPath string) ([]byte, error) {
+func GetSystemProbeBTFLoaderInfo(_ string) ([]byte, error) {
 	return nil, errors.New("GetSystemProbeBTFLoaderInfo is not supported without the process agent on linux")
 }
