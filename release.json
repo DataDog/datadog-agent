@@ -44,7 +44,7 @@
         "WINDOWS_APMINJECT_SHASUM": "5fdd62a84e640204386b9c28dc2e3ac5d9b8adde6427cb9f5914619f94d7b5bd"
     },
     "release-a6": {
-        "INTEGRATIONS_CORE_VERSION": "7.59.0-rc.5",
+        "INTEGRATIONS_CORE_VERSION": "7.59.0-rc.6",
         "OMNIBUS_SOFTWARE_VERSION": "7.59.0-rc.1",
         "OMNIBUS_RUBY_VERSION": "7.59.0-rc.1",
         "JMXFETCH_VERSION": "0.49.3",
@@ -59,7 +59,7 @@
         "WINDOWS_DDPROCMON_SHASUM": "a75da24f2385ff41246cad4f19e99642ca55199ea9e5b0c25dc5b9df4af035d7"
     },
     "release-a7": {
-        "INTEGRATIONS_CORE_VERSION": "7.59.0-rc.5",
+        "INTEGRATIONS_CORE_VERSION": "7.59.0-rc.6",
         "OMNIBUS_SOFTWARE_VERSION": "7.59.0-rc.1",
         "OMNIBUS_RUBY_VERSION": "7.59.0-rc.1",
         "JMXFETCH_VERSION": "0.49.3",
