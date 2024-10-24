@@ -5,6 +5,12 @@ Generating Python Zips
 
 The Windows builds require a prebuilt zip file which is extracted into the _embedded_ directory at build time. The zip files are constructed using the python installer from python.org.
 
+How To Generate New Zips
+---------------------
+1. Update the python version in the [`generate_windows_embedded_python`](.gitlab/package_deps_build/package_deps_build.yml)
+2. Push and manually trigger the job. take note of the hash output at the end
+3. manually trigger the `deploy_windows_embedded_python` to push the zip to the s3 bucket
+
 How To Run The Script
 ---------------------
 
