@@ -9,9 +9,10 @@ package gpu
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
+	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
 // systemContext holds certain attributes about the system that are used by the GPU probe.
