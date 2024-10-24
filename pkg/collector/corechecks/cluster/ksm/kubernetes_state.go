@@ -40,6 +40,7 @@ import (
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
@@ -337,7 +338,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	builder.WithKubeClient(c.InformerCl)
 
-	builder.WithVPAClient(c.VPAInformerClient)
+	// builder.WithVPAClient(c.VPAInformerClient)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	k.cancel = cancel
@@ -354,7 +355,10 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	// configure custom resources required for extended features and
 	// compatibility across deprecated/removed versions of APIs
-	cr := k.discoverCustomResources(c, collectors, resources)
+	cr, err := k.discoverCustomResources(collectors, resources)
+	if err != nil {
+		return err
+	}
 	builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
 	builder.WithCustomResourceStoreFactories(cr.factories...)
 	builder.WithCustomResourceClients(cr.clients)
@@ -426,13 +430,23 @@ type customResources struct {
 	clients    map[string]interface{}
 }
 
-func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []string, resources []*v1.APIResourceList) customResources {
+func (k *KSMCheck) discoverCustomResources(collectors []string, resources []*v1.APIResourceList) (customResources, error) {
 	// automatically add extended collectors if their standard ones are
 	// enabled
 	for _, c := range collectors {
 		if extended, ok := extendedCollectors[c]; ok {
 			collectors = append(collectors, extended)
 		}
+	}
+
+	clientConfig, err := apiserver.GetClientConfig(time.Duration(pkgconfigsetup.Datadog().GetInt64("kubernetes_apiserver_client_timeout")) * time.Second)
+	if err != nil {
+		return customResources{}, err
+	}
+
+	c, err := dynamic.NewForConfig(clientConfig)
+	if err != nil {
+		return customResources{}, err
 	}
 
 	// extended resource collectors always have a factory registered
@@ -448,7 +462,10 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 
 	clients := make(map[string]interface{}, len(factories))
 	for _, f := range factories {
-		client, _ := f.CreateClient(nil)
+		client, err := f.CreateClient(clientConfig)
+		if err != nil {
+			return customResources{}, err
+		}
 		clients[f.Name()] = client
 	}
 
@@ -456,14 +473,14 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		collectors: collectors,
 		clients:    clients,
 		factories:  factories,
-	}
+	}, nil
 }
 
-func manageResourcesReplacement(c *apiserver.APIClient, factories []customresource.RegistryFactory, resources []*v1.APIResourceList) []customresource.RegistryFactory {
+func manageResourcesReplacement(c *dynamic.DynamicClient, factories []customresource.RegistryFactory, resources []*v1.APIResourceList) []customresource.RegistryFactory {
 	// backwards/forwards compatibility resource factories are only
 	// registered if they're needed, otherwise they'd overwrite the default
 	// ones that ship with ksm
-	resourceReplacements := map[string]map[string]func(c *apiserver.APIClient) customresource.RegistryFactory{
+	resourceReplacements := map[string]map[string]func(c *dynamic.DynamicClient) customresource.RegistryFactory{
 		// support for older k8s versions where the resources are no
 		// longer supported in KSM
 		"batch/v1": {

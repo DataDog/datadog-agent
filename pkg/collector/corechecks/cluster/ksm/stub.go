@@ -5,7 +5,6 @@
 
 //go:build !kubeapiserver
 
-//nolint:revive // TODO(CINT) Fix revive linter
 package ksm
 
 import (

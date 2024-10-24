@@ -22,7 +22,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
 
-	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
@@ -90,9 +90,9 @@ func newController(
 		localSender:   localSender,
 	}
 
-	autoscalingWorkqueue := workqueue.NewRateLimitingQueueWithConfig(
-		workqueue.DefaultItemBasedRateLimiter(),
-		workqueue.RateLimitingQueueConfig{
+	autoscalingWorkqueue := workqueue.NewTypedRateLimitingQueueWithConfig(
+		workqueue.DefaultTypedItemBasedRateLimiter[string](),
+		workqueue.TypedRateLimitingQueueConfig[string]{
 			Name:            subsystem,
 			MetricsProvider: autoscalingQueueMetricsProvider,
 		},

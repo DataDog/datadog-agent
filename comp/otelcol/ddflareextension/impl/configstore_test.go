@@ -18,12 +18,13 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
 	"go.opentelemetry.io/collector/component/componenttest"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
-	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
@@ -61,6 +62,16 @@ func TestGetConfDump(t *testing.T) {
 	ext, ok := extension.(*ddExtension)
 	assert.True(t, ok)
 
+	opt := cmpopts.SortSlices(func(lhs, rhs string) bool {
+		return lhs < rhs
+	})
+	assertEqual := func(t *testing.T, expectedMap, actualMap map[string]any) bool {
+		return assert.True(t,
+			cmp.Equal(expectedMap, actualMap, opt),
+			cmp.Diff(expectedMap, actualMap, opt),
+		)
+	}
+
 	t.Run("provided-string", func(t *testing.T) {
 		actualString, _ := ext.configStore.getProvidedConfAsString()
 		actualStringMap, err := yamlBytesToMap([]byte(actualString))
@@ -71,7 +82,7 @@ func TestGetConfDump(t *testing.T) {
 		expectedMap, err := yamlBytesToMap(expectedBytes)
 		assert.NoError(t, err)
 
-		assert.Equal(t, expectedMap, actualStringMap)
+		assertEqual(t, expectedMap, actualStringMap)
 	})
 
 	t.Run("provided-confmap", func(t *testing.T) {
@@ -90,7 +101,7 @@ func TestGetConfDump(t *testing.T) {
 		expectedStringMap, err := yamlBytesToMap(expectedStringMapBytes)
 		assert.NoError(t, err)
 
-		assert.Equal(t, expectedStringMap, actualStringMap)
+		assertEqual(t, expectedStringMap, actualStringMap)
 	})
 
 	conf := confmapFromResolverSettings(t, newResolverSettings(uriFromFile("simple-dd/config.yaml"), true))
@@ -107,7 +118,7 @@ func TestGetConfDump(t *testing.T) {
 		expectedMap, err := yamlBytesToMap(expectedBytes)
 		assert.NoError(t, err)
 
-		assert.Equal(t, expectedMap, actualStringMap)
+		assertEqual(t, expectedMap, actualStringMap)
 	})
 
 	t.Run("enhance-confmap", func(t *testing.T) {
@@ -126,7 +137,7 @@ func TestGetConfDump(t *testing.T) {
 		expectedStringMap, err := yamlBytesToMap(expectedStringMapBytes)
 		assert.NoError(t, err)
 
-		assert.Equal(t, expectedStringMap, actualStringMap)
+		assertEqual(t, expectedStringMap, actualStringMap)
 	})
 }
 
@@ -174,9 +185,7 @@ func newResolverSettings(uris []string, enhanced bool) confmap.ResolverSettings 
 }
 
 func newConverterFactorie(enhanced bool) []confmap.ConverterFactory {
-	converterFactories := []confmap.ConverterFactory{
-		expandconverter.NewFactory(),
-	}
+	converterFactories := []confmap.ConverterFactory{}
 
 	converter, err := converterimpl.NewConverter(converterimpl.Requires{})
 	if err != nil {

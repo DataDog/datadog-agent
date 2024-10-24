@@ -16,11 +16,8 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/status"
 	criv1 "k8s.io/cri-api/pkg/apis/runtime/v1"
-	criv1alpha2 "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/cri/remote/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -49,7 +46,6 @@ type CRIUtil struct {
 
 	sync.Mutex
 	clientV1          criv1.RuntimeServiceClient
-	clientV1alpha2    criv1alpha2.RuntimeServiceClient
 	runtime           string
 	runtimeVersion    string
 	queryTimeout      time.Duration
@@ -166,35 +162,17 @@ func (c *CRIUtil) detectAPIVersion(conn *grpc.ClientConn) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.connectionTimeout)
 	defer cancel()
 
-	clientV1 := criv1.NewRuntimeServiceClient(conn)
+	c.clientV1 = criv1.NewRuntimeServiceClient(conn)
 
-	if _, err := clientV1.Version(ctx, &criv1.VersionRequest{}); err == nil {
-		log.Info("Using CRI v1 API")
-		c.clientV1 = clientV1
-	} else if status.Code(err) == codes.Unimplemented {
-		log.Info("Using CRI v1alpha2 API")
-		c.clientV1alpha2 = criv1alpha2.NewRuntimeServiceClient(conn)
-	} else {
-		return err
-	}
-
-	return nil
+	_, err := c.clientV1.Version(ctx, &criv1.VersionRequest{})
+	return err
 }
 
 func (c *CRIUtil) version() (*criv1.VersionResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
 	defer cancel()
 
-	if c.clientV1 != nil {
-		return c.clientV1.Version(ctx, &criv1.VersionRequest{})
-	}
-
-	v, err := c.clientV1alpha2.Version(ctx, &criv1alpha2.VersionRequest{})
-	if err != nil {
-		return nil, err
-	}
-
-	return fromV1alpha2VersionResponse(v), nil
+	return c.clientV1.Version(ctx, &criv1.VersionRequest{})
 }
 
 func (c *CRIUtil) listContainerStatsWithFilter(filter *criv1.ContainerStatsFilter) (map[string]*criv1.ContainerStats, error) {
@@ -204,17 +182,7 @@ func (c *CRIUtil) listContainerStatsWithFilter(filter *criv1.ContainerStatsFilte
 	var r *criv1.ListContainerStatsResponse
 	var err error
 
-	if c.clientV1 != nil {
-		r, err = c.clientV1.ListContainerStats(ctx, &criv1.ListContainerStatsRequest{Filter: filter})
-	} else {
-		var rv1alpha2 *criv1alpha2.ListContainerStatsResponse
-		rv1alpha2, err = c.clientV1alpha2.ListContainerStats(ctx, &criv1alpha2.ListContainerStatsRequest{Filter: v1alpha2ContainerStatsFilter(filter)})
-		if err == nil {
-			r = fromV1alpha2ListContainerStatsResponse(rv1alpha2)
-		}
-	}
-
-	if err != nil {
+	if r, err = c.clientV1.ListContainerStats(ctx, &criv1.ListContainerStatsRequest{Filter: filter}); err != nil {
 		return nil, err
 	}
 

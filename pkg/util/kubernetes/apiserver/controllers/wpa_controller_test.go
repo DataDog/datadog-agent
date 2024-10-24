@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
+	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 	"github.com/cenkalti/backoff"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"

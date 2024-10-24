@@ -22,7 +22,7 @@ import (
 	kube_informer "k8s.io/client-go/informers"
 	kube_fake "k8s.io/client-go/kubernetes/fake"
 
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
+	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
 )
