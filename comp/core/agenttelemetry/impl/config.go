@@ -200,13 +200,8 @@ var defaultProfiles = `
         - name: transactions.input_count
         - name: transactions.requeued
         - name: transactions.retries
-        - name: dogstatsd.udp_packets
-          aggregate_tags:
-            - state
-        - name: dogstatsd.uds_packets
-          aggregate_tags:
-            - transport
-            - state
+        - name: dogstatsd.udp_packets_bytes
+        - name: dogstatsd.uds_packets_bytes
     schedule:
       start_after: 30
       iterations: 0
