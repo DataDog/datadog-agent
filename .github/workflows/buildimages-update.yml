@@ -78,7 +78,7 @@ jobs:
       - name: Get current buildimage tag
         id: current_buildimage_tag
         run: |
-            echo "BUILDIMAGE_TAG=$(inv pipeline.get-gitlab-config-image-tag)" >> $GITHUB_OUTPUT
+            echo "BUILDIMAGE_TAG=$(inv buildimages.get-tag)" >> $GITHUB_OUTPUT
 
       - name: Update buildimages IDs and Go version
         id: update_build_images

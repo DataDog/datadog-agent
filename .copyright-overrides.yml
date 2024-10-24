@@ -373,3 +373,5 @@ github.com/vibrantbyte/go-antpath/extend: vibrantbyte <codingrun@163.com>|suchao
 github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp: Copyright 2024 gRPC authors.
 github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/grpc_gcp: Copyright 2024 gRPC authors.
 github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/multiendpoint: Copyright 2024 gRPC authors.
+
+github.com/NVIDIA/go-nvml/*: Copyright 2023 NVIDIA CORPORATION

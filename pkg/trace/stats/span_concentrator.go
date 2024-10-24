@@ -6,7 +6,6 @@
 package stats
 
 import (
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -160,16 +159,17 @@ func (sc *SpanConcentrator) NewStatSpan(
 // computeStatsForSpanKind returns true if the span.kind value makes the span eligible for stats computation.
 func computeStatsForSpanKind(kind string) bool {
 	k := strings.ToLower(kind)
-	return slices.Contains(KindsComputed, k)
+	_, ok := KindsComputed[k]
+	return ok
 }
 
 // KindsComputed is the list of span kinds that will have stats computed on them
 // when computeStatsByKind is enabled in the concentrator.
-var KindsComputed = []string{
-	"server",
-	"consumer",
-	"client",
-	"producer",
+var KindsComputed = map[string]struct{}{
+	"server":   {},
+	"consumer": {},
+	"client":   {},
+	"producer": {},
 }
 
 func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, containerID string, containerTags []string, origin string, weight float64) {

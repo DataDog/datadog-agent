@@ -24,6 +24,7 @@ var All = []module.Factory{
 	// so EventMonitor has to follow NetworkTracer
 	EventMonitor,
 	Process,
+	DynamicInstrumentation,
 	LanguageDetectionModule,
 	ComplianceModule,
 	Pinger,

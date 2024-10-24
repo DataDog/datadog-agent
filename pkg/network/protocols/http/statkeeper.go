@@ -19,14 +19,13 @@ import (
 
 // StatKeeper is responsible for aggregating HTTP stats.
 type StatKeeper struct {
-	mux                         sync.Mutex
-	stats                       map[Key]*RequestStats
-	incomplete                  IncompleteBuffer
-	maxEntries                  int
-	quantizer                   *URLQuantizer
-	telemetry                   *Telemetry
-	connectionAggregator        *utils.ConnectionAggregator
-	enableStatusCodeAggregation bool
+	mux                  sync.Mutex
+	stats                map[Key]*RequestStats
+	incomplete           IncompleteBuffer
+	maxEntries           int
+	quantizer            *URLQuantizer
+	telemetry            *Telemetry
+	connectionAggregator *utils.ConnectionAggregator
 
 	// replace rules for HTTP path
 	replaceRules []*config.ReplaceRule
@@ -51,16 +50,15 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry, incompleteBuffer Inco
 	}
 
 	return &StatKeeper{
-		stats:                       make(map[Key]*RequestStats),
-		incomplete:                  incompleteBuffer,
-		maxEntries:                  c.MaxHTTPStatsBuffered,
-		quantizer:                   quantizer,
-		replaceRules:                c.HTTPReplaceRules,
-		enableStatusCodeAggregation: c.EnableHTTPStatsByStatusCode,
-		connectionAggregator:        connectionAggregator,
-		buffer:                      make([]byte, getPathBufferSize(c)),
-		telemetry:                   telemetry,
-		oversizedLogLimit:           log.NewLogLimit(10, time.Minute*10),
+		stats:                make(map[Key]*RequestStats),
+		incomplete:           incompleteBuffer,
+		maxEntries:           c.MaxHTTPStatsBuffered,
+		quantizer:            quantizer,
+		replaceRules:         c.HTTPReplaceRules,
+		connectionAggregator: connectionAggregator,
+		buffer:               make([]byte, getPathBufferSize(c)),
+		telemetry:            telemetry,
+		oversizedLogLimit:    log.NewLogLimit(10, time.Minute*10),
 	}
 }
 
@@ -158,7 +156,7 @@ func (h *StatKeeper) add(tx Transaction) {
 			return
 		}
 		h.telemetry.aggregations.Add(1)
-		stats = NewRequestStats(h.enableStatusCodeAggregation)
+		stats = NewRequestStats()
 		h.stats[key] = stats
 	}
 

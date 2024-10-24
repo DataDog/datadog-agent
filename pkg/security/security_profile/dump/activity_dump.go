@@ -615,7 +615,8 @@ func (ad *ActivityDump) ResolveTags() error {
 
 // resolveTags thread unsafe version ot ResolveTags
 func (ad *ActivityDump) resolveTags() error {
-	if len(ad.Tags) >= 10 || len(ad.Metadata.ContainerID) == 0 {
+	selector := ad.GetWorkloadSelector()
+	if selector != nil {
 		return nil
 	}
 
@@ -972,15 +973,13 @@ func GenerateRules(ads []*ActivityDump, opts SECLRuleOpts) []*rules.RuleDefiniti
 	var ruleDefs []*rules.RuleDefinition
 	groupID := getGroupID(opts)
 
-	var execs []string
 	lineage := make(map[string][]string)
 	fims := make(map[string][]string)
 
 	for _, ad := range ads {
-		fimPathsperExecPath, execAndParent := ad.ActivityTree.ExtractPaths()
+		fimPathsperExecPath, execAndParent := ad.ActivityTree.ExtractPaths(opts.AllowList, opts.FIM, opts.Lineage)
 
 		for execPath, fimPaths := range fimPathsperExecPath {
-			execs = append(execs, execPath)
 			tmp, ok := fims[execPath]
 			if ok {
 				fims[execPath] = append(tmp, fimPaths...)
@@ -1001,6 +1000,10 @@ func GenerateRules(ads []*ActivityDump, opts SECLRuleOpts) []*rules.RuleDefiniti
 
 	// add exec rules
 	if opts.AllowList {
+		var execs []string
+		for e := range fims {
+			execs = append(execs, e)
+		}
 		ruleDefs = append(ruleDefs, addRule(fmt.Sprintf(`exec.file.path not in [%s]`, strings.Join(execs, ", ")), groupID, opts))
 	}
 

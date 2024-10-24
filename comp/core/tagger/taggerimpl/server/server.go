@@ -9,7 +9,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -28,31 +27,17 @@ const (
 	streamKeepAliveInterval = 9 * time.Minute
 )
 
-// streamIDManager is used to generate unique ID's for incoming streaming requests
-// This unique ID is used to subscribe to the tagger
-// TODO: remove this struct when the protobuf of the stream request is updated to use filters.
-type streamIDManager struct {
-	atomic.Int32
-}
-
-func (s *streamIDManager) getNextUniqueID() string {
-	id := fmt.Sprintf("stream-client-%d", s.Add(1))
-	return id
-}
-
-var sharedIDManager streamIDManager
-
 // Server is a grpc server that streams tagger entities
 type Server struct {
 	taggerComponent tagger.Component
-	manager         *streamIDManager
+	maxEventSize    int
 }
 
 // NewServer returns a new Server
-func NewServer(t tagger.Component) *Server {
+func NewServer(t tagger.Component, maxEventSize int) *Server {
 	return &Server{
 		taggerComponent: t,
-		manager:         &sharedIDManager,
+		maxEventSize:    maxEventSize,
 	}
 }
 
@@ -65,14 +50,14 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 		return err
 	}
 
-	// NOTE: StreamTagsRequest can specify filters, but they cannot be
-	// implemented since the tagger has no concept of container metadata.
-	// these filters will be introduced when we implement a container
-	// metadata service that can receive them as is from the tagger.
+	filterBuilder := types.NewFilterBuilder()
+	for _, prefix := range in.GetPrefixes() {
+		filterBuilder = filterBuilder.Include(types.EntityIDPrefix(prefix))
+	}
 
-	filter := types.NewFilterBuilder().Build(cardinality)
+	filter := filterBuilder.Build(cardinality)
 
-	subscriptionID := s.manager.getNextUniqueID()
+	subscriptionID := fmt.Sprintf("streaming-client-%s", in.GetStreamingID())
 	subscription, err := s.taggerComponent.Subscribe(subscriptionID, filter)
 	if err != nil {
 		return err
@@ -103,16 +88,20 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 				responseEvents = append(responseEvents, e)
 			}
 
-			err = grpc.DoWithTimeout(func() error {
-				return out.Send(&pb.StreamTagsResponse{
-					Events: responseEvents,
-				})
-			}, taggerStreamSendTimeout)
+			// Split events into chunks and send each one
+			chunks := splitEvents(responseEvents, s.maxEventSize)
+			for _, chunk := range chunks {
+				err = grpc.DoWithTimeout(func() error {
+					return out.Send(&pb.StreamTagsResponse{
+						Events: chunk,
+					})
+				}, taggerStreamSendTimeout)
 
-			if err != nil {
-				log.Warnf("error sending tagger event: %s", err)
-				s.taggerComponent.GetTaggerTelemetryStore().ServerStreamErrors.Inc()
-				return err
+				if err != nil {
+					log.Warnf("error sending tagger event: %s", err)
+					s.taggerComponent.GetTaggerTelemetryStore().ServerStreamErrors.Inc()
+					return err
+				}
 			}
 
 		case <-out.Context().Done():
@@ -150,7 +139,7 @@ func (s *Server) TaggerFetchEntity(_ context.Context, in *pb.FetchEntityRequest)
 		return nil, status.Errorf(codes.InvalidArgument, `missing "id" parameter`)
 	}
 
-	entityID := types.EntityIDPrefix(in.Id.Prefix).ToUID(in.Id.Uid)
+	entityID := types.NewEntityID(types.EntityIDPrefix(in.Id.Prefix), in.Id.Uid)
 	cardinality, err := proto.Pb2TaggerCardinality(in.GetCardinality())
 	if err != nil {
 		return nil, err
