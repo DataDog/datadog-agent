@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    The cluster-agent now can collect pod disruption budgets from the cluster.
