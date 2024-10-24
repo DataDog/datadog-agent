@@ -1099,7 +1099,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
-			wantCPU: "300m",
+			wantCPU: "50m",
 			wantMem: "100Mi",
 			secCtx:  &corev1.SecurityContext{},
 		},
@@ -1134,7 +1134,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:    "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:     java,
 			wantErr:  false,
-			wantCPU:  "300m",
+			wantCPU:  "50m",
 			wantMem:  "100Mi",
 			secCtx:   &corev1.SecurityContext{},
 		},
@@ -1145,7 +1145,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
-			wantCPU: "300m",
+			wantCPU: "50m",
 			wantMem: "512Mi",
 			secCtx:  &corev1.SecurityContext{},
 		},
@@ -1156,7 +1156,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: true,
-			wantCPU: "300m",
+			wantCPU: "50m",
 			wantMem: "100Mi",
 			secCtx:  &corev1.SecurityContext{},
 		},
@@ -1166,7 +1166,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
-			wantCPU: "300m",
+			wantCPU: "50m",
 			wantMem: "100Mi",
 			secCtx: &corev1.SecurityContext{
 				Capabilities: &corev1.Capabilities{
@@ -1204,7 +1204,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
-			wantCPU: "300m",
+			wantCPU: "50m",
 			wantMem: "100Mi",
 			secCtx: &corev1.SecurityContext{
 				Capabilities: &corev1.Capabilities{

@@ -40,7 +40,7 @@ const (
 	mountPath  = "/datadog-lib"
 
 	// defaultMilliCPURequest defines default milli cpu request number.
-	defaultMilliCPURequest int64 = 300 // 0.3 core
+	defaultMilliCPURequest int64 = 50 // 0.05 core
 	// defaultMemoryRequest defines default memory request size.
 	defaultMemoryRequest int64 = 100 * 1024 * 1024 // 100 MB (recommended minimum by Alpine)
 
