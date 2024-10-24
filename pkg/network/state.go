@@ -249,12 +249,7 @@ type client struct {
 }
 
 func (c *client) Reset() {
-	half := cap(c.closed.conns) / 2
-	if closedLen := len(c.closed.conns); closedLen > minClosedCapacity && closedLen < half {
-		c.closed.conns = make([]ConnectionStats, half)
-	}
-
-	c.closed.conns = c.closed.conns[:0]
+	c.closed.conns = make([]ConnectionStats, 0, minClosedCapacity)
 	c.closed.byCookie = make(map[StatCookie]int)
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
 	c.httpStatsDelta = make(map[http.Key]*http.RequestStats)
