@@ -77,6 +77,7 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Facto
 		return fmt.Errorf("error in pre-register hook: %w", err)
 	}
 
+	didAnyModuleSucceed := false
 	for _, factory := range enabledModulesFactories {
 		var err error
 		var module Module
@@ -112,6 +113,10 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Facto
 		l.routers[factory.Name] = subRouter
 		l.modules[factory.Name] = module
 
+		if !factory.IgnoreForSuccessCheck {
+			didAnyModuleSucceed = true
+		}
+
 		log.Infof("module %s started", factory.Name)
 	}
 
@@ -122,6 +127,8 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Facto
 	l.cfg = cfg
 	if len(l.modules) == 0 {
 		return errors.New("no module could be loaded")
+	} else if !didAnyModuleSucceed {
+		return errors.New("no required module could be loaded successfully")
 	}
 
 	go updateStats()
