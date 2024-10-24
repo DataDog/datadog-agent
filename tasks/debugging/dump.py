@@ -4,6 +4,7 @@ import shutil
 import sys
 import tempfile
 import zipfile
+from collections.abc import Sequence
 from pathlib import Path, PurePath
 
 from gitlab.v4.objects import Project
@@ -22,8 +23,8 @@ ARCH_CHOICES = ['x86_64', 'arm64']
 class CrashAnalyzer:
     env: Path
 
-    target_platform: str | None
-    target_arch: str | None
+    target_platform: str
+    target_arch: str
 
     active_dump: Path | None
     symbol_store: SymbolStore
@@ -31,10 +32,12 @@ class CrashAnalyzer:
     artifact_store: ArtifactStore
     active_project: Project | None
 
-    def __init__(self, env=None):
+    def __init__(self, env=None, platform=None, arch=None):
         if env is None:
             env = Path(tempfile.mkdtemp(prefix='crash-analyzer-'))
         self.env = env
+
+        self.__init_platform(platform, arch)
 
         self.active_dump = None
 
@@ -42,6 +45,19 @@ class CrashAnalyzer:
         self.active_symbol = None
 
         self.artifact_store = ArtifactStore(Path(env, 'artifacts'))
+
+    def __init_platform(self, platform=None, arch=None):
+        if platform:
+            self.target_platform = platform
+        else:
+            if sys.platform == 'win32':
+                self.target_platform = 'windows'
+            else:
+                self.target_platform = 'debian'
+        if arch:
+            self.target_arch = arch
+        else:
+            self.target_arch = 'x86_64'
 
     def select_dump(self, path: str | Path):
         self.active_dump = Path(path)
@@ -59,7 +75,7 @@ class CrashAnalyzerCli:
     def __init__(self, crash_analyzer):
         self.ca = crash_analyzer
 
-    def prompt_select_dump(self, choices: list[Path] | list[str]):
+    def prompt_select_dump(self, choices: Sequence[Path | str]):
         print("Dump files:")
         for choice in choices:
             print('\t', choice)
@@ -69,7 +85,7 @@ class CrashAnalyzerCli:
                 choice = input("Select a dump file: ")
         self.ca.select_dump(choice)
 
-    def prompt_select_symbol_file(self, choices: list[Path] | list[str]):
+    def prompt_select_symbol_file(self, choices: Sequence[Path | str]):
         print("Symbol files:")
         for choice in choices:
             print('\t', choice)
@@ -80,15 +96,9 @@ class CrashAnalyzerCli:
         self.ca.select_symbol(choice)
 
 
-def get_crash_analyzer():
+def get_crash_analyzer(platform=None, arch=None):
     env = Path.home() / '.agent-crash-analyzer'
-    ca = CrashAnalyzer(env=env)
-    if sys.platform == 'win32':
-        ca.target_platform = 'windows'
-        ca.target_arch = 'x86_64'
-    else:
-        ca.target_platform = 'debian'
-        ca.target_arch = 'x86_64'
+    ca = CrashAnalyzer(env=env, platform=platform, arch=arch)
     print(f"Using environment: {ca.env}")
     return ca
 
@@ -96,17 +106,23 @@ def get_crash_analyzer():
 @task(
     help={
         "job_id": "The job ID to download the dump from",
+        "platform": f"The target platform ({', '.join(PLATFORM_CHOICES)})",
+        "arch": f"The target architecture ({', '.join(ARCH_CHOICES)})",
     },
 )
-def debug_job_dump(ctx, job_id):
-    ca = get_crash_analyzer()
+def debug_job_dump(ctx, job_id: str, platform=None, arch=None):
+    ca = get_crash_analyzer(platform=platform, arch=arch)
     ca.select_project(get_gitlab_repo())
-
+    assert ca.active_project
     cli = CrashAnalyzerCli(ca)
 
     # select dump file
     package_artifacts = get_or_fetch_artifacts(ca.artifact_store, ca.active_project, job_id)
-    dmp_files = find_dmp_files(package_artifacts.get())
+    path = package_artifacts.get()
+    if not path:
+        print("No artifacts found")
+        return
+    dmp_files = find_dmp_files(path)
     if not dmp_files:
         print("No dump files found")
         return
@@ -136,17 +152,24 @@ def debug_job_dump(ctx, job_id):
     help={
         "job_id": "The job ID to download the dump from",
         "with_symbols": "Whether to download debug symbols",
+        "platform": f"The target platform ({', '.join(PLATFORM_CHOICES)})",
+        "arch": f"The target architecture ({', '.join(ARCH_CHOICES)})",
     },
 )
-def get_job_dump(ctx, job_id, with_symbols=False):
+def get_job_dump(ctx, job_id: str, with_symbols=False, platform=None, arch=None):
     """
     Download a dump from a job and save it to the output directory.
     """
-    ca = get_crash_analyzer()
+    ca = get_crash_analyzer(platform=platform, arch=arch)
     ca.select_project(get_gitlab_repo())
+    assert ca.active_project
 
     package_artifacts = get_or_fetch_artifacts(ca.artifact_store, ca.active_project, job_id)
-    dmp_files = find_dmp_files(package_artifacts.get())
+    path = package_artifacts.get()
+    if not path:
+        print("No artifacts found")
+        return
+    dmp_files = find_dmp_files(path)
     if not dmp_files:
         print("No dump files found")
         return
@@ -164,13 +187,18 @@ def get_job_dump(ctx, job_id, with_symbols=False):
             print('\t', Path(symbol_file).resolve())
 
 
-@task
-def get_debug_symbols(ctx, job_id=None, version=None, platform=None, arch=None):
-    ca = get_crash_analyzer()
-    if platform:
-        ca.target_platform = platform
-    if arch:
-        ca.target_arch = arch
+@task(
+    help={
+        "job_id": "The job ID to download the symbols from",
+        "version": "The version of the symbols to download",
+        "platform": f"The target platform ({', '.join(PLATFORM_CHOICES)})",
+        "arch": f"The target architecture ({', '.join(ARCH_CHOICES)})",
+    }
+)
+def get_debug_symbols(
+    ctx, job_id: str | None = None, version: str | None = None, platform: str | None = None, arch: str | None = None
+):
+    ca = get_crash_analyzer(platform=platform, arch=arch)
 
     if version:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -194,6 +222,8 @@ def add_gitlab_job_artifacts_to_artifact_store(
 
 
 def get_symbols_for_job_id(ca: CrashAnalyzer, job_id: str) -> Path | None:
+    if not ca.active_project:
+        raise ValueError("No active project set")
     project_id = ca.active_project.name
     # check if we already have the symbols for this job
     artifact = ca.artifact_store.get(project_id, job_id)
@@ -207,7 +237,10 @@ def get_symbols_for_job_id(ca: CrashAnalyzer, job_id: str) -> Path | None:
     if not package_job_id:
         raise Exception(f"Could not find package job for job {job_id}")
     package_artifacts = get_or_fetch_artifacts(ca.artifact_store, ca.active_project, package_job_id)
-    archives = find_platform_debug_artifacts(ca.target_platform, package_artifacts.get())
+    path = package_artifacts.get()
+    if not path:
+        raise FileNotFoundError(f"No artifacts found for job {package_job_id}")
+    archives = find_platform_debug_artifacts(ca.target_platform, path)
     # TODO: hacky way to get the version from the archive name
     version = Path(archives[0]).name
     for s in ['.debug.zip', '.tar.xz', '-amd64', '-x86_64', '-arm64', '-1']:
@@ -347,20 +380,24 @@ def download_job_artifacts(project: Project, job_id: str, output_dir: str) -> No
             os.remove(tmp_path)
 
 
-def find_dmp_files(output_dir: Path | str) -> list[str]:
-    return list(glob.glob(f"{output_dir}/**/*.dmp", recursive=True))
+def find_dmp_files(path: Path | str) -> list[str]:
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Path {path} does not exist")
+    return list(glob.glob(f"{path}/**/*.dmp", recursive=True))
 
 
-def find_symbol_files_for_platform(platform: str, output_dir: Path | str) -> list[str]:
+def find_symbol_files_for_platform(platform: str, path: Path | str) -> list[str]:
     if platform == 'windows':
-        return list(glob.glob(f"{output_dir}/**/*.exe.debug", recursive=True))
+        return list(glob.glob(f"{path}/**/*.exe.debug", recursive=True))
     elif platform in LINUX_PLATFORMS:
-        return list(glob.glob(f"{output_dir}/**/*.dbg", recursive=True))
+        return list(glob.glob(f"{path}/**/*.dbg", recursive=True))
     else:
         raise NotImplementedError(f"Unsupported platform {platform}")
 
 
 def find_platform_debug_artifacts(platform: str, path: Path | str) -> list[str]:
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Path {path} does not exist")
     if platform == 'windows':
         return list(glob.glob(f"{path}/**/*.debug.zip", recursive=True))
     elif platform in LINUX_PLATFORMS:
