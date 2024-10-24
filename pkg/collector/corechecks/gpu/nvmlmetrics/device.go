@@ -16,6 +16,24 @@ import (
 
 const deviceCollectorName = "device"
 
+var allDeviceMetrics = []deviceMetric{
+	{"pci.throughput.tx", getTxPciThroughput},
+	{"pci.throughput.rx", getRxPciThroughput},
+	{"decoder_utiliation", getDecoderUtilization},
+	{"dram_active", getDramActive},
+	{"encoder_utilization", getEncoderUtilization},
+	{"fan_speed", getFanSpeed},
+	{"power.management_limit", getPowerManagementLimit},
+	{"power.usage", getPowerUsage},
+	{"performance_state", getPerformanceState},
+	{"clock_speed.sm", getSMClockSpeed},
+	{"clock_speed.memory", getMemoryClockSpeed},
+	{"clock_speed.graphics", getGraphicsClockSpeed},
+	{"clock_speed.video", getVideoClockSpeed},
+	{"temperature", getTemperature},
+	{"total_energy_consumption", getTotalEnergyConsumption},
+}
+
 type deviceMetricsCollector struct {
 	device nvml.Device
 	tags   []string
@@ -69,24 +87,6 @@ func (c *deviceMetricsCollector) Close() error {
 // Name returns the name of the collector.
 func (c *deviceMetricsCollector) Name() string {
 	return deviceCollectorName
-}
-
-var allDeviceMetrics = []deviceMetric{
-	{"pci.throughput.tx", getTxPciThroughput},
-	{"pci.throughput.rx", getRxPciThroughput},
-	{"decoder_utiliation", getDecoderUtilization},
-	{"dram_active", getDramActive},
-	{"encoder_utilization", getEncoderUtilization},
-	{"fan_speed", getFanSpeed},
-	{"power.management_limit", getPowerManagementLimit},
-	{"power.usage", getPowerUsage},
-	{"performance_state", getPerformanceState},
-	{"clock_speed.sm", getSMClockSpeed},
-	{"clock_speed.memory", getMemoryClockSpeed},
-	{"clock_speed.graphics", getGraphicsClockSpeed},
-	{"clock_speed.video", getVideoClockSpeed},
-	{"temperature", getTemperature},
-	{"total_energy_consumption", getTotalEnergyConsumption},
 }
 
 func getRxPciThroughput(dev nvml.Device) (float64, nvml.Return) {
