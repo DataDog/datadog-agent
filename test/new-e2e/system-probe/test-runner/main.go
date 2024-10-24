@@ -55,6 +55,7 @@ type userProvidedConfig struct {
 	PackagesRunConfig  map[string]packageRunConfiguration `json:"filters"`
 	InContainerImage   string                             `json:"testcontainer"`
 	AdditionalTestArgs []string                           `json:"additional_test_args"`
+	AdditionalEnvVars  []string                           `json:"additional_env_vars"`
 }
 
 const ciVisibility = "/ci-visibility"
@@ -210,6 +211,8 @@ func collectEnvVars(testConfig *testConfig, bpfDir string) []string {
 	if testConfig.extraEnv != "" {
 		env = append(env, strings.Split(testConfig.extraEnv, " ")...)
 	}
+
+	env = append(env, testConfig.AdditionalEnvVars...)
 
 	return env
 }
