@@ -402,6 +402,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// Discovery config
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "cpu_usage_update_delay"), "60s")
+	cfg.BindEnvAndSetDefault(join(discoveryNS, "ignore_comms"), "")
 
 	// Fleet policies
 	cfg.BindEnv("fleet_policies_dir")

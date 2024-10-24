@@ -16,6 +16,7 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ignoreComms is a list of process names that should not be reported as a service.
@@ -60,4 +61,21 @@ func shouldIgnoreComm(proc *process.Process) bool {
 	_, found := ignoreComms[comm]
 
 	return found
+}
+
+// LoadIgnoredComms expands the list of ignored commands by adding commands from the configuration
+func LoadIgnoredComms(config *discoveryConfig) {
+	if config == nil {
+		log.Errorf("unexpected nil configuration")
+		return
+	}
+	comms := strings.Split(strings.ReplaceAll(config.ignoreComms, " ", ""), ",")
+
+	for _, comm := range comms {
+		if len(comm) > 15 {
+			ignoreComms[comm[:15]] = struct{}{}
+		} else if len(comm) > 0 {
+			ignoreComms[comm] = struct{}{}
+		}
+	}
 }

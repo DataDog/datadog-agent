@@ -12,12 +12,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	httptestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 )
@@ -127,6 +129,70 @@ func TestShouldIgnoreComm(t *testing.T) {
 				ignore := shouldIgnoreComm(proc)
 				require.Equal(t, test.ignore, ignore)
 			}, 30*time.Second, 100*time.Millisecond)
+		})
+	}
+}
+
+func TestLoadIgnoredComm(t *testing.T) {
+	tests := []struct {
+		name   string
+		comms  string
+		expect []bool
+	}{
+		{
+			name:   "empty list of ignored commands",
+			comms:  "",
+			expect: []bool{false},
+		},
+		{
+			name:   "short commands in config list",
+			comms:  "cron, polkitd, rsyslogd, bash, sshd, dockerd",
+			expect: []bool{true, true, true, true, true, true},
+		},
+		{
+			name:   "malformed commands list",
+			comms:  "rsyslogd, , snapd, ,   udisksd, containerd, ,    ",
+			expect: []bool{true, false, true, false, true, true, false, false},
+		},
+		{
+			name:   "long commands in config list",
+			comms:  "containerd-shim-runc-v2,unattended-upgrade-shutdown,kube-controller-manager",
+			expect: []bool{true, true, true},
+		},
+		{
+			name:   "commands of different lengths in the configuration list",
+			comms:  "containerd-shim-runc-v2,calico-node,unattended-upgrade-shutdown,bash,kube-controller-manager",
+			expect: []bool{true, true, true, true, true},
+		},
+	}
+	defLen := len(ignoreComms)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mockSystemProbe := mock.NewSystemProbe(t)
+			require.NotEmpty(t, mockSystemProbe)
+
+			mockSystemProbe.SetWithoutSource("discovery.ignore_comms", test.comms)
+
+			LoadIgnoredComms(newConfig())
+
+			comms := strings.Split(strings.ReplaceAll(test.comms, " ", ""), ",")
+			if len(comms) > 0 {
+				if len(comms[0]) == 0 {
+					require.Equal(t, len(ignoreComms), defLen)
+				} else {
+					require.Greater(t, len(ignoreComms), defLen)
+				}
+			}
+			for n, exp := range test.expect {
+				if len(comms[n]) > 15 {
+					_, found := ignoreComms[comms[n][:15]]
+					require.Equal(t, exp, found)
+				} else {
+					_, found := ignoreComms[comms[n]]
+					require.Equal(t, exp, found)
+				}
+			}
 		})
 	}
 }

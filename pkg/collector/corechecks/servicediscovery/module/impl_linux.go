@@ -82,8 +82,11 @@ type discovery struct {
 
 // NewDiscoveryModule creates a new discovery system probe module.
 func NewDiscoveryModule(*sysconfigtypes.Config, module.FactoryDependencies) (module.Module, error) {
+	config := newConfig()
+	LoadIgnoredComms(config)
+
 	return &discovery{
-		config:             newConfig(),
+		config:             config,
 		mux:                &sync.RWMutex{},
 		cache:              make(map[int32]*serviceInfo),
 		privilegedDetector: privileged.NewLanguageDetector(),

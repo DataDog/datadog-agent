@@ -19,6 +19,7 @@ const discoveryNS = "discovery"
 
 type discoveryConfig struct {
 	cpuUsageUpdateDelay time.Duration
+	ignoreComms         string
 }
 
 func newConfig() *discoveryConfig {
@@ -27,6 +28,7 @@ func newConfig() *discoveryConfig {
 
 	return &discoveryConfig{
 		cpuUsageUpdateDelay: cfg.GetDuration(join(discoveryNS, "cpu_usage_update_delay")),
+		ignoreComms:         cfg.GetString(join(discoveryNS, "ignore_comms")),
 	}
 }
 
