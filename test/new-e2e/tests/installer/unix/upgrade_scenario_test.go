@@ -624,7 +624,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentStopExperiment(timestamp hos
 func (s *upgradeScenarioSuite) startConfigExperiment(localCDNPath string, pkg packageName, hash string) (string, error) {
 	cmd := fmt.Sprintf("sudo -E datadog-installer install-config-experiment %s %s > /tmp/start_config_experiment.log 2>&1", pkg, hash)
 	s.T().Logf("Running start command: %s", cmd)
-	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH": localCDNPath}))
+	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH": localCDNPath, "DD_REMOTE_POLICIES": "true"}))
 }
 
 func (s *upgradeScenarioSuite) mustStartConfigExperiment(localCDNPath string, pkg packageName, version string) string {
@@ -640,7 +640,7 @@ func (s *upgradeScenarioSuite) mustStartConfigExperiment(localCDNPath string, pk
 func (s *upgradeScenarioSuite) promoteConfigExperiment(localCDNPath string, pkg packageName) (string, error) {
 	cmd := fmt.Sprintf("sudo -E datadog-installer promote-config-experiment %s > /tmp/promote_config_experiment.log 2>&1", pkg)
 	s.T().Logf("Running promote command: %s", cmd)
-	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH": localCDNPath}))
+	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH": localCDNPath, "DD_REMOTE_POLICIES": "true"}))
 }
 
 func (s *upgradeScenarioSuite) mustPromoteConfigExperiment(localCDNPath string, pkg packageName) string {
@@ -656,7 +656,7 @@ func (s *upgradeScenarioSuite) mustPromoteConfigExperiment(localCDNPath string, 
 func (s *upgradeScenarioSuite) stopConfigExperiment(localCDNPath string, pkg packageName) (string, error) {
 	cmd := fmt.Sprintf("sudo -E datadog-installer remove-config-experiment %s > /tmp/stop_config_experiment.log 2>&1", pkg)
 	s.T().Logf("Running stop command: %s", cmd)
-	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH": localCDNPath}))
+	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH": localCDNPath, "DD_REMOTE_POLICIES": "true"}))
 }
 
 func (s *upgradeScenarioSuite) mustStopConfigExperiment(localCDNPath string, pkg packageName) string {

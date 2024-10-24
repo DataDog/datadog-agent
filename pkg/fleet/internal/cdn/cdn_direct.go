@@ -56,7 +56,7 @@ func newDirect(env *env.Env, configDBPath string) (CDN, error) {
 		remoteconfig.WithAPIKey(env.APIKey),
 		remoteconfig.WithConfigRootOverride(env.Site, ""),
 		remoteconfig.WithDirectorRootOverride(env.Site, ""),
-		remoteconfig.WithDatabaseFileName(filepath.Base(configDBPath)),
+		remoteconfig.WithDatabaseFileName(filepath.Join(filepath.Base(configDBPath), "remote-config.db")),
 	}
 
 	service, err := remoteconfig.NewService(
