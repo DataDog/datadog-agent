@@ -117,7 +117,7 @@ func (v *gpuSuite) TestVectorAddProgramDetected() {
 	v.Require().NotEmpty(out)
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		metricNames := []string{"gpu.memory", "gpu.utilization", "gpu.max_memory"}
+		metricNames := []string{"gpu.memory", "gpu.utilization", "gpu.memory.max"}
 		for _, metricName := range metricNames {
 			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0))
 			assert.NoError(c, err)
