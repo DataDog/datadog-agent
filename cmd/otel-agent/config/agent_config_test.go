@@ -55,7 +55,7 @@ func (suite *ConfigTestSuite) TestAgentConfig() {
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
 	assert.Equal(t, 10, c.Get("apm_config.trace_buffer"))
 	assert.Equal(t, false, c.Get("otlp_config.traces.span_name_as_resource_name"))
-	assert.Equal(t, []string{"enable_receive_resource_spans_v2"}, c.Get("apm_config.features"))
+	assert.Equal(t, nil, c.Get("apm_config.features"))
 }
 
 func (suite *ConfigTestSuite) TestAgentConfigDefaults() {
@@ -77,8 +77,7 @@ func (suite *ConfigTestSuite) TestAgentConfigDefaults() {
 	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
 	assert.Equal(t, true, c.Get("otlp_config.traces.span_name_as_resource_name"))
-	assert.Equal(t, []string{"enable_receive_resource_spans_v2", "enable_otlp_compute_top_level_by_span_kind"},
-		c.Get("apm_config.features"))
+	assert.Equal(t, []string{"enable_otlp_compute_top_level_by_span_kind"}, c.Get("apm_config.features"))
 }
 
 func (suite *ConfigTestSuite) TestAgentConfigWithDatadogYamlDefaults() {
@@ -103,7 +102,7 @@ func (suite *ConfigTestSuite) TestAgentConfigWithDatadogYamlDefaults() {
 	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
 	assert.Equal(t, true, c.Get("otlp_config.traces.span_name_as_resource_name"))
-	assert.Equal(t, []string{"enable_receive_resource_spans_v2", "enable_otlp_compute_top_level_by_span_kind"}, c.Get("apm_config.features"))
+	assert.Equal(t, []string{"enable_otlp_compute_top_level_by_span_kind"}, c.Get("apm_config.features"))
 
 	// log_level from datadog.yaml takes precedence -> more verbose
 	assert.Equal(t, "debug", c.Get("log_level"))
@@ -124,38 +123,6 @@ func (suite *ConfigTestSuite) TestAgentConfigWithDatadogYamlKeysAvailable() {
 	assert.Equal(t, "https://localhost:7777", c.GetString("otelcollector.extension_url"))
 	assert.Equal(t, 5009, c.GetInt("agent_ipc.port"))
 	assert.Equal(t, 60, c.GetInt("agent_ipc.config_refresh_interval"))
-}
-
-func (suite *ConfigTestSuite) TestAgentConfigSetAPMFeaturesFromDatadogYaml() {
-	t := suite.T()
-	fileName := "testdata/config_default.yaml"
-	ddFileName := "testdata/datadog_apm_config_features.yaml"
-	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
-	if err != nil {
-		t.Errorf("Failed to load agent config: %v", err)
-	}
-
-	assert.Equal(t, []string{"test1", "test2"}, c.GetStringSlice("apm_config.features"))
-}
-
-func (suite *ConfigTestSuite) TestAgentConfigSetAPMFeaturesFromEnv() {
-	t := suite.T()
-	fileName := "testdata/config_default.yaml"
-	oldval, exists := os.LookupEnv("DD_APM_FEATURES")
-	os.Setenv("DD_APM_FEATURES", "test1,test2")
-	defer func() {
-		if !exists {
-			os.Unsetenv("DD_APM_FEATURES")
-		} else {
-			os.Setenv("DD_APM_FEATURES", oldval)
-		}
-	}()
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
-	if err != nil {
-		t.Errorf("Failed to load agent config: %v", err)
-	}
-
-	assert.Equal(t, []string{"test1", "test2"}, c.GetStringSlice("apm_config.features"))
 }
 
 func (suite *ConfigTestSuite) TestLogLevelPrecedence() {
