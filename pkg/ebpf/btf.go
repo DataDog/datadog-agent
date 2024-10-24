@@ -89,9 +89,20 @@ func FlushBTF() {
 
 type kernelModuleBTFLoadFunc func(string) (*btf.Spec, error)
 
-type returnBTF struct {
+type btfSpecData struct {
+	// sourceFilepath documents where we got this BTF data from
+	sourceFilepath string
 	vmlinux        *btf.Spec
 	moduleLoadFunc kernelModuleBTFLoadFunc
+}
+type returnBTF struct {
+	// loaderDesc the name of the loader that was used to get the BTF data
+	loaderDesc string
+	btfSpecData
+}
+
+func (r *returnBTF) String() string {
+	return fmt.Sprintf("loader: %s\nsource file: %s\n", r.loaderDesc, r.sourceFilepath)
 }
 
 type orderedBTFLoader struct {
@@ -114,7 +125,7 @@ func initBTFLoader(cfg *Config) *orderedBTFLoader {
 	return btfLoader
 }
 
-type btfLoaderFunc func() (*returnBTF, error)
+type btfLoaderFunc func() (*btfSpecData, error)
 
 // Get returns BTF for the running kernel
 func (b *orderedBTFLoader) Get() (*returnBTF, ebpftelemetry.COREResult, error) {
@@ -142,7 +153,7 @@ func (b *orderedBTFLoader) get() (*returnBTF, error) {
 		{ebpftelemetry.SuccessEmbeddedBTF, b.loadEmbedded, "embedded collection"},
 	}
 	var err error
-	var ret *returnBTF
+	var ret *btfSpecData
 	for _, l := range loaders {
 		log.Debugf("attempting BTF load from %s", l.desc)
 		ret, err = l.loader()
@@ -157,21 +168,26 @@ func (b *orderedBTFLoader) get() (*returnBTF, error) {
 		if ret != nil {
 			log.Debugf("successfully loaded BTF from %s", l.desc)
 			b.result = l.result
-			return ret, nil
+			return &returnBTF{
+				loaderDesc:  l.desc,
+				btfSpecData: *ret,
+			}, nil
 		}
 	}
 	return nil, err
 }
 
-func (b *orderedBTFLoader) loadKernel() (*returnBTF, error) {
+func (b *orderedBTFLoader) loadKernel() (*btfSpecData, error) {
 	spec, err := GetKernelSpec()
 	if err != nil {
 		return nil, err
 	}
-	return &returnBTF{vmlinux: spec, moduleLoadFunc: nil}, nil
+	return &btfSpecData{
+		sourceFilepath: "<unknown, internal to cilium ebpf>",
+		vmlinux:        spec, moduleLoadFunc: nil}, nil
 }
 
-func (b *orderedBTFLoader) loadUser() (*returnBTF, error) {
+func (b *orderedBTFLoader) loadUser() (*btfSpecData, error) {
 	if b.userBTFPath == "" {
 		return nil, nil
 	}
@@ -179,10 +195,14 @@ func (b *orderedBTFLoader) loadUser() (*returnBTF, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &returnBTF{vmlinux: spec, moduleLoadFunc: nil}, nil
+	return &btfSpecData{
+		sourceFilepath: b.userBTFPath,
+		vmlinux:        spec,
+		moduleLoadFunc: nil,
+	}, nil
 }
 
-func (b *orderedBTFLoader) checkForMinimizedBTF(extractDir string) (*returnBTF, error) {
+func (b *orderedBTFLoader) checkForMinimizedBTF(extractDir, sourceTarball string) (*btfSpecData, error) {
 	// <relative_path_in_tarball>/<kernel_version>/<kernel_version>.btf
 	btfRelativePath := filepath.Join(extractDir, filepath.Base(extractDir)+".btf")
 	extractedBtfPath := filepath.Join(b.embeddedDir, btfRelativePath)
@@ -191,13 +211,12 @@ func (b *orderedBTFLoader) checkForMinimizedBTF(extractDir string) (*returnBTF, 
 		if err != nil {
 			return nil, err
 		}
-		// no module load function for minimized single file BTF
-		return &returnBTF{vmlinux: spec, moduleLoadFunc: nil}, nil
+		return &btfSpecData{sourceFilepath: sourceTarball, vmlinux: spec, moduleLoadFunc: nil}, nil
 	}
 	return nil, nil
 }
 
-func (b *orderedBTFLoader) checkForUnminimizedBTF(extractDir string) (*returnBTF, error) {
+func (b *orderedBTFLoader) checkForUnminimizedBTF(extractDir, sourceTarball string) (*btfSpecData, error) {
 	absExtractDir := filepath.Join(b.embeddedDir, extractDir)
 	modLoadFunc := func(mod string) (*btf.Spec, error) {
 		b.delayedFlusher.Reset(btfFlushDelay)
@@ -210,24 +229,24 @@ func (b *orderedBTFLoader) checkForUnminimizedBTF(extractDir string) (*returnBTF
 		if err != nil {
 			return nil, err
 		}
-		return &returnBTF{vmlinux: spec, moduleLoadFunc: modLoadFunc}, nil
+		return &btfSpecData{sourceFilepath: sourceTarball, vmlinux: spec, moduleLoadFunc: modLoadFunc}, nil
 	}
 	return nil, nil
 }
 
-func (b *orderedBTFLoader) checkforBTF(extractDir string) (*returnBTF, error) {
-	ret, err := b.checkForMinimizedBTF(extractDir)
+func (b *orderedBTFLoader) checkforBTF(extractDir, sourceTarball string) (*btfSpecData, error) {
+	ret, err := b.checkForMinimizedBTF(extractDir, sourceTarball)
 	if err != nil || ret != nil {
 		return ret, err
 	}
-	ret, err = b.checkForUnminimizedBTF(extractDir)
+	ret, err = b.checkForUnminimizedBTF(extractDir, sourceTarball)
 	if err != nil || ret != nil {
 		return ret, err
 	}
 	return nil, nil
 }
 
-func (b *orderedBTFLoader) loadEmbedded() (*returnBTF, error) {
+func (b *orderedBTFLoader) loadEmbedded() (*btfSpecData, error) {
 	btfRelativeTarballFilename, err := b.embeddedPath()
 	if err != nil {
 		return nil, err
@@ -241,7 +260,7 @@ func (b *orderedBTFLoader) loadEmbedded() (*returnBTF, error) {
 	absExtractDir := filepath.Join(b.embeddedDir, extractDir)
 
 	// If we've previously extracted the BTF file in question, we can just load it
-	ret, err := b.checkforBTF(extractDir)
+	ret, err := b.checkforBTF(extractDir, btfRelativeTarballFilename)
 	if err != nil || ret != nil {
 		return ret, err
 	}
@@ -262,7 +281,7 @@ func (b *orderedBTFLoader) loadEmbedded() (*returnBTF, error) {
 	if err := archive.TarXZExtractAll(btfTarball, absExtractDir); err != nil {
 		return nil, fmt.Errorf("extract kernel BTF from tarball: %w", err)
 	}
-	ret, err = b.checkforBTF(extractDir)
+	ret, err = b.checkforBTF(extractDir, btfRelativeTarballFilename)
 	if err != nil || ret != nil {
 		return ret, err
 	}
