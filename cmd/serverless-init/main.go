@@ -151,7 +151,7 @@ func setup(_ mode.Conf, tagger tagger.Component) (cloudservice.CloudService, *se
 	return cloudService, agentLogConfig, traceAgent, metricAgent, logsAgent
 }
 func setupTraceAgent(tags map[string]string) trace.ServerlessTraceAgent {
-	traceAgent := trace.StartServerlessTraceAgent(pkgconfigsetup.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil, random.Random.Uint64())
+	traceAgent := trace.StartServerlessTraceAgent(pkgconfigsetup.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil, random.Random.Uint64(), nil)
 	traceAgent.SetTags(tags)
 	go func() {
 		for range time.Tick(3 * time.Second) {

@@ -440,7 +440,7 @@ func BenchmarkStartEndInvocation(b *testing.B) {
 func startAgents() *Daemon {
 	d := StartDaemon(fmt.Sprint("127.0.0.1:", testutil.FreeTCPPort(nil)))
 
-	ta := trace.StartServerlessTraceAgent(true, &trace.LoadConfig{Path: "/some/path/datadog.yml"}, nil, 123)
+	ta := trace.StartServerlessTraceAgent(true, &trace.LoadConfig{Path: "/some/path/datadog.yml"}, nil, 123, nil)
 	d.SetTraceAgent(ta)
 
 	ma := &metrics.ServerlessMetricAgent{
