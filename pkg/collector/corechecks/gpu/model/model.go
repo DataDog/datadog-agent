@@ -13,10 +13,17 @@ type MemoryStats struct {
 	MaxBytes     uint64 `json:"max_bytes"`
 }
 
+// ProcessMetadata contains metadata about the process
+type ProcessMetadata struct {
+	// ContainerID is the container ID associated with the process
+	ContainerID string `json:"container_id"`
+}
+
 // ProcessStats contains the GPU stats for a given PID
 type ProcessStats struct {
-	UtilizationPercentage float64     `json:"utilization_percentage"`
-	Memory                MemoryStats `json:"memory"`
+	UtilizationPercentage float64         `json:"utilization_percentage"`
+	Memory                MemoryStats     `json:"memory"`
+	Metadata              ProcessMetadata `json:"metadata"`
 }
 
 // GPUStats contains the past and current data for all streams, including kernel spans and allocations.
