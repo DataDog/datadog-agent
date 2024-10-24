@@ -267,13 +267,15 @@ def send_summary_slack_notification(
     for stat in stats:
         name = stat['name']
         fail = stat['failures']
-        link = get_ci_visibility_job_url(
-            name,
-            prefix=False,
-            extra_flags=['status:error', '-@error.domain:provider'],
-            extra_args={'start': timestamp_start, 'end': timestamp_end, 'paused': 'true'},
-        )
-        message.append(f"- <{link}|{name}>: *{fail} failures*")
+        url_args = {
+            'name': name,
+            'prefix': False,
+            'extra_flags': ['status:error', '-@error.domain:provider'],
+            'extra_args': {'start': timestamp_start, 'end': timestamp_end, 'paused': 'true'},
+        }
+        link = get_ci_visibility_job_url(**url_args)
+        link_tests = get_ci_visibility_job_url(**url_args, show_tests=True)
+        message.append(f"- <{link}|{name}>: *{fail} failures* (<{link_tests}|tests>)")
 
     header = f'{period} Job Failure Report'
     if allow_failure:
