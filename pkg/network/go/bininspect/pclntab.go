@@ -61,6 +61,14 @@ func (s *sectionAccess) ReadAt(outBuffer []byte, offset int64) (int, error) {
 	if s.section.ReaderAt == nil {
 		return 0, errors.New("section not available in random-access form")
 	}
+
+	if offset+int64(len(outBuffer)) > int64(s.section.Size) {
+		readableLength := int64(s.section.Size) - offset
+		if readableLength <= 0 {
+			return 0, io.EOF
+		}
+		return s.section.ReadAt(outBuffer[:readableLength], s.baseOffset+offset)
+	}
 	return s.section.ReadAt(outBuffer, s.baseOffset+offset)
 }
 
