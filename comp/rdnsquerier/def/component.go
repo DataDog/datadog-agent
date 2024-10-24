@@ -12,8 +12,16 @@ import (
 
 // team: network-device-monitoring
 
+// ReverseDNSResult is the result of a reverse DNS lookup
+type ReverseDNSResult struct {
+	IP       string
+	Hostname string
+	Err      error
+}
+
 // Component is the component type.
 type Component interface {
 	GetHostnameAsync([]byte, func(string), func(string, error)) error
 	GetHostnameSync(context.Context, string) (string, error)
+	GetHostnames(context.Context, []string) map[string]ReverseDNSResult
 }

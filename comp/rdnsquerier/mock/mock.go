@@ -11,7 +11,6 @@ package mock
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/netip"
 
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
@@ -57,14 +56,34 @@ func (q *rdnsQuerierMock) GetHostnameAsync(ipAddr []byte, updateHostnameSync fun
 // GetHostnameSync simulates resolving the hostname for the given IP address synchronously.  If the IP address is in the private address
 // space then the resolved hostname is returned.
 func (q *rdnsQuerierMock) GetHostnameSync(_ context.Context, ipAddr string) (string, error) {
-	ipaddr := net.ParseIP(ipAddr).To4()
-	if ipaddr == nil {
+	netipAddr, err := netip.ParseAddr(ipAddr)
+	if err != nil {
 		return "", fmt.Errorf("invalid IP address %v", ipAddr)
 	}
 
-	if !ipaddr.IsPrivate() {
+	if !netipAddr.IsPrivate() {
 		return "", nil
 	}
 
-	return "hostname-" + ipaddr.String(), nil
+	return "hostname-" + netipAddr.String(), nil
+}
+
+// GetHostnames simulates resolving the hostnames for the given IP addresses synchronously.  If the IP address is in the private address
+// space then the resolved hostname is returned.
+func (q *rdnsQuerierMock) GetHostnames(_ context.Context, ipAddrs []string) map[string]rdnsquerier.ReverseDNSResult {
+	results := make(map[string]rdnsquerier.ReverseDNSResult, len(ipAddrs))
+	for _, ipAddr := range ipAddrs {
+		netipAddr, err := netip.ParseAddr(ipAddr)
+		if err != nil {
+			results[ipAddr] = rdnsquerier.ReverseDNSResult{IP: ipAddr, Err: fmt.Errorf("invalid IP address %v", ipAddr)}
+		}
+
+		if !netipAddr.IsPrivate() {
+			results[ipAddr] = rdnsquerier.ReverseDNSResult{IP: ipAddr}
+		}
+
+		results[ipAddr] = rdnsquerier.ReverseDNSResult{IP: ipAddr, Hostname: "hostname-" + netipAddr.String()}
+	}
+
+	return results
 }
