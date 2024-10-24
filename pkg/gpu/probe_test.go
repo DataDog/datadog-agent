@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
@@ -26,8 +27,10 @@ func TestProbeCanLoad(t *testing.T) {
 		t.Skipf("minimum kernel version %s not met, read %s", minimumKernelVersion, kver)
 	}
 
+	cfg := NewConfig()
+	cfg.InitialProcessSync = false
 	nvmlMock := testutil.GetBasicNvmlMock()
-	probe, err := NewProbe(NewConfig(), ProbeDependencies{NvmlLib: nvmlMock})
+	probe, err := NewProbe(cfg, ProbeDependencies{NvmlLib: nvmlMock})
 	require.NoError(t, err)
 	require.NotNil(t, probe)
 	t.Cleanup(probe.Close)
@@ -136,6 +139,6 @@ func TestProbeCanGenerateStats(t *testing.T) {
 
 	pidStats := stats.ProcessStats[uint32(cmd.Process.Pid)]
 	require.Greater(t, pidStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
-	require.Equal(t, pidStats.MaxMemoryBytes, uint64(100))
-
+	require.Equal(t, pidStats.Memory[model.GlobalMemAlloc].MaxBytes, uint64(100))
+	require.Equal(t, pidStats.Memory[model.SharedMemAlloc].MaxBytes, uint64(10))
 }

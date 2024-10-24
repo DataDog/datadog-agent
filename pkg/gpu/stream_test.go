@@ -8,15 +8,22 @@
 package gpu
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
+	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestKernelLaunchesHandled(t *testing.T) {
-	stream := newStreamHandler()
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
+	require.NoError(t, err)
+	stream := newStreamHandler(streamKey{}, sysCtx)
 
 	kernStartTime := uint64(1)
 	launch := &gpuebpf.CudaKernelLaunch{
@@ -73,7 +80,9 @@ func TestKernelLaunchesHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsHandled(t *testing.T) {
-	stream := newStreamHandler()
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
+	require.NoError(t, err)
+	stream := newStreamHandler(streamKey{}, sysCtx)
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -142,7 +151,9 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsDetectLeaks(t *testing.T) {
-	stream := newStreamHandler()
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
+	require.NoError(t, err)
+	stream := newStreamHandler(streamKey{}, sysCtx)
 
 	memAllocTime := uint64(1)
 	memAddr := uint64(42)
@@ -175,7 +186,9 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 }
 
 func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
-	stream := newStreamHandler()
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
+	require.NoError(t, err)
+	stream := newStreamHandler(streamKey{}, sysCtx)
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -217,7 +230,9 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 }
 
 func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
-	stream := newStreamHandler()
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
+	require.NoError(t, err)
+	stream := newStreamHandler(streamKey{}, sysCtx)
 
 	memAllocTime1, memAllocTime2 := uint64(1), uint64(10)
 	memFreeTime1, memFreeTime2 := uint64(15), uint64(20)
@@ -304,4 +319,102 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 
 	// Also check we didn't leak
 	require.Empty(t, stream.memAllocEvents)
+}
+
+func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
+	require.NoError(t, err)
+
+	// Set up the caches in system context so no actual queries are done
+	pid, tid := uint64(1), uint64(1)
+	kernAddress := uint64(42)
+	binPath := "/path/to/binary"
+	smVersion := uint32(75)
+	kernName := "kernel"
+	kernSize := uint64(1000)
+	sharedMem := uint64(100)
+	constantMem := uint64(200)
+
+	sysCtx.pidMaps[int(pid)] = &kernel.ProcMapEntries{
+		kernel.ProcMapEntry{Start: 0, End: 1000, Offset: 0, Path: binPath},
+	}
+
+	procBinPath := fmt.Sprintf("/proc/%d/root/%s", pid, binPath)
+	kernKey := cuda.CubinKernelKey{Name: kernName, SmVersion: smVersion}
+	sysCtx.fileData[procBinPath] = &fileData{
+		symbolTable: map[uint64]string{kernAddress: kernName},
+		fatbin: &cuda.Fatbin{
+			Kernels: map[cuda.CubinKernelKey]*cuda.CubinKernel{
+				kernKey: {
+					Name:        kernName,
+					KernelSize:  kernSize,
+					SharedMem:   sharedMem,
+					ConstantMem: constantMem,
+				},
+			},
+		},
+	}
+
+	sysCtx.deviceSmVersions = map[int]int{0: int(smVersion)}
+
+	stream := newStreamHandler(streamKey{pid: uint32(pid)}, sysCtx)
+
+	kernStartTime := uint64(1)
+	launch := &gpuebpf.CudaKernelLaunch{
+		Header: gpuebpf.CudaEventHeader{
+			Type:      gpuebpf.CudaEventTypeKernelLaunch,
+			Pid_tgid:  uint64(pid<<32 + tid),
+			Ktime_ns:  kernStartTime,
+			Stream_id: 1,
+		},
+		Kernel_addr:     kernAddress,
+		Grid_size:       gpuebpf.Dim3{X: 10, Y: 10, Z: 10},
+		Block_size:      gpuebpf.Dim3{X: 2, Y: 2, Z: 1},
+		Shared_mem_size: 0,
+	}
+	threadCount := 10 * 10 * 10 * 2 * 2
+
+	numLaunches := 3
+	for i := 0; i < numLaunches; i++ {
+		stream.handleKernelLaunch(launch)
+	}
+
+	// No sync, so we should have data
+	require.Nil(t, stream.getPastData(false))
+
+	// We should have a current kernel span running
+	currTime := uint64(100)
+	currData := stream.getCurrentData(currTime)
+	require.NotNil(t, currData)
+	require.Len(t, currData.spans, 1)
+
+	span := currData.spans[0]
+	require.Equal(t, kernStartTime, span.startKtime)
+	require.Equal(t, currTime, span.endKtime)
+	require.Equal(t, uint64(numLaunches), span.numKernels)
+	require.Equal(t, uint64(threadCount), span.avgThreadCount)
+	require.Equal(t, sharedMem, span.avgMemoryUsage[model.SharedMemAlloc])
+	require.Equal(t, constantMem, span.avgMemoryUsage[model.ConstantMemAlloc])
+	require.Equal(t, kernSize, span.avgMemoryUsage[model.KernelMemAlloc])
+
+	// Now we mark a sync event
+	syncTime := uint64(200)
+	stream.markSynchronization(syncTime)
+
+	// We should have a past kernel span
+	pastData := stream.getPastData(true)
+	require.NotNil(t, pastData)
+
+	require.Len(t, pastData.spans, 1)
+	span = pastData.spans[0]
+	require.Equal(t, kernStartTime, span.startKtime)
+	require.Equal(t, syncTime, span.endKtime)
+	require.Equal(t, uint64(numLaunches), span.numKernels)
+	require.Equal(t, uint64(threadCount), span.avgThreadCount)
+	require.Equal(t, sharedMem, span.avgMemoryUsage[model.SharedMemAlloc])
+	require.Equal(t, constantMem, span.avgMemoryUsage[model.ConstantMemAlloc])
+	require.Equal(t, kernSize, span.avgMemoryUsage[model.KernelMemAlloc])
+
+	// We should have no current data
+	require.Nil(t, stream.getCurrentData(currTime))
 }

@@ -31,15 +31,17 @@ type cudaEventConsumer struct {
 	wg             sync.WaitGroup
 	running        atomic.Bool
 	cfg            *Config
+	sysCtx         *systemContext
 }
 
 // newCudaEventConsumer creates a new CUDA event consumer.
-func newCudaEventConsumer(eventHandler ddebpf.EventHandler, cfg *Config) *cudaEventConsumer {
+func newCudaEventConsumer(eventHandler ddebpf.EventHandler, cfg *Config, sysCtx *systemContext) *cudaEventConsumer {
 	return &cudaEventConsumer{
 		eventHandler:   eventHandler,
 		closed:         make(chan struct{}),
 		streamHandlers: make(map[streamKey]*StreamHandler),
 		cfg:            cfg,
+		sysCtx:         sysCtx,
 	}
 }
 
@@ -89,6 +91,7 @@ func (c *cudaEventConsumer) Start() {
 			case <-health.C:
 			case <-processSync.C:
 				c.checkClosedProcesses()
+				c.sysCtx.cleanupOldEntries()
 			case batchData, ok := <-dataChannel:
 				if !ok {
 					return
@@ -106,7 +109,7 @@ func (c *cudaEventConsumer) Start() {
 				streamKey := streamKey{pid: pid, stream: header.Stream_id}
 
 				if _, ok := c.streamHandlers[streamKey]; !ok {
-					c.streamHandlers[streamKey] = newStreamHandler()
+					c.streamHandlers[streamKey] = newStreamHandler(streamKey, c.sysCtx)
 				}
 
 				switch header.Type {
