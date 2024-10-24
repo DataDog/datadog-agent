@@ -15,50 +15,57 @@ import (
 
 type Size interface {
 	Size() int64
+	Count() int64
 }
 
-// var TlmIngressBytes = telemetry.NewCounter("logs_component", "ingress_bytes", []string{"name", "instance"}, "")
-// var TlmEgressBytes = telemetry.NewCounter("logs_component", "egress_bytes", []string{"name", "instance"}, "")
 var TlmUtilization = telemetry.NewGauge("logs_component", "utilization", []string{"name", "instance"}, "")
 var TlmCapacity = telemetry.NewGauge("logs_component", "capacity", []string{"name", "instance"}, "")
+var TlmCapacityBytes = telemetry.NewGauge("logs_component", "capacity_bytes", []string{"name", "instance"}, "")
 
 type IngressMonitor struct {
 	sync.Mutex
-	ingress  int64
-	egress   int64
-	avg      float64
-	samples  float64
-	name     string
-	instance string
-	ticker   *time.Ticker
+	ingress      int64
+	ingressBytes int64
+	egress       int64
+	egressBytes  int64
+	avg          float64
+	avgBytes     float64
+	samples      float64
+	name         string
+	instance     string
+	ticker       *time.Ticker
 }
 
-func (i *IngressMonitor) AddIngress(size int64) {
+func (i *IngressMonitor) AddIngress(size Size) {
 	i.Lock()
 	defer i.Unlock()
-	i.ingress += size
+	i.ingress += size.Count()
+	i.ingressBytes += size.Size()
 	i.sample()
 	i.reportIfNeeded()
 }
 
-func (i *IngressMonitor) AddEgress(size int64) {
+func (i *IngressMonitor) AddEgress(size Size) {
 	i.Lock()
 	defer i.Unlock()
-	i.egress += size
+	i.egress += size.Count()
+	i.egressBytes += size.Size()
 	i.sample()
 	i.reportIfNeeded()
 }
 
 func (i *IngressMonitor) sample() {
 	i.samples++
-	new := float64(i.ingress - i.egress)
-	i.avg = (i.avg*(i.samples-1) + new) / i.samples
+	i.avg = (i.avg*(i.samples-1) + float64(i.ingress-i.egress)) / i.samples
+	i.avgBytes = (i.avgBytes*(i.samples-1) + float64(i.ingressBytes-i.egressBytes)) / i.samples
 }
 func (i *IngressMonitor) reportIfNeeded() {
 	select {
 	case <-i.ticker.C:
 		TlmCapacity.Set(float64(i.avg), i.name, i.instance)
+		TlmCapacityBytes.Set(float64(i.avgBytes), i.name, i.instance)
 		i.avg = 0
+		i.avgBytes = 0
 		i.samples = 0
 	default:
 	}
@@ -82,12 +89,12 @@ func getMonitor(name string, instance string) *IngressMonitor {
 
 func ReportComponentIngress(size Size, name string, instance string) {
 	m := getMonitor(name, instance)
-	m.AddIngress(size.Size())
+	m.AddIngress(size)
 }
 
 func ReportComponentEgress(size Size, name string, instance string) {
 	m := getMonitor(name, instance)
-	m.AddEgress(size.Size())
+	m.AddEgress(size)
 }
 
 type UtilizationMonitor struct {

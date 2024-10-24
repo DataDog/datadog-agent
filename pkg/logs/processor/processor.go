@@ -140,7 +140,6 @@ func (p *Processor) run() {
 				return
 			}
 			p.monitor.Start()
-			metrics.ReportComponentIngress(msg, "processor", strconv.Itoa(p.pipelineID))
 
 			// if we have to wait for an SDS configuration to start processing & forwarding
 			// the logs, that's here that we buffer the message

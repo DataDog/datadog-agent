@@ -43,16 +43,18 @@ type Payload struct {
 	UnencodedSize int
 }
 
+// Count returns the number of messages
+func (m *Payload) Count() int64 {
+	return int64(len(m.Messages))
+}
+
 // Size returns the size of the message.
 func (m *Payload) Size() int64 {
-
-	return int64(len(m.Messages))
-	// For bytes
-	// var size int64 = 0
-	// for _, m := range m.Messages {
-	// 	size += m.Size()
-	// }
-	// return size
+	var size int64 = 0
+	for _, m := range m.Messages {
+		size += m.Size()
+	}
+	return size
 }
 
 // Message represents a log line sent to datadog, with its metadata
@@ -367,11 +369,14 @@ func (m *Message) TagsToString() string {
 	return m.Origin.TagsToString(m.ProcessingTags)
 }
 
+// Count returns the number of messages
+func (m *Message) Count() int64 {
+	return 1
+}
+
 // Size returns the size of the message.
 func (m *Message) Size() int64 {
-	return 1
-	// For Bytes
-	// return int64(len(m.GetContent()))
+	return int64(len(m.GetContent()))
 }
 
 // TruncatedReasonTag returns a tag with the reason for truncation.

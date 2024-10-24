@@ -10,8 +10,10 @@ package file
 import (
 	"io"
 	"path/filepath"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -56,6 +58,9 @@ func (t *Tailer) read() (int, error) {
 		return 0, nil
 	}
 	t.lastReadOffset.Add(int64(n))
-	t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
+	msg := decoder.NewInput(inBuf[:n])
+	t.decoder.InputChan <- msg
+	t.decoderMonitor.Start()
+	metrics.ReportComponentIngress(msg, "decoder", strconv.Itoa(t.pipelineID))
 	return n, nil
 }
