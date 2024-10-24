@@ -89,12 +89,11 @@ func (ctc *testContainer) start() error {
 	return nil
 }
 
-func (ctc *testContainer) buildDockerExecArgs(args []string, envVars []string) []string {
-	dockerargs := []string{"docker", "exec"}
+func (ctc *testContainer) buildDockerExecArgs(testSuite string, envVars []string) []string {
+	args := []string{"docker", "exec"}
 	for _, envVar := range envVars {
-		dockerargs = append(dockerargs, "-e", envVar)
+		args = append(args, "-e", envVar)
 	}
-	dockerargs = append(dockerargs, containerName)
-	dockerargs = append(dockerargs, args...)
-	return dockerargs
+	args = append(args, containerName, testSuite)
+	return args
 }

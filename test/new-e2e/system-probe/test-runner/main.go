@@ -152,6 +152,7 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []st
 	if testConfig.extraParams != "" {
 		args = append(args, strings.Split(testConfig.extraParams, " ")...)
 	}
+	args = append(args, testConfig.AdditionalTestArgs...)
 
 	packagesRunConfig := testConfig.PackagesRunConfig
 	if config, ok := packagesRunConfig[pkg]; ok && config.RunOnly != nil {
@@ -269,9 +270,9 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		xmlpath := filepath.Join(xmlDir, fmt.Sprintf("%s.xml", junitfilePrefix))
 		jsonpath := filepath.Join(jsonDir, fmt.Sprintf("%s.json", junitfilePrefix))
 
-		testsuiteArgs := append([]string{testsuite}, testConfig.AdditionalTestArgs...)
+		testsuiteArgs := []string{testsuite}
 		if testContainer != nil {
-			testsuiteArgs = testContainer.buildDockerExecArgs(testsuiteArgs, envVars)
+			testsuiteArgs = testContainer.buildDockerExecArgs(testsuite, envVars)
 		}
 
 		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuiteArgs, testConfig)
