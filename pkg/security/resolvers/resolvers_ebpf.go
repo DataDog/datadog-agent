@@ -38,8 +38,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/time"
 )
 
 // EBPFResolvers holds the list of the event attribute resolvers
@@ -47,7 +47,7 @@ type EBPFResolvers struct {
 	manager              *manager.Manager
 	MountResolver        mount.ResolverInterface
 	ContainerResolver    *container.Resolver
-	TimeResolver         *time.Resolver
+	TimeResolver         *ktime.Resolver
 	UserGroupResolver    *usergroup.Resolver
 	TagsResolver         tags.Resolver
 	DentryResolver       *dentry.Resolver
@@ -69,7 +69,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		return nil, err
 	}
 
-	timeResolver, err := time.NewResolver()
+	timeResolver, err := ktime.NewResolver()
 	if err != nil {
 		return nil, err
 	}

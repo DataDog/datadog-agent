@@ -9,10 +9,9 @@ package gpu
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-
-	"github.com/DataDog/datadog-agent/pkg/util/time"
 )
 
 // systemContext holds certain attributes about the system that are used by the GPU probe.
@@ -21,7 +20,7 @@ type systemContext struct {
 	maxGpuThreadsPerDevice map[int]int
 
 	// timeResolver allows to resolve kernel-time timestamps
-	timeResolver *time.Resolver
+	timeResolver *ktime.Resolver
 
 	// nvmlLib is the NVML library used to query GPU devices
 	nvmlLib nvml.Interface
@@ -38,7 +37,7 @@ func getSystemContext(nvmlLib nvml.Interface) (*systemContext, error) {
 	}
 
 	var err error
-	ctx.timeResolver, err = time.NewResolver()
+	ctx.timeResolver, err = ktime.NewResolver()
 	if err != nil {
 		return nil, fmt.Errorf("error creating time resolver: %w", err)
 	}

@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	timeresolver "github.com/DataDog/datadog-agent/pkg/util/time"
+	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
 type securityProfileCliParams struct {
@@ -161,7 +161,7 @@ func printActivityTreeStats(prefix string, msg *api.ActivityTreeStatsMessage) {
 }
 
 func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
-	timeResolver, err := timeresolver.NewResolver()
+	timeResolver, err := ktime.NewResolver()
 	if err != nil {
 		fmt.Printf("can't get new time resolver: %v\n", err)
 		return

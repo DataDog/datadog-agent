@@ -26,7 +26,7 @@ import (
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	timeresolver "github.com/DataDog/datadog-agent/pkg/util/time"
+	timeresolver "github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
 // EventTypeState defines an event type state

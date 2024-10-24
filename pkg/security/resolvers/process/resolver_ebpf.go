@@ -44,7 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	stime "github.com/DataDog/datadog-agent/pkg/util/time"
+	stime "github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
 const (

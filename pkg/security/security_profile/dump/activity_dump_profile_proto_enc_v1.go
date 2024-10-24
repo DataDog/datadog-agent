@@ -17,7 +17,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
-	stime "github.com/DataDog/datadog-agent/pkg/util/time"
+	stime "github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
 // ActivityDumpToSecurityProfileProto serializes an Activity Dump to a Security Profile protobuf representation
