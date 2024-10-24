@@ -61,6 +61,7 @@ type PythonCheck struct {
 	lastWarnings   []error
 	source         string
 	telemetry      bool // whether or not the telemetry is enabled for this check
+	haCheck        bool // whether or not the check is an HA Check
 	initConfig     string
 	instanceConfig string
 }
@@ -177,6 +178,11 @@ func (c *PythonCheck) Version() string {
 // IsTelemetryEnabled returns if the telemetry is enabled for this check
 func (c *PythonCheck) IsTelemetryEnabled() bool {
 	return c.telemetry
+}
+
+// IsHACheck returns if the check is an HA Check
+func (c *PythonCheck) IsHACheck() bool {
+	return c.haCheck
 }
 
 // ConfigSource returns the source of the configuration for this check
