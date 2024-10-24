@@ -39,12 +39,12 @@ type deviceMetric struct {
 }
 
 // Collect collects all the metrics from the given NVML device.
-func (coll *deviceMetricsCollector) Collect() ([]Metric, error) {
+func (c *deviceMetricsCollector) Collect() ([]Metric, error) {
 	var err error
 
 	values := make([]Metric, 0, len(allDeviceMetrics)) // preallocate to reduce allocations
 	for _, metric := range allDeviceMetrics {
-		value, ret := metric.getter(coll.device)
+		value, ret := metric.getter(c.device)
 		if ret != nvml.SUCCESS {
 			err = multierror.Append(err, fmt.Errorf("failed to get metric %s: %s", metric.name, nvml.ErrorString(ret)))
 			continue
@@ -53,7 +53,7 @@ func (coll *deviceMetricsCollector) Collect() ([]Metric, error) {
 		values = append(values, Metric{
 			Name:  metric.name,
 			Value: value,
-			Tags:  coll.tags,
+			Tags:  c.tags,
 		})
 
 	}
@@ -62,12 +62,12 @@ func (coll *deviceMetricsCollector) Collect() ([]Metric, error) {
 }
 
 // Close closes the collector (no-op for this collector).
-func (coll *deviceMetricsCollector) Close() error {
+func (c *deviceMetricsCollector) Close() error {
 	return nil
 }
 
 // Name returns the name of the collector.
-func (coll *deviceMetricsCollector) Name() string {
+func (c *deviceMetricsCollector) Name() string {
 	return deviceMetricsCollectorName
 }
 

@@ -30,29 +30,29 @@ func newRemappedRowsMetricsCollector(_ nvml.Interface, device nvml.Device, tags 
 }
 
 // Collect collects remapped rows metrics from the NVML device.
-func (coll *remappedRowsMetricsCollector) Collect() ([]Metric, error) {
+func (c *remappedRowsMetricsCollector) Collect() ([]Metric, error) {
 	// Collect remapped rows metrics from the NVML device
-	correctable, uncorrectable, pending, failed, ret := coll.device.GetRemappedRows()
+	correctable, uncorrectable, pending, failed, ret := c.device.GetRemappedRows()
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("cannot get remapped rows: %s", nvml.ErrorString(ret))
 	}
 
 	metrics := []Metric{
-		{Name: fmt.Sprintf("%s.correctable", remappedRowsMetrixPrefix), Value: float64(correctable), Tags: coll.tags},
-		{Name: fmt.Sprintf("%s.uncorrectable", remappedRowsMetrixPrefix), Value: float64(uncorrectable), Tags: coll.tags},
-		{Name: fmt.Sprintf("%s.pending", remappedRowsMetrixPrefix), Value: boolToFloat(pending), Tags: coll.tags},
-		{Name: fmt.Sprintf("%s.failed", remappedRowsMetrixPrefix), Value: boolToFloat(failed), Tags: coll.tags},
+		{Name: fmt.Sprintf("%s.correctable", remappedRowsMetrixPrefix), Value: float64(correctable), Tags: c.tags},
+		{Name: fmt.Sprintf("%s.uncorrectable", remappedRowsMetrixPrefix), Value: float64(uncorrectable), Tags: c.tags},
+		{Name: fmt.Sprintf("%s.pending", remappedRowsMetrixPrefix), Value: boolToFloat(pending), Tags: c.tags},
+		{Name: fmt.Sprintf("%s.failed", remappedRowsMetrixPrefix), Value: boolToFloat(failed), Tags: c.tags},
 	}
 
 	return metrics, nil
 }
 
 // Close closes the collector and releases any resources it might have allocated (no-op for this collector).
-func (coll *remappedRowsMetricsCollector) Close() error {
+func (c *remappedRowsMetricsCollector) Close() error {
 	return nil
 }
 
 // Name returns the name of the collector.
-func (coll *remappedRowsMetricsCollector) Name() string {
+func (c *remappedRowsMetricsCollector) Name() string {
 	return remappedRowsMetricsCollectorName
 }

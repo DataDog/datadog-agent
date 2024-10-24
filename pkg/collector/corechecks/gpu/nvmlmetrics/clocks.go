@@ -31,8 +31,8 @@ func newClocksMetricsCollector(_ nvml.Interface, device nvml.Device, tags []stri
 }
 
 // Collect collects clock throttle reason metrics from the NVML device.
-func (coll *clocksMetricsCollector) Collect() ([]Metric, error) {
-	reasons, ret := coll.device.GetCurrentClocksThrottleReasons()
+func (c *clocksMetricsCollector) Collect() ([]Metric, error) {
+	reasons, ret := c.device.GetCurrentClocksThrottleReasons()
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("cannot get throttle reasons: %s", nvml.ErrorString(ret))
 	}
@@ -44,7 +44,7 @@ func (coll *clocksMetricsCollector) Collect() ([]Metric, error) {
 		metric := Metric{
 			Name:  fmt.Sprintf("%s.%s", clocksMetricsPrefix, name),
 			Value: value,
-			Tags:  coll.tags,
+			Tags:  c.tags,
 		}
 		metrics = append(metrics, metric)
 	}
@@ -54,12 +54,12 @@ func (coll *clocksMetricsCollector) Collect() ([]Metric, error) {
 }
 
 // Close closes the collector and releases any resources it might have allocated (no-op for this collector).
-func (coll *clocksMetricsCollector) Close() error {
+func (c *clocksMetricsCollector) Close() error {
 	return nil
 }
 
 // Name returns the name of the collector.
-func (coll *clocksMetricsCollector) Name() string {
+func (c *clocksMetricsCollector) Name() string {
 	return clocksMetricsCollectorName
 }
 

@@ -29,7 +29,7 @@ func newFieldsMetricsCollector(_ nvml.Interface, device nvml.Device, tags []stri
 }
 
 // Collect collects all the metrics from the given NVML device.
-func (coll *fieldsMetricsCollector) Collect() ([]Metric, error) {
+func (c *fieldsMetricsCollector) Collect() ([]Metric, error) {
 	var err error
 
 	vals := make([]nvml.FieldValue, 0, len(allfieldValueMetrics))
@@ -38,7 +38,7 @@ func (coll *fieldsMetricsCollector) Collect() ([]Metric, error) {
 		vals[i].FieldId = metric.fieldValueID
 	}
 
-	ret := coll.device.GetFieldValues(vals)
+	ret := c.device.GetFieldValues(vals)
 	metrics := make([]Metric, 0, len(allfieldValueMetrics))
 	for i, val := range vals {
 		name := allfieldValueMetrics[i].name
@@ -52,19 +52,19 @@ func (coll *fieldsMetricsCollector) Collect() ([]Metric, error) {
 			err = multierror.Append(err, fmt.Errorf("failed to convert field value %s: %w", name, convErr))
 		}
 
-		metrics = append(metrics, Metric{Name: name, Value: value, Tags: coll.tags})
+		metrics = append(metrics, Metric{Name: name, Value: value, Tags: c.tags})
 	}
 
 	return metrics, ret
 }
 
 // Close cleans up any resources used by the collector (no-op for this collector).
-func (coll *fieldsMetricsCollector) Close() error {
+func (c *fieldsMetricsCollector) Close() error {
 	return nil
 }
 
 // Name returns the name of the collector.
-func (coll *fieldsMetricsCollector) Name() string {
+func (c *fieldsMetricsCollector) Name() string {
 	return fieldsMetricsCollectorName
 }
 
