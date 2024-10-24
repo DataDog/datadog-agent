@@ -77,7 +77,7 @@ func (l *UDSDatagramListener) Listen() {
 
 func (l *UDSDatagramListener) listen() {
 	log.Infof("dogstatsd-uds: starting to listen on %s", l.conn.LocalAddr())
-	_ = l.handleConnection(l.conn, func(conn *net.UnixConn) error {
+	_ = l.handleConnection(l.conn, func(conn netUnixConn) error {
 		return conn.Close()
 	})
 }
