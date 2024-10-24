@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	upstreamEventSchema = "https://raw.githubusercontent.com/DataDog/datadog-agent/main/docs/cloud-workload-security/backend.schema.json"
+	upstreamEventSchema = "https://raw.githubusercontent.com/DataDog/datadog-agent/main/docs/cloud-workload-security/backend_linux.schema.json"
 )
 
 //nolint:deadcode,unused
