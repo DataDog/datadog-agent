@@ -8,22 +8,26 @@
 {{- if or .autodiscoverySubnets .discoverySubnets }}
   Autodiscovery
   =============
-  {{- range $key, $value := .autodiscoverySubnets }}
-  {{- if eq $value "scanning" }}
-  Subnet {{$key}} scanning...
-  {{- else if eq $value "1" }}
-  Subnet {{$key}} scanned with {{$value}} device
+  {{- range $key, $subnet := .autodiscoverySubnets}}
+  {{- if eq $subnet.IpsCount $subnet.DevicesScanned }}
+  {{- if eq $subnet.DevicesFound "" }}
+  Subnet {{$subnet.Subnet}} scanned with config {{$subnet.ConfigHash}}. Found no IPs in the subnet.
   {{- else }}
-  Subnet {{$key}} scanned with {{$value}} devices
+  Subnet {{$subnet.Subnet}} scanned with config {{$subnet.ConfigHash}}. Found the following IP(s) : {{$subnet.DevicesFound}}
+  {{- end }}
+  {{- else }}
+  Scanning subnet {{$subnet.Subnet}} with config {{$subnet.ConfigHash}}... Currently scanning IP {{$subnet.DeviceScanning}}, {{$subnet.DevicesScanned}} IPs out of {{$subnet.IpsCount}} scanned.
   {{- end }}
   {{- end }}
-  {{- range $key, $value := .discoverySubnets}}
-  {{- if eq $value "scanning" }}
-  Subnet {{$key}} scanning...
-  {{- else if eq $value "1" }}
-  Subnet {{$key}} scanned with {{$value}} device
+  {{- range $key, $subnet := .discoverySubnets}}
+  {{- if eq $subnet.IpsCount $subnet.DevicesScanned }}
+  {{- if eq $subnet.DevicesFound "" }}
+  Subnet {{$subnet.Subnet}} scanned with config {{$subnet.ConfigHash}}. Found no IPs in the subnet.
   {{- else }}
-  Subnet {{$key}} scanned with {{$value}} devices
+  Subnet {{$subnet.Subnet}} scanned with config {{$subnet.ConfigHash}}. Found the following IP(s) : {{$subnet.DevicesFound}}
+  {{- end }}
+  {{- else }}
+  Scanning subnet {{$subnet.Subnet}} with config {{$subnet.ConfigHash}}... Currently scanning IP {{$subnet.DeviceScanning}}, {{$subnet.DevicesScanned}} IPs out of {{$subnet.IpsCount}} scanned.
   {{- end }}
   {{- end }}
 {{- end -}}

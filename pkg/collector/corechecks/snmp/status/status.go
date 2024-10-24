@@ -10,9 +10,9 @@ import (
 	"embed"
 	"encoding/json"
 	"expvar"
-	"fmt"
 	"io"
 	"net"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
@@ -60,37 +60,50 @@ func (Provider) populateStatus(stats map[string]interface{}) {
 	discoveryVar := expvar.Get("snmpDiscovery")
 
 	if discoveryVar != nil {
-
 		stats["discoverySubnets"] = getSubnetsStatus(discoveryVar)
 	}
 }
 
-func getSubnetsStatus(discoveryVar expvar.Var) map[string]string {
-	discoverySubnets := make(map[string]map[string]int)
+type subnetStatus struct {
+	Subnet         string
+	ConfigHash     string
+	DeviceScanning string
+	DevicesScanned int
+	IpsCount       int
+	DevicesFound   string
+}
+
+func getSubnetsStatus(discoveryVar expvar.Var) map[string]subnetStatus {
+	discoverySubnets := make(map[string]map[string]interface{})
 	discoveryJSON := []byte(discoveryVar.String())
 	json.Unmarshal(discoveryJSON, &discoverySubnets) //nolint:errcheck
 
 	devicesScannedInSubnet := discoverySubnets["devicesScannedInSubnet"]
 	devicesFoundInSubnet := discoverySubnets["devicesFoundInSubnet"]
-	discoverySubnetsStatus := make(map[string]string)
+	deviceScanningInSubnet := discoverySubnets["deviceScanningInSubnet"]
 
-	for subnet, devicesScanned := range devicesScannedInSubnet {
+	discoverySubnetsStatus := make(map[string]subnetStatus)
+
+	for subnetKey, devicesScanned := range devicesScannedInSubnet {
+		subnet, configHash := strings.Split(subnetKey, "|")[0], strings.Split(subnetKey, "|")[1]
 		_, ipNet, _ := net.ParseCIDR(subnet)
 
 		ones, bits := ipNet.Mask.Size()
 		ipsCount := 1 << (bits - ones)
+		devicesScannedCount := int(devicesScanned.(float64))
 
-		if ipsCount != devicesScanned {
-			discoverySubnetsStatus[subnet] = "scanning"
-			continue
-		}
+		discoverySubnetsStatus[subnetKey] = subnetStatus{subnet, configHash, deviceScanningInSubnet[subnetKey].(string), devicesScannedCount, ipsCount, ""}
 	}
 
-	for subnet, devicesFound := range devicesFoundInSubnet {
-		if discoverySubnetsStatus[subnet] == "scanning" {
-			continue
+	for subnetKey, devicesFound := range devicesFoundInSubnet {
+		devices := devicesFound.(string)
+		devicesList := strings.Split(devices, "|")
+
+		status, statusFound := discoverySubnetsStatus[subnetKey]
+		if statusFound {
+			status.DevicesFound = strings.Join(devicesList, ", ")
+			discoverySubnetsStatus[subnetKey] = status
 		}
-		discoverySubnetsStatus[subnet] = fmt.Sprintf("%d", devicesFound)
 	}
 
 	return discoverySubnetsStatus

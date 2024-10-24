@@ -12,22 +12,26 @@
 <div class="stat">
   <span class="stat_title">SNMP Autodiscovery</span>
   <span class="stat_data">
-    {{- range $key, $value := .autodiscoverySubnets }}
-    {{- if eq $value "scanning" }}
-    Subnet {{$key}} scanning...</br>
-    {{- else if eq $value "1" }}
-    Subnet {{$key}} scanned with {{$value}} device</br>
+    {{- range $key, $subnet := .autodiscoverySubnets}}
+    {{- if eq $subnet.IpsCount $subnet.DevicesScanned }}
+    {{- if eq $subnet.DevicesFound "" }}
+    Subnet {{$subnet.Subnet}} scanned with config {{$subnet.ConfigHash}}. Found no IPs in the subnet.</br>
     {{- else }}
-    Subnet {{$key}} scanned with {{$value}} devices</br>
+    Subnet {{$subnet.Subnet}} scanned with config {{$subnet.ConfigHash}}. Found the following IP(s) : {{$subnet.DevicesFound}}</br>
+    {{- end }}
+    {{- else }}
+    Scanning subnet {{$subnet.Subnet}} with config {{$subnet.ConfigHash}}... Currently scanning IP {{$subnet.DeviceScanning}}, {{$subnet.DevicesScanned}} IPs out of {{$subnet.IpsCount}} scanned.</br>
     {{- end }}
     {{- end }}
-    {{- range $key, $value := .discoverySubnets}}
-    {{- if eq $value "scanning" }}
-    Subnet {{$key}} scanning...</br>
-    {{- else if eq $value "1" }}
-    Subnet {{$key}} scanned with {{$value}} device</br>
+    {{- range $key, $subnet := .discoverySubnets}}
+    {{- if eq $subnet.IpsCount $subnet.DevicesScanned }}
+    {{- if eq $subnet.DevicesFound "" }}
+    Subnet {{$subnet.Subnet}} scanned with config {{$subnet.ConfigHash}}. Found no IPs in the subnet.
     {{- else }}
-    Subnet {{$key}} scanned with {{$value}} devices</br>
+    Subnet {{$subnet.Subnet}} scanned with config {{$subnet.ConfigHash}}. Found the following IP(s) : {{$subnet.DevicesFound}}</br>
+    {{- end }}
+    {{- else }}
+    Scanning subnet {{$subnet.Subnet}} with config {{$subnet.ConfigHash}}... Currently scanning IP {{$subnet.DeviceScanning}}, {{$subnet.DevicesScanned}} IPs out of {{$subnet.IpsCount}} scanned.</br>
     {{- end }}
     {{- end }}
   </span>

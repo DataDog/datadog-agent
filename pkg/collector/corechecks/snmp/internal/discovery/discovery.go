@@ -11,6 +11,7 @@ import (
 	"expvar"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,6 +30,7 @@ var (
 	discoveryVar              = expvar.NewMap("snmpDiscovery")
 	devicesScannedInSubnetVar = expvar.Map{}
 	devicesFoundInSubnetVar   = expvar.Map{}
+	deviceScanningInSubnetVar = expvar.Map{}
 )
 
 // Discovery handles snmp discovery states
@@ -75,8 +77,10 @@ type checkDeviceJob struct {
 func init() {
 	devicesScannedInSubnetVar.Init()
 	devicesFoundInSubnetVar.Init()
+	deviceScanningInSubnetVar.Init()
 	discoveryVar.Set("devicesScannedInSubnet", &devicesScannedInSubnetVar)
 	discoveryVar.Set("devicesFoundInSubnet", &devicesFoundInSubnetVar)
+	discoveryVar.Set("deviceScanningInSubnet", &deviceScanningInSubnetVar)
 }
 
 // Start discovery
@@ -155,8 +159,9 @@ func (d *Discovery) discoverDevices() {
 	discoveryTicker := time.NewTicker(time.Duration(d.config.DiscoveryInterval) * time.Second)
 	defer discoveryTicker.Stop()
 	for {
-		devicesScannedInSubnetVar.Set(subnet.config.Network, &expvar.Int{})
-		devicesFoundInSubnetVar.Set(subnet.config.Network, &expvar.Int{})
+		devicesScannedInSubnetVar.Set(getSubnetVarKey(subnet), &expvar.Int{})
+		devicesFoundInSubnetVar.Set(getSubnetVarKey(subnet), &expvar.String{})
+		deviceScanningInSubnetVar.Set(getSubnetVarKey(subnet), &expvar.String{})
 		log.Debugf("subnet %s: Run discovery", d.config.Network)
 		startingIP := make(net.IP, len(subnet.startingIP))
 		copy(startingIP, subnet.startingIP)
@@ -196,10 +201,16 @@ func (d *Discovery) discoverDevices() {
 }
 
 func (d *Discovery) checkDevice(job checkDeviceJob) error {
-	devicesScannedCounter := devicesScannedInSubnetVar.Get(job.subnet.config.Network)
+	devicesScannedCounter := devicesScannedInSubnetVar.Get(getSubnetVarKey(*job.subnet))
 	if devicesScannedCounter != nil {
 		devicesScannedCounter.(*expvar.Int).Add(1)
 	}
+
+	deviceScanningInSubnet := deviceScanningInSubnetVar.Get(getSubnetVarKey(*job.subnet))
+	if deviceScanningInSubnet != nil {
+		deviceScanningInSubnet.(*expvar.String).Set(job.currentIP.String())
+	}
+
 	deviceIP := job.currentIP.String()
 	config := *job.subnet.config // shallow copy
 	config.IPAddress = deviceIP
@@ -228,9 +239,15 @@ func (d *Discovery) checkDevice(job checkDeviceJob) error {
 		} else {
 			log.Debugf("subnet %s: SNMP get to %s success: %v", d.config.Network, deviceIP, value.Variables[0].Value)
 
-			devicesFoundCounter := devicesFoundInSubnetVar.Get(job.subnet.config.Network)
-			if devicesFoundCounter != nil {
-				devicesFoundCounter.(*expvar.Int).Add(1)
+			devicesFoundList := devicesFoundInSubnetVar.Get(getSubnetVarKey(*job.subnet))
+			if devicesFoundList != nil {
+				devicesFoundListString := devicesFoundList.(*expvar.String)
+				currentValue := devicesFoundListString.Value()
+				if currentValue == "" {
+					devicesFoundListString.Set(deviceIP)
+				} else {
+					devicesFoundListString.Set(fmt.Sprintf("%s|%s", currentValue, deviceIP))
+				}
 			}
 			d.createDevice(deviceDigest, job.subnet, deviceIP, true)
 		}
@@ -334,6 +351,10 @@ func (d *Discovery) writeCache(subnet *snmpSubnet) {
 	if err = persistentcache.Write(subnet.cacheKey, string(cacheValue)); err != nil {
 		log.Errorf("subnet %s: Couldn't write cache: %s", d.config.Network, err)
 	}
+}
+
+func getSubnetVarKey(subnet snmpSubnet) string {
+	return fmt.Sprintf("%s|%s", subnet.config.Network, strings.Trim(subnet.cacheKey, fmt.Sprintf("%s:", cacheKeyPrefix)))
 }
 
 // NewDiscovery return a new Discovery instance

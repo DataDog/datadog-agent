@@ -127,10 +127,22 @@ error2
 
 func TestStatusAutodiscovery(t *testing.T) {
 	autodiscoveryExpVar := expvar.NewMap("snmpAutodiscovery")
-	subnetVar := expvar.NewMap("devicesScannedInSubnet")
-	autodiscoveryExpVar.Set("devicesScannedInSubnet", subnetVar)
-	subnetVar.Set("127.0.0.1/24", expvar.Func(func() interface{} {
+	devicesScannedInSubnetVar := expvar.NewMap("devicesScannedInSubnet")
+	autodiscoveryExpVar.Set("devicesScannedInSubnet", devicesScannedInSubnetVar)
+	devicesScannedInSubnetVar.Set("127.0.0.1/24|hashconfig", expvar.Func(func() interface{} {
 		return 0
+	}))
+
+	devicesFoundInSubnetVar := expvar.NewMap("devicesFoundInSubnet")
+	autodiscoveryExpVar.Set("devicesFoundInSubnet", devicesFoundInSubnetVar)
+	devicesFoundInSubnetVar.Set("127.0.0.1/24|hashconfig", expvar.Func(func() interface{} {
+		return ""
+	}))
+
+	deviceScanningInSubnetVar := expvar.NewMap("deviceScanningInSubnet")
+	autodiscoveryExpVar.Set("deviceScanningInSubnet", deviceScanningInSubnetVar)
+	deviceScanningInSubnetVar.Set("127.0.0.1/24|hashconfig", expvar.Func(func() interface{} {
+		return ""
 	}))
 
 	provider := Provider{}
@@ -154,7 +166,7 @@ func TestStatusAutodiscovery(t *testing.T) {
 			expectedTextOutput := `
   Autodiscovery
   =============
-  Subnet 127.0.0.1/24 scanning...`
+  Scanning subnet 127.0.0.1/24 with config hashconfig... Currently scanning IP , 0 IPs out of 256 scanned.`
 
 			expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
 			output := strings.Replace(b.String(), "\r\n", "\n", -1)
@@ -171,7 +183,7 @@ func TestStatusAutodiscovery(t *testing.T) {
 <div class="stat">
   <span class="stat_title">SNMP Autodiscovery</span>
   <span class="stat_data">
-    Subnet 127.0.0.1/24 scanning...</br>
+    Scanning subnet 127.0.0.1/24 with config hashconfig... Currently scanning IP , 0 IPs out of 256 scanned.</br>
   </span>
 </div>`
 
