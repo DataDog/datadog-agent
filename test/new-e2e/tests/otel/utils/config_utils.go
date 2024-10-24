@@ -24,7 +24,7 @@ import (
 
 // TestOTelAgentInstalled checks that the OTel Agent is installed in the test suite
 func TestOTelAgentInstalled(s OTelTestSuite) {
-	agent := getAgentPod(s)
+	agent := GetAgentPod(s)
 	assert.Contains(s.T(), agent.ObjectMeta.String(), "otel-agent")
 }
 
@@ -34,7 +34,7 @@ func TestOTelFlare(s OTelTestSuite, providedCfg string, fullCfg string, sources 
 	require.NoError(s.T(), err)
 
 	s.T().Log("Starting flare")
-	agent := getAgentPod(s)
+	agent := GetAgentPod(s)
 	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "flare", "--email", "e2e@test.com", "--send"})
 	require.NoError(s.T(), err, "Failed to execute flare")
 	require.Empty(s.T(), stderr)
@@ -76,7 +76,8 @@ func TestOTelFlare(s OTelTestSuite, providedCfg string, fullCfg string, sources 
 	assert.JSONEq(s.T(), sources, string(srcJSONStr))
 }
 
-func getAgentPod(s OTelTestSuite) corev1.Pod {
+// GetAgentPod finds and returns the Datadog Agent pod from the test environment
+func GetAgentPod(s OTelTestSuite) corev1.Pod {
 	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
 	})
