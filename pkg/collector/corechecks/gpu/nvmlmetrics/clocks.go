@@ -32,15 +32,14 @@ func newClocksMetricsCollector(_ nvml.Interface, device nvml.Device, tags []stri
 
 // Collect collects clock throttle reason metrics from the NVML device.
 func (c *clocksMetricsCollector) Collect() ([]Metric, error) {
-	reasons, ret := c.device.GetCurrentClocksThrottleReasons()
+	allReasons, ret := c.device.GetCurrentClocksThrottleReasons()
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("cannot get throttle reasons: %s", nvml.ErrorString(ret))
 	}
 
 	metrics := make([]Metric, 0, len(allThrottleReasons))
-	for reasonName, reasonBit := range allThrottleReasons {
-		name, bit := reasonName, reasonBit
-		value := float64((reasons & bit) >> bit)
+	for name, bit := range allThrottleReasons {
+		value := boolToFloat((allReasons & bit) != 0)
 		metric := Metric{
 			Name:  fmt.Sprintf("%s.%s", clocksMetricsPrefix, name),
 			Value: value,
