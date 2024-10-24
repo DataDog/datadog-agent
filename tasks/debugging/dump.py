@@ -14,6 +14,10 @@ from tasks.debugging.symbols import SymbolStore
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.utils import download_to_tempfile
 
+LINUX_PLATFORMS = ['suse', 'debian']
+PLATFORM_CHOICES = ['windows'] + LINUX_PLATFORMS
+ARCH_CHOICES = ['x86_64', 'arm64']
+
 
 class CrashAnalyzer:
     env: Path
@@ -83,7 +87,7 @@ def get_crash_analyzer():
         ca.target_platform = 'windows'
         ca.target_arch = 'x86_64'
     else:
-        ca.target_platform = 'suse'
+        ca.target_platform = 'debian'
         ca.target_arch = 'x86_64'
     print(f"Using environment: {ca.env}")
     return ca
@@ -222,8 +226,10 @@ def get_symbols_for_job_id(ca: CrashAnalyzer, job_id: str) -> Path | None:
             with tempfile.TemporaryDirectory() as tmp_dir:
                 if ca.target_platform == 'windows':
                     _windows_extract_agent_symbols(path, tmp_dir)
-                elif ca.target_platform in ['suse', 'linux']:
+                elif ca.target_platform in LINUX_PLATFORMS:
                     _linux_extract_agent_symbols(path, tmp_dir)
+                else:
+                    raise NotImplementedError(f"Unsupported platform {ca.target_platform}")
                 syms = ca.symbol_store.add(version, ca.target_platform, ca.target_arch, tmp_dir)
 
     return syms
@@ -238,10 +244,37 @@ def get_or_fetch_artifacts(artifact_store: ArtifactStore, project: Project, job_
 
 
 def get_debug_symbols_for_version(version: str, platform: str, arch: str, output_dir: Path | str) -> None:
+    if platform == 'linux':
+        raise ValueError("Must specify a distribution instead of 'linux'")
     if platform == 'windows':
         _windows_get_debug_symbols_for_version(version, output_dir)
     elif platform == 'suse':
         _suse_get_debug_symbols_for_version(version, arch, output_dir)
+    elif platform == 'debian':
+        _debian_get_debug_symbols_for_version(version, arch, output_dir)
+    else:
+        raise NotImplementedError(f"Unsupported platform {platform}")
+
+
+def _debian_get_debug_symbols_for_version(version: str, arch: str, output_dir: Path | str) -> None:
+    base = 'https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/'
+    if 'rc' in version:
+        raise NotImplementedError("No debug symbols for rc Debian")
+    if arch == 'x86_64':
+        arch = 'amd64'
+    url = f'{base}datadog-agent-dbg_{version}-1_{arch}.deb'
+    print(f"Downloading symbols for {version} from {url}")
+    with download_to_tempfile(url) as deb_path:
+        _debian_extract_agent_symbols_from_deb(deb_path, output_dir)
+
+
+def _debian_extract_agent_symbols_from_deb(deb_path: Path | str, output_dir: Path | str) -> None:
+    assert shutil.which('dpkg-deb'), "dpkg-deb is required to extract symbols from DEBs"
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        os.system(f'dpkg-deb --raw-extract {deb_path} {tmp_dir}')
+        # example: opt/datadog-agent/.debug/opt/datadog-agent/bin/agent/agent.dbg
+        debug_root = Path(tmp_dir) / 'opt/datadog-agent/.debug'
+        shutil.copytree(debug_root, output_dir, dirs_exist_ok=True)
 
 
 def _suse_get_debug_symbols_for_version(version: str, arch: str, output_dir: Path | str) -> None:
@@ -321,7 +354,7 @@ def find_dmp_files(output_dir: Path | str) -> list[str]:
 def find_symbol_files_for_platform(platform: str, output_dir: Path | str) -> list[str]:
     if platform == 'windows':
         return list(glob.glob(f"{output_dir}/**/*.exe.debug", recursive=True))
-    elif platform in ['suse', 'linux']:
+    elif platform in LINUX_PLATFORMS:
         return list(glob.glob(f"{output_dir}/**/*.dbg", recursive=True))
     else:
         raise NotImplementedError(f"Unsupported platform {platform}")
@@ -330,7 +363,7 @@ def find_symbol_files_for_platform(platform: str, output_dir: Path | str) -> lis
 def find_platform_debug_artifacts(platform: str, path: Path | str) -> list[str]:
     if platform == 'windows':
         return list(glob.glob(f"{path}/**/*.debug.zip", recursive=True))
-    elif platform in ['suse', 'linux']:
+    elif platform in LINUX_PLATFORMS:
         return list(glob.glob(f"{path}/**/datadog-agent-dbg-*.tar.xz", recursive=True))
     else:
         raise NotImplementedError(f"Unsupported platform {platform}")
@@ -342,7 +375,7 @@ def get_package_job_id(project: Project, job_id: str, platform: str, arch: str) 
     """
     if platform == 'windows':
         package_job_name = "windows_msi_and_bosh_zip_x64-a7"
-    elif platform in ['suse', 'linux']:
+    elif platform in LINUX_PLATFORMS:
         if arch == 'x86_64':
             package_job_name = "datadog-agent-7-x64"
         elif arch == 'arm64':
