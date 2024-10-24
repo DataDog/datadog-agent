@@ -48,18 +48,10 @@ func GetBTFLoaderInfo() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	res, _, err := loader.btfLoader.Get()
-	if err != nil {
-		return "", err
-	}
-	// no error but also no data: means it tried all the loaders and got nothing back
-	if res == nil {
-		embeddedPath, err := loader.btfLoader.embeddedPath()
-		message := "BTF loaders did not find BTF files. btfLoader.embeddedPath() returned:"
-		result := fmt.Sprintf("%s\npath: %s\nerr: %v\n", message, embeddedPath, err)
-		return result, nil
-	}
-	return res.String(), nil
+
+	metadataStr := loader.btfLoader.resultMetadata.String()
+	infoStr := fmt.Sprintf("btfLoader result: %s\n%s", loader.btfLoader.result, metadataStr)
+	return infoStr, nil
 }
 
 func (c *coreAssetLoader) loadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.Options) error) error {
