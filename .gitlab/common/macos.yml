@@ -1,6 +1,31 @@
 ---
 # This is the scripts to be executed on the Gitlab macOS runners before every job.
 # We don't have virtualization now so we need to clean the environment and install the proper dependencies before every job.
+.list_go_versions_commands: &list_go_versions_commands
+  - |
+    echo "Don't forget to regularly delete Go unused versions. Here are the installed Go versions and their disk space on the runner:"
+    echo "Go:"
+    du -sh $HOME/.gimme/versions/*
+    echo "To remove a Go version please run:"
+    echo "gimme uninstall <version>"
+
+.list_python_versions_commands: &list_python_versions_commands
+  - |
+    echo "Don't forget to regularly delete Python unused versions. Here are the installed Python versions and their disk space on the runner:"
+    echo "Python:"
+    du -sh $(pyenv root)/versions/*
+    echo "To remove a Python version please run:"
+    echo "pyenv uninstall -f <version>"
+
+.check_python_version_commands: &check_python_version_commands
+  - |
+    PYTHON_REPO_VERSION=$(cat .python-version)
+    PYTHON_VERSION=$(python3 --version | awk '{print $2}' | sed 's/\.[0-9]*$//')
+    if [ "$PYTHON_REPO_VERSION" != "$PYTHON_VERSION" ]; then
+      echo "Warning: The current Python version $PYTHON_VERSION is different from $PYTHON_REPO_VERSION in .python-version."
+      echo "Installing Python $PYTHON_REPO_VERSION..."
+    fi
+
 .macos_gitlab:
   variables:
     PYTHON_RUNTIMES: "3"
@@ -13,40 +38,12 @@
     - |
       pyenv virtualenv $PYTHON_VERSION datadog-agent-python-$PYTHON_VERSION
       pyenv activate datadog-agent-python-$PYTHON_VERSION
-    - !reference [.check_right_python_version]
-    - !reference [.list_go_versions]
-    - !reference [.list_python_versions]
+    - *check_python_version_commands
+    - *list_go_versions_commands
+    - *list_python_versions_commands
     # Installing the job dependencies
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt
     - pyenv rehash
     - inv -e rtloader.make
     - inv -e rtloader.install
     - inv -e install-tools
-
-.list_go_versions:
-  script:
-    - |
-      echo "Don't forget to regularly delete Go unused versions. Here are the installed Go versions and their disk space on the runner:"
-      echo "Go:"
-      du -sh $HOME/.gimme/versions/*
-      echo "To remove a Go version please run:"
-      echo "gimme uninstall <version>"
-
-.list_python_versions:
-  script:
-    - |
-      echo "Don't forget to regularly delete Python unused versions. Here are the installed Python versions and their disk space on the runner:"
-      echo "Python:"
-      du -sh $(pyenv root)/versions/*
-      echo "To remove a Python version please run:"
-      echo "pyenv uninstall -f <version>"
-
-.check_right_python_version:
-  script:
-    - |
-      PYTHON_REPO_VERSION=$(cat .python-version)
-      PYTHON_VERSION=$(python3 --version | awk '{print $2}' | sed 's/\.[0-9]*$//')
-      if [ "$PYTHON_REPO_VERSION" != "$PYTHON_VERSION" ]; then
-        echo "Warning: The current Python version $PYTHON_VERSION is different from $PYTHON_REPO_VERSION in .python-version."
-        echo "Installing Python $PYTHON_REPO_VERSION..."
-      fi
