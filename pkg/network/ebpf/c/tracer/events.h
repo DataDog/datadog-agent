@@ -23,6 +23,7 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     conn_tuple.netns = 0;
     normalize_tuple(&conn_tuple);
     delete_protocol_stack(&conn_tuple, NULL, FLAG_TCP_CLOSE_DELETION);
+    // TODO: delete TLS enhanced tags
 
     conn_tuple_t *skb_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
     if (skb_tup_ptr == NULL) {

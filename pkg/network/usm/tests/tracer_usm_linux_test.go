@@ -282,18 +282,6 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *tracer.Tracer, c
 	})
 }
 
-func getFreePort() (port uint16, err error) {
-	var a *net.TCPAddr
-	if a, err = net.ResolveTCPAddr("tcp", "localhost:0"); err == nil {
-		var l *net.TCPListener
-		if l, err = net.ListenTCP("tcp", a); err == nil {
-			defer l.Close()
-			return uint16(l.Addr().(*net.TCPAddr).Port), nil
-		}
-	}
-	return
-}
-
 func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected() {
 	t := s.T()
 	cfg := tracertestutil.Config()
@@ -391,7 +379,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			clientPort, err := getFreePort()
+			clientPort, err := tracertestutil.GetFreePort()
 			require.NoError(t, err)
 			dialer := &net.Dialer{
 				LocalAddr: &net.TCPAddr{
@@ -451,7 +439,7 @@ func (s *USMSuite) TestTLSClassification() {
 		t.Skip("TLS classification platform not supported")
 	}
 
-	port, err := getFreePort()
+	port, err := tracertestutil.GetFreePort()
 	require.NoError(t, err)
 	portAsString := strconv.Itoa(int(port))
 

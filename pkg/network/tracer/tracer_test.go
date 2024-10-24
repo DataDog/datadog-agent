@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,6 +38,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -1053,7 +1057,6 @@ func (s *TracerSuite) TestDNSStats() {
 
 func (s *TracerSuite) TestTCPEstablished() {
 	t := s.T()
-	// Ensure closed connections are flushed as soon as possible
 	cfg := testConfig()
 
 	tr := setupTracer(t, cfg)
@@ -1406,4 +1409,92 @@ func findFailedConnectionByRemoteAddr(remoteAddr string, conns *network.Connecti
 		return netip.MustParseAddrPort(remoteAddr) == netip.AddrPortFrom(cs.Dest.Addr, cs.DPort) && cs.TCPFailures[errorCode] > 0
 	}
 	return network.FirstConnection(conns, failureFilter)
+}
+
+func (s *TracerSuite) TestTLSClassification() {
+	t := s.T()
+	cfg := testConfig()
+
+	if !kprobe.ClassificationSupported(cfg) {
+		t.Skip("TLS classification platform not supported")
+	}
+	//testutil.GetFreePort()
+	port := uint16(443)
+	//require.NoError(t, err)
+	portAsString := strconv.Itoa(int(port))
+
+	tr := setupTracer(t, cfg)
+
+	type tlsTest struct {
+		name            string
+		postTracerSetup func(t *testing.T)
+		validation      func(t *testing.T, tr *Tracer)
+	}
+	tests := make([]tlsTest, 0)
+	//for _, scenario := range []uint16{tls.VersionTLS10, tls.VersionTLS11, tls.VersionTLS12, tls.VersionTLS13} {
+	for _, scenario := range []uint16{tls.VersionTLS12} {
+		scenario := scenario
+		tests = append(tests, tlsTest{
+			name: strings.Replace(tls.VersionName(scenario), " ", "-", 1),
+			postTracerSetup: func(t *testing.T) {
+				srv := usmtestutil.NewTLSServerWithSpecificVersion("localhost:"+portAsString, func(conn net.Conn) {
+					defer conn.Close()
+					// Echo back whatever is received
+					_, err := io.Copy(conn, conn)
+					if err != nil {
+						fmt.Printf("Failed to echo data: %v\n", err)
+						return
+					}
+				}, scenario)
+				done := make(chan struct{})
+				require.NoError(t, srv.Run(done))
+				t.Cleanup(func() { close(done) })
+				tlsConfig := &tls.Config{
+					MinVersion:             scenario,
+					MaxVersion:             scenario,
+					InsecureSkipVerify:     true,
+					SessionTicketsDisabled: true, // Disable session tickets
+					ClientSessionCache:     nil,  // Disable session cache
+				}
+				conn, err := net.Dial("tcp", "localhost:"+portAsString)
+				require.NoError(t, err)
+				defer conn.Close()
+
+				// Wrap the TCP connection with TLS
+				tlsConn := tls.Client(conn, tlsConfig)
+
+				// Perform the TLS handshake
+				require.NoError(t, tlsConn.Handshake())
+			},
+			validation: func(t *testing.T, tr *Tracer) {
+				// Iterate through active connections until we find connection created above
+				require.Eventuallyf(t, func() bool {
+					payload := getConnections(t, tr)
+					for _, c := range payload.Conns {
+						if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) {
+							return true
+						}
+					}
+					return false
+				}, 3*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port %v", portAsString)
+			},
+		})
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if ebpftest.GetBuildMode() == ebpftest.Fentry {
+				t.Skip("protocol classification not supported for fentry tracer")
+			}
+			t.Cleanup(func() { tr.RemoveClient(clientID) })
+			t.Cleanup(func() { _ = tr.Pause() })
+
+			tr.RemoveClient(clientID)
+			require.NoError(t, tr.RegisterClient(clientID))
+			require.NoError(t, tr.Resume(), "enable probes - before post tracer")
+			tt.postTracerSetup(t)
+			require.NoError(t, tr.Pause(), "disable probes - after post tracer")
+			tt.validation(t, tr)
+		})
+	}
 }
