@@ -13,13 +13,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
-func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, map[model.StreamKey]*StreamHandler, int64) {
+func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, map[streamKey]*StreamHandler, int64) {
 	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock())
 	require.NoError(t, err)
 	require.NotNil(t, sysCtx)
@@ -28,7 +27,7 @@ func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, map[model.StreamKe
 	require.NoError(t, err)
 
 	// Align mock time with boot time for consistent time resolution
-	streamHandlers := make(map[model.StreamKey]*StreamHandler)
+	streamHandlers := make(map[streamKey]*StreamHandler)
 	statsGen := newStatsGenerator(sysCtx, ktime, streamHandlers)
 	require.NotNil(t, statsGen)
 
@@ -42,7 +41,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	pid := uint32(1)
 	streamID := uint64(120)
 	pidTgid := uint64(pid)<<32 + uint64(pid)
-	skeyKern := model.StreamKey{Pid: pid, Stream: streamID}
+	skeyKern := streamKey{pid: pid, stream: streamID}
 	streamHandlers[skeyKern] = &StreamHandler{
 		processEnded: false,
 		kernelLaunches: []gpuebpf.CudaKernelLaunch{
@@ -57,7 +56,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	}
 
 	allocSize := uint64(10)
-	skeyAlloc := model.StreamKey{Pid: pid, Stream: 0}
+	skeyAlloc := streamKey{pid: pid, stream: 0}
 	streamHandlers[skeyAlloc] = &StreamHandler{
 		processEnded: false,
 		memAllocEvents: map[uint64]gpuebpf.CudaMemEvent{
@@ -93,30 +92,30 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 
 	pid := uint32(1)
 	streamID := uint64(120)
-	skeyKern := model.StreamKey{Pid: pid, Stream: streamID}
+	skeyKern := streamKey{pid: pid, stream: streamID}
 	numThreads := uint64(5)
 	streamHandlers[skeyKern] = &StreamHandler{
 		processEnded: false,
-		kernelSpans: []*model.KernelSpan{
+		kernelSpans: []*kernelSpan{
 			{
-				StartKtime:     uint64(startKtime),
-				EndKtime:       uint64(endKtime),
-				AvgThreadCount: numThreads,
-				NumKernels:     10,
+				startKtime:     uint64(startKtime),
+				endKtime:       uint64(endKtime),
+				avgThreadCount: numThreads,
+				numKernels:     10,
 			},
 		},
 	}
 
 	allocSize := uint64(10)
-	skeyAlloc := model.StreamKey{Pid: pid, Stream: 0}
+	skeyAlloc := streamKey{pid: pid, stream: 0}
 	streamHandlers[skeyAlloc] = &StreamHandler{
 		processEnded: false,
-		allocations: []*model.MemoryAllocation{
+		allocations: []*memoryAllocation{
 			{
-				StartKtime: uint64(startKtime),
-				EndKtime:   uint64(endKtime),
-				Size:       allocSize,
-				IsLeaked:   false,
+				startKtime: uint64(startKtime),
+				endKtime:   uint64(endKtime),
+				size:       allocSize,
+				isLeaked:   false,
 			},
 		},
 	}
@@ -146,7 +145,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 
 	pid := uint32(1)
 	streamID := uint64(120)
-	skeyKern := model.StreamKey{Pid: pid, Stream: streamID}
+	skeyKern := streamKey{pid: pid, stream: streamID}
 	pidTgid := uint64(pid)<<32 + uint64(pid)
 	numThreads := uint64(5)
 	streamHandlers[skeyKern] = &StreamHandler{
@@ -160,26 +159,26 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 				Block_size:      gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
 			},
 		},
-		kernelSpans: []*model.KernelSpan{
+		kernelSpans: []*kernelSpan{
 			{
-				StartKtime:     uint64(startKtime),
-				EndKtime:       uint64(endKtime),
-				AvgThreadCount: numThreads,
-				NumKernels:     10,
+				startKtime:     uint64(startKtime),
+				endKtime:       uint64(endKtime),
+				avgThreadCount: numThreads,
+				numKernels:     10,
 			},
 		},
 	}
 
 	allocSize := uint64(10)
-	skeyAlloc := model.StreamKey{Pid: pid, Stream: 0}
+	skeyAlloc := streamKey{pid: pid, stream: 0}
 	streamHandlers[skeyAlloc] = &StreamHandler{
 		processEnded: false,
-		allocations: []*model.MemoryAllocation{
+		allocations: []*memoryAllocation{
 			{
-				StartKtime: uint64(startKtime),
-				EndKtime:   uint64(endKtime),
-				Size:       allocSize,
-				IsLeaked:   false,
+				startKtime: uint64(startKtime),
+				endKtime:   uint64(endKtime),
+				size:       allocSize,
+				isLeaked:   false,
 			},
 		},
 		memAllocEvents: map[uint64]gpuebpf.CudaMemEvent{
