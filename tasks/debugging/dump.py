@@ -113,6 +113,11 @@ def get_crash_analyzer(platform=None, arch=None):
     },
 )
 def debug_job_dump(ctx, job_id: str, platform=None, arch=None):
+    """
+    Launch delve or windbg to debug a dump from a job's artifacts.
+
+    Downloads debug symbols from the pipeline's package build job.
+    """
     ca = get_crash_analyzer(platform=platform, arch=arch)
     ca.select_project(get_gitlab_repo())
     assert ca.active_project
@@ -132,7 +137,7 @@ def debug_job_dump(ctx, job_id: str, platform=None, arch=None):
     assert ca.active_dump
 
     # select symbol file
-    syms = get_symbols_for_job_id(ca, job_id)
+    _, syms = get_symbols_for_job_id(ca, job_id)
     if not syms:
         print("No symbols found")
         return
@@ -155,7 +160,7 @@ def debug_job_dump(ctx, job_id: str, platform=None, arch=None):
 @task(
     help={
         "job_id": "The job ID to download the dump from",
-        "with_symbols": "Whether to download debug symbols",
+        "with_symbols": "Whether to download debug symbols from the package build job",
         "platform": f"The target platform ({', '.join(PLATFORM_CHOICES)})",
         "arch": f"The target architecture ({', '.join(ARCH_CHOICES)})",
     },
@@ -163,6 +168,8 @@ def debug_job_dump(ctx, job_id: str, platform=None, arch=None):
 def get_job_dump(ctx, job_id: str, with_symbols=False, platform=None, arch=None):
     """
     Download a dump from a job and save it to the output directory.
+
+    Optionally download debug symbols from the pipeline's package build job.
     """
     ca = get_crash_analyzer(platform=platform, arch=arch)
     ca.select_project(get_gitlab_repo())
@@ -182,7 +189,7 @@ def get_job_dump(ctx, job_id: str, with_symbols=False, platform=None, arch=None)
         print('\t', dmp_file)
 
     if with_symbols:
-        syms = get_symbols_for_job_id(ca, job_id)
+        _, syms = get_symbols_for_job_id(ca, job_id)
         if not syms:
             print("No symbols found")
             return
@@ -193,8 +200,8 @@ def get_job_dump(ctx, job_id: str, with_symbols=False, platform=None, arch=None)
 
 @task(
     help={
-        "job_id": "The job ID to download the symbols from",
-        "version": "The version of the symbols to download",
+        "job_id": "Any job ID from the pipeline to download the symbols from",
+        "version": "The released Agent version to download symbols for (e.g. 7.57.0)",
         "platform": f"The target platform ({', '.join(PLATFORM_CHOICES)})",
         "arch": f"The target architecture ({', '.join(ARCH_CHOICES)})",
     }
@@ -202,6 +209,9 @@ def get_job_dump(ctx, job_id: str, with_symbols=False, platform=None, arch=None)
 def get_debug_symbols(
     ctx, job_id: str | None = None, version: str | None = None, platform: str | None = None, arch: str | None = None
 ):
+    """
+    Download debug symbols for a specific Agent version or pipeline
+    """
     ca = get_crash_analyzer(platform=platform, arch=arch)
 
     if version:
@@ -210,7 +220,7 @@ def get_debug_symbols(
             syms = ca.symbol_store.add(version, ca.target_platform, ca.target_arch, tmp_dir)
     elif job_id:
         ca.select_project(get_gitlab_repo())
-        syms = get_symbols_for_job_id(ca, job_id)
+        version, syms = get_symbols_for_job_id(ca, job_id)
 
     print(f"Symbols for {version} in {syms}")
 
@@ -225,7 +235,7 @@ def add_gitlab_job_artifacts_to_artifact_store(
         return artifact_store.add(project_id, job_id, temp_dir)
 
 
-def get_symbols_for_job_id(ca: CrashAnalyzer, job_id: str) -> Path | None:
+def get_symbols_for_job_id(ca: CrashAnalyzer, job_id: str) -> tuple[str | None, Path | None]:
     if not ca.active_project:
         raise ValueError("No active project set")
     project_id = ca.active_project.name
@@ -235,7 +245,7 @@ def get_symbols_for_job_id(ca: CrashAnalyzer, job_id: str) -> Path | None:
     if artifact and artifact.version:
         syms = ca.symbol_store.get(artifact.version, ca.target_platform, ca.target_arch)
         if syms:
-            return syms
+            return artifact.version, syms
     # Need to get the symbols from the package build job in the pipeline
     package_job_id = get_package_job_id(ca.active_project, job_id, ca.target_platform, ca.target_arch)
     if not package_job_id:
@@ -269,7 +279,7 @@ def get_symbols_for_job_id(ca: CrashAnalyzer, job_id: str) -> Path | None:
                     raise NotImplementedError(f"Unsupported platform {ca.target_platform}")
                 syms = ca.symbol_store.add(version, ca.target_platform, ca.target_arch, tmp_dir)
 
-    return syms
+    return version, syms
 
 
 def get_or_fetch_artifacts(artifact_store: ArtifactStore, project: Project, job_id: str) -> Artifacts:
