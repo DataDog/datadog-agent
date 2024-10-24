@@ -266,7 +266,7 @@ func (s *Launcher) getLeastRecentlyModifiedFile() *fileInfo {
 	var leastRecentlyModifiedFile *fileInfo
 
 	for _, fileInfo := range s.integrationToFile {
-		if fileInfo.lastModified.Before(leastRecentlyModifiedTime) {
+		if fileInfo.lastModified.Before(leastRecentlyModifiedTime) || fileInfo.lastModified.Equal(leastRecentlyModifiedTime) {
 			leastRecentlyModifiedFile = fileInfo
 			leastRecentlyModifiedTime = fileInfo.lastModified
 		}
