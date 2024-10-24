@@ -21,6 +21,7 @@ import (
 type testOpts struct {
 	disableFilters                             bool
 	disableApprovers                           bool
+	disableEnvVarsResolution                   bool
 	enableActivityDump                         bool
 	activityDumpRateLimiter                    int
 	activityDumpTagRules                       bool
@@ -108,6 +109,7 @@ func withForceReload() optFunc {
 
 func (to testOpts) Equal(opts testOpts) bool {
 	return to.disableApprovers == opts.disableApprovers &&
+		to.disableEnvVarsResolution == opts.disableEnvVarsResolution &&
 		to.enableActivityDump == opts.enableActivityDump &&
 		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
 		to.activityDumpTagRules == opts.activityDumpTagRules &&
