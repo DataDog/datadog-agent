@@ -34,13 +34,6 @@ type Provides struct {
 	Comp rdnsquerier.Component
 }
 
-// ReverseDNSResult is the result of a reverse DNS lookup
-type ReverseDNSResult struct {
-	IP       string
-	Hostname string
-	Err      error
-}
-
 const moduleName = "reverse_dns_enrichment"
 
 type rdnsQuerierTelemetry = struct {
@@ -285,11 +278,11 @@ func (q *rdnsQuerierImpl) GetHostnameSync(ctx context.Context, ipAddr string) (s
 // If the IP address is not in the private address space then it is ignored - no lookup is performed and nil error is returned.
 // If the IP address is in the private address space then the IP address will be resolved to a hostname.
 // The function accepts a timeout via context and will return an error if the timeout is reached.
-func (q *rdnsQuerierImpl) GetHostnames(ctx context.Context, ipAddrs []string) map[string]ReverseDNSResult {
+func (q *rdnsQuerierImpl) GetHostnames(ctx context.Context, ipAddrs []string) map[string]rdnsquerier.ReverseDNSResult {
 	q.internalTelemetry.total.Add(float64(len(ipAddrs)))
 
 	var wg sync.WaitGroup
-	resultsChan := make(chan ReverseDNSResult, len(ipAddrs))
+	resultsChan := make(chan rdnsquerier.ReverseDNSResult, len(ipAddrs))
 
 	for _, ipAddr := range ipAddrs {
 		wg.Add(1)
@@ -298,13 +291,13 @@ func (q *rdnsQuerierImpl) GetHostnames(ctx context.Context, ipAddrs []string) ma
 			netipAddr, err := netip.ParseAddr(ipAddr)
 			if err != nil {
 				q.internalTelemetry.invalidIPAddress.Inc()
-				resultsChan <- ReverseDNSResult{IP: ipAddr, Err: fmt.Errorf("invalid IP address %s: %v", ipAddr, err)}
+				resultsChan <- rdnsquerier.ReverseDNSResult{IP: ipAddr, Err: fmt.Errorf("invalid IP address %s: %v", ipAddr, err)}
 				return
 			}
 
 			if !netipAddr.IsPrivate() {
 				q.logger.Tracef("Reverse DNS Enrichment IP address %s is not in the private address space", ipAddr)
-				resultsChan <- ReverseDNSResult{IP: ipAddr}
+				resultsChan <- rdnsquerier.ReverseDNSResult{IP: ipAddr}
 				return
 			}
 			q.internalTelemetry.private.Inc()
@@ -331,13 +324,13 @@ func (q *rdnsQuerierImpl) GetHostnames(ctx context.Context, ipAddrs []string) ma
 			case hostname := <-hostnameChan:
 				asyncErr := <-asyncErrChan // this is okay because we know that as soon as we send hostname, we send asyncErr
 				err = multierr.Append(err, asyncErr)
-				resultsChan <- ReverseDNSResult{
+				resultsChan <- rdnsquerier.ReverseDNSResult{
 					IP:       ipAddr,
 					Hostname: hostname,
 					Err:      err,
 				}
 			case <-ctx.Done():
-				resultsChan <- ReverseDNSResult{IP: ipAddr, Err: fmt.Errorf("timeout reached while resolving hostname for IP address %v", ipAddr)}
+				resultsChan <- rdnsquerier.ReverseDNSResult{IP: ipAddr, Err: fmt.Errorf("timeout reached while resolving hostname for IP address %v", ipAddr)}
 			}
 		}(ipAddr)
 	}
@@ -347,7 +340,7 @@ func (q *rdnsQuerierImpl) GetHostnames(ctx context.Context, ipAddrs []string) ma
 		close(resultsChan)
 	}()
 
-	results := make(map[string]ReverseDNSResult, len(ipAddrs))
+	results := make(map[string]rdnsquerier.ReverseDNSResult, len(ipAddrs))
 	for result := range resultsChan {
 		results[result.IP] = result
 	}
