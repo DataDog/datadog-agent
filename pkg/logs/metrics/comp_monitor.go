@@ -98,6 +98,7 @@ func ReportComponentEgress(size Size, name string, instance string) {
 }
 
 type UtilizationMonitor struct {
+	sync.Mutex
 	inUse      float64
 	idle       float64
 	startIdle  time.Time
@@ -118,11 +119,15 @@ func NewUtilizationMonitor(name, instance string) *UtilizationMonitor {
 }
 
 func (u *UtilizationMonitor) Start() {
+	u.Lock()
+	defer u.Unlock()
 	u.idle += float64(time.Since(u.startIdle) / time.Millisecond)
 	u.startInUse = time.Now()
 }
 
 func (u *UtilizationMonitor) Stop() {
+	u.Lock()
+	defer u.Unlock()
 	u.inUse += float64(time.Since(u.startInUse) / time.Millisecond)
 	u.startIdle = time.Now()
 	select {
