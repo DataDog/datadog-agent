@@ -90,6 +90,6 @@ func (ctc *testContainer) start() error {
 	return nil
 }
 
-func (ctc *testContainer) buildDockerExecArgs(args ...string) []string {
+func (ctc *testContainer) buildDockerExecArgs(args []string) []string {
 	return append([]string{"docker", "exec", containerName}, args...)
 }

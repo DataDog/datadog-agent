@@ -52,8 +52,9 @@ type testConfig struct {
 }
 
 type userProvidedConfig struct {
-	PackagesRunConfig map[string]packageRunConfiguration `json:"filters"`
-	InContainerImage  string                             `json:"testcontainer"`
+	PackagesRunConfig  map[string]packageRunConfiguration `json:"filters"`
+	InContainerImage   string                             `json:"testcontainer"`
+	AdditionalTestArgs []string                           `json:"additional_test_args"`
 }
 
 const ciVisibility = "/ci-visibility"
@@ -248,9 +249,11 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		xmlpath := filepath.Join(xmlDir, fmt.Sprintf("%s.xml", junitfilePrefix))
 		jsonpath := filepath.Join(jsonDir, fmt.Sprintf("%s.json", junitfilePrefix))
 
-		testsuiteArgs := []string{testsuite}
+		var testsuiteArgs []string
 		if testContainer != nil {
-			testsuiteArgs = testContainer.buildDockerExecArgs(testsuite, "--env", "docker")
+			testsuiteArgs = testContainer.buildDockerExecArgs(testsuite, testConfig.AdditionalTestArgs)
+		} else {
+			testsuiteArgs = append([]string{testsuite}, testConfig.AdditionalTestArgs...)
 		}
 
 		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuiteArgs, testConfig)
