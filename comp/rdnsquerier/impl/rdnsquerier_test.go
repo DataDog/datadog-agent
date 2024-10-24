@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	rdnsquerierdef "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1057,7 +1059,7 @@ func TestGetHostnameSync(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(ts.ctx, tt.timeout)
 			defer cancel()
-			hostname, err := internalRDNSQuerier.GetHostnameSync(ctx, tt.ip)
+			hostname, err := internalRDNSQuerier.GetHostname(ctx, tt.ip)
 			if tt.errMsg != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
@@ -1079,7 +1081,7 @@ func TestGetHostnameSyncTimeouts(t *testing.T) {
 	ctx, cancel := context.WithTimeout(ts.ctx, 1*time.Millisecond)
 
 	// Test with a timeout exceeding the specified timeout limit
-	hostname, err := internalRDNSQuerier.GetHostnameSync(ctx, "192.168.1.100")
+	hostname, err := internalRDNSQuerier.GetHostname(ctx, "192.168.1.100")
 	assert.Equal(t, "", hostname)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "timeout reached while resolving hostname for IP address 192.168.1.100")
@@ -1099,14 +1101,14 @@ func TestGetHostnames(t *testing.T) {
 		ts       *testState
 		ipAddrs  []string
 		timeout  time.Duration
-		expected map[string]ReverseDNSResult
+		expected map[string]rdnsquerierdef.ReverseDNSResult
 	}{
 		{
 			name:    "valid IPs",
 			ts:      defaultTs,
 			ipAddrs: []string{"192.168.1.100", "192.168.1.101"},
 			timeout: 1 * time.Second,
-			expected: map[string]ReverseDNSResult{
+			expected: map[string]rdnsquerierdef.ReverseDNSResult{
 				"192.168.1.100": {IP: "192.168.1.100", Hostname: "fakehostname-192.168.1.100"},
 				"192.168.1.101": {IP: "192.168.1.101", Hostname: "fakehostname-192.168.1.101"},
 			},
@@ -1116,7 +1118,7 @@ func TestGetHostnames(t *testing.T) {
 			ts:      defaultTs,
 			ipAddrs: []string{"invalid_ip", "192.168.1.102", "8.8.8.8", "192.168.1.100"},
 			timeout: 1 * time.Second,
-			expected: map[string]ReverseDNSResult{
+			expected: map[string]rdnsquerierdef.ReverseDNSResult{
 				"invalid_ip":    {IP: "invalid_ip", Err: fmt.Errorf("invalid IP address invalid_ip")},
 				"192.168.1.102": {IP: "192.168.1.102", Hostname: "fakehostname-192.168.1.102"},
 				"8.8.8.8":       {IP: "8.8.8.8"},
@@ -1128,7 +1130,7 @@ func TestGetHostnames(t *testing.T) {
 			ts:      testSetup(t, overrides, true, nil, 10*time.Second),
 			ipAddrs: []string{"192.168.1.105", "invalid", "8.8.8.8"},
 			timeout: 1 * time.Second,
-			expected: map[string]ReverseDNSResult{
+			expected: map[string]rdnsquerierdef.ReverseDNSResult{
 				"192.168.1.105": {IP: "192.168.1.105", Err: fmt.Errorf("timeout reached while resolving hostname for IP address 192.168.1.105")},
 				"invalid":       {IP: "invalid", Err: fmt.Errorf("invalid IP address invalid")},
 				"8.8.8.8":       {IP: "8.8.8.8"},
