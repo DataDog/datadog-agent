@@ -46,7 +46,7 @@ else
   end
 
   if debian_target?
-    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.3.1)'
+    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.4.0)'
   end
   unless osx_target?
     conflict 'datadog-agent'
