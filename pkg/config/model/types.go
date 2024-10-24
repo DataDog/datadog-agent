@@ -103,6 +103,9 @@ type ReaderWriter interface {
 type Setup interface {
 	// API implemented by viper.Viper
 
+	// SetReady should be called when Setup is done and the config is ready to be used
+	SetReady()
+
 	SetDefault(key string, value interface{})
 
 	SetEnvPrefix(in string)

@@ -50,6 +50,11 @@ type ntmConfig struct {
 	root   Node
 	noimpl notImplementedMethods
 
+	// defaultBuilder is used during Setup to construct the default source tree,
+	// it will be nil once the config is marked as "Ready" for use
+	defaultBuilder    map[string]interface{}
+	defaultSourceRoot Node
+
 	envPrefix      string
 	envKeyReplacer *strings.Replacer
 
@@ -129,7 +134,14 @@ func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
 
 // SetDefault assigns the value to the given key using source Default
 func (c *ntmConfig) SetDefault(key string, value interface{}) {
-	c.Set(key, value, model.SourceDefault)
+	c.Lock()
+	defer c.Unlock()
+	if c.isReady() {
+		panic("cannot SetDefault() once the config has been marked as ready for use")
+	}
+	key = strings.ToLower(key)
+	c.insertDefaultValue(key, value)
+	c.knownKeys[key] = struct{}{}
 }
 
 // UnsetForSource unsets a config entry for a given source
@@ -143,7 +155,11 @@ func (c *ntmConfig) UnsetForSource(_key string, _source model.Source) {
 func (c *ntmConfig) SetKnown(key string) {
 	c.Lock()
 	defer c.Unlock()
+	if c.isReady() {
+		panic("cannot SetKnown() once the config has been marked as ready for use")
+	}
 	key = strings.ToLower(key)
+	c.insertDefaultValue(key, nil)
 	c.knownKeys[key] = struct{}{}
 }
 
@@ -188,6 +204,48 @@ func (c *ntmConfig) GetKnownKeysLowercased() map[string]interface{} {
 		ret[key] = value
 	}
 	return ret
+}
+
+// SetReady is called when Setup is complete, and the config is ready to be used
+func (c *ntmConfig) SetReady() {
+	defaultSourceRoot, err := NewNode(c.defaultBuilder, model.SourceDefault)
+	if err != nil {
+		log.Errorf("%s", err)
+	}
+	// Assign the built tree to the default source
+	c.defaultSourceRoot = defaultSourceRoot
+	// By clearing the builder, the config is considered "Ready" for use
+	// Furthur calls to SetKnown, BindEnv, SetDefault will panic
+	c.defaultBuilder = nil
+	// TODO: Build the environment variable tree
+	// TODO: Instead of assigning defaultSource to root, merge the trees
+	c.root = c.defaultSourceRoot
+}
+
+func (c *ntmConfig) isReady() bool {
+	return c.defaultBuilder == nil
+}
+
+func (c *ntmConfig) insertDefaultValue(key string, defaultValue interface{}) {
+	currNode := c.defaultBuilder
+	keyParts := strings.Split(key, ".")
+	for len(keyParts) > 0 {
+		first := keyParts[0]
+		keyParts = keyParts[1:]
+		if currNode[first] == nil && len(keyParts) == 0 {
+			// Assign the leaf value if it used to be nil (don't overwrite existing defaults)
+			currNode[first] = defaultValue
+			break
+		} else if currNode[first] == nil {
+			build := make(map[string]interface{})
+			currNode[first] = build
+			currNode = build
+		} else if conv, ok := currNode[first].(map[string]interface{}); ok {
+			currNode = conv
+		} else {
+			return
+		}
+	}
 }
 
 // ParseEnvAsStringSlice registers a transform function to parse an environment variable as a []string.
@@ -242,6 +300,11 @@ func (c *ntmConfig) AllKeysLowercased() []string {
 func (c *ntmConfig) leafAtPath(key string) LeafNode {
 	pathParts := strings.Split(key, ".")
 	curr := c.root
+	if curr == nil {
+		log.Errorf("attempt to read key before config is constructed: %s", key)
+		return &missingLeaf
+	}
+
 	for _, part := range pathParts {
 		next, err := curr.GetChild(part)
 		if err != nil {
@@ -490,25 +553,29 @@ func (c *ntmConfig) mergeWithEnvPrefix(key string) string {
 func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 	c.Lock()
 	defer c.Unlock()
-	var envKeys []string
 
-	// If one input is given, viper derives an env key from it; otherwise, all inputs after
-	// the first are literal env vars.
+	if c.isReady() {
+		panic("cannot BindEnv() once the config has been marked as ready for use")
+	}
+	key = strings.ToLower(key)
+
+	// If only a key was given, with no associated envvars, then derive
+	// an envvar from the key name
 	if len(envvars) == 0 {
-		envKeys = []string{c.mergeWithEnvPrefix(key)}
-	} else {
-		envKeys = envvars
+		envvars = []string{c.mergeWithEnvPrefix(key)}
 	}
 
-	for _, key := range envKeys {
+	for _, envvar := range envvars {
 		// apply EnvKeyReplacer to each key
 		if c.envKeyReplacer != nil {
-			key = c.envKeyReplacer.Replace(key)
+			envvar = c.envKeyReplacer.Replace(envvar)
 		}
-		c.configEnvVars[key] = struct{}{}
+		// TODO: Use envvar to build the envvar source tree
+		c.configEnvVars[envvar] = struct{}{}
 	}
 
-	c.logErrorNotImplemented("BindEnv")
+	c.insertDefaultValue(key, nil)
+	c.knownKeys[key] = struct{}{}
 }
 
 // SetEnvKeyReplacer binds a replacer function for keys
@@ -697,10 +764,11 @@ func (c *ntmConfig) Object() model.Reader {
 // NewConfig returns a new Config object.
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
 	config := ntmConfig{
-		noimpl:        &notImplMethodsImpl{},
-		configEnvVars: map[string]struct{}{},
-		knownKeys:     map[string]struct{}{},
-		unknownKeys:   map[string]struct{}{},
+		noimpl:         &notImplMethodsImpl{},
+		defaultBuilder: make(map[string]interface{}),
+		configEnvVars:  map[string]struct{}{},
+		knownKeys:      map[string]struct{}{},
+		unknownKeys:    map[string]struct{}{},
 	}
 
 	config.SetTypeByDefaultValue(true)
