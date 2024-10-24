@@ -13,7 +13,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
-const clocksMetricsCollectorName = "clocks"
+const clocksCollectorName = "clocks"
 const clocksMetricsPrefix = "clock_throttle_reasons"
 
 // clocksMetricsCollector collects clock metrics from an NVML device.
@@ -59,7 +59,7 @@ func (c *clocksMetricsCollector) Close() error {
 
 // Name returns the name of the collector.
 func (c *clocksMetricsCollector) Name() string {
-	return clocksMetricsCollectorName
+	return clocksCollectorName
 }
 
 var allThrottleReasons = map[string]uint64{

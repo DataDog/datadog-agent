@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-const fieldsMetricsCollectorName = "fields"
+const fieldsCollectorName = "fields"
 
 type fieldsMetricsCollector struct {
 	device nvml.Device
@@ -65,7 +65,7 @@ func (c *fieldsMetricsCollector) Close() error {
 
 // Name returns the name of the collector.
 func (c *fieldsMetricsCollector) Name() string {
-	return fieldsMetricsCollectorName
+	return fieldsCollectorName
 }
 
 // fieldValueMetric represents a metric that can be retrieved using the NVML
