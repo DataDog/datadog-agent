@@ -24,8 +24,8 @@ const (
 	minPathnamesEntries = 64000 // ~27 MB
 	maxPathnamesEntries = 96000
 
-	minProcEntries = 16394
-	maxProcEntries = 131072
+	minProcEntries = 16384
+	maxProcEntries = 65536
 )
 
 var (
@@ -155,17 +155,19 @@ type MapSpecEditorOpts struct {
 
 // AllMapSpecEditors returns the list of map editors
 func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.MapSpecEditor {
+	procPidCacheMaxEntries := getMaxEntries(numCPU, minProcEntries, maxProcEntries)
+
 	editors := map[string]manager.MapSpecEditor{
 		"syscalls": {
 			MaxEntries: 8192,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"proc_cache": {
-			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
+			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"pid_cache": {
-			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
+			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
 
