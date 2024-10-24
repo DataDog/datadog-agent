@@ -41,8 +41,8 @@ type aggregator struct {
 	// over all the streams that were active during the interval.
 	utilizationNormFactor float64
 
-	// processEnded is true if the process has ended and this aggregator should be deleted
-	processEnded bool
+	// processTerminated is true if the process has ended and this aggregator should be deleted
+	processTerminated bool
 
 	// sysCtx is the system context with global GPU-system data
 	sysCtx *systemContext

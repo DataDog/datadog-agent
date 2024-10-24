@@ -50,7 +50,7 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 		}
 
 		if handler.processEnded {
-			aggr.processEnded = true
+			aggr.processTerminated = true
 		}
 	}
 
@@ -96,7 +96,7 @@ func (g *statsGenerator) getNormalizationFactor() float64 {
 
 func (g *statsGenerator) cleanupFinishedAggregators() {
 	for pid, aggr := range g.aggregators {
-		if aggr.processEnded {
+		if aggr.processTerminated {
 			delete(g.aggregators, pid)
 		}
 	}
