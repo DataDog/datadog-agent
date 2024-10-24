@@ -78,27 +78,20 @@ func OtelSpanToDDSpan(
 	otelspan ptrace.Span,
 	otelres pcommon.Resource,
 	lib pcommon.InstrumentationScope,
-	topLevelByKind bool,
 	conf *config.AgentConfig,
 	peerTagKeys []string,
 ) *pb.Span {
 	spanKind := otelspan.Kind()
-	isTopLevel := otelspan.ParentSpanID() == pcommon.NewSpanIDEmpty() || spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer
-
+	topLevelByKind := conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
+	isTopLevel := false
+	if topLevelByKind {
+		isTopLevel = otelspan.ParentSpanID() == pcommon.NewSpanIDEmpty() || spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer
+	}
 	ddspan := OtelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, peerTagKeys)
 
 	otelres.Attributes().Range(func(k string, v pcommon.Value) bool {
-		value := v.AsString()
-		if k == "analytics.event" {
-			if v, err := strconv.ParseBool(value); err == nil {
-				if v {
-					ddspan.Metrics[sampler.KeySamplingRateEventExtraction] = 1
-				} else {
-					ddspan.Metrics[sampler.KeySamplingRateEventExtraction] = 0
-				}
-			}
-		} else if k != "service.name" && k != "operation.name" && k != "resource.name" && k != "span.type" {
-			ddspan.Meta[k] = value
+		if k != "service.name" && k != "operation.name" && k != "resource.name" && k != "span.type" {
+			SetMetaOTLP(ddspan, k, v.AsString())
 		}
 		return true
 	})
@@ -108,6 +101,13 @@ func OtelSpanToDDSpan(
 	if _, ok := ddspan.Meta["version"]; !ok {
 		if serviceVersion, ok := otelres.Attributes().Get(semconv.AttributeServiceVersion); ok {
 			ddspan.Meta["version"] = serviceVersion.AsString()
+		}
+	}
+
+	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
+	if _, ok := ddspan.Meta["env"]; !ok {
+		if env := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment); env != "" {
+			ddspan.Meta["env"] = env
 		}
 	}
 
@@ -132,7 +132,7 @@ func OtelSpanToDDSpan(
 			// Exclude Datadog APM conventions.
 			// These are handled below explicitly.
 			if k != "http.method" && k != "http.status_code" {
-				ddspan.Meta[k] = value
+				SetMetaOTLP(ddspan, k, value)
 			}
 		}
 
