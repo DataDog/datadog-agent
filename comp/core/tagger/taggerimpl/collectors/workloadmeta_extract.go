@@ -142,8 +142,6 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
 			case workloadmeta.KindContainerImageMetadata:
 				tagInfos = append(tagInfos, c.handleContainerImage(ev)...)
-			case workloadmeta.KindHost:
-				tagInfos = append(tagInfos, c.handleHostTags(ev)...)
 			case workloadmeta.KindKubernetesMetadata:
 				tagInfos = append(tagInfos, c.handleKubeMetadata(ev)...)
 			case workloadmeta.KindProcess:
@@ -199,7 +197,6 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 	tagList.AddLow(tags.ShortImage, image.ShortName)
 	tagList.AddLow(tags.ImageTag, image.Tag)
 	tagList.AddLow(tags.ImageID, image.ID)
-	tagList.AddLow(tags.KubeGPUType, container.Resources.GPUType)
 
 	if container.Runtime == workloadmeta.ContainerRuntimeDocker {
 		if image.Tag != "" {
@@ -229,6 +226,11 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 	// static tags for ECS and EKS Fargate containers
 	for tag, value := range c.staticTags {
 		tagList.AddLow(tag, value)
+	}
+
+	// gpu tags from container resource requests
+	for _, gpuVendor := range container.Resources.GPUVendorList {
+		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
 	}
 
 	low, orch, high, standard := tagList.Compute()
@@ -294,17 +296,6 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 	}
 }
 
-func (c *WorkloadMetaCollector) handleHostTags(ev workloadmeta.Event) []*types.TagInfo {
-	hostTags := ev.Entity.(*workloadmeta.HostTags)
-	return []*types.TagInfo{
-		{
-			Source:      hostSource,
-			EntityID:    types.NewEntityID("internal", "global-entity-id"),
-			LowCardTags: hostTags.HostTags,
-		},
-	}
-}
-
 func (c *WorkloadMetaCollector) labelsToTags(labels map[string]string, tags *taglist.TagList) {
 	// standard tags from labels
 	c.extractFromMapWithFn(labels, standardDockerLabels, tags.AddStandard)
@@ -355,6 +346,11 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 	// namespace annotations as tags
 	for name, value := range pod.NamespaceAnnotations {
 		k8smetadata.AddMetadataAsTags(name, value, c.k8sResourcesAnnotationsAsTags["namespaces"], c.globK8sResourcesAnnotations["namespaces"], tagList)
+	}
+
+	// gpu requested vendor as tags
+	for _, gpuVendor := range pod.GPUVendorList {
+		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
 	}
 
 	kubeServiceDisabled := false

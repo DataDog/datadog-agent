@@ -260,20 +260,20 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 			fmt.Sprintf("namespace:%s", involvedObject.Namespace),
 		)
 
-		namespaceEntityID := types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", involvedObject.Namespace))).String()
+		namespaceEntityID := types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", involvedObject.Namespace)))
 		namespaceEntity, err := taggerInstance.GetEntity(namespaceEntityID)
 		if err == nil {
 			tagList = append(tagList, namespaceEntity.GetTags(types.HighCardinality)...)
 		}
 	}
 
-	var entityID string
+	var entityID types.EntityID
 
 	switch involvedObject.Kind {
 	case podKind:
-		entityID = types.NewEntityID(types.KubernetesPodUID, string(involvedObject.UID)).String()
+		entityID = types.NewEntityID(types.KubernetesPodUID, string(involvedObject.UID))
 	case deploymentKind:
-		entityID = types.NewEntityID(types.KubernetesDeployment, fmt.Sprintf("%s/%s", involvedObject.Namespace, involvedObject.Name)).String()
+		entityID = types.NewEntityID(types.KubernetesDeployment, fmt.Sprintf("%s/%s", involvedObject.Namespace, involvedObject.Name))
 	default:
 		var apiGroup string
 		apiVersionParts := strings.Split(involvedObject.APIVersion, "/")
@@ -283,7 +283,7 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 			apiGroup = ""
 		}
 		resourceType := strings.ToLower(involvedObject.Kind) + "s"
-		entityID = types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID(apiGroup, resourceType, involvedObject.Namespace, involvedObject.Name))).String()
+		entityID = types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID(apiGroup, resourceType, involvedObject.Namespace, involvedObject.Name)))
 	}
 
 	entity, err := taggerInstance.GetEntity(entityID)

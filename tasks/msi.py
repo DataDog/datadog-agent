@@ -155,7 +155,7 @@ def _fix_makesfxca_dll(path):
 def sign_file(ctx, path, force=False):
     dd_wcs_enabled = os.environ.get('SIGN_WINDOWS_DD_WCS')
     if dd_wcs_enabled or force:
-        return ctx.run(f'dd-wcs sign {path}')
+        return ctx.run(f'dd-wcs sign "{path}"')
 
 
 def _build(
@@ -289,6 +289,10 @@ def build(
     sign_file(ctx, os.path.join(build_outdir, 'CustomActions.dll'))
     sign_file(ctx, os.path.join(build_outdir, 'AgentCustomActions.dll'))
 
+    # We embed this 7zip standalone binary in the installer, sign it too
+    shutil.copy2('C:\\Program Files\\7-zip\\7zr.exe', AGENT_BIN_SOURCE_DIR)
+    sign_file(ctx, os.path.join(AGENT_BIN_SOURCE_DIR, '7zr.exe'))
+
     # Run WixSetup.exe to generate the WXS and other input files
     with timed("Building WXS"):
         _build_wxs(
@@ -405,6 +409,19 @@ def validate_msi_createfolder_table(db, allowlist):
           this behavior was also present in the original installer so leave them for now.
     """
 
+    # Skip if CreateFolder table does not exist
+    with MsiClosing(db.OpenView("Select `Name` From `_Tables`")) as view:
+        view.Execute(None)
+        record = view.Fetch()
+        tables = set()
+        while record:
+            tables.add(record.GetString(1))
+            record = view.Fetch()
+        if "CreateFolder" not in tables:
+            print("skipping validation, CreateFolder table not found in MSI")
+            return
+
+    print("Validating MSI CreateFolder table")
     with MsiClosing(db.OpenView("Select Directory_ FROM CreateFolder")) as view:
         view.Execute(None)
         record = view.Fetch()

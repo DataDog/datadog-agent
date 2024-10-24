@@ -22,6 +22,7 @@ from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_COR
 from tasks.libs.common.datadog_api import create_gauge, send_metrics
 from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
 from tasks.libs.common.utils import get_git_pretty_ref
+from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 from tasks.release import _get_release_json_value
@@ -126,48 +127,29 @@ def trigger_macos(
 
 
 @task
-def lint_codeowner(_):
+def lint_codeowner(_, owners_file=".github/CODEOWNERS"):
     """
-    Check every package in `pkg` has an owner
+    Run multiple checks on the provided CODEOWNERS file
     """
 
     base = os.path.dirname(os.path.abspath(__file__))
     root_folder = os.path.join(base, "..")
     os.chdir(root_folder)
 
-    owners = _get_code_owners(root_folder)
+    exit_code = 0
 
-    # make sure each root package has an owner
-    pkgs_without_owner = _find_packages_without_owner(owners, "pkg")
-    if len(pkgs_without_owner) > 0:
-        raise Exit(
-            f'The following packages  in `pkg` directory don\'t have an owner in CODEOWNERS: {pkgs_without_owner}',
-            code=1,
-        )
+    # Getting GitHub CODEOWNER file content
+    owners = read_owners(owners_file)
 
+    # Define linters
+    linters = [directory_has_packages_without_owner, codeowner_has_orphans]
 
-def _find_packages_without_owner(owners, folder):
-    pkg_without_owners = []
-    for x in os.listdir(folder):
-        path = os.path.join("/" + folder, x)
-        if path not in owners:
-            pkg_without_owners.append(path)
-    return pkg_without_owners
+    # Execute linters
+    for linter in linters:
+        if linter(owners):
+            exit_code = 1
 
-
-def _get_code_owners(root_folder):
-    code_owner_path = os.path.join(root_folder, ".github", "CODEOWNERS")
-    owners = {}
-    with open(code_owner_path) as f:
-        for line in f:
-            line = line.strip()
-            line = line.split("#")[0]  # remove comment
-            if len(line) > 0:
-                parts = line.split()
-                path = os.path.normpath(parts[0])
-                # example /tools/retry_file_dump ['@DataDog/agent-metrics-logs']
-                owners[path] = parts[1:]
-    return owners
+    raise Exit(code=exit_code)
 
 
 @task

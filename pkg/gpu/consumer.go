@@ -36,8 +36,8 @@ type cudaEventConsumer struct {
 	sysCtx                          *systemContext
 }
 
-// NewCudaEventConsumer creates a new CUDA event consumer.
-func NewCudaEventConsumer(eventHandler ddebpf.EventHandler, cfg *Config, sysCtx *systemContext) *cudaEventConsumer {
+// newCudaEventConsumer creates a new CUDA event consumer.
+func newCudaEventConsumer(eventHandler ddebpf.EventHandler, cfg *Config, sysCtx *systemContext) *cudaEventConsumer {
 	return &cudaEventConsumer{
 		eventHandler:   eventHandler,
 		closed:         make(chan struct{}),
@@ -171,6 +171,14 @@ func (c *cudaEventConsumer) checkClosedProcesses() {
 		if _, ok := seenPIDs[key.Pid]; !ok {
 			log.Debugf("Process %d ended, marking stream %d as ended", key.Pid, key.Stream)
 			_ = handler.markEnd()
+		}
+	}
+}
+
+func (c *cudaEventConsumer) cleanFinishedHandlers() {
+	for key, handler := range c.streamHandlers {
+		if handler.processEnded {
+			delete(c.streamHandlers, key)
 		}
 	}
 }
