@@ -272,11 +272,12 @@ func (q *rdnsQuerierImpl) GetHostnames(ctx context.Context, ipAddrs []string) ma
 // The function accepts a timeout via context and will return an error if the timeout is reached.
 func (q *rdnsQuerierImpl) GetHostnameSync(ctx context.Context, ipAddr string) (string, error) {
 	results := q.GetHostnames(ctx, []string{ipAddr})
-	if result, ok := results[ipAddr]; !ok {
+	result, ok := results[ipAddr]
+	if !ok {
 		return "", fmt.Errorf("no result for IP address %s", ipAddr)
-	} else {
-		return result.Hostname, result.Err
 	}
+
+	return result.Hostname, result.Err
 }
 
 // GetHostnames attempts to resolve the hostname for the given IP addresses.
