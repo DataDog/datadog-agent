@@ -35,11 +35,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/syscallctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/time"
 )
 
 // EBPFResolvers holds the list of the event attribute resolvers

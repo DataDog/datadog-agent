@@ -12,7 +12,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
-	sectime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
+	"github.com/DataDog/datadog-agent/pkg/util/time"
 )
 
 // systemContext holds certain attributes about the system that are used by the GPU probe.
@@ -21,7 +21,7 @@ type systemContext struct {
 	maxGpuThreadsPerDevice map[int]int
 
 	// timeResolver allows to resolve kernel-time timestamps
-	timeResolver *sectime.Resolver
+	timeResolver *time.Resolver
 
 	// nvmlLib is the NVML library used to query GPU devices
 	nvmlLib nvml.Interface
