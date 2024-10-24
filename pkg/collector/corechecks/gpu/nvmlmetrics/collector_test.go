@@ -58,3 +58,18 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 	require.NotNil(t, collectors)
 	require.NoError(t, err)
 }
+
+func TestGetTagsFromDeviceGetsTagsEvenIfOneFails(t *testing.T) {
+	device := &nvmlmock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return "GPU-123", nvml.SUCCESS
+		},
+		GetNameFunc: func() (string, nvml.Return) {
+			return "", nvml.ERROR_GPU_IS_LOST
+		},
+	}
+
+	result := getTagsFromDevice(device)
+	expected := []string{tagVendor, tagNameUUID + ":GPU-123"}
+	require.ElementsMatch(t, expected, result)
+}
