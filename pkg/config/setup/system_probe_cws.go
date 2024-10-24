@@ -18,22 +18,22 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	platformCWSConfig(cfg)
 
 	// CWS - general config
-	cfg.BindEnvAndSetDefault("runtime_security_config.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.enabled", true)
 	cfg.BindEnv("runtime_security_config.fim_enabled")
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.watch_dir", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.per_rule_enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.report_internal_policies", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 4000)
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.retention", "6s")
-	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
-	cfg.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 100)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 1000)
+	cfg.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 1000)
 	cfg.BindEnvAndSetDefault("runtime_security_config.internal_monitoring.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
 	cfg.BindEnvAndSetDefault("runtime_security_config.log_tags", []string{})
-	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
-	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.send_report", true)
-	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.send_report", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.dump_policies", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
@@ -49,7 +49,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.SetDefault("runtime_security_config.windows_probe_block_on_channel_send", false)
 
 	// CWS - activity dump
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", "30s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", "60s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.load_controller_period", "60s")
@@ -80,7 +80,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.host.enabled", false)
 
 	// CWS - Security Profiles
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_image_tags", 20)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dir", GetDefaultSecurityProfilesDir())
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.watch_dir", true)
@@ -89,7 +89,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dns_match_max_depth", 3)
 
 	// CWS - Auto suppression
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.auto_suppression.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.auto_suppression.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.auto_suppression.event_types", []string{"exec", "dns"})
 
 	// CWS - Anomaly detection
@@ -105,10 +105,10 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_events_allowed", 300)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.tag_rules.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.silent_rule_events.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.enabled", false)
 
 	// CWS - Hash algorithms
-	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.enabled", true) // ?
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.event_types", []string{"exec", "open"})
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.max_file_size", (1<<20)*10) // 10 MB
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.max_hash_rate", 500)
@@ -128,7 +128,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.imds_ipv4", "169.254.169.254")
 
 	// CWS enforcement capabilities
-	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.raw_syscall.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.exclude_binaries", []string{})
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.rule_source_allowed", []string{"file", "remote-config"})

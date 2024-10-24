@@ -407,7 +407,9 @@ func (p *EBPFProbe) Setup() error {
 // Start the probe
 func (p *EBPFProbe) Start() error {
 	// Apply rules to the snapshotted data before starting the event stream to avoid concurrency issues
-	p.PlaySnapshot()
+	if !rules.StreamAllEvents {
+		p.PlaySnapshot()
+	}
 
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
@@ -1279,7 +1281,7 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 		if slices.Contains(requestedEventTypes, model.EventType(eventType).String()) {
 			continue
 		}
-		if eventType != int(model.UnknownEventType) && eventType != int(model.MaxAllEventType) {
+		if eventType != int(model.UnknownEventType) && eventType < int(model.MaxKernelEventType) {
 			requestedEventTypes = append(requestedEventTypes, model.EventType(eventType).String())
 		}
 	}

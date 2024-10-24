@@ -8,6 +8,9 @@ package module
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -94,4 +97,32 @@ func NewDirectMsgSender(stopper startstop.Stopper) (*DirectMsgSender, error) {
 	return &DirectMsgSender{
 		reporter: reporter,
 	}, nil
+}
+
+type DiskSender struct {
+	outputDir string
+}
+
+func NewDiskSender(outputDir string) (*DiskSender, error) {
+	if _, err := os.Stat(outputDir); err != nil {
+		if os.IsNotExist(err) {
+			if err := os.MkdirAll(outputDir, 0755); err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
+	}
+	return &DiskSender{
+		outputDir: outputDir,
+	}, nil
+}
+
+func (ds *DiskSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEventMessage)) {
+	fileName := fmt.Sprintf("%s", time.Now().Format(time.RFC3339Nano))
+	fileName = filepath.Join(ds.outputDir, fileName) + ".json"
+	err := os.WriteFile(fileName, msg.Data, 0666)
+	if err != nil {
+		log.Errorf("Failed to log event: %w", err)
+	}
 }

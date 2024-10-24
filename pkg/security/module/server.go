@@ -11,6 +11,7 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"runtime"
 	"slices"
 	"strings"
@@ -326,7 +327,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		backendEvent.AgentContext.PolicyVersion = policy.Def.Version
 	}
 
-	seclog.Tracef("Prepare event message for rule `%s`", rule.ID)
+	// seclog.Tracef("Prepare event message for rule `%s`", rule.ID)
 
 	// no retention if there is no ext tags to resolve
 	retention := a.retention
@@ -371,6 +372,10 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 
 		a.enqueue(msg)
 	} else {
+		if rules.StreamAllEvents {
+			// we don't want to save custom events (for now?)
+			return
+		}
 		var (
 			backendEventJSON []byte
 			eventJSON        []byte
@@ -560,17 +565,29 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	}
 
 	if as.msgSender == nil {
-		if pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe") {
-			msgSender, err := NewDirectMsgSender(stopper)
-			if err != nil {
-				log.Errorf("failed to setup direct reporter: %v", err)
-			} else {
-				as.msgSender = msgSender
+		if rules.StreamAllEvents {
+			outputDir := rules.StreamAllEventsOutputDir
+			if env := os.Getenv("STREAM_OUTPUT_DIR"); env != "" {
+				outputDir = env
 			}
-		}
+			msgSender, err := NewDiskSender(outputDir)
+			if err != nil {
+				return nil, errors.New("Failed to initialize NewDiskSender")
+			}
+			as.msgSender = msgSender
+		} else {
+			if pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe") {
+				msgSender, err := NewDirectMsgSender(stopper)
+				if err != nil {
+					log.Errorf("failed to setup direct reporter: %v", err)
+				} else {
+					as.msgSender = msgSender
+				}
+			}
 
-		if as.msgSender == nil {
-			as.msgSender = NewChanMsgSender(as.msgs)
+			if as.msgSender == nil {
+				as.msgSender = NewChanMsgSender(as.msgs)
+			}
 		}
 	}
 

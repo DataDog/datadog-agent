@@ -24,6 +24,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
 )
 
+var StreamAllEvents bool = true
+var StreamAllEventsOutputDir string = "/tmp/dd_events"
+
 // Rule presents a rule in a ruleset
 type Rule struct {
 	*PolicyRule
@@ -563,10 +566,51 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 	return nil
 }
 
+var fakeRule *Rule = nil
+
+func getFakeRule() *Rule {
+	if fakeRule == nil {
+		fakeRuleDef := &RuleDefinition{
+			ID:          "fake_rule",
+			Version:     "0",
+			Expression:  "fake_expression",
+			Description: "fake rule",
+		}
+		fakePolicy := &Policy{
+			Name:       "fake_policy",
+			Source:     "fake_source",
+			IsInternal: true,
+			Def: &PolicyDef{
+				Version: "0.0.0",
+				Rules:   []*RuleDefinition{fakeRuleDef},
+			},
+		}
+		fakePolicyRule := &PolicyRule{
+			Def:    fakeRuleDef,
+			Policy: fakePolicy,
+		}
+		fakePolicy.rules = make(map[RuleID][]*PolicyRule)
+		fakePolicy.rules["fake_rule"] = []*PolicyRule{fakePolicyRule}
+		fakeRule = &Rule{
+			PolicyRule: fakePolicyRule,
+			Rule: &eval.Rule{
+				ID:         "fake_rule",
+				Expression: "fake_expression",
+			},
+		}
+	}
+	return fakeRule
+}
+
 // Evaluate the specified event against the set of rules
 func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	ctx := rs.pool.Get(event)
 	defer rs.pool.Put(ctx)
+
+	if StreamAllEvents {
+		rs.NotifyRuleMatch(getFakeRule(), event)
+		return true
+	}
 
 	eventType := event.GetType()
 
@@ -735,6 +779,10 @@ func (rs *RuleSet) StopEventCollector() []CollectedEvent {
 
 // LoadPolicies loads policies from the provided policy loader
 func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *multierror.Error {
+	if StreamAllEvents {
+		return nil
+	}
+
 	var (
 		errs       *multierror.Error
 		allRules   []*PolicyRule

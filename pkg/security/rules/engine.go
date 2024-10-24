@@ -543,7 +543,7 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 	}
 
 	if ruleSet := e.GetRuleSet(); ruleSet != nil {
-		if !ruleSet.Evaluate(event) {
+		if !ruleSet.Evaluate(event) && !rules.StreamAllEvents {
 			ruleSet.EvaluateDiscarders(event)
 		}
 	}

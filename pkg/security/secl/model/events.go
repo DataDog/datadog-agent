@@ -106,7 +106,7 @@ const (
 	FirstEventType = FileOpenEventType
 
 	// LastEventType is the last valid event type
-	LastEventType = SyscallsEventType
+	LastEventType = RawPacketEventType
 
 	// FirstDiscarderEventType first event that accepts discarders
 	FirstDiscarderEventType = FileOpenEventType
