@@ -30,6 +30,7 @@ class GoModule:
         independent=False,
         lint_targets=None,
         used_by_otel=False,
+        **_kwargs,  # Deprecated args
     ):
         self.path = path
         self.targets = targets if targets else ["."]

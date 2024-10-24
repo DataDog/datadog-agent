@@ -61,11 +61,13 @@ def _create_version_from_match(match):
     return version
 
 
-def check_version(agent_version):
+def check_version(agent_version, agent6=False):
     """Check Agent version to see if it is valid."""
-    version_re = re.compile(r'7[.](\d+)[.](\d+)(-rc\.(\d+))?')
+
+    lead = '6' if agent6 else '7'
+    version_re = re.compile(rf'{lead}[.](\d+)[.](\d+)(-rc\.(\d+))?')
     if not version_re.match(agent_version):
-        raise Exit(message="Version should be of the form 7.Y.Z or 7.Y.Z-rc.t")
+        raise Exit(message=f"Version should be of the form {lead}.Y.Z or {lead}.Y.Z-rc.t")
 
 
 def current_version(ctx, major_version) -> Version:
@@ -113,10 +115,6 @@ def next_rc_version(ctx, major_version, patch_version=False) -> Version:
                 new_version = previous_version.next_version(bump_minor=True, rc=True)
 
     return new_version
-
-
-def parse_major_versions(major_versions):
-    return sorted(int(x) for x in major_versions.split(","))
 
 
 ##
