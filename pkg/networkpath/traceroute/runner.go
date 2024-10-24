@@ -235,10 +235,9 @@ func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHo
 			NetworkID: r.networkID,
 		},
 		Destination: payload.NetworkPathDestination{
-			Hostname:           destinationHost,
-			Port:               destinationPort,
-			IPAddress:          destinationIP.String(),
-			ReverseDNSHostname: getReverseDNSForIP(destinationIP),
+			Hostname:  destinationHost,
+			Port:      destinationPort,
+			IPAddress: destinationIP.String(),
 		},
 	}
 
@@ -262,18 +261,16 @@ func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHo
 		ttl := i + 1
 		isReachable := false
 		hopname := fmt.Sprintf("unknown_hop_%d", ttl)
-		hostname := hopname
 
 		if !hop.IP.Equal(net.IP{}) {
 			isReachable = true
 			hopname = hop.IP.String()
-			hostname = getHostname(hop.IP.String())
 		}
 
 		npHop := payload.NetworkPathHop{
 			TTL:       ttl,
 			IPAddress: hopname,
-			Hostname:  hostname,
+			Hostname:  hopname, // Reverse DNS lookup should replace this at the agent/process-agent level
 			RTT:       float64(hop.RTT.Microseconds()) / float64(1000),
 			Reachable: isReachable,
 		}
@@ -299,10 +296,9 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 			NetworkID: r.networkID,
 		},
 		Destination: payload.NetworkPathDestination{
-			Hostname:           destinationHost,
-			Port:               destinationPort,
-			IPAddress:          destinationIP.String(),
-			ReverseDNSHostname: getReverseDNSForIP(destinationIP),
+			Hostname:  destinationHost,
+			Port:      destinationPort,
+			IPAddress: destinationIP.String(),
 		},
 	}
 
@@ -381,7 +377,7 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 			hop := payload.NetworkPathHop{
 				TTL:       idx,
 				IPAddress: ip,
-				Hostname:  getHostname(cur.node),
+				Hostname:  ip, // Reverse DNS lookup should replace this at the agent/process-agent level
 				RTT:       durationMs,
 				Reachable: isReachable,
 			}
