@@ -32,7 +32,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
 
-	github.com/DataDog/zstd => github.com/StephenWakely/zstd v0.0.0-20241024100501-e2d4f7f87992
+	github.com/DataDog/zstd => github.com/StephenWakely/zstd v0.0.0-20241024135713-860cfd3551ed
 
 )
 
