@@ -253,7 +253,7 @@ require (
 	github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.20.4
+	github.com/prometheus/client_golang v1.20.5
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/procfs v0.15.1
 	github.com/redis/go-redis/v9 v9.1.0
@@ -336,7 +336,7 @@ require (
 	k8s.io/kube-state-metrics/v2 v2.13.0
 	k8s.io/kubelet v0.31.1
 	k8s.io/metrics v0.31.1
-	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
+	k8s.io/utils v0.0.0-20240821151609-f90d01438635
 	sigs.k8s.io/custom-metrics-apiserver v1.30.0
 
 )
@@ -1022,7 +1022,7 @@ require (
 	gotest.tools/v3 v3.5.1 // indirect
 	honnef.co/go/tools v0.4.5 // indirect
 	k8s.io/kms v0.31.1 // indirect
-	k8s.io/sample-controller v0.30.3 // indirect
+	k8s.io/sample-controller v0.31.1 // indirect
 	lukechampine.com/uint128 v1.3.0 // indirect
 	modernc.org/strutil v1.2.0 // indirect
 	modernc.org/token v1.1.0 // indirect
@@ -1077,3 +1077,6 @@ replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0
 
 // Remove once https://github.com/kubernetes-sigs/custom-metrics-apiserver/pull/184 is merged
 replace sigs.k8s.io/custom-metrics-apiserver v1.30.0 => github.com/L3n41c/custom-metrics-apiserver v0.0.0-20241014100211-ccded82d0da2
+
+// Remove once https://github.com/kubernetes/kube-state-metrics/pull/2535 is merged
+replace k8s.io/kube-state-metrics/v2 v2.13.0 => github.com/L3n41c/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f

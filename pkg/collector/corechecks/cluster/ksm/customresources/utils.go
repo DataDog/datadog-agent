@@ -129,27 +129,6 @@ func labelConflictSuffix(label string, count int) string {
 	return fmt.Sprintf("%s_conflict%d", label, count)
 }
 
-// createPrometheusLabelKeysValues takes in passed kubernetes annotations/labels
-// and associated allowed list in kubernetes label format.
-// It returns only those allowed annotations/labels that exist in the list and converts them to Prometheus labels.
-func createPrometheusLabelKeysValues(prefix string /* allKubeData */, _ map[string]string /*, allowList []string*/) ([]string, []string) {
-	allowedKubeData := make(map[string]string)
-
-	// if len(allowList) > 0 {
-	// 	if allowList[0] == options.LabelWildcard {
-	// 		return kubeMapToPrometheusLabels(prefix, allKubeData)
-	// 	}
-
-	// 	for _, l := range allowList {
-	// 		v, found := allKubeData[l]
-	// 		if found {
-	// 			allowedKubeData[l] = v
-	// 		}
-	// 	}
-	// }
-	return kubeMapToPrometheusLabels(prefix, allowedKubeData)
-}
-
 // mergeKeyValues merges label keys and values slice pairs into a single slice pair.
 // Arguments are passed as equal-length pairs of slices, where the first slice contains keys and second contains values.
 // Example: mergeKeyValues(keys1, values1, keys2, values2) => (keys1+keys2, values1+values2)

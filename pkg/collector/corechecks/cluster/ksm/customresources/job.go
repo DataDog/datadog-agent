@@ -13,9 +13,11 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	basemetrics "k8s.io/component-base/metrics"
@@ -23,21 +25,20 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var descJobLabelsDefaultLabels = []string{"namespace", "job_name"}
 
 // NewExtendedJobFactory returns a new Job metric family generator factory.
-func NewExtendedJobFactory(client *apiserver.APIClient) customresource.RegistryFactory {
+func NewExtendedJobFactory(client *dynamic.DynamicClient) customresource.RegistryFactory {
 	return &extendedJobFactory{
-		client: client.Cl,
+		client: client,
 	}
 }
 
 type extendedJobFactory struct {
-	client interface{}
+	client *dynamic.DynamicClient
 }
 
 // Name is the name of the factory
@@ -45,17 +46,16 @@ func (f *extendedJobFactory) Name() string {
 	return "jobs_extended"
 }
 
-// CreateClient is not implemented
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (f *extendedJobFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
-	return f.client, nil
+func (f *extendedJobFactory) CreateClient(_ *rest.Config) (interface{}, error) {
+	return f.client.Resource(schema.GroupVersionResource{
+		Group:    batchv1.GroupName,
+		Version:  batchv1.SchemeGroupVersion.Version,
+		Resource: "jobs",
+	}), nil
 }
 
 // MetricFamilyGenerators returns the extended job metric family generators
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (f *extendedJobFactory) MetricFamilyGenerators( /*allowAnnotationsList, allowLabelsList []string*/ ) []generator.FamilyGenerator {
+func (f *extendedJobFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(
 			"kube_job_duration",
@@ -89,9 +89,9 @@ func (f *extendedJobFactory) MetricFamilyGenerators( /*allowAnnotationsList, all
 
 func wrapJobFunc(f func(*batchv1.Job) *metric.Family) func(interface{}) *metric.Family {
 	return func(obj interface{}) *metric.Family {
-		job, ok := obj.(*batchv1.Job)
-		if !ok {
-			log.Warnf("cannot cast object %T into *batchv1.Job, skipping", obj)
+		job := &batchv1.Job{}
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(*unstructured.Unstructured).Object, job); err != nil {
+			log.Warnf("cannot decode object %q into batchv1.Job, err=%s, skipping", obj.(*unstructured.Unstructured).Object["apiVersion"], err)
 			return nil
 		}
 
@@ -107,20 +107,23 @@ func wrapJobFunc(f func(*batchv1.Job) *metric.Family) func(interface{}) *metric.
 
 // ExpectedType returns the type expected by the factory
 func (f *extendedJobFactory) ExpectedType() interface{} {
-	return &batchv1.Job{}
+	u := unstructured.Unstructured{}
+	u.SetGroupVersionKind(batchv1.SchemeGroupVersion.WithKind("Job"))
+	return &u
 }
 
 // ListWatch returns a ListerWatcher for batchv1.Job
 func (f *extendedJobFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
-	client := customResourceClient.(kubernetes.Interface)
+	client := customResourceClient.(dynamic.NamespaceableResourceInterface).Namespace(ns)
+	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.BatchV1().Jobs(ns).List(context.TODO(), opts)
+			return client.List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.BatchV1().Jobs(ns).Watch(context.TODO(), opts)
+			return client.Watch(ctx, opts)
 		},
 	}
 }
