@@ -41,15 +41,14 @@ type packageRunConfiguration struct {
 }
 
 type testConfig struct {
-	runCount          int
-	retryCount        int
-	verbose           bool
-	packagesRunConfig map[string]packageRunConfiguration
-	testDirRoot       string
-	testingTools      string
-	extraParams       string
-	extraEnv          string
-	inContainerImage  string
+	userProvidedConfig
+	runCount     int
+	retryCount   int
+	verbose      bool
+	testDirRoot  string
+	testingTools string
+	extraParams  string
+	extraEnv     string
 }
 
 type userProvidedConfig struct {
@@ -152,7 +151,7 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []st
 		args = append(args, strings.Split(testConfig.extraParams, " ")...)
 	}
 
-	packagesRunConfig := testConfig.packagesRunConfig
+	packagesRunConfig := testConfig.PackagesRunConfig
 	if config, ok := packagesRunConfig[pkg]; ok && config.RunOnly != nil {
 		args = append(args, "-test.run", strings.Join(config.RunOnly, "|"))
 	}
@@ -203,11 +202,11 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 	testsuites, err := glob(testConfig.testDirRoot, "testsuite", func(path string) bool {
 		dir, _ := filepath.Rel(testConfig.testDirRoot, filepath.Dir(path))
 
-		if config, ok := testConfig.packagesRunConfig[dir]; ok {
+		if config, ok := testConfig.PackagesRunConfig[dir]; ok {
 			return !config.Exclude
 		}
 
-		if config, ok := testConfig.packagesRunConfig[matchAllPackages]; ok {
+		if config, ok := testConfig.PackagesRunConfig[matchAllPackages]; ok {
 			return !config.Exclude
 		}
 
@@ -233,8 +232,8 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 	bpfDir := filepath.Join(testConfig.testDirRoot, buildDir)
 
 	var testContainer *testContainer
-	if testConfig.inContainerImage != "" {
-		testContainer = newTestContainer(testConfig.inContainerImage, bpfDir)
+	if testConfig.InContainerImage != "" {
+		testContainer = newTestContainer(testConfig.InContainerImage, bpfDir)
 		if err := testContainer.start(); err != nil {
 			return fmt.Errorf("error creating test container: %w", err)
 		}
@@ -340,15 +339,14 @@ func buildTestConfiguration() (*testConfig, error) {
 	}
 
 	return &testConfig{
-		runCount:          *runCount,
-		verbose:           *verbose,
-		retryCount:        *retryPtr,
-		packagesRunConfig: userConfig.PackagesRunConfig,
-		testDirRoot:       root,
-		testingTools:      tools,
-		extraParams:       *extraParams,
-		extraEnv:          *extraEnv,
-		inContainerImage:  userConfig.InContainerImage,
+		userProvidedConfig: userConfig,
+		runCount:           *runCount,
+		verbose:            *verbose,
+		retryCount:         *retryPtr,
+		testDirRoot:        root,
+		testingTools:       tools,
+		extraParams:        *extraParams,
+		extraEnv:           *extraEnv,
 	}, nil
 }
 
