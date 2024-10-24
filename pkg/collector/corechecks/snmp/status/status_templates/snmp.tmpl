@@ -1,0 +1,33 @@
+{{- if .snmpProfiles }}
+  Profiles
+  ========
+  {{- range $key, $value := .snmpProfiles }}
+  {{$key}}: {{$value}}
+  {{- end }}
+{{- end -}}
+{{- if or .autodiscoverySubnets .discoverySubnets }}
+  Autodiscovery
+  =============
+  {{- range $key, $subnet := .autodiscoverySubnets}}
+  {{- if eq $subnet.IpsCount $subnet.DevicesScanned }}
+  {{- if eq $subnet.DevicesFound "" }}
+  Subnet {{$subnet.Subnet}} scanned with config {{$subnet.ConfigHash}}. Found no IPs in the subnet.
+  {{- else }}
+  Subnet {{$subnet.Subnet}} scanned with config {{$subnet.ConfigHash}}. Found the following IP(s) : {{$subnet.DevicesFound}}
+  {{- end }}
+  {{- else }}
+  Scanning subnet {{$subnet.Subnet}} with config {{$subnet.ConfigHash}}... Currently scanning IP {{$subnet.DeviceScanning}}, {{$subnet.DevicesScanned}} IPs out of {{$subnet.IpsCount}} scanned.
+  {{- end }}
+  {{- end }}
+  {{- range $key, $subnet := .discoverySubnets}}
+  {{- if eq $subnet.IpsCount $subnet.DevicesScanned }}
+  {{- if eq $subnet.DevicesFound "" }}
+  Subnet {{$subnet.Subnet}} scanned with config {{$subnet.ConfigHash}}. Found no IPs in the subnet.
+  {{- else }}
+  Subnet {{$subnet.Subnet}} scanned with config {{$subnet.ConfigHash}}. Found the following IP(s) : {{$subnet.DevicesFound}}
+  {{- end }}
+  {{- else }}
+  Scanning subnet {{$subnet.Subnet}} with config {{$subnet.ConfigHash}}... Currently scanning IP {{$subnet.DeviceScanning}}, {{$subnet.DevicesScanned}} IPs out of {{$subnet.IpsCount}} scanned.
+  {{- end }}
+  {{- end }}
+{{- end -}}

@@ -8,6 +8,7 @@ package listeners
 import (
 	"context"
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"net"
 	"strconv"
@@ -21,6 +22,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const cacheKeyPrefix = "snmp"
+
+var (
+	autodiscoveryVar          = expvar.NewMap("snmpAutodiscovery")
+	devicesScannedInSubnetVar = expvar.Map{}
+	devicesFoundInSubnetVar   = expvar.Map{}
+	deviceScanningInSubnetVar = expvar.Map{}
 )
 
 const (
@@ -64,6 +74,15 @@ type snmpSubnet struct {
 type snmpJob struct {
 	subnet    *snmpSubnet
 	currentIP net.IP
+}
+
+func init() {
+	devicesScannedInSubnetVar.Init()
+	devicesFoundInSubnetVar.Init()
+	deviceScanningInSubnetVar.Init()
+	autodiscoveryVar.Set("devicesScannedInSubnet", &devicesScannedInSubnetVar)
+	autodiscoveryVar.Set("devicesFoundInSubnet", &devicesFoundInSubnetVar)
+	autodiscoveryVar.Set("deviceScanningInSubnet", &deviceScanningInSubnetVar)
 }
 
 // NewSNMPListener creates a SNMPListener
@@ -141,6 +160,15 @@ var worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 }
 
 func (l *SNMPListener) checkDevice(job snmpJob) {
+	devicesScannedCounter := devicesScannedInSubnetVar.Get(getSubnetVarKey(*job.subnet))
+	if devicesScannedCounter != nil {
+		devicesScannedCounter.(*expvar.Int).Add(1)
+	}
+	deviceScanningInSubnet := deviceScanningInSubnetVar.Get(getSubnetVarKey(*job.subnet))
+	if deviceScanningInSubnet != nil {
+		deviceScanningInSubnet.(*expvar.String).Set(job.currentIP.String())
+	}
+
 	deviceIP := job.currentIP.String()
 	params, err := job.subnet.config.BuildSNMPParams(deviceIP)
 	if err != nil {
@@ -165,6 +193,17 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 			l.deleteService(entityID, job.subnet)
 		} else {
 			log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
+
+			devicesFoundList := devicesFoundInSubnetVar.Get(getSubnetVarKey(*job.subnet))
+			if devicesFoundList != nil {
+				devicesFoundListString := devicesFoundList.(*expvar.String)
+				currentValue := devicesFoundListString.Value()
+				if currentValue == "" {
+					devicesFoundListString.Set(deviceIP)
+				} else {
+					devicesFoundListString.Set(fmt.Sprintf("%s|%s", currentValue, deviceIP))
+				}
+			}
 			l.createService(entityID, job.subnet, deviceIP, true)
 		}
 	}
@@ -182,7 +221,7 @@ func (l *SNMPListener) checkDevices() {
 		startingIP := ipAddr.Mask(ipNet.Mask)
 
 		configHash := config.Digest(config.Network)
-		cacheKey := fmt.Sprintf("snmp:%s", configHash)
+		cacheKey := fmt.Sprintf("%s:%s", cacheKeyPrefix, configHash)
 		adIdentifier := config.ADIdentifier
 		if adIdentifier == "" {
 			adIdentifier = "snmp"
@@ -226,6 +265,9 @@ func (l *SNMPListener) checkDevices() {
 		for i := range subnets {
 			// Use `&subnets[i]` to pass the correct pointer address to snmpJob{}
 			subnet = &subnets[i]
+			devicesScannedInSubnetVar.Set(getSubnetVarKey(*subnet), &expvar.Int{})
+			devicesFoundInSubnetVar.Set(getSubnetVarKey(*subnet), &expvar.String{})
+			deviceScanningInSubnetVar.Set(getSubnetVarKey(*subnet), &expvar.String{})
 			startingIP := make(net.IP, len(subnet.startingIP))
 			copy(startingIP, subnet.startingIP)
 			for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {
@@ -466,4 +508,8 @@ func convertToCommaSepTags(tags []string) string {
 		normalizedTags = append(normalizedTags, strings.ReplaceAll(tag, tagSeparator, "_"))
 	}
 	return strings.Join(normalizedTags, tagSeparator)
+}
+
+func getSubnetVarKey(subnet snmpSubnet) string {
+	return fmt.Sprintf("%s|%s", subnet.config.Network, strings.Trim(subnet.cacheKey, fmt.Sprintf("%s:", cacheKeyPrefix)))
 }
