@@ -16,7 +16,7 @@ github_rate_limit_info:
     - !reference [.except_mergequeue]
     - when: on_success
   script:
-    - python3 -m pip install -r tasks/libs/requirements-github.txt datadog_api_client
+    - python3 -m pip install -r tasks/libs/requirements-github.txt datadog_api_client --break-system-packages
     # Send stats for app 1
     - GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_1 key_b64) || exit $?; export GITHUB_KEY_B64
     - GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_1 app_id) || exit $?; export GITHUB_APP_ID

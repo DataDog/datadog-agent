@@ -22,7 +22,7 @@ test_gitlab_compare_to:
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - !reference [.setup_agent_github_app]
-    - pip install -r tasks/requirements.txt
+    - pip install -r tasks/requirements.txt --break-system-packages
     - inv pipeline.compare-to-itself
 
 # Computes and uploads the GitLab CI configuration diff as an artifact
