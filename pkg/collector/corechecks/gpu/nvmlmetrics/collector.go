@@ -50,7 +50,8 @@ type Metric struct {
 var errUnsupportedDevice = errors.New("device does not support the given collector")
 
 // subsystemBuilder is a function that creates a new subsystemCollector. lib is the NVML
-// library interface, and device the device it should collect metrics from
+// library interface, and device the device it should collect metrics from. It also receives
+// the tags associated with the device, the collector should use them when generating metrics.
 type subsystemBuilder func(lib nvml.Interface, device nvml.Device, tags []string) (Collector, error)
 
 // allSubsystems is a map of all the subsystems that can be used to collect metrics from NVML.
