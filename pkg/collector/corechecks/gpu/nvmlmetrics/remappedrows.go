@@ -38,10 +38,10 @@ func (c *remappedRowsMetricsCollector) Collect() ([]Metric, error) {
 	}
 
 	metrics := []Metric{
-		{Name: fmt.Sprintf("%s.correctable", remappedRowsMetrixPrefix), Value: float64(correctable), Tags: c.tags},
-		{Name: fmt.Sprintf("%s.uncorrectable", remappedRowsMetrixPrefix), Value: float64(uncorrectable), Tags: c.tags},
-		{Name: fmt.Sprintf("%s.pending", remappedRowsMetrixPrefix), Value: boolToFloat(pending), Tags: c.tags},
-		{Name: fmt.Sprintf("%s.failed", remappedRowsMetrixPrefix), Value: boolToFloat(failed), Tags: c.tags},
+		{Name: fmt.Sprintf("%s.correctable", remappedRowsMetricPrefix), Value: float64(correctable), Tags: c.tags},
+		{Name: fmt.Sprintf("%s.uncorrectable", remappedRowsMetricPrefix), Value: float64(uncorrectable), Tags: c.tags},
+		{Name: fmt.Sprintf("%s.pending", remappedRowsMetricPrefix), Value: boolToFloat(pending), Tags: c.tags},
+		{Name: fmt.Sprintf("%s.failed", remappedRowsMetricPrefix), Value: boolToFloat(failed), Tags: c.tags},
 	}
 
 	return metrics, nil
