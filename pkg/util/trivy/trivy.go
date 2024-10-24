@@ -276,6 +276,11 @@ func (c *Collector) ScanDockerImageFromGraphDriver(ctx context.Context, imgMeta 
 		if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["UpperDir"]; ok {
 			layers = append(layers, strings.Split(layerDirs, ":")...)
 		}
+
+		for i, layer := range layers {
+			layers[i] = sanitizePath(layer)
+		}
+
 		return c.scanOverlayFS(ctx, layers, imgMeta, scanOptions)
 	}
 
@@ -297,6 +302,7 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 }
 
 func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	log.Debugf("Generating SBOM for image %s using overlayfs %+v", imgMeta.ID, layers)
 	overlayFsReader := NewFS(layers)
 	report, err := c.scanFilesystem(ctx, overlayFsReader, "/", imgMeta, scanOptions)
 	if err != nil {
@@ -491,4 +497,12 @@ func extractLayersFromOverlayFSMounts(mounts []mount.Mount) []string {
 		}
 	}
 	return layers
+}
+
+func sanitizePath(path string) string {
+	if index := strings.Index(path, "/var/lib"); index != -1 {
+		return "/host" + path[index:]
+	}
+
+	return path
 }
