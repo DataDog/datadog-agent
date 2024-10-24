@@ -1,5 +1,7 @@
 import glob
 import os
+import platform
+import shutil
 import tempfile
 import zipfile
 from pathlib import Path, PurePath
@@ -15,6 +17,9 @@ from tasks.libs.common.utils import download_to_tempfile
 
 class CrashAnalyzer:
     env: Path
+
+    target_platform: str | None
+    target_arch: str | None
 
     active_dump: Path | None
     symbol_store: SymbolStore
@@ -74,6 +79,12 @@ class CrashAnalyzerCli:
 def get_crash_analyzer():
     env = Path.home() / '.agent-crash-analyzer'
     ca = CrashAnalyzer(env=env)
+    if platform.platform() == 'Windows':
+        ca.target_platform = 'windows'
+        ca.target_arch = 'x86_64'
+    else:
+        ca.target_platform = 'suse'
+        ca.target_arch = 'x86_64'
     print(f"Using environment: {ca.env}")
     return ca
 
@@ -150,15 +161,20 @@ def get_job_dump(ctx, job_id, with_symbols=False):
 
 
 @task
-def get_debug_symbols(ctx, job_id=None, version=None):
-    cli = get_crash_analyzer()
+def get_debug_symbols(ctx, job_id=None, version=None, platform=None, arch=None):
+    ca = get_crash_analyzer()
+    if platform:
+        ca.target_platform = platform
+    if arch:
+        ca.target_arch = arch
+
     if version:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            get_debug_symbols_for_version(version, tmp_dir)
-            syms = cli.symbol_store.add(version, tmp_dir)
+            get_debug_symbols_for_version(version, ca.target_platform, ca.target_arch, tmp_dir)
+            syms = ca.symbol_store.add(version, ca.target_platform, ca.target_arch, tmp_dir)
     elif job_id:
-        cli.select_project(get_gitlab_repo())
-        syms = get_symbols_for_job_id(cli, job_id)
+        ca.select_project(get_gitlab_repo())
+        syms = get_symbols_for_job_id(ca, job_id)
 
     print(f"Symbols for {version} in {syms}")
 
@@ -179,7 +195,7 @@ def get_symbols_for_job_id(ca: CrashAnalyzer, job_id: str) -> Path | None:
     artifact = ca.artifact_store.get(project_id, job_id)
     if artifact and artifact.version:
         version = artifact.version
-        syms = ca.symbol_store.get(version)
+        syms = ca.symbol_store.get(version, ca.target_platform, ca.target_arch)
     else:
         # Need to get the symbols from the package build job in the pipeline
         package_job_id = get_package_job_id(ca.active_project, job_id)
@@ -195,11 +211,11 @@ def get_symbols_for_job_id(ca: CrashAnalyzer, job_id: str) -> Path | None:
                 artifact = ca.artifact_store.add(project_id, job_id)
             artifact.version = version
             # add the symbols to the symbol store
-            syms = ca.symbol_store.get(version)
+            syms = ca.symbol_store.get(version, ca.target_platform, ca.target_arch)
             if not syms:
                 with tempfile.TemporaryDirectory() as tmp_dir:
-                    extract_agent_symbols(debug_zip, tmp_dir)
-                    syms = ca.symbol_store.add(version, tmp_dir)
+                    _windows_extract_agent_symbols(debug_zip, tmp_dir)
+                    syms = ca.symbol_store.add(version, ca.target_platform, ca.target_arch, tmp_dir)
 
     return syms
 
@@ -212,14 +228,35 @@ def get_or_fetch_artifacts(artifact_store: ArtifactStore, project: Project, job_
     return artifacts
 
 
-def get_debug_symbols_for_version(version: str, output_dir: Path | str) -> None:
-    url = get_debug_symbol_url_for_version(version)
+def get_debug_symbols_for_version(version: str, platform: str, arch: str, output_dir: Path | str) -> None:
+    if platform == 'windows':
+        _windows_get_debug_symbols_for_version(version, output_dir)
+    elif platform == 'suse':
+        _suse_get_debug_symbols_for_version(version, arch, output_dir)
+
+
+def _suse_get_debug_symbols_for_version(version: str, arch: str, output_dir: Path | str) -> None:
+    base = 'https://s3.amazonaws.com/yum.datadoghq.com/suse/'
+    if 'rc' in version:
+        raise NotImplementedError("No debug symbols for rc SUSE")
+    major_version = version.split('.')[0]
+    url = f'{base}stable/{major_version}/{arch}/datadog-agent-dbg-{version}-1.{arch}.rpm'
     print(f"Downloading symbols for {version} from {url}")
-    with download_to_tempfile(url) as zip_path:
-        extract_agent_symbols(zip_path, output_dir)
+    with download_to_tempfile(url) as rpm_path:
+        _suse_extract_agent_symbols(rpm_path, output_dir)
 
 
-def extract_agent_symbols(zip_path: Path | str, output_dir: Path | str) -> None:
+def _suse_extract_agent_symbols(rpm_path: Path | str, output_dir: Path | str) -> None:
+    assert shutil.which('rpm2cpio'), "rpm2cpio is required to extract symbols from RPMs"
+    assert shutil.which('cpio'), "cpio is required to extract symbols from RPMs"
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # directory layout opt/datadog-agent/.debug/opt/datadog-agent/
+        agent_root = 'opt/datadog-agent/.debug/opt/datadog-agent'
+        os.system(f'rpm2cpio {rpm_path} | cpio -idm -D {tmp_dir}')
+        shutil.copytree(f"{tmp_dir}/{agent_root}", output_dir, dirs_exist_ok=True)
+
+
+def _windows_extract_agent_symbols(zip_path: Path | str, output_dir: Path | str) -> None:
     with zipfile.ZipFile(zip_path, "r") as zip_ref:
         for info in zip_ref.infolist():
             if info.filename.endswith('.exe.debug'):
@@ -227,12 +264,15 @@ def extract_agent_symbols(zip_path: Path | str, output_dir: Path | str) -> None:
                 zip_ref.extract(info, output_dir)
 
 
-def get_debug_symbol_url_for_version(version: str) -> str:
+def _windows_get_debug_symbols_for_version(version: str, output_dir: Path | str) -> str:
     if 'rc' in version:
         base = 'https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/ddagent-cli-'
     else:
         base = 'https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-'
     url = f'{base}{version}.debug.zip'
+    print(f"Downloading symbols for {version} from {url}")
+    with download_to_tempfile(url) as zip_path:
+        _windows_extract_agent_symbols(zip_path, output_dir)
     return url
 
 
