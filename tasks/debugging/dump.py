@@ -183,18 +183,6 @@ def get_debug_symbols_for_version(version: str, output_dir=None) -> None:
         extract_agent_symbols(zip_path, output_dir)
 
 
-def get_debug_symbols_for_job_pipeline(job_id: str, output_dir=None) -> None:
-    package_job_id = get_package_job_id(job_id)
-    print(f"Downloading debug symbols from package job {package_job_id}")
-    # TODO: gitlab API doesn't let us download just one artifact
-    #       so we have to get them all, and they are big :(
-    #       we could start uploading the .debug.zip to mstesting bucket
-    package_out = Path(output_dir, f'{package_job_id}-artifacts')
-    download_job_artifacts(package_job_id, package_out)
-    debug_zip = find_debug_zip(package_out)
-    extract_agent_symbols(debug_zip, output_dir)
-
-
 def extract_agent_symbols(zip_path: str, output_dir: str) -> None:
     with zipfile.ZipFile(zip_path, "r") as zip_ref:
         for info in zip_ref.infolist():
