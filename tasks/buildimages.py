@@ -113,7 +113,7 @@ def get_tag(_, file_path=".gitlab-ci.yml", image_type=None):
         available_images = set()
         for key in gitlab_ci["variables"].keys():
             if key.startswith("CI_IMAGE"):
-                available_images.add(key.removeprefix("CI_IMAGE_").replace("_SUFFIX", "").casefold())
+                available_images.add(key.removeprefix("CI_IMAGE_").removesuffix("_SUFFIX").casefold())
                 if image_type in key.casefold():
                     return gitlab_ci["variables"][key]
         raise Exit(
