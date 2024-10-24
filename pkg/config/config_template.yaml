@@ -1026,6 +1026,24 @@ api_key:
   ## The total combined usage all integrations logs files can use
   #
   # integrations_logs_total_usage
+  
+  ## @param streaming - custom object - optional
+  ## This section allows you to configure streaming logs via remote config.
+  # streaming:
+
+    ## @param enable_streamlogs - bool - optional - default: false
+    ## @env DD_LOGS_CONFIG_STREAMING_ENABLE_STREAMLOGS - bool - optional - default: false  
+    ## Enable streaming logs for remote-config flares to get streamlogs output.
+    # enable_streamlogs: false
+
+    ## @param streamlogs_log_file - string - optional
+    ## @env DD_LOGS_CONFIG_STREAMING_STREAMLOGS_LOG_FILE - string - optional
+    ## Path to the file containing the streamlogs log file.
+    ## Default paths:
+    ##   * Windows: c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log
+    ##   * Unix: /opt/log/datadog/streamlogs_info/streamlogs.log
+    ##   * Linux: /var/log/datadog/streamlogs_info/streamlogs.log
+    # streamlogs_log_file: <path_to_streamlogs_log_file>
 
 {{ end -}}
 {{- if .TraceAgent }}

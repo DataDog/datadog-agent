@@ -1575,6 +1575,15 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// SDS logs blocking mechanism
 	config.BindEnvAndSetDefault("logs_config.sds.wait_for_configuration", "")
 	config.BindEnvAndSetDefault("logs_config.sds.buffer_max_size", 0)
+
+	// Max size in MB to allow for integrations logs files
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
+
+	// Control streamlogs log collection for remote config
+	config.BindEnvAndSetDefault("logs_config.streaming.enable_streamlogs", false)
+	// Control how the stream-logs log file is managed
+	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", DefaultStreamlogsLogFile)
+
 }
 
 func vector(config pkgconfigmodel.Setup) {
