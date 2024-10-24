@@ -12,6 +12,17 @@ jobs:
   run_slapr_datadog_agent:
     runs-on: ubuntu-latest
     steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.SLAPR_AWS_ROLE_TO_ASSUME }}
+          aws-region: us-east-1
+          role-duration-seconds: 900 # 15 min
+      - name: Download teams
+        id: download-teams
+        shell: bash
+        run: |
+          aws s3 cp --region us-east-1 s3://dd-ci-slack-teams-bucket/teams.json -
       - uses: DataDog/slapr@celian/codeowners
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
