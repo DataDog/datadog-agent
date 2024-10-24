@@ -41,8 +41,9 @@ import (
 )
 
 const (
-	collectorID   = "docker"
-	componentName = "workloadmeta-docker"
+	collectorID          = "docker"
+	componentName        = "workloadmeta-docker"
+	defaultRestartPolicy = "no"
 )
 
 // imageEventActionSbom is an event that we set to create a fake docker event.
@@ -297,6 +298,11 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 			}
 		}
 
+		restartPolicy := defaultRestartPolicy
+		if hostConfig := container.HostConfig; hostConfig != nil {
+			restartPolicy = string(hostConfig.RestartPolicy.Name)
+		}
+
 		event.Type = workloadmeta.EventTypeSet
 		event.Entity = &workloadmeta.Container{
 			EntityID: entityID,
@@ -316,9 +322,11 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 				FinishedAt: finishedAt,
 				CreatedAt:  createdAt,
 			},
-			NetworkIPs: extractNetworkIPs(container.NetworkSettings.Networks),
-			Hostname:   container.Config.Hostname,
-			PID:        container.State.Pid,
+			NetworkIPs:    extractNetworkIPs(container.NetworkSettings.Networks),
+			Hostname:      container.Config.Hostname,
+			PID:           container.State.Pid,
+			RestartCount:  container.RestartCount,
+			RestartPolicy: restartPolicy,
 		}
 
 	case events.ActionDie, docker.ActionDied:
