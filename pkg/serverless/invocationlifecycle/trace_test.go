@@ -60,6 +60,20 @@ func TestInjectContextWithContext(t *testing.T) {
 	assert.Equal(t, sampler.PriorityUserKeep, currentExecutionInfo.SamplingPriority)
 }
 
+func TestInjectContextWith128BitTraceID(t *testing.T) {
+	currentExecutionInfo := newExecutionContextWithTime()
+	httpHeaders := http.Header{}
+	httpHeaders.Set("x-datadog-trace-id", "1234")
+	httpHeaders.Set("x-datadog-parent-id", "5678")
+	httpHeaders.Set("x-datadog-sampling-priority", "2")
+	httpHeaders.Set(TraceTagsHeader, Upper64BitsTag+"=1234567890abcdef")
+	InjectContext(currentExecutionInfo, httpHeaders)
+	assert.Equal(t, uint64(1234), currentExecutionInfo.TraceID)
+	assert.Equal(t, uint64(5678), currentExecutionInfo.parentID)
+	assert.Equal(t, sampler.PriorityUserKeep, currentExecutionInfo.SamplingPriority)
+	assert.Equal(t, "1234567890abcdef", currentExecutionInfo.TraceIDUpper64Hex)
+}
+
 func TestInjectSpanIDNoContext(t *testing.T) {
 	currentExecutionInfo := newExecutionContextWithTime()
 	InjectSpanID(currentExecutionInfo, nil)
@@ -510,6 +524,8 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		InvokeEventHeaders: http.Header{},
 	}
 	lp.startExecutionSpan(nil, []byte(testString), startDetails)
+	execInfo := lp.GetExecutionInfo()
+	execInfo.TraceIDUpper64Hex = "1234567890abcdef"
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
@@ -530,8 +546,9 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		"cold_start":                "true",
 		"function.request.resource": "/users/create",
 		"function.request.path":     "/users/create",
-		"function.request.headers.x-datadog-parent-id":         "1480558859903409531",
-		"function.request.headers.x-datadog-trace-id":          "5736943178450432258",
+		"function.request.headers.x-datadog-parent-id": "1480558859903409531",
+		"function.request.headers.x-datadog-trace-id":  "5736943178450432258",
+		"_dd.p.tid": "1234567890abcdef",
 		"function.request.headers.x-datadog-sampling-priority": "1",
 		"function.request.httpMethod":                          "GET",
 		"function.request.headers.Accept":                      "*/*",
@@ -539,7 +556,7 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		"function.response.response":                           "test response payload",
 		"language":                                             "dotnet",
 	}
-	assert.Equal(t, executionSpan.Meta, expectingResultMetaMap)
+	assert.Equal(t, expectingResultMetaMap, executionSpan.Meta)
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
 	assert.Equal(t, "TestFunction", executionSpan.Resource)
@@ -1058,4 +1075,44 @@ func TestCompleteInferredSpanWithAsync(t *testing.T) {
 	assert.Equal(t, inferredSpan.Span.SpanID, span.SpanID)
 	assert.Equal(t, duration.Nanoseconds(), span.Duration)
 	assert.Equal(t, int32(0), inferredSpan.Span.Error)
+}
+
+func Test_getUpper64Hex(t *testing.T) {
+	tests := []struct {
+		name string
+		tags string
+		want string
+	}{
+		{
+			name: "just a trace tag",
+			tags: "_dd.p.tid=1234567890abcdef",
+			want: "1234567890abcdef",
+		},
+		{
+			name: "nothing",
+			tags: "",
+			want: "",
+		},
+		{
+			name: "multiple tags 1",
+			tags: "some=tag,_dd.p.tid=1234567890abcdef",
+			want: "1234567890abcdef",
+		},
+		{
+			name: "multiple tags 2",
+			tags: "_dd.p.tid=1234567890abcdef,some=tag",
+			want: "1234567890abcdef",
+		},
+		{
+			name: "multiple tags 3",
+			tags: "some=tag,_dd.p.tid=1234567890abcdef,another=tag",
+			want: "1234567890abcdef",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, getUpper64Hex(tt.tags), "getUpper64Hex(%v)", tt.tags)
+
+		})
+	}
 }
