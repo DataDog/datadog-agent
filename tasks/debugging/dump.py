@@ -1,7 +1,7 @@
 import glob
 import os
-import platform
 import shutil
+import sys
 import tempfile
 import zipfile
 from pathlib import Path, PurePath
@@ -79,7 +79,7 @@ class CrashAnalyzerCli:
 def get_crash_analyzer():
     env = Path.home() / '.agent-crash-analyzer'
     ca = CrashAnalyzer(env=env)
-    if platform.platform() == 'Windows':
+    if sys.platform == 'win32':
         ca.target_platform = 'windows'
         ca.target_arch = 'x86_64'
     else:
