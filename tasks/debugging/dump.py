@@ -1,13 +1,108 @@
 import glob
 import os
+import shutil
 import tempfile
 import zipfile
 from pathlib import Path, PurePath
 
+from gitlab.v4.objects import Project
 from invoke import task
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.utils import download_to_tempfile
+
+
+class PathStore:
+    path: Path
+
+    def __init__(self, path: str | Path):
+        self.path = Path(path)
+
+    def add(self, src: Path, dst: Path) -> Path:
+        dst.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(src, dst, dirs_exist_ok=True)
+        return dst
+
+    def get(self, path: Path) -> Path | None:
+        if path.exists():
+            return path
+        return None
+
+
+class SymbolStore(PathStore):
+    def __init__(self, path: str | Path):
+        super().__init__(path)
+
+    def add(self, version: str, path: str | Path) -> Path:
+        dst = Path(self.path, version)
+        return super().add(path, dst)
+
+    def get(self, version: str) -> Path | None:
+        p = Path(self.path, version)
+        return super().get(p)
+
+
+class ArtifactStore(PathStore):
+    def __iter__(self):
+        return iter(self.path.glob('**/*'))
+
+    def add(self, project: str, pipeline: str, job: str, path: str | Path) -> Path:
+        dst = Path(self.path, project, pipeline, job)
+        return super().add(path, dst)
+
+    def get(self, project: str, pipeline: str, job: str) -> Path | None:
+        p = Path(self.path, project, pipeline, job)
+        return super().get(p)
+
+
+def add_gitlab_job_artifacts_to_artifact_store(artifact_store: ArtifactStore, project: Project, job_id: str) -> Path:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        download_job_artifacts(project, job_id, temp_dir)
+        project_id = "datadog-agent"  # TODO: get from project
+        job = project.jobs.get(job_id)
+        job_id = str(job_id)
+        pipeline_id = str(job.pipeline["id"])
+        return artifact_store.add(project_id, pipeline_id, job_id, temp_dir)
+
+
+class CrashAnalyzerCLI:
+    env: Path
+
+    active_dump: Path
+    symbol_store: SymbolStore
+    active_symbol: Path
+    artifact_store: ArtifactStore
+    active_project: Project
+
+    def __init__(self, env=None):
+        if env is None:
+            env = Path(tempfile.mkdtemp(prefix='crash-analyzer-'))
+        self.env = env
+
+        self.active_dump = None
+
+        self.symbol_store = SymbolStore(Path(env, 'symbols'))
+        self.active_symbol = None
+
+        self.artifact_store = ArtifactStore(Path(env, 'artifacts'))
+
+    def select_dump(self, path: str | Path):
+        path = Path(path)
+        self.active_dump = path
+
+    def select_symbol(self, path: str | Path):
+        assert path in self.symbol_files
+        self.active_symbol = path
+
+    def select_project(self, project: Project):
+        self.active_project = project
+
+
+def get_cli():
+    env = Path.home() / '.agent-crash-analyzer'
+    cli = CrashAnalyzerCLI(env=env)
+    print(f"Using environment: {cli.env}")
+    return cli
 
 
 @task(
@@ -47,20 +142,16 @@ def debug_job_dump(ctx, job_id=None, output_dir=None):
     help={
         "job_id": "The job ID to download the dump from",
         "with_symbols": "Whether to download debug symbols",
-        "output_dir": "The directory to save the dump to",
     },
 )
-def get_job_dump(ctx, job_id, with_symbols=False, output_dir=None):
+def get_job_dump(ctx, job_id, with_symbols=False):
     """
     Download a dump from a job and save it to the output directory.
     """
-    if output_dir is None:
-        output_dir = tempfile.mkdtemp()
-
-    artifacts_dir = Path(output_dir, 'artifacts')
-
-    download_job_artifacts(job_id, artifacts_dir)
-    dmp_files = find_dmp_files(artifacts_dir)
+    cli = get_cli()
+    cli.select_project(get_gitlab_repo())
+    package_artifacts = get_or_fetch_artifacts(cli.artifact_store, cli.active_project, job_id)
+    dmp_files = find_dmp_files(package_artifacts)
     if not dmp_files:
         print("No dump files found")
         return
@@ -69,25 +160,53 @@ def get_job_dump(ctx, job_id, with_symbols=False, output_dir=None):
         print('\t', dmp_file)
 
     if with_symbols:
-        get_debug_symbols(ctx, job_id=job_id, output_dir=output_dir)
+        syms = get_symbols_for_job_id(cli, job_id)
         print("Symbols:")
-        for symbol_file in find_symbol_files(output_dir):
+        for symbol_file in find_symbol_files(syms):
             print('\t', Path(symbol_file).resolve())
 
 
 @task
-def get_debug_symbols(ctx, job_id=None, version=None, output_dir=None):
-    if output_dir is None:
-        output_dir = tempfile.mkdtemp()
-
-    symbol_out = Path(output_dir, 'symbols')
-
+def get_debug_symbols(ctx, job_id=None, version=None):
+    cli = get_cli()
     if version:
-        get_debug_symbols_for_version(version, symbol_out)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            get_debug_symbols_for_version(version, tmp_dir)
+            syms = cli.symbol_store.add(version, tmp_dir)
     elif job_id:
-        get_debug_symbols_for_job_pipeline(job_id, symbol_out)
+        cli.select_project(get_gitlab_repo())
+        syms = get_symbols_for_job_id(cli, job_id)
 
-    print(f"Downloaded debug symbols to {symbol_out}")
+    print(f"Symbols for {version} in {syms}")
+
+
+def get_symbols_for_job_id(cli: CrashAnalyzerCLI, job_id: str) -> Path:
+    pipeline_id, package_job_id = get_package_job_id(cli.active_project, job_id)
+    package_artifacts = get_or_fetch_artifacts(
+        cli.artifact_store, cli.active_project, package_job_id, pipeline_id=pipeline_id
+    )
+    for debug_zip in find_debug_zip(package_artifacts):
+        debug_zip = Path(debug_zip)
+        version = debug_zip.name.removesuffix('.debug.zip')
+        syms = cli.symbol_store.get(version)
+        if not syms:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                extract_agent_symbols(debug_zip, tmp_dir)
+                syms = cli.symbol_store.add(version, tmp_dir)
+    return syms
+
+
+def get_or_fetch_artifacts(
+    artifact_store: ArtifactStore, project: Project, job_id: str, pipeline_id: str = None
+) -> Path:
+    if not pipeline_id:
+        job = project.jobs.get(job_id)
+        pipeline_id = str(job.pipeline["id"])
+    project_id = "datadog-agent"  # TODO: get from project
+    artifacts = artifact_store.get(project_id, pipeline_id, job_id)
+    if not artifacts:
+        artifacts = add_gitlab_job_artifacts_to_artifact_store(artifact_store, project, job_id)
+    return artifacts
 
 
 def get_debug_symbols_for_version(version: str, output_dir=None) -> None:
@@ -126,13 +245,12 @@ def get_debug_symbol_url_for_version(version: str) -> str:
     return url
 
 
-def download_job_artifacts(job_id: str, output_dir: str) -> None:
+def download_job_artifacts(project: Project, job_id: str, output_dir: str) -> None:
     """
     Download the artifacts for a job to the output directory.
     """
-    gitlab = get_gitlab_repo()
-    job = gitlab.jobs.get(job_id)
-    print(f"Downloading artifacts for job {job.name} to {output_dir}")
+    job = project.jobs.get(job_id)
+    print(f"Downloading artifacts for job {job.name}")
     fd, tmp_path = tempfile.mkstemp()
     try:
         with os.fdopen(fd, "wb") as f:
@@ -153,25 +271,24 @@ def find_dmp_files(output_dir: str) -> list[str]:
 
 
 def find_debug_zip(output_dir: str) -> str:
-    return glob.glob(f"{output_dir}/**/*.debug.zip", recursive=True)[0]
+    return list(glob.glob(f"{output_dir}/**/*.debug.zip", recursive=True))
 
 
 def find_symbol_files(output_dir: str) -> list[str]:
     return list(glob.glob(f"{output_dir}/**/*.exe.debug", recursive=True))
 
 
-def get_package_job_id(job_id: str, package_job_name=None) -> str | None:
+def get_package_job_id(project: Project, job_id: str, package_job_name=None) -> tuple[str, str] | None:
     """
     Get the package job ID for the pipeline of the given job.
     """
     if package_job_name is None:
         package_job_name = "windows_msi_and_bosh_zip_x64-a7"
 
-    gitlab = get_gitlab_repo()
-    job = gitlab.jobs.get(job_id)
-    pipeline_id = job.pipeline["id"]
-    pipeline = gitlab.pipelines.get(pipeline_id)
-    jobs = pipeline.jobs.list(iterator=True)
+    job = project.jobs.get(job_id)
+    pipeline_id = str(job.pipeline["id"])
+    pipeline = project.pipelines.get(pipeline_id)
+    jobs = pipeline.jobs.list(iterator=True, per_page=50, scope='success')
     for job in jobs:
         if job.name == package_job_name:
-            return job.id
+            return str(pipeline_id), str(job.id)
