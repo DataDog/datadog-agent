@@ -1086,3 +1086,76 @@ func TestGetHostnameSyncTimeouts(t *testing.T) {
 
 	cancel()
 }
+
+func TestGetHostnames(t *testing.T) {
+	overrides := map[string]interface{}{
+		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
+	}
+
+	defaultTs := testSetup(t, overrides, true, nil, 100*time.Millisecond)
+
+	tests := []struct {
+		name     string
+		ts       *testState
+		ipAddrs  []string
+		timeout  time.Duration
+		expected map[string]ReverseDNSResult
+	}{
+		{
+			name:    "valid IPs",
+			ts:      defaultTs,
+			ipAddrs: []string{"192.168.1.100", "192.168.1.101"},
+			timeout: 1 * time.Second,
+			expected: map[string]ReverseDNSResult{
+				"192.168.1.100": {IP: "192.168.1.100", Hostname: "fakehostname-192.168.1.100"},
+				"192.168.1.101": {IP: "192.168.1.101", Hostname: "fakehostname-192.168.1.101"},
+			},
+		},
+		{
+			name:    "invalid IP, private IPs, and public IP",
+			ts:      defaultTs,
+			ipAddrs: []string{"invalid_ip", "192.168.1.102", "8.8.8.8", "192.168.1.100"},
+			timeout: 1 * time.Second,
+			expected: map[string]ReverseDNSResult{
+				"invalid_ip":    {IP: "invalid_ip", Err: fmt.Errorf("invalid IP address invalid_ip")},
+				"192.168.1.102": {IP: "192.168.1.102", Hostname: "fakehostname-192.168.1.102"},
+				"8.8.8.8":       {IP: "8.8.8.8"},
+				"192.168.1.100": {IP: "192.168.1.100", Hostname: "fakehostname-192.168.1.100"},
+			},
+		},
+		{
+			name:    "invalid IP, timeout for private and public IPs",
+			ts:      testSetup(t, overrides, true, nil, 10*time.Second),
+			ipAddrs: []string{"192.168.1.105", "invalid", "8.8.8.8"},
+			timeout: 1 * time.Second,
+			expected: map[string]ReverseDNSResult{
+				"192.168.1.105": {IP: "192.168.1.105", Err: fmt.Errorf("timeout reached while resolving hostname for IP address 192.168.1.105")},
+				"invalid":       {IP: "invalid", Err: fmt.Errorf("invalid IP address invalid")},
+				"8.8.8.8":       {IP: "8.8.8.8"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(tt.ts.ctx, tt.timeout)
+			defer cancel()
+
+			internalRDNSQuerier := tt.ts.rdnsQuerier.(*rdnsQuerierImpl)
+			results := internalRDNSQuerier.GetHostnames(ctx, tt.ipAddrs)
+
+			for ip, expectedResult := range tt.expected {
+				result, ok := results[ip]
+				require.True(t, ok, "result for IP %s not found", ip)
+				assert.Equal(t, expectedResult.IP, result.IP)
+				assert.Equal(t, expectedResult.Hostname, result.Hostname)
+				if expectedResult.Err != nil {
+					require.Error(t, result.Err)
+					assert.Contains(t, result.Err.Error(), expectedResult.Err.Error())
+				} else {
+					assert.NoError(t, result.Err)
+				}
+			}
+		})
+	}
+}
