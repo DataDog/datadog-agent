@@ -9,6 +9,7 @@ package message
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -105,6 +106,7 @@ type Message struct {
 // Note that there is no state distinction between parsed and unparsed content as none was needed
 // for the current implementation, but it is a potential future change with a `StateParsed` state.
 type MessageContent struct { //nolint:revive
+	sync.Mutex
 	// unstructured content
 	content []byte
 	// structured content
@@ -137,6 +139,8 @@ const (
 // See `MessageContent` comment for more information as this method could also
 // return the message content in different state (rendered, encoded).
 func (m *MessageContent) GetContent() []byte {
+	m.Lock()
+	defer m.Unlock()
 	switch m.State {
 	// for raw, rendered or encoded message, the data has
 	// been written into m.Content
@@ -157,6 +161,8 @@ func (m *MessageContent) GetContent() []byte {
 // SetContent uses the current message state to know where
 // to store the content.
 func (m *MessageContent) SetContent(content []byte) {
+	m.Lock()
+	defer m.Unlock()
 	switch m.State {
 	case StateStructured:
 		m.structuredContent.SetContent(content)
