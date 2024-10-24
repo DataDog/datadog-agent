@@ -158,9 +158,13 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 		log.Warnf("error compiling network tracer, falling back to pre-compiled: %s", err)
 	}
 
+	if netebpf.IsPrecompiledEbpfDeprecated() {
+		log.Warnf("using deprecated pre-compiled network tracer")
+	}
+
 	offsets, err := tracerOffsetGuesserRunner(cfg)
 	if err != nil {
-		return nil, nil, TracerTypePrebuilt, fmt.Errorf("error loading prebuilt tracer: error guessing offsets: %s", err)
+		return nil, nil, TracerTypePrebuilt, fmt.Errorf("error loading prebuilt tracer: error guessing offsets: %w", err)
 	}
 
 	mgrOpts.ConstantEditors = append(mgrOpts.ConstantEditors, offsets...)

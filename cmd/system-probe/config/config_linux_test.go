@@ -15,6 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestNetworkProcessEventMonitoring(t *testing.T) {
@@ -108,4 +111,55 @@ func TestNPMEnabled(t *testing.T) {
 			assert.Equal(t, te.npmEnabled, cfg.ModuleIsEnabled(NetworkTracerModule), "unexpected network tracer module enablement: npm: %v, usm: %v, ccm: %v", te.npm, te.usm, te.ccm)
 		})
 	}
+}
+
+func TestEbpfFallbackDeprecation(t *testing.T) {
+	family, err := kernel.Family()
+	require.NoError(t, err, "could not determine kernel family")
+
+	kv, err := kernel.HostVersion()
+	require.NoError(t, err, "could not determine kernel version")
+
+	deprecateVersion := netebpf.PrecompiledEbpfDeprecatedKernelVersion
+	if family == "rhel" {
+		deprecateVersion = netebpf.PrecompiledEbpfDeprecatedKernelVersionRhel
+	}
+
+	t.Run("default", func(t *testing.T) {
+		cfg := mock.NewSystemProbe(t)
+		assert.False(t, cfg.GetBool(allowPrecompiledFallbackKey))
+	})
+
+	t.Run("not set in config", func(t *testing.T) {
+		cfg := mock.NewSystemProbe(t)
+		Adjust(cfg)
+
+		switch {
+		case kv < deprecateVersion:
+			assert.True(t, cfg.GetBool(allowPrecompiledFallbackKey))
+		default:
+			// deprecated
+			assert.False(t, cfg.GetBool(allowPrecompiledFallbackKey))
+		}
+	})
+
+	// if system_probe_config.allow_precompiled_fallback is set
+	// in config, that value should not be changed by Adjust()
+	t.Run("set in config", func(t *testing.T) {
+		t.Run("true", func(t *testing.T) {
+			cfg := mock.NewSystemProbe(t)
+			cfg.Set(allowPrecompiledFallbackKey, true, model.SourceDefault)
+			Adjust(cfg)
+
+			assert.True(t, cfg.GetBool(allowPrecompiledFallbackKey))
+		})
+
+		t.Run("false", func(t *testing.T) {
+			cfg := mock.NewSystemProbe(t)
+			cfg.Set(allowPrecompiledFallbackKey, false, model.SourceDefault)
+			Adjust(cfg)
+
+			assert.False(t, cfg.GetBool(allowPrecompiledFallbackKey))
+		})
+	})
 }

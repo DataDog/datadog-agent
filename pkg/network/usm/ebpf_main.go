@@ -16,11 +16,10 @@ import (
 	"time"
 	"unsafe"
 
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
 	"golang.org/x/sys/unix"
-
-	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -205,6 +204,10 @@ func (e *ebpfProgram) Init() error {
 			return fmt.Errorf("runtime compilation failed: %w", err)
 		}
 		log.Warnf("runtime compilation failed: attempting fallback: %s", err)
+	}
+
+	if netebpf.IsPrecompiledEbpfDeprecated() {
+		log.Warnf("using deprecated pre-compiled USM monitor")
 	}
 
 	e.buildMode = buildmode.Prebuilt
