@@ -16,27 +16,9 @@ namespace WixSetup.Datadog_Agent
         public string SecurityAgent => $@"{_binSource}\agent\security-agent.exe";
         public string LibDatadogAgentThree => $@"{_binSource}\agent\libdatadog-agent-three.dll";
 
-        public string[] PythonThreeBinaries;
-        public string[] PythonTwoBinaries;
-
-        public string LibDatadogAgentTwo => $@"{_binSource}\agent\libdatadog-agent-two.dll";
-
         public AgentBinaries(string binSource, string installerSource)
         {
             _binSource = binSource;
-            PythonThreeBinaries = new[]
-            {
-                $@"{installerSource}\embedded3\python.exe",
-                $@"{installerSource}\embedded3\python3.dll",
-                $@"{installerSource}\embedded3\python312.dll",
-                $@"{installerSource}\embedded3\pythonw.exe"
-            };
-            PythonTwoBinaries = new[]
-            {
-                $@"{installerSource}\embedded2\python.exe",
-                $@"{installerSource}\embedded2\python27.dll",
-                $@"{installerSource}\embedded2\pythonw.exe"
-            };
         }
     }
 }

@@ -93,7 +93,7 @@ func (b *dockerEventBundle) toDatadogEvent(hostname string) (event.Event, error)
 
 	for cid := range seenContainers {
 
-		tags, err := tagger.Tag(types.NewEntityID(types.ContainerID, cid).String(), types.HighCardinality)
+		tags, err := tagger.Tag(types.NewEntityID(types.ContainerID, cid), types.HighCardinality)
 		if err != nil {
 			log.Debugf("no tags for %s: %s", cid, err)
 		} else {

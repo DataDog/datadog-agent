@@ -421,6 +421,7 @@
 /pkg/flare/*_win.go                     @Datadog/windows-agent
 /pkg/flare/*_windows.go                 @Datadog/windows-agent
 /pkg/flare/*_windows_test.go            @Datadog/windows-agent
+/pkg/flare/sysprobe                     @DataDog/Networks @Datadog/windows-agent @DataDog/processes @DataDog/agent-security @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/fleet/                             @DataDog/fleet @DataDog/windows-agent
 /pkg/pidfile/                           @DataDog/agent-shared-components
 /pkg/persistentcache/                   @DataDog/agent-metrics-logs
@@ -445,7 +446,6 @@
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-platform @DataDog/container-app
 /pkg/util/podman/                       @DataDog/container-integrations
 /pkg/util/prometheus                    @DataDog/container-integrations
-/pkg/util/tagger                        @DataDog/container-platform
 /pkg/util/trivy/                        @DataDog/container-integrations @DataDog/agent-security
 /pkg/util/uuid/                         @DataDog/agent-shared-components
 /pkg/util/cgroups/                      @DataDog/container-integrations
@@ -560,6 +560,7 @@
 /tasks/windows_resources.py             @DataDog/windows-agent
 /tasks/components.py                    @DataDog/agent-shared-components
 /tasks/components_templates             @DataDog/agent-shared-components
+/tasks/libs/ciproviders/                @DataDog/agent-devx-infra
 /tasks/libs/common/omnibus.py           @DataDog/agent-delivery
 /tasks/omnibus.py                       @DataDog/agent-delivery
 /tasks/unit_tests/components_tests.py   @DataDog/agent-shared-components
