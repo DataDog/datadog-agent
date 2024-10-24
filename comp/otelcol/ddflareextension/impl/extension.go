@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 
 	extensionDef "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
@@ -38,6 +39,8 @@ type ddExtension struct {
 	debug       extensionDef.DebugSourceResponse
 	configStore *configStore
 	ocb         bool
+
+	effectiveConfig *confmap.Conf
 }
 
 var _ extension.Extension = (*ddExtension)(nil)
@@ -51,7 +54,10 @@ var _ extension.Extension = (*ddExtension)(nil)
 func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) error {
 	var cfg *configSettings
 	var err error
-
+	if ext.ocb {
+		ext.effectiveConfig = conf
+		return nil
+	}
 	if cfg, err = unmarshal(conf, *ext.cfg.factories, ext.ocb); err != nil {
 		return fmt.Errorf("cannot unmarshal the configuration: %w", err)
 	}
@@ -138,7 +144,8 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 		debug: extensionDef.DebugSourceResponse{
 			Sources: map[string]extensionDef.OTelFlareSource{},
 		},
-		ocb: true,
+		ocb:             true,
+		effectiveConfig: &confmap.Conf{},
 	}
 	var err error
 	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext)
@@ -204,6 +211,48 @@ func (ext *ddExtension) Shutdown(ctx context.Context) error {
 
 // ServeHTTP the request handler for the extension.
 func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+	if ext.ocb {
+		configMap, err := yaml.Marshal(ext.effectiveConfig.ToStringMap())
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "Unable to get provided config\n")
+			return
+		}
+		customer := string(configMap)
+
+		envconfig := ""
+		envvars := getEnvironmentAsMap()
+		if envbytes, err := json.Marshal(envvars); err == nil {
+			envconfig = string(envbytes)
+		}
+
+		resp := extensionDef.Response{
+			BuildInfoResponse: extensionDef.BuildInfoResponse{
+				AgentVersion:     version.AgentVersion,
+				AgentCommand:     ext.info.Command,
+				AgentDesc:        ext.info.Description,
+				ExtensionVersion: ext.info.Version,
+			},
+			ConfigResponse: extensionDef.ConfigResponse{
+				CustomerConfig:        customer,
+				RuntimeConfig:         "",
+				RuntimeOverrideConfig: "", // TODO: support RemoteConfig
+				EnvConfig:             envconfig,
+			},
+			DebugSourceResponse: ext.debug,
+			Environment:         envvars,
+		}
+		j, err := json.MarshalIndent(resp, "", "  ")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "Unable to marshal output: %v\n", err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, string(j))
+		return
+	}
 	customer, err := ext.configStore.getProvidedConfAsString()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
