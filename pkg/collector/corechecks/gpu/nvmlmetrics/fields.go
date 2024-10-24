@@ -32,15 +32,15 @@ func newFieldsMetricsCollector(_ nvml.Interface, device nvml.Device, tags []stri
 func (c *fieldsMetricsCollector) Collect() ([]Metric, error) {
 	var err error
 
-	vals := make([]nvml.FieldValue, 0, len(allfieldValueMetrics))
+	fields := make([]nvml.FieldValue, 0, len(allfieldValueMetrics))
 
 	for i, metric := range allfieldValueMetrics {
-		vals[i].FieldId = metric.fieldValueID
+		fields[i].FieldId = metric.fieldValueID
 	}
 
-	ret := c.device.GetFieldValues(vals)
+	ret := c.device.GetFieldValues(fields)
 	metrics := make([]Metric, 0, len(allfieldValueMetrics))
-	for i, val := range vals {
+	for i, val := range fields {
 		name := allfieldValueMetrics[i].name
 		if val.NvmlReturn != uint32(nvml.SUCCESS) {
 			err = multierror.Append(err, fmt.Errorf("failed to get field value %s: %s", name, nvml.ErrorString(nvml.Return(val.NvmlReturn))))
