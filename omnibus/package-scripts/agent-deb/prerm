@@ -175,6 +175,13 @@ remove_apm_remote_config()
     fi
 }
 
+remove_fips_module()
+{
+    # We explicitly remove the ssl directory because files within this folder are generated via a script
+    # outside of package installation (deb package only removes files initially present in the package).
+    rm -rf "${INSTALL_DIR}/embedded/ssl/fipsmodule.cnf" || true
+}
+
 case "$1" in #this can't be merged with the later case block because running 'remove_custom_integrations' would defeat the persisting integrations feature
     upgrade)
         # We're upgrading.
@@ -197,6 +204,7 @@ case "$1" in
         remove_version_history
         remove_sysprobe_secagent_files
         remove_remote_config_db
+        remove_fips_module
         remove_persist_integration_files
     ;;
     upgrade)

@@ -1,0 +1,15 @@
+---
+version: "3.9"
+
+services:
+  agent:
+    environment:
+      GOFIPS: {{.FIPSEnabled}}
+      DD_SKIP_SSL_VALIDATION: "true"
+    networks:
+      - fips-network
+
+networks:
+  fips-network:
+    name: fips-network
+    driver: bridge

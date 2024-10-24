@@ -394,3 +394,10 @@ def compute_config_build_tags(targets="all", build_include=None, build_exclude=N
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     use_tags = get_build_tags(build_include, build_exclude)
     return use_tags
+
+
+def add_fips_tags(tags: list[str], fips_mode: bool) -> list[str]:
+    if fips_mode:
+        print("Adding goexperiment.systemcrypto build tag for FIPS mode")
+        tags.append("goexperiment.systemcrypto")
+    return tags
