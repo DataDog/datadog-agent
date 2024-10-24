@@ -23,7 +23,11 @@ import (
 )
 
 func install(ctx context.Context, env *env.Env, url string, experiment bool) error {
-	err := os.MkdirAll(paths.RootTmpDir, 0755)
+	err := paths.CreateInstallerDataDir()
+	if err != nil {
+		return fmt.Errorf("failed to create installer data directory: %w", err)
+	}
+	err = os.MkdirAll(paths.RootTmpDir, 0755)
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory: %w", err)
 	}

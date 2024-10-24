@@ -50,5 +50,9 @@ func getKnownErrors() []knownError {
 			errorMessage: `error while waiting for fakeintake`,
 			retryType:    ReCreate,
 		},
+		{
+			errorMessage: `ssh: handshake failed: ssh: unable to authenticate`,
+			retryType:    ReCreate,
+		},
 	}
 }
