@@ -32,4 +32,17 @@ build do
     command "make"
     command "make install"
     # ---------------- DO NOT MODIFY LINES ABOVE HERE ----------------
+
+    mkdir "#{install_dir}/embedded/ssl"
+    mkdir "#{install_dir}/embedded/lib/ossl-modules"
+    copy "/usr/local/lib*/ossl-modules/fips.so", "#{install_dir}/embedded/lib/ossl-modules/fips.so"
+
+    erb source: "openssl.cnf.erb",
+        dest: "#{install_dir}/embedded/ssl/openssl.cnf.tmp",
+        mode: 0644,
+        vars: { install_dir: install_dir }
+    erb source: "fipsinstall.sh.erb",
+        dest: "#{install_dir}/embedded/bin/fipsinstall.sh",
+        mode: 0755,
+        vars: { install_dir: install_dir }
 end
