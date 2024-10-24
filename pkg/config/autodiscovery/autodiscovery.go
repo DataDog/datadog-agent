@@ -75,10 +75,11 @@ func DiscoverComponentsFromConfig() ([]pkgconfigsetup.ConfigurationProviders, []
 	}
 
 	// Auto-activate autodiscovery without listeners: - snmp
-	configs := []snmplistener.Config{}
-	err := pkgconfigsetup.Datadog().UnmarshalKey("network_devices.autodiscovery.configs", &configs)
+	snmpConfig, err := snmplistener.NewListenerConfig()
 
-	if err == nil && len(configs) > 0 {
+	if err != nil {
+		log.Errorf("Error unmarshalling snmp listener config. Error: %v", err)
+	} else if len(snmpConfig.Configs) > 0 {
 		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "snmp"})
 		log.Info("Configs for autodiscovery detected: Adding the snmp listener")
 	}

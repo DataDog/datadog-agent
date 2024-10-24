@@ -6,9 +6,7 @@
 package hostname
 
 import (
-	"C"
 	"os"
-	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
@@ -23,7 +21,7 @@ func getSystemFQDN() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	namestring := C.GoString((*C.char)(unsafe.Pointer(he.Name)))
+	namestring := windows.BytePtrToString(he.Name)
 
 	return namestring, nil
 }

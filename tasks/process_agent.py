@@ -27,7 +27,6 @@ def build(
     flavor=AgentFlavor.base.name,
     incremental_build=False,
     major_version='7',
-    python_runtimes='3',
     go_mod="mod",
     bundle=True,
 ):
@@ -42,7 +41,6 @@ def build(
             build_exclude=build_exclude,
             flavor=flavor,
             major_version=major_version,
-            python_runtimes=python_runtimes,
             go_mod=go_mod,
         )
 
@@ -54,13 +52,12 @@ def build(
         ctx,
         install_path=install_path,
         major_version=major_version,
-        python_runtimes=python_runtimes,
     )
 
     # generate windows resources
     if sys.platform == 'win32':
         build_messagetable(ctx)
-        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes)
+        vars = versioninfo_vars(ctx, major_version=major_version)
         build_rc(
             ctx,
             "cmd/process-agent/windows_resources/process-agent.rc",
