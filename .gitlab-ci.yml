@@ -1007,7 +1007,11 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - cmd/otel-agent/**/*
         - comp/otelcol/**/*
+        - pkg/trace/api/otlp.go
+        - pkg/trace/stats/otel_util.go
+        - pkg/trace/transform/transform.go
         - test/new-e2e/tests/otel/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
