@@ -9,9 +9,12 @@ package ebpf
 
 import (
 	"fmt"
+	"io"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/asm"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 )
 
 // replaceIns is used in place of the eBPF helpers we wish to remove from
@@ -48,7 +51,7 @@ type helperCallRemover struct {
 	helpers []asm.BuiltinFunc
 }
 
-func (h *helperCallRemover) BeforeInit(m *manager.Manager, _ *manager.Options) error {
+func (h *helperCallRemover) BeforeInit(m *manager.Manager, _ names.ModuleName, _ *manager.Options, _ io.ReaderAt) error {
 	m.InstructionPatchers = append(m.InstructionPatchers, func(m *manager.Manager) error {
 		progs, err := m.GetProgramSpecs()
 		if err != nil {
@@ -79,7 +82,7 @@ func (h *helperCallRemover) BeforeInit(m *manager.Manager, _ *manager.Options) e
 	return nil
 }
 
-func (h *helperCallRemover) AfterInit(*manager.Manager, *manager.Options) error {
+func (h *helperCallRemover) AfterInit(*manager.Manager, names.ModuleName, *manager.Options) error {
 	return nil
 }
 
