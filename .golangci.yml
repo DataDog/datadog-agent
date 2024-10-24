@@ -730,3 +730,5 @@ linters-settings:
     pkgconfigusage:
       type: "module"
       description: "Check usage of pkgconfig in components folder"
+    aferofs:
+      type: "module"
