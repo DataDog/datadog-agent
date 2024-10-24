@@ -18,17 +18,17 @@ import (
 
 	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/component-base/metrics"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
-
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 var (
@@ -40,25 +40,26 @@ var (
 )
 
 // NewPodDisruptionBudgetV1Beta1Factory returns a new PodDisruptionBudgets metric family generator factory.
-func NewPodDisruptionBudgetV1Beta1Factory(client *apiserver.APIClient) customresource.RegistryFactory {
+func NewPodDisruptionBudgetV1Beta1Factory(client *dynamic.DynamicClient) customresource.RegistryFactory {
 	return &pdbv1beta1Factory{
-		client: client.Cl,
+		client: client,
 	}
 }
 
 type pdbv1beta1Factory struct {
-	client interface{}
+	client *dynamic.DynamicClient
 }
 
 func (f *pdbv1beta1Factory) Name() string {
 	return "poddisruptionbudgets"
 }
 
-// CreateClient is not implemented
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func (f *pdbv1beta1Factory) CreateClient(cfg *rest.Config) (interface{}, error) {
-	return f.client, nil
+	return f.client.Resource(schema.GroupVersionResource{
+		Group:    policyv1beta1.GroupName,
+		Version:  policyv1beta1.SchemeGroupVersion.Version,
+		Resource: "poddisruptionbudgets",
+	}), nil
 }
 
 func (f *pdbv1beta1Factory) MetricFamilyGenerators( /*allowAnnotationsList, allowLabelsList []string*/ ) []generator.FamilyGenerator {
@@ -205,19 +206,22 @@ func (f *pdbv1beta1Factory) MetricFamilyGenerators( /*allowAnnotationsList, allo
 }
 
 func (f *pdbv1beta1Factory) ExpectedType() interface{} {
-	return &policyv1beta1.PodDisruptionBudget{}
+	u := unstructured.Unstructured{}
+	u.SetGroupVersionKind(policyv1beta1.SchemeGroupVersion.WithKind("PodDisruptionBudget"))
+	return &u
 }
 
 func (f *pdbv1beta1Factory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
-	client := customResourceClient.(kubernetes.Interface)
+	client := customResourceClient.(dynamic.NamespaceableResourceInterface).Namespace(ns)
+	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.PolicyV1beta1().PodDisruptionBudgets(ns).List(context.TODO(), opts)
+			return client.List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.PolicyV1beta1().PodDisruptionBudgets(ns).Watch(context.TODO(), opts)
+			return client.Watch(ctx, opts)
 		},
 	}
 }

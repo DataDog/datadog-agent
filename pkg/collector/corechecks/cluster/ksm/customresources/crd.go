@@ -10,13 +10,14 @@ package customresources
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	crd "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	//nolint:revive // TODO(CINT) Fix revive linter
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	basemetrics "k8s.io/component-base/metrics"
@@ -24,8 +25,6 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
-
-	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 )
 
 var (
@@ -38,14 +37,14 @@ var (
 
 // NewCustomResourceDefinitionFactory returns a new CustomResourceDefinition
 // metric family generator factory.
-func NewCustomResourceDefinitionFactory(client *apiserver.APIClient) customresource.RegistryFactory {
+func NewCustomResourceDefinitionFactory(client *dynamic.DynamicClient) customresource.RegistryFactory {
 	return &crdFactory{
-		client: client.CRDInformerClient,
+		client: client,
 	}
 }
 
 type crdFactory struct {
-	client interface{}
+	client *dynamic.DynamicClient
 }
 
 func (f *crdFactory) MetricFamilyGenerators( /*allowAnnotationsList, allowLabelsList []string*/ ) []generator.FamilyGenerator {
@@ -120,29 +119,31 @@ func (f *crdFactory) Name() string {
 	return "customresourcedefinitions"
 }
 
-// CreateClient is not implemented
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func (f *crdFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
-	return f.client, nil
+	return f.client.Resource(schema.GroupVersionResource{
+		Group:    v1.GroupName,
+		Version:  v1.SchemeGroupVersion.Version,
+		Resource: "customresourcedefinitions",
+	}), nil
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
 func (f *crdFactory) ExpectedType() interface{} {
-	return &crd.CustomResourceDefinition{}
+	u := unstructured.Unstructured{}
+	u.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind("CustomResourceDefinition"))
+	return &u
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
 func (f *crdFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
-	client := customResourceClient.(clientset.Interface)
+	client := customResourceClient.(dynamic.ResourceInterface)
+	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.ApiextensionsV1().CustomResourceDefinitions().List(context.TODO(), opts)
+			return client.List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.ApiextensionsV1().CustomResourceDefinitions().Watch(context.TODO(), opts)
+			return client.Watch(ctx, opts)
 		},
 	}
 }
