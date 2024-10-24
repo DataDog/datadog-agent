@@ -112,6 +112,10 @@ func (m *Check) Run() error {
 	for pid, pidStats := range stats.ProcessStats {
 		// Per-PID metrics are subject to change due to high cardinality
 		tags := []string{fmt.Sprintf("pid:%d", pid)}
+		if pidStats.Metadata.ContainerID != "" {
+			tags = append(tags, fmt.Sprintf("container_id:%s", pidStats.Metadata.ContainerID))
+		}
+
 		snd.Gauge(metricNameMemory, float64(pidStats.CurrentMemoryBytes), "", tags)
 		snd.Gauge(metricNameMaxMem, float64(pidStats.MaxMemoryBytes), "", tags)
 		snd.Gauge(metricNameUtil, pidStats.UtilizationPercentage, "", tags)

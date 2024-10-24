@@ -12,6 +12,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	sectime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 )
 
@@ -25,12 +26,16 @@ type systemContext struct {
 
 	// nvmlLib is the NVML library used to query GPU devices
 	nvmlLib nvml.Interface
+
+	// workloadmeta contains metadata about system workloads, used to get container ID
+	workloadmeta workloadmeta.Component
 }
 
-func getSystemContext(nvmlLib nvml.Interface) (*systemContext, error) {
+func getSystemContext(nvmlLib nvml.Interface, workloadmeta workloadmeta.Component) (*systemContext, error) {
 	ctx := &systemContext{
 		maxGpuThreadsPerDevice: make(map[int]int),
 		nvmlLib:                nvmlLib,
+		workloadmeta:           workloadmeta,
 	}
 
 	if err := ctx.queryDevices(); err != nil {

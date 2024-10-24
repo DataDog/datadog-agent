@@ -19,10 +19,7 @@ import (
 )
 
 func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, map[streamKey]*StreamHandler, int64) {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock())
-	require.NoError(t, err)
-	require.NotNil(t, sysCtx)
-
+	sysCtx := getSystemContextForTest(t)
 	ktime, err := ddebpf.NowNanoseconds()
 	require.NoError(t, err)
 

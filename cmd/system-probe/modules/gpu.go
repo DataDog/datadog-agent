@@ -37,7 +37,8 @@ var GPUMonitoring = module.Factory{
 			Telemetry: deps.Telemetry,
 			//if the config parameter doesn't exist or is empty string, the default value is used as defined in go-nvml library
 			//(https://github.com/NVIDIA/go-nvml/blob/main/pkg/nvml/lib.go#L30)
-			NvmlLib: nvml.New(nvml.WithLibraryPath(c.NVMLLibraryPath)),
+			NvmlLib:      nvml.New(nvml.WithLibraryPath(c.NVMLLibraryPath)),
+			Workloadmeta: deps.WMeta,
 		}
 
 		ret := probeDeps.NvmlLib.Init()

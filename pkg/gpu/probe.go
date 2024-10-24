@@ -18,6 +18,7 @@ import (
 	"github.com/cilium/ebpf/rlimit"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -45,6 +46,9 @@ type ProbeDependencies struct {
 
 	// NvmlLib is the NVML library interface
 	NvmlLib nvml.Interface
+
+	// Workloadmeta is the workloadmeta component
+	Workloadmeta workloadmeta.Component
 }
 
 // Probe represents the GPU monitoring probe
@@ -162,7 +166,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 		deps:     deps,
 	}
 
-	sysCtx, err := getSystemContext(deps.NvmlLib)
+	sysCtx, err := getSystemContext(deps.NvmlLib, deps.Workloadmeta)
 	if err != nil {
 		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
