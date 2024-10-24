@@ -116,12 +116,11 @@ type Tailer struct {
 	// blocked sending to the tailer's outputChan.
 	stopForward context.CancelFunc
 
-	info           *status.InfoRegistry
-	bytesRead      *status.CountInfo
-	movingSum      *util.MovingSum
-	pipelineID     int
-	decoderMonitor *metrics.UtilizationMonitor
-	tailerMonitorr *metrics.UtilizationMonitor
+	info       *status.InfoRegistry
+	bytesRead  *status.CountInfo
+	movingSum  *util.MovingSum
+	pipelineID int
+	// decoderMonitor *metrics.UtilizationMonitor
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -187,8 +186,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		bytesRead:              bytesRead,
 		movingSum:              movingSum,
 		pipelineID:             opts.PipelineID,
-		decoderMonitor:         metrics.NewUtilizationMonitor("decoder", strconv.Itoa(opts.PipelineID)),
-		tailerMonitorr:         metrics.NewUtilizationMonitor("tailer", strconv.Itoa(opts.PipelineID)),
+		// decoderMonitor:         metrics.NewUtilizationMonitor("decoder", strconv.Itoa(opts.PipelineID)),
 	}
 
 	if fileRotated {
@@ -299,10 +297,8 @@ func (t *Tailer) readForever() {
 	}()
 
 	for {
-		t.tailerMonitorr.Start()
 		n, err := t.read()
 		if err != nil {
-			t.tailerMonitorr.Stop()
 			return
 		}
 		t.recordBytes(int64(n))
@@ -313,7 +309,6 @@ func (t *Tailer) readForever() {
 			if n != 0 && t.didFileRotate.Load() {
 				log.Warn("Tailer stopped after rotation close timeout with remaining unread data")
 			}
-			t.tailerMonitorr.Stop()
 			// stop reading data from file
 			return
 		default:
@@ -322,7 +317,6 @@ func (t *Tailer) readForever() {
 				t.wait()
 			}
 		}
-		t.tailerMonitorr.Stop()
 	}
 }
 
@@ -350,7 +344,8 @@ func (t *Tailer) forwardMessages() {
 		close(t.done)
 	}()
 	for output := range t.decoder.OutputChan {
-		t.decoderMonitor.Stop()
+		// metrics.ReportComponentEgress(output, "decoder", strconv.Itoa(t.pipelineID))
+		// t.decoderMonitor.Stop()
 		offset := t.decodedOffset.Load() + int64(output.RawDataLen)
 		identifier := t.Identifier()
 		if t.didFileRotate.Load() {
@@ -381,7 +376,6 @@ func (t *Tailer) forwardMessages() {
 		// XXX(remy): is it ok recreating a message like this here?
 		case t.outputChan <- msg:
 			metrics.ReportComponentIngress(msg, "processor", strconv.Itoa(t.pipelineID))
-			metrics.ReportComponentEgress(msg, "decoder", strconv.Itoa(t.pipelineID))
 		case <-t.forwardContext.Done():
 		}
 	}

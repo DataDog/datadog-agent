@@ -190,7 +190,7 @@ func (p *provider) NextPipelineChanWithInstance() (chan *message.Message, int) {
 	}
 	index := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
 	nextPipeline := p.pipelines[index]
-	return nextPipeline.InputChan, int(index)
+	return nextPipeline.InputChan, nextPipeline.pipelineID
 }
 
 // Flush flushes synchronously all the contained pipeline of this provider.

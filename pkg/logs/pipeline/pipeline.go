@@ -33,6 +33,7 @@ type Pipeline struct {
 	sender     *sender.Sender
 	serverless bool
 	flushWg    *sync.WaitGroup
+	pipelineID int
 }
 
 // NewPipeline returns a new Pipeline
@@ -89,6 +90,7 @@ func NewPipeline(outputChan chan *message.Payload,
 		sender:     logsSender,
 		serverless: serverless,
 		flushWg:    flushWg,
+		pipelineID: pipelineID,
 	}
 }
 
