@@ -139,7 +139,6 @@ func (p *Processor) run() {
 			if !ok { // channel has been closed
 				return
 			}
-			p.monitor.Start()
 
 			// if we have to wait for an SDS configuration to start processing & forwarding
 			// the logs, that's here that we buffer the message
@@ -154,7 +153,6 @@ func (p *Processor) run() {
 			p.mu.Lock() // block here if we're trying to flush synchronously
 			//nolint:staticcheck
 			p.mu.Unlock()
-			p.monitor.Stop()
 
 		// SDS reconfiguration
 		// -------------------
@@ -223,6 +221,7 @@ func (s *sdsProcessor) resetBuffer() {
 }
 
 func (p *Processor) processMessage(msg *message.Message) {
+	p.monitor.Start()
 	metrics.LogsDecoded.Add(1)
 	metrics.TlmLogsDecoded.Inc()
 
@@ -247,6 +246,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 			return
 		}
 
+		p.monitor.Stop()
 		p.outputChan <- msg
 		metrics.ReportComponentEgress(msg, "processor", strconv.Itoa(p.pipelineID))
 		metrics.ReportComponentIngress(msg, "strategy", strconv.Itoa(p.pipelineID))

@@ -214,6 +214,7 @@ func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder, info *st
 		Info:          info,
 		Rotated:       true,
 		TagAdder:      tagAdder,
+		PipelineID:    t.pipelineID,
 	}
 
 	return NewTailer(options)

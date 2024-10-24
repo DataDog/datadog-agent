@@ -129,8 +129,6 @@ func (s *batchStrategy) Start() {
 }
 
 func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *message.Payload) {
-	s.monitor.Start()
-	defer s.monitor.Stop()
 	if m.Origin != nil {
 		m.Origin.LogSource.LatencyStats.Add(m.GetLatency())
 	}
@@ -152,7 +150,6 @@ func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *mess
 // to the next stage of the pipeline.
 func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	s.monitor.Start()
-	defer s.monitor.Stop()
 	if s.buffer.IsEmpty() {
 		return
 	}
@@ -187,6 +184,7 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 		Encoding:      s.contentEncoding.name(),
 		UnencodedSize: len(serializedMessage),
 	}
+	s.monitor.Stop()
 	outputChan <- p
 	metrics.ReportComponentEgress(p, "strategy", strconv.Itoa(s.pipelineID))
 	metrics.ReportComponentIngress(p, "sender", strconv.Itoa(s.pipelineID))
