@@ -49,19 +49,19 @@ type Metric struct {
 // errUnsupportedDevice is returned when the device does not support the given collector
 var errUnsupportedDevice = errors.New("device does not support the given collector")
 
-// subsystemFactory is a function that creates a new subsystemCollector. lib is the NVML
+// subsystemBuilder is a function that creates a new subsystemCollector. lib is the NVML
 // library interface, and device the device it should collect metrics from
-type subsystemFactory func(lib nvml.Interface, device nvml.Device, tags []string) (Collector, error)
+type subsystemBuilder func(lib nvml.Interface, device nvml.Device, tags []string) (Collector, error)
 
 // allSubsystems is a map of all the subsystems that can be used to collect metrics from NVML.
-var allSubsystems = map[string]subsystemFactory{}
+var allSubsystems = map[string]subsystemBuilder{}
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
 func BuildCollectors(lib nvml.Interface) ([]Collector, error) {
 	return buildCollectors(lib, allSubsystems)
 }
 
-func buildCollectors(lib nvml.Interface, subsystems map[string]subsystemFactory) ([]Collector, error) {
+func buildCollectors(lib nvml.Interface, subsystems map[string]subsystemBuilder) ([]Collector, error) {
 	var collectors []Collector
 
 	devCount, ret := lib.DeviceGetCount()
@@ -77,8 +77,8 @@ func buildCollectors(lib nvml.Interface, subsystems map[string]subsystemFactory)
 
 		tags := getTagsFromDevice(dev)
 
-		for name, factory := range subsystems {
-			subsystem, err := factory(lib, dev, tags)
+		for name, builder := range subsystems {
+			subsystem, err := builder(lib, dev, tags)
 			if errors.Is(err, errUnsupportedDevice) {
 				log.Warnf("device %s does not support collector %s", dev, name)
 				continue

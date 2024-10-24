@@ -54,7 +54,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 		return nil, errors.New("failure")
 	}
 
-	collectors, err := buildCollectors(getBasicNvmlMock(), map[string]subsystemFactory{"ok": factory, "fail": factory})
+	collectors, err := buildCollectors(getBasicNvmlMock(), map[string]subsystemBuilder{"ok": factory, "fail": factory})
 	require.NotNil(t, collectors)
 	require.NoError(t, err)
 }
