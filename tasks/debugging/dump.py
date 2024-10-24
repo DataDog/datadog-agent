@@ -259,17 +259,18 @@ def _suse_extract_agent_symbols_from_rpm(rpm_path: Path | str, output_dir: Path 
     assert shutil.which('rpm2cpio'), "rpm2cpio is required to extract symbols from RPMs"
     assert shutil.which('cpio'), "cpio is required to extract symbols from RPMs"
     with tempfile.TemporaryDirectory() as tmp_dir:
-        # directory layout opt/datadog-agent/.debug/opt/datadog-agent/
-        agent_root = 'opt/datadog-agent/.debug/opt/datadog-agent'
+        # example: opt/datadog-agent/.debug/opt/datadog-agent/bin/agent/agent.dbg
+        debug_root = 'opt/datadog-agent/.debug'
         os.system(f'rpm2cpio {rpm_path} | cpio -idm -D {tmp_dir}')
-        shutil.copytree(f"{tmp_dir}/{agent_root}", output_dir, dirs_exist_ok=True)
+        shutil.copytree(f"{tmp_dir}/{debug_root}", output_dir, dirs_exist_ok=True)
 
 
 def _linux_extract_agent_symbols(archive_path: Path | str, output_dir: Path | str) -> None:
     with tempfile.TemporaryDirectory() as tmp_dir:
         shutil.unpack_archive(archive_path, tmp_dir)
-        agent_root = Path(tmp_dir) / 'opt/datadog-agent/.debug/opt/datadog-agent'
-        shutil.copytree(agent_root, output_dir, dirs_exist_ok=True)
+        # example: opt/datadog-agent/.debug/opt/datadog-agent/bin/agent/agent.dbg
+        debug_root = Path(tmp_dir) / 'opt/datadog-agent/.debug'
+        shutil.copytree(debug_root, output_dir, dirs_exist_ok=True)
 
 
 def _windows_extract_agent_symbols(zip_path: Path | str, output_dir: Path | str) -> None:
