@@ -1,6 +1,6 @@
 {
 	"filters": {
-		"*": {
+		"pkg/security": {
 			"exclude": false,
 			"run-only": [
 				"TestActivityDump",
