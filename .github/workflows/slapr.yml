@@ -9,31 +9,218 @@ on:
 jobs:
   run_slapr_datadog_agent:
     runs-on: ubuntu-latest
-    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
-    permissions:
-      id-token: write
-      contents: write
     steps:
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1 # e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
-        with:
-          role-to-assume: ${{ secrets.SLAPR_AWS_ROLE_TO_ASSUME }}
-          aws-region: us-east-1
-          role-duration-seconds: 900 # 15 min
-      - name: Download teams
-        id: download-teams
-        shell: bash
-        run: |
-          aws s3 cp --region us-east-1 s3://dd-ci-slack-teams-bucket/teams.json -
-      # - uses: DataDog/slapr@celian/codeowners
-      #   env:
-      #     GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-      #     # SLACK_CHANNEL_ID: "${{ secrets.? }}"
-      #     SLAPR_MULTICHANNEL: "true"
-      #     SLACK_API_TOKEN: "${{ secrets.SLACK_API_TOKEN }}"
-      #     SLAPR_BOT_USER_ID: "${{ secrets.SLAPR_BOT_USER_ID }}"
-      #     SLAPR_EMOJI_REVIEW_STARTED: "review_started"
-      #     SLAPR_EMOJI_APPROVED: "pr-approved-"
-      #     SLAPR_EMOJI_CHANGES_REQUESTED: "changes_requested"
-      #     SLAPR_EMOJI_MERGED: "merged"
-      #     SLAPR_EMOJI_CLOSED: "closed"
+      - uses: DataDog/slapr@celian/codeowners
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          # SLACK_CHANNEL_ID: "${{ secrets.? }}"
+          SLAPR_MULTICHANNEL: "true"
+          SLACK_API_TOKEN: "${{ secrets.SLACK_API_TOKEN }}"
+          SLAPR_BOT_USER_ID: "${{ secrets.SLAPR_BOT_USER_ID }}"
+          SLAPR_EMOJI_REVIEW_STARTED: "review_started"
+          SLAPR_EMOJI_APPROVED: "pr-approved-"
+          SLAPR_EMOJI_CHANGES_REQUESTED: "changes_requested"
+          SLAPR_EMOJI_MERGED: "merged"
+          SLAPR_EMOJI_CLOSED: "closed"
+          SLAPR_TEAM_CHANNEL_AAA_ACCESS: C024FSP2F33  # aaa-access
+          SLAPR_TEAM_CHANNEL_AAA_AUTHN: C02S3STU39N  # aaa-authn
+          SLAPR_TEAM_CHANNEL_AAA_CORE_ACCESS: C024FSP2F33  # aaa-core-access
+          SLAPR_TEAM_CHANNEL_AAA_CORE_DATA: C057GQ5FS2V  # aaa-core-data
+          SLAPR_TEAM_CHANNEL_AAA_GRANULAR_ACCESS: C02H3LT75U7  # aaa-granular-access
+          SLAPR_TEAM_CHANNEL_AAA_IDENTITY: C023W97KDNJ  # aaa-identity
+          SLAPR_TEAM_CHANNEL_AAA_OMG: C07BE207AMV  # aaa-omg
+          SLAPR_TEAM_CHANNEL_AGENT_ALL: C7C3A0GGK  # agent-all
+          SLAPR_TEAM_CHANNEL_AGENT_APM: CK4KK761W  # agent-apm
+          SLAPR_TEAM_CHANNEL_AGENT_CSPM: C02LE0M45CP  # agent-cspm
+          SLAPR_TEAM_CHANNEL_AGENT_E2E_TESTING: C03SBNANMLP  # agent-e2e-testing
+          SLAPR_TEAM_CHANNEL_AGENT_METRICS_LOGS: C03EC7JKSMV  # agent-metrics-logs
+          SLAPR_TEAM_CHANNEL_AGENT_INTEGRATIONS: C06E366NH2B  # agent-integrations
+          SLAPR_TEAM_CHANNEL_AGENT_DELIVERY: C06PQ6KD5BK  # agent-delivery
+          SLAPR_TEAM_CHANNEL_AGENT_DEVX_INFRA: C06P2KX149M  # agent-devx-infra
+          SLAPR_TEAM_CHANNEL_AGENT_DEVX_LOOPS: C06P4TAJ2Q6  # agent-devx-loops
+          SLAPR_TEAM_CHANNEL_AGENT_PROCESSING_AND_ROUTING: C06DYV5HN3Y  # agent-processing-and-routing
+          SLAPR_TEAM_CHANNEL_AGENT_SECURITY: C079HEE9AP6  # agent-security
+          SLAPR_TEAM_CHANNEL_AGENT_SHARED_COMPONENTS: C03ER8VH3NY  # agent-shared-components
+          SLAPR_TEAM_CHANNEL_ALERTING_PLATFORM_AUTOMATION: C0126SPN293  # alerting-platform-automation
+          SLAPR_TEAM_CHANNEL_API_MANAGEMENT: C03NL2GSB17  # api-management
+          SLAPR_TEAM_CHANNEL_APM: CBGCZ9P5Y  # apm
+          SLAPR_TEAM_CHANNEL_APM_ONBOARDING: CLWN64GAW  # apm-onboarding
+          SLAPR_TEAM_CHANNEL_APM_RELIABILITY_AND_PERFORMANCE: CVC6YCQCV  # apm-reliability-and-performance
+          SLAPR_TEAM_CHANNEL_APM_TRACE_INTAKE: CB16ZTXJ6  # apm-trace-intake
+          SLAPR_TEAM_CHANNEL_APM_TRACE_STORAGE: C02FKLS4ETW  # apm-trace-storage
+          SLAPR_TEAM_CHANNEL_APP: C02JYPDKMLN  # app
+          SLAPR_TEAM_CHANNEL_APPS_SDK: C03BGHF8A94  # apps-sdk
+          SLAPR_TEAM_CHANNEL_ASM_FRONTEND: C01TYQ5JQTH  # asm-frontend
+          SLAPR_TEAM_CHANNEL_ASM_BACKEND: C02RQN6B2AH  # asm-backend
+          SLAPR_TEAM_CHANNEL_ASM_VM: C044G9WTBH7  # asm-vm
+          SLAPR_TEAM_CHANNEL_ASM_RESPOND_BACKEND: C01UQV7HA3A  # asm-respond-backend
+          SLAPR_TEAM_CHANNEL_ASM_MONITOR_BACKEND: C025MNFS9UN  # asm-monitor-backend
+          SLAPR_TEAM_CHANNEL_AWS_INTEGRATIONS: C040F0Q04KZ  # aws-integrations
+          SLAPR_TEAM_CHANNEL_AZURE_INTEGRATIONS: C021AL93U64  # azure-integrations
+          SLAPR_TEAM_CHANNEL_BILLING_EXPERIENCE: C01BCD6S4AV  # billing-experience
+          SLAPR_TEAM_CHANNEL_BTI: C06TGQ49U1Z  # bti
+          SLAPR_TEAM_CHANNEL_BUGLE: C06QEPH4HFS  # bugle
+          SLAPR_TEAM_CHANNEL_CACHING_PLATFORM: C01DCTCFV35  # caching-platform
+          SLAPR_TEAM_CHANNEL_CASE_MANAGEMENT: C043TDC168M  # case-management
+          SLAPR_TEAM_CHANNEL_CCM_FRONTEND: C071TMCV3RB  # ccm-frontend
+          SLAPR_TEAM_CHANNEL_CHAT_INTEGRATIONS: C042MGW93PE  # chat-integrations
+          SLAPR_TEAM_CHANNEL_CI_APP: C016LJLRZQ9  # ci-app
+          SLAPR_TEAM_CHANNEL_CLOUD_COST_MANAGEMENT: C016B1M08F6  # cloud-cost-management
+          SLAPR_TEAM_CHANNEL_COLLABORATION_INTEGRATIONS: C01HRH7HHC6  # collaboration-integrations
+          SLAPR_TEAM_CHANNEL_COMPUTE_CLOUD: C5H6CU79C  # compute-cloud
+          SLAPR_TEAM_CHANNEL_CONTAINER_ECOSYSTEMS: C037CDX0WJV  # container-ecosystems
+          SLAPR_TEAM_CHANNEL_CONTAINER_INTEGRATIONS: C4TQDFK1P  # container-integrations
+          SLAPR_TEAM_CHANNEL_CONTAINER_PLATFORM: C0702JHC7G8  # container-platform
+          SLAPR_TEAM_CHANNEL_CORE_OBSERVABILITY: C03BZTDFUKY  # core-observability
+          SLAPR_TEAM_CHANNEL_CLOUD_INTEGRATIONS_PLATFORM: C01SDB8GQUQ  # cloud-integrations-platform
+          SLAPR_TEAM_CHANNEL_CLOUDCRAFT: C049D3U9363  # cloudcraft
+          SLAPR_TEAM_CHANNEL_K9_AGENTLESS: C060000V94Y  # k9-agentless
+          SLAPR_TEAM_CHANNEL_K9_CLOUD_SIEM: C02PKN3LV96  # k9-cloud-siem
+          SLAPR_TEAM_CHANNEL_K9_CLOUD_SECURITY_PLATFORM: C02JDES4T8E  # k9-cloud-security-platform
+          SLAPR_TEAM_CHANNEL_K9_CWS_BACKEND: C04QY2BD3QR  # k9-cws-backend
+          SLAPR_TEAM_CHANNEL_COMPLIANCE_ENGINEERING: CQY4VAHGB  # compliance-engineering
+          SLAPR_TEAM_CHANNEL_CONTAINER_APP: CSY06FKSP  # container-app
+          SLAPR_TEAM_CHANNEL_CORE_APP: CJRUJGBDE  # core-app
+          SLAPR_TEAM_CHANNEL_COSCREEN: C02SJ317RGE  # coscreen
+          SLAPR_TEAM_CHANNEL_CREMEBRULEE: C01CL5Y0C12  # cremebrulee
+          SLAPR_TEAM_CHANNEL_DASHBOARDS: C3V1GBML6  # dashboards
+          SLAPR_TEAM_CHANNEL_DASHBOARDS_BACKEND: CB30LPCA3  # dashboards-backend
+          SLAPR_TEAM_CHANNEL_DASHBOOKS: C04ENHQ9M3N  # dashbooks
+          SLAPR_TEAM_CHANNEL_DATA_ENG_DEV_EXP: C02V050637T  # data-eng-dev-exp
+          SLAPR_TEAM_CHANNEL_DATA_SCIENCE_APPS: C01MB450LDU  # data-science-apps
+          SLAPR_TEAM_CHANNEL_DATA_SCIENCE_EVENTS: C01NW6H6YLQ  # data-science-events
+          SLAPR_TEAM_CHANNEL_DATA_STREAMS: C02FFNF9VN0  # data-streams
+          SLAPR_TEAM_CHANNEL_DATA_STREAMS_MONITORING: C02FFNF9VN0  # data-streams-monitoring
+          SLAPR_TEAM_CHANNEL_DATA_STREAMS_MONITORING_FRONTEND: C02FFNF9VN0  # data-streams-monitoring-frontend
+          SLAPR_TEAM_CHANNEL_DATA_JOBS: C05DAN6ULF6  # data-jobs
+          SLAPR_TEAM_CHANNEL_DATA_JOBS_MONITORING: C05DAN6ULF6  # data-jobs-monitoring
+          SLAPR_TEAM_CHANNEL_DATA_JOBS_MONITORING_FRONTEND: C05DAN6ULF6  # data-jobs-monitoring-frontend
+          SLAPR_TEAM_CHANNEL_DATA_OBSERVABILITY: C05VB5B6U1H  # data-observability
+          SLAPR_TEAM_CHANNEL_DATA_OBSERVABILITY_FRONTEND: C05VB5B6U1H  # data-observability-frontend
+          SLAPR_TEAM_CHANNEL_DATABASE_MONITORING: C011QG8MJBA  # database-monitoring
+          SLAPR_TEAM_CHANNEL_DATAVIZ: C78KL9WMA  # dataviz
+          SLAPR_TEAM_CHANNEL_DATAVIZ_MAPS: C042CEHSKF0  # dataviz-maps
+          SLAPR_TEAM_CHANNEL_DBM: C02J2GU2LRL  # dbm
+          SLAPR_TEAM_CHANNEL_DDSQL: CV9L96MAQ  # ddsql
+          SLAPR_TEAM_CHANNEL_DEPENDENCY_MANAGEMENT: C05UJQPRUN5  # dependency-management
+          SLAPR_TEAM_CHANNEL_DEBUGGER: C01L679F33M  # debugger
+          SLAPR_TEAM_CHANNEL_DESIGNOPS: C8394098X  # designops
+          SLAPR_TEAM_CHANNEL_EDGE_COMPUTING: C06UEMF2SG6  # edge-computing
+          SLAPR_TEAM_CHANNEL_ENTERPRISE_ENG: C012X3C11FD  # enterprise-eng
+          SLAPR_TEAM_CHANNEL_DESIGNOPS_SEARCHBAR: C04TH01JB5F  # designops-searchbar
+          SLAPR_TEAM_CHANNEL_DOCUMENTATION: C0DESMBQU  # documentation
+          SLAPR_TEAM_CHANNEL_EBPF_PLATFORM: C04RSKR2WEQ  # ebpf-platform
+          SLAPR_TEAM_CHANNEL_ECOSYSTEMS: C01TXLCHQMT  # ecosystems
+          SLAPR_TEAM_CHANNEL_ERROR_TRACKING: CRACGM5LZ  # error-tracking
+          SLAPR_TEAM_CHANNEL_ERROR_TRACKING_FRONTEND: C05341N2EAE  # error-tracking-frontend
+          SLAPR_TEAM_CHANNEL_ERROR_TRACKING_BACKEND: C0519NA9N2K  # error-tracking-backend
+          SLAPR_TEAM_CHANNEL_EVENT_BACKEND_CLIENT: C011C40M8H5  # event-backend-client
+          SLAPR_TEAM_CHANNEL_EVENT_CORRELATION: C044SRS8P53  # event-correlation
+          SLAPR_TEAM_CHANNEL_EVENT_MANAGEMENT: C01879MPHSR  # event-management
+          SLAPR_TEAM_CHANNEL_EVENT_PLATFORM_AUTOMATION: C02HRDRHS6N  # event-platform-automation
+          SLAPR_TEAM_CHANNEL_EVENT_PLATFORM_EXPERIENCE: C01FD04HXN0  # event-platform-experience
+          SLAPR_TEAM_CHANNEL_EVENT_PLATFORM_INTAKE: C6ZMBPGVC  # event-platform-intake
+          SLAPR_TEAM_CHANNEL_EVENT_PLATFORM_ONBOARDING: C03KHPH7189  # event-platform-onboarding
+          SLAPR_TEAM_CHANNEL_EVENT_PLATFORM_PIPELINES: C02T60B6LTS  # event-platform-pipelines
+          SLAPR_TEAM_CHANNEL_EVENT_PLATFORM_PROCESSING: C03K54C9WBC  # event-platform-processing
+          SLAPR_TEAM_CHANNEL_EVENT_PLATFORM_STATEFUL_STREAMING: C01DKLU0DJ5  # event-platform-stateful-streaming
+          SLAPR_TEAM_CHANNEL_EVENT_PLATFORM_STREAMING: C02SJGZJ32Q  # event-platform-streaming
+          SLAPR_TEAM_CHANNEL_EVENT_STORAGE_QUERY_IO: C07QJ00MTUL  # event-storage-query-io
+          SLAPR_TEAM_CHANNEL_EVENT_STORAGE_ROUTING: C07QJ00MTUL  # event-storage-routing
+          SLAPR_TEAM_CHANNEL_EVENTS_UI: CKPE6CN06  # events-ui
+          SLAPR_TEAM_CHANNEL_FLEET: C05PUSNU4H5  # fleet
+          SLAPR_TEAM_CHANNEL_FRONTEND: C01D7RGAPB8  # frontend
+          SLAPR_TEAM_CHANNEL_FRONTEND_API: C011W2Q6U90  # frontend-api
+          SLAPR_TEAM_CHANNEL_FRONTEND_DEVTOOLS: C05J2FVNBDM  # frontend-devtools
+          SLAPR_TEAM_CHANNEL_FRONTEND_DEVX: CA14UNDNY  # frontend-devx
+          SLAPR_TEAM_CHANNEL_FRONTEND_FRAMEWORK: C03L4SD0XDW  # frontend-framework
+          SLAPR_TEAM_CHANNEL_FRONTEND_STORYBOOK: C01PX33QCKZ  # frontend-storybook
+          SLAPR_TEAM_CHANNEL_FRONTEND_PARSER_GUILD: C022UBT3FJS  # frontend-parser-guild
+          SLAPR_TEAM_CHANNEL_GCP_INTEGRATIONS: C020EA1PNLE  # gcp-integrations
+          SLAPR_TEAM_CHANNEL_GRAPHING_EXPERIENCE: C015GL93WD7  # graphing-experience
+          SLAPR_TEAM_CHANNEL_INCIDENT_APP: C913XRWQH  # incident-app
+          SLAPR_TEAM_CHANNEL_INCIDENT_MANAGEMENT: C02CL7YCZMH  # incident-management
+          SLAPR_TEAM_CHANNEL_INFRA_APP: C0197N28W5R  # infra-app
+          SLAPR_TEAM_CHANNEL_INFRASTRUCTURE_AND_INTEGRATIONS: C01C4E552HJ  # infrastructure-and-integrations
+          SLAPR_TEAM_CHANNEL_INFRASTRUCTURE_MANAGEMENT: C02N2SSA3NK  # infrastructure-management
+          SLAPR_TEAM_CHANNEL_INTEGRATIONS_PLATFORM: C072SLTQX1Q  # integrations-platform
+          SLAPR_TEAM_CHANNEL_INTEGRATIONS_TOOLS_AND_LIBRARIES: CHXRF0UG3  # integrations-tools-and-libraries
+          SLAPR_TEAM_CHANNEL_ITSEC: C02BLHAEYG5  # itsec
+          SLAPR_TEAM_CHANNEL_K9: C01JW8ZK476  # k9
+          SLAPR_TEAM_CHANNEL_K9_VM_FRONTEND: C07DND7G30A  # k9-vm-frontend
+          SLAPR_TEAM_CHANNEL_LANGUAGE_TOOLS: C037TU5AEJ0  # language-tools
+          SLAPR_TEAM_CHANNEL_LOGS_ACCESS: C050ED01ZUY  # logs-access
+          SLAPR_TEAM_CHANNEL_LOGS_BACKEND: C010JKY9S3Z  # logs-backend
+          SLAPR_TEAM_CHANNEL_LOGS_CORE: C03A4P0207Q  # logs-core
+          SLAPR_TEAM_CHANNEL_LOGS_FORWARDING: C07FWG078AE  # logs-forwarding
+          SLAPR_TEAM_CHANNEL_LOGS_INGESTION: C07FZ0UG4CC  # logs-ingestion
+          SLAPR_TEAM_CHANNEL_LOGS_IO: C03A8G43UNR  # logs-io
+          SLAPR_TEAM_CHANNEL_LOGS_QUERY: C06PMEVM17W  # logs-query
+          SLAPR_TEAM_CHANNEL_LOGS_EXPERIENCE: C050ED34Y48  # logs-experience
+          SLAPR_TEAM_CHANNEL_LOGS_ANALYSIS_WORKSPACE: C06G7MFAEJH  # logs-analysis-workspace
+          SLAPR_TEAM_CHANNEL_MARKETPLACE: C01TXLCHQMT  # marketplace
+          SLAPR_TEAM_CHANNEL_METADATA_STORAGE_PLATFORM: C0465E0SKD4  # metadata-storage-platform
+          SLAPR_TEAM_CHANNEL_METRICS_EXPERIENCE: C051GQ4M27P  # metrics-experience
+          SLAPR_TEAM_CHANNEL_METRICS_PLATFORM_AUTOMATION: C0188M9GC82  # metrics-platform-automation
+          SLAPR_TEAM_CHANNEL_METRICS_QUERY: C55N0V8R5  # metrics-query
+          SLAPR_TEAM_CHANNEL_METRICS_INTAKE: C54A7PVAM  # metrics-intake
+          SLAPR_TEAM_CHANNEL_METRICS_HOSTS: C07GDDMD1PW  # metrics-hosts
+          SLAPR_TEAM_CHANNEL_ML_OBSERVABILITY: C05BF5NSM5Z  # ml-observability
+          SLAPR_TEAM_CHANNEL_MOBILE_APP: CBL5TLCA0  # mobile-app
+          SLAPR_TEAM_CHANNEL_MONITOR_APP: CFAPKSARY  # monitor-app
+          SLAPR_TEAM_CHANNEL_MONITOR_INTAKE: CKAN0FK3R  # monitor-intake
+          SLAPR_TEAM_CHANNEL_MONITOR_NOTIFICATIONS: CFA7F3T2M  # monitor-notifications
+          SLAPR_TEAM_CHANNEL_MONITOR_SCHEDULING: C039R45USF9  # monitor-scheduling
+          SLAPR_TEAM_CHANNEL_MORTAR_UI: C026T72JCEL  # mortar-ui
+          SLAPR_TEAM_CHANNEL_NDM: C01C4E552HJ  # ndm
+          SLAPR_TEAM_CHANNEL_NETWORK_APPS: C0233AKRZ0B  # network-apps
+          SLAPR_TEAM_CHANNEL_NETWORKS: CFB4213BJ  # networks
+          SLAPR_TEAM_CHANNEL_NOTEBOOKS: CTW36HC2D  # notebooks
+          SLAPR_TEAM_CHANNEL_OBSERVABILITY_PIPELINES: C02JRE3DKMY  # observability-pipelines
+          SLAPR_TEAM_CHANNEL_OBSERVABILITY_PLATFORM: C06SP5SNXV2  # observability-platform
+          SLAPR_TEAM_CHANNEL_OPENTELEMETRY: CK82ME3QQ  # opentelemetry
+          SLAPR_TEAM_CHANNEL_PLATFORM_INTEGRATIONS: C0429FTHWMV  # platform-integrations
+          SLAPR_TEAM_CHANNEL_PROCESSES: C05404GL3R8  # processes
+          SLAPR_TEAM_CHANNEL_PROFILING: CH05N19HA  # profiling
+          SLAPR_TEAM_CHANNEL_REDAPL_EXPERIENCES: CKG46PUN4  # redapl-experiences
+          SLAPR_TEAM_CHANNEL_RELEASE_TRACKING: C03QGPSVBT3  # release-tracking
+          SLAPR_TEAM_CHANNEL_REMOTE_CONFIG: C01HVED6Q1M  # remote-config
+          SLAPR_TEAM_CHANNEL_REMOTE_CONFIG_FRONTEND: C03LLLYDP8D  # remote-config-frontend
+          SLAPR_TEAM_CHANNEL_REPORTING_AND_SHARING: C071TTDDW8Y  # reporting-and-sharing
+          SLAPR_TEAM_CHANNEL_RUM: C01CB6TSKST  # rum
+          SLAPR_TEAM_CHANNEL_RUM_BACKEND: C01GGUDJFJ6  # rum-backend
+          SLAPR_TEAM_CHANNEL_RUM_BROWSER_SDK: C01UQK8CX0F  # rum-browser-sdk
+          SLAPR_TEAM_CHANNEL_RUM_PRODUCT_ANALYTICS: C03PJP7LKND  # rum-product-analytics
+          SLAPR_TEAM_CHANNEL_RUM_SESSION_REPLAY: C01BZPJ52VD  # rum-session-replay
+          SLAPR_TEAM_CHANNEL_RUNTIME_CONFIGURATION: C02F4P13AM6  # runtime-configuration
+          SLAPR_TEAM_CHANNEL_RUNTIME_ORCHESTRATION_PLATFORM: C072FE9DJAZ  # runtime-orchestration-platform
+          SLAPR_TEAM_CHANNEL_RUST_REVIEW_SQUAD: C06GHSYP0SX  # rust-review-squad
+          SLAPR_TEAM_CHANNEL_SENSITIVE_DATA_SCANNER: C01EF92BCJH  # sensitive-data-scanner
+          SLAPR_TEAM_CHANNEL_SEARCH_EXPERIENCES: C05F3KWNNTW  # search-experiences
+          SLAPR_TEAM_CHANNEL_SERVERLESS: CBWDFKWV8  # serverless
+          SLAPR_TEAM_CHANNEL_SERVERLESS_CLOUD_TRACING: C07BVE8EA9G  # serverless-cloud-tracing
+          SLAPR_TEAM_CHANNEL_SERVERLESS_EXPERIENCES: C075UUVQ6KD  # serverless-experiences
+          SLAPR_TEAM_CHANNEL_SERVICE_CATALOG: 02QKPPAX40  # service-catalog
+          SLAPR_TEAM_CHANNEL_SERVICE_CONFIGURATION: C02NTKWCUUS  # service-configuration
+          SLAPR_TEAM_CHANNEL_SHEETS: C065YNJUMBN  # sheets
+          SLAPR_TEAM_CHANNEL_SINGLE_MACHINE_PERFORMANCE: C03LY8MQ73R  # single-machine-performance
+          SLAPR_TEAM_CHANNEL_SLO: CHU8KNZ6X  # slo
+          SLAPR_TEAM_CHANNEL_SOFTWARE_DELIVERY_APP: C072FE9DJAZ  # software-delivery-app
+          SLAPR_TEAM_CHANNEL_SOFTWARE_INTEGRITY_AND_TRUST: C03QTK4C8J1  # software-integrity-and-trust
+          SLAPR_TEAM_CHANNEL_SOURCE_CODE_INTEGRATION: C01FA7FASUR  # source-code-integration
+          SLAPR_TEAM_CHANNEL_STREAMS: C0BDZ4N5T  # streams
+          SLAPR_TEAM_CHANNEL_SUPPORTABILITY_ENGINEERING: C02T3PCMHGT  # supportability-engineering
+          SLAPR_TEAM_CHANNEL_SYNTHETICS: C8E85JEGH  # synthetics
+          SLAPR_TEAM_CHANNEL_SYNTHETICS_APP: CMGMBU8KS  # synthetics-app
+          SLAPR_TEAM_CHANNEL_TELEMETRY_AND_ANALYTICS: C058N1H6CAY  # telemetry-and-analytics
+          SLAPR_TEAM_CHANNEL_TIMESERIES_QUERY: C03NEPE6JQ7  # timeseries-query
+          SLAPR_TEAM_CHANNEL_TRUST_AND_SAFETY: CJWJY7GP9  # trust-and-safety
+          SLAPR_TEAM_CHANNEL_UNIVERSAL_SERVICE_MONITORING: C01R6Q0HQDD  # universal-service-monitoring
+          SLAPR_TEAM_CHANNEL_WATCHDOG: C6PADHZ6F  # watchdog
+          SLAPR_TEAM_CHANNEL_WEB_INTEGRATIONS: C4V2P3SUB  # web-integrations
+          SLAPR_TEAM_CHANNEL_WEB_UI_CONFIG: C04S0SVC1P0  # web-ui-config
+          SLAPR_TEAM_CHANNEL_WIDGET_FRAMEWORK: CUWPM5U93  # widget-framework
+          SLAPR_TEAM_CHANNEL_WINDOWS_AGENT: C03NXBWKJLB  # windows-agent
+          SLAPR_TEAM_CHANNEL_WINDOWS_KERNEL_INTEGRATIONS: C06CXKLMK9D  # windows-kernel-integrations
+          SLAPR_TEAM_CHANNEL_WORKFLOW_AUTOMATION: C01MRH9MV44  # workflow-automation
+          SLAPR_TEAM_CHANNEL_WORKFLOW_ENGINE: C032SFPA335  # workflow-engine
