@@ -668,17 +668,38 @@ func cleanProtocolMaps(t *testing.T, protocolName string, manager *manager.Manag
 		_, shouldOnlyZero := mapTypesToZero[mapInstance.Type()]
 
 		key := make([]byte, mapInstance.KeySize())
-		value := make([]byte, mapInstance.ValueSize())
+
+		var value any
+		var emptyValue any
+
+		if mapInstance.Type() == ebpf.PerCPUArray {
+			possibleCPUs, err := ebpf.PossibleCPU()
+			if err != nil {
+				panic("failed to get possible CPUs")
+			}
+			value = make([][]byte, possibleCPUs)
+			for i := range value.([][]byte) {
+				value.([][]byte)[i] = make([]byte, mapInstance.ValueSize())
+			}
+
+			emptyValue = make([][]byte, possibleCPUs)
+			for i := range emptyValue.([][]byte) {
+				emptyValue.([][]byte)[i] = make([]byte, mapInstance.ValueSize())
+			}
+		} else {
+			value = make([]byte, mapInstance.ValueSize())
+			emptyValue = make([]byte, mapInstance.ValueSize())
+		}
+
 		mapEntries := mapInstance.Iterate()
 		var keys [][]byte
-		for mapEntries.Next(&key, &value) {
+		for mapEntries.Next(&key, value) {
 			keys = append(keys, key)
 		}
 
 		if shouldOnlyZero {
-			emptyValue := make([]byte, mapInstance.ValueSize())
 			for _, key := range keys {
-				if err := mapInstance.Put(&key, &emptyValue); err != nil {
+				if err := mapInstance.Put(&key, emptyValue); err != nil {
 					t.Log("failed zeroing map entry; error: ", err)
 				}
 			}
