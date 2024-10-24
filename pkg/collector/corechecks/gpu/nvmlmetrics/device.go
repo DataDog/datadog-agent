@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-const deviceMetricsCollectorName = "device"
+const deviceCollectorName = "device"
 
 type deviceMetricsCollector struct {
 	device nvml.Device
@@ -68,7 +68,7 @@ func (c *deviceMetricsCollector) Close() error {
 
 // Name returns the name of the collector.
 func (c *deviceMetricsCollector) Name() string {
-	return deviceMetricsCollectorName
+	return deviceCollectorName
 }
 
 var allDeviceMetrics = []deviceMetric{
