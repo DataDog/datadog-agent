@@ -1,6 +1,5 @@
 import glob
 import os
-import shutil
 import tempfile
 import zipfile
 from pathlib import Path, PurePath
@@ -8,133 +7,10 @@ from pathlib import Path, PurePath
 from gitlab.v4.objects import Project
 from invoke import task
 
+from tasks.debugging.gitlab_artifacts import Artifacts, ArtifactStore
+from tasks.debugging.symbols import SymbolStore
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.utils import download_to_tempfile
-
-
-class PathStore:
-    def __init__(self, path: str | Path):
-        self.path = Path(path)
-
-    def add(self, key: str, data: bytes) -> None:
-        file_path = self.path / key
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        file_path.write_bytes(data)
-
-    def get(self, key: str) -> bytes | None:
-        file_path = self.path / key
-        if file_path.exists():
-            return file_path.read_bytes()
-        return None
-
-    def add_directory(self, key: str, src: Path) -> None:
-        dst = self.path / key
-        dst.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(src, dst, dirs_exist_ok=True)
-
-    def get_directory(self, key: str) -> Path | None:
-        dir_path = self.path / key
-        if dir_path.exists():
-            return dir_path
-        return None
-
-
-class SymbolStore(PathStore):
-    def add(self, version: str, path: str | Path) -> Path:
-        dst = Path(self.path, version, 'symbols')
-        self.add_directory(str(dst), path)
-        return dst
-
-    def get(self, version: str) -> Path | None:
-        p = Path(self.path, version, 'symbols')
-        return self.get_directory(str(p))
-
-
-class Artifacts:
-    def __init__(self, project: str, job: str, path_store: PathStore):
-        self.__path_store = path_store
-        self._project = project
-        self._job = job
-        self._version = None
-        self._pipeline = None
-
-    def get(self) -> Path:
-        return self.__path_store.get_directory(f"{self.key()}/artifacts")
-
-    def add(self, path: str | Path) -> None:
-        self.__path_store.add_directory(f"{self.key()}/artifacts", Path(path))
-
-    def _get_text_property(self, attr: str) -> str | None:
-        value = getattr(self, f"_{attr}")
-        if value is None:
-            data = self.__path_store.get(f"{self.key()}/{attr}.txt")
-            if not data:
-                return None
-            value = data.decode('utf-8').strip()
-            setattr(self, f"_{attr}", value)
-        return value
-
-    def _set_text_property(self, attr: str, value: str) -> None:
-        self.__path_store.add(f"{self.key()}/{attr}.txt", value.encode('utf-8'))
-        setattr(self, f"_{attr}", value)
-
-    @property
-    def version(self) -> str | None:
-        return self._get_text_property("version")
-
-    @version.setter
-    def version(self, value: str) -> None:
-        self._set_text_property("version", value)
-
-    @property
-    def pipeline(self) -> str | None:
-        return self._get_text_property("pipeline")
-
-    @pipeline.setter
-    def pipeline(self, value: str) -> None:
-        self._set_text_property("pipeline", value)
-
-    @property
-    def project(self) -> str | None:
-        return self._get_text_property("project")
-
-    @project.setter
-    def project(self, value: str) -> None:
-        self._set_text_property("project", value)
-
-    def key(self) -> str:
-        return self.makekey(self._project, self._job)
-
-    @classmethod
-    def makekey(cls, project: str, job: str) -> str:
-        return f"{project}/{job}"
-
-
-class ArtifactStore:
-    def __init__(self, path: str | Path):
-        self.path_store = PathStore(Path(path))
-
-    def add(self, project_id: str, job_id: str, artifacts_path: str | Path = None) -> Artifacts:
-        artifacts = Artifacts(project_id, job_id, self.path_store)
-        if artifacts_path:
-            artifacts.add(artifacts_path)
-        return artifacts
-
-    def get(self, project_id: str, job_id: str) -> Artifacts | None:
-        key = Artifacts.makekey(project_id, job_id)
-        if self.path_store.get_directory(key):
-            return Artifacts(project_id, job_id, self.path_store)
-        return None
-
-
-def add_gitlab_job_artifacts_to_artifact_store(
-    artifact_store: ArtifactStore, project: Project, job_id: str
-) -> Artifacts:
-    with tempfile.TemporaryDirectory() as temp_dir:
-        download_job_artifacts(project, job_id, temp_dir)
-        project_id = "datadog-agent"  # TODO: get from project
-        job_id = str(job_id)
-        return artifact_store.add(project_id, job_id, temp_dir)
 
 
 class CrashAnalyzerCLI:
@@ -252,6 +128,16 @@ def get_debug_symbols(ctx, job_id=None, version=None):
         syms = get_symbols_for_job_id(cli, job_id)
 
     print(f"Symbols for {version} in {syms}")
+
+
+def add_gitlab_job_artifacts_to_artifact_store(
+    artifact_store: ArtifactStore, project: Project, job_id: str
+) -> Artifacts:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        download_job_artifacts(project, job_id, temp_dir)
+        project_id = "datadog-agent"  # TODO: get from project
+        job_id = str(job_id)
+        return artifact_store.add(project_id, job_id, temp_dir)
 
 
 def get_symbols_for_job_id(cli: CrashAnalyzerCLI, job_id: str) -> Path:
