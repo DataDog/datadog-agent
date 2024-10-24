@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -80,8 +81,10 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	require.Contains(t, stats.ProcessStats, pid)
 
 	pidStats := stats.ProcessStats[pid]
-	require.Equal(t, allocSize+shmemSize, pidStats.CurrentMemoryBytes)
-	require.Equal(t, allocSize+shmemSize, pidStats.MaxMemoryBytes)
+	require.Equal(t, allocSize, pidStats.Memory[model.GlobalMemAlloc].CurrentBytes)
+	require.Equal(t, allocSize, pidStats.Memory[model.GlobalMemAlloc].MaxBytes)
+	require.Equal(t, allocSize, pidStats.Memory[model.SharedMemAlloc].CurrentBytes)
+	require.Equal(t, allocSize, pidStats.Memory[model.SharedMemAlloc].MaxBytes)
 
 	// defined kernel is using only 1 core for 9 of the 10 seconds
 	expectedUtil := 1.0 / testutil.DefaultGpuCores * 0.9
@@ -120,6 +123,7 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 				endKtime:   uint64(endKtime),
 				size:       allocSize,
 				isLeaked:   false,
+				allocType:  model.GlobalMemAlloc,
 			},
 		},
 	}
@@ -131,8 +135,10 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	require.Contains(t, stats.ProcessStats, pid)
 
 	pidStats := stats.ProcessStats[pid]
-	require.Equal(t, uint64(0), pidStats.CurrentMemoryBytes)
-	require.Equal(t, allocSize, pidStats.MaxMemoryBytes)
+	require.Equal(t, uint64(0), pidStats.Memory[model.GlobalMemAlloc].CurrentBytes)
+	require.Equal(t, allocSize, pidStats.Memory[model.GlobalMemAlloc].MaxBytes)
+	require.Equal(t, uint64(0), pidStats.Memory[model.SharedMemAlloc].CurrentBytes)
+	require.Equal(t, uint64(0), pidStats.Memory[model.SharedMemAlloc].MaxBytes)
 
 	// numThreads / DefaultGpuCores is the utilization for the
 	threadSecondsUsed := float64(numThreads) * float64(endKtime-startKtime) / 1e9
@@ -186,6 +192,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 				endKtime:   uint64(endKtime),
 				size:       allocSize,
 				isLeaked:   false,
+				allocType:  model.GlobalMemAlloc,
 			},
 		},
 		memAllocEvents: map[uint64]gpuebpf.CudaMemEvent{
@@ -205,8 +212,10 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	require.Contains(t, stats.ProcessStats, pid)
 
 	pidStats := stats.ProcessStats[pid]
-	require.Equal(t, uint64(allocSize)+shmemSize, pidStats.CurrentMemoryBytes)
-	require.Equal(t, allocSize*2+shmemSize, pidStats.MaxMemoryBytes)
+	require.Equal(t, allocSize, pidStats.Memory[model.GlobalMemAlloc].CurrentBytes)
+	require.Equal(t, allocSize*2, pidStats.Memory[model.GlobalMemAlloc].MaxBytes)
+	require.Equal(t, shmemSize, pidStats.Memory[model.SharedMemAlloc].CurrentBytes)
+	require.Equal(t, shmemSize, pidStats.Memory[model.SharedMemAlloc].MaxBytes)
 
 	// numThreads / DefaultGpuCores is the utilization for the
 	threadSecondsUsed := float64(numThreads) * float64(endKtime-startKtime) / 1e9

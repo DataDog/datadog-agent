@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
@@ -138,5 +139,6 @@ func TestProbeCanGenerateStats(t *testing.T) {
 
 	pidStats := stats.ProcessStats[uint32(cmd.Process.Pid)]
 	require.Greater(t, pidStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
-	require.Equal(t, pidStats.MaxMemoryBytes, uint64(110))  // 100 allocation + 10 shared kernel mem
+	require.Equal(t, pidStats.Memory[model.GlobalMemAlloc].MaxBytes, uint64(100))
+	require.Equal(t, pidStats.Memory[model.SharedMemAlloc].MaxBytes, uint64(10))
 }

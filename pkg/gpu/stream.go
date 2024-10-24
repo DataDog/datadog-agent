@@ -21,7 +21,7 @@ import (
 // StreamHandler is responsible for receiving events from a single CUDA stream and generating
 // kernel spans and memory allocations from them.
 type StreamHandler struct {
-	key            *streamKey
+	key            streamKey
 	kernelLaunches []enrichedKernelLaunch
 	memAllocEvents map[uint64]gpuebpf.CudaMemEvent
 	kernelSpans    []*kernelSpan
@@ -63,7 +63,7 @@ type memoryAllocation struct {
 	isLeaked bool
 
 	// allocType is the type of the allocation
-	allocType MemAllocType
+	allocType model.MemAllocType
 }
 
 // kernelSpan represents a span of time during which one or more kernels were
@@ -80,9 +80,12 @@ type kernelSpan struct {
 
 	// numKernels is the number of kernels that were launched during the span
 	numKernels uint64
+
+	// avgMemoryUsage is the average memory usage during the span, per allocation type
+	avgMemoryUsage map[model.MemAllocType]uint64
 }
 
-func newStreamHandler() *StreamHandler {
+func newStreamHandler(key streamKey, sysCtx *systemContext) *StreamHandler {
 	return &StreamHandler{
 		memAllocEvents: make(map[uint64]gpuebpf.CudaMemEvent),
 		key:            key,
@@ -191,9 +194,10 @@ func (sh *StreamHandler) handleSync(event *gpuebpf.CudaSync) {
 
 func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 	span := kernelSpan{
-		startKtime: math.MaxUint64,
-		endKtime:   maxTime,
-		numKernels: 0,
+		startKtime:     math.MaxUint64,
+		endKtime:       maxTime,
+		numKernels:     0,
+		avgMemoryUsage: make(map[model.MemAllocType]uint64),
 	}
 
 	for _, launch := range sh.kernelLaunches {
@@ -208,12 +212,12 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 		blockSize := launch.Block_size.X * launch.Block_size.Y * launch.Block_size.Z
 		blockCount := launch.Grid_size.X * launch.Grid_size.Y * launch.Grid_size.Z
 		span.avgThreadCount += uint64(blockSize) * uint64(blockCount)
-		span.avgSharedMem += uint64(launch.Shared_mem_size)
+		span.avgMemoryUsage[model.SharedMemAlloc] += uint64(launch.Shared_mem_size)
 
 		if launch.kernel != nil {
-			span.avgConstantMem += uint64(launch.kernel.ConstantMem)
-			span.avgSharedMem += uint64(launch.kernel.SharedMem)
-			span.avgKernelSize += uint64(launch.kernel.KernelSize)
+			span.avgMemoryUsage[model.ConstantMemAlloc] += uint64(launch.kernel.ConstantMem)
+			span.avgMemoryUsage[model.SharedMemAlloc] += uint64(launch.kernel.SharedMem)
+			span.avgMemoryUsage[model.KernelMemAlloc] += uint64(launch.kernel.KernelSize)
 		}
 
 		span.numKernels++
@@ -224,6 +228,9 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 	}
 
 	span.avgThreadCount /= uint64(span.numKernels)
+	for allocType := range span.avgMemoryUsage {
+		span.avgMemoryUsage[allocType] /= uint64(span.numKernels)
+	}
 
 	return &span
 }
@@ -233,10 +240,15 @@ func getAssociatedAllocations(span *kernelSpan) []*memoryAllocation {
 		return nil
 	}
 
-	allocations := []*memoryAllocation{
-		{StartKtime: span.StartKtime, EndKtime: span.EndKtime, Size: span.AvgConstantMem, Type: model.ConstantMemAlloc},
-		{StartKtime: span.StartKtime, EndKtime: span.EndKtime, Size: span.AvgSharedMem, Type: model.SharedMemAlloc},
-		{StartKtime: span.StartKtime, EndKtime: span.EndKtime, Size: span.AvgKernelSize, Type: model.KernelMemAlloc},
+	allocations := make([]*memoryAllocation, 0, len(span.avgMemoryUsage))
+	for allocType, size := range span.avgMemoryUsage {
+		allocations = append(allocations, &memoryAllocation{
+			startKtime: span.startKtime,
+			endKtime:   span.endKtime,
+			size:       size,
+			isLeaked:   false,
+			allocType:  allocType,
+		})
 	}
 
 	return allocations
@@ -282,6 +294,7 @@ func (sh *StreamHandler) getCurrentData(now uint64) *streamData {
 			endKtime:   0,
 			size:       alloc.Size,
 			isLeaked:   false,
+			allocType:  model.GlobalMemAlloc,
 		})
 	}
 
@@ -306,6 +319,7 @@ func (sh *StreamHandler) markEnd() error {
 			endKtime:   uint64(nowTs),
 			size:       alloc.Size,
 			isLeaked:   true,
+			allocType:  model.GlobalMemAlloc,
 		}
 		sh.allocations = append(sh.allocations, &data)
 	}

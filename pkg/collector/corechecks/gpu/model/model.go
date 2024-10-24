@@ -24,6 +24,8 @@ const (
 	ConstantMemAlloc MemAllocType = "constant"
 )
 
+var AllMemAllocTypes = []MemAllocType{KernelMemAlloc, GlobalMemAlloc, SharedMemAlloc, ConstantMemAlloc}
+
 // MemoryStats contains the memory stats for a given memory type
 type MemoryStats struct {
 	CurrentBytes uint64 `json:"current_bytes"`

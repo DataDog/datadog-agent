@@ -23,7 +23,7 @@ import (
 func TestKernelLaunchesHandled(t *testing.T) {
 	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
-	stream := newStreamHandler(&model.StreamKey{}, sysCtx)
+	stream := newStreamHandler(streamKey{}, sysCtx)
 
 	kernStartTime := uint64(1)
 	launch := &gpuebpf.CudaKernelLaunch{
@@ -82,7 +82,7 @@ func TestKernelLaunchesHandled(t *testing.T) {
 func TestMemoryAllocationsHandled(t *testing.T) {
 	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
-	stream := newStreamHandler(&model.StreamKey{}, sysCtx)
+	stream := newStreamHandler(streamKey{}, sysCtx)
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -153,7 +153,7 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
-	stream := newStreamHandler(&model.StreamKey{}, sysCtx)
+	stream := newStreamHandler(streamKey{}, sysCtx)
 
 	memAllocTime := uint64(1)
 	memAddr := uint64(42)
@@ -188,7 +188,7 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
-	stream := newStreamHandler(&model.StreamKey{}, sysCtx)
+	stream := newStreamHandler(streamKey{}, sysCtx)
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -232,7 +232,7 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
-	stream := newStreamHandler(&model.StreamKey{}, sysCtx)
+	stream := newStreamHandler(streamKey{}, sysCtx)
 
 	memAllocTime1, memAllocTime2 := uint64(1), uint64(10)
 	memFreeTime1, memFreeTime2 := uint64(15), uint64(20)
@@ -357,7 +357,7 @@ func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 
 	sysCtx.deviceSmVersions = map[int]int{0: int(smVersion)}
 
-	stream := newStreamHandler(&model.StreamKey{Pid: uint32(pid)}, sysCtx)
+	stream := newStreamHandler(streamKey{pid: uint32(pid)}, sysCtx)
 
 	kernStartTime := uint64(1)
 	launch := &gpuebpf.CudaKernelLaunch{
@@ -386,16 +386,16 @@ func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 	currTime := uint64(100)
 	currData := stream.getCurrentData(currTime)
 	require.NotNil(t, currData)
-	require.Len(t, currData.Spans, 1)
+	require.Len(t, currData.spans, 1)
 
-	span := currData.Spans[0]
-	require.Equal(t, kernStartTime, span.StartKtime)
-	require.Equal(t, currTime, span.EndKtime)
-	require.Equal(t, uint64(numLaunches), span.NumKernels)
-	require.Equal(t, uint64(threadCount), span.AvgThreadCount)
-	require.Equal(t, sharedMem, span.AvgSharedMem)
-	require.Equal(t, constantMem, span.AvgConstantMem)
-	require.Equal(t, kernSize, span.AvgKernelSize)
+	span := currData.spans[0]
+	require.Equal(t, kernStartTime, span.startKtime)
+	require.Equal(t, currTime, span.endKtime)
+	require.Equal(t, uint64(numLaunches), span.numKernels)
+	require.Equal(t, uint64(threadCount), span.avgThreadCount)
+	require.Equal(t, sharedMem, span.avgMemoryUsage[model.SharedMemAlloc])
+	require.Equal(t, constantMem, span.avgMemoryUsage[model.ConstantMemAlloc])
+	require.Equal(t, kernSize, span.avgMemoryUsage[model.KernelMemAlloc])
 
 	// Now we mark a sync event
 	syncTime := uint64(200)
@@ -405,15 +405,15 @@ func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 	pastData := stream.getPastData(true)
 	require.NotNil(t, pastData)
 
-	require.Len(t, pastData.Spans, 1)
-	span = pastData.Spans[0]
-	require.Equal(t, kernStartTime, span.StartKtime)
-	require.Equal(t, syncTime, span.EndKtime)
-	require.Equal(t, uint64(numLaunches), span.NumKernels)
-	require.Equal(t, uint64(threadCount), span.AvgThreadCount)
-	require.Equal(t, sharedMem, span.AvgSharedMem)
-	require.Equal(t, constantMem, span.AvgConstantMem)
-	require.Equal(t, kernSize, span.AvgKernelSize)
+	require.Len(t, pastData.spans, 1)
+	span = pastData.spans[0]
+	require.Equal(t, kernStartTime, span.startKtime)
+	require.Equal(t, syncTime, span.endKtime)
+	require.Equal(t, uint64(numLaunches), span.numKernels)
+	require.Equal(t, uint64(threadCount), span.avgThreadCount)
+	require.Equal(t, sharedMem, span.avgMemoryUsage[model.SharedMemAlloc])
+	require.Equal(t, constantMem, span.avgMemoryUsage[model.ConstantMemAlloc])
+	require.Equal(t, kernSize, span.avgMemoryUsage[model.KernelMemAlloc])
 
 	// We should have no current data
 	require.Nil(t, stream.getCurrentData(currTime))
