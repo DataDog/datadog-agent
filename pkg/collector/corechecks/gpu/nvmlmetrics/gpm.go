@@ -27,14 +27,14 @@ const numGpmSamples = 2
 type gpmMetricsCollector struct {
 	lib                nvml.Interface
 	device             nvml.Device
-	samples            []nvml.GpmSample
+	samples            [numGpmSamples]nvml.GpmSample
 	hasPreviousSample  bool
 	currentSampleIndex int
 	tags               []string
 }
 
 func newGpmMetricsCollector(lib nvml.Interface, dev nvml.Device, tags []string) (Collector, error) {
-	var samples []nvml.GpmSample
+	var samples [numGpmSamples]nvml.GpmSample
 
 	// First, check if the device supports GPM metrics
 	support, ret := dev.GpmQueryDeviceSupport()
@@ -50,7 +50,7 @@ func newGpmMetricsCollector(lib nvml.Interface, dev nvml.Device, tags []string) 
 		if ret != nvml.SUCCESS {
 			return nil, fmt.Errorf("failed to allocate GPM sample: %s", nvml.ErrorString(ret))
 		}
-		samples = append(samples, sample)
+		samples[i] = sample
 	}
 
 	return &gpmMetricsCollector{
