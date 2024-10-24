@@ -38,7 +38,7 @@ func getSystemContext(nvmlLib nvml.Interface) (*systemContext, error) {
 	}
 
 	var err error
-	ctx.timeResolver, err = sectime.NewResolver()
+	ctx.timeResolver, err = time.NewResolver()
 	if err != nil {
 		return nil, fmt.Errorf("error creating time resolver: %w", err)
 	}
