@@ -10,10 +10,12 @@ package autoinstrumentation
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestVolumeMount(t *testing.T) {
@@ -55,7 +57,8 @@ func TestVolumeMount(t *testing.T) {
 }
 
 func TestInitContainer(t *testing.T) {
-	resources, err := initResources()
+	config := mockconfig.New(t)
+	resources, err := initResources(config)
 	require.NoError(t, err)
 
 	c := initContainer{

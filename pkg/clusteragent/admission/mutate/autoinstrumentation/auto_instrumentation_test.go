@@ -16,7 +16,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,7 +23,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	configComp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -208,11 +207,11 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				tt.config(c)
 			}
 
-			webhook := mustWebhook(t, wmeta)
-			require.Equal(t, instrumentationV2, webhook.version)
-			require.True(t, webhook.version.usesInjector())
+			webhook := mustWebhook(t, wmeta, c)
+			require.Equal(t, instrumentationV2, webhook.config.version)
+			require.True(t, webhook.config.version.usesInjector())
 
-			webhook.initSecurityContext = tt.expectedSecurityContext
+			webhook.config.initSecurityContext = tt.expectedSecurityContext
 
 			if tt.libInfo.source == libInfoSourceNone {
 				tt.libInfo.source = libInfoSourceSingleStepInstrumentation
@@ -562,7 +561,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			c := configmock.New(t)
 			c.SetWithoutSource("apm_config.instrumentation.version", "v1")
 
-			webhook := mustWebhook(t, wmeta)
+			webhook := mustWebhook(t, wmeta, c)
 			err := webhook.injectAutoInstruConfig(tt.pod, extractedPodLibInfo{
 				libs:   tt.libsToInject,
 				source: libInfoSourceLibInjection,
@@ -971,8 +970,6 @@ func TestExtractLibInfo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Fix me: since comp-config and pkg-config don't work together,
-			// we have to set settings twice
 			overrides := map[string]interface{}{
 				"admission_controller.mutate_unlabelled":  true,
 				"admission_controller.container_registry": commonRegistry,
@@ -980,10 +977,13 @@ func TestExtractLibInfo(t *testing.T) {
 			if tt.containerRegistry != "" {
 				overrides["admission_controller.auto_instrumentation.container_registry"] = tt.containerRegistry
 			}
+			mockConfig = configmock.New(t)
+			for k, v := range overrides {
+				mockConfig.SetWithoutSource(k, v)
+			}
 
 			wmeta := fxutil.Test[workloadmeta.Component](t,
 				core.MockBundle(),
-				fx.Replace(configComp.MockParams{Overrides: overrides}),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			)
 			mockConfig = configmock.New(t)
@@ -995,7 +995,7 @@ func TestExtractLibInfo(t *testing.T) {
 				tt.setupConfig()
 			}
 
-			webhook := mustWebhook(t, wmeta)
+			webhook := mustWebhook(t, wmeta, mockConfig)
 
 			if tt.expectedPodEligible != nil {
 				require.Equal(t, *tt.expectedPodEligible, webhook.isPodEligible(tt.pod))
@@ -1220,8 +1220,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 			if tt.mem != "" {
 				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.memory", tt.mem)
 			}
-
-			wh, err := NewWebhook(wmeta, GetInjectionFilter())
+			filter, _ := NewInjectionFilter(conf)
+			wh, err := NewWebhook(wmeta, conf, filter)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("injectLibInitContainer() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -1230,9 +1230,9 @@ func TestInjectLibInitContainer(t *testing.T) {
 			}
 
 			// N.B. this is a bit hacky but consistent.
-			wh.initSecurityContext = tt.secCtx
+			wh.config.initSecurityContext = tt.secCtx
 
-			c := tt.lang.libInfo("", tt.image).initContainers(wh.version)[0]
+			c := tt.lang.libInfo("", tt.image).initContainers(wh.config.version)[0]
 			c.Mutators = wh.initContainerMutators()
 			err = c.mutatePod(tt.pod)
 			if (err != nil) != tt.wantErr {
@@ -2917,7 +2917,8 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				}
 			}
 
-			webhook, errInitAPMInstrumentation := NewWebhook(wmeta, GetInjectionFilter())
+			filter, _ := NewInjectionFilter(mockConfig)
+			webhook, errInitAPMInstrumentation := NewWebhook(wmeta, mockConfig, filter)
 			if tt.wantWebhookInitErr {
 				require.Error(t, errInitAPMInstrumentation)
 				return
@@ -2959,7 +2960,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			for _, contEnv := range container.Env {
 				for _, expectEnv := range tt.expectedEnvs {
 					if expectEnv.Name == contEnv.Name {
-						require.Equal(t, expectEnv.Value, contEnv.Value)
+						require.Equalf(t, expectEnv.Value, contEnv.Value, "for envvar %s", expectEnv.Name)
 						envCount++
 						break
 					}
@@ -3173,14 +3174,15 @@ func TestShouldInject(t *testing.T) {
 			mockConfig = configmock.New(t)
 			tt.setupConfig()
 
-			webhook := mustWebhook(t, wmeta)
+			webhook := mustWebhook(t, wmeta, mockConfig)
 			require.Equal(t, tt.want, webhook.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
 	}
 }
 
-func mustWebhook(t *testing.T, wmeta workloadmeta.Component) *Webhook {
-	webhook, err := NewWebhook(wmeta, GetInjectionFilter())
+func mustWebhook(t *testing.T, wmeta workloadmeta.Component, ddConfig config.Component) *Webhook {
+	filter, _ := NewInjectionFilter(ddConfig)
+	webhook, err := NewWebhook(wmeta, ddConfig, filter)
 	require.NoError(t, err)
 	return webhook
 }

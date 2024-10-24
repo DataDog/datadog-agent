@@ -72,7 +72,7 @@ type Webhook struct {
 func NewWebhook(datadogConfig config.Component) *Webhook {
 	nsSelector, objSelector := labelSelectors(datadogConfig)
 
-	containerRegistry := mutatecommon.ContainerRegistry("admission_controller.agent_sidecar.container_registry")
+	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.agent_sidecar.container_registry")
 
 	return &Webhook{
 		name:              webhookName,
