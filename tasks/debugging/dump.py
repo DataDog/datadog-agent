@@ -10,8 +10,10 @@ from pathlib import Path, PurePath
 from gitlab.v4.objects import Project
 from invoke.tasks import task
 
+from tasks.debugging.delve import Delve
 from tasks.debugging.gitlab_artifacts import Artifacts, ArtifactStore
 from tasks.debugging.symbols import SymbolStore
+from tasks.debugging.windbg import Windbg
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.utils import download_to_tempfile
 
@@ -127,6 +129,7 @@ def debug_job_dump(ctx, job_id: str, platform=None, arch=None):
         print("No dump files found")
         return
     cli.prompt_select_dump(dmp_files)
+    assert ca.active_dump
 
     # select symbol file
     syms = get_symbols_for_job_id(ca, job_id)
@@ -138,14 +141,15 @@ def debug_job_dump(ctx, job_id: str, platform=None, arch=None):
         print("No symbols found")
         return
     cli.prompt_select_symbol_file(syms)
+    assert ca.active_symbol
 
     # launch windbg and delve
-    windbg_cmd = f'cmd.exe /c start "" "{ca.active_dump}"'
-    print(f"Running command: {windbg_cmd}")
-    dlv_cmd = f'dlv.exe core "{ca.active_symbol}" "{ca.active_dump}"'
-    print(f"Running command: {dlv_cmd}")
-    os.system(windbg_cmd)
-    os.system(dlv_cmd)
+    if sys.platform == 'win32':
+        windbg = Windbg()
+        windbg.open_dump(ca.active_dump)
+
+    dlv = Delve()
+    dlv.core(ca.active_symbol, ca.active_dump)
 
 
 @task(
@@ -271,7 +275,7 @@ def get_symbols_for_job_id(ca: CrashAnalyzer, job_id: str) -> Path | None:
 def get_or_fetch_artifacts(artifact_store: ArtifactStore, project: Project, job_id: str) -> Artifacts:
     project_id = project.name
     artifacts = artifact_store.get(project_id, job_id)
-    if not artifacts:
+    if not artifacts or not artifacts.get():
         artifacts = add_gitlab_job_artifacts_to_artifact_store(artifact_store, project, job_id)
     return artifacts
 
