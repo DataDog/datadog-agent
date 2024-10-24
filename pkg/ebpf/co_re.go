@@ -52,8 +52,12 @@ func GetBTFLoaderInfo() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// no error but also no data: means it tried all the loaders and got nothing back
 	if res == nil {
-		return "", errors.New("GetBTFLoaderInfo expected result from btfLoader")
+		embeddedPath, err := loader.btfLoader.embeddedPath()
+		message := "BTF loaders did not find BTF files. btfLoader.embeddedPath() returned:"
+		result := fmt.Sprintf("%s\npath: %s\nerr: %v\n", message, embeddedPath, err)
+		return result, nil
 	}
 	return res.String(), nil
 }
