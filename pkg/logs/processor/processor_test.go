@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -328,6 +329,7 @@ func TestBuffering(t *testing.T) {
 			buffering:     true,
 			scanner:       sds.CreateScanner(42),
 		},
+		monitor: metrics.NewUtilizationMonitor("processor", ""),
 	}
 
 	var processedMessages atomic.Int32

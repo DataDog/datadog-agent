@@ -309,7 +309,8 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 		return false
 	}
 
-	tailer := s.createTailer(file, s.pipelineProvider.NextPipelineChan())
+	channel, id := s.pipelineProvider.NextPipelineChanWithInstance()
+	tailer := s.createTailer(file, channel, id)
 
 	var offset int64
 	var whence int
@@ -380,7 +381,7 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 }
 
 // createTailer returns a new initialized tailer
-func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Message) *tailer.Tailer {
+func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Message, instance int) *tailer.Tailer {
 	tailerInfo := status.NewInfoRegistry()
 
 	tailerOptions := &tailer.TailerOptions{
@@ -390,6 +391,7 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		Decoder:       decoder.NewDecoderFromSource(file.Source, tailerInfo),
 		Info:          tailerInfo,
 		TagAdder:      s.tagger,
+		PipelineID:    instance,
 	}
 
 	return tailer.NewTailer(tailerOptions)

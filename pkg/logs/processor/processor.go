@@ -7,6 +7,7 @@ package processor
 
 import (
 	"context"
+	"strconv"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -38,6 +39,7 @@ type Processor struct {
 	diagnosticMessageReceiver diagnostic.MessageReceiver
 	mu                        sync.Mutex
 	hostname                  hostnameinterface.Component
+	monitor                   *metrics.UtilizationMonitor
 
 	sds sdsProcessor
 }
@@ -73,6 +75,7 @@ func New(cfg pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message,
 		done:                      make(chan struct{}),
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 		hostname:                  hostname,
+		monitor:                   metrics.NewUtilizationMonitor("processor", strconv.Itoa(pipelineID)),
 
 		sds: sdsProcessor{
 			// will immediately starts buffering if it has been configured as so
@@ -115,6 +118,7 @@ func (p *Processor) Flush(ctx context.Context) {
 				return
 			}
 			msg := <-p.inputChan
+			metrics.ReportComponentIngress(msg, "processor", strconv.Itoa(p.pipelineID))
 			p.processMessage(msg)
 		}
 	}
@@ -217,6 +221,7 @@ func (s *sdsProcessor) resetBuffer() {
 }
 
 func (p *Processor) processMessage(msg *message.Message) {
+	p.monitor.Start()
 	metrics.LogsDecoded.Add(1)
 	metrics.TlmLogsDecoded.Inc()
 
@@ -241,7 +246,10 @@ func (p *Processor) processMessage(msg *message.Message) {
 			return
 		}
 
+		p.monitor.Stop()
 		p.outputChan <- msg
+		metrics.ReportComponentEgress(msg, "processor", strconv.Itoa(p.pipelineID))
+		metrics.ReportComponentIngress(msg, "strategy", strconv.Itoa(p.pipelineID))
 	}
 }
 

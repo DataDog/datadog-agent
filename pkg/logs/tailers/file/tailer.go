@@ -116,9 +116,11 @@ type Tailer struct {
 	// blocked sending to the tailer's outputChan.
 	stopForward context.CancelFunc
 
-	info      *status.InfoRegistry
-	bytesRead *status.CountInfo
-	movingSum *util.MovingSum
+	info       *status.InfoRegistry
+	bytesRead  *status.CountInfo
+	movingSum  *util.MovingSum
+	pipelineID int
+	// decoderMonitor *metrics.UtilizationMonitor
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -130,6 +132,7 @@ type TailerOptions struct {
 	Info          *status.InfoRegistry  // Required
 	Rotated       bool                  // Optional
 	TagAdder      tag.EntityTagAdder    // Required
+	PipelineID    int                   // Optional
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -182,6 +185,8 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		info:                   opts.Info,
 		bytesRead:              bytesRead,
 		movingSum:              movingSum,
+		pipelineID:             opts.PipelineID,
+		// decoderMonitor:         metrics.NewUtilizationMonitor("decoder", strconv.Itoa(opts.PipelineID)),
 	}
 
 	if fileRotated {
@@ -209,6 +214,7 @@ func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder, info *st
 		Info:          info,
 		Rotated:       true,
 		TagAdder:      tagAdder,
+		PipelineID:    t.pipelineID,
 	}
 
 	return NewTailer(options)
@@ -339,6 +345,8 @@ func (t *Tailer) forwardMessages() {
 		close(t.done)
 	}()
 	for output := range t.decoder.OutputChan {
+		// metrics.ReportComponentEgress(output, "decoder", strconv.Itoa(t.pipelineID))
+		// t.decoderMonitor.Stop()
 		offset := t.decodedOffset.Load() + int64(output.RawDataLen)
 		identifier := t.Identifier()
 		if t.didFileRotate.Load() {
@@ -359,13 +367,16 @@ func (t *Tailer) forwardMessages() {
 		if len(output.GetContent()) == 0 {
 			continue
 		}
+
+		msg := message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
 		// Make the write to the output chan cancellable to be able to stop the tailer
 		// after a file rotation when it is stuck on it.
 		// We don't return directly to keep the same shutdown sequence that in the
 		// normal case.
 		select {
 		// XXX(remy): is it ok recreating a message like this here?
-		case t.outputChan <- message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp):
+		case t.outputChan <- msg:
+			metrics.ReportComponentIngress(msg, "processor", strconv.Itoa(t.pipelineID))
 		case <-t.forwardContext.Done():
 		}
 	}

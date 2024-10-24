@@ -83,6 +83,8 @@ type Destination struct {
 	// Telemetry
 	expVars       *expvar.Map
 	telemetryName string
+	pipelineID    int
+	monitor       *metrics.UtilizationMonitor
 }
 
 // NewDestination returns a new Destination.
@@ -95,7 +97,8 @@ func NewDestination(endpoint config.Endpoint,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
 	telemetryName string,
-	cfg pkgconfigmodel.Reader) *Destination {
+	cfg pkgconfigmodel.Reader,
+	pipelineID int) *Destination {
 
 	return newDestination(endpoint,
 		contentType,
@@ -104,7 +107,8 @@ func NewDestination(endpoint config.Endpoint,
 		maxConcurrentBackgroundSends,
 		shouldRetry,
 		telemetryName,
-		cfg)
+		cfg,
+		pipelineID)
 }
 
 func newDestination(endpoint config.Endpoint,
@@ -114,7 +118,8 @@ func newDestination(endpoint config.Endpoint,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
 	telemetryName string,
-	cfg pkgconfigmodel.Reader) *Destination {
+	cfg pkgconfigmodel.Reader,
+	pipelineID int) *Destination {
 
 	if maxConcurrentBackgroundSends <= 0 {
 		maxConcurrentBackgroundSends = 1
@@ -152,6 +157,8 @@ func newDestination(endpoint config.Endpoint,
 		expVars:             expVars,
 		telemetryName:       telemetryName,
 		isMRF:               endpoint.IsMRF,
+		pipelineID:          pipelineID,
+		monitor:             metrics.NewUtilizationMonitor("destination", strconv.Itoa(pipelineID)),
 	}
 }
 
@@ -186,6 +193,7 @@ func (d *Destination) run(input chan *message.Payload, output chan *message.Payl
 	var startIdle = time.Now()
 
 	for p := range input {
+		d.monitor.Start()
 		idle := float64(time.Since(startIdle) / time.Millisecond)
 		d.expVars.AddFloat(expVarIdleMsMapKey, idle)
 		tlmIdle.Add(idle, d.telemetryName)
@@ -197,6 +205,7 @@ func (d *Destination) run(input chan *message.Payload, output chan *message.Payl
 		d.expVars.AddFloat(expVarInUseMsMapKey, inUse)
 		tlmInUse.Add(inUse, d.telemetryName)
 		startIdle = time.Now()
+		d.monitor.Stop()
 	}
 	// Wait for any pending concurrent sends to finish or terminate
 	d.wg.Wait()
@@ -348,6 +357,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		// internal error. We should retry these requests.
 		return client.NewRetryableError(errServer)
 	} else {
+		metrics.ReportComponentEgress(payload, "destination", strconv.Itoa(d.pipelineID))
 		return nil
 	}
 }
@@ -422,7 +432,7 @@ func getMessageTimestamp(messages []*message.Message) int64 {
 func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "", cfg)
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "", cfg, 0)
 	return ctx, destination
 }
 

@@ -13,6 +13,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -38,10 +39,12 @@ type Sender struct {
 	bufferSize     int
 	senderDoneChan chan *sync.WaitGroup
 	flushWg        *sync.WaitGroup
+	pipelineID     int
+	monitor        *metrics.UtilizationMonitor
 }
 
 // NewSender returns a new sender.
-func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations, bufferSize int, senderDoneChan chan *sync.WaitGroup, flushWg *sync.WaitGroup) *Sender {
+func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations, bufferSize int, senderDoneChan chan *sync.WaitGroup, flushWg *sync.WaitGroup, pipelineID int) *Sender {
 	return &Sender{
 		config:         config,
 		inputChan:      inputChan,
@@ -51,6 +54,8 @@ func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, ou
 		bufferSize:     bufferSize,
 		senderDoneChan: senderDoneChan,
 		flushWg:        flushWg,
+		pipelineID:     pipelineID,
+		monitor:        metrics.NewUtilizationMonitor("sender", strconv.Itoa(pipelineID)),
 	}
 }
 
@@ -73,6 +78,7 @@ func (s *Sender) run() {
 	unreliableDestinations := buildDestinationSenders(s.config, s.destinations.Unreliable, sink, s.bufferSize)
 
 	for payload := range s.inputChan {
+		s.monitor.Start()
 		var startInUse = time.Now()
 		senderDoneWg := &sync.WaitGroup{}
 
@@ -80,6 +86,8 @@ func (s *Sender) run() {
 		for !sent {
 			for _, destSender := range reliableDestinations {
 				if destSender.Send(payload) {
+					metrics.ReportComponentEgress(payload, "sender", strconv.Itoa(s.pipelineID))
+					metrics.ReportComponentIngress(payload, "destination", strconv.Itoa(s.pipelineID))
 					sent = true
 					if s.senderDoneChan != nil {
 						senderDoneWg.Add(1)
@@ -121,6 +129,7 @@ func (s *Sender) run() {
 
 		inUse := float64(time.Since(startInUse) / time.Millisecond)
 		tlmSendWaitTime.Add(inUse)
+		s.monitor.Stop()
 
 		if s.senderDoneChan != nil && s.flushWg != nil {
 			// Wait for all destinations to finish sending the payload

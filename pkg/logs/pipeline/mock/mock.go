@@ -52,3 +52,8 @@ func (p *mockProvider) Flush(_ context.Context) {}
 func (p *mockProvider) NextPipelineChan() chan *message.Message {
 	return p.msgChan
 }
+
+// NextPipelineChanWithInstance returns the next pipeline
+func (p *mockProvider) NextPipelineChanWithInstance() (chan *message.Message, int) {
+	return p.msgChan, 0
+}
