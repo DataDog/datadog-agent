@@ -14,14 +14,14 @@ import (
 // statsGenerator connects to the active stream handlers and generates stats for the GPU monitoring, by distributing
 // the data to the aggregators which are responsible for computing the metrics.
 type statsGenerator struct {
-	streamHandlers      map[model.StreamKey]*StreamHandler // streamHandlers contains the map of active stream handlers.
-	lastGenerationKTime int64                              // lastGenerationTime is the kernel time of the last stats generation.
-	currGenerationKTime int64                              // currGenerationTime is the kernel time of the current stats generation.
-	aggregators         map[uint32]*aggregator             // aggregators contains the map of aggregators
-	sysCtx              *systemContext                     // sysCtx is the system context with global GPU-system data
+	streamHandlers      map[streamKey]*StreamHandler // streamHandlers contains the map of active stream handlers.
+	lastGenerationKTime int64                        // lastGenerationTime is the kernel time of the last stats generation.
+	currGenerationKTime int64                        // currGenerationTime is the kernel time of the current stats generation.
+	aggregators         map[uint32]*aggregator       // aggregators contains the map of aggregators
+	sysCtx              *systemContext               // sysCtx is the system context with global GPU-system data
 }
 
-func newStatsGenerator(sysCtx *systemContext, currKTime int64, streamHandlers map[model.StreamKey]*StreamHandler) *statsGenerator {
+func newStatsGenerator(sysCtx *systemContext, currKTime int64, streamHandlers map[streamKey]*StreamHandler) *statsGenerator {
 	return &statsGenerator{
 		streamHandlers:      streamHandlers,
 		aggregators:         make(map[uint32]*aggregator),
@@ -37,7 +37,7 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	g.currGenerationKTime = nowKtime
 
 	for key, handler := range g.streamHandlers {
-		aggr := g.getOrCreateAggregator(key.Pid)
+		aggr := g.getOrCreateAggregator(key.pid)
 		currData := handler.getCurrentData(uint64(nowKtime))
 		pastData := handler.getPastData(true)
 
