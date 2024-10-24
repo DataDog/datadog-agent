@@ -86,6 +86,18 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 		tags.WriteString(fmt.Sprintf("functionname:%s", strings.ToLower(r.conf.LambdaFunctionName)))
 		tags.WriteString("_dd.origin:lambda")
 	}
+
+	// Azure Container App metadata
+	if subscriptionID, ok := r.conf.GlobalTags["subscription_id"]; ok {
+		tags.WriteString(fmt.Sprintf(",subscription_id:%s", subscriptionID))
+	}
+	if resourceGroup, ok := r.conf.GlobalTags["resource_group"]; ok {
+		tags.WriteString(fmt.Sprintf(",resource_group:%s", resourceGroup))
+	}
+	if resourceID, ok := r.conf.GlobalTags["resource_id"]; ok {
+		tags.WriteString(fmt.Sprintf(",resource_id:%s", resourceID))
+	}
+
 	return newProfileProxy(r.conf, targets, keys, tags.String(), r.statsd)
 }
 
