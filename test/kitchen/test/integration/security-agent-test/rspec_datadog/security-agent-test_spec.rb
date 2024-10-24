@@ -122,9 +122,7 @@ describe "security-agent" do
   case cws_platform
   when "host"
     context 'functional tests running directly on host' do
-      env = {
-        "DD_TESTS_RUNTIME_COMPILED"=>"1",
-      }
+      env = {}
       include_examples "passes", "host", env
     end
   when "host-fentry"
@@ -150,7 +148,6 @@ describe "security-agent" do
     context 'activity dump functional test running on dedicated node' do
       env = {
         "DEDICATED_ACTIVITY_DUMP_NODE"=>"1",
-        "DD_TESTS_RUNTIME_COMPILED"=>"1",
       }
       include_examples "passes", "ad", env
     end

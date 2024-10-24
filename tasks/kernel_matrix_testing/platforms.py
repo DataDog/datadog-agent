@@ -8,7 +8,7 @@ import yaml
 
 from tasks.kernel_matrix_testing.tool import Exit
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS
-from tasks.pipeline import GitlabYamlLoader
+from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import (
@@ -40,8 +40,9 @@ def filter_by_ci_component(platforms: Platforms, component: Component) -> Platfo
     target_file = (
         Path(__file__).parent.parent.parent / ".gitlab" / "kernel_matrix_testing" / f"{component.replace('-', '_')}.yml"
     )
+    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
     with open(target_file) as f:
-        ci_config = yaml.load(f, Loader=GitlabYamlLoader())
+        ci_config = yaml.safe_load(f)
 
     for arch in KMT_SUPPORTED_ARCHS:
         job_name = f"kmt_run_{job_component_mapping[component]}_tests_{job_arch_mapping[arch]}"

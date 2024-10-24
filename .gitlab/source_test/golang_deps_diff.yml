@@ -15,7 +15,7 @@ golang_deps_diff:
     - !reference [.retrieve_linux_go_deps]
   script:
      # Get API key to send metrics
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - inv -e diff.go-deps --report-file=deps-report.md --report-metrics --git-ref "${CI_COMMIT_REF_NAME}"
   artifacts:
     paths:
@@ -64,7 +64,7 @@ golang_deps_send_count_metrics:
     - !reference [.retrieve_linux_go_deps]
   script:
     # Get API key to send metrics
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - inv -e go-deps.send-count-metrics --git-sha "${CI_COMMIT_SHA}" --git-ref "${CI_COMMIT_REF_NAME}"
 
 golang_deps_test:

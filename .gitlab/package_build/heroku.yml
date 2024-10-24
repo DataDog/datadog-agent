@@ -28,11 +28,9 @@
     - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-$CLANG_LLVM_VER.${PACKAGE_ARCH} /tmp/system-probe/llc-bpf
     - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz /tmp/system-probe/minimized-btfs.tar.xz
     - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
-    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor heroku
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor heroku
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.lint_linux_packages]
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-heroku-agent_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-heroku-agent-dbg_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DBG_DEB
     - !reference [.upload_sbom_artifacts]
   variables:
     KUBERNETES_MEMORY_REQUEST: "32Gi"
@@ -57,4 +55,3 @@ agent_heroku_deb-x64-a7:
     DESTINATION_DBG_DEB: "datadog-heroku-agent-dbg_7_amd64.deb"
     RELEASE_VERSION: $RELEASE_VERSION_7
     AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: "3"

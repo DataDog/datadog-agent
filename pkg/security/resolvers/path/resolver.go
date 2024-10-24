@@ -55,7 +55,7 @@ func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDC
 	}
 
 	if e.IsFileless() {
-		return pathStr, "", model.MountSourceUnknown, model.MountOriginUnknown, nil
+		return pathStr, "", model.MountSourceMountID, model.MountOriginEvent, nil
 	}
 
 	mountPath, source, origin, err := r.mountResolver.ResolveMountPath(e.MountID, e.Device, pidCtx.Pid, string(ctrCtx.ContainerID))

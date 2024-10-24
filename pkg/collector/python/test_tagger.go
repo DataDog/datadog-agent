@@ -49,7 +49,7 @@ func tagsMockEmpty(string, types.TagCardinality) ([]string, error) {
 
 func testTags(t *testing.T) {
 	tagsFunc = tagsMock
-	defer func() { tagsFunc = tagger.Tag }()
+	defer func() { tagsFunc = tagger.LegacyTag }()
 
 	id := C.CString("test")
 	defer C.free(unsafe.Pointer(id))
@@ -68,7 +68,7 @@ func testTags(t *testing.T) {
 
 func testTagsNull(t *testing.T) {
 	tagsFunc = tagsMockNull
-	defer func() { tagsFunc = tagger.Tag }()
+	defer func() { tagsFunc = tagger.LegacyTag }()
 
 	id := C.CString("test")
 	defer C.free(unsafe.Pointer(id))
@@ -79,7 +79,7 @@ func testTagsNull(t *testing.T) {
 
 func testTagsEmpty(t *testing.T) {
 	tagsFunc = tagsMockEmpty
-	defer func() { tagsFunc = tagger.Tag }()
+	defer func() { tagsFunc = tagger.LegacyTag }()
 
 	id := C.CString("test")
 	defer C.free(unsafe.Pointer(id))
