@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        uses: aws-actions/configure-aws-credentials@v1 # e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           role-to-assume: ${{ secrets.SLAPR_AWS_ROLE_TO_ASSUME }}
           aws-region: us-east-1
@@ -23,15 +23,15 @@ jobs:
         shell: bash
         run: |
           aws s3 cp --region us-east-1 s3://dd-ci-slack-teams-bucket/teams.json -
-      - uses: DataDog/slapr@celian/codeowners
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-          # SLACK_CHANNEL_ID: "${{ secrets.? }}"
-          SLAPR_MULTICHANNEL: "true"
-          SLACK_API_TOKEN: "${{ secrets.SLACK_API_TOKEN }}"
-          SLAPR_BOT_USER_ID: "${{ secrets.SLAPR_BOT_USER_ID }}"
-          SLAPR_EMOJI_REVIEW_STARTED: "review_started"
-          SLAPR_EMOJI_APPROVED: "pr-approved-"
-          SLAPR_EMOJI_CHANGES_REQUESTED: "changes_requested"
-          SLAPR_EMOJI_MERGED: "merged"
-          SLAPR_EMOJI_CLOSED: "closed"
+      # - uses: DataDog/slapr@celian/codeowners
+      #   env:
+      #     GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+      #     # SLACK_CHANNEL_ID: "${{ secrets.? }}"
+      #     SLAPR_MULTICHANNEL: "true"
+      #     SLACK_API_TOKEN: "${{ secrets.SLACK_API_TOKEN }}"
+      #     SLAPR_BOT_USER_ID: "${{ secrets.SLAPR_BOT_USER_ID }}"
+      #     SLAPR_EMOJI_REVIEW_STARTED: "review_started"
+      #     SLAPR_EMOJI_APPROVED: "pr-approved-"
+      #     SLAPR_EMOJI_CHANGES_REQUESTED: "changes_requested"
+      #     SLAPR_EMOJI_MERGED: "merged"
+      #     SLAPR_EMOJI_CLOSED: "closed"
