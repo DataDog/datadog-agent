@@ -43,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -391,6 +392,23 @@ func startRCService(functionARN string) *remoteconfig.CoreAgentService {
 		}
 		return []string{fmt.Sprintf("aws_account_id:%s", arn.AccountID), fmt.Sprintf("region:%s", arn.Region)}
 	}
+	commonOpts := telemetry.Options{NoDoubleUnderscoreSep: true}
+	telemetryReporter := &rctelemetryreporterimpl.DdRcTelemetryReporter{
+		BypassRateLimitCounter: telemetry.NewCounterWithOpts(
+			"remoteconfig",
+			"cache_bypass_ratelimiter_skip",
+			[]string{},
+			"Number of Remote Configuration cache bypass requests skipped by rate limiting.",
+			commonOpts,
+		),
+		BypassTimeoutCounter: telemetry.NewCounterWithOpts(
+			"remoteconfig",
+			"cache_bypass_timeout",
+			[]string{},
+			"Number of Remote Configuration cache bypass requests that timeout.",
+			commonOpts,
+		),
+	}
 
 	configService, err := remoteconfig.NewService(
 		pkgconfigsetup.Datadog(),
@@ -398,7 +416,7 @@ func startRCService(functionARN string) *remoteconfig.CoreAgentService {
 		baseRawURL,
 		"",
 		tagsGetter,
-		&rctelemetryreporterimpl.DdRcTelemetryReporter{},
+		telemetryReporter,
 		version.AgentVersion,
 		options...,
 	)
