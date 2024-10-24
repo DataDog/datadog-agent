@@ -115,7 +115,7 @@ func (c *gpmMetricsCollector) currentSample() nvml.GpmSample {
 
 // previousSample returns the previous GPM sample.
 func (c *gpmMetricsCollector) previousSample() nvml.GpmSample {
-	return c.samples[(c.currentSampleIndex+1)%numGpmSamples]
+	return c.samples[(c.currentSampleIndex-1+numGpmSamples)%numGpmSamples]
 }
 
 // markCollectedSample marks the current sample as collected and updates the index, rotating through the samples.
