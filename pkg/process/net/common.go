@@ -476,7 +476,7 @@ func (r *RemoteSysProbeUtil) GetConnTrackHost() ([]byte, error) {
 	return data, nil
 }
 
-// GetBTFLoaderInfo queries ebpf_btf_loader to get information about where btf files came from
+// GetBTFLoaderInfo queries btf_loader_info to get information about where btf files came from
 func (r *RemoteSysProbeUtil) GetBTFLoaderInfo() ([]byte, error) {
 	req, err := http.NewRequest(http.MethodGet, ebpfBTFLoaderURL, nil)
 	if err != nil {

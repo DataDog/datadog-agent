@@ -28,7 +28,7 @@ func GetSystemProbeConntrackHost(socketPath string) ([]byte, error) {
 	return probeUtil.GetConnTrackHost()
 }
 
-// GetSystemProbeBTFLoaderInfo queries ebpf_btf_loader which gets where the BTF data came from
+// GetSystemProbeBTFLoaderInfo queries btf_loader_info which gets where the BTF data came from
 func GetSystemProbeBTFLoaderInfo(socketPath string) ([]byte, error) {
 	probeUtil, err := net.GetRemoteSystemProbeUtil(socketPath)
 	if err != nil {

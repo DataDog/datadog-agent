@@ -292,17 +292,6 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		utils.WriteAsJSON(w, cache)
 	})
 
-	httpMux.HandleFunc("/debug/ebpf_btf_loader", func(w http.ResponseWriter, _ *http.Request) {
-		info, err := GetBTFLoaderInfo()
-		if err != nil {
-			log.Errorf("unable to get ebpf_btf_loader info: %s", err)
-			w.WriteHeader(500)
-			return
-		}
-
-		io.WriteString(w, info)
-	})
-
 	httpMux.HandleFunc("/debug/usm_telemetry", telemetry.Handler)
 	httpMux.HandleFunc("/debug/usm/traced_programs", usm.TracedProgramsEndpoint)
 	httpMux.HandleFunc("/debug/usm/blocked_processes", usm.BlockedPathIDEndpoint)

@@ -39,7 +39,7 @@ const (
 	// conntrackHostURL is not used on Windows, the value is added to avoid a compilation error
 	conntrackHostURL = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/host"
 	// ebpfBtfLoaderURL is not used on Windows, the value is added to avoid a compilation error
-	ebpfBTFLoaderURL = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/debug/ebpf_btf_loader"
+	ebpfBTFLoaderURL = "http://localhost:3333/" + string(sysconfig.EBPFModule) + "/btf_loader_info"
 
 	// SystemProbePipeName is the production named pipe for system probe
 	SystemProbePipeName = `\\.\pipe\dd_system_probe`
