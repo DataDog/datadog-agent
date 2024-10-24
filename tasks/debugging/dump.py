@@ -13,71 +13,123 @@ from tasks.libs.common.utils import download_to_tempfile
 
 
 class PathStore:
-    path: Path
-
     def __init__(self, path: str | Path):
         self.path = Path(path)
 
-    def add(self, src: Path, dst: Path) -> Path:
+    def add(self, key: str, data: bytes) -> None:
+        file_path = self.path / key
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_bytes(data)
+
+    def get(self, key: str) -> bytes | None:
+        file_path = self.path / key
+        if file_path.exists():
+            return file_path.read_bytes()
+        return None
+
+    def add_directory(self, key: str, src: Path) -> None:
+        dst = self.path / key
         dst.mkdir(parents=True, exist_ok=True)
         shutil.copytree(src, dst, dirs_exist_ok=True)
-        return dst
 
-    def get(self, path: Path) -> Path | None:
-        if path.exists():
-            return path
+    def get_directory(self, key: str) -> Path | None:
+        dir_path = self.path / key
+        if dir_path.exists():
+            return dir_path
         return None
 
 
 class SymbolStore(PathStore):
-    def __init__(self, path: str | Path):
-        super().__init__(path)
-
     def add(self, version: str, path: str | Path) -> Path:
         dst = Path(self.path, version, 'symbols')
-        return super().add(path, dst)
+        self.add_directory(str(dst), path)
+        return dst
 
     def get(self, version: str) -> Path | None:
         p = Path(self.path, version, 'symbols')
-        return super().get(p)
+        return self.get_directory(str(p))
 
 
-class ArtifactStore(PathStore):
-    def __iter__(self):
-        return iter(self.path.glob('**/*'))
+class Artifacts:
+    def __init__(self, project: str, job: str, path_store: PathStore):
+        self.__path_store = path_store
+        self._project = project
+        self._job = job
+        self._version = None
+        self._pipeline = None
 
-    def add(self, project: str, job: str, path: str | Path) -> Path:
-        k = self.__key(project, job)
-        dst = Path(k, 'artifacts')
-        return super().add(path, dst)
+    def get(self) -> Path:
+        return self.__path_store.get_directory(f"{self.key()}/artifacts")
 
-    def get(self, project: str, job: str) -> Path | None:
-        k = self.__key(project, job)
-        k = Path(k, 'artifacts')
-        return super().get(k)
+    def add(self, path: str | Path) -> None:
+        self.__path_store.add_directory(f"{self.key()}/artifacts", Path(path))
 
-    def add_version(self, project: str, job: str, version: str) -> None:
-        k = self.__key(project, job)
-        if not k.exists():
-            raise ValueError(f"Job {job} not found in artifact store")
-        dst = Path(k, 'version.txt')
-        dst.write_text(version, encoding='utf-8')
-        return dst
+    def _get_text_property(self, attr: str) -> str | None:
+        value = getattr(self, f"_{attr}")
+        if value is None:
+            data = self.__path_store.get(f"{self.key()}/{attr}.txt")
+            if not data:
+                return None
+            value = data.decode('utf-8').strip()
+            setattr(self, f"_{attr}", value)
+        return value
 
-    def get_version(self, project: str, job: str) -> str | None:
-        k = self.__key(project, job)
-        if not k.exists():
-            return None
-        version = Path(k, 'version.txt')
-        if not version.exists():
-            return None
-        return version.read_text(encoding='utf-8')
+    def _set_text_property(self, attr: str, value: str) -> None:
+        self.__path_store.add(f"{self.key()}/{attr}.txt", value.encode('utf-8'))
+        setattr(self, f"_{attr}", value)
 
-    def __key(self, project: str, job: str) -> Path:
-        return Path(self.path, project, job)
+    @property
+    def version(self) -> str | None:
+        return self._get_text_property("version")
+
+    @version.setter
+    def version(self, value: str) -> None:
+        self._set_text_property("version", value)
+
+    @property
+    def pipeline(self) -> str | None:
+        return self._get_text_property("pipeline")
+
+    @pipeline.setter
+    def pipeline(self, value: str) -> None:
+        self._set_text_property("pipeline", value)
+
+    @property
+    def project(self) -> str | None:
+        return self._get_text_property("project")
+
+    @project.setter
+    def project(self, value: str) -> None:
+        self._set_text_property("project", value)
+
+    def key(self) -> str:
+        return self.makekey(self._project, self._job)
+
+    @classmethod
+    def makekey(cls, project: str, job: str) -> str:
+        return f"{project}/{job}"
 
 
-def add_gitlab_job_artifacts_to_artifact_store(artifact_store: ArtifactStore, project: Project, job_id: str) -> Path:
+class ArtifactStore:
+    def __init__(self, path: str | Path):
+        self.path_store = PathStore(Path(path))
+
+    def add(self, project_id: str, job_id: str, artifacts_path: str | Path = None) -> Artifacts:
+        artifacts = Artifacts(project_id, job_id, self.path_store)
+        if artifacts_path:
+            artifacts.add(artifacts_path)
+        return artifacts
+
+    def get(self, project_id: str, job_id: str) -> Artifacts | None:
+        key = Artifacts.makekey(project_id, job_id)
+        if self.path_store.get_directory(key):
+            return Artifacts(project_id, job_id, self.path_store)
+        return None
+
+
+def add_gitlab_job_artifacts_to_artifact_store(
+    artifact_store: ArtifactStore, project: Project, job_id: str
+) -> Artifacts:
     with tempfile.TemporaryDirectory() as temp_dir:
         download_job_artifacts(project, job_id, temp_dir)
         project_id = "datadog-agent"  # TODO: get from project
@@ -137,9 +189,11 @@ def debug_job_dump(ctx, job_id):
     # select dump file
     package_artifacts = get_or_fetch_artifacts(cli.artifact_store, cli.active_project, job_id)
     print("Dump files:")
-    for dmp_file in find_dmp_files(package_artifacts):
+    dmp_files = find_dmp_files(package_artifacts.get())
+    for dmp_file in dmp_files:
         print('\t', Path(dmp_file).resolve())
-    dump_file = input("Select a dump file to analyze: ")
+    if len(dmp_files) > 1:
+        dmp_file = input("Select a dump file to analyze: ")
 
     # select symbol file
     syms = get_symbols_for_job_id(cli, job_id)
@@ -149,9 +203,9 @@ def debug_job_dump(ctx, job_id):
     symbol_file = input("Select a symbol file to use: ")
 
     # launch windbg and delve
-    windbg_cmd = f'cmd.exe /c start "" "{dump_file}"'
+    windbg_cmd = f'cmd.exe /c start "" "{dmp_file}"'
     print(f"Running command: {windbg_cmd}")
-    dlv_cmd = f'dlv.exe core "{symbol_file}" "{dump_file}"'
+    dlv_cmd = f'dlv.exe core "{symbol_file}" "{dmp_file}"'
     print(f"Running command: {dlv_cmd}")
     os.system(windbg_cmd)
     os.system(dlv_cmd)
@@ -171,7 +225,7 @@ def get_job_dump(ctx, job_id, with_symbols=False):
     cli.select_project(get_gitlab_repo())
 
     package_artifacts = get_or_fetch_artifacts(cli.artifact_store, cli.active_project, job_id)
-    dmp_files = find_dmp_files(package_artifacts)
+    dmp_files = find_dmp_files(package_artifacts.get())
     if not dmp_files:
         print("No dump files found")
         return
@@ -201,29 +255,34 @@ def get_debug_symbols(ctx, job_id=None, version=None):
 
 
 def get_symbols_for_job_id(cli: CrashAnalyzerCLI, job_id: str) -> Path:
-    version = cli.artifact_store.get_version("datadog-agent", job_id)
-    if version:
-        syms = cli.symbol_store.get(version)
-        if syms:
-            return syms
-    # Need to get the symbols from the package build job in the pipeline
-    package_job_id = get_package_job_id(cli.active_project, job_id)
-    package_artifacts = get_or_fetch_artifacts(cli.artifact_store, cli.active_project, package_job_id)
-    for debug_zip in find_debug_zip(package_artifacts):
-        debug_zip = Path(debug_zip)
-        version = debug_zip.name.removesuffix('.debug.zip')
-        syms = cli.symbol_store.get(version)
-        if not syms:
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                extract_agent_symbols(debug_zip, tmp_dir)
-                syms = cli.symbol_store.add(version, tmp_dir)
-    # add a version ref so we can look it up faster next time
-    cli.artifact_store.add_version("datadog-agent", package_job_id, version)
-    cli.artifact_store.add_version("datadog-agent", job_id, version)
+    project_id = "datadog-agent"  # TODO: get from project
+    # check if we already have the symbols for this job
+    artifact = cli.artifact_store.get(project_id, job_id)
+    if artifact and artifact.version:
+        version = artifact.version
+    else:
+        # Need to get the symbols from the package build job in the pipeline
+        package_job_id = get_package_job_id(cli.active_project, job_id)
+        package_artifacts = get_or_fetch_artifacts(cli.artifact_store, cli.active_project, package_job_id)
+        for debug_zip in find_debug_zip(package_artifacts.get()):
+            debug_zip = Path(debug_zip)
+            version = debug_zip.name.removesuffix('.debug.zip')
+            # add a version ref so we can look it up faster next time
+            package_artifacts.version = version
+            if not artifact:
+                artifact = cli.artifact_store.add(project_id, job_id)
+            artifact.version = version
+            break
+    syms = cli.symbol_store.get(version)
+    if not syms:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            extract_agent_symbols(debug_zip, tmp_dir)
+            syms = cli.symbol_store.add(version, tmp_dir)
+
     return syms
 
 
-def get_or_fetch_artifacts(artifact_store: ArtifactStore, project: Project, job_id: str) -> Path:
+def get_or_fetch_artifacts(artifact_store: ArtifactStore, project: Project, job_id: str) -> Artifacts:
     project_id = "datadog-agent"  # TODO: get from project
     artifacts = artifact_store.get(project_id, job_id)
     if not artifacts:
@@ -292,7 +351,7 @@ def find_dmp_files(output_dir: str) -> list[str]:
     return list(glob.glob(f"{output_dir}/**/*.dmp", recursive=True))
 
 
-def find_debug_zip(output_dir: str) -> str:
+def find_debug_zip(output_dir: str) -> list[str]:
     return list(glob.glob(f"{output_dir}/**/*.debug.zip", recursive=True))
 
 
