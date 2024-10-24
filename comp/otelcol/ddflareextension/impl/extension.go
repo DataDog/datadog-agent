@@ -148,7 +148,7 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 		effectiveConfig: &confmap.Conf{},
 	}
 	var err error
-	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext)
+	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext, ext.ocb)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +179,7 @@ func NewExtensionForAgent(_ context.Context, cfg *Config, telemetry component.Te
 
 	ext.configStore.setProvidedConf(providedConf)
 
-	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext)
+	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext, ext.ocb)
 	if err != nil {
 		return nil, err
 	}

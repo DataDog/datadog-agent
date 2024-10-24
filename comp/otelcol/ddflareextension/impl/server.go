@@ -40,7 +40,7 @@ func validateToken(next http.Handler) http.Handler {
 	})
 }
 
-func newServer(endpoint string, handler http.Handler) (*server, error) {
+func newServer(endpoint string, handler http.Handler, ocb bool) (*server, error) {
 
 	// Generate a self-signed certificate
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -113,7 +113,9 @@ func newServer(endpoint string, handler http.Handler) (*server, error) {
 	r := mux.NewRouter()
 	r.Handle("/", handler)
 
-	// r.Use(validateToken)
+	if !ocb {
+		r.Use(validateToken)
+	}
 
 	s := &http.Server{
 		Addr:      endpoint,
