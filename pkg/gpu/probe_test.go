@@ -28,7 +28,6 @@ func TestProbeCanLoad(t *testing.T) {
 
 	cfg := NewConfig()
 	cfg.InitialProcessSync = false
-	probe, err := NewProbe(cfg, nil)
 	nvmlMock := testutil.GetBasicNvmlMock()
 	probe, err := NewProbe(cfg, ProbeDependencies{NvmlLib: nvmlMock})
 	require.NoError(t, err)

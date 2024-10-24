@@ -59,6 +59,8 @@ func getSystemContext(nvmlLib nvml.Interface, procRoot string) (*systemContext, 
 	ctx := &systemContext{
 		maxGpuThreadsPerDevice: make(map[int]int),
 		deviceSmVersions:       make(map[int]int),
+		fileData:               make(map[string]*fileData),
+		pidMaps:                make(map[int]*kernel.ProcMapEntries),
 		nvmlLib:                nvmlLib,
 		procRoot:               procRoot,
 	}

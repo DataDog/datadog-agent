@@ -17,10 +17,11 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, map[model.StreamKey]*StreamHandler, int64) {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock())
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
 	require.NotNil(t, sysCtx)
 
@@ -45,13 +46,15 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	skeyKern := model.StreamKey{Pid: pid, Stream: streamID}
 	streamHandlers[skeyKern] = &StreamHandler{
 		processEnded: false,
-		kernelLaunches: []gpuebpf.CudaKernelLaunch{
+		kernelLaunches: []enrichedKernelLaunch{
 			{
-				Header:          gpuebpf.CudaEventHeader{Ktime_ns: uint64(startKtime), Pid_tgid: pidTgid, Stream_id: streamID},
-				Kernel_addr:     0,
-				Shared_mem_size: 10,
-				Grid_size:       gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
-				Block_size:      gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
+				CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
+					Header:          gpuebpf.CudaEventHeader{Ktime_ns: uint64(startKtime), Pid_tgid: pidTgid, Stream_id: streamID},
+					Kernel_addr:     0,
+					Shared_mem_size: 10,
+					Grid_size:       gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
+					Block_size:      gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
+				},
 			},
 		},
 	}
@@ -151,13 +154,15 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	numThreads := uint64(5)
 	streamHandlers[skeyKern] = &StreamHandler{
 		processEnded: false,
-		kernelLaunches: []gpuebpf.CudaKernelLaunch{
+		kernelLaunches: []enrichedKernelLaunch{
 			{
-				Header:          gpuebpf.CudaEventHeader{Ktime_ns: uint64(startKtime), Pid_tgid: pidTgid, Stream_id: streamID},
-				Kernel_addr:     0,
-				Shared_mem_size: 10,
-				Grid_size:       gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
-				Block_size:      gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
+				CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
+					Header:          gpuebpf.CudaEventHeader{Ktime_ns: uint64(startKtime), Pid_tgid: pidTgid, Stream_id: streamID},
+					Kernel_addr:     0,
+					Shared_mem_size: 10,
+					Grid_size:       gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
+					Block_size:      gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
+				},
 			},
 		},
 		kernelSpans: []*model.KernelSpan{
