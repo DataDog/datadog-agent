@@ -58,7 +58,6 @@ type subsystemBuilder func(lib nvml.Interface, device nvml.Device, tags []string
 // allSubsystems is a map of all the subsystems that can be used to collect metrics from NVML.
 var allSubsystems = map[string]subsystemBuilder{
 	fieldsMetricsCollectorName:       newFieldsMetricsCollector,
-	gpmMetricsCollectorName:          newGpmMetricsCollector,
 	deviceCollectorName:              newDeviceMetricsCollector,
 	remappedRowsMetricsCollectorName: newRemappedRowsMetricsCollector,
 	clocksMetricsCollectorName:       newClocksMetricsCollector,
