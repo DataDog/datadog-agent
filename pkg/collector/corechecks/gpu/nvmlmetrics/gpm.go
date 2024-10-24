@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
+// nvmlGpmMetricsGetVersion is the version of the GPM metrics, there are no more versions as of now.
 const nvmlGpmMetricsGetVersion = 1
 const gpmMetricsCollectorName = "gpm"
 const numGpmSamples = 2
