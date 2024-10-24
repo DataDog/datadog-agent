@@ -95,6 +95,6 @@ func (ctc *testContainer) buildDockerExecArgs(args []string, envVars []string) [
 		dockerargs = append(dockerargs, "-e", envVar)
 	}
 	dockerargs = append(dockerargs, containerName)
-	dockerargs = append(dockerargs, dockerargs...)
+	dockerargs = append(dockerargs, args...)
 	return dockerargs
 }
