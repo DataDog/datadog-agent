@@ -1,6 +1,9 @@
 # See https://docs.codecov.com/docs/pull-request-comments
 # Codecov is still inaccurate for Go code coverage, so we disable comments for now.
 comment: false
+  # Waiting for all OSes coverage before posting the PR comment.
+  # We're watching deb (amd64 & arm64), rpm (amd64 & arm64), and Windows amd64.
+  # after_n_builds: 5
 
 github_checks:
   annotations: false
