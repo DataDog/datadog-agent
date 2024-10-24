@@ -737,7 +737,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 			StatsdClient:             statsdClient,
 			DontDiscardRuntime:       true,
 			PathResolutionEnabled:    true,
-			EnvsVarResolutionEnabled: true,
+			EnvsVarResolutionEnabled: !opts.staticOpts.disableEnvVarsResolution,
 			SyscallsMonitorEnabled:   true,
 			TTYFallbackEnabled:       true,
 			EBPFLessEnabled:          ebpfLessEnabled,
