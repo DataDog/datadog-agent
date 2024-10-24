@@ -32,16 +32,16 @@ func newFieldsMetricsCollector(_ nvml.Interface, device nvml.Device, tags []stri
 func (c *fieldsMetricsCollector) Collect() ([]Metric, error) {
 	var err error
 
-	fields := make([]nvml.FieldValue, 0, len(allfieldValueMetrics))
+	fields := make([]nvml.FieldValue, 0, len(metricNameToFieldID))
 
-	for i, metric := range allfieldValueMetrics {
+	for i, metric := range metricNameToFieldID {
 		fields[i].FieldId = metric.fieldValueID
 	}
 
 	ret := c.device.GetFieldValues(fields)
-	metrics := make([]Metric, 0, len(allfieldValueMetrics))
+	metrics := make([]Metric, 0, len(metricNameToFieldID))
 	for i, val := range fields {
-		name := allfieldValueMetrics[i].name
+		name := metricNameToFieldID[i].name
 		if val.NvmlReturn != uint32(nvml.SUCCESS) {
 			err = multierror.Append(err, fmt.Errorf("failed to get field value %s: %s", name, nvml.ErrorString(nvml.Return(val.NvmlReturn))))
 			continue
@@ -75,7 +75,7 @@ type fieldValueMetric struct {
 	fieldValueID uint32 // No specific type, but these are constants prefixed with FI_DEV in the nvml package
 }
 
-var allfieldValueMetrics = []fieldValueMetric{
+var metricNameToFieldID = []fieldValueMetric{
 	{"memory.temperature", nvml.FI_DEV_MEMORY_TEMP},
 	{"nvlink.bandwidth.c0", nvml.FI_DEV_NVLINK_BANDWIDTH_C0_TOTAL},
 	{"nvlink.bandwidth.c1", nvml.FI_DEV_NVLINK_BANDWIDTH_C1_TOTAL},
