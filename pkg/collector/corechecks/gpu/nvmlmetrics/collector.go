@@ -6,9 +6,10 @@
 //go:build linux
 
 // Package nvmlmetrics holds the logic to collect metrics from the NVIDIA Management Library (NVML).
-// The main entry point is the Collector struct, which is responsible for collecting metrics from the NVML library.
-// There are multiple subsystems that can be used to collect metrics from NVML: GPM, FieldInfo functions, and general
-// API functions. The collection of metrics is done by the subsystems, implementing the subsystemCollector interface.
+// The main entry point is the BuildCollectors functions, which returns a set of collectors that will
+// gather metrics from the available NVIDIA devices on the system. Each collector is responsible for
+// a specific subsystem of metrics, such as device metrics, GPM metrics, etc. The collected metrics will
+// be returned with the associated tags for each device.
 package nvmlmetrics
 
 import (
