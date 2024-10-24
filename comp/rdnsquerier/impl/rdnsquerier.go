@@ -182,12 +182,12 @@ func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostnameSync fun
 	return err
 }
 
-// GetHostnameSync attempts to resolve the hostname for the given IP address synchronously.
+// GetHostname attempts to resolve the hostname for the given IP address synchronously.
 // If the IP address is invalid then an error is returned.
 // If the IP address is not in the private address space then it is ignored - no lookup is performed and nil error is returned.
 // If the IP address is in the private address space then the IP address will be resolved to a hostname.
 // The function accepts a timeout via context and will return an error if the timeout is reached.
-func (q *rdnsQuerierImpl) GetHostnameSync(ctx context.Context, ipAddr string) (string, error) {
+func (q *rdnsQuerierImpl) GetHostname(ctx context.Context, ipAddr string) (string, error) {
 	results := q.GetHostnames(ctx, []string{ipAddr})
 	result, ok := results[ipAddr]
 	if !ok {

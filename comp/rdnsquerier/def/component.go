@@ -22,6 +22,6 @@ type ReverseDNSResult struct {
 // Component is the component type.
 type Component interface {
 	GetHostnameAsync([]byte, func(string), func(string, error)) error
-	GetHostnameSync(context.Context, string) (string, error)
+	GetHostname(context.Context, string) (string, error)
 	GetHostnames(context.Context, []string) map[string]ReverseDNSResult
 }

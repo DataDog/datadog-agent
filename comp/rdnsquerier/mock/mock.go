@@ -53,9 +53,9 @@ func (q *rdnsQuerierMock) GetHostnameAsync(ipAddr []byte, updateHostnameSync fun
 	return nil
 }
 
-// GetHostnameSync simulates resolving the hostname for the given IP address synchronously.  If the IP address is in the private address
+// GetHostname simulates resolving the hostname for the given IP address synchronously.  If the IP address is in the private address
 // space then the resolved hostname is returned.
-func (q *rdnsQuerierMock) GetHostnameSync(_ context.Context, ipAddr string) (string, error) {
+func (q *rdnsQuerierMock) GetHostname(_ context.Context, ipAddr string) (string, error) {
 	netipAddr, err := netip.ParseAddr(ipAddr)
 	if err != nil {
 		return "", fmt.Errorf("invalid IP address %v", ipAddr)
