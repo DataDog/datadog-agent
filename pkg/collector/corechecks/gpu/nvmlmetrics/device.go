@@ -34,13 +34,13 @@ var allDeviceMetrics = []deviceMetric{
 	{"total_energy_consumption", getTotalEnergyConsumption},
 }
 
-type deviceMetricsCollector struct {
+type deviceCollector struct {
 	device nvml.Device
 	tags   []string
 }
 
-func newDeviceMetricsCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
-	return &deviceMetricsCollector{
+func newDeviceCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
+	return &deviceCollector{
 		device: device,
 		tags:   tags,
 	}, nil
@@ -57,7 +57,7 @@ type deviceMetric struct {
 }
 
 // Collect collects all the metrics from the given NVML device.
-func (c *deviceMetricsCollector) Collect() ([]Metric, error) {
+func (c *deviceCollector) Collect() ([]Metric, error) {
 	var err error
 
 	values := make([]Metric, 0, len(allDeviceMetrics)) // preallocate to reduce allocations
@@ -80,12 +80,12 @@ func (c *deviceMetricsCollector) Collect() ([]Metric, error) {
 }
 
 // Close closes the collector (no-op for this collector).
-func (c *deviceMetricsCollector) Close() error {
+func (c *deviceCollector) Close() error {
 	return nil
 }
 
 // Name returns the name of the collector.
-func (c *deviceMetricsCollector) Name() string {
+func (c *deviceCollector) Name() string {
 	return deviceCollectorName
 }
 

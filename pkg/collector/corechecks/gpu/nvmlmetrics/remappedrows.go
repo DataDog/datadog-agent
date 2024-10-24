@@ -16,21 +16,21 @@ import (
 const remappedRowsCollectorName = "remapped_rows"
 const remappedRowsMetricPrefix = "remapped_rows"
 
-type remappedRowsMetricsCollector struct {
+type remappedRowsCollector struct {
 	device nvml.Device
 	tags   []string
 }
 
-// newRemappedRowsMetricsCollector creates a new remappedRowsMetricsCollector for the given NVML device.
-func newRemappedRowsMetricsCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
-	return &remappedRowsMetricsCollector{
+// newRemappedRowsCollector creates a new remappedRowsMetricsCollector for the given NVML device.
+func newRemappedRowsCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
+	return &remappedRowsCollector{
 		device: device,
 		tags:   tags,
 	}, nil
 }
 
 // Collect collects remapped rows metrics from the NVML device.
-func (c *remappedRowsMetricsCollector) Collect() ([]Metric, error) {
+func (c *remappedRowsCollector) Collect() ([]Metric, error) {
 	// Collect remapped rows metrics from the NVML device
 	correctable, uncorrectable, pending, failed, ret := c.device.GetRemappedRows()
 	if ret != nvml.SUCCESS {
@@ -48,11 +48,11 @@ func (c *remappedRowsMetricsCollector) Collect() ([]Metric, error) {
 }
 
 // Close closes the collector and releases any resources it might have allocated (no-op for this collector).
-func (c *remappedRowsMetricsCollector) Close() error {
+func (c *remappedRowsCollector) Close() error {
 	return nil
 }
 
 // Name returns the name of the collector.
-func (c *remappedRowsMetricsCollector) Name() string {
+func (c *remappedRowsCollector) Name() string {
 	return remappedRowsCollectorName
 }

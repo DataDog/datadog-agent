@@ -16,20 +16,20 @@ import (
 
 const fieldsCollectorName = "fields"
 
-type fieldsMetricsCollector struct {
+type fieldsCollector struct {
 	device nvml.Device
 	tags   []string
 }
 
-func newFieldsMetricsCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
-	return &fieldsMetricsCollector{
+func newFieldsCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
+	return &fieldsCollector{
 		device: device,
 		tags:   tags,
 	}, nil
 }
 
 // Collect collects all the metrics from the given NVML device.
-func (c *fieldsMetricsCollector) Collect() ([]Metric, error) {
+func (c *fieldsCollector) Collect() ([]Metric, error) {
 	var err error
 
 	fields := make([]nvml.FieldValue, 0, len(metricNameToFieldID))
@@ -59,12 +59,12 @@ func (c *fieldsMetricsCollector) Collect() ([]Metric, error) {
 }
 
 // Close cleans up any resources used by the collector (no-op for this collector).
-func (c *fieldsMetricsCollector) Close() error {
+func (c *fieldsCollector) Close() error {
 	return nil
 }
 
 // Name returns the name of the collector.
-func (c *fieldsMetricsCollector) Name() string {
+func (c *fieldsCollector) Name() string {
 	return fieldsCollectorName
 }
 

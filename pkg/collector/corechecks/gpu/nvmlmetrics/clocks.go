@@ -16,22 +16,22 @@ import (
 const clocksCollectorName = "clocks"
 const clocksMetricsPrefix = "clock_throttle_reasons"
 
-// clocksMetricsCollector collects clock metrics from an NVML device.
-type clocksMetricsCollector struct {
+// clocksCollector collects clock metrics from an NVML device.
+type clocksCollector struct {
 	device nvml.Device
 	tags   []string
 }
 
-// newClocksMetricsCollector creates a new clocksMetricsCollector for the given NVML device.
-func newClocksMetricsCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
-	return &clocksMetricsCollector{
+// newClocksCollector creates a new clocksMetricsCollector for the given NVML device.
+func newClocksCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
+	return &clocksCollector{
 		device: device,
 		tags:   tags,
 	}, nil
 }
 
 // Collect collects clock throttle reason metrics from the NVML device.
-func (c *clocksMetricsCollector) Collect() ([]Metric, error) {
+func (c *clocksCollector) Collect() ([]Metric, error) {
 	allReasons, ret := c.device.GetCurrentClocksThrottleReasons()
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("cannot get throttle reasons: %s", nvml.ErrorString(ret))
@@ -53,12 +53,12 @@ func (c *clocksMetricsCollector) Collect() ([]Metric, error) {
 }
 
 // Close closes the collector and releases any resources it might have allocated (no-op for this collector).
-func (c *clocksMetricsCollector) Close() error {
+func (c *clocksCollector) Close() error {
 	return nil
 }
 
 // Name returns the name of the collector.
-func (c *clocksMetricsCollector) Name() string {
+func (c *clocksCollector) Name() string {
 	return clocksCollectorName
 }
 
