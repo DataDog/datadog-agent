@@ -61,8 +61,7 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	}
 
 	for pid, aggr := range g.aggregators {
-		aggr.setNormalizationFactor(normFactor)
-		stats.ProcessStats[pid] = aggr.getStats()
+		stats.ProcessStats[pid] = aggr.getStats(normFactor)
 	}
 
 	g.lastGenerationKTime = g.currGenerationKTime

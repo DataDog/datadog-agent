@@ -35,12 +35,6 @@ type aggregator struct {
 	// pastAllocs is the list of past (freed) memory allocations
 	pastAllocs []*model.MemoryAllocation
 
-	// utilizationNormFactor is the factor to normalize the utilization by, to
-	// account for the fact that we might have more kernels enqueued than the
-	// GPU can run in parallel. This factor allows distributing the utilization
-	// over all the streams that were active during the interval.
-	utilizationNormFactor float64
-
 	// processTerminated is true if the process has ended and this aggregator should be deleted
 	processTerminated bool
 
@@ -100,17 +94,16 @@ func (agg *aggregator) getGPUUtilization() float64 {
 	return 0
 }
 
-// setNormalizationFactor sets the factor to normalize GPU utilization
-func (agg *aggregator) setNormalizationFactor(factor float64) {
-	agg.utilizationNormFactor = factor
-}
-
 // getStats returns the aggregated stats for the process
-func (agg *aggregator) getStats() model.ProcessStats {
+// utilizationNormFactor is the factor to normalize the utilization by, to
+// account for the fact that we might have more kernels enqueued than the
+// GPU can run in parallel. This factor allows distributing the utilization
+// over all the streams that were active during the interval.
+func (agg *aggregator) getStats(utilizationNormFactor float64) model.ProcessStats {
 	var stats model.ProcessStats
 
 	if agg.measuredIntervalNs > 0 {
-		stats.UtilizationPercentage = agg.getGPUUtilization() / agg.utilizationNormFactor
+		stats.UtilizationPercentage = agg.getGPUUtilization() / utilizationNormFactor
 	}
 
 	var memTsBuilder tseriesBuilder
