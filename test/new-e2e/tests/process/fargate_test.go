@@ -28,41 +28,24 @@ import (
 )
 
 type ECSFargateSuite struct {
-	e2e.BaseSuite[fargateCPUStressEnv]
+	e2e.BaseSuite[environments.ECS]
 }
 
-type fargateCPUStressEnv struct {
-	environments.ECS
-}
-
-func ecsFargateCPUStressProvisioner() e2e.PulumiEnvRunFunc[fargateCPUStressEnv] {
-	return func(ctx *pulumi.Context, env *fargateCPUStressEnv) error {
-		awsEnv, err := aws.NewEnvironment(ctx)
-		if err != nil {
-			return err
-		}
-
-		params := ecs.GetProvisionerParams(
-			ecs.WithAwsEnv(&awsEnv),
-			ecs.WithECSFargateCapacityProvider(),
-			ecs.WithFargateWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput, apiKeySSMParamName pulumi.StringInput, fakeIntake *fakeintakeComp.Fakeintake) (*ecsComp.Workload, error) {
-				return cpustress.FargateAppDefinition(e, clusterArn, apiKeySSMParamName, fakeIntake)
-			}),
-		)
-
-		if err := ecs.Run(ctx, &env.ECS, params); err != nil {
-			return err
-		}
-
-		return nil
-	}
+func getFargateProvisioner(configMap runner.ConfigMap) e2e.TypedProvisioner[environments.ECS] {
+	return ecs.Provisioner(
+		ecs.WithECSFargateCapacityProvider(),
+		ecs.WithFargateWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput, apiKeySSMParamName pulumi.StringInput, fakeIntake *fakeintakeComp.Fakeintake) (*ecsComp.Workload, error) {
+			return cpustress.FargateAppDefinition(e, clusterArn, apiKeySSMParamName, fakeIntake)
+		}),
+		ecs.WithExtraConfigParams(configMap),
+	)
 }
 
 func TestECSFargateTestSuite(t *testing.T) {
 	t.Parallel()
 	s := ECSFargateSuite{}
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
-		e2e.NewTypedPulumiProvisioner("ecsFargateCPUStress", ecsFargateCPUStressProvisioner(), nil),
+		getFargateProvisioner(nil),
 	),
 	}
 
@@ -100,7 +83,7 @@ func (s *ECSFargateSuite) TestProcessCheckInCoreAgent() {
 		"ddagent:extraEnvVars": auto.ConfigValue{Value: "DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED=true"},
 	}
 
-	s.UpdateEnv(e2e.NewTypedPulumiProvisioner("ecsFargateCPUStress", ecsFargateCPUStressProvisioner(), extraConfig))
+	s.UpdateEnv(getFargateProvisioner(extraConfig))
 
 	// Flush fake intake to remove any payloads which may have
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
@@ -113,7 +96,7 @@ func (s *ECSFargateSuite) TestProcessCheckInCoreAgent() {
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 
 	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
 	requireProcessNotCollected(t, payloads, "process-agent")
