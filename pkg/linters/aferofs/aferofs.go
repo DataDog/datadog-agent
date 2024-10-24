@@ -27,6 +27,7 @@ type plugin struct {
 var Analyzer = &analysis.Analyzer{
 	Name: "aferofs",
 	Doc:  "Check for mixed use of aferofs and os packages",
+	URL: "https://github.com/datadog/datadog-agent/tree/main/pkg/linters/aferofs/",
 	Run:  run,
 }
 

@@ -732,3 +732,4 @@ linters-settings:
       description: "Check usage of pkgconfig in components folder"
     aferofs:
       type: "module"
+      description: "Check for mixed use of aferofs and os packages"
