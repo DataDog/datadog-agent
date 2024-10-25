@@ -230,7 +230,7 @@ if do_build
     dependency 'datadog-agent-mac-app'
   end
 
-  dependency 'datadog-agent-integrations-py3'
+  # dependency 'datadog-agent-integrations-py3'
 
   if linux_target?
     dependency 'datadog-security-agent-policies'
