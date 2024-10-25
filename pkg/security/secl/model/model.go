@@ -427,23 +427,12 @@ var zeroProcessContext ProcessContext
 type ProcessCacheEntry struct {
 	ProcessContext
 
-	refCount    uint64                     `field:"-"`
 	coreRelease func(_ *ProcessCacheEntry) `field:"-"`
 	onRelease   []func()                   `field:"-"`
 }
 
-// Reset the entry
-func (pc *ProcessCacheEntry) Reset() {
-	pc.ProcessContext = zeroProcessContext
-	pc.refCount = 0
-	// `coreRelease` function should not be cleared on reset
-	// it's used for pool and cache size management
-	pc.onRelease = nil
-}
-
 // Retain increment ref counter
 func (pc *ProcessCacheEntry) Retain() {
-	pc.refCount++
 }
 
 // AppendReleaseCallback set the callback called when the entry is released
@@ -464,17 +453,15 @@ func (pc *ProcessCacheEntry) callReleaseCallbacks() {
 
 // Release decrement and eventually release the entry
 func (pc *ProcessCacheEntry) Release() {
-	pc.refCount--
-	if pc.refCount > 0 {
-		return
-	}
-
-	pc.callReleaseCallbacks()
 }
 
 // NewProcessCacheEntry returns a new process cache entry
 func NewProcessCacheEntry(coreRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
-	return &ProcessCacheEntry{coreRelease: coreRelease}
+	pce := &ProcessCacheEntry{coreRelease: coreRelease}
+	runtime.SetFinalizer(pce, func(pceFinalized *ProcessCacheEntry) {
+		pceFinalized.callReleaseCallbacks()
+	})
+	return pce
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors
