@@ -53,4 +53,6 @@ const (
 	InitOnly StoreKey = "init_only"
 	// PreInitialized config flag parameter name
 	PreInitialized StoreKey = "pre_initialized"
+	// MajorVersion config flag parameter name
+	MajorVersion StoreKey = "major_version"
 )

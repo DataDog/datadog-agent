@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import os
 
-from invoke import Context, task
+import yaml
+from invoke import Context, Exit, task
 
-from tasks.pipeline import update_circleci_config, update_gitlab_config, update_test_infra_def
+from tasks.libs.ciproviders.circleci import update_circleci_config
+from tasks.libs.ciproviders.gitlab_api import ReferenceTag, update_gitlab_config, update_test_infra_def
+from tasks.libs.common.color import color_message
 
 
 @task(
@@ -74,3 +77,24 @@ This PR updates the current buildimages (`{old_build_image_tag}`) to `{new_build
 This PR updates the current Golang version ([`{old_go_version}`]({old_go_version_url})) to [`{new_go_version}`]({new_go_version_url}).
 """
     return pr_body
+
+
+@task(
+    help={
+        "file_path": "path of the Gitlab configuration YAML file",
+    },
+    autoprint=True,
+)
+def get_tag(_, file_path=".gitlab-ci.yml"):
+    """
+    Print the current image tag of the given Gitlab configuration file (default: ".gitlab-ci.yml")
+    """
+    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+    with open(file_path) as gl:
+        gitlab_ci = yaml.safe_load(gl)
+    if "variables" not in gitlab_ci or "DATADOG_AGENT_BUILDIMAGES" not in gitlab_ci["variables"]:
+        raise Exit(
+            color_message(f"Impossible to find the version of image in {file_path} configuration file", "red"),
+            code=1,
+        )
+    return gitlab_ci["variables"]["DATADOG_AGENT_BUILDIMAGES"]
