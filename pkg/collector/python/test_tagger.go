@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -42,11 +43,11 @@ func testTags(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	logReceiver := optional.NewNoneOption[integrations.Component]()
 	tagger := taggerimpl.SetupFakeTagger(t)
-	tagger.SetTags("test", "foo", []string{"tag1", "tag2", "tag3"}, nil, nil, nil)
+	tagger.SetTags(types.NewEntityID(types.ContainerID, "test"), "foo", []string{"tag1", "tag2", "tag3"}, nil, nil, nil)
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
 	defer release()
 
-	id := C.CString("test")
+	id := C.CString("container://test")
 	defer C.free(unsafe.Pointer(id))
 
 	res := Tags(id, 0)
@@ -65,11 +66,11 @@ func testTagsNull(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	logReceiver := optional.NewNoneOption[integrations.Component]()
 	tagger := taggerimpl.SetupFakeTagger(t)
-	tagger.SetTags("test", "foo", nil, nil, nil, nil)
+	tagger.SetTags(types.NewEntityID(types.ContainerID, "test"), "foo", nil, nil, nil, nil)
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
 	defer release()
 
-	id := C.CString("test")
+	id := C.CString("container://test")
 	defer C.free(unsafe.Pointer(id))
 
 	res := Tags(id, 0)
@@ -80,11 +81,11 @@ func testTagsEmpty(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	logReceiver := optional.NewNoneOption[integrations.Component]()
 	tagger := taggerimpl.SetupFakeTagger(t)
-	tagger.SetTags("test", "foo", []string{}, nil, nil, nil)
+	tagger.SetTags(types.NewEntityID(types.ContainerID, "test"), "foo", []string{}, nil, nil, nil)
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
 	defer release()
 
-	id := C.CString("test")
+	id := C.CString("container://test")
 	defer C.free(unsafe.Pointer(id))
 
 	res := Tags(id, 0)

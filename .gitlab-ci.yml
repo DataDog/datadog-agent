@@ -172,15 +172,15 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v46542806-c7a4a6be
+  DATADOG_AGENT_BUILDIMAGES: v47046711-76471b8e
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v46542806-c7a4a6be
+  DATADOG_AGENT_WINBUILDIMAGES: v47046711-76471b8e
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v46542806-c7a4a6be
+  DATADOG_AGENT_ARMBUILDIMAGES: v47046711-76471b8e
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v46542806-c7a4a6be
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v47046711-76471b8e
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v46542806-c7a4a6be
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v47046711-76471b8e
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: c0962c7d
@@ -1007,7 +1007,11 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - cmd/otel-agent/**/*
         - comp/otelcol/**/*
+        - pkg/trace/api/otlp.go
+        - pkg/trace/stats/otel_util.go
+        - pkg/trace/transform/transform.go
         - test/new-e2e/tests/otel/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success

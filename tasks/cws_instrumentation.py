@@ -39,7 +39,7 @@ def build(
     """
     if build_tags is None:
         build_tags = []
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
 
     # TODO use pkg/version for this
     main = "main."

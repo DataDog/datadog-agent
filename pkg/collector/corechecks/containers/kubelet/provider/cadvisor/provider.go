@@ -154,7 +154,7 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 		//      for static pods, see https://github.com/kubernetes/kubernetes/pull/59948
 		pod := p.getPodByMetricLabel(sample.Metric)
 		if pod != nil && p.podUtils.IsStaticPendingPod(pod.ID) {
-			podTags, _ := p.tagger.Tag(taggercommon.BuildTaggerEntityID(pod.GetID()).String(), types.HighCardinality)
+			podTags, _ := p.tagger.Tag(taggercommon.BuildTaggerEntityID(pod.GetID()), types.HighCardinality)
 			if len(podTags) == 0 {
 				continue
 			}
@@ -210,7 +210,7 @@ func (p *Provider) processPodRate(metricName string, metricFam *prom.MetricFamil
 			continue
 		}
 		entityID := taggercommon.BuildTaggerEntityID(pod.GetID())
-		tags, _ := p.tagger.Tag(entityID.String(), types.HighCardinality)
+		tags, _ := p.tagger.Tag(entityID, types.HighCardinality)
 		if len(tags) == 0 {
 			continue
 		}
@@ -252,7 +252,7 @@ func (p *Provider) processUsageMetric(metricName string, metricFam *prom.MetricF
 		pod := p.getPodByMetricLabel(sample.Metric)
 		if pod != nil && p.podUtils.IsStaticPendingPod(pod.ID) {
 			entityID := taggercommon.BuildTaggerEntityID(pod.EntityID)
-			podTags, _ := p.tagger.Tag(entityID.String(), types.HighCardinality)
+			podTags, _ := p.tagger.Tag(entityID, types.HighCardinality)
 			if len(podTags) == 0 {
 				continue
 			}
@@ -354,7 +354,7 @@ func (p *Provider) getEntityIDIfContainerMetric(labels model.Metric) string {
 			return p.getPodUID(labels)
 		}
 		cID, _ := common.GetContainerID(p.store, labels, p.filter)
-		return cID
+		return types.NewEntityID(types.ContainerID, cID).String()
 	}
 	return ""
 }

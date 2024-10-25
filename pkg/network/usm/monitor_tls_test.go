@@ -481,27 +481,27 @@ func testHTTP2GoTLSAttachProbes(t *testing.T, cfg *config.Config) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
-		t.Run("new process", func(t *testing.T) {
-			testHTTPGoTLSCaptureNewProcess(t, cfg, true)
+		t.Run("new process", func(tt *testing.T) {
+			testHTTPGoTLSCaptureNewProcess(tt, cfg, true)
 		})
-		t.Run("already running process", func(t *testing.T) {
-			testHTTPGoTLSCaptureAlreadyRunning(t, cfg, true)
+		t.Run("already running process", func(tt *testing.T) {
+			testHTTPGoTLSCaptureAlreadyRunning(tt, cfg, true)
 		})
 	})
 }
 
 func TestHTTP2GoTLSAttachProbes(t *testing.T) {
 	t.Run("netlink",
-		func(t *testing.T) {
+		func(tt *testing.T) {
 			cfg := config.New()
 			cfg.EnableUSMEventStream = false
-			testHTTP2GoTLSAttachProbes(t, cfg)
+			testHTTP2GoTLSAttachProbes(tt, cfg)
 		})
 	t.Run("event stream",
-		func(t *testing.T) {
+		func(tt *testing.T) {
 			cfg := config.New()
 			cfg.EnableUSMEventStream = true
-			testHTTP2GoTLSAttachProbes(t, cfg)
+			testHTTP2GoTLSAttachProbes(tt, cfg)
 		})
 }
 
@@ -556,7 +556,7 @@ func TestOldConnectionRegression(t *testing.T) {
 		usmMonitor := setupUSMTLSMonitor(t, cfg)
 
 		// Ensure this test program is being traced
-		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid(), utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
 
 		// The HTTPServer used here effectively works as an "echo" servers and
 		// returns back in the response whatever it received in the request
@@ -627,7 +627,7 @@ func TestLimitListenerRegression(t *testing.T) {
 		usmMonitor := setupUSMTLSMonitor(t, cfg)
 
 		// Ensure this test program is being traced
-		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid(), utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
 
 		// Issue multiple HTTP requests
 		for i := 0; i < 10; i++ {
@@ -687,7 +687,7 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config, isHTTP2 bo
 
 	// spin-up goTLS client and issue requests after initialization
 	command, runRequests := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences, isHTTP2)
-	utils.WaitForProgramsToBeTraced(t, "go-tls", command.Process.Pid, utils.ManualTracingFallbackEnabled)
+	utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, command.Process.Pid, utils.ManualTracingFallbackEnabled)
 	runRequests()
 	checkRequests(t, usmMonitor, expectedOccurrences, reqs, isHTTP2)
 }
@@ -724,7 +724,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config, isHTTP
 		reqs[req] = false
 	}
 
-	utils.WaitForProgramsToBeTraced(t, "go-tls", command.Process.Pid, utils.ManualTracingFallbackEnabled)
+	utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, command.Process.Pid, utils.ManualTracingFallbackEnabled)
 	issueRequestsFn()
 	checkRequests(t, usmMonitor, expectedOccurrences, reqs, isHTTP2)
 }
@@ -746,7 +746,6 @@ func testHTTPSGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 	// Setup
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPStatsByStatusCode = true
 
 	usmMonitor := setupUSMTLSMonitor(t, cfg)
 
@@ -781,7 +780,6 @@ func testHTTPSGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 	// Setup
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPStatsByStatusCode = true
 
 	usmMonitor := setupUSMTLSMonitor(t, cfg)
 

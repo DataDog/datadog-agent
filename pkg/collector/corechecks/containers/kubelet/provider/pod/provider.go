@@ -118,7 +118,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	return nil
 }
 
-func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) {
+func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID types.EntityID) {
 	if pod.Status.Phase != "Running" && pod.Status.Phase != "Pending" {
 		return
 	}
@@ -142,7 +142,7 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	}
 }
 
-func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kubelet.Pod, _ *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) {
+func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kubelet.Pod, _ *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID types.EntityID) {
 	if pod.Metadata.UID == "" || pod.Metadata.Name == "" {
 		return
 	}
@@ -186,7 +186,7 @@ func newRunningAggregator() *runningAggregator {
 	}
 }
 
-func (r *runningAggregator) recordContainer(p *Provider, pod *kubelet.Pod, cStatus *kubelet.ContainerStatus, containerID string) {
+func (r *runningAggregator) recordContainer(p *Provider, pod *kubelet.Pod, cStatus *kubelet.ContainerStatus, containerID types.EntityID) {
 	if cStatus.State.Running == nil || time.Time.IsZero(cStatus.State.Running.StartedAt) {
 		return
 	}
@@ -212,7 +212,7 @@ func (r *runningAggregator) recordPod(p *Provider, pod *kubelet.Pod) {
 		log.Debug("skipping pod with no uid")
 		return
 	}
-	entityID := types.NewEntityID(types.KubernetesPodUID, podID).String()
+	entityID := types.NewEntityID(types.KubernetesPodUID, podID)
 	tagList, _ := p.tagger.Tag(entityID, types.LowCardinality)
 	if len(tagList) == 0 {
 		return

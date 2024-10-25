@@ -93,7 +93,7 @@ func (l *KubeletListener) createPodService(
 	})
 
 	entity := kubelet.PodUIDToEntityName(pod.ID)
-	taggerEntityID := common.BuildTaggerEntityID(pod.GetID()).String()
+	taggerEntityID := common.BuildTaggerEntityID(pod.GetID())
 	svc := &service{
 		entity:        pod,
 		tagsHash:      l.tagger.GetEntityHash(taggerEntityID, l.tagger.ChecksCardinality()),
@@ -158,7 +158,7 @@ func (l *KubeletListener) createContainerService(
 	entity := containers.BuildEntityName(string(container.Runtime), container.ID)
 	svc := &service{
 		entity:   container,
-		tagsHash: l.tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID).String(), l.tagger.ChecksCardinality()),
+		tagsHash: l.tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID), l.tagger.ChecksCardinality()),
 		ready:    pod.Ready,
 		ports:    ports,
 		extraConfig: map[string]string{

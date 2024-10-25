@@ -105,7 +105,7 @@ func TestGetContainers(t *testing.T) {
 			MemoryRequest: pointer.Ptr[uint64](300),
 		},
 	})
-	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "cID1").String(), "fake", []string{"low:common"}, []string{"orch:orch1"}, []string{"id:container1"}, nil)
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "cID1"), "fake", []string{"low:common"}, []string{"orch:orch1"}, []string{"id:container1"}, nil)
 
 	// cID2 not running
 	metadataProvider.Set(&workloadmeta.Container{
@@ -147,7 +147,7 @@ func TestGetContainers(t *testing.T) {
 			RepoDigest: "sha256:378e0fa5bc50e6707ec9eb03c511cc6a2a4741f0c345d88dedb2fb9247b19f94",
 		},
 	})
-	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "cID3").String(), "fake", []string{"low:common"}, []string{"orch:orch1"}, []string{"id:container3"}, nil)
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "cID3"), "fake", []string{"low:common"}, []string{"orch:orch1"}, []string{"id:container3"}, nil)
 
 	// cID4 missing tags
 	cID4Metrics := mock.GetFullSampleContainerEntry()
@@ -310,7 +310,7 @@ func TestGetContainers(t *testing.T) {
 			ID:   "pod7",
 		},
 	})
-	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "cID7").String(), "fake", []string{"low:common"}, []string{"orch:orch7"}, []string{"id:container7"}, nil)
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "cID7"), "fake", []string{"low:common"}, []string{"orch:orch7"}, []string{"id:container7"}, nil)
 
 	//
 	// Running and checking

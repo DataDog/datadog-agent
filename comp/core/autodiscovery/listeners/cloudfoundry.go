@@ -233,6 +233,11 @@ func (s *CloudFoundryService) GetTags() ([]string, error) {
 	return s.tags, nil
 }
 
+// GetTagsWithCardinality returns the tags with given cardinality. Not supported in CF
+func (s *CloudFoundryService) GetTagsWithCardinality(cardinality string) ([]string, error) {
+	return s.GetTags()
+}
+
 // GetPid returns nil and an error because pids are currently not supported in CF
 func (s *CloudFoundryService) GetPid(context.Context) (int, error) {
 	return -1, ErrNotSupported

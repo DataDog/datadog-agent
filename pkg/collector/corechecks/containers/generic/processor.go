@@ -75,7 +75,7 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 
 		entityID := types.NewEntityID(types.ContainerID, container.ID)
 
-		tags, err := p.tagger.Tag(entityID.String(), types.HighCardinality)
+		tags, err := p.tagger.Tag(entityID, types.HighCardinality)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %q, err: %v", container.ID[:12], err)
 			continue

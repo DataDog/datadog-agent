@@ -36,7 +36,7 @@ func Tags(id *C.char, cardinality C.int) **C.char {
 	goID := C.GoString(id)
 	var tags []string
 
-	tags, _ = checkContext.tagger.Tag(goID, types.TagCardinality(cardinality))
+	tags, _ = checkContext.tagger.LegacyTag(goID, types.TagCardinality(cardinality))
 
 	length := len(tags)
 	if length == 0 {

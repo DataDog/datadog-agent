@@ -59,7 +59,7 @@ func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]eve
 		emittedEvents.Inc(string(alertType))
 
 		tags, err := t.tagger.Tag(
-			types.NewEntityID(types.ContainerID, ev.ContainerID).String(),
+			types.NewEntityID(types.ContainerID, ev.ContainerID),
 			types.HighCardinality,
 		)
 		if err != nil {

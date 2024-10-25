@@ -242,7 +242,7 @@ func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, ra
 
 		isContainerExcluded := d.containerFilter.IsExcluded(annotations, containerName, resolvedImageName, rawContainer.Labels[kubernetes.CriContainerNamespaceLabel])
 		isContainerRunning := rawContainer.State == string(workloadmeta.ContainerStatusRunning)
-		taggerEntityID := types.NewEntityID(types.ContainerID, rawContainer.ID).String()
+		taggerEntityID := types.NewEntityID(types.ContainerID, rawContainer.ID)
 		tags, err := d.getImageTagsFromContainer(taggerEntityID, resolvedImageName, isContainerExcluded || !isContainerRunning)
 		if err != nil {
 			log.Debugf("Unable to fetch tags for image: %s, err: %v", rawContainer.ImageID, err)
@@ -431,7 +431,7 @@ func (d *DockerCheck) setOkExitCodes() {
 	d.okExitCodes = map[int]struct{}{0: {}, 143: {}}
 }
 
-func (d *DockerCheck) getImageTagsFromContainer(taggerEntityID string, resolvedImageName string, isContainerExcluded bool) ([]string, error) {
+func (d *DockerCheck) getImageTagsFromContainer(taggerEntityID types.EntityID, resolvedImageName string, isContainerExcluded bool) ([]string, error) {
 	if isContainerExcluded {
 		return getImageTags(resolvedImageName)
 	}

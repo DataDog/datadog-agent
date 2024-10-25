@@ -189,6 +189,8 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
                     and new_job['variables']['E2E_COMMIT_SHA'] == "$CI_COMMIT_SHA"
                 ):
                     new_job['variables']['E2E_COMMIT_SHA'] = "$PARENT_COMMIT_SHA"
+                if 'E2E_PRE_INITIALIZED' in new_job['variables']:
+                    del new_job['variables']['E2E_PRE_INITIALIZED']
             new_job["rules"] = [{"when": "always"}]
             new_job["needs"] = ["go_e2e_deps"]
             new_jobs[f"{job}-{i}"] = new_job

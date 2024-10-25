@@ -98,7 +98,7 @@ func (pn *ProcessorNetwork) processGroupedContainerNetwork(tagger tagger.Compone
 			pn.generateNetworkMetrics(containerNetworks.tags, containerNetworks.stats)
 		} else if containerNetworks.owner != nil && containerNetworks.owner.Kind == workloadmeta.KindKubernetesPod {
 			podEntityID := types.NewEntityID(types.KubernetesPodUID, containerNetworks.owner.ID)
-			orchTags, err := tagger.Tag(podEntityID.String(), types.HighCardinality)
+			orchTags, err := tagger.Tag(podEntityID, types.HighCardinality)
 			if err != nil {
 				log.Debugf("Unable to get orchestrator tags for pod: %s", containerNetworks.owner.ID)
 				continue

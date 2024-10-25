@@ -150,6 +150,8 @@ func provideSystemProbe(fb flaretypes.FlareBuilder) error {
 	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
 		fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)                         //nolint:errcheck
 		fb.AddFileFromFunc(filepath.Join("system-probe", "system_probe_telemetry.log"), getSystemProbeTelemetry) // nolint:errcheck
+		fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_cached.log"), getSystemProbeConntrackCached) // nolint:errcheck
+		fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_host.log"), getSystemProbeConntrackHost)     // nolint:errcheck
 	}
 	return nil
 }
@@ -257,6 +259,12 @@ func getSystemProbeStats() ([]byte, error) {
 
 func getSystemProbeTelemetry() ([]byte, error) {
 	return sysprobe.GetSystemProbeTelemetry(getSystemProbeSocketPath())
+}
+func getSystemProbeConntrackCached() ([]byte, error) {
+	return sysprobe.GetSystemProbeConntrackCached(getSystemProbeSocketPath())
+}
+func getSystemProbeConntrackHost() ([]byte, error) {
+	return sysprobe.GetSystemProbeConntrackHost(getSystemProbeSocketPath())
 }
 
 // getProcessAgentFullConfig fetches process-agent runtime config as YAML and returns it to be added to  process_agent_runtime_config_dump.yaml

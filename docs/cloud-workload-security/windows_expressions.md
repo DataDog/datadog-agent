@@ -79,9 +79,10 @@ List of the available variables:
 | [`process.ancestors.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`process.ancestors.envs`](#common-process-envs-doc) | Environment variable names of the process |
 | [`process.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`process.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.ancestors.file.path`](#common-fileevent-path-doc) | File's path |
-| [`process.ancestors.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.ancestors.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`process.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`process.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`process.ancestors.user`](#common-process-user-doc) | User name |
@@ -92,18 +93,18 @@ List of the available variables:
 | [`process.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`process.envs`](#common-process-envs-doc) | Environment variable names of the process |
 | [`process.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`process.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.file.path`](#common-fileevent-path-doc) | File's path |
-| [`process.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.parent.cmdline`](#common-process-cmdline-doc) | Command line of the process |
 | [`process.parent.container.id`](#common-process-container-id-doc) | Container ID |
 | [`process.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.parent.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`process.parent.envs`](#common-process-envs-doc) | Environment variable names of the process |
 | [`process.parent.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`process.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.parent.file.path`](#common-fileevent-path-doc) | File's path |
-| [`process.parent.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.parent.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`process.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`process.parent.user`](#common-process-user-doc) | User name |
@@ -133,11 +134,11 @@ A file was created
 | Property | Definition |
 | -------- | ------------- |
 | [`create.file.device_path`](#common-fimfileevent-device_path-doc) | File's path |
-| [`create.file.device_path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`create.file.device_path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`create.file.name`](#common-fimfileevent-name-doc) | File's basename |
-| [`create.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`create.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`create.file.path`](#common-fimfileevent-path-doc) | File's path |
-| [`create.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`create.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 
 ### Event `create_key`
 
@@ -146,13 +147,13 @@ A registry key was created
 | Property | Definition |
 | -------- | ------------- |
 | [`create.registry.key_name`](#common-registryevent-key_name-doc) | Registry's name |
-| [`create.registry.key_name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`create.registry.key_name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`create.registry.key_path`](#common-registryevent-key_path-doc) | Registry's path |
-| [`create.registry.key_path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`create.registry.key_path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`create_key.registry.key_name`](#common-registryevent-key_name-doc) | Registry's name |
-| [`create_key.registry.key_name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`create_key.registry.key_name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`create_key.registry.key_path`](#common-registryevent-key_path-doc) | Registry's path |
-| [`create_key.registry.key_path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`create_key.registry.key_path.length`](#common-string-length-doc) | Length of the corresponding element |
 
 ### Event `delete`
 
@@ -161,11 +162,11 @@ A file was deleted
 | Property | Definition |
 | -------- | ------------- |
 | [`delete.file.device_path`](#common-fimfileevent-device_path-doc) | File's path |
-| [`delete.file.device_path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`delete.file.device_path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`delete.file.name`](#common-fimfileevent-name-doc) | File's basename |
-| [`delete.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`delete.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`delete.file.path`](#common-fimfileevent-path-doc) | File's path |
-| [`delete.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`delete.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 
 ### Event `delete_key`
 
@@ -174,13 +175,13 @@ A registry key was deleted
 | Property | Definition |
 | -------- | ------------- |
 | [`delete.registry.key_name`](#common-registryevent-key_name-doc) | Registry's name |
-| [`delete.registry.key_name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`delete.registry.key_name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`delete.registry.key_path`](#common-registryevent-key_path-doc) | Registry's path |
-| [`delete.registry.key_path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`delete.registry.key_path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`delete_key.registry.key_name`](#common-registryevent-key_name-doc) | Registry's name |
-| [`delete_key.registry.key_name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`delete_key.registry.key_name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`delete_key.registry.key_path`](#common-registryevent-key_path-doc) | Registry's path |
-| [`delete_key.registry.key_path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`delete_key.registry.key_path.length`](#common-string-length-doc) | Length of the corresponding element |
 
 ### Event `exec`
 
@@ -194,9 +195,9 @@ A process was executed or forked
 | [`exec.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`exec.envs`](#common-process-envs-doc) | Environment variable names of the process |
 | [`exec.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`exec.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exec.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`exec.file.path`](#common-fileevent-path-doc) | File's path |
-| [`exec.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exec.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`exec.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`exec.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`exec.user`](#common-process-user-doc) | User name |
@@ -216,9 +217,9 @@ A process was terminated
 | [`exit.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`exit.envs`](#common-process-envs-doc) | Environment variable names of the process |
 | [`exit.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`exit.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exit.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`exit.file.path`](#common-fileevent-path-doc) | File's path |
-| [`exit.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exit.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`exit.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`exit.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`exit.user`](#common-process-user-doc) | User name |
@@ -231,13 +232,13 @@ A registry key was opened
 | Property | Definition |
 | -------- | ------------- |
 | [`open.registry.key_name`](#common-registryevent-key_name-doc) | Registry's name |
-| [`open.registry.key_name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`open.registry.key_name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`open.registry.key_path`](#common-registryevent-key_path-doc) | Registry's path |
-| [`open.registry.key_path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`open.registry.key_path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`open_key.registry.key_name`](#common-registryevent-key_name-doc) | Registry's name |
-| [`open_key.registry.key_name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`open_key.registry.key_name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`open_key.registry.key_path`](#common-registryevent-key_path-doc) | Registry's path |
-| [`open_key.registry.key_path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`open_key.registry.key_path.length`](#common-string-length-doc) | Length of the corresponding element |
 
 ### Event `rename`
 
@@ -246,17 +247,17 @@ A file was renamed
 | Property | Definition |
 | -------- | ------------- |
 | [`rename.file.destination.device_path`](#common-fimfileevent-device_path-doc) | File's path |
-| [`rename.file.destination.device_path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.destination.device_path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`rename.file.destination.name`](#common-fimfileevent-name-doc) | File's basename |
-| [`rename.file.destination.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.destination.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`rename.file.destination.path`](#common-fimfileevent-path-doc) | File's path |
-| [`rename.file.destination.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.destination.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`rename.file.device_path`](#common-fimfileevent-device_path-doc) | File's path |
-| [`rename.file.device_path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.device_path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`rename.file.name`](#common-fimfileevent-name-doc) | File's basename |
-| [`rename.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`rename.file.path`](#common-fimfileevent-path-doc) | File's path |
-| [`rename.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 
 ### Event `set_key_value`
 
@@ -265,18 +266,18 @@ A registry key value was set
 | Property | Definition |
 | -------- | ------------- |
 | [`set.registry.key_name`](#common-registryevent-key_name-doc) | Registry's name |
-| [`set.registry.key_name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`set.registry.key_name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`set.registry.key_path`](#common-registryevent-key_path-doc) | Registry's path |
-| [`set.registry.key_path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`set.registry.key_path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`set.registry.value_name`](#common-setregistrykeyvalueevent-registry-value_name-doc) | Registry's value name |
-| [`set.registry.value_name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`set.registry.value_name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`set.value_name`](#common-setregistrykeyvalueevent-value_name-doc) | Registry's value name |
 | [`set_key_value.registry.key_name`](#common-registryevent-key_name-doc) | Registry's name |
-| [`set_key_value.registry.key_name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`set_key_value.registry.key_name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`set_key_value.registry.key_path`](#common-registryevent-key_path-doc) | Registry's path |
-| [`set_key_value.registry.key_path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`set_key_value.registry.key_path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`set_key_value.registry.value_name`](#common-setregistrykeyvalueevent-registry-value_name-doc) | Registry's value name |
-| [`set_key_value.registry.value_name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`set_key_value.registry.value_name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`set_key_value.value_name`](#common-setregistrykeyvalueevent-value_name-doc) | Registry's value name |
 
 ### Event `write`
@@ -286,11 +287,11 @@ A file was written
 | Property | Definition |
 | -------- | ------------- |
 | [`write.file.device_path`](#common-fimfileevent-device_path-doc) | File's path |
-| [`write.file.device_path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`write.file.device_path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`write.file.name`](#common-fimfileevent-name-doc) | File's basename |
-| [`write.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`write.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`write.file.path`](#common-fimfileevent-path-doc) | File's path |
-| [`write.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`write.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 
 
 ## Attributes documentation
@@ -397,10 +398,10 @@ Definition: Registry's path
 ### `*.length` {#common-string-length-doc}
 Type: int
 
-Definition: Length of the corresponding string
+Definition: Length of the corresponding element
 
-`*.length` has 43 possible prefixes:
-`create.file.device_path` `create.file.name` `create.file.path` `create.registry.key_name` `create.registry.key_path` `create_key.registry.key_name` `create_key.registry.key_path` `delete.file.device_path` `delete.file.name` `delete.file.path` `delete.registry.key_name` `delete.registry.key_path` `delete_key.registry.key_name` `delete_key.registry.key_path` `exec.file.name` `exec.file.path` `exit.file.name` `exit.file.path` `open.registry.key_name` `open.registry.key_path` `open_key.registry.key_name` `open_key.registry.key_path` `process.ancestors.file.name` `process.ancestors.file.path` `process.file.name` `process.file.path` `process.parent.file.name` `process.parent.file.path` `rename.file.destination.device_path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.device_path` `rename.file.name` `rename.file.path` `set.registry.key_name` `set.registry.key_path` `set.registry.value_name` `set_key_value.registry.key_name` `set_key_value.registry.key_path` `set_key_value.registry.value_name` `write.file.device_path` `write.file.name` `write.file.path`
+`*.length` has 44 possible prefixes:
+`create.file.device_path` `create.file.name` `create.file.path` `create.registry.key_name` `create.registry.key_path` `create_key.registry.key_name` `create_key.registry.key_path` `delete.file.device_path` `delete.file.name` `delete.file.path` `delete.registry.key_name` `delete.registry.key_path` `delete_key.registry.key_name` `delete_key.registry.key_path` `exec.file.name` `exec.file.path` `exit.file.name` `exit.file.path` `open.registry.key_name` `open.registry.key_path` `open_key.registry.key_name` `open_key.registry.key_path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.file.name` `process.file.path` `process.parent.file.name` `process.parent.file.path` `rename.file.destination.device_path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.device_path` `rename.file.name` `rename.file.path` `set.registry.key_name` `set.registry.key_path` `set.registry.value_name` `set_key_value.registry.key_name` `set_key_value.registry.key_path` `set_key_value.registry.value_name` `write.file.device_path` `write.file.name` `write.file.path`
 
 
 ### `*.name` {#common-fileevent-name-doc}

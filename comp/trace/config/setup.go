@@ -118,7 +118,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component) (*config.Ag
 		}
 	}
 	cfg.ContainerTags = func(cid string) ([]string, error) {
-		return tagger.Tag(types.NewEntityID(types.ContainerID, cid).String(), types.HighCardinality)
+		return tagger.Tag(types.NewEntityID(types.ContainerID, cid), types.HighCardinality)
 	}
 	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
 	return cfg, nil

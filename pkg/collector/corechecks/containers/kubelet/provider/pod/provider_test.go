@@ -25,7 +25,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
@@ -117,7 +119,9 @@ func (suite *ProviderTestSuite) SetupTest() {
 	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
 
 	for entity, tags := range commontesting.CommonTags {
-		fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
+		prefix, id, _ := taggercommon.ExtractPrefixAndID(entity)
+		entityID := taggertypes.NewEntityID(prefix, id)
+		fakeTagger.SetTags(entityID, "foo", tags, nil, nil, nil)
 	}
 
 	suite.dummyKubelet = newDummyKubelet()

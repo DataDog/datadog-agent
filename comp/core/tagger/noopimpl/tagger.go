@@ -55,15 +55,19 @@ func (n *noopTagger) GetTaggerTelemetryStore() *telemetry.Store {
 	return nil
 }
 
-func (n *noopTagger) Tag(string, types.TagCardinality) ([]string, error) {
+func (n *noopTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 
-func (n *noopTagger) AccumulateTagsFor(string, types.TagCardinality, tagset.TagsAccumulator) error {
+func (n *noopTagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
+	return nil, nil
+}
+
+func (n *noopTagger) AccumulateTagsFor(types.EntityID, types.TagCardinality, tagset.TagsAccumulator) error {
 	return nil
 }
 
-func (n *noopTagger) Standard(string) ([]string, error) {
+func (n *noopTagger) Standard(types.EntityID) ([]string, error) {
 	return nil, nil
 }
 
@@ -71,7 +75,7 @@ func (n *noopTagger) List() types.TaggerListResponse {
 	return types.TaggerListResponse{}
 }
 
-func (n *noopTagger) GetEntity(string) (*types.Entity, error) {
+func (n *noopTagger) GetEntity(types.EntityID) (*types.Entity, error) {
 	return nil, nil
 }
 
@@ -79,7 +83,7 @@ func (n *noopTagger) Subscribe(string, *types.Filter) (types.Subscription, error
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (n *noopTagger) GetEntityHash(string, types.TagCardinality) string {
+func (n *noopTagger) GetEntityHash(types.EntityID, types.TagCardinality) string {
 	return ""
 }
 

@@ -72,7 +72,7 @@ func TestKubeContainerIDToTaggerEntityID(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
 			res, _ := KubeContainerIDToTaggerEntityID(in)
-			assert.Equal(t, out, res)
+			assert.Equal(t, out, res.String())
 		})
 	}
 }
@@ -89,7 +89,7 @@ func TestKubePodUIDToTaggerEntityID(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
 			res, _ := KubePodUIDToTaggerEntityID(in)
-			assert.Equal(t, out, res)
+			assert.Equal(t, out, res.String())
 		})
 	}
 }
@@ -106,7 +106,7 @@ func TestKubeIDToTaggerEntityID(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
 			res, _ := KubeIDToTaggerEntityID(in)
-			assert.Equal(t, out, res)
+			assert.Equal(t, out, res.String())
 		})
 	}
 }

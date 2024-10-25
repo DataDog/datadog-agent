@@ -187,7 +187,7 @@ func (p *Provider) kubeletContainerLogFilesystemUsedBytes(metricFam *prom.Metric
 			continue
 		}
 
-		tags, _ := p.tagger.Tag(cID, types.HighCardinality)
+		tags, _ := p.tagger.Tag(types.NewEntityID(types.ContainerID, cID), types.HighCardinality)
 		if len(tags) == 0 {
 			log.Debugf("Tags not found for container: %s/%s/%s:%s", metric.Metric["namespace"], metric.Metric["pod"], metric.Metric["container"], cID)
 		}
