@@ -12,12 +12,15 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvmlmetrics"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,6 +40,8 @@ type Check struct {
 	config       *CheckConfig            // config for the check
 	sysProbeUtil processnet.SysProbeUtil // sysProbeUtil is used to communicate with system probe
 	activePIDs   map[uint32]bool         // activePIDs is a set of PIDs that have been seen in the current check run
+	collectors   []nvmlmetrics.Collector // collectors for NVML metrics
+	nvmlLib      nvml.Interface          // NVML library interface
 }
 
 // Factory creates a new check factory
@@ -62,10 +67,31 @@ func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("invalid gpu check config: %w", err)
 	}
 
+	// Initialize NVML collectors
+	m.nvmlLib = nvml.New()
+	ret := m.nvmlLib.Init()
+	if ret != nvml.SUCCESS {
+		return fmt.Errorf("failed to initialize NVML library: %s", nvml.ErrorString(ret))
+	}
+
+	var err error
+	m.collectors, err = nvmlmetrics.BuildCollectors(m.nvmlLib)
+	if err != nil {
+		return fmt.Errorf("failed to build NVML collectors: %w", err)
+	}
+
 	return nil
 }
 
-func (m *Check) ensureInitialized() error {
+func (m *Check) Cancel() {
+	if m.nvmlLib != nil {
+		m.nvmlLib.Shutdown()
+	}
+
+	m.CheckBase.Cancel()
+}
+
+func (m *Check) ensureSysprobeUtil() error {
 	var err error
 
 	if m.sysProbeUtil == nil {
@@ -82,16 +108,28 @@ func (m *Check) ensureInitialized() error {
 
 // Run executes the check
 func (m *Check) Run() error {
-	if err := m.ensureInitialized(); err != nil {
-		return err
-	}
-
 	snd, err := m.GetSender()
 	if err != nil {
 		return fmt.Errorf("get metric sender: %w", err)
 	}
 	// Commit the metrics even in case of an error
 	defer snd.Commit()
+
+	if err := m.emitSysprobeMetrics(snd); err != nil {
+		log.Warnf("error while sending sysprobe metrics: %s", err)
+	}
+
+	if err := m.emitNvmlMetrics(snd); err != nil {
+		log.Warnf("error while sending NVML metrics: %s", err)
+	}
+
+	return nil
+}
+
+func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
+	if err := m.ensureSysprobeUtil(); err != nil {
+		return err
+	}
 
 	sysprobeData, err := m.sysProbeUtil.GetCheck(sysconfig.GPUMonitoringModule)
 	if err != nil {
@@ -100,7 +138,7 @@ func (m *Check) Run() error {
 
 	stats, ok := sysprobeData.(model.GPUStats)
 	if !ok {
-		return log.Errorf("gpu check raw data has incorrect type: %T", stats)
+		return fmt.Errorf("gpu check raw data has incorrect type: %T", stats)
 	}
 
 	// Set all PIDs to inactive, so we can remove the ones that we don't see
@@ -128,6 +166,23 @@ func (m *Check) Run() error {
 			snd.Gauge(metricNameUtil, 0, "", tags)
 
 			delete(m.activePIDs, pid)
+		}
+	}
+
+	return nil
+}
+
+func (m *Check) emitNvmlMetrics(snd sender.Sender) error {
+	for _, collector := range m.collectors {
+		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())
+		metrics, err := collector.Collect()
+		if err != nil {
+			log.Warnf("failed to collect metrics from NVML collector %s: %s", collector.Name(), err)
+		}
+
+		for _, metric := range metrics {
+			metricName := gpuMetricsNs + metric.Name
+			snd.Gauge(metricName, metric.Value, "", metric.Tags)
 		}
 	}
 
