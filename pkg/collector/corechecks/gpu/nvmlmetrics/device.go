@@ -9,9 +9,12 @@ package nvmlmetrics
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
+
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
 const deviceCollectorName = "device"
@@ -35,15 +38,40 @@ var allDeviceMetrics = []deviceMetric{
 }
 
 type deviceCollector struct {
-	device nvml.Device
-	tags   []string
+	device        nvml.Device
+	tags          []string
+	metricGetters []deviceMetric
 }
 
 func newDeviceCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
-	return &deviceCollector{
-		device: device,
-		tags:   tags,
-	}, nil
+	c := &deviceCollector{
+		device:        device,
+		tags:          tags,
+		metricGetters: allDeviceMetrics,
+	}
+
+	c.removeUnsupportedGetters()
+	if len(c.metricGetters) == 0 {
+		return nil, errUnsupportedDevice
+	}
+
+	return c, nil
+}
+
+func (c *deviceCollector) removeUnsupportedGetters() {
+	metricsToRemove := common.StringSet{}
+	for _, metric := range allDeviceMetrics {
+		_, ret := metric.getter(c.device)
+		if ret == nvml.ERROR_NOT_SUPPORTED {
+			metricsToRemove.Add(metric.name)
+		}
+	}
+
+	for toRemove := range metricsToRemove {
+		c.metricGetters = slices.DeleteFunc(c.metricGetters, func(m deviceMetric) bool {
+			return m.name == toRemove
+		})
+	}
 }
 
 // deviceMetricGetter is a function type that receives a NVML device and returns one or more values
