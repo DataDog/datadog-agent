@@ -26,8 +26,7 @@ class TestSymbolStore(unittest.TestCase):
         # symbols organized by version/platform/arch
         symbol_path = Path(self.root, 'symbols', '1.0', 'linux', 'x86_64', 'symbols', 'agent.dbg')
         self.assertTrue(symbol_path.exists())
-        with symbol_path.open() as f:
-            self.assertEqual(f.read(), 'fake symbols')
+        self.assertEqual('fake symbols', symbol_path.read_text())
         # get symbols from store
         symbols = self.symbol_store.get('1.0', 'linux', 'x86_64')
         assert symbols is not None

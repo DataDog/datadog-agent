@@ -45,8 +45,7 @@ class TestArtifactStore(unittest.TestCase):
         artifact.version = '1.0'
         version_path = Path(self.root, 'artifacts', 'project', 'jobid', 'version.txt')
         self.assertTrue(version_path.exists())
-        with version_path.open() as f:
-            self.assertEqual(f.read(), '1.0')
+        self.assertEqual('1.0', version_path.read_text())
         # fetch artifact and check version property
         artifact = self.artifact_store.get('project', 'jobid')
         self.assertIsInstance(artifact, Artifacts)
