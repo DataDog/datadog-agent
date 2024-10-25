@@ -13,21 +13,28 @@ from tasks.libs.common.color import color_message
 @task(
     help={
         "tag": "tag from build_image with format v<build_id>_<commit_id>",
-        "images": "The image(s) to update, comma separated. If empty, updates the DATADOG_AGENT_ buildimages. Can be a incomplete pattern, e.g. 'deb,rpm' will update all deb and rpm images. deb_x64 will update only one image. Use `all` to update all images",
+        "images": "The image(s) to update, comma separated. If empty, updates all images. It support incomplete pattern, e.g. 'deb,rpm' will update all deb and rpm images. deb_x64 will update only one image. Use the --list-images flag to list all available images",
         "test": "Is a test image or not",
+        "list_images": "List all available images",
     }
 )
-def update(_: Context, tag: str, images: str = "", test: bool = True):
+def update(_: Context, tag: str = "", images: str = "", test: bool = True, list_images: bool = False):
     """
     Update local files to use a new version of dedicated images from agent-buildimages
     Use --no-test to commit without the _test_only suffixes
+    Use --list-images to list all available images
     """
-    modified = update_gitlab_config(".gitlab-ci.yml", tag, images, test=test)
-    message = ", ".join(modified)
-    if images == "" or images == "all" or "circle" in images:
-        update_circleci_config(".circleci/config.yml", tag, test=test)
-        message += ", circleci"
-    print(f"Updated {message}")
+    if list_images:
+        print("List of available images:")
+        modified = update_gitlab_config(".gitlab-ci.yml", "", update=False)
+        modified.append("CIRCLECI_RUNNER")
+    else:
+        print("Updating images:")
+        modified = update_gitlab_config(".gitlab-ci.yml", tag, images, test=test)
+        if images == "" or "circle" in images:
+            update_circleci_config(".circleci/config.yml", tag, test=test)
+            modified.append("CIRCLECI_RUNNER")
+    print(f"  {', '.join(modified)}")
 
 
 @task(help={"commit_sha": "commit sha from the test-infra-definitions repository"})

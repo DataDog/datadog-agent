@@ -1267,7 +1267,7 @@ def update_test_infra_def(file_path, image_tag):
                 gl.write(line)
 
 
-def update_gitlab_config(file_path, tag, images="", test=True):
+def update_gitlab_config(file_path, tag, images="", test=True, update=True):
     """
     Override variables in .gitlab-ci.yml file.
     """
@@ -1279,9 +1279,10 @@ def update_gitlab_config(file_path, tag, images="", test=True):
     images = "" if images.casefold() == "all" else images
     # Select the buildimages starting with CI_IMAGE and in all situations update also the DATADOG_AGENT_ variables
     variables_to_update = list(filter_variables(variables, images, "CI_IMAGE_")) + list(filter_variables(variables))
-    output = modify_content(file_content, tag, variables_to_update, test=test)
-    with open(file_path, "w") as gl:
-        gl.writelines(output)
+    if update:
+        output = modify_content(file_content, tag, variables_to_update, test=test)
+        with open(file_path, "w") as gl:
+            gl.writelines(output)
     return variables_to_update
 
 
