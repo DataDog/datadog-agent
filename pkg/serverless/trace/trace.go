@@ -92,11 +92,19 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 	return comptracecfg.LoadConfigFile(l.Path, c)
 }
 
+type ServerlessTraceAgentParams struct {
+	Enabled         bool
+	LoadConfig      Load
+	LambdaSpanChan  chan<- *pb.Span
+	ColdStartSpanID uint64
+	RCService       *remoteconfig.CoreAgentService
+}
+
 // Start starts the agent
 //
 //nolint:revive // TODO(SERV) Fix revive linter
-func StartServerlessTraceAgent(enabled bool, loadConfig Load, lambdaSpanChan chan<- *pb.Span, coldStartSpanId uint64, rcService *remoteconfig.CoreAgentService) ServerlessTraceAgent {
-	if enabled {
+func StartServerlessTraceAgent(params *ServerlessTraceAgentParams) ServerlessTraceAgent {
+	if params.Enabled {
 		// Set the serverless config option which will be used to determine if
 		// hostname should be resolved. Skipping hostname resolution saves >1s
 		// in load time between gRPC calls and agent commands.
@@ -105,32 +113,22 @@ func StartServerlessTraceAgent(enabled bool, loadConfig Load, lambdaSpanChan cha
 		// Turn off apm_sampling as it's not supported and generates debug logs
 		pkgconfigsetup.Datadog().Set("remote_configuration.apm_sampling.enabled", false, model.SourceAgentRuntime)
 
-		tc, confErr := loadConfig.Load()
+		tc, confErr := params.LoadConfig.Load()
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)
 		} else {
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
-			statsdNoopClient := &statsd.NoOpClient{}
-			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), statsdNoopClient, zstd.NewComponent())
+			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
 			ta.SpanModifier = &spanModifier{
-				coldStartSpanId: coldStartSpanId,
-				lambdaSpanChan:  lambdaSpanChan,
+				coldStartSpanId: params.ColdStartSpanID,
+				lambdaSpanChan:  params.LambdaSpanChan,
 				ddOrigin:        getDDOrigin(),
 			}
 
 			ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
-			if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) && rcService != nil {
-				api.AttachEndpoint(api.Endpoint{
-					Pattern: "/v0.7/config",
-					Handler: func(r *api.HTTPReceiver) http.Handler {
-						return remotecfg.ConfigHandler(r, rcService, tc, statsdNoopClient, timing.New(statsdNoopClient))
-					},
-				})
-			} else {
-				log.Info("Could not start trace agent config endpoint")
-			}
+			startTraceAgentConfigEndpoint(params.RCService, tc)
 			go ta.Run()
 			return &serverlessTraceAgent{
 				ta:     ta,
@@ -141,6 +139,20 @@ func StartServerlessTraceAgent(enabled bool, loadConfig Load, lambdaSpanChan cha
 		log.Info("Trace agent is disabled")
 	}
 	return noopTraceAgent{}
+}
+
+func startTraceAgentConfigEndpoint(rcService *remoteconfig.CoreAgentService, tc *config.AgentConfig) {
+	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) && rcService != nil {
+		statsdNoopClient := &statsd.NoOpClient{}
+		api.AttachEndpoint(api.Endpoint{
+			Pattern: "/v0.7/config",
+			Handler: func(r *api.HTTPReceiver) http.Handler {
+				return remotecfg.ConfigHandler(r, rcService, tc, statsdNoopClient, timing.New(statsdNoopClient))
+			},
+		})
+	} else {
+		log.Debug("Could not start trace agent config endpoint")
+	}
 }
 
 type serverlessTraceAgent struct {

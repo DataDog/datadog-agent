@@ -171,7 +171,7 @@ func TestSetTraceTagOk(t *testing.T) {
 	}
 	t.Setenv("DD_API_KEY", "x")
 	t.Setenv("DD_RECEIVER_PORT", strconv.Itoa(testutil.FreeTCPPort(t)))
-	agent := trace.StartServerlessTraceAgent(true, &trace.LoadConfig{Path: "/does-not-exist.yml"}, make(chan *pb.Span), random.Random.Uint64(), nil)
+	agent := trace.StartServerlessTraceAgent(&trace.ServerlessTraceAgentParams{Enabled: true, LoadConfig: &trace.LoadConfig{Path: "/does-not-exist.yml"}, LambdaSpanChan: make(chan *pb.Span), ColdStartSpanID: random.Random.Uint64()})
 	defer agent.Stop()
 	d := Daemon{
 		TraceAgent: agent,
