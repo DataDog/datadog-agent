@@ -47,6 +47,7 @@ type rcClient struct {
 	clientMRF     *client.Client
 	m             *sync.Mutex
 	taskProcessed map[string]bool
+	isSystemProbe bool
 
 	listeners []types.RCListener
 	// Tasks are separated from the other products, because they must be executed once
@@ -117,6 +118,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		client:            c,
 		clientMRF:         clientMRF,
 		settingsComponent: deps.SettingsComponent,
+		isSystemProbe:     deps.Params.IsSystemProbe,
 	}
 
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
@@ -260,8 +262,13 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		return
 	}
 
+	modelConfig := pkgconfigsetup.Datadog()
+	if rc.isSystemProbe {
+		modelConfig = pkgconfigsetup.SystemProbe()
+	}
+
 	// Checks who (the source) is responsible for the last logLevel change
-	source := pkgconfigsetup.Datadog().GetSource("log_level")
+	source := modelConfig.GetSource("log_level")
 
 	switch source {
 	case model.SourceRC:
@@ -269,8 +276,8 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		//     - we want to change (once again) the log level through RC
 		//     - we want to fall back to the log level we had saved as fallback (in that case mergedConfig.LogLevel == "")
 		if len(mergedConfig.LogLevel) == 0 {
-			pkgconfigsetup.Datadog().UnsetForSource("log_level", model.SourceRC)
-			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", pkgconfigsetup.Datadog().Get("log_level"))
+			modelConfig.UnsetForSource("log_level", model.SourceRC)
+			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", modelConfig.Get("log_level"))
 		} else {
 			newLevel := mergedConfig.LogLevel
 			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)
@@ -291,6 +298,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 
 		// Need to update the log level even if the level stays the same because we need to update the source
 		// Might be possible to add a check in deeper functions to avoid unnecessary work
+		pkglog.Infof("Changing log level to '%s' through remote config (new source)", mergedConfig.LogLevel)
 		err = rc.settingsComponent.SetRuntimeSetting("log_level", mergedConfig.LogLevel, model.SourceRC)
 	}
 
