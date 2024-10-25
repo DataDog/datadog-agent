@@ -5,6 +5,7 @@
 
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/event_copy -scope "(fc *SimpleEventConsumer)" -pkg examples -output ./event_copy.go SimpleEvent .
 
+// Package examples package provides an example of how to use the event monitor module using a basic consumer
 package examples
 
 import (
