@@ -783,7 +783,7 @@ def e2e_prepare_win(ctx):
 
     out_binary = "testsuite.exe"
 
-    testsuite_out_dir = os.path.join(E2E_ARTIFACT_DIR, "tests")
+    testsuite_out_dir = E2E_ARTIFACT_DIR
     # Clean up previous build
     if os.path.exists(testsuite_out_dir):
         shutil.rmtree(testsuite_out_dir)
@@ -799,7 +799,7 @@ def e2e_prepare_win(ctx):
     )
 
     # build the ETW tests binary also
-    testsuite_out_path = os.path.join(E2E_ARTIFACT_DIR, "tests", "etw", out_binary)
+    testsuite_out_path = os.path.join(E2E_ARTIFACT_DIR, "etw", out_binary)
     srcpath = 'pkg/security/probe'
     build_functional_tests(
         ctx,
