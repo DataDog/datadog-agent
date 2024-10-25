@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/fx"
 
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -47,12 +48,12 @@ type rcClient struct {
 	clientMRF     *client.Client
 	m             *sync.Mutex
 	taskProcessed map[string]bool
-	isSystemProbe bool
 
 	listeners []types.RCListener
 	// Tasks are separated from the other products, because they must be executed once
 	taskListeners     []types.RCAgentTaskListener
 	settingsComponent settings.Component
+	config            configcomp.Component
 }
 
 type dependencies struct {
@@ -65,6 +66,7 @@ type dependencies struct {
 	Listeners         []types.RCListener          `group:"rCListener"`          // <-- Fill automatically by Fx
 	TaskListeners     []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 	SettingsComponent settings.Component
+	config            configcomp.Component
 }
 
 // newRemoteConfigClient must not populate any Fx groups or return any types that would be consumed as dependencies by
@@ -118,7 +120,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		client:            c,
 		clientMRF:         clientMRF,
 		settingsComponent: deps.SettingsComponent,
-		isSystemProbe:     deps.Params.IsSystemProbe,
+		config:            deps.config,
 	}
 
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
@@ -262,13 +264,8 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		return
 	}
 
-	modelConfig := pkgconfigsetup.Datadog()
-	if rc.isSystemProbe {
-		modelConfig = pkgconfigsetup.SystemProbe()
-	}
-
 	// Checks who (the source) is responsible for the last logLevel change
-	source := modelConfig.GetSource("log_level")
+	source := rc.config.GetSource("log_level")
 
 	switch source {
 	case model.SourceRC:
@@ -276,8 +273,8 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		//     - we want to change (once again) the log level through RC
 		//     - we want to fall back to the log level we had saved as fallback (in that case mergedConfig.LogLevel == "")
 		if len(mergedConfig.LogLevel) == 0 {
-			modelConfig.UnsetForSource("log_level", model.SourceRC)
-			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", modelConfig.Get("log_level"))
+			rc.config.UnsetForSource("log_level", model.SourceRC)
+			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", rc.config.Get("log_level"))
 		} else {
 			newLevel := mergedConfig.LogLevel
 			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)
