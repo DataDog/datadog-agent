@@ -15,7 +15,12 @@ class Artifacts:
         return self.__path_store.get_directory(f"{self.key()}/artifacts")
 
     def add(self, path: str | Path) -> None:
-        self.__path_store.add_directory(f"{self.key()}/artifacts", Path(path))
+        path = Path(path)
+        if not path.is_dir():
+            raise ValueError(f"{path} is not a directory")
+        if not list(path.iterdir()):
+            return
+        self.__path_store.add_directory(f"{self.key()}/artifacts", path)
 
     def _get_text_property(self, attr: str) -> str | None:
         value = getattr(self, f"_{attr}")
