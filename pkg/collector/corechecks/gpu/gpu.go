@@ -112,9 +112,17 @@ func (m *Check) Run() error {
 	for pid, pidStats := range stats.ProcessStats {
 		// Per-PID metrics are subject to change due to high cardinality
 		tags := []string{fmt.Sprintf("pid:%d", pid)}
-		snd.Gauge(metricNameMemory, float64(pidStats.CurrentMemoryBytes), "", tags)
-		snd.Gauge(metricNameMaxMem, float64(pidStats.MaxMemoryBytes), "", tags)
 		snd.Gauge(metricNameUtil, pidStats.UtilizationPercentage, "", tags)
+
+		currentMem, maxMem := float64(0), float64(0)
+		for _, memStats := range pidStats.Memory {
+			// For now we just sum all the memory types, later we might want to send additional metrics for each type
+			currentMem += float64(memStats.CurrentBytes)
+			maxMem += float64(memStats.MaxBytes)
+		}
+
+		snd.Gauge(metricNameMemory, currentMem, "", tags)
+		snd.Gauge(metricNameMaxMem, maxMem, "", tags)
 
 		m.activePIDs[pid] = true
 	}
