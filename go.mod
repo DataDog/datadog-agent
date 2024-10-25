@@ -148,16 +148,16 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.9.1
 	github.com/DataDog/appsec-internal-go v1.8.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.59.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.59.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.59.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.59.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/trace v0.59.0-devel.0.20240911192058-0c2181220f85
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.57.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.57.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0-rc.5
 	github.com/DataDog/datadog-go/v5 v5.5.0
-	github.com/DataDog/datadog-operator v0.7.1-0.20241010110733-dbbe6d120655
+	github.com/DataDog/datadog-operator v0.7.1-0.20241024104907-734366f3c0d1
 	github.com/DataDog/ebpf-manager v0.7.1
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.7
@@ -166,7 +166,7 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.20.0
 	github.com/DataDog/sketches-go v1.4.6
 	github.com/DataDog/viper v1.13.5
-	github.com/DataDog/watermarkpodautoscaler v0.5.3-0.20241011111846-034635582ee1
+	github.com/DataDog/watermarkpodautoscaler v0.5.3-0.20241023200123-ab786c1724cf
 	github.com/DataDog/zstd v1.5.6
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Masterminds/semver/v3 v3.3.0
@@ -512,7 +512,7 @@ require (
 	github.com/saracen/walker v0.1.3 // indirect
 	github.com/sassoftware/go-rpmutils v0.3.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.8.0 // indirect
-	github.com/sergi/go-diff v1.3.1 // indirect
+	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/smira/go-ftp-protocol v0.0.0-20140829150050-066b75c2b70d // indirect
@@ -614,7 +614,7 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.134
+	github.com/DataDog/agent-payload/v5 v5.0.135-0.20241016074204-82c61e7189e0
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/config v0.57.1
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.57.1
@@ -655,8 +655,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.57.1
 	github.com/DataDog/datadog-agent/pkg/config/env v0.57.1
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel
-	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/remote v0.59.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/config/remote v0.59.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.1
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.57.1
 	github.com/DataDog/datadog-agent/pkg/errors v0.56.0-rc.3
@@ -676,24 +676,24 @@ require (
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/proto v0.59.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/proto v0.59.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/security/seclwin v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/serializer v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/status/health v0.57.1
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/tagset v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.57.1
-	github.com/DataDog/datadog-agent/pkg/util/backoff v0.59.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/cache v0.59.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/backoff v0.59.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/util/cache v0.59.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/common v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/containers/image v0.56.2
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.57.1
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.57.1
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.57.1
-	github.com/DataDog/datadog-agent/pkg/util/grpc v0.59.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/grpc v0.59.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.57.1
-	github.com/DataDog/datadog-agent/pkg/util/http v0.59.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/http v0.59.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/json v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v1.0.0
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.57.1
@@ -701,7 +701,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.57.1
 	github.com/DataDog/datadog-agent/pkg/util/system v0.57.1
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.57.1
 	github.com/DataDog/datadog-agent/pkg/version v0.57.1
 	github.com/DataDog/go-libddwaf/v3 v3.4.0
@@ -879,7 +879,6 @@ require (
 	github.com/moby/sys/userns v0.1.0 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
-	github.com/nxadm/tail v1.4.11 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.111.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.111.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.111.0 // indirect
