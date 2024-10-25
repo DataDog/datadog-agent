@@ -13,10 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
-
-	"github.com/stretchr/testify/assert"
 
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -28,6 +27,7 @@ import (
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -472,6 +472,8 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 		return "", fmt.Errorf("some error")
 	}
 
+	isPrecompiledDeprecated := netebpf.IsPrecompiledEbpfDeprecated()
+
 	ia := getTestInventoryPayload(t, nil, nil)
 	ia.fetchSystemProbeMetadata()
 
@@ -497,7 +499,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.True(t, ia.data["system_probe_core_enabled"].(bool))
 	assert.False(t, ia.data["system_probe_runtime_compilation_enabled"].(bool))
 	assert.False(t, ia.data["system_probe_kernel_headers_download_enabled"].(bool))
-	assert.False(t, ia.data["system_probe_prebuilt_fallback_enabled"].(bool))
+	assert.Equal(t, !isPrecompiledDeprecated, ia.data["system_probe_prebuilt_fallback_enabled"].(bool))
 	assert.False(t, ia.data["system_probe_telemetry_enabled"].(bool))
 	assert.Equal(t, 600, ia.data["system_probe_max_connections_per_message"].(int))
 	assert.True(t, ia.data["system_probe_track_tcp_4_connections"].(bool))
