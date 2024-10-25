@@ -18,7 +18,7 @@ import (
 )
 
 // EventConsumerHandler represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
-type EventConsumerInterface interface {
+type EventConsumerHandler interface {
 	ID() string
 	ChanSize() int
 	HandleEvent(_ any)
