@@ -250,5 +250,5 @@ func (c *ContainerdCheck) collectEvents(sender sender.Sender) {
 	}
 	events := c.subscriber.Flush(time.Now().Unix())
 	// Process events
-	computeEvents(events, sender, c.containerFilter)
+	c.computeEvents(events, sender, c.containerFilter)
 }

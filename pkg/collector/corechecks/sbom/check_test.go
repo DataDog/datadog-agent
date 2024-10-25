@@ -109,11 +109,12 @@ host_heartbeat_validity_seconds: 1000000
 
 func TestFactory(t *testing.T) {
 	cfg := config.NewMock(t)
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	checkFactory := Factory(mockStore, cfg)
+	checkFactory := Factory(mockStore, cfg, fakeTagger)
 	assert.NotNil(t, checkFactory)
 
 	check, ok := checkFactory.Get()
@@ -168,10 +169,11 @@ func TestConfigure(t *testing.T) {
 			InitHelper: common.GetWorkloadmetaInit(),
 		}),
 	))
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
 	cfg := app.Cfg
 	mockStore := app.Store
 
-	checkFactory := Factory(mockStore, cfg)
+	checkFactory := Factory(mockStore, cfg, fakeTagger)
 	assert.NotNil(t, checkFactory)
 
 	check, ok := checkFactory.Get()
