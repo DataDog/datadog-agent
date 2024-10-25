@@ -1269,26 +1269,27 @@ def update_test_infra_def(file_path, image_tag):
 
 def update_gitlab_config(file_path, tag, images="", test=True):
     """
-    Override variables in .gitlab-ci.yml file
+    Override variables in .gitlab-ci.yml file.
     """
     with open(file_path) as gl:
         file_content = gl.readlines()
     yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
     gitlab_ci = yaml.safe_load("".join(file_content))
-    variables_to_update = list(filter_variables(gitlab_ci['variables'].keys(), images))
+    variables = gitlab_ci['variables']
+    images = "" if images.casefold() == "all" else images
+    # Select the buildimages starting with CI_IMAGE and in all situations update also the DATADOG_AGENT_ variables
+    variables_to_update = list(filter_variables(variables, images, "CI_IMAGE_")) + list(filter_variables(variables))
     output = modify_content(file_content, tag, variables_to_update, test=test)
     with open(file_path, "w") as gl:
         gl.writelines(output)
     return variables_to_update
 
 
-def filter_variables(variables, images):
-    if images == "":
-        prefix = "DATADOG_AGENT_"
-    else:
-        if images.casefold() == "all":
-            images = ""
-        prefix = "CI_IMAGE_"
+def filter_variables(variables, images="", prefix="DATADOG_AGENT_"):
+    """
+    Select the buildimages variables to update.
+    With default values, the former DATADOG_AGENT_ variables are updated.
+    """
     suffix = "_SUFFIX"
     for variable in variables:
         if (
@@ -1296,10 +1297,13 @@ def filter_variables(variables, images):
             and variable.endswith(suffix)
             and any(image in variable.casefold() for image in images.casefold().split(","))
         ):
-            yield variable.removeprefix(prefix).removesuffix(suffix)
+            yield variable.removesuffix(suffix)
 
 
 def modify_content(lines, tag, variables, test=True):
+    """
+    Update the variables in the .gitlab-ci.yml file. We do this from the file content to keep the original order/formatting.
+    """
     output = []
     tag_pattern = re.compile(r"v\d+-\w+")
     for line in lines:

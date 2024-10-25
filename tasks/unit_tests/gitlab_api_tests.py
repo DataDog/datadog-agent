@@ -496,7 +496,9 @@ class TestFilterVariables(unittest.TestCase):
             'OTHER_VARIABLE_SUFFIX': '',
             'OTHER_VARIABLE': 'lampion',
         }
-        self.assertEqual(list(filter_variables(variables.keys(), "")), ['BUILDIMAGES', 'SYSPROBE_BUILDIMAGES'])
+        self.assertEqual(
+            list(filter_variables(variables)), ['DATADOG_AGENT_BUILDIMAGES', 'DATADOG_AGENT_SYSPROBE_BUILDIMAGES']
+        )
 
     def test_one_image(self):
         variables = {
@@ -509,8 +511,8 @@ class TestFilterVariables(unittest.TestCase):
             'OTHER_VARIABLE_SUFFIX': '',
             'OTHER_VARIABLE': 'lampion',
         }
-        self.assertEqual(list(filter_variables(variables.keys(), "agent")), ['AGENT'])
-        self.assertEqual(list(filter_variables(variables.keys(), "AGENT")), ['AGENT'])
+        self.assertEqual(list(filter_variables(variables, "agent", "CI_IMAGE")), ['CI_IMAGE_AGENT'])
+        self.assertEqual(list(filter_variables(variables, "AGENT", "CI_IMAGE")), ['CI_IMAGE_AGENT'])
 
     def test_multi_match(self):
         variables = {
@@ -521,8 +523,12 @@ class TestFilterVariables(unittest.TestCase):
             'CI_IMAGE_AGENT_42': 'tournesol',
             'CI_IMAGE_AGENT_42_SUFFIX': '',
         }
-        self.assertEqual(list(filter_variables(variables.keys(), "agent")), ['AGENT', 'AGENT_42'])
-        self.assertEqual(list(filter_variables(variables.keys(), "AGENT")), ['AGENT', 'AGENT_42'])
+        self.assertEqual(
+            list(filter_variables(variables, "agent", "CI_IMAGE")), ['CI_IMAGE_AGENT', 'CI_IMAGE_AGENT_42']
+        )
+        self.assertEqual(
+            list(filter_variables(variables, "AGENT", "CI_IMAGE")), ['CI_IMAGE_AGENT', 'CI_IMAGE_AGENT_42']
+        )
 
     def test_all_images(self):
         variables = {
@@ -535,8 +541,12 @@ class TestFilterVariables(unittest.TestCase):
             'CI_IMAGE_OWNER': 'tapioca',
             'CI_IMAGE_OWNER_SUFFIX': '',
         }
-        self.assertEqual(list(filter_variables(variables.keys(), "all")), ['AGENT', 'AGENT_42', 'OWNER'])
-        self.assertEqual(list(filter_variables(variables.keys(), "ALL")), ['AGENT', 'AGENT_42', 'OWNER'])
+        self.assertEqual(
+            list(filter_variables(variables, "", "CI_IMAGE")), ['CI_IMAGE_AGENT', 'CI_IMAGE_AGENT_42', 'CI_IMAGE_OWNER']
+        )
+        self.assertEqual(
+            list(filter_variables(variables, "", "CI_IMAGE")), ['CI_IMAGE_AGENT', 'CI_IMAGE_AGENT_42', 'CI_IMAGE_OWNER']
+        )
 
 
 class TestModifyContent(unittest.TestCase):
@@ -549,7 +559,13 @@ class TestModifyContent(unittest.TestCase):
 
     def test_all_buildimages(self):
         prefix = 'DATADOG_AGENT_'
-        images = ['BUILDIMAGES', 'WINBUILDIMAGES', 'ARMBUILDIMAGES', 'SYSPROBE_BUILDIMAGES', 'BTF_GEN_BUILDIMAGES']
+        images = [
+            'DATADOG_AGENT_BUILDIMAGES',
+            'DATADOG_AGENT_WINBUILDIMAGES',
+            'DATADOG_AGENT_ARMBUILDIMAGES',
+            'DATADOG_AGENT_SYSPROBE_BUILDIMAGES',
+            'DATADOG_AGENT_BTF_GEN_BUILDIMAGES',
+        ]
         modified = modify_content(self.gitlab_ci, "1mageV3rsi0n", images)
         yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
         config = yaml.safe_load("".join(modified))
@@ -562,7 +578,7 @@ class TestModifyContent(unittest.TestCase):
 
     def test_one_buildimage(self):
         prefix = 'DATADOG_AGENT_'
-        images = ['BTF_GEN_BUILDIMAGES']
+        images = ['DATADOG_AGENT_BTF_GEN_BUILDIMAGES']
         modified = modify_content(self.gitlab_ci, "1mageV3rsi0n", images)
         yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
         config = yaml.safe_load("".join(modified))
@@ -575,7 +591,7 @@ class TestModifyContent(unittest.TestCase):
 
     def test_one_image(self):
         prefix = "CI_IMAGE_"
-        images = ['DEB_X64']
+        images = ['CI_IMAGE_DEB_X64']
         modified = modify_content(self.gitlab_ci, "1mageV3rsi0n", images)
         yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
         config = yaml.safe_load("".join(modified))
@@ -588,15 +604,15 @@ class TestModifyContent(unittest.TestCase):
 
     def test_several_images(self):
         prefix = "CI_IMAGE_"
-        images = ['DEB', 'RPM']
+        images = ['CI_IMAGE_DEB_X64', 'CI_IMAGE_RPM_ARMHF']
         modified = modify_content(self.gitlab_ci, "1mageV3rsi0n", images)
         yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
         config = yaml.safe_load("".join(modified))
         self.assertEqual(
-            6, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "_test_only")
+            2, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "_test_only")
         )
         self.assertEqual(
-            6, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "1mageV3rsi0n")
+            2, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "1mageV3rsi0n")
         )
 
     def test_multimatch(self):
@@ -614,7 +630,17 @@ class TestModifyContent(unittest.TestCase):
 
     def test_update_no_test(self):
         prefix = "CI_IMAGE_"
-        images = ['AGENT_DEPLOY', 'BTFGEN', 'DEB', 'DD_AGENT_TESTING', 'DOCKER', 'GILBC', 'SYSTEM_PROBE', 'RPM', 'WIN']
+        images = [
+            'GITLAB_AGENT_DEPLOY',
+            'CI_IMAGE_BTF_GEN',
+            'DEB',
+            'DD_AGENT_TESTING',
+            'DOCKER',
+            'GLIBC',
+            'SYSTEM_PROBE',
+            'RPM',
+            'WIN',
+        ]
         modified = modify_content(self.gitlab_ci, "1mageV3rsi0n", images, test=False)
         yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
         config = yaml.safe_load("".join(modified))

@@ -87,7 +87,7 @@ This PR updates the current Golang version ([`{old_go_version}`]({old_go_version
 @task(
     help={
         "file_path": "path of the Gitlab configuration YAML file",
-        "image_type": "The type of image to get the tag for. Used for CI_IMAGE_ variables",
+        "image_type": "The type of image to get the tag for (e.g. deb_x64, rpm_armhf, etc). All images defined by or CI_IMAGE_<image_tyoe> in gitlab-ci configuration variables",
     },
     autoprint=True,
 )
@@ -113,8 +113,9 @@ def get_tag(_, file_path=".gitlab-ci.yml", image_type=None):
         available_images = set()
         for key in gitlab_ci["variables"].keys():
             if key.startswith("CI_IMAGE"):
-                available_images.add(key.removeprefix("CI_IMAGE_").removesuffix("_SUFFIX").casefold())
-                if image_type in key.casefold():
+                image = key.removeprefix("CI_IMAGE_").removesuffix("_SUFFIX").casefold()
+                available_images.add(image)
+                if image_type.casefold() == image:
                     return gitlab_ci["variables"][key]
         raise Exit(
             f'{color_message("ERROR", "red")}: {image_type} is not defined in the configuration. Available images: {", ".join(available_images)}',
