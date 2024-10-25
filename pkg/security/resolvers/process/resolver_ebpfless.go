@@ -65,7 +65,6 @@ func (p *EBPFLessResolver) deleteEntry(key CacheResolverKey, exitTime time.Time)
 
 	entry.Exit(exitTime)
 	delete(p.entryCache, key)
-	entry.Release()
 }
 
 // DeleteEntry tries to delete an entry in the process cache
@@ -183,12 +182,6 @@ func (p *EBPFLessResolver) AddProcFSEntry(key CacheResolverKey, ppid uint32, fil
 
 func (p *EBPFLessResolver) insertEntry(key CacheResolverKey, entry, prev *model.ProcessCacheEntry) {
 	p.entryCache[key] = entry
-	entry.Retain()
-
-	if prev != nil {
-		prev.Release()
-	}
-
 	p.processCacheEntryPool.IncCacheSize()
 }
 

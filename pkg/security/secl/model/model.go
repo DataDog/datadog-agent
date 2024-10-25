@@ -263,21 +263,6 @@ func (e *Event) GetWorkloadID() string {
 	return e.SecurityProfileContext.Name
 }
 
-// Retain the event
-func (e *Event) Retain() Event {
-	if e.ProcessCacheEntry != nil {
-		e.ProcessCacheEntry.Retain()
-	}
-	return *e
-}
-
-// Release the event
-func (e *Event) Release() {
-	if e.ProcessCacheEntry != nil {
-		e.ProcessCacheEntry.Release()
-	}
-}
-
 // ResolveProcessCacheEntry uses the field handler
 func (e *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
 	return e.FieldHandlers.ResolveProcessCacheEntry(e)

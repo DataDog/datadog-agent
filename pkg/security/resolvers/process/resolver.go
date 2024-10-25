@@ -20,10 +20,6 @@ type Pool struct {
 // Get returns a cache entry
 func (p *Pool) Get() *model.ProcessCacheEntry {
 	return model.NewProcessCacheEntry(func(pce *model.ProcessCacheEntry) {
-		if pce.Ancestor != nil {
-			pce.Ancestor.Release()
-		}
-
 		p.cacheSize.Add(-1)
 	})
 }

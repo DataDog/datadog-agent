@@ -26,13 +26,8 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 		return
 	}
 
-	if pc.Ancestor != nil {
-		pc.Ancestor.Release()
-	}
-
 	pc.Ancestor = parent
 	pc.Parent = &parent.Process
-	parent.Retain()
 }
 
 // Exit a process

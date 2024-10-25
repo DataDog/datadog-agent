@@ -265,7 +265,6 @@ func TestActionSetVariable(t *testing.T) {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
-	processCacheEntry.Retain()
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test2")
 	event.SetFieldValue("open.flags", syscall.O_RDONLY)
@@ -288,7 +287,6 @@ func TestActionSetVariable(t *testing.T) {
 	scopedVariables := rs.scopedVariables["process"].(*eval.ScopedVariables)
 
 	assert.Equal(t, scopedVariables.Len(), 1)
-	event.ProcessCacheEntry.Release()
 	assert.Equal(t, scopedVariables.Len(), 0)
 }
 
@@ -328,7 +326,6 @@ func TestActionSetVariableTTL(t *testing.T) {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
-	processCacheEntry.Retain()
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")
 	event.SetFieldValue("open.flags", syscall.O_RDONLY)

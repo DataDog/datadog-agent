@@ -513,11 +513,6 @@ func (p *EBPFResolver) retrieveExecFileFields(procExecPath string) (*model.FileF
 func (p *EBPFResolver) insertEntry(entry, prev *model.ProcessCacheEntry, source uint64) {
 	entry.Source = source
 	p.entryCache[entry.Pid] = entry
-	entry.Retain()
-
-	if prev != nil {
-		prev.Release()
-	}
 
 	if p.cgroupResolver != nil && entry.ContainerID != "" {
 		// add the new PID in the right cgroup_resolver bucket
@@ -607,7 +602,6 @@ func (p *EBPFResolver) deleteEntry(pid uint32, exitTime time.Time) {
 
 	entry.Exit(exitTime)
 	delete(p.entryCache, entry.Pid)
-	entry.Release()
 }
 
 // DeleteEntry tries to delete an entry in the process cache
@@ -1263,8 +1257,6 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 
 	// update the cache entry
 	if err := p.enrichEventFromProc(entry, proc, filledProc); err != nil {
-		entry.Release()
-
 		seclog.Trace(err)
 		return nil, false
 	}

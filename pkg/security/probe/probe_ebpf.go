@@ -425,7 +425,6 @@ func (p *EBPFProbe) PlaySnapshot() {
 		if entry.Source != model.ProcessCacheEntryFromSnapshot {
 			return
 		}
-		entry.Retain()
 		event := NewEBPFEvent(p.fieldHandlers)
 		event.Type = uint32(model.ExecEventType)
 		event.TimestampRaw = uint64(time.Now().UnixNano())
@@ -444,7 +443,6 @@ func (p *EBPFProbe) PlaySnapshot() {
 	p.Resolvers.ProcessResolver.Walk(entryToEvent)
 	for _, event := range events {
 		p.DispatchEvent(event)
-		event.ProcessCacheEntry.Release()
 	}
 }
 
