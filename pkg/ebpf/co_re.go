@@ -50,7 +50,7 @@ func GetBTFLoaderInfo() (string, error) {
 	}
 
 	metadataStr := loader.btfLoader.resultMetadata.String()
-	infoStr := fmt.Sprintf("btfLoader result: %s\n%s", loader.btfLoader.result, metadataStr)
+	infoStr := fmt.Sprintf("btfLoader result: %d\n%s", loader.btfLoader.result, metadataStr)
 	return infoStr, nil
 }
 
