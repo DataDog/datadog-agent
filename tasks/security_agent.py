@@ -542,32 +542,6 @@ def ebpfless_functional_tests(
 
 
 @task
-def kitchen_functional_tests(
-    ctx,
-    verbose=False,
-    major_version='7',
-    build_tests=False,
-    testflags='',
-):
-    if build_tests:
-        functional_tests(
-            ctx,
-            verbose=verbose,
-            major_version=major_version,
-            output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite",
-            testflags=testflags,
-        )
-
-    kitchen_dir = os.path.join("test", "kitchen")
-    shutil.copy(
-        os.path.join(kitchen_dir, "kitchen-vagrant-security-agent.yml"), os.path.join(kitchen_dir, "kitchen.yml")
-    )
-
-    with ctx.cd(kitchen_dir):
-        ctx.run("kitchen test")
-
-
-@task
 def docker_functional_tests(
     ctx,
     verbose=False,
