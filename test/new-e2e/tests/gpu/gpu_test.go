@@ -108,9 +108,13 @@ func (v *gpuSuite) TestGPUCheckIsEnabled() {
 func (v *gpuSuite) TestVectorAddProgramDetected() {
 	vm := v.Env().RemoteHost
 
-	out, err := vm.Execute(fmt.Sprintf("docker run --rm --gpus all %s", vectorAddDockerImg))
-	v.Require().NoError(err)
-	v.Require().NotEmpty(out)
+	// The vectorAdd program is quite short, so we might
+	numStarts := 3
+	for i := 0; i < numStarts; i++ {
+		out, err := vm.Execute(fmt.Sprintf("docker run --rm --gpus all %s", vectorAddDockerImg))
+		v.Require().NoError(err)
+		v.Require().NotEmpty(out)
+	}
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		metricNames := []string{"gpu.memory", "gpu.utilization", "gpu.memory.max"}
