@@ -70,8 +70,8 @@ type dependencies struct {
 	Listeners         []types.RCListener          `group:"rCListener"`          // <-- Fill automatically by Fx
 	TaskListeners     []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 	SettingsComponent settings.Component
-	config            configcomp.Component
-	sysprobeConfig    optional.Option[sysprobeconfig.Component]
+	Config            configcomp.Component
+	SysprobeConfig    optional.Option[sysprobeconfig.Component]
 }
 
 // newRemoteConfigClient must not populate any Fx groups or return any types that would be consumed as dependencies by
@@ -125,8 +125,8 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		client:            c,
 		clientMRF:         clientMRF,
 		settingsComponent: deps.SettingsComponent,
-		config:            deps.config,
-		sysprobeConfig:    deps.sysprobeConfig,
+		config:            deps.Config,
+		sysprobeConfig:    deps.SysprobeConfig,
 	}
 
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
@@ -272,7 +272,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 
 	targetCmp := rc.config
 	localSysProbeConf, isSet := rc.sysprobeConfig.Get()
-	if isSet {
+	if isSet && rc.IsSystemProbe {
 		targetCmp = localSysProbeConf
 	}
 	// Checks who (the source) is responsible for the last logLevel change

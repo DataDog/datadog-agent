@@ -9,10 +9,11 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config/configimpl"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle(), core.MockBundle(), settingsimpl.MockModule())
+	fxutil.TestBundle(t, Bundle(), core.MockBundle(), settingsimpl.MockModule(), configimpl.MockModule())
 }
