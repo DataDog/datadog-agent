@@ -6,6 +6,9 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+fixes:
   - |
-    Introduce new Kubernetes tag `gpu_vendor` for the GPU resource requested by a container.
+    Use of cloud-provided hostname as default when running the Agent
+    in AKS introduced in `7.56.0` is reverted due to cases where the
+    hostname returned is non-unique. This feature will be fixed and
+    added again in a future release.

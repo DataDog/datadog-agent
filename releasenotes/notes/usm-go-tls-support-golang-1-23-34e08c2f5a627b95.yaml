@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+fixes:
   - |
-    Introduce new Kubernetes tag `gpu_vendor` for the GPU resource requested by a container.
+    Fix USM's GO-TLS support for Golang 1.23

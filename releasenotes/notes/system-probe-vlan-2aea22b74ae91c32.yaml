@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+fixes:
   - |
-    Introduce new Kubernetes tag `gpu_vendor` for the GPU resource requested by a container.
+    Fixes an error in system-probe triggered by packet capture in environments with multiple VLANs.
