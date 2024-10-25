@@ -763,3 +763,57 @@ func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {
 	app.RequireStop()
 	assert.False(b, npCollector.running)
 }
+
+func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
+	// GIVEN
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled": true,
+	}
+	_, npCollector := newTestNpCollector(t, agentConfigs)
+
+	stats := &teststatsd.Client{}
+	npCollector.statsdClient = stats
+	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+
+	// WHEN
+	// Destination, hop 1, hop 3, hop 4 are private IPs, hop 2 is a public IP
+	path := payload.NetworkPath{
+		Destination: payload.NetworkPathDestination{IPAddress: "10.0.0.41", Hostname: "dest-hostname"},
+		Hops: []payload.NetworkPathHop{
+			{IPAddress: "10.0.0.1", Reachable: true, Hostname: "hop1"},
+			{IPAddress: "1.1.1.1", Reachable: true, Hostname: "hop2"},
+			{IPAddress: "10.0.0.100", Reachable: true, Hostname: "hop3"},
+			{IPAddress: "10.0.0.41", Reachable: true, Hostname: "dest-hostname"},
+		},
+	}
+
+	npCollector.enrichPathWithRDNS(&path)
+
+	// THEN
+	assert.Equal(t, "hostname-10.0.0.41", path.Destination.ReverseDNSHostname) // private IP should be resolved
+	assert.Equal(t, "hostname-10.0.0.1", path.Hops[0].Hostname)
+	assert.Equal(t, "hop2", path.Hops[1].Hostname) // public IP should fall back to hostname from traceroute
+	assert.Equal(t, "hostname-10.0.0.100", path.Hops[2].Hostname)
+	assert.Equal(t, "hostname-10.0.0.41", path.Hops[3].Hostname)
+
+	// WHEN
+	// hop 3 is a private IP, others are public IPs or unknown hops which should not be resolved
+	path = payload.NetworkPath{
+		Destination: payload.NetworkPathDestination{IPAddress: "8.8.8.8", Hostname: "google.com"},
+		Hops: []payload.NetworkPathHop{
+			{IPAddress: "unknown-hop-1", Reachable: false, Hostname: "hop1"},
+			{IPAddress: "1.1.1.1", Reachable: true, Hostname: "hop2"},
+			{IPAddress: "10.0.0.100", Reachable: true, Hostname: "hop3"},
+			{IPAddress: "unknown-hop-4", Reachable: false, Hostname: "hop4"},
+		},
+	}
+
+	npCollector.enrichPathWithRDNS(&path)
+
+	// THEN
+	assert.Equal(t, "", path.Destination.ReverseDNSHostname)
+	assert.Equal(t, "hop1", path.Hops[0].Hostname)
+	assert.Equal(t, "hop2", path.Hops[1].Hostname) // public IP should fall back to hostname from traceroute
+	assert.Equal(t, "hostname-10.0.0.100", path.Hops[2].Hostname)
+	assert.Equal(t, "hop4", path.Hops[3].Hostname)
+}

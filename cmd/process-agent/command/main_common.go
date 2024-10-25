@@ -49,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/profiler"
 	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
@@ -131,6 +132,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		eventplatformreceiverimpl.Module(),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+
+		// Provides the rdnssquerier module
+		rdnsquerierfx.Module(),
 
 		// Provide network path bundle
 		networkpath.Bundle(),

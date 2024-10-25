@@ -76,10 +76,12 @@ func (q *rdnsQuerierMock) GetHostnames(_ context.Context, ipAddrs []string) map[
 		netipAddr, err := netip.ParseAddr(ipAddr)
 		if err != nil {
 			results[ipAddr] = rdnsquerier.ReverseDNSResult{IP: ipAddr, Err: fmt.Errorf("invalid IP address %v", ipAddr)}
+			continue
 		}
 
 		if !netipAddr.IsPrivate() {
 			results[ipAddr] = rdnsquerier.ReverseDNSResult{IP: ipAddr}
+			continue
 		}
 
 		results[ipAddr] = rdnsquerier.ReverseDNSResult{IP: ipAddr, Hostname: "hostname-" + netipAddr.String()}

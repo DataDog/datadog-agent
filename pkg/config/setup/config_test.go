@@ -673,6 +673,8 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, 15*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
 	assert.Equal(t, 5*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
 	assert.Equal(t, 10*time.Second, config.GetDuration("network_path.collector.flush_interval"))
+	assert.Equal(t, true, config.GetDuration("network_path.collector.reverse_dns_cache.enabled"))
+	assert.Equal(t, 1000, config.GetInt("network_path.collector.reverse_dns_cache.timeout"))
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
