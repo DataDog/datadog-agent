@@ -440,6 +440,7 @@ func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 func (pc *ProcessCacheEntry) Reset() {
 	pc.ProcessContext = zeroProcessContext
 	pc.refCount = 0
+	pc.onRelease = nil
 }
 
 // Retain increment ref counter
