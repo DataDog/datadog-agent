@@ -34,6 +34,7 @@ func TestGetPCLNTABSymbolParser(t *testing.T) {
 	f, err := safeelf.Open("/proc/" + strconv.Itoa(currentPid) + "/exe")
 	require.NoError(t, err)
 	symbolSet := make(common.StringSet)
+	allSymbols := make(map[string]elf.Symbol)
 	staticSymbols, _ := f.Symbols()
 	dynamicSymbols, _ := f.DynamicSymbols()
 	for _, symbols := range [][]safeelf.Symbol{staticSymbols, dynamicSymbols} {
@@ -46,6 +47,7 @@ func TestGetPCLNTABSymbolParser(t *testing.T) {
 				continue
 			}
 			symbolSet[sym.Name] = struct{}{}
+			allSymbols[sym.Name] = sym
 		}
 	}
 	if len(symbolSet) == 0 {
@@ -60,5 +62,11 @@ func TestGetPCLNTABSymbolParser(t *testing.T) {
 				t.Log("Missing symbol:", sym)
 			}
 		}
+		t.FailNow()
+	}
+
+	for name, symbol := range got {
+		require.Equalf(t, allSymbols[name].Value, symbol.Value, "Symbol %s", name)
+		require.Equalf(t, allSymbols[name].Size, symbol.Size, "Symbol %s", name)
 	}
 }
