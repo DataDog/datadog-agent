@@ -238,7 +238,6 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	debugging,
 	vector,
 	podman,
-	infraAgent, // run after serializer as some flags are overridden
 }
 
 func init() {
@@ -1018,6 +1017,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("reverse_dns_enrichment.rate_limiter.throttle_error_threshold")
 	config.SetKnown("reverse_dns_enrichment.rate_limiter.recovery_intervals")
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_interval", time.Duration(0))
+
+	// Default payloads (disabled for Error Tracking Standalone, Logs Collection Only)
+	config.BindEnvAndSetDefault("default_payloads.enabled", true)
+	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1644,17 +1647,6 @@ func kubernetes(config pkgconfigmodel.Setup) {
 
 func podman(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("podman_db_path", "")
-}
-
-func infraAgent(config pkgconfigmodel.Setup) {
-	// Disables metric data submission (including Custom Metrics) so that hosts stop showing up in Datadog.
-	// Used namely for Error Tracking Standalone where Infrastructure Monitoring is not needed.
-	if enabled := os.Getenv("DD_INFRA_AGENT_ENABLE"); enabled == "false" {
-		config.BindEnvAndSetDefault("enable_payloads.events", false)
-		config.BindEnvAndSetDefault("enable_payloads.series", false)
-		config.BindEnvAndSetDefault("enable_payloads.service_checks", false)
-		config.BindEnvAndSetDefault("enable_payloads.sketches", false)
-	}
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
@@ -2361,6 +2353,17 @@ func sanitizeExternalMetricsProviderChunkSize(config pkgconfigmodel.Config) {
 	if chunkSize > maxExternalMetricsProviderChunkSize {
 		log.Warnf("external_metrics_provider.chunk_size has been set to %d, which is higher than the maximum allowed value %d. Using %d.", chunkSize, maxExternalMetricsProviderChunkSize, maxExternalMetricsProviderChunkSize)
 		config.Set("external_metrics_provider.chunk_size", maxExternalMetricsProviderChunkSize, pkgconfigmodel.SourceAgentRuntime)
+	}
+}
+
+func toggleDefaultPayloads(config pkgconfigmodel.Config) {
+	// Disables metric data submission (including Custom Metrics) so that hosts stop showing up in Datadog.
+	// Used namely for Error Tracking Standalone where it is not needed.
+	if !config.GetBool("default_payloads.enabled") {
+		config.BindEnvAndSetDefault("enable_payloads.events", false)
+		config.BindEnvAndSetDefault("enable_payloads.series", false)
+		config.BindEnvAndSetDefault("enable_payloads.service_checks", false)
+		config.BindEnvAndSetDefault("enable_payloads.sketches", false)
 	}
 }
 
