@@ -260,13 +260,16 @@ func (l *SNMPListener) checkDevices() {
 	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
 	defer discoveryTicker.Stop()
 	for {
+		for _, subnet := range subnets {
+			devicesScannedInSubnetVar.Set(getSubnetVarKey(subnet), &expvar.Int{})
+			devicesFoundInSubnetVar.Set(getSubnetVarKey(subnet), &expvar.String{})
+			deviceScanningInSubnetVar.Set(getSubnetVarKey(subnet), &expvar.String{})
+		}
+
 		var subnet *snmpSubnet
 		for i := range subnets {
 			// Use `&subnets[i]` to pass the correct pointer address to snmpJob{}
 			subnet = &subnets[i]
-			devicesScannedInSubnetVar.Set(getSubnetVarKey(*subnet), &expvar.Int{})
-			devicesFoundInSubnetVar.Set(getSubnetVarKey(*subnet), &expvar.String{})
-			deviceScanningInSubnetVar.Set(getSubnetVarKey(*subnet), &expvar.String{})
 			startingIP := make(net.IP, len(subnet.startingIP))
 			copy(startingIP, subnet.startingIP)
 			for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {

@@ -162,6 +162,7 @@ func (d *Discovery) discoverDevices() {
 		devicesScannedInSubnetVar.Set(getSubnetVarKey(subnet), &expvar.Int{})
 		devicesFoundInSubnetVar.Set(getSubnetVarKey(subnet), &expvar.String{})
 		deviceScanningInSubnetVar.Set(getSubnetVarKey(subnet), &expvar.String{})
+
 		log.Debugf("subnet %s: Run discovery", d.config.Network)
 		startingIP := make(net.IP, len(subnet.startingIP))
 		copy(startingIP, subnet.startingIP)
@@ -186,10 +187,6 @@ func (d *Discovery) discoverDevices() {
 			default:
 			}
 		}
-		//discoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return devicesFound }))
-		//devicesFound := fmt.Sprintf("%d", len(subnet.devices))
-		//log.Debugf("subnet %s: Found %s devices", d.config.Network, devicesFound)
-		//subnetScannedVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return devicesFound }))
 
 		select {
 		case <-d.stop:
