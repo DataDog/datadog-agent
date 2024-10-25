@@ -25,10 +25,10 @@ type fieldsCollector struct {
 
 func newFieldsCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
 	c := &fieldsCollector{
-		device:       device,
-		tags:         tags,
-		fieldMetrics: metricNameToFieldID,
+		device: device,
+		tags:   tags,
 	}
+	c.fieldMetrics = append(c.fieldMetrics, metricNameToFieldID...) // copy all metrics to avoid modifying the original slice
 
 	// Remove any unsupported fields, we also want to check if we have any fields left
 	// to avoid doing unnecessary work

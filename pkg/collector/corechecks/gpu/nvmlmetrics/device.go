@@ -45,10 +45,10 @@ type deviceCollector struct {
 
 func newDeviceCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
 	c := &deviceCollector{
-		device:        device,
-		tags:          tags,
-		metricGetters: allDeviceMetrics,
+		device: device,
+		tags:   tags,
 	}
+	c.metricGetters = append(c.metricGetters, allDeviceMetrics...) // copy all metrics to avoid modifying the original slice
 
 	c.removeUnsupportedGetters()
 	if len(c.metricGetters) == 0 {
