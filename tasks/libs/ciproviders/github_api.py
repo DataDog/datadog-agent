@@ -378,6 +378,26 @@ class GithubAPI:
             draft=draft,
         )
 
+    def get_codereview_complexity(self, pr_id):
+        pr = self._repository.get_pull(pr_id)
+        criteria = {
+            'easy': {'files': 4, 'lines': 150, 'comments': 1},
+            'hard': {'files': 12, 'lines': 650, 'comments': 9},
+        }
+        if (
+            pr.changed_files < criteria['easy']['files']
+            and pr.additions + pr.deletions < criteria['easy']['lines']
+            and pr.review_comments < criteria['easy']['comments']
+        ):
+            return 'short review'
+        elif (
+            pr.changed_files > criteria['hard']['files']
+            or pr.additions + pr.deletions > criteria['hard']['lines']
+            or pr.review_comments > criteria['hard']['comments']
+        ):
+            return 'long review'
+        return 'medium review'
+
 
 def get_github_teams(users):
     for user in users:

@@ -409,3 +409,15 @@ def pr_commenter(
 
     if verbose:
         print(f"{action} comment on PR #{pr.number} - {pr.title}")
+
+
+@task
+def assign_codereview_label(_, pr_id=-1):
+    """
+    Assigns a code review complexity label based on PR attributes (files changed, additions, deletions, comments)
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI('DataDog/datadog-agent')
+    complexity = gh.get_codereview_complexity(pr_id)
+    gh.add_pr_label(pr_id, complexity)
