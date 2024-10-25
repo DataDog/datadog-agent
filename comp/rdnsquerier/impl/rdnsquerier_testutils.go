@@ -159,7 +159,7 @@ func (ts *testState) validateExpected(t *testing.T, expectedTelemetry map[string
 		} else {
 			assert.NoError(t, err)
 			assert.Len(t, metrics, 1)
-			assert.Equal(t, expected, metrics[0].Value())
+			assert.Equal(t, expected, metrics[0].Value(), name)
 		}
 	}
 }
