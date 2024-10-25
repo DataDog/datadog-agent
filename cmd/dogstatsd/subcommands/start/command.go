@@ -137,17 +137,10 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		forwarder.Bundle(defaultforwarder.NewParams()),
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
-		workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
-			catalog := workloadmeta.NodeAgent
-			instantiate := config.GetBool("dogstatsd_origin_detection")
-
-			return workloadmeta.Params{
-				AgentType:  catalog,
-				InitHelper: common.GetWorkloadmetaInit(),
-				NoInstance: !instantiate,
-			}
+		workloadmetafx.Module(workloadmeta.Params{
+			AgentType:  workloadmeta.NodeAgent,
+			InitHelper: common.GetWorkloadmetaInit(),
 		}),
-
 		compressionimpl.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(
 			demultiplexerimpl.WithContinueOnMissingHostname(),
@@ -158,7 +151,8 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
 		eventplatformreceiverimpl.Module(),
 		hostnameimpl.Module(),
-		taggerimpl.OptionalModule(),
+		taggerimpl.Module(),
+		fx.Provide(tagger.NewTaggerParams),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
@@ -190,8 +184,8 @@ func start(
 	params *Params,
 	server dogstatsdServer.Component,
 	_ defaultforwarder.Component,
-	wmeta optional.Option[workloadmeta.Component],
-	_ optional.Option[tagger.Component],
+	wmeta workloadmeta.Component,
+	_ tagger.Component,
 	demultiplexer demultiplexer.Component,
 	_ runner.Component,
 	_ resources.Component,
@@ -203,10 +197,9 @@ func start(
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 
-	w, _ := wmeta.Get()
 	components := &DogstatsdComponents{
 		DogstatsdServer: server,
-		WorkloadMeta:    w,
+		WorkloadMeta:    wmeta,
 	}
 	defer StopAgent(cancel, components)
 
