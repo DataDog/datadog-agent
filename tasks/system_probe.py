@@ -693,7 +693,6 @@ def build_sysprobe_binary(
         ctx,
         install_path=install_path,
         major_version=major_version,
-        python_runtimes=python_runtimes,
         arch=arch_obj,
         static=static,
     )
@@ -1509,6 +1508,7 @@ def build_cws_object_files(
         strip_object_files=strip_object_files,
         kernel_release=kernel_release,
         with_unit_test=with_unit_test,
+        ebpf_compiler=ebpf_compiler,
     )
 
     if bundle_ebpf:

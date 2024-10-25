@@ -328,7 +328,9 @@ def create_dir_if_needed(dir):
 
 
 @task
-def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True, compiler="clang"):
+def build_embed_syscall_tester(
+    ctx, arch: str | Arch = CURRENT_ARCH, static=True, compiler="clang", ebpf_compiler="clang"
+):
     arch = Arch.from_str(arch)
     check_for_ninja(ctx)
     build_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "bin")
@@ -338,7 +340,7 @@ def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True
     nf_path = os.path.join(ctx.cwd, 'syscall-tester.ninja')
     with open(nf_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file, width=120)
-        ninja_define_ebpf_compiler(nw, arch=arch)
+        ninja_define_ebpf_compiler(nw, arch=arch, compiler=ebpf_compiler)
         ninja_define_exe_compiler(nw, compiler=compiler)
 
         ninja_syscall_tester(nw, build_dir, static=static, compiler=compiler)
@@ -380,7 +382,7 @@ def build_functional_tests(
                 bundle_ebpf=bundle_ebpf,
                 ebpf_compiler=ebpf_compiler,
             )
-        build_embed_syscall_tester(ctx, compiler=syscall_tester_compiler)
+        build_embed_syscall_tester(ctx, compiler=syscall_tester_compiler, ebpf_compiler=ebpf_compiler)
 
     arch = Arch.from_str(arch)
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, arch=arch)
