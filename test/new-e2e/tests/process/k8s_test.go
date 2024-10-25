@@ -147,9 +147,6 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 		assert.ElementsMatch(c, []string{"process_discovery"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 	}, 5*time.Minute, 10*time.Second)
 
-	// Flush fake intake to remove any payloads which may have
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-
 	var payloads []*aggregator.ProcessDiscoveryPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		var err error
@@ -239,10 +236,7 @@ func (s *K8sSuite) TestProcessCheckInCoreAgentWithNPM() {
 			t.Logf("status: %+v\n", status)
 		}
 	}()
-	var tick int
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		t.Logf("tick %d", tick)
-		tick++
 		status = k8sAgentStatus(c, s.Env().KubernetesCluster)
 		assert.ElementsMatch(c, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
 		assert.ElementsMatch(c, []string{"connections"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
