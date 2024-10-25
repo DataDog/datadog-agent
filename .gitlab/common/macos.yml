@@ -17,14 +17,21 @@
     echo "To remove a Python version please run:"
     echo "pyenv uninstall -f <version>"
 
-.check_python_version_commands: &check_python_version_commands
+.select_python_env_commands: &select_python_env_commands
+  # Print a warning if the current Python version is different from the one in .python-version
+  # Select the virtualenv using the current Python version. Create it if it doesn't exist.
   - |
     PYTHON_REPO_VERSION=$(cat .python-version)
     PYTHON_VERSION=$(python3 --version | awk '{print $2}' | sed 's/\.[0-9]*$//')
+    VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
     if [ "$PYTHON_REPO_VERSION" != "$PYTHON_VERSION" ]; then
       echo "Warning: The current Python version $PYTHON_VERSION is different from $PYTHON_REPO_VERSION in .python-version."
       echo "Installing Python $PYTHON_REPO_VERSION..."
     fi
+    if ! pyenv virtualenvs --bare | grep -q "^${VENV_NAME}$"; then
+      pyenv virtualenv $PYTHON_VERSION $VENV_NAME
+    fi
+    pyenv activate $VENV_NAME
 
 .macos_gitlab:
   variables:
@@ -35,10 +42,8 @@
       eval $(gimme $(cat .go-version))
       export GOPATH=$GOROOT
     # Selecting the current Python version
-    - *check_python_version_commands
-    - |
-      pyenv virtualenv $PYTHON_VERSION datadog-agent-python-$PYTHON_VERSION
-      pyenv activate datadog-agent-python-$PYTHON_VERSION
+    - *select_python_env_commands
+    # List Python and Go existing environments and their disk space
     - *list_go_versions_commands
     - *list_python_versions_commands
     # Installing the job dependencies
