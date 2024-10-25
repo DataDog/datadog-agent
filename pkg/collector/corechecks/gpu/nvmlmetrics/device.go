@@ -60,7 +60,7 @@ func newDeviceCollector(_ nvml.Interface, device nvml.Device, tags []string) (Co
 
 func (c *deviceCollector) removeUnsupportedGetters() {
 	metricsToRemove := common.StringSet{}
-	for _, metric := range allDeviceMetrics {
+	for _, metric := range c.metricGetters {
 		_, ret := metric.getter(c.device)
 		if ret == nvml.ERROR_NOT_SUPPORTED {
 			metricsToRemove.Add(metric.name)
@@ -88,8 +88,8 @@ type deviceMetric struct {
 func (c *deviceCollector) Collect() ([]Metric, error) {
 	var err error
 
-	values := make([]Metric, 0, len(allDeviceMetrics)) // preallocate to reduce allocations
-	for _, metric := range allDeviceMetrics {
+	values := make([]Metric, 0, len(c.metricGetters)) // preallocate to reduce allocations
+	for _, metric := range c.metricGetters {
 		value, ret := metric.getter(c.device)
 		if ret != nvml.SUCCESS {
 			err = multierror.Append(err, fmt.Errorf("failed to get metric %s: %s", metric.name, nvml.ErrorString(ret)))
