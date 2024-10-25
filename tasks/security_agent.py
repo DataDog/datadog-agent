@@ -774,6 +774,7 @@ def go_generate_check(ctx):
 
 E2E_ARTIFACT_DIR = os.path.join(CI_PROJECT_DIR, "test", "new-e2e", "tests", "security-agent-functional", "artifacts")
 
+
 @task
 def e2e_prepare_win(ctx):
     """
