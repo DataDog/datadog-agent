@@ -25,7 +25,6 @@ from tasks.libs.common.utils import (
     environ,
     get_build_flags,
     get_go_version,
-    get_gopath,
     get_version,
 )
 from tasks.libs.types.arch import ARCH_AMD64, Arch
