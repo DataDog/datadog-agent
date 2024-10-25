@@ -13,7 +13,6 @@ from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
-    GitlabYamlLoader,
     get_gitlab_bot_token,
     get_gitlab_repo,
     gitlab_configuration_is_modified,
@@ -740,27 +739,6 @@ def update_buildimages(ctx, image_tag, test_version=True, branch_name=None):
     Use --no-test-version to commit without the _test_only suffixes
     """
     raise Exit(f"This invoke task is {color_message('deprecated', 'red')}, please use inv buildimages.update instead.")
-
-
-@task(
-    help={
-        "file_path": "path of the Gitlab configuration YAML file",
-    },
-    autoprint=True,
-)
-def get_gitlab_config_image_tag(_, file_path=".gitlab-ci.yml"):
-    """
-    Print the current image tag of the given Gitlab configuration file (default: ".gitlab-ci.yml")
-    """
-    with open(file_path) as gl:
-        file_content = gl.readlines()
-    gitlab_ci = yaml.load("".join(file_content), Loader=GitlabYamlLoader())
-    if "variables" not in gitlab_ci or "DATADOG_AGENT_BUILDIMAGES" not in gitlab_ci["variables"]:
-        raise Exit(
-            color_message(f"Impossible to find the version of image in {file_path} configuration file", "red"),
-            code=1,
-        )
-    return gitlab_ci["variables"]["DATADOG_AGENT_BUILDIMAGES"]
 
 
 @task(

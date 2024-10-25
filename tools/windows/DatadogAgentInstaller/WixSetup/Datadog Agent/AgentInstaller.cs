@@ -32,7 +32,7 @@ namespace WixSetup.Datadog_Agent
 
         // Source directories
         private const string InstallerSource = @"C:\opt\datadog-agent";
-        private const string BinSource = @"C:\opt\datadog-agent\bin";
+        private const string BinSource = @"C:\opt\datadog-agent\bin\agent";
         private const string EtcSource = @"C:\omnibus-ruby\src\etc\datadog-agent";
 
         private readonly AgentBinaries _agentBinaries;
@@ -280,7 +280,7 @@ namespace WixSetup.Datadog_Agent
                     .First(x => x.HasAttribute("Id", value => value == "AGENT"))
                     .AddElement("Directory", "Id=DRIVER; Name=driver")
                     .AddElement("Merge",
-                        $"Id=ddnpminstall; SourceFile={BinSource}\\agent\\DDNPM.msm; DiskId=1; Language=1033");
+                        $"Id=ddnpminstall; SourceFile={BinSource}\\DDNPM.msm; DiskId=1; Language=1033");
                 document
                     .FindAll("Feature")
                     .First(x => x.HasAttribute("Id", value => value == "MainApplication"))
@@ -293,7 +293,7 @@ namespace WixSetup.Datadog_Agent
                         .FindAll("Directory")
                         .First(x => x.HasAttribute("Id", value => value == "AGENT"))
                         .AddElement("Merge",
-                            $"Id=ddapminstall; SourceFile={BinSource}\\agent\\ddapminstall.msm; DiskId=1; Language=1033");
+                            $"Id=ddapminstall; SourceFile={BinSource}\\ddapminstall.msm; DiskId=1; Language=1033");
                     document
                         .FindAll("Feature")
                         .First(x => x.HasAttribute("Id", value => value == "MainApplication"))
@@ -303,7 +303,7 @@ namespace WixSetup.Datadog_Agent
                     .FindAll("Directory")
                     .First(x => x.HasAttribute("Id", value => value == "AGENT"))
                     .AddElement("Merge",
-                        $"Id=ddprocmoninstall; SourceFile={BinSource}\\agent\\ddprocmon.msm; DiskId=1; Language=1033");
+                        $"Id=ddprocmoninstall; SourceFile={BinSource}\\ddprocmon.msm; DiskId=1; Language=1033");
                 document
                     .FindAll("Feature")
                     .First(x => x.HasAttribute("Id", value => value == "MainApplication"))
@@ -507,7 +507,6 @@ namespace WixSetup.Datadog_Agent
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.TraceAgent)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                     }
-
             );
             var securityAgentService = GenerateDependentServiceInstaller(
                 new Id("ddagentsecurityservice"),
@@ -528,6 +527,9 @@ namespace WixSetup.Datadog_Agent
             );
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
                 new WixSharp.File(_agentBinaries.Agent, agentService),
+                // Temporary binary for extracting the embedded Python - will be deleted
+                // by the CustomAction
+                new WixSharp.File(new Id("sevenzipr"), Path.Combine(BinSource, "7zr.exe")),
                 // Each EventSource must have KeyPath=yes to avoid having the parent directory placed in the CreateFolder table.
                 // The EventSource supports being a KeyPath.
                 // https://wixtoolset.org/docs/v3/xsd/util/eventsource/
@@ -538,11 +540,8 @@ namespace WixSetup.Datadog_Agent
                     EventMessageFile = $"[BIN]{Path.GetFileName(_agentBinaries.Agent)}",
                     AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                 },
-
                 agentBinDir,
-
                 new WixSharp.File(_agentBinaries.LibDatadogAgentThree)
-
             );
 
             return targetBinFolder;

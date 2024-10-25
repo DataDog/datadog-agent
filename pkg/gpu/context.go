@@ -37,6 +37,12 @@ func getSystemContext(nvmlLib nvml.Interface) (*systemContext, error) {
 		return nil, fmt.Errorf("error querying devices: %w", err)
 	}
 
+	var err error
+	ctx.timeResolver, err = sectime.NewResolver()
+	if err != nil {
+		return nil, fmt.Errorf("error creating time resolver: %w", err)
+	}
+
 	return ctx, nil
 }
 
