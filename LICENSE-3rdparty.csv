@@ -923,10 +923,11 @@ core,github.com/freddierice/go-losetup,MIT,Copyright (c) 2017 Freddie Rice
 core,github.com/fsnotify/fsnotify,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved. | Copyright (c) 2012-2019 fsnotify Authors. All rights reserved.
 core,github.com/ghodss/yaml,MIT,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2014 Sam Ghods
 core,github.com/glaslos/ssdeep,MIT,"Copyright (c) 2015, Arbo von Monkiewitsch All rights reserved | Copyright (c) 2017 Lukas Rist"
+core,github.com/go-delve/delve/pkg/dwarf,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/dwarf/godwarf,MIT,Copyright (c) 2014 Derek Parker
+core,github.com/go-delve/delve/pkg/dwarf/leb128,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/dwarf/loclist,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/dwarf/op,MIT,Copyright (c) 2014 Derek Parker
-core,github.com/go-delve/delve/pkg/dwarf/util,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/goversion,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/logflags,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-git/gcfg,BSD-3-Clause,Copyright (c) 2012 Péter Surányi. Portions Copyright (c) 2009 The Go
