@@ -139,10 +139,8 @@
 /.gitlab/container_build/fakeintake.yml              @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 /.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 
-/.gitlab/functional_test/security_agent.yml          @DataDog/agent-security @DataDog/agent-devx-infra
 /.gitlab/functional_test/serverless.yml              @DataDog/serverless @Datadog/serverless-aws @DataDog/agent-devx-infra
 /.gitlab/functional_test_cleanup                     @DataDog/agent-security @DataDog/windows-kernel-integrations @DataDog/agent-devx-infra
-/.gitlab/functional_test/common.yml                  @DataDog/agent-devx-infra @DataDog/windows-kernel-integrations
 /.gitlab/functional_test/oracle.yml                  @DataDog/agent-devx-infra @DataDog/database-monitoring
 
 /.gitlab/powershell_script_deploy                    @DataDog/agent-delivery @DataDog/windows-agent
