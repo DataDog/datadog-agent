@@ -19,7 +19,6 @@ import (
 
 func TestProcessorRunFullStatsLinux(t *testing.T) {
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	containersMeta := []*workloadmeta.Container{
 		// Container with full stats
@@ -90,7 +89,6 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 
 func TestProcessorRunPartialStats(t *testing.T) {
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	containersMeta := []*workloadmeta.Container{
 		// Container without stats

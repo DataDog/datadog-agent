@@ -47,7 +47,6 @@ func TestGetContainers(t *testing.T) {
 	))
 
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	// Finally, container provider
 	testTime := time.Now()

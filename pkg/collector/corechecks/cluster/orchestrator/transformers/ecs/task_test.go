@@ -24,7 +24,6 @@ func TestExtractECSTask(t *testing.T) {
 	now := time.Date(2024, 1, 1, 11, 1, 1, 1, time.UTC)
 
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	actual := ExtractECSTask(TaskWithContainers{
 		Task: &workloadmeta.ECSTask{

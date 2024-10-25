@@ -129,7 +129,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 	}
 
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
+
 	for _, ev := range incomingEvents {
 		fakeTagger.SetTags(
 			types.NewEntityID(types.ContainerID, ev.ContainerID).String(),

@@ -38,7 +38,6 @@ func TestCriCheck(t *testing.T) {
 		"cID101": mock.GetFullSampleContainerEntry(),
 	}
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	// Inject mock processor in check
 	mockCri := &crimock.MockCRIClient{}

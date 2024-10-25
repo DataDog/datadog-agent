@@ -585,7 +585,6 @@ func TestTags(t *testing.T) {
 			mockConfig.SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
 
 			taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
-			defer taggerComponent.ResetTagger()
 
 			agg := NewBufferedAggregator(nil, nil, taggerComponent, tt.hostname, time.Second)
 			agg.agentTags = tt.agentTags

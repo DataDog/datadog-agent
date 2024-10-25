@@ -176,7 +176,6 @@ func (suite *PodTestSuite) TestPodCheck() {
 
 	defer func() {
 		cache.Cache.Set(cacheKey, cachedClusterID, cache.NoExpiration)
-		suite.tagger.ResetTagger()
 	}()
 
 	err := suite.check.Run()

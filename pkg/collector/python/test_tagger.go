@@ -44,7 +44,6 @@ func testTags(t *testing.T) {
 	tagger := taggerimpl.SetupFakeTagger(t)
 	tagger.SetTags("test", "foo", []string{"tag1", "tag2", "tag3"}, nil, nil, nil)
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
-	defer tagger.ResetTagger()
 	defer release()
 
 	id := C.CString("test")
@@ -68,7 +67,6 @@ func testTagsNull(t *testing.T) {
 	tagger := taggerimpl.SetupFakeTagger(t)
 	tagger.SetTags("test", "foo", nil, nil, nil, nil)
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
-	defer tagger.ResetTagger()
 	defer release()
 
 	id := C.CString("test")
@@ -84,7 +82,6 @@ func testTagsEmpty(t *testing.T) {
 	tagger := taggerimpl.SetupFakeTagger(t)
 	tagger.SetTags("test", "foo", []string{}, nil, nil, nil)
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
-	defer tagger.ResetTagger()
 	defer release()
 
 	id := C.CString("test")

@@ -172,7 +172,6 @@ func TestProvider_Provide(t *testing.T) {
 			mockSender.SetupAcceptAll()
 
 			fakeTagger := taggerimpl.SetupFakeTagger(t)
-			defer fakeTagger.ResetTagger()
 
 			err = commontesting.StorePopulatedFromFile(store, tt.podsFile, common.NewPodUtils(fakeTagger))
 			if err != nil {
@@ -241,7 +240,6 @@ func TestProvider_DisableProvider(t *testing.T) {
 	mockSender.SetupAcceptAll()
 
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	err = commontesting.StorePopulatedFromFile(store, "../../testdata/pods.json", common.NewPodUtils(fakeTagger))
 	if err != nil {

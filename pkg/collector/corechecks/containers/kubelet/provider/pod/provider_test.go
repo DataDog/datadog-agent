@@ -115,7 +115,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 	suite.mockSender = mockSender
 
 	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
-	defer fakeTagger.ResetTagger()
+
 	for entity, tags := range commontesting.CommonTags {
 		fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
 	}

@@ -22,7 +22,6 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	mockSender.SetupAcceptAll()
 
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	mockCollector := mock.NewCollector("testCollector")
 

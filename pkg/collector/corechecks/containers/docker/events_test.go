@@ -22,7 +22,6 @@ import (
 
 func TestReportExitCodes(t *testing.T) {
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	dockerCheck := &DockerCheck{
 		instance: &DockerConfig{},
@@ -127,7 +126,6 @@ func TestReportExitCodes(t *testing.T) {
 
 func TestAggregateEvents(t *testing.T) {
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	testCases := []struct {
 		events          []*docker.ContainerEvent

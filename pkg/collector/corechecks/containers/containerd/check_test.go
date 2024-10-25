@@ -57,7 +57,6 @@ func TestContainerdCheckGenericPart(t *testing.T) {
 		generic.CreateContainerMeta("docker", "cID101"),
 	}
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	containersStats := map[string]mock.ContainerEntry{
 		"cID100": mock.GetFullSampleContainerEntry(),
