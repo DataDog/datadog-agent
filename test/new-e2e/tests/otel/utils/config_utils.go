@@ -54,6 +54,12 @@ func TestOTelFlare(s OTelTestSuite, providedCfg string, fullCfg string, sources 
 	assert.Contains(s.T(), otelflares, "otel/otel-flare/health_check/dd-autoconfigured.dat")
 	assert.Contains(s.T(), otelflares, "otel/otel-flare/pprof/dd-autoconfigured_debug_pprof_heap.dat")
 	assert.Contains(s.T(), otelflares, "otel/otel-flare/pprof/dd-autoconfigured_debug_pprof_allocs.dat")
+	assert.Contains(s.T(), otelflares, "otel/otel-flare/pprof/dd-autoconfigured_debug_pprof_profile.dat")
+	assert.Contains(s.T(), otelflares, "otel/otel-flare/zpages/dd-autoconfigured_debug_tracez.dat")
+	assert.Contains(s.T(), otelflares, "otel/otel-flare/zpages/dd-autoconfigured_debug_pipelinez.dat")
+	assert.Contains(s.T(), otelflares, "otel/otel-flare/zpages/dd-autoconfigured_debug_extensionz.dat")
+	assert.Contains(s.T(), otelflares, "otel/otel-flare/zpages/dd-autoconfigured_debug_featurez.dat")
+	assert.Contains(s.T(), otelflares, "otel/otel-flare/zpages/dd-autoconfigured_debug_servicez.dat")
 	assert.Contains(s.T(), otelflares, "otel/otel-flare/command.txt")
 	assert.Contains(s.T(), otelflares, "otel/otel-flare/ext.txt")
 
