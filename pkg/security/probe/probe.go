@@ -65,18 +65,24 @@ type EventHandler interface {
 	HandleEvent(event *model.Event)
 }
 
-// EventConsumerInterface represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
-type EventConsumerInterface interface {
-	ID() string
+// EventConsumerHandler represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
+type EventConsumerHandler interface {
+	IDer
 	ChanSize() int
 	HandleEvent(_ any)
 	Copy(_ *model.Event) any
 	EventTypes() []model.EventType
 }
 
+// IDer provides unique ID for each event consumer
+type IDer interface {
+	// ID returns the ID of the event consumer
+	ID() string
+}
+
 // EventConsumer defines a probe event consumer
 type EventConsumer struct {
-	consumer     EventConsumerInterface
+	consumer     EventConsumerHandler
 	eventCh      chan any
 	eventDropped *atomic.Int64
 }
@@ -280,7 +286,7 @@ func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
 }
 
 // AddEventConsumer sets a probe event consumer
-func (p *Probe) AddEventConsumer(consumer EventConsumerInterface) error {
+func (p *Probe) AddEventConsumer(consumer EventConsumerHandler) error {
 	chanSize := consumer.ChanSize()
 	if chanSize <= 0 {
 		chanSize = defaultConsumerChanSize

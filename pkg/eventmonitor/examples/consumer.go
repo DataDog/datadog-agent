@@ -31,7 +31,7 @@ type SimpleEventConsumer struct {
 // NewSimpleEventConsumer returns a new simple event consumer
 func NewSimpleEventConsumer(em *eventmonitor.EventMonitor) *SimpleEventConsumer {
 	fc := &SimpleEventConsumer{}
-	_ = em.AddEventConsumer(fc)
+	_ = em.AddEventConsumerHandler(fc)
 	return fc
 }
 

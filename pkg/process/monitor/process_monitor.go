@@ -526,7 +526,7 @@ type EventConsumer struct{}
 // NewProcessMonitorEventConsumer returns a new process monitor event consumer
 func NewProcessMonitorEventConsumer(em *eventmonitor.EventMonitor) (*EventConsumer, error) {
 	consumer := &EventConsumer{}
-	err := em.AddEventConsumer(consumer)
+	err := em.AddEventConsumerHandler(consumer)
 	return consumer, err
 }
 
