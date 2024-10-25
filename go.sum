@@ -2673,8 +2673,8 @@ go.opentelemetry.io/collector/otelcol v0.104.0 h1:RnMx7RaSFmX4dq/l3wbXWwcUnFK7RU
 go.opentelemetry.io/collector/otelcol v0.104.0/go.mod h1:hWFRiHIKT3zbUx6SRevusPRa6mfm+70bPG5CK0glqSU=
 go.opentelemetry.io/collector/otelcol/otelcoltest v0.104.0 h1:duPbOTahDcDP+XupC/KkHvebb8+NVKh7LzIpiEuKwLU=
 go.opentelemetry.io/collector/otelcol/otelcoltest v0.104.0/go.mod h1:cNosA2o77fGp2N4Ofs5h6HBdHhlPQAbKBjBIc1l+8O4=
-go.opentelemetry.io/collector/pdata v1.11.0 h1:rzYyV1zfTQQz1DI9hCiaKyyaczqawN75XO9mdXmR/hE=
-go.opentelemetry.io/collector/pdata v1.11.0/go.mod h1:IHxHsp+Jq/xfjORQMDJjSH6jvedOSTOyu3nbxqhWSYE=
+go.opentelemetry.io/collector/pdata v1.18.0 h1:/yg2rO2dxqDM2p6GutsMCxXN6sKlXwyIz/ZYyUPONBg=
+go.opentelemetry.io/collector/pdata v1.18.0/go.mod h1:Ox1YVLe87cZDB/TL30i4SUz1cA5s6AM6SpFMfY61ICs=
 go.opentelemetry.io/collector/pdata/pprofile v0.104.0 h1:MYOIHvPlKEJbWLiBKFQWGD0xd2u22xGVLt4jPbdxP4Y=
 go.opentelemetry.io/collector/pdata/pprofile v0.104.0/go.mod h1:7WpyHk2wJZRx70CGkBio8klrYTTXASbyIhf+rH4FKnA=
 go.opentelemetry.io/collector/pdata/testdata v0.104.0 h1:BKTZ7hIyAX5DMPecrXkVB2e86HwWtJyOlXn/5vSVXNw=

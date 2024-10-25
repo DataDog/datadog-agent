@@ -291,7 +291,7 @@ require (
 	go.opentelemetry.io/collector/exporter v0.104.0
 	go.opentelemetry.io/collector/exporter/debugexporter v0.104.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.104.0
-	go.opentelemetry.io/collector/pdata v1.11.0
+	go.opentelemetry.io/collector/pdata v1.18.0
 	go.opentelemetry.io/collector/processor/batchprocessor v0.104.0
 	go.opentelemetry.io/collector/receiver v0.104.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.104.0
