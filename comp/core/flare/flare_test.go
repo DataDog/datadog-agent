@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -51,7 +52,7 @@ func TestFlareCreation(t *testing.T) {
 			collector.NoneModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			autodiscoveryimpl.MockModule(),
-			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
+			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: scheduler.NewController()}),
 			fx.Provide(func(ac autodiscovery.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
 			fx.Provide(func() tagger.Mock { return fakeTagger }),
 			// provider a nil FlareCallback
@@ -90,7 +91,7 @@ func TestRunProviders(t *testing.T) {
 		collector.NoneModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		autodiscoveryimpl.MockModule(),
-		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
+		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: scheduler.NewController()}),
 		fx.Provide(func(ac autodiscovery.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
 		fx.Provide(func() tagger.Mock { return fakeTagger }),
 		// provider a nil FlareCallback
