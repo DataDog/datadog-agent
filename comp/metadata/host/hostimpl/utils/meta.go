@@ -25,15 +25,16 @@ var (
 
 // Meta is the metadata nested under the meta key
 type Meta struct {
-	SocketHostname string   `json:"socket-hostname"`
-	Timezones      []string `json:"timezones"`
-	SocketFqdn     string   `json:"socket-fqdn"`
-	EC2Hostname    string   `json:"ec2-hostname"`
-	Hostname       string   `json:"hostname"`
-	HostAliases    []string `json:"host_aliases"`
-	InstanceID     string   `json:"instance-id"`
-	AgentHostname  string   `json:"agent-hostname,omitempty"`
-	ClusterName    string   `json:"cluster-name,omitempty"`
+	SocketHostname           string   `json:"socket-hostname"`
+	Timezones                []string `json:"timezones"`
+	SocketFqdn               string   `json:"socket-fqdn"`
+	EC2Hostname              string   `json:"ec2-hostname"`
+	Hostname                 string   `json:"hostname"`
+	HostAliases              []string `json:"host_aliases"`
+	InstanceID               string   `json:"instance-id"`
+	AgentHostname            string   `json:"agent-hostname,omitempty"`
+	ClusterName              string   `json:"cluster-name,omitempty"`
+	LegacyResolutionHostname string   `json:"legacy-resolution-hostname,omitempty"`
 }
 
 // GetMetaFromCache returns the metadata information about the host from the cache and returns it, if the cache is
@@ -56,6 +57,7 @@ func GetMeta(ctx context.Context, conf model.Reader) *Meta {
 	instanceID, _ := ec2.GetInstanceID(ctx)
 
 	var agentHostname string
+	var legacyResolutionHostname string
 
 	hostnameData, _ := hostname.GetWithProvider(ctx)
 	if conf.GetBool("hostname_force_config_as_canonical") && hostnameData.FromConfiguration() {
@@ -70,6 +72,7 @@ func GetMeta(ctx context.Context, conf model.Reader) *Meta {
 		HostAliases:    cloudproviders.GetHostAliases(ctx),
 		InstanceID:     instanceID,
 		AgentHostname:  agentHostname,
+		LegacyResolutionHostname: legacyResolutionHostname,
 	}
 
 	if finalClusterName := kubelet.GetMetaClusterNameText(ctx, osHostname); finalClusterName != "" {
