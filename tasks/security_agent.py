@@ -802,16 +802,12 @@ def go_generate_check(ctx):
 
 
 @task
-def kitchen_prepare(ctx, skip_linters=False):
+def e2e_prepare_win(ctx):
     """
-    Compile test suite for kitchen
+    Compile test suite for CWS windows new-e2e tests
     """
 
-    out_binary = "testsuite"
-    race = True
-    if is_windows:
-        out_binary = "testsuite.exe"
-        race = False
+    out_binary = "testsuite.exe"
 
     testsuite_out_dir = os.path.join(KITCHEN_ARTIFACT_DIR, "tests")
     # Clean up previous build
@@ -822,48 +818,24 @@ def kitchen_prepare(ctx, skip_linters=False):
     build_functional_tests(
         ctx,
         bundle_ebpf=False,
-        race=race,
+        race=False,
         debug=True,
         output=testsuite_out_path,
-        skip_linters=skip_linters,
+        skip_linters=True,
     )
-    if is_windows:
-        # build the ETW tests binary also
-        testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", "etw", out_binary)
-        srcpath = 'pkg/security/probe'
-        build_functional_tests(
-            ctx,
-            output=testsuite_out_path,
-            srcpath=srcpath,
-            bundle_ebpf=False,
-            race=race,
-            debug=True,
-            skip_linters=skip_linters,
-        )
 
-        return
-
-    stresssuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", STRESS_TEST_SUITE)
-    build_stress_tests(ctx, output=stresssuite_out_path, skip_linters=skip_linters)
-
-    # Copy clang binaries
-    for bin in ["clang-bpf", "llc-bpf"]:
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/{bin} {KITCHEN_ARTIFACT_DIR}/{bin}")
-
-    # Copy gotestsum binary
-    gopath = get_gopath(ctx)
-    ctx.run(f"cp {gopath}/bin/gotestsum {KITCHEN_ARTIFACT_DIR}/")
-
-    # Build test2json binary
-    ctx.run(f"go build -o {KITCHEN_ARTIFACT_DIR}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
-
-    ebpf_bytecode_dir = os.path.join(KITCHEN_ARTIFACT_DIR, "ebpf_bytecode")
-    ebpf_runtime_dir = os.path.join(ebpf_bytecode_dir, "runtime")
-    bytecode_build_dir = os.path.join(CI_PROJECT_DIR, "pkg", "ebpf", "bytecode", "build")
-
-    ctx.run(f"mkdir -p {ebpf_runtime_dir}")
-    ctx.run(f"cp {bytecode_build_dir}/runtime-security* {ebpf_bytecode_dir}")
-    ctx.run(f"cp {bytecode_build_dir}/runtime/runtime-security* {ebpf_runtime_dir}")
+    # build the ETW tests binary also
+    testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", "etw", out_binary)
+    srcpath = 'pkg/security/probe'
+    build_functional_tests(
+        ctx,
+        output=testsuite_out_path,
+        srcpath=srcpath,
+        bundle_ebpf=False,
+        race=False,
+        debug=True,
+        skip_linters=True,
+    )
 
 
 @task
