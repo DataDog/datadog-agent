@@ -37,6 +37,9 @@ updates:
       bun:
         patterns:
           - "github.com/uptrace/bun*"
+      aws-sdk-go-v2:
+        patterns:
+          - "github.com/aws/aws-sdk-go-v2*"
   - package-ecosystem: gomod
     directory: /pkg/trace
     labels:
