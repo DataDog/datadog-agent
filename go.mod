@@ -139,7 +139,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil/
 	github.com/DataDog/datadog-agent/pkg/version => ./pkg/version
 
-	github.com/DataDog/zstd => github.com/StephenWakely/zstd v0.0.0-20241024135713-860cfd3551ed
+	github.com/DataDog/zstd => github.com/StephenWakely/zstd v0.0.0-20241025124839-d5cc1b29f8a6
 )
 
 require (
