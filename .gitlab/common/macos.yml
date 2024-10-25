@@ -35,10 +35,10 @@
       eval $(gimme $(cat .go-version))
       export GOPATH=$GOROOT
     # Selecting the current Python version
+    - *check_python_version_commands
     - |
       pyenv virtualenv $PYTHON_VERSION datadog-agent-python-$PYTHON_VERSION
       pyenv activate datadog-agent-python-$PYTHON_VERSION
-    - *check_python_version_commands
     - *list_go_versions_commands
     - *list_python_versions_commands
     # Installing the job dependencies
