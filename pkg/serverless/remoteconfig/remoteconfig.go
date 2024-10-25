@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package remoteconfig provides a remote configuration service constructor for serverless
 package remoteconfig
 
 import (
@@ -19,6 +20,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 )
 
+// StartRCService creates a service for reading config from the remote configuration backend
 func StartRCService(functionARN string) *remoteconfig.CoreAgentService {
 	config := pkgconfigsetup.Datadog()
 	if pkgconfigsetup.IsRemoteConfigEnabled(config) {
@@ -92,8 +94,7 @@ func StartRCService(functionARN string) *remoteconfig.CoreAgentService {
 		}
 		configService.Start()
 		return configService
-	} else {
-		log.Debug("Remote configuration configuration is disabled, did not create service")
-		return nil
 	}
+	log.Debug("Remote configuration configuration is disabled, did not create service")
+	return nil
 }

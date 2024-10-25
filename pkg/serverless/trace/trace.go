@@ -92,6 +92,7 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 	return comptracecfg.LoadConfigFile(l.Path, c)
 }
 
+// ServerlessTraceAgentParams represents the parameters needed to start the trace agent
 type ServerlessTraceAgentParams struct {
 	Enabled         bool
 	LoadConfig      Load
