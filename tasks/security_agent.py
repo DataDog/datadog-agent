@@ -43,8 +43,7 @@ is_windows = sys.platform == "win32"
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
-KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
-KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-security-agent-check", "files")
+CI_PROJECT_DIR = os.environ.get("CI_PROJECT_DIR", ".")
 STRESS_TEST_SUITE = "stresssuite"
 
 
@@ -773,6 +772,8 @@ def go_generate_check(ctx):
         raise Exit(code=1)
 
 
+E2E_ARTIFACT_DIR = os.path.join(CI_PROJECT_DIR, "test", "new-e2e", "tests", "security-agent-functional", "artifacts")
+
 @task
 def e2e_prepare_win(ctx):
     """
@@ -781,7 +782,7 @@ def e2e_prepare_win(ctx):
 
     out_binary = "testsuite.exe"
 
-    testsuite_out_dir = os.path.join(KITCHEN_ARTIFACT_DIR, "tests")
+    testsuite_out_dir = os.path.join(E2E_ARTIFACT_DIR, "tests")
     # Clean up previous build
     if os.path.exists(testsuite_out_dir):
         shutil.rmtree(testsuite_out_dir)
@@ -797,7 +798,7 @@ def e2e_prepare_win(ctx):
     )
 
     # build the ETW tests binary also
-    testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", "etw", out_binary)
+    testsuite_out_path = os.path.join(E2E_ARTIFACT_DIR, "tests", "etw", out_binary)
     srcpath = 'pkg/security/probe'
     build_functional_tests(
         ctx,
