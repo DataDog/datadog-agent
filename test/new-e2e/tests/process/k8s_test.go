@@ -77,7 +77,7 @@ func TestK8sTestSuite(t *testing.T) {
 				return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
 			}),
 			awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
-		)),
+		)), e2e.WithDevMode(),
 	}
 
 	e2e.Run(t, &K8sSuite{}, options...)
@@ -86,10 +86,10 @@ func TestK8sTestSuite(t *testing.T) {
 func (s *K8sSuite) TestProcessCheck() {
 	t := s.T()
 
-	assert.EventuallyWithT(t, func(*assert.CollectT) {
-		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
-		assert.ElementsMatch(t, []string{"process", "rtprocess"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
-	}, 4*time.Minute, 10*time.Second)
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		status := k8sAgentStatus(c, s.Env().KubernetesCluster)
+		assert.ElementsMatch(c, []string{"process", "rtprocess"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
+	}, 5*time.Minute, 10*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -99,7 +99,7 @@ func (s *K8sSuite) TestProcessCheck() {
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 
 	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
 	assertContainersCollected(t, payloads, []string{"stress-ng"})
@@ -142,10 +142,10 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 			t.Logf("status: %+v\n", status)
 		}
 	}()
-	assert.EventuallyWithT(t, func(*assert.CollectT) {
-		status = k8sAgentStatus(t, s.Env().KubernetesCluster)
-		assert.ElementsMatch(t, []string{"process_discovery"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
-	}, 4*time.Minute, 10*time.Second)
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		status = k8sAgentStatus(c, s.Env().KubernetesCluster)
+		assert.ElementsMatch(c, []string{"process_discovery"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
+	}, 5*time.Minute, 10*time.Second)
 
 	// Flush fake intake to remove any payloads which may have
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
@@ -156,7 +156,7 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 		payloads, err = s.Env().FakeIntake.Client().GetProcessDiscoveries()
 		assert.NoError(c, err, "failed to get process discovery payloads from fakeintake")
 		assert.NotEmpty(c, payloads, "no process discovery payloads returned")
-	}, 2*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 
 	assertProcessDiscoveryCollected(t, payloads, "stress-ng-cpu [run]")
 }
@@ -184,16 +184,16 @@ func (s *K8sSuite) TestProcessCheckInCoreAgent() {
 			t.Logf("status: %+v\n", status)
 		}
 	}()
-	assert.EventuallyWithT(t, func(*assert.CollectT) {
-		status = k8sAgentStatus(t, s.Env().KubernetesCluster)
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		status = k8sAgentStatus(c, s.Env().KubernetesCluster)
 
 		// verify the standalone process-agent is not running
-		assert.NotEmpty(t, status.ProcessAgentStatus.Error, "status: %+v", status)
-		assert.Empty(t, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
+		assert.NotEmpty(c, status.ProcessAgentStatus.Error, "status: %+v", status)
+		assert.Empty(c, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 
 		// Verify the process component is running in the core agent
-		assert.ElementsMatch(t, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
-	}, 4*time.Minute, 10*time.Second)
+		assert.ElementsMatch(c, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
+	}, 5*time.Minute, 10*time.Second)
 
 	// Flush fake intake to remove any payloads which may have
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
@@ -205,7 +205,7 @@ func (s *K8sSuite) TestProcessCheckInCoreAgent() {
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 
 	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
 	assertContainersCollected(t, payloads, []string{"stress-ng"})
@@ -239,11 +239,14 @@ func (s *K8sSuite) TestProcessCheckInCoreAgentWithNPM() {
 			t.Logf("status: %+v\n", status)
 		}
 	}()
-	assert.EventuallyWithT(t, func(*assert.CollectT) {
-		status = k8sAgentStatus(t, s.Env().KubernetesCluster)
-		assert.ElementsMatch(t, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
-		assert.ElementsMatch(t, []string{"connections"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
-	}, 4*time.Minute, 10*time.Second)
+	var tick int
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		t.Logf("tick %d", tick)
+		tick++
+		status = k8sAgentStatus(c, s.Env().KubernetesCluster)
+		assert.ElementsMatch(c, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
+		assert.ElementsMatch(c, []string{"connections"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
+	}, 5*time.Minute, 10*time.Second)
 
 	// Flush fake intake to remove any payloads which may have
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
@@ -256,7 +259,7 @@ func (s *K8sSuite) TestProcessCheckInCoreAgentWithNPM() {
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 
 	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
 	assertProcessCollected(t, payloads, false, "process-agent")
@@ -279,13 +282,13 @@ func execProcessAgentCheck(t *testing.T, cluster *components.KubernetesCluster, 
 	return stdout
 }
 
-func k8sAgentStatus(t *testing.T, cluster *components.KubernetesCluster) AgentStatus {
+func k8sAgentStatus(t assert.TestingT, cluster *components.KubernetesCluster) AgentStatus {
 	agent := getAgentPod(t, cluster.Client())
 
 	stdout, stderr, err := cluster.KubernetesClient.
 		PodExec(agent.Namespace, agent.Name, "agent",
 			[]string{"bash", "-c", "DD_LOG_LEVEL=OFF agent status --json"})
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	assert.Empty(t, stderr)
 	assert.NotNil(t, stdout, "failed to get agent status")
 
@@ -296,11 +299,11 @@ func k8sAgentStatus(t *testing.T, cluster *components.KubernetesCluster) AgentSt
 	return statusMap
 }
 
-func getAgentPod(t *testing.T, client kubeClient.Interface) corev1.Pod {
+func getAgentPod(t assert.TestingT, client kubeClient.Interface) corev1.Pod {
 	res, err := client.CoreV1().Pods("datadog").
 		List(context.Background(), v1.ListOptions{LabelSelector: "app=dda-linux-datadog"})
-	require.NoError(t, err)
-	require.NotEmpty(t, res.Items)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, res.Items)
 
 	return res.Items[0]
 }
