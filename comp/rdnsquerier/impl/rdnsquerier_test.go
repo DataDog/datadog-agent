@@ -1099,7 +1099,7 @@ func TestGetHostnameChannelFullRequestsDroppedWhenRateLimited(t *testing.T) {
 		"reverse_dns_enrichment.rate_limiter.enabled":            true,
 		"reverse_dns_enrichment.rate_limiter.limit_per_sec":      1,
 	}
-	ts := testSetup(t, overrides, true, nil, 1*time.Second)
+	ts := testSetup(t, overrides, true, nil, 5*time.Second)
 
 	// IP addresses in private range
 	var errCount atomic.Int32
