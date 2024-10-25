@@ -78,9 +78,22 @@ class TestArtifactStore(unittest.TestCase):
         self.assertTrue(artifact_path.exists())
         self.assertEqual('fake artifacts', artifact_path.read_text())
 
+        # add test case that ensures download_job_artifacts is not called now that the artifacts exist
+        with patch('tasks.debugging.dump.download_job_artifacts') as download_job_artifacts:
+            artifact = get_or_fetch_artifacts(self.artifact_store, project, 'jobid')
+            download_job_artifacts.assert_not_called()
+        self.assertIsInstance(artifact, Artifacts)
+        path = artifact.get()
+        self.assertIsInstance(path, Path)
+        assert path is not None
+        artifact_path = Path(path, 'test.txt')
+        self.assertEqual('fake artifacts', artifact_path.read_text())
+
     def test_get_or_fetch_artifacts_when_job_has_no_artifacts(self):
         """
-        Test that get_or_fetch_artifacts will fetch artifacts if they don't exist
+        Test that get_or_fetch_artifacts still returns an Artifacts object when the job has no artifacts
+
+        We may still want to get the version property, to find symbols, for example
         """
         from tasks.debugging.dump import get_or_fetch_artifacts
 
