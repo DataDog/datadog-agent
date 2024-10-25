@@ -77,7 +77,7 @@ func TestK8sTestSuite(t *testing.T) {
 				return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
 			}),
 			awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
-		)), e2e.WithDevMode(),
+		)),
 	}
 
 	e2e.Run(t, &K8sSuite{}, options...)
