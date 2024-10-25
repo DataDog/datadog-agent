@@ -14,10 +14,25 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/connector"
+	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/exporter/otlpexporter"
+	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/extension/zpagesextension"
 	"go.opentelemetry.io/collector/otelcol"
+	"go.opentelemetry.io/collector/processor"
+	"go.opentelemetry.io/collector/processor/batchprocessor"
+	"go.opentelemetry.io/collector/receiver"
+	"go.opentelemetry.io/collector/receiver/nopreceiver"
+	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver"
 
 	extensionDef "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
@@ -39,8 +54,6 @@ type ddExtension struct {
 	debug       extensionDef.DebugSourceResponse
 	configStore *configStore
 	ocb         bool
-
-	effectiveConfig *confmap.Conf
 }
 
 var _ extension.Extension = (*ddExtension)(nil)
@@ -55,9 +68,10 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 	var cfg *configSettings
 	var err error
 	if ext.ocb {
-		ext.effectiveConfig = conf
+		ext.configStore.setEffectiveConfig(conf)
 		return nil
 	}
+	// unmarshal will only be called if we created this component via the Agent
 	if cfg, err = unmarshal(conf, *ext.cfg.factories, ext.ocb); err != nil {
 		return fmt.Errorf("cannot unmarshal the configuration: %w", err)
 	}
@@ -134,8 +148,8 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 	return nil
 }
 
-// NewExtension creates a new instance of the extension when building with ocb
-func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo) (extensionDef.Component, error) {
+// NewExtension creates a new instance of the extension.
+func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo, ocb bool) (extensionDef.Component, error) {
 	ext := &ddExtension{
 		cfg:         cfg,
 		telemetry:   telemetry,
@@ -144,41 +158,29 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 		debug: extensionDef.DebugSourceResponse{
 			Sources: map[string]extensionDef.OTelFlareSource{},
 		},
-		ocb:             true,
-		effectiveConfig: &confmap.Conf{},
+		ocb: ocb,
+	}
+	// only initiate the configprovider and set provided config if being built by Agent
+	if !ocb {
+		ext.configStore.setProvidedConfigSupported(true)
+		ocpProvided, err := otelcol.NewConfigProvider(cfg.configProviderSettings)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create configprovider: %w", err)
+		}
+
+		providedConf, err := ocpProvided.Get(context.Background(), *cfg.factories)
+		if err != nil {
+			return nil, err
+		}
+		err = ext.configStore.setProvidedConf(providedConf)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		ext.configStore.setProvidedConfigSupported(false)
+
 	}
 	var err error
-	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext, ext.ocb)
-	if err != nil {
-		return nil, err
-	}
-	return ext, nil
-}
-
-// NewExtensionForAgent creates a new instance of the extension when building with Agent Fx.
-func NewExtensionForAgent(_ context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo) (extensionDef.Component, error) {
-	ocpProvided, err := otelcol.NewConfigProvider(cfg.configProviderSettings)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create configprovider: %w", err)
-	}
-
-	providedConf, err := ocpProvided.Get(context.Background(), *cfg.factories)
-	if err != nil {
-		return nil, err
-	}
-
-	ext := &ddExtension{
-		cfg:         cfg,
-		telemetry:   telemetry,
-		info:        info,
-		configStore: &configStore{},
-		debug: extensionDef.DebugSourceResponse{
-			Sources: map[string]extensionDef.OTelFlareSource{},
-		},
-	}
-
-	ext.configStore.setProvidedConf(providedConf)
-
 	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext, ext.ocb)
 	if err != nil {
 		return nil, err
@@ -211,59 +213,37 @@ func (ext *ddExtension) Shutdown(ctx context.Context) error {
 
 // ServeHTTP the request handler for the extension.
 func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
-	if ext.ocb {
-		configMap, err := yaml.Marshal(ext.effectiveConfig.ToStringMap())
+	var (
+		customer string
+		err      error
+	)
+	if ext.configStore.isProvidedConfigSupported() {
+		customer, err = ext.configStore.getProvidedConfAsString()
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintf(w, "Unable to get provided config\n")
 			return
 		}
-		customer := string(configMap)
-
-		envconfig := ""
-		envvars := getEnvironmentAsMap()
-		if envbytes, err := json.Marshal(envvars); err == nil {
-			envconfig = string(envbytes)
-		}
-
-		resp := extensionDef.Response{
-			BuildInfoResponse: extensionDef.BuildInfoResponse{
-				AgentVersion:     version.AgentVersion,
-				AgentCommand:     ext.info.Command,
-				AgentDesc:        ext.info.Description,
-				ExtensionVersion: ext.info.Version,
-			},
-			ConfigResponse: extensionDef.ConfigResponse{
-				CustomerConfig:        customer,
-				RuntimeConfig:         "",
-				RuntimeOverrideConfig: "", // TODO: support RemoteConfig
-				EnvConfig:             envconfig,
-			},
-			DebugSourceResponse: ext.debug,
-			Environment:         envvars,
-		}
-		j, err := json.MarshalIndent(resp, "", "  ")
+	} else {
+		customer = "ConfigProvider not supported, only enhanced config available"
+	}
+	var enhanced string
+	if ext.ocb {
+		enhanced, err = ext.configStore.getEffectiveConfigAsString()
 		if err != nil {
+			ext.telemetry.Logger.Error("Unable to get effective config", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintf(w, "Unable to marshal output: %v\n", err)
+			fmt.Fprintf(w, "Unable to get effective config\n")
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, string(j))
-		return
-	}
-	customer, err := ext.configStore.getProvidedConfAsString()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Unable to get provided config\n")
-		return
-	}
-	enhanced, err := ext.configStore.getEnhancedConfAsString()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Unable to get enhanced config\n")
-		return
+	} else {
+		enhanced, err = ext.configStore.getEnhancedConfAsString()
+		if err != nil {
+			ext.telemetry.Logger.Error("Unable to get enhanced config", zap.Error(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "Unable to get enhanced config\n")
+			return
+		}
 	}
 
 	envconfig := ""
@@ -300,4 +280,52 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, string(j))
 
+}
+
+func components() (otelcol.Factories, error) {
+	var err error
+	factories := otelcol.Factories{}
+
+	factories.Extensions, err = extension.MakeFactoryMap(
+		healthcheckextension.NewFactory(),
+		pprofextension.NewFactory(),
+		zpagesextension.NewFactory(),
+	)
+	if err != nil {
+		return otelcol.Factories{}, err
+	}
+
+	factories.Receivers, err = receiver.MakeFactoryMap(
+		nopreceiver.NewFactory(),
+		otlpreceiver.NewFactory(),
+		prometheusreceiver.NewFactory(),
+	)
+	if err != nil {
+		return otelcol.Factories{}, err
+	}
+
+	factories.Exporters, err = exporter.MakeFactoryMap(
+		otlpexporter.NewFactory(),
+		otlphttpexporter.NewFactory(),
+	)
+	if err != nil {
+		return otelcol.Factories{}, err
+	}
+
+	factories.Processors, err = processor.MakeFactoryMap(
+		batchprocessor.NewFactory(),
+		transformprocessor.NewFactory(),
+	)
+	if err != nil {
+		return otelcol.Factories{}, err
+	}
+
+	factories.Connectors, err = connector.MakeFactoryMap(
+		spanmetricsconnector.NewFactory(),
+	)
+	if err != nil {
+		return otelcol.Factories{}, err
+	}
+
+	return factories, nil
 }

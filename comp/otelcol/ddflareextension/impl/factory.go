@@ -12,7 +12,6 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
-	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
 
@@ -28,53 +27,38 @@ type ddExtensionFactory struct {
 
 	factories              *otelcol.Factories
 	configProviderSettings otelcol.ConfigProviderSettings
+	ocb                    bool
 }
 
 // NewFactory creates a factory for Datadog Flare Extension for use with OCB
 func NewFactory() extension.Factory {
-	return extension.NewFactory(
-		metadata.Type,
-		createDefaultConfig,
-		createExtension,
-		metadata.ExtensionStability,
-	)
+	factories, err := components()
+	if err != nil {
+		return nil
+	}
+	return &ddExtensionFactory{
+		factories: &factories,
+		ocb:       true,
+	}
 }
 
-// NewFactoryForAgent creates a factory for Datadog Flare Extension for the Agent to use.
+// NewFactoryForAgent creates a factory for Datadog Flare Extension
 func NewFactoryForAgent(factories *otelcol.Factories, configProviderSettings otelcol.ConfigProviderSettings) extension.Factory {
 	return &ddExtensionFactory{
 		factories:              factories,
 		configProviderSettings: configProviderSettings,
+		ocb:                    false,
 	}
 }
 
-// createExtension is used for creating extension with OCB
-func createExtension(ctx context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
-	config := &Config{
-		HTTPConfig:             cfg.(*Config).HTTPConfig,
-		factories:              &otelcol.Factories{},
-		configProviderSettings: otelcol.ConfigProviderSettings{ResolverSettings: confmap.ResolverSettings{URIs: []string{"test"}, ProviderFactories: []confmap.ProviderFactory{}}},
-	}
-	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo)
-}
-
-// CreateExtension exports extension creation for use within Datadog Agent
+// CreateExtension exports extension creation
 func (f *ddExtensionFactory) CreateExtension(ctx context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
 	config := &Config{
 		factories:              f.factories,
 		configProviderSettings: f.configProviderSettings,
 	}
 	config.HTTPConfig = cfg.(*Config).HTTPConfig
-	return NewExtensionForAgent(ctx, config, set.TelemetrySettings, set.BuildInfo)
-}
-
-// createDefaultConfig is used for creating default configuration with OCB
-func createDefaultConfig() component.Config {
-	return &Config{
-		HTTPConfig: &confighttp.ServerConfig{
-			Endpoint: fmt.Sprintf("localhost:%d", defaultHTTPPort),
-		},
-	}
+	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, f.ocb)
 }
 
 // CreateDefaultConfig exports default configuration for use within Datadog Agent
