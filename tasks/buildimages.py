@@ -94,7 +94,7 @@ This PR updates the current Golang version ([`{old_go_version}`]({old_go_version
 @task(
     help={
         "file_path": "path of the Gitlab configuration YAML file",
-        "image_type": "The type of image to get the tag for (e.g. deb_x64, rpm_armhf, etc). All images defined by or CI_IMAGE_<image_tyoe> in gitlab-ci configuration variables",
+        "image_type": "The type of image to get the tag for (e.g. deb_x64, rpm_armhf, etc). You can use any value defined by or CI_IMAGE_<image_tyoe> in the gitlab-ci configuration variables. Get the DATADOG_AGENT_BUILDIMAGES version if image_type not specified",
     },
     autoprint=True,
 )
