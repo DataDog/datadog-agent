@@ -432,11 +432,6 @@ type ProcessCacheEntry struct {
 	onRelease   []func()                   `field:"-"`
 }
 
-// IsContainerRoot returns whether this is a top level process in the container ID
-func (pc *ProcessCacheEntry) IsContainerRoot() bool {
-	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
-}
-
 // Reset the entry
 func (pc *ProcessCacheEntry) Reset() {
 	pc.ProcessContext = zeroProcessContext
@@ -555,6 +550,11 @@ type ProcessContext struct {
 
 	Parent   *Process           `field:"parent,opts:exposed_at_event_root_only,check:HasParent"`
 	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator,check:IsNotKworker"`
+}
+
+// IsContainerRoot returns whether this is a top level process in the container ID
+func (pc *ProcessContext) IsContainerRoot() bool {
+	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
 }
 
 // ExitEvent represents a process exit event
