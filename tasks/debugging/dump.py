@@ -255,7 +255,8 @@ def get_symbols_for_job_id(ca: CrashAnalyzer, job_id: str) -> tuple[str | None, 
     if not path:
         raise FileNotFoundError(f"No artifacts found for job {package_job_id}")
     archives = find_platform_debug_artifacts(ca.target_platform, path)
-    # TODO: hacky way to get the version from the archive name
+    # TODO: hacky way to get the version from the archive name, is there a better way?
+    #       the setup-agent-version job stores the version in a private bucket.
     version = Path(archives[0]).name
     for s in ['.debug.zip', '.tar.xz', '-amd64', '-x86_64', '-arm64', '-1']:
         version = version.removesuffix(s)
