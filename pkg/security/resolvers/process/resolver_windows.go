@@ -14,8 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
-
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -37,9 +35,6 @@ type Resolver struct {
 	scrubber     *procutil.DataScrubber
 	statsdClient statsd.ClientInterface
 
-	// stats
-	cacheSize *atomic.Int64
-
 	processCacheEntryPool *Pool
 
 	exitedQueue []uint32
@@ -52,11 +47,10 @@ func NewResolver(_ *config.Config, statsdClient statsd.ClientInterface, scrubber
 		processes:    make(map[Pid]*model.ProcessCacheEntry),
 		opts:         opts,
 		scrubber:     scrubber,
-		cacheSize:    atomic.NewInt64(0),
 		statsdClient: statsdClient,
 	}
 
-	p.processCacheEntryPool = NewProcessCacheEntryPool(func() { p.cacheSize.Dec() })
+	p.processCacheEntryPool = NewProcessCacheEntryPool()
 
 	return p, nil
 }

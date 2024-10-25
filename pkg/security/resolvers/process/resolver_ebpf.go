@@ -84,7 +84,6 @@ type EBPFResolver struct {
 	opts             ResolverOpts
 
 	// stats
-	cacheSize                 *atomic.Int64
 	hitsStats                 map[string]*atomic.Int64
 	missStats                 *atomic.Int64
 	addedEntriesFromEvent     *atomic.Int64
@@ -534,7 +533,7 @@ func (p *EBPFResolver) insertEntry(entry, prev *model.ProcessCacheEntry, source 
 		p.addedEntriesFromProcFS.Inc()
 	}
 
-	p.cacheSize.Inc()
+	p.processCacheEntryPool.IncCacheSize()
 }
 
 func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64) {
@@ -1418,7 +1417,7 @@ func (p *EBPFResolver) getCacheSize() float64 {
 
 // getEntryCacheSize returns the cache size of the process resolver
 func (p *EBPFResolver) getEntryCacheSize() float64 {
-	return float64(p.cacheSize.Load())
+	return float64(p.processCacheEntryPool.GetCacheSize())
 }
 
 // SetState sets the process resolver state
@@ -1456,7 +1455,6 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		argsEnvsCache:             argsEnvsCache,
 		state:                     atomic.NewInt64(Snapshotting),
 		hitsStats:                 map[string]*atomic.Int64{},
-		cacheSize:                 atomic.NewInt64(0),
 		missStats:                 atomic.NewInt64(0),
 		addedEntriesFromEvent:     atomic.NewInt64(0),
 		addedEntriesFromKernelMap: atomic.NewInt64(0),
@@ -1480,7 +1478,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)
 	}
-	p.processCacheEntryPool = NewProcessCacheEntryPool(func() { p.cacheSize.Dec() })
+	p.processCacheEntryPool = NewProcessCacheEntryPool()
 
 	// Create rate limiter that allows for 128 pids
 	limiter, err := utils.NewLimiter[uint32](128, numAllowedPIDsToResolvePerPeriod, procFallbackLimiterPeriod)
