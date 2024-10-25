@@ -56,7 +56,12 @@ var errUnsupportedDevice = errors.New("device does not support the given collect
 type subsystemBuilder func(lib nvml.Interface, device nvml.Device, tags []string) (Collector, error)
 
 // allSubsystems is a map of all the subsystems that can be used to collect metrics from NVML.
-var allSubsystems = map[string]subsystemBuilder{}
+var allSubsystems = map[string]subsystemBuilder{
+	fieldsCollectorName:       newFieldsCollector,
+	deviceCollectorName:       newDeviceCollector,
+	remappedRowsCollectorName: newRemappedRowsCollector,
+	clocksCollectorName:       newClocksCollector,
+}
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
 func BuildCollectors(lib nvml.Interface) ([]Collector, error) {
