@@ -24,6 +24,14 @@ type clocksCollector struct {
 
 // newClocksCollector creates a new clocksMetricsCollector for the given NVML device.
 func newClocksCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
+	// Check first if the device supports clock throttle reasons
+	_, ret := device.GetCurrentClocksThrottleReasons()
+	if ret == nvml.ERROR_NOT_SUPPORTED {
+		return nil, errUnsupportedDevice
+	} else if ret != nvml.SUCCESS {
+		return nil, fmt.Errorf("cannot check clock throttle reasons support: %s", nvml.ErrorString(ret))
+	}
+
 	return &clocksCollector{
 		device: device,
 		tags:   tags,

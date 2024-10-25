@@ -9,6 +9,7 @@ package nvmlmetrics
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
@@ -17,29 +18,72 @@ import (
 const fieldsCollectorName = "fields"
 
 type fieldsCollector struct {
-	device nvml.Device
-	tags   []string
+	device       nvml.Device
+	tags         []string
+	fieldMetrics []fieldValueMetric
 }
 
 func newFieldsCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
-	return &fieldsCollector{
+	c := &fieldsCollector{
 		device: device,
 		tags:   tags,
-	}, nil
+	}
+	c.fieldMetrics = append(c.fieldMetrics, metricNameToFieldID...) // copy all metrics to avoid modifying the original slice
+
+	// Remove any unsupported fields, we also want to check if we have any fields left
+	// to avoid doing unnecessary work
+	err := c.removeUnsupportedFields()
+	if err != nil {
+		return nil, err
+	}
+	if len(c.fieldMetrics) == 0 {
+		return nil, errUnsupportedDevice
+	}
+
+	return c, nil
 }
 
-// Collect collects all the metrics from the given NVML device.
-func (c *fieldsCollector) Collect() ([]Metric, error) {
-	var err error
+func (c *fieldsCollector) removeUnsupportedFields() error {
+	fieldValues, err := c.getFieldValues()
+	if err != nil {
+		return err
+	}
 
-	fields := make([]nvml.FieldValue, 0, len(metricNameToFieldID))
+	for _, val := range fieldValues {
+		if val.NvmlReturn == uint32(nvml.ERROR_NOT_SUPPORTED) {
+			c.fieldMetrics = slices.DeleteFunc(c.fieldMetrics, func(fm fieldValueMetric) bool {
+				return fm.fieldValueID == val.FieldId
+			})
+		}
+	}
 
-	for i, metric := range metricNameToFieldID {
+	return nil
+}
+
+func (c *fieldsCollector) getFieldValues() ([]nvml.FieldValue, error) {
+	fields := make([]nvml.FieldValue, len(c.fieldMetrics))
+	for i, metric := range c.fieldMetrics {
 		fields[i].FieldId = metric.fieldValueID
 	}
 
 	ret := c.device.GetFieldValues(fields)
-	metrics := make([]Metric, 0, len(metricNameToFieldID))
+	if ret == nvml.ERROR_NOT_SUPPORTED {
+		return nil, errUnsupportedDevice
+	} else if ret != nvml.SUCCESS {
+		return nil, fmt.Errorf("failed to get field values: %s", nvml.ErrorString(ret))
+	}
+
+	return fields, nil
+}
+
+// Collect collects all the metrics from the given NVML device.
+func (c *fieldsCollector) Collect() ([]Metric, error) {
+	fields, err := c.getFieldValues()
+	if err != nil {
+		return nil, err
+	}
+
+	metrics := make([]Metric, 0, len(c.fieldMetrics))
 	for i, val := range fields {
 		name := metricNameToFieldID[i].name
 		if val.NvmlReturn != uint32(nvml.SUCCESS) {
@@ -55,7 +99,7 @@ func (c *fieldsCollector) Collect() ([]Metric, error) {
 		metrics = append(metrics, Metric{Name: name, Value: value, Tags: c.tags})
 	}
 
-	return metrics, ret
+	return metrics, err
 }
 
 // Close cleans up any resources used by the collector (no-op for this collector).
