@@ -12,8 +12,6 @@ tests_macos:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["setup_agent_version"]
-  variables:
-    PYTHON_RUNTIMES: "3"
   script:
     - !reference [.setup_macos_github_app]
     - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .

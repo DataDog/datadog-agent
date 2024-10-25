@@ -74,9 +74,7 @@ def build(
             go_mod=go_mod,
         )
 
-    ldflags, gcflags, env = get_build_flags(
-        ctx, major_version=major_version, python_runtimes='3', static=static, install_path=install_path
-    )
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, install_path=install_path)
 
     main = "main."
     ld_vars = {

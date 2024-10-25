@@ -10,12 +10,17 @@ import (
 	"flag"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
@@ -46,6 +51,9 @@ const gpuEnabledAMI = "ami-0f71e237bb2ba34be" // Ubuntu 22.04 with GPU drivers
 
 // TestGPUSuite runs tests for the VM interface to ensure its implementation is correct.
 func TestGPUSuite(t *testing.T) {
+	// Marked as flaky pending removal of unattended-upgrades in the AMI
+	flake.Mark(t)
+
 	provisioner := awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(
 			ec2.WithInstanceType("g4dn.xlarge"),
@@ -99,4 +107,21 @@ func (v *gpuSuite) TestGPUCheckIsEnabled() {
 
 	gpuCheckStatus := status.RunnerStats.Checks["gpu"]
 	v.Require().Equal(gpuCheckStatus.LastError, "")
+}
+
+func (v *gpuSuite) TestVectorAddProgramDetected() {
+	vm := v.Env().RemoteHost
+
+	out, err := vm.Execute(fmt.Sprintf("docker run --rm --gpus all %s", vectorAddDockerImg))
+	v.Require().NoError(err)
+	v.Require().NotEmpty(out)
+
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		metricNames := []string{"gpu.memory", "gpu.utilization", "gpu.memory.max"}
+		for _, metricName := range metricNames {
+			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0))
+			assert.NoError(c, err)
+			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
+		}
+	}, 5*time.Minute, 10*time.Second)
 }
