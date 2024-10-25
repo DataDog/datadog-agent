@@ -107,3 +107,8 @@ func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, in
 func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port uint16, protocol nppayload.Protocol, maxTTL uint8, timeout time.Duration) ([]byte, error) {
 	return nil, ErrNotImplemented
 }
+
+// GetBTFLoaderInfo is not supported
+func (r *RemoteSysProbeUtil) GetBTFLoaderInfo() ([]byte, error) {
+	return nil, ErrNotImplemented
+}

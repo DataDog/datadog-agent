@@ -11,5 +11,5 @@ import "errors"
 
 // GetBTFLoaderInfo is not supported without linux_bpf
 func GetBTFLoaderInfo() (string, error) {
-	return "", errors.New("GetBTFLoaderInfo not supported without linux_bpf")
+	return "", errors.New("BTF is not supported")
 }

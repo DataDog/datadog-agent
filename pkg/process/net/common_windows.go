@@ -39,7 +39,7 @@ const (
 	// conntrackHostURL is not used on Windows, the value is added to avoid a compilation error
 	conntrackHostURL = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/host"
 	// ebpfBtfLoaderURL is not used on Windows, the value is added to avoid a compilation error
-	ebpfBTFLoaderURL = "http://localhost:3333/" + string(sysconfig.EBPFModule) + "/btf_loader_info"
+	ebpfBTFLoaderURL = ""
 
 	// SystemProbePipeName is the production named pipe for system probe
 	SystemProbePipeName = `\\.\pipe\dd_system_probe`
@@ -104,4 +104,9 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 			},
 		},
 	}
+}
+
+// GetBTFLoaderInfo is not implemented on windows
+func (r *RemoteSysProbeUtil) GetBTFLoaderInfo() ([]byte, error) {
+	return nil, errors.New("GetBTFLoaderInfo is not supported on windows")
 }
