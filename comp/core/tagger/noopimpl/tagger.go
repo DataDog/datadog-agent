@@ -59,7 +59,7 @@ func (n *noopTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error)
 	return nil, nil
 }
 
-func (n *noopTagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
+func (n *noopTagger) LegacyTag(string, types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 

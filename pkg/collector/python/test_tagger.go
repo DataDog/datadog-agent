@@ -47,7 +47,7 @@ func testTags(t *testing.T) {
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
 	defer release()
 
-	id := C.CString("container://test")
+	id := C.CString("container_id://test")
 	defer C.free(unsafe.Pointer(id))
 
 	res := Tags(id, 0)
@@ -70,7 +70,7 @@ func testTagsNull(t *testing.T) {
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
 	defer release()
 
-	id := C.CString("container://test")
+	id := C.CString("container_id://test")
 	defer C.free(unsafe.Pointer(id))
 
 	res := Tags(id, 0)
@@ -85,7 +85,7 @@ func testTagsEmpty(t *testing.T) {
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
 	defer release()
 
-	id := C.CString("container://test")
+	id := C.CString("container_id://test")
 	defer C.free(unsafe.Pointer(id))
 
 	res := Tags(id, 0)
