@@ -13,7 +13,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../../../comp/def
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ../def
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def => ../../ddflareextension/def/
-	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl => ../../ddflareextension/impl/
 	github.com/DataDog/datadog-agent/pkg/api => ../../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
