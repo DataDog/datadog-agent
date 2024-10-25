@@ -24,24 +24,25 @@ func init() {
 type plugin struct {
 }
 
+// Analyzer is the analysis instance implementing the lint.
 var Analyzer = &analysis.Analyzer{
 	Name: "aferofs",
 	Doc:  "Check for mixed use of aferofs and os packages",
-	URL: "https://github.com/datadog/datadog-agent/tree/main/pkg/linters/aferofs/",
+	URL:  "https://github.com/datadog/datadog-agent/tree/main/pkg/linters/aferofs/",
 	Run:  run,
 }
 
-// New
+// New creates new golangci lint plugin instance.
 func New(any) (register.LinterPlugin, error) {
 	return &plugin{}, nil
 }
 
-// BuildAnalyzers
+// BuildAnalyzers returns the list of analyzers for this plugin to run.
 func (f *plugin) BuildAnalyzers() ([]*analysis.Analyzer, error) {
 	return []*analysis.Analyzer{Analyzer}, nil
 }
 
-// GetLoadMode returns the load mode for the plugin
+// GetLoadMode requests that the analysis runs with type information available.
 func (f *plugin) GetLoadMode() string {
 	return register.LoadModeTypesInfo
 }
