@@ -1099,7 +1099,7 @@ func TestGetHostnameChannelFullRequestsDroppedWhenRateLimited(t *testing.T) {
 		"reverse_dns_enrichment.rate_limiter.enabled":            true,
 		"reverse_dns_enrichment.rate_limiter.limit_per_sec":      1,
 	}
-	ts := testSetup(t, overrides, true, nil, 5*time.Second)
+	ts := testSetup(t, overrides, true, nil, 1*time.Second)
 
 	// IP addresses in private range
 	var errCount atomic.Int32
@@ -1248,7 +1248,7 @@ func TestGetHostnameChannelFullRequestsDroppedWhenRateLimited(t *testing.T) {
 			hostname, err := ts.rdnsQuerier.GetHostname(ts.ctx, fmt.Sprintf("192.168.1.%d", i))
 			if err != nil {
 				assert.ErrorContains(t, err, "channel is full, dropping query for IP address")
-				errCount++
+				errCount.Add(1)
 			} else {
 				assert.Equal(t, fmt.Sprintf("fakehostname-192.168.1.%d", i), hostname)
 			}
@@ -1256,12 +1256,12 @@ func TestGetHostnameChannelFullRequestsDroppedWhenRateLimited(t *testing.T) {
 	}
 	wg.Wait()
 
-	assert.GreaterOrEqual(t, errCount, 1)
+	assert.GreaterOrEqual(t, errCount.Load(), int32(1))
 	expectedTelemetry := ts.makeExpectedTelemetry(map[string]float64{
 		"total":             20.0,
 		"private":           20.0,
-		"chan_added":        float64(20 - errCount),
-		"dropped_chan_full": float64(errCount),
+		"chan_added":        float64(20 - errCount.Load()),
+		"dropped_chan_full": float64(errCount.Load()),
 		"cache_miss":        20.0,
 	})
 	delete(expectedTelemetry, "successful")
