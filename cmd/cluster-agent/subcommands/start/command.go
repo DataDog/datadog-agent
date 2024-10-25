@@ -115,6 +115,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -196,6 +197,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				settingsimpl.Module(),
 				datadogclientmodule.Module(),
+				// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
+				// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
+				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
+					proccontainers.InitSharedContainerProvider(wmeta, tagger)
+				}),
 			)
 		},
 	}

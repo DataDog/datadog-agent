@@ -66,7 +66,7 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(networkpath.CheckName, networkpath.Factory(telemetry))
 	corecheckLoader.RegisterCheck(io.CheckName, io.Factory())
 	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.Factory())
-	corecheckLoader.RegisterCheck(containerimage.CheckName, containerimage.Factory(store))
+	corecheckLoader.RegisterCheck(containerimage.CheckName, containerimage.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(containerlifecycle.CheckName, containerlifecycle.Factory(store))
 	corecheckLoader.RegisterCheck(generic.CheckName, generic.Factory(store, tagger))
 
@@ -99,5 +99,5 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(containerd.CheckName, containerd.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(cri.CheckName, cri.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(ciscosdwan.CheckName, ciscosdwan.Factory())
-	corecheckLoader.RegisterCheck(servicediscovery.CheckName, servicediscovery.Factory(store))
+	corecheckLoader.RegisterCheck(servicediscovery.CheckName, servicediscovery.Factory())
 }
