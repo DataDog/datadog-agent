@@ -1227,6 +1227,52 @@ func TestGetHostnameSyncTimeouts(t *testing.T) {
 	cancel()
 }
 
+// Test that when the rate limit is exceeded and the channel fills requests are dropped.
+func TestGetHostnameChannelFullRequestsDroppedWhenRateLimited(t *testing.T) {
+	overrides := map[string]interface{}{
+		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
+		"reverse_dns_enrichment.workers":                         1,
+		"reverse_dns_enrichment.chan_size":                       1,
+		"reverse_dns_enrichment.rate_limiter.enabled":            true,
+		"reverse_dns_enrichment.rate_limiter.limit_per_sec":      1,
+	}
+	ts := testSetup(t, overrides, true, nil, 0)
+
+	// IP addresses in private range
+	var errCount int
+	var wg sync.WaitGroup
+	for i := range 20 {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			hostname, err := ts.rdnsQuerier.GetHostname(ts.ctx, fmt.Sprintf("192.168.1.%d", i))
+			if err != nil {
+				assert.ErrorContains(t, err, "channel is full, dropping query for IP address")
+				errCount++
+			} else {
+				assert.Equal(t, fmt.Sprintf("fakehostname-192.168.1.%d", i), hostname)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	assert.GreaterOrEqual(t, errCount, 1)
+	expectedTelemetry := ts.makeExpectedTelemetry(map[string]float64{
+		"total":             20.0,
+		"private":           20.0,
+		"chan_added":        float64(20 - errCount),
+		"dropped_chan_full": float64(errCount),
+		"cache_miss":        20.0,
+	})
+	delete(expectedTelemetry, "successful")
+	ts.validateExpected(t, expectedTelemetry)
+
+	minimumTelemetry := map[string]float64{
+		"successful": 1.0,
+	}
+	ts.validateMinimum(t, minimumTelemetry)
+}
+
 func TestGetHostnames(t *testing.T) {
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
