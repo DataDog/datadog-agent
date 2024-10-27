@@ -800,8 +800,8 @@ func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats, r
 
 	conn.Monotonic.Retransmits = retransmits
 	if tcpStats != nil {
-		conn.Monotonic.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
-		conn.Monotonic.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
+		conn.Monotonic.TCPEstablished = tcpStats.State_transitions >> netebpf.Established & 1
+		conn.Monotonic.TCPClosed = tcpStats.State_transitions >> netebpf.Close & 1
 		conn.RTT = tcpStats.Rtt
 		conn.RTTVar = tcpStats.Rtt_var
 	}
