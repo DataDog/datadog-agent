@@ -400,7 +400,11 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 			hashStr.Write(digest)
 		} else {
 			hencoder := hex.NewEncoder(&hashStr)
-			hencoder.Write(digest)
+			if _, err := hencoder.Write(digest); err != nil {
+				// we failed to compute the digest
+				resolver.hashMiss[eventType][model.HashFailed].Inc()
+				continue
+			}
 		}
 
 		file.Hashes = append(file.Hashes, hashStr.String())
