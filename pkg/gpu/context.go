@@ -47,19 +47,22 @@ func getSystemContext(nvmlLib nvml.Interface) (*systemContext, error) {
 }
 
 func (ctx *systemContext) queryDevices() error {
-	devices, err := getGPUDevices(ctx.nvmlLib)
-	if err != nil {
-		return fmt.Errorf("error getting GPU devices: %w", err)
+	count, ret := ctx.nvmlLib.DeviceGetCount()
+	if ret != nvml.SUCCESS {
+		return fmt.Errorf("failed to get device count: %s", nvml.ErrorString(ret))
 	}
+	for i := 0; i < count; i++ {
+		dev, ret := ctx.nvmlLib.DeviceGetHandleByIndex(i)
+		if ret != nvml.SUCCESS {
+			return fmt.Errorf("failed to get device handle for index %d: %s", i, nvml.ErrorString(ret))
+		}
 
-	for i, device := range devices {
-		maxThreads, err := getMaxThreadsForDevice(device)
-		if err != nil {
-			return fmt.Errorf("error getting max threads for device %s: %w", device, err)
+		maxThreads, ret := dev.GetNumGpuCores()
+		if ret != nvml.SUCCESS {
+			return fmt.Errorf("error getting max threads for device %s: %w", dev, nvml.ErrorString(ret))
 		}
 
 		ctx.maxGpuThreadsPerDevice[i] = maxThreads
 	}
-
 	return nil
 }
