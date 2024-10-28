@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes an issue added in 7.50 that causes the Windows event log tailer to drop
+    events if it cannot open their publisher metadata.

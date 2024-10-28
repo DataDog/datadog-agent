@@ -14,20 +14,18 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestProbeCanLoad(t *testing.T) {
-	kver, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if kver < minimumKernelVersion {
-		t.Skipf("minimum kernel version %s not met, read %s", minimumKernelVersion, kver)
+	if err := config.CheckGPUSupported(); err != nil {
+		t.Skipf("minimum kernel version not met, %v", err)
 	}
 
-	cfg := NewConfig()
+	cfg := config.NewConfig()
 	cfg.InitialProcessSync = false
 	nvmlMock := testutil.GetBasicNvmlMock()
 	probe, err := NewProbe(cfg, ProbeDependencies{NvmlLib: nvmlMock})
@@ -41,10 +39,8 @@ func TestProbeCanLoad(t *testing.T) {
 }
 
 func TestProbeCanReceiveEvents(t *testing.T) {
-	kver, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if kver < minimumKernelVersion {
-		t.Skipf("minimum kernel version %s not met, read %s", minimumKernelVersion, kver)
+	if err := config.CheckGPUSupported(); err != nil {
+		t.Skipf("minimum kernel version not met, %v", err)
 	}
 
 	procMon := monitor.GetProcessMonitor()
@@ -52,7 +48,7 @@ func TestProbeCanReceiveEvents(t *testing.T) {
 	require.NoError(t, procMon.Initialize(false))
 	t.Cleanup(procMon.Stop)
 
-	cfg := NewConfig()
+	cfg := config.NewConfig()
 	cfg.InitialProcessSync = false
 	cfg.BPFDebug = true
 
@@ -97,10 +93,8 @@ func TestProbeCanReceiveEvents(t *testing.T) {
 }
 
 func TestProbeCanGenerateStats(t *testing.T) {
-	kver, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if kver < minimumKernelVersion {
-		t.Skipf("minimum kernel version %s not met, read %s", minimumKernelVersion, kver)
+	if err := config.CheckGPUSupported(); err != nil {
+		t.Skipf("minimum kernel version not met, %v", err)
 	}
 
 	procMon := monitor.GetProcessMonitor()
@@ -108,7 +102,7 @@ func TestProbeCanGenerateStats(t *testing.T) {
 	require.NoError(t, procMon.Initialize(false))
 	t.Cleanup(procMon.Stop)
 
-	cfg := NewConfig()
+	cfg := config.NewConfig()
 	cfg.InitialProcessSync = false
 	cfg.BPFDebug = true
 

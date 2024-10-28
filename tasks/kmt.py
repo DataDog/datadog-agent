@@ -880,9 +880,9 @@ def build_run_config(run: str | None, packages: list[str]):
         if p[:2] == "./":
             p = p[2:]
         if run is not None:
-            c["filters"][p] = {"run-only": [run]}
+            c["filters"] = {p: {"run-only": [run]}}
         else:
-            c["filters"][p] = {"exclude": False}
+            c["filters"] = {p: {"exclude": False}}
 
     return c
 
