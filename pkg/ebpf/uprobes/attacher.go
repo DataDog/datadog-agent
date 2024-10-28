@@ -197,10 +197,9 @@ type AttacherConfig struct {
 	EbpfConfig *ebpf.Config
 
 	// PerformInitialScan defines if the attacher should perform an initial scan of the processes before starting the monitor
+	// Note that if processMonitor is being used (i.e., rules are targeting executables), the ProcessMonitor itself
+	// will perform an initial scan in its Initialize method.
 	PerformInitialScan bool
-
-	// ProcessMonitorEventStream defines whether the process monitor is using the event stream
-	ProcessMonitorEventStream bool
 
 	// EnableDetailedLogging makes the attacher log why it's attaching or not attaching to a process
 	// This is useful for debugging purposes, do not enable in production.
@@ -412,11 +411,6 @@ func (ua *UprobeAttacher) Start() error {
 	var cleanupSharedLibs func()
 
 	procMonitor := monitor.GetProcessMonitor()
-	err := procMonitor.Initialize(ua.config.ProcessMonitorEventStream)
-	if err != nil {
-		return fmt.Errorf("error initializing process monitor: %w", err)
-	}
-
 	if ua.handlesExecutables() {
 		cleanupExec = procMonitor.SubscribeExec(ua.handleProcessStart)
 	}
@@ -763,12 +757,9 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 		return fmt.Errorf("error computing symbols to request for rules %+v: %w", matchingRules, err)
 	}
 
-	inspectResult, isAttachable, err := ua.inspector.Inspect(fpath, symbolsToRequest)
+	inspectResult, err := ua.inspector.Inspect(fpath, symbolsToRequest)
 	if err != nil {
 		return fmt.Errorf("error inspecting %s: %w", fpath.HostPath, err)
-	}
-	if !isAttachable {
-		return fmt.Errorf("incompatible binary %s", fpath.HostPath)
 	}
 
 	uid := getUID(fpath.ID)

@@ -47,7 +47,6 @@ const (
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
-	KindHost                   Kind = "host"
 )
 
 // Source is the source name of an entity.
@@ -422,7 +421,7 @@ func (c ContainerHealthStatus) String(verbose bool) string {
 type ContainerResources struct {
 	GPURequest    *uint64 // Number of GPUs
 	GPULimit      *uint64
-	GPUType       string   // The type of GPU requested (eg. nvidia, amd, intel)
+	GPUVendorList []string // The type of GPU requested (eg. nvidia, amd, intel)
 	CPURequest    *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
 	CPULimit      *float64
 	MemoryRequest *uint64 // Bytes
@@ -444,8 +443,8 @@ func (cr ContainerResources) String(bool) string {
 	if cr.MemoryLimit != nil {
 		_, _ = fmt.Fprintln(&sb, "TargetMemoryLimit:", *cr.MemoryLimit)
 	}
-	if cr.GPUType != "" {
-		_, _ = fmt.Fprintln(&sb, "GPUType:", cr.GPUType)
+	if cr.GPUVendorList != nil {
+		_, _ = fmt.Fprintln(&sb, "GPUVendor:", cr.GPUVendorList)
 	}
 	return sb.String()
 }
@@ -678,6 +677,7 @@ type KubernetesPod struct {
 	IP                         string
 	PriorityClass              string
 	QOSClass                   string
+	GPUVendorList              []string
 	RuntimeClass               string
 	KubeServices               []string
 	NamespaceLabels            map[string]string
@@ -745,6 +745,7 @@ func (p KubernetesPod) String(verbose bool) string {
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Priority Class:", p.PriorityClass)
 		_, _ = fmt.Fprintln(&sb, "QOS Class:", p.QOSClass)
+		_, _ = fmt.Fprintln(&sb, "GPU Vendor:", p.GPUVendorList)
 		_, _ = fmt.Fprintln(&sb, "Runtime Class:", p.RuntimeClass)
 		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
 		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))

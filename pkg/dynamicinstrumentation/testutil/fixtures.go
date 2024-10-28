@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && arm64
+//go:build linux_bpf
 
 package testutil
 
@@ -167,6 +167,21 @@ var structCaptures = fixtures{
 		"b": capturedValue("string", "bb"),
 		"c": capturedValue("string", "ccc"),
 	}}},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.receiver.test_method_receiver": {
+		"r": {
+			Type: "struct", Fields: fieldMap{
+				"u": capturedValue("uint", "1"),
+			}},
+		"a": capturedValue("int", "2"),
+	},
+	// TODO: re-enable when fixing pointer method receivers
+	// "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.(*receiver).test_pointer_method_receiver": {
+	// 	"r": {
+	// 		Type: "struct", Fields: fieldMap{
+	// 			"u": capturedValue("uint", "3"),
+	// 		}},
+	// 	"a": capturedValue("int", "4"),
+	// },
 	// "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_lots_of_fields": {"l": {Type: "struct", Fields: fieldMap{
 	// 	"a": capturedValue("uint8", "1"),
 	// 	"b": capturedValue("uint8", "2"),
@@ -201,7 +216,7 @@ var structCaptures = fixtures{
 		"aInt16": capturedValue("int16", "2"),
 	}}},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct_pointer": {"x": {Type: "ptr", Fields: fieldMap{
-		"": {
+		"arg_0": {
 			Type: "struct", Fields: fieldMap{
 				"aBool":  capturedValue("bool", "true"),
 				"aInt":   capturedValue("int", "1"),

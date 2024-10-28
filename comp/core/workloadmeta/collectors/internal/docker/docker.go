@@ -164,7 +164,7 @@ func (c *collector) stream(ctx context.Context) {
 
 			err = c.dockerUtil.UnsubscribeFromContainerEvents("DockerCollector")
 			if err != nil {
-				log.Warnf("error unsubscribbing from container events: %s", err)
+				log.Warnf("error unsubscribing from container events: %s", err)
 			}
 
 			err = health.Deregister()

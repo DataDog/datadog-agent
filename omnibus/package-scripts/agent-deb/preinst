@@ -42,4 +42,9 @@ if [ -d $TUF_REPO_DIR ]; then
     rm -rf $TUF_REPO_DIR
 fi
 
+# Remove any unpacked BTF files
+find "$INSTALL_DIR/embedded/share/system-probe/ebpf/co-re/btf" -name "*.btf*" -type f -delete || true
+# And remove empty directories
+find "$INSTALL_DIR/embedded/share/system-probe/ebpf/co-re" -type d -empty -delete || true
+
 exit 0

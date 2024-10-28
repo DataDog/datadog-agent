@@ -22,7 +22,6 @@
       -e WINDOWS_BUILDER=true
       -e RELEASE_VERSION="$RELEASE_VERSION"
       -e MAJOR_VERSION="$AGENT_MAJOR_VERSION"
-      -e PY_RUNTIMES="$PYTHON_RUNTIMES"
       -e INTEGRATIONS_CORE_VERSION="$INTEGRATIONS_CORE_VERSION"
       -e GOMODCACHE="c:\modcache"
       -e AWS_NETWORKING=true
@@ -62,7 +61,6 @@ windows_msi_and_bosh_zip_x64-a7:
   variables:
     ARCH: "x64"
     AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: "3"
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_7
   timeout: 2h
@@ -100,7 +98,6 @@ windows_zip_agent_binaries_x64-a7:
       -e RELEASE_VERSION="$RELEASE_VERSION"
       -e MAJOR_VERSION="$AGENT_MAJOR_VERSION"
       -e INTEGRATIONS_CORE_VERSION="$INTEGRATIONS_CORE_VERSION"
-      -e PY_RUNTIMES="$PYTHON_RUNTIMES"
       -e GOMODCACHE="c:\modcache"
       -e AWS_NETWORKING=true
       -e SIGN_WINDOWS_DD_WCS=true

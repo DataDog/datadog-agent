@@ -538,7 +538,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 			})
 			monitor := newKafkaMonitor(t, cfg)
 			if tls && cfg.EnableGoTLSSupport {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+				utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
 			tt.testBody(t, &tt.context, monitor)
 		})
@@ -1136,7 +1136,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 
 	monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
 	if tls {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid, utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, proxyPid, utils.ManualTracingFallbackEnabled)
 	}
 
 	for _, tt := range tests {
@@ -1361,7 +1361,7 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 
 	monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
 	if tls {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid, utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, proxyPid, utils.ManualTracingFallbackEnabled)
 	}
 
 	for _, tt := range tests {
@@ -1616,7 +1616,7 @@ func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kaf
 		if hasTLSTag != validation.tlsEnabled {
 			continue
 		}
-		assert.Equal(t, topicName[:min(len(topicName), 80)], kafkaKey.TopicName)
+		assert.Equal(t, topicName[:min(len(topicName), 80)], kafkaKey.TopicName.Get())
 		assert.Greater(t, requestStats.FirstLatencySample, float64(1))
 		switch kafkaKey.RequestAPIKey {
 		case kafka.ProduceAPIKey:
@@ -1639,7 +1639,7 @@ func validateProduceFetchCountWithErrorCodes(t *assert.CollectT, kafkaStats map[
 	produceRequests := make(map[int32]int, len(validation.expectedNumberOfProduceRequests))
 	fetchRequests := make(map[int32]int, len(validation.expectedNumberOfFetchRequests))
 	for kafkaKey, kafkaStat := range kafkaStats {
-		assert.Equal(t, topicName[:min(len(topicName), 80)], kafkaKey.TopicName)
+		assert.Equal(t, topicName[:min(len(topicName), 80)], kafkaKey.TopicName.Get())
 		switch kafkaKey.RequestAPIKey {
 		case kafka.ProduceAPIKey:
 			assert.Equal(t, uint16(validation.expectedAPIVersionProduce), kafkaKey.RequestVersion)

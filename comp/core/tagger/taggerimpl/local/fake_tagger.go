@@ -41,12 +41,11 @@ func NewFakeTagger(cfg config.Component, telemetryStore *telemetry.Store) *FakeT
 // FakeTagger specific interface
 
 // SetTags allows to set tags in store for a given source, entity
-func (f *FakeTagger) SetTags(entityID string, source string, low, orch, high, std []string) {
-	id, _ := types.NewEntityIDFromString(entityID)
+func (f *FakeTagger) SetTags(entityID types.EntityID, source string, low, orch, high, std []string) {
 	f.store.ProcessTagInfo([]*types.TagInfo{
 		{
 			Source:               source,
-			EntityID:             id,
+			EntityID:             entityID,
 			LowCardTags:          low,
 			OrchestratorCardTags: orch,
 			HighCardTags:         high,
@@ -57,7 +56,7 @@ func (f *FakeTagger) SetTags(entityID string, source string, low, orch, high, st
 
 // SetGlobalTags allows to set tags in store for the global entity
 func (f *FakeTagger) SetGlobalTags(low, orch, high, std []string) {
-	f.SetTags(common.GetGlobalEntityID().String(), "static", low, orch, high, std)
+	f.SetTags(common.GetGlobalEntityID(), "static", low, orch, high, std)
 }
 
 // SetTagsFromInfo allows to set tags from list of TagInfo
@@ -98,11 +97,10 @@ func (f *FakeTagger) GetTaggerTelemetryStore() *telemetry.Store {
 }
 
 // Tag fake implementation
-func (f *FakeTagger) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
-	id, _ := types.NewEntityIDFromString(entityID)
-	tags := f.store.Lookup(id, cardinality)
+func (f *FakeTagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
+	tags := f.store.Lookup(entityID, cardinality)
 
-	key := f.getKey(id, cardinality)
+	key := f.getKey(entityID, cardinality)
 	if err := f.errors[key]; err != nil {
 		return nil, err
 	}
@@ -112,11 +110,11 @@ func (f *FakeTagger) Tag(entityID string, cardinality types.TagCardinality) ([]s
 
 // GlobalTags fake implementation
 func (f *FakeTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
-	return f.Tag(common.GetGlobalEntityID().String(), cardinality)
+	return f.Tag(common.GetGlobalEntityID(), cardinality)
 }
 
 // AccumulateTagsFor fake implementation
-func (f *FakeTagger) AccumulateTagsFor(entityID string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
+func (f *FakeTagger) AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
 	tags, err := f.Tag(entityID, cardinality)
 	if err != nil {
 		return err
@@ -127,21 +125,13 @@ func (f *FakeTagger) AccumulateTagsFor(entityID string, cardinality types.TagCar
 }
 
 // Standard fake implementation
-func (f *FakeTagger) Standard(entityID string) ([]string, error) {
-	id, err := types.NewEntityIDFromString(entityID)
-	if err != nil {
-		return nil, err
-	}
-	return f.store.LookupStandard(id)
+func (f *FakeTagger) Standard(entityID types.EntityID) ([]string, error) {
+	return f.store.LookupStandard(entityID)
 }
 
 // GetEntity returns faked entity corresponding to the specified id and an error
-func (f *FakeTagger) GetEntity(entityID string) (*types.Entity, error) {
-	id, err := types.NewEntityIDFromString(entityID)
-	if err != nil {
-		return nil, err
-	}
-	return f.store.GetEntity(id)
+func (f *FakeTagger) GetEntity(entityID types.EntityID) (*types.Entity, error) {
+	return f.store.GetEntity(entityID)
 }
 
 // List fake implementation

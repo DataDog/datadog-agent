@@ -343,6 +343,41 @@ func (p *EBPFProbe) IsRuntimeCompiled() bool {
 	return p.runtimeCompiled
 }
 
+func (p *EBPFProbe) setupRawPacketProgs() error {
+	packetsMap, _, err := p.Manager.GetMap("packets")
+	if err != nil {
+		return err
+	}
+	routerMap, _, err := p.Manager.GetMap("classifier_router")
+	if err != nil {
+		return err
+	}
+
+	progSpec, err := probes.GetRawPacketTCFilterProg(packetsMap.FD(), routerMap.FD())
+	if err != nil {
+		return err
+	}
+
+	colSpec := lib.CollectionSpec{
+		Programs: map[string]*lib.ProgramSpec{
+			progSpec.Name: progSpec,
+		},
+	}
+
+	col, err := lib.NewCollection(&colSpec)
+	if err != nil {
+		return fmt.Errorf("failed to load program: %w", err)
+	}
+
+	return p.Manager.UpdateTailCallRoutes(
+		manager.TailCallRoute{
+			Program:       col.Programs[progSpec.Name],
+			Key:           probes.TCRawPacketFilterKey,
+			ProgArrayName: "classifier_router",
+		},
+	)
+}
+
 // Setup the probe
 func (p *EBPFProbe) Setup() error {
 	if err := p.Manager.Start(); err != nil {
@@ -359,6 +394,12 @@ func (p *EBPFProbe) Setup() error {
 	}
 
 	p.profileManagers.Start(p.ctx, &p.wg)
+
+	if p.probe.IsNetworkRawPacketEnabled() {
+		if err := p.setupRawPacketProgs(); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -504,7 +545,7 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 }
 
 func eventWithNoProcessContext(eventType model.EventType) bool {
-	return eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
+	return eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.RawPacketEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
 }
 
 func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
@@ -1024,6 +1065,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 		defer p.Resolvers.ProcessResolver.UpdateAWSSecurityCredentials(event.PIDContext.Pid, event)
+	case model.RawPacketEventType:
+		if _, err = event.RawPacket.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	case model.BindEventType:
 		if _, err = event.Bind.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1115,7 +1161,7 @@ func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.Po
 
 	et := config.ParseEvalEventType(eventType)
 	if et == model.UnknownEventType {
-		return errors.New("unable to parse the eval event type")
+		return fmt.Errorf("unable to parse the eval event type: %s", eventType)
 	}
 
 	policy := &kfilters.FilterPolicy{Mode: mode}
@@ -1209,11 +1255,13 @@ func (p *EBPFProbe) isNeededForSecurityProfile(eventType eval.EventType) bool {
 }
 
 func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
-	if eventType == "dns" && !p.config.Probe.NetworkEnabled {
-		return false
-	}
-	if eventType == "imds" && (!p.config.Probe.NetworkEnabled || !p.config.Probe.NetworkIngressEnabled) {
-		return false
+	switch eventType {
+	case "dns":
+		return p.probe.IsNetworkEnabled()
+	case "imds":
+		return p.probe.IsNetworkEnabled() && p.config.Probe.NetworkIngressEnabled
+	case "packet":
+		return p.probe.IsNetworkRawPacketEnabled()
 	}
 	return true
 }
@@ -1495,7 +1543,6 @@ func (p *EBPFProbe) setupNewTCClassifier(device model.NetDevice) error {
 	if err != nil {
 		return err
 	}
-
 	if err := handle.Close(); err != nil {
 		return fmt.Errorf("could not close file [%s]: %w", handle.Name(), err)
 	}
@@ -1603,8 +1650,6 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	// activity dump & security profiles
 	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
 
-	p.processKiller.Apply(rs)
-
 	// kill action
 	if p.config.RuntimeSecurity.EnforcementEnabled && isKillActionPresent(rs) {
 		if !p.config.RuntimeSecurity.EnforcementRawSyscallEnabled {
@@ -1640,6 +1685,11 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	}
 
 	return ars, nil
+}
+
+// OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
+func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
+	p.processKiller.Reset(rs)
 }
 
 // NewEvent returns a new event
@@ -1827,7 +1877,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_rename_input_type",
-			Value: mount.GetVFSRenameInputType(p.kernelVersion),
+			Value: getVFSRenameRegisterArgsOrStruct(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "check_helper_call_input",
@@ -1913,10 +1963,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 	}
 
 	resolversOpts := resolvers.Opts{
-		PathResolutionEnabled: probe.Opts.PathResolutionEnabled,
-		TagsResolver:          probe.Opts.TagsResolver,
-		UseRingBuffer:         useRingBuffers,
-		TTYFallbackEnabled:    probe.Opts.TTYFallbackEnabled,
+		PathResolutionEnabled:    probe.Opts.PathResolutionEnabled,
+		EnvVarsResolutionEnabled: probe.Opts.EnvsVarResolutionEnabled,
+		TagsResolver:             probe.Opts.TagsResolver,
+		UseRingBuffer:            useRingBuffers,
+		TTYFallbackEnabled:       probe.Opts.TTYFallbackEnabled,
 	}
 
 	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts, telemetry)
@@ -2026,6 +2077,24 @@ func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
 	}
 }
 
+func getVFSRenameRegisterArgsOrStruct(kernelVersion *kernel.Version) uint64 {
+	if val, err := constantfetch.GetHasVFSRenameStructArgs(); err == nil {
+		if val {
+			return 2
+		}
+		return 1
+	}
+
+	if kernelVersion.Code >= kernel.Kernel5_12 {
+		return 2
+	}
+	if kernelVersion.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) && kernelVersion.Code.Patch() >= 220 {
+		return 2
+	}
+
+	return 1
+}
+
 func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
 	// https://github.com/torvalds/linux/commit/0af950f57fefabab628f1963af881e6b9bfe7f38
 	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel6_5 {
@@ -2105,6 +2174,12 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameMountMntID, "struct mount", "mnt_id", "")
 	if kv.Code >= kernel.Kernel5_3 {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameKernelCloneArgsExitSignal, "struct kernel_clone_args", "exit_signal", "linux/sched/task.h")
+	}
+
+	// rename offsets
+	if kv.Code >= kernel.Kernel5_12 || (kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) && kv.Code.Patch() >= 220) {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameRenameStructOldDentry, "struct renamedata", "old_dentry", "linux/fs.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameRenameStructNewDentry, "struct renamedata", "new_dentry", "linux/fs.h")
 	}
 
 	// bpf offsets

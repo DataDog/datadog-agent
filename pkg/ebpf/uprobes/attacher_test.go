@@ -300,14 +300,15 @@ func TestMonitor(t *testing.T) {
 		return
 	}
 
+	launchProcessMonitor(t, false)
+
 	config := AttacherConfig{
 		Rules: []*AttachRule{{
 			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
 			Targets:          AttachToExecutable | AttachToSharedLibraries,
 		}},
-		ProcessMonitorEventStream: false,
-		EbpfConfig:                ebpfCfg,
-		SharedLibsLibset:          sharedlibraries.LibsetCrypto,
+		EbpfConfig:       ebpfCfg,
+		SharedLibsLibset: sharedlibraries.LibsetCrypto,
 	}
 	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
 	require.NoError(t, err)
@@ -480,7 +481,7 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 
 	// Tell the inspector to return a simple symbol
 	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234}
-	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, true, nil)
+	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, nil)
 	inspector.On("Cleanup", mock.Anything).Return(nil)
 
 	// Tell the manager to return no probe when finding an existing one
@@ -541,7 +542,7 @@ func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 
 	// Tell the inspector to return a simple symbol
 	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234, ReturnLocations: []uint64{0x0, 0x1}}
-	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, true, nil)
+	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, nil)
 
 	// Tell the manager to return no probe when finding an existing one
 	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
@@ -624,7 +625,7 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 
 	// Tell the inspector to return a simple symbol
 	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234}
-	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, true, nil)
+	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, nil)
 
 	// Tell the manager to return no probe when finding an existing one
 	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
@@ -684,6 +685,8 @@ func TestUprobeAttacher(t *testing.T) {
 		t.Skip("Kernel version does not support shared libraries")
 		return
 	}
+
+	launchProcessMonitor(t, false)
 
 	buf, err := bytecode.GetReader(ebpfCfg.BPFDir, "uprobe_attacher-test.o")
 	require.NoError(t, err)
@@ -853,8 +856,10 @@ func (s *SharedLibrarySuite) TestSingleFile() {
 		func() bool {
 			return methodHasBeenCalledTimes(mockRegistry, "Register", 1)
 		},
-		func() {
-			if cmd != nil && cmd.Process != nil {
+		func(testSuccess bool) {
+			// Only kill the process if the test failed, if it succeeded we want to kill it later
+			// to check if the Unregister call was done correctly
+			if !testSuccess && cmd != nil && cmd.Process != nil {
 				cmd.Process.Kill()
 			}
 		},

@@ -10,10 +10,9 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"strings"
 	"testing"
 
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/stretchr/testify/assert"
@@ -25,8 +24,7 @@ type ConfigTestSuite struct {
 }
 
 func (suite *ConfigTestSuite) SetupTest() {
-	datadog := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	pkgconfigsetup.SetDatadog(datadog)
+	configmock.New(suite.T())
 }
 
 func TestNoURIsProvided(t *testing.T) {
