@@ -38,6 +38,7 @@ const (
 	tlsProcessTailCall      = "uprobe__postgres_tls_process"
 	tlsParseMessageTailCall = "uprobe__postgres_tls_process_parse_message"
 	tlsTerminationTailCall  = "uprobe__postgres_tls_termination"
+	tlsMessageParserCall    = "uprobe__postgres_tls_message_parser"
 	eventStream             = "postgres"
 )
 
@@ -114,6 +115,13 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramPostgresTermination),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsTerminationTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramPostgresMessageParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsMessageParserCall,
 			},
 		},
 	},
