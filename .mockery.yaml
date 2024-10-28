@@ -56,5 +56,5 @@ packages:
           inpackage: true
           dir: "{{.InterfaceDir}}"
           filename: "mocks.go"
-          outpkg: nvmlmetrics
+          outpkg: nvidia
           mockname: mockCollector
