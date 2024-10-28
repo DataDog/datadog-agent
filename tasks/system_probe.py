@@ -357,16 +357,16 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
 
 
 def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
-    gpu_programs_co_re_dir = Path("pkg/gpu/ebpf/c")
-    gpu_programs_co_re_flags = f"-I{gpu_programs_co_re_dir}"
-    gpu_programs_co_re_programs = ["gpu"]
+    gpu_c_dir = Path("pkg/gpu/ebpf/c")
+    gpu_flags = f"-I{gpu_c_dir} -g"
+    gpu_programs = ["runtime/gpu"]
 
-    for prog in gpu_programs_co_re_programs:
-        infile = os.path.join(gpu_programs_co_re_dir, f"{prog}.c")
+    for prog in gpu_programs:
+        infile = os.path.join(gpu_c_dir, f"{prog}.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": gpu_programs_co_re_flags})
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": gpu_flags})
         root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": gpu_programs_co_re_flags + " -DDEBUG=1"})
+        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": gpu_flags + " -DDEBUG=1"})
 
 
 def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
@@ -414,6 +414,7 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
         "pkg/dynamicinstrumentation/codegen/compile.go": "dynamicinstrumentation",
+        "pkg/gpu/compile.go": "gpu",
     }
 
     nw.rule(
