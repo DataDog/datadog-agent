@@ -155,6 +155,19 @@ func (r *AttachRule) Validate() error {
 	return result
 }
 
+// ProcessMonitor is an interface that allows subscribing to process start and exit events
+type ProcessMonitor interface {
+	// SubscribeExec subscribes to process start events, with a callback that
+	// receives the PID of the process. Returns a function that can be called to
+	// unsubscribe from the event.
+	SubscribeExec(monitor.ProcessCallback) func()
+
+	// SubscribeExit subscribes to process exit events, with a callback that
+	// receives the PID of the process. Returns a function that can be called to
+	// unsubscribe from the event.
+	SubscribeExit(monitor.ProcessCallback) func()
+}
+
 // AttacherConfig defines the configuration for the attacher
 type AttacherConfig struct {
 	// Rules defines a series of rules that tell the attacher how to attach the probes
@@ -307,6 +320,9 @@ type UprobeAttacher struct {
 	// handlesExecutablesCached is a cache for the handlesExecutables function, avoiding
 	// recomputation every time
 	handlesExecutablesCached *bool
+
+	// processMonitor is the process monitor that we use to subscribe to process start and exit events
+	processMonitor ProcessMonitor
 }
 
 // NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments the
@@ -319,7 +335,7 @@ type UprobeAttacher struct {
 // that depend on the configuration, so any changes to the configuration after the
 // attacher would make those caches incoherent. This way we ensure that the attacher
 // is always consistent with the configuration it was created with.
-func NewUprobeAttacher(name string, config AttacherConfig, mgr ProbeManager, onAttachCallback AttachCallback, inspector BinaryInspector) (*UprobeAttacher, error) {
+func NewUprobeAttacher(name string, config AttacherConfig, mgr ProbeManager, onAttachCallback AttachCallback, inspector BinaryInspector, processMonitor ProcessMonitor) (*UprobeAttacher, error) {
 	config.SetDefaults()
 
 	if err := config.Validate(); err != nil {
@@ -335,6 +351,7 @@ func NewUprobeAttacher(name string, config AttacherConfig, mgr ProbeManager, onA
 		pathToAttachedProbes: make(map[string][]manager.ProbeIdentificationPair),
 		done:                 make(chan struct{}),
 		inspector:            inspector,
+		processMonitor:       processMonitor,
 	}
 
 	utils.AddAttacher(name, ua)
@@ -381,12 +398,11 @@ func (ua *UprobeAttacher) handlesExecutables() bool {
 // Start starts the attacher, attaching to the processes and libraries as needed
 func (ua *UprobeAttacher) Start() error {
 	var cleanupExec, cleanupExit func()
-	procMonitor := monitor.GetProcessMonitor()
 	if ua.handlesExecutables() {
-		cleanupExec = procMonitor.SubscribeExec(ua.handleProcessStart)
+		cleanupExec = ua.config.ProcessMonitor.SubscribeExec(ua.handleProcessStart)
 	}
 	// We always want to track process deletions, to avoid memory leaks
-	cleanupExit = procMonitor.SubscribeExit(ua.handleProcessExit)
+	cleanupExit = ua.config.ProcessMonitor.SubscribeExit(ua.handleProcessExit)
 
 	if ua.handlesLibraries() {
 		if !sharedlibraries.IsSupported(ua.config.EbpfConfig) {
@@ -424,7 +440,6 @@ func (ua *UprobeAttacher) Start() error {
 				cleanupExec()
 			}
 			cleanupExit()
-			procMonitor.Stop()
 			ua.fileRegistry.Clear()
 			if ua.soWatcher != nil {
 				ua.soWatcher.Stop()

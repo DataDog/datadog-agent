@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 )
 
 // === Mocks
@@ -92,6 +93,20 @@ func (m *MockBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolReq
 // Cleanup is a mock implementation of the BinaryInspector.Cleanup method.
 func (m *MockBinaryInspector) Cleanup(fpath utils.FilePath) {
 	_ = m.Called(fpath)
+}
+
+type mockProcessMonitor struct {
+	mock.Mock
+}
+
+func (m *mockProcessMonitor) SubscribeExec(cb monitor.ProcessCallback) func() {
+	args := m.Called(cb)
+	return args.Get(0).(func())
+}
+
+func (m *mockProcessMonitor) SubscribeExit(cb monitor.ProcessCallback) func() {
+	args := m.Called(cb)
+	return args.Get(0).(func())
 }
 
 // === Test utils
