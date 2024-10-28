@@ -152,7 +152,7 @@ func startTraceAgentConfigEndpoint(rcService *remoteconfig.CoreAgentService, tc 
 			},
 		})
 	} else {
-		log.Debug("Could not start trace agent config endpoint")
+		log.Debug("Not starting trace agent config endpoint")
 	}
 }
 
