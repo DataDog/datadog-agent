@@ -12,13 +12,13 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGetVisibleDevices(t *testing.T) {
-	uuid1 := "GPU-8932f937-d72c-4106-c12f-20bd9faed9f6"
-	uuid2 := "GPU-1902f078-a8da-4036-a78f-4032bbddeaf2"
+	commonPrefix := "GPU-89"
+	uuid1 := commonPrefix + "32f937-d72c-4106-c12f-20bd9faed9f6"
+	uuid2 := commonPrefix + "02f078-a8da-4036-a78f-4032bbddeaf2"
 
 	dev1 := &nvmlmock.Device{
 		GetUUIDFunc: func() (string, nvml.Return) {
@@ -26,7 +26,7 @@ func TestGetVisibleDevices(t *testing.T) {
 		},
 	}
 
-	dev2 := nvmlmock.Device{
+	dev2 := &nvmlmock.Device{
 		GetUUIDFunc: func() (string, nvml.Return) {
 			return uuid1, nvml.SUCCESS
 		},
@@ -85,6 +85,18 @@ func TestGetVisibleDevices(t *testing.T) {
 			visibleDevices:  "0," + uuid2,
 			expectedDevices: []nvml.Device{devList[0], devList[1]},
 			expectsError:    false,
+		},
+		{
+			name:            "InvalidIndexInMiddle",
+			visibleDevices:  "0,235,1",
+			expectedDevices: []nvml.Device{devList[0]},
+			expectsError:    true,
+		},
+		{
+			name:            "SharedPrefix",
+			visibleDevices:  commonPrefix,
+			expectedDevices: nil,
+			expectsError:    true,
 		},
 	}
 
