@@ -13,7 +13,8 @@ type EventConsumerHandler interface {
 	probe.EventConsumerHandler
 }
 
-// EventConsumer provides an interface for any consumers of the event_monitor module
+// EventConsumer provides a state interface for any consumers of the event_monitor module.
+// Each event consumer should also implement the EventConsumerHandler interface to handle the retrieved events
 type EventConsumer interface {
 	// IDer implements the ID method to return unique ID of the event consumer
 	probe.IDer
