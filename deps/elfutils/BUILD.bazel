@@ -1,0 +1,32 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name="elfutils",
+    lib_source = "@elfutils//:all",
+    configure_options = [
+        "--with-zlib=$$EXT_BUILD_DEPS/zlib",
+        "--with-lzma=$$EXT_BUILD_DEPS/lzma",
+        "--with-sax1",
+        "--without-iconv",
+        "--without-python",
+        "--without-icu",
+        "--without-debug",
+        "--without-mem-debug",
+        "--without-run-debug",
+        "--without-legacy",
+        "--without-catalog",
+        "--without-docbook",
+        "--disable-static",
+    ],
+    deps = [
+        "@zlib//:zlib",
+        "@xz//:lzma",
+        "@bzip2//:bz2",
+    ],
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+        ],
+    }),
+    visibility = ["//visibility:public"],
+)
+

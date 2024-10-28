@@ -3,7 +3,7 @@ http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "ht
 all_content = """filegroup(name = "all", srcs = glob(["**"]), visibility = ["//visibility:public"])"""
 
 # Defines a "zlib" target for the lib
-bazel_dep(name = "zlib", version = "1.3.1")
+bazel_dep(name = "zlib", version = "1.3.1.bcr.3")
 
 # Defines a "bz2" target for the lib, "bzip2" for the CLI tool
 bazel_dep(name = "bzip2", version = "1.0.8")
@@ -48,4 +48,240 @@ http_archive(
     url = "https://sourceware.org/ftp/libffi/libffi-{0}.tar.gz".format(LIBFFI_VERSION),
     sha256="d06ebb8e1d9a22d19e38d63fdb83954253f39bedc5d46232a05645685722ca37",
     strip_prefix="libffi-{0}".format(LIBFFI_VERSION),
+)
+
+# Defines a "ncurses" target for the lib.
+# There are also "form", "menu", "panel" lib targets and "make_hash" binary
+bazel_dep(name = "ncurses", version = "6.4.20221231.bcr.2")
+
+# Defines a "sqlite3" target for the lib
+bazel_dep(name = "sqlite3", version = "3.46.1")
+
+PYTHON3_VERSION = "3.12.6"
+http_archive(
+    name="python3",
+    build_file_content = all_content,
+    url = "https://python.org/ftp/python/{0}/Python-{0}.tgz".format(PYTHON3_VERSION),
+    sha256="85a4c1be906d20e5c5a69f2466b00da769c221d6a684acfd3a514dbf5bf10a66",
+    strip_prefix="Python-{0}".format(PYTHON3_VERSION),
+)
+
+ATTR_VERSION = "2.5.1"
+http_archive(
+    name="attr",
+    build_file_content = all_content,
+    url = "http://download.savannah.nongnu.org/releases/attr/attr-{0}.tar.xz".format(ATTR_VERSION),
+    sha256="db448a626f9313a1a970d636767316a8da32aede70518b8050fa0de7947adc32",
+    strip_prefix="attr-{0}".format(ATTR_VERSION),
+)
+
+# Defines a curl target for the lib
+# We probable don't want to use the bazel_dep for long since it doesn't seem
+# to link with openssl but with mbedtls.
+bazel_dep(name = "curl", version = "8.8.0")
+
+EXPAT_VERSION = "2.5.0"
+http_archive(
+    name="expat",
+    build_file_content = all_content,
+    url = "https://github.com/libexpat/libexpat/releases/download/R_{0}/expat-{1}.tar.gz".format(EXPAT_VERSION.replace(".", "_"), EXPAT_VERSION),
+    sha256="6b902ab103843592be5e99504f846ec109c1abb692e85347587f237a4ffa1033",
+    strip_prefix="expat-{0}".format(EXPAT_VERSION),
+)
+
+DBUS_VERSION = "1.14.10"
+http_archive(
+    name="dbus",
+    build_file_content = all_content,
+    url = "https://dbus.freedesktop.org/releases/dbus/dbus-{0}.tar.xz".format(DBUS_VERSION),
+    sha256="ba1f21d2bd9d339da2d4aa8780c09df32fea87998b73da24f49ab9df1e36a50f",
+    strip_prefix="dbus-{0}".format(DBUS_VERSION),
+)
+
+LIBACL_VERSION = "2.3.1"
+http_archive(
+    name="libacl",
+    build_file_content = all_content,
+    url = "http://download.savannah.nongnu.org/releases/acl/acl-{0}.tar.xz".format(LIBACL_VERSION),
+    sha256="c0234042e17f11306c23c038b08e5e070edb7be44bef6697fb8734dcff1c66b1",
+    strip_prefix="acl-{0}".format(LIBACL_VERSION),
+)
+
+LIBGPG_ERROR_VERSION = "1.47"
+http_archive(
+    name="libgpg-error",
+    build_file_content = all_content,
+    url = "https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-{0}.tar.bz2".format(LIBGPG_ERROR_VERSION),
+    sha256="9e3c670966b96ecc746c28c2c419541e3bcb787d1a73930f5e5f5e1bcbbb9bdb",
+    strip_prefix="libgpg-error-{0}".format(LIBGPG_ERROR_VERSION),
+)
+
+LIBGCRYPT_VERSION = "1.10.2"
+http_archive(
+    name="libgcrypt",
+    build_file_content = all_content,
+    url = "https://www.gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-{0}.tar.bz2".format(LIBGCRYPT_VERSION),
+    sha256="3b9c02a004b68c256add99701de00b383accccf37177e0d6c58289664cce0c03",
+    strip_prefix="libgcrypt-{0}".format(LIBGCRYPT_VERSION),
+)
+
+# Defines a pcre2 target for the lib
+bazel_dep(name = "pcre2", version = "10.43")
+
+LIBSEPOL_VERSION = "3.5"
+http_archive(
+    name="libsepol",
+    build_file_content = all_content,
+    url = "https://github.com/SELinuxProject/selinux/releases/download/{0}/libsepol-{0}.tar.gz".format(LIBSEPOL_VERSION),
+    sha256="78fdaf69924db780bac78546e43d9c44074bad798c2c415d0b9bb96d065ee8a2",
+    strip_prefix="libsepol-{0}".format(LIBSEPOL_VERSION),
+    patches = [
+        "//deps/libsepol:patches/ln_no_relative.patch",
+        "//deps/libsepol:patches/fix_shlibdir.patch",
+    ],
+    patch_tool = "patch",
+    patch_args = ["-p1"],
+)
+
+LIBSELINUX_VERSION = "3.5"
+http_archive(
+    name="libselinux",
+    build_file_content = all_content,
+    url = "https://github.com/SELinuxProject/selinux/releases/download/{0}/libselinux-{0}.tar.gz".format(LIBSELINUX_VERSION),
+    sha256="9a3a3705ac13a2ccca2de6d652b6356fead10f36fb33115c185c5ccdf29eec19",
+    strip_prefix="libselinux-{0}".format(LIBSELINUX_VERSION),
+)
+
+LIBXML2_VERSION = "2.12.6"
+http_archive(
+    name="libxml2",
+    build_file_content = all_content,
+    url = "https://download.gnome.org/sources/libxml2/2.12/libxml2-{0}.tar.xz".format(LIBXML2_VERSION),
+    sha256="889c593a881a3db5fdd96cc9318c87df34eb648edfc458272ad46fd607353fbb",
+    strip_prefix="libxml2-{0}".format(LIBXML2_VERSION),
+)
+
+LIBXSLT_VERSION = "1.1.37"
+http_archive(
+    name="libxslt",
+    build_file_content = all_content,
+    url = "https://download.gnome.org/sources/libxslt/1.1/libxslt-{0}.tar.xz".format(LIBXSLT_VERSION),
+    sha256="3a4b27dc8027ccd6146725950336f1ec520928f320f144eb5fa7990ae6123ab4",
+    strip_prefix="libxslt-{0}".format(LIBXSLT_VERSION),
+)
+
+POPT_VERSION = "1.19"
+http_archive(
+    name="popt",
+    build_file_content = all_content,
+    url = "http://ftp.rpm.org/popt/releases/popt-1.x/popt-{0}.tar.gz".format(POPT_VERSION),
+    sha256="c25a4838fc8e4c1c8aacb8bd620edb3084a3d63bf8987fdad3ca2758c63240f9",
+    strip_prefix="popt-{0}".format(POPT_VERSION),
+)
+
+ELFUTILS_VERSION = "0.189"
+http_archive(
+    name="elfutils",
+    build_file_content = all_content,
+    url = "https://sourceware.org/elfutils/ftp/{0}/elfutils-{0}.tar.bz2".format(ELFUTILS_VERSION),
+    sha256="39bd8f1a338e2b7cd4abc3ff11a0eddc6e690f69578a57478d8179b4148708c8",
+    strip_prefix="elfutils-{0}".format(ELFUTILS_VERSION),
+)
+
+# Defines a zstd target for the lib
+bazel_dep(name = "zstd", version = "1.5.6")
+
+LIBDB_VERSION = "5.3.28"
+http_archive(
+    name="libdb",
+    build_file_content = all_content,
+    url = "https://github.com/berkeleydb/libdb/releases/download/v{0}/db-{0}.tar.gz".format(LIBDB_VERSION),
+    sha256="e0a992d740709892e81f9d93f06daf305cf73fb81b545afe72478043172c3628",
+    strip_prefix="db-{0}".format(LIBDB_VERSION),
+)
+
+# Defies a "liblua" target for the lib
+bazel_dep(name = "lua", version = "5.4.6")
+
+RPM_VERSION = "4.18.1"
+http_archive(
+    name="rpm",
+    build_file_content = all_content,
+    url = "http://ftp.rpm.org/releases/rpm-4.18.x/rpm-{0}.tar.bz2".format(RPM_VERSION),
+    sha256="37f3b42c0966941e2ad3f10fde3639824a6591d07197ba8fd0869ca0779e1f56",
+    strip_prefix="rpm-{0}".format(RPM_VERSION),
+)
+
+UTIL_LINUX_VERSION = "2.39.2"
+http_archive(
+    name="util-linux",
+    build_file_content = all_content,
+    url = "https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v2.39/util-linux-{0}.tar.gz".format(UTIL_LINUX_VERSION),
+    sha256="c8e1a11dd5879a2788973c73589fbcf08606e85aeec095e516162495ead8ba68",
+    strip_prefix="util-linux-{0}".format(UTIL_LINUX_VERSION),
+)
+
+NETTLE_VERSION = "3.9.1"
+http_archive(
+    name="nettle",
+    build_file_content = all_content,
+    url = "https://ftp.gnu.org/gnu/nettle/nettle-{0}.tar.gz".format(NETTLE_VERSION),
+    sha256="ccfeff981b0ca71bbd6fbcb054f407c60ffb644389a5be80d6716d5b550c6ce3",
+    strip_prefix="nettle-{0}".format(NETTLE_VERSION),
+)
+
+GMP_VERSION = "6.3.0"
+http_archive(
+    name="gmp",
+    build_file_content = all_content,
+    url = "https://ftp.dimensiondata.com/mirrors/ftp.gnu.org/gmp/gmp-{0}.tar.xz".format(GMP_VERSION),
+    sha256="a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898",
+    strip_prefix="gmp-{0}".format(GMP_VERSION),
+)
+
+LIBTASN1_VERSION = "4.19.0"
+http_archive(
+    name="libtasn1",
+    build_file_content = all_content,
+    url = "https://ftp.gnu.org/gnu/libtasn1/libtasn1-{0}.tar.gz".format(LIBTASN1_VERSION),
+    sha256="1613f0ac1cf484d6ec0ce3b8c06d56263cc7242f1c23b30d82d23de345a63f7a",
+    strip_prefix="libtasn1-{0}".format(LIBTASN1_VERSION),
+)
+
+GNUTLS_VERSION = "3.7.10"
+http_archive(
+    name="gnutls",
+    build_file_content = all_content,
+    url = "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.7/gnutls-{0}.tar.xz".format(GNUTLS_VERSION),
+    sha256="b6e4e8bac3a950a3a1b7bdb0904979d4ab420a81e74de8636dd50b467d36f5a9",
+    strip_prefix="gnutls-{0}".format(GNUTLS_VERSION),
+)
+
+XMLSEC_VERSION = "1.3.1"
+http_archive(
+    name="xmlsec",
+    build_file_content = all_content,
+    url = "https://github.com/lsh123/xmlsec/releases/download/xmlsec_1_3_1/xmlsec1-{0}.tar.gz".format(XMLSEC_VERSION),
+    sha256="10f48384d4fd1afc05fea545b74fbf7c152582f0a895c189f164d55270400c63",
+    strip_prefix="xmlsec1-{0}".format(XMLSEC_VERSION),
+)
+
+OPENSCAP_VERSION = "1.3.10"
+http_archive(
+    name="openscap",
+    build_file_content = all_content,
+    url = "https://github.com/OpenSCAP/openscap/releases/download/{0}/openscap-{0}.tar.gz".format(OPENSCAP_VERSION),
+    sha256="0d023ff3fbdec617768ea5977fd3bb6702dfef4ae595da9a5bbc6ecc6ac9e575",
+    strip_prefix="openscap-{0}".format(OPENSCAP_VERSION),
+    patches = [
+        "//deps/openscap:patches/fsdev-ignore-host.patch",
+        "//deps/openscap:patches/memusage-cgroup.patch",
+        "//deps/openscap:patches/oscap-io.patch",
+        "//deps/openscap:patches/oval_probe_session_reset.patch",
+        "//deps/openscap:patches/rpm-verbosity-err.patch",
+        "//deps/openscap:patches/session-print-syschar.patch",
+        "//deps/openscap:patches/systemd-dbus-address.patch",
+    ],
+    patch_tool = "patch",
+    patch_args = ["-p1"],
 )

@@ -1,0 +1,60 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name="python3",
+    lib_source = "@python3//:all",
+    configure_options = [
+        "--enable-ipv6",
+        "--with-ensurepip=yes",
+        "--enable-shared",
+        "--disable-static",
+        "--with-dbmliborder=",
+        # Fixes an issue with __DATE__ being set to undefined `redacted`
+        # https://github.com/bazelbuild/rules_foreign_cc/issues/239#issuecomment-478167267
+        "CFLAGS='-Dredacted=\"redacted\"'",
+        "--with-openssl=$$EXT_BUILD_DEPS/openssl",
+        # "--with-openssl=$(rootpaths //deps/openssl:build)",
+        # "--with-openssl=/home/hugo.beauzee/.cache/bazel/_bazel_hugo.beauzee/95605d1a73395e0c041bb302da387b0e/execroot/_main/bazel-out/k8-fastbuild/bin/deps/openssl/build",
+    ] + select({
+        "@platforms//os:macos": [
+            "--with-universal-archs=intel",
+        ],
+        "//conditions:default": []
+    }),
+    out_binaries = [
+        "python3",
+        "pip3",
+        "python3.11",
+    ],
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libffi.so",
+        ],
+        "//conditions:default": []
+    }),
+    env = {
+        "OPT": "-DNDEBUG -fwrapv",
+        # manually provide some dependencies cflags/ldflags instead of
+        # relying on pkg-config
+        "BZIP2_CFLAGS": "-I.",
+        "BZIP2_LIBS": "-lbz2",
+        "LIBFFI_CFLAGS": "-I.",
+        "LIBFFI_LIBS": "-lffi",
+        # Ensure we don't use the system provided .pc
+        "PKG_CONFIG_LIBDIR": "/does/not/exist"
+    },
+    deps = [
+        "@zlib//:zlib",
+        "@bzip2//:bz2",
+        "@sqlite3//:sqlite3",
+        "@xz//:lzma",
+        "@libyaml//:libyaml",
+        "@ncurses//:ncurses",
+        "//deps/libxcrypt",
+        "//deps/libffi",
+        "//deps/openssl",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+

@@ -1,0 +1,41 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name="rpm",
+    lib_source = "@rpm//:all",
+    deps = [
+        "//deps/elfutils",
+        "//deps/file",
+        "//deps/libgpg-error",
+        "//deps/libgcrypt",
+        "//deps/popt",
+        "@zstd//:zstd",
+        "@sqlite3//:sqlite3",
+        "//deps/libdb",
+        "@lua//:liblua",
+    ],
+    configure_options = [
+        "--enable-sqlite=yes",
+        "--enable-bdb-ro=yes",
+        "--disable-nls",
+        "--disable-openmp",
+        "--disable-plugins",
+        "--without-archive",
+        "--without-selinux",
+        "--without-imaevm",
+        "--without-cap",
+        "--without-acl",
+        "--without-audit",
+        "--without-readline",
+        "--with-crypto=openssl",
+        "--localstatedir=/var",
+        "--disable-static",
+    ],
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+        ],
+    }),
+    visibility = ["//visibility:public"],
+)
+
+

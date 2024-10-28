@@ -1,25 +1,23 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 
 configure_make(
-    name="libxcrypt",
-    lib_source = "@libxcrypt//:all",
+    name="libxslt",
+    lib_source = "@libxslt//:all",
     configure_options = [
-        "--disable-obsolete-api",
-        "--disable-werror",
-        "--enable-shared",
+        "--with-libxml-prefix=$$EXT_BUILD_DEPS/libxml2",
+        "--without-python",
+        "--without-crypto",
+        "--without-profiler",
+        "--without-debugger",
         "--disable-static",
-        "--with-gnu-ld",
     ],
     deps = [
-        "@zlib//:zlib",
-        "@bzip2//:bz2",
+        "//deps/libxml2",
         "@xz//:lzma",
     ],
     out_shared_libs = select({
         "@platforms//os:linux": [
-            "libcrypt.so",
-            "libcrypt.so.2",
-            "libcrypt.so.2.0.0",
+            "libxslt.so",
         ],
     }),
     visibility = ["//visibility:public"],

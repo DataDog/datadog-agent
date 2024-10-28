@@ -1,7 +1,7 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 
 configure_make(
-    name="build",
+    name="file",
     lib_source = "@file//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [
@@ -12,7 +12,8 @@ configure_make(
         "@xz//:lzma",
         "@zlib//:zlib",
         "@bzip2//:bz2"
-    ]
+    ],
+    visibility = ["//visibility:public"],
 )
 
 

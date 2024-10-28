@@ -1,0 +1,27 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "make")
+
+make(
+    name="libselinux",
+    lib_source = "@libselinux//:all",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libselinux.so",
+        ],
+    }),
+    copts = [
+        "-I$EXT_BUILD_DEPS/include",
+    ],
+    targets = [
+        "install",
+    ],
+    deps = [
+        "@pcre2//:pcre2",
+        "//deps/libsepol",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+
+
+
+

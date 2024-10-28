@@ -1,0 +1,11 @@
+--- a/src/Makefile	2024-10-25 16:19:50.574806523 +0200
++++ b/src/Makefile	2024-10-25 16:20:02.162815350 +0200
+@@ -2,7 +2,7 @@
+ PREFIX ?= /usr
+ INCLUDEDIR ?= $(PREFIX)/include
+ LIBDIR ?= $(PREFIX)/lib
+-SHLIBDIR ?= /lib
++SHLIBDIR ?= $(PREFIX)/lib
+ RANLIB ?= ranlib
+ CILDIR ?= ../cil
+

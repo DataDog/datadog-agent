@@ -1,19 +1,20 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 
 configure_make(
-    name="libffi",
-    lib_source = "@libffi//:all",
+    name="libgpg-error",
+    lib_source = "@libgpg-error//:all",
     configure_options = [
+        "--enable-maintainer-mode",
+        "--disable-tests",
         "--disable-doc",
-        "--disable-multi-os-directory",
+        "--disable-languages",
     ],
     out_shared_libs = select({
         "@platforms//os:linux": [
-            "libffi.so",
-            "libffi.so.6",
-            "libffi.so.6.0.4",
+            "libgpg-error.so",
         ],
     }),
     visibility = ["//visibility:public"],
 )
+
 

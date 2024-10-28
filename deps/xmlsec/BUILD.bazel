@@ -1,17 +1,20 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 
 configure_make(
-    name="libffi",
-    lib_source = "@libffi//:all",
+    name="xmlsec",
+    lib_source = "@xmlsec//:all",
     configure_options = [
-        "--disable-doc",
-        "--disable-multi-os-directory",
+        "--disable-static",
+        "--disable-pedantic",
+    ],
+    deps = [
+        "//deps/libxml2",
+        "//deps/libxslt",
+        "//deps/libgcrypt",
+        "//deps/gnutls",
     ],
     out_shared_libs = select({
         "@platforms//os:linux": [
-            "libffi.so",
-            "libffi.so.6",
-            "libffi.so.6.0.4",
         ],
     }),
     visibility = ["//visibility:public"],

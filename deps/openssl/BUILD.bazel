@@ -1,7 +1,7 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 
 configure_make(
-    name="build",
+    name="openssl",
     lib_source = "@openssl//:all",
     configure_command = "config",
     configure_options = [
@@ -23,9 +23,12 @@ configure_make(
     out_shared_libs = select({
         "@platforms//os:linux": [
             "libssl.so",
+            "libssl.so.3",
             "libcrypto.so",
+            "libcrypto.so.3",
         ],
     }),
+    visibility = ["//visibility:public"],
 )
 
 

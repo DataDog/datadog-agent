@@ -1,17 +1,17 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 
 configure_make(
-    name="libffi",
-    lib_source = "@libffi//:all",
+    name="util-linux",
+    lib_source = "@util-linux//:all",
     configure_options = [
-        "--disable-doc",
-        "--disable-multi-os-directory",
+        "--disable-nls",
+        "--disable-asciidoc",
+        "--disable-all-programs",
+        "--enable-libblkid",
+        "--disable-static",
     ],
     out_shared_libs = select({
         "@platforms//os:linux": [
-            "libffi.so",
-            "libffi.so.6",
-            "libffi.so.6.0.4",
         ],
     }),
     visibility = ["//visibility:public"],
