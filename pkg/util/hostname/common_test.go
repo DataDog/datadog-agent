@@ -143,21 +143,21 @@ func TestFromOS(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// fromEC2
+// fromEC2WithIMDSV2
 
 func TestFromEc2DefaultHostname(t *testing.T) {
 	// This test that when a default EC2 hostname is detected we fallback on EC2 instance ID
 	defer func() { ec2GetInstanceID = ec2.GetInstanceID }()
 
 	// make AWS provider return an error
-	ec2GetInstanceID = func(context.Context) (string, error) { return "", fmt.Errorf("some error") }
+	ec2GetInstanceID = func(context.Context, bool) (string, error) { return "", fmt.Errorf("some error") }
 
-	_, err := fromEC2(context.Background(), "ip-hostname")
+	_, err := fromEC2WithIMDSV2(context.Background(), "ip-hostname")
 	assert.Error(t, err)
 
-	ec2GetInstanceID = func(context.Context) (string, error) { return "someHostname", nil }
+	ec2GetInstanceID = func(context.Context, bool) (string, error) { return "someHostname", nil }
 
-	hostname, err := fromEC2(context.Background(), "ip-hostname")
+	hostname, err := fromEC2WithIMDSV2(context.Background(), "ip-hostname")
 	assert.NoError(t, err)
 	assert.Equal(t, "someHostname", hostname)
 }
@@ -170,14 +170,14 @@ func TestFromEc2Prioritize(t *testing.T) {
 	pkgconfigsetup.Datadog().SetWithoutSource("ec2_prioritize_instance_id_as_hostname", true)
 
 	// make AWS provider return an error
-	ec2GetInstanceID = func(context.Context) (string, error) { return "", fmt.Errorf("some error") }
+	ec2GetInstanceID = func(context.Context, bool) (string, error) { return "", fmt.Errorf("some error") }
 
-	_, err := fromEC2(context.Background(), "non-default-hostname")
+	_, err := fromEC2WithIMDSV2(context.Background(), "non-default-hostname")
 	assert.Error(t, err)
 
-	ec2GetInstanceID = func(context.Context) (string, error) { return "someHostname", nil }
+	ec2GetInstanceID = func(context.Context, bool) (string, error) { return "someHostname", nil }
 
-	hostname, err := fromEC2(context.Background(), "non-default-hostname")
+	hostname, err := fromEC2WithIMDSV2(context.Background(), "non-default-hostname")
 	assert.NoError(t, err)
 	assert.Equal(t, "someHostname", hostname)
 }

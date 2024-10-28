@@ -54,7 +54,7 @@ func GetMeta(ctx context.Context, conf model.Reader) *Meta {
 	osHostname, _ := os.Hostname()
 	tzname, _ := time.Now().Zone()
 	ec2Hostname, _ := ec2.GetHostname(ctx)
-	instanceID, _ := ec2.GetInstanceID(ctx)
+	instanceID, _ := ec2.GetInstanceID(ctx, false)
 
 	var agentHostname string
 	var legacyResolutionHostname string
@@ -63,15 +63,19 @@ func GetMeta(ctx context.Context, conf model.Reader) *Meta {
 	if conf.GetBool("hostname_force_config_as_canonical") && hostnameData.FromConfiguration() {
 		agentHostname = hostnameData.Hostname
 	}
+	legacyResolutionHostnameData, _ := hostname.GetWithProviderWithoutCacheAndIMDSV2(ctx)
+	if legacyResolutionHostnameData.Hostname != hostnameData.Hostname {
+		legacyResolutionHostname = legacyResolutionHostnameData.Hostname
+	}
 
 	m := &Meta{
-		SocketHostname: osHostname,
-		Timezones:      []string{tzname},
-		SocketFqdn:     util.Fqdn(osHostname),
-		EC2Hostname:    ec2Hostname,
-		HostAliases:    cloudproviders.GetHostAliases(ctx),
-		InstanceID:     instanceID,
-		AgentHostname:  agentHostname,
+		SocketHostname:           osHostname,
+		Timezones:                []string{tzname},
+		SocketFqdn:               util.Fqdn(osHostname),
+		EC2Hostname:              ec2Hostname,
+		HostAliases:              cloudproviders.GetHostAliases(ctx),
+		InstanceID:               instanceID,
+		AgentHostname:            agentHostname,
 		LegacyResolutionHostname: legacyResolutionHostname,
 	}
 

@@ -98,21 +98,21 @@ func TestGetInstanceID(t *testing.T) {
 
 	// API errors out, should return error
 	responseCode = http.StatusInternalServerError
-	val, err := GetInstanceID(ctx)
+	val, err := GetInstanceID(ctx, false)
 	assert.NotNil(t, err)
 	assert.Equal(t, "", val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
 
 	// API successful, should return API result
 	responseCode = http.StatusOK
-	val, err = GetInstanceID(ctx)
+	val, err = GetInstanceID(ctx, false)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
 
 	// the internal cache is populated now, should return the cached value even if API errors out
 	responseCode = http.StatusInternalServerError
-	val, err = GetInstanceID(ctx)
+	val, err = GetInstanceID(ctx, false)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
@@ -120,7 +120,7 @@ func TestGetInstanceID(t *testing.T) {
 	// the internal cache is populated, should refresh result if API call succeeds
 	responseCode = http.StatusOK
 	expected = "i-aaaaaaaaaaaaaaaaa"
-	val, err = GetInstanceID(ctx)
+	val, err = GetInstanceID(ctx, false)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")

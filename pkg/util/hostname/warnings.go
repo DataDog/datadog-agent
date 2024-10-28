@@ -19,7 +19,7 @@ import (
 func isHostnameCanonicalForIntake(ctx context.Context, hostname string) bool {
 	// Intake uses instance id for ec2 default hostname except for Windows.
 	if ec2.IsDefaultHostnameForIntake(hostname) {
-		_, err := ec2.GetInstanceID(ctx)
+		_, err := ec2.GetInstanceID(ctx, false)
 		return err != nil
 	}
 	return true

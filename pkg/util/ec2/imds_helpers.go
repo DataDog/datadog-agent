@@ -24,6 +24,15 @@ var (
 	imdsNetworkMacs = "/network/interfaces/macs"
 )
 
+// IMDSv2Action is an enum to determine how to interact with the IMDSv2 option
+type IMDSv2Action int
+
+const (
+	disableIMDSv2 IMDSv2Action = iota
+	useIMDSv2
+	forceIMDSv2
+)
+
 func getToken(ctx context.Context) (string, time.Time, error) {
 	tokenLifetime := time.Duration(pkgconfigsetup.Datadog().GetInt("ec2_metadata_token_lifetime")) * time.Second
 	// Set the local expiration date before requesting the metadata endpoint so the local expiration date will always
@@ -44,8 +53,8 @@ func getToken(ctx context.Context) (string, time.Time, error) {
 	return res, expirationDate, nil
 }
 
-func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, forceIMDSv2 bool) (string, error) {
-	result, err := getMetadataItem(ctx, endpoint, forceIMDSv2)
+func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, action IMDSv2Action) (string, error) {
+	result, err := getMetadataItem(ctx, endpoint, action)
 	if err != nil {
 		return result, err
 	}
@@ -57,39 +66,50 @@ func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, forceIMD
 	return result, err
 }
 
-func getMetadataItem(ctx context.Context, endpoint string, forceIMDSv2 bool) (string, error) {
+func getMetadataItem(ctx context.Context, endpoint string, action IMDSv2Action) (string, error) {
 	if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	return doHTTPRequest(ctx, metadataURL+endpoint, forceIMDSv2)
+	return doHTTPRequest(ctx, metadataURL+endpoint, action)
 }
 
 // UseIMDSv2 returns true if the agent should use IMDSv2
-func UseIMDSv2(forceIMDSv2 bool) bool {
-	return pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || forceIMDSv2
+func UseIMDSv2(force bool, disable bool) IMDSv2Action {
+	// if force is set, we use IMDSv2, highest priority
+	if force {
+		return forceIMDSv2
+		// if disable is set, we disable IMDSv2
+	} else if disable {
+		return disableIMDSv2
+		// if ec2_prefer_imdsv2 is set, we use IMDSv2
+	} else if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") {
+		return useIMDSv2
+	}
+	// if nothing indicates to use IMDSv2, we default to IMDSv1
+	return disableIMDSv2
 }
 
-func doHTTPRequest(ctx context.Context, url string, forceIMDSv2 bool) (string, error) {
+func doHTTPRequest(ctx context.Context, url string, action IMDSv2Action) (string, error) {
 	source := metadataSourceIMDSv1
 	headers := map[string]string{}
-	if UseIMDSv2(forceIMDSv2) {
+	if action >= useIMDSv2 {
 		tokenValue, err := token.Get(ctx)
 		if err != nil {
-			if forceIMDSv2 {
+			if action == forceIMDSv2 {
 				return "", fmt.Errorf("could not fetch token from IMDSv2")
 			}
 			log.Warnf("ec2_prefer_imdsv2 is set to true in the configuration but the agent was unable to proceed: %s", err)
 		} else {
 			headers["X-aws-ec2-metadata-token"] = tokenValue
-			if !forceIMDSv2 {
+			if action != forceIMDSv2 {
 				source = metadataSourceIMDSv2
 			}
 		}
 	}
 	res, err := httputils.Get(ctx, url, headers, time.Duration(pkgconfigsetup.Datadog().GetInt("ec2_metadata_timeout"))*time.Millisecond, pkgconfigsetup.Datadog())
 	// We don't want to register the source when we force imdsv2
-	if err == nil && !forceIMDSv2 {
+	if err == nil && action != forceIMDSv2 {
 		setCloudProviderSource(source)
 	}
 	return res, err
