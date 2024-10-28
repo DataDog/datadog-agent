@@ -113,6 +113,8 @@ func newServer(endpoint string, handler http.Handler, ocb bool) (*server, error)
 	r := mux.NewRouter()
 	r.Handle("/", handler)
 
+	// no easy way currently to pass required bearer auth token to OSS collector;
+	// skip the validation if running inside a separate collector
 	if !ocb {
 		r.Use(validateToken)
 	}

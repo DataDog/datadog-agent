@@ -30,14 +30,14 @@ type ddExtensionFactory struct {
 	ocb                    bool
 }
 
-// NewFactory creates a factory for Datadog Flare Extension for use with OCB
+// NewFactory creates a factory for Datadog Flare Extension for use with OCB and OSS Collector
 func NewFactory() extension.Factory {
 	return &ddExtensionFactory{
 		ocb: true,
 	}
 }
 
-// NewFactoryForAgent creates a factory for Datadog Flare Extension
+// NewFactoryForAgent creates a factory for Datadog Flare Extension for use with Agent
 func NewFactoryForAgent(factories *otelcol.Factories, configProviderSettings otelcol.ConfigProviderSettings) extension.Factory {
 	return &ddExtensionFactory{
 		factories:              factories,
@@ -46,7 +46,6 @@ func NewFactoryForAgent(factories *otelcol.Factories, configProviderSettings ote
 	}
 }
 
-// CreateExtension exports extension creation
 func (f *ddExtensionFactory) CreateExtension(ctx context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
 	config := &Config{
 		factories:              f.factories,
@@ -56,7 +55,6 @@ func (f *ddExtensionFactory) CreateExtension(ctx context.Context, set extension.
 	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, f.ocb)
 }
 
-// CreateDefaultConfig exports default configuration for use within Datadog Agent
 func (f *ddExtensionFactory) CreateDefaultConfig() component.Config {
 	return &Config{
 		HTTPConfig: &confighttp.ServerConfig{

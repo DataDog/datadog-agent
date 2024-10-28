@@ -74,6 +74,7 @@ func (c *configs[F]) Unmarshal(conf *confmap.Conf) error {
 	if err := conf.Unmarshal(&rawCfgs); err != nil {
 		return err
 	}
+
 	// Prepare resulting map.
 	c.cfgs = make(map[component.ID]component.Config)
 	// Iterate over raw configs and create a config for each.
@@ -102,6 +103,7 @@ func (c *configs[F]) Unmarshal(conf *confmap.Conf) error {
 		c.cfgs[id] = cfg
 	}
 	return nil
+
 }
 
 func errorUnknownType(id component.ID, factories []component.Type) error {
