@@ -51,6 +51,8 @@ func getVisibleDevices(systemDevices []nvml.Device, cudaVisibleDevices string) (
 				return filteredDevices, err
 			}
 		} else if strings.HasPrefix(visibleDevice, "MIG-GPU") {
+			// MIG (Multi Instance GPUs) devices require extra parsing and data
+			// about the MIG instance assignment, which is not supported yet.
 			return filteredDevices, fmt.Errorf("MIG devices are not supported")
 		} else {
 			matchingDevice, err = getDeviceWithIndex(systemDevices, visibleDevice)
