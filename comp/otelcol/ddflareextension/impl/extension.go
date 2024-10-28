@@ -58,7 +58,7 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 		return nil
 	}
 	// unmarshal will only be called if we created this component via the Agent
-	if cfg, err = unmarshal(conf, *ext.cfg.factories, ext.ocb); err != nil {
+	if cfg, err = unmarshal(conf, *ext.cfg.factories); err != nil {
 		return fmt.Errorf("cannot unmarshal the configuration: %w", err)
 	}
 
@@ -98,7 +98,6 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 		}
 
 		uri, err := extractor(exconf)
-		fmt.Sprintln("uri: ", uri)
 
 		var uris []string
 		switch extension.Type().String() {

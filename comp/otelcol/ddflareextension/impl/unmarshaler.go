@@ -34,18 +34,18 @@ type configSettings struct {
 
 // unmarshal the configSettings from a confmap.Conf.
 // After the config is unmarshalled, `Validate()` must be called to validate.
-func unmarshal(v *confmap.Conf, factories otelcol.Factories, ocb bool) (*configSettings, error) {
+func unmarshal(v *confmap.Conf, factories otelcol.Factories) (*configSettings, error) {
 
 	telFactory := telemetry.NewFactory()
 	defaultTelConfig := *telFactory.CreateDefaultConfig().(*telemetry.Config)
 
 	// Unmarshal top level sections and validate.
 	cfg := &configSettings{
-		Receivers:  newConfigs(factories.Receivers, ocb),
-		Processors: newConfigs(factories.Processors, ocb),
-		Exporters:  newConfigs(factories.Exporters, ocb),
-		Connectors: newConfigs(factories.Connectors, ocb),
-		Extensions: newConfigs(factories.Extensions, ocb),
+		Receivers:  newConfigs(factories.Receivers),
+		Processors: newConfigs(factories.Processors),
+		Exporters:  newConfigs(factories.Exporters),
+		Connectors: newConfigs(factories.Connectors),
+		Extensions: newConfigs(factories.Extensions),
 		// TODO: Add a component.ServiceFactory to allow this to be defined by the Service.
 		Service: service.Config{
 			Telemetry: defaultTelConfig,
@@ -59,12 +59,10 @@ type configs[F component.Factory] struct {
 	cfgs map[component.ID]component.Config
 
 	factories map[component.Type]F
-
-	ocb bool
 }
 
-func newConfigs[F component.Factory](factories map[component.Type]F, ocb bool) *configs[F] {
-	return &configs[F]{factories: factories, ocb: ocb}
+func newConfigs[F component.Factory](factories map[component.Type]F) *configs[F] {
+	return &configs[F]{factories: factories}
 }
 
 func (c *configs[F]) Configs() map[component.ID]component.Config {
@@ -76,7 +74,6 @@ func (c *configs[F]) Unmarshal(conf *confmap.Conf) error {
 	if err := conf.Unmarshal(&rawCfgs); err != nil {
 		return err
 	}
-	// if !c.ocb {
 	// Prepare resulting map.
 	c.cfgs = make(map[component.ID]component.Config)
 	// Iterate over raw configs and create a config for each.
@@ -104,9 +101,6 @@ func (c *configs[F]) Unmarshal(conf *confmap.Conf) error {
 
 		c.cfgs[id] = cfg
 	}
-
-	// }
-
 	return nil
 }
 
