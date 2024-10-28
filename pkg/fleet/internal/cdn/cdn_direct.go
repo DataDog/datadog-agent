@@ -47,7 +47,7 @@ func newDirect(env *env.Env, configDBPath string) (CDN, error) {
 	}
 
 	// Remove previous DB if needed
-	err = os.Remove(configDBPath)
+	err = os.RemoveAll(configDBPath)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("could not remove previous DB: %v", err)
 	}
