@@ -325,16 +325,18 @@ type UprobeAttacher struct {
 	processMonitor ProcessMonitor
 }
 
-// NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments the
-// name of the attacher, the configuration, the probe manager (ebpf.Manager
-// usually), a callback to be called whenever a probe is attached (optional, can
-// be nil), and the binary inspector to be used (e.g., while we usually want
-// NativeBinaryInspector here, we might want the GoBinaryInspector to attach to
-// Go functions in a different way).
-// Note that the config is copied, not referenced. The attacher caches some values
-// that depend on the configuration, so any changes to the configuration after the
-// attacher would make those caches incoherent. This way we ensure that the attacher
-// is always consistent with the configuration it was created with.
+// NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments
+//   - The name of the attacher
+//   - The configuration. Note that the config is copied, not referenced. The attacher caches some values
+//     that depend on the configuration, so any changes to the configuration after the
+//     attacher would make those caches incoherent. This way we ensure that the attacher is always consistent with the configuration it was created with.
+//   - The eBPF probe manager manager (ebpf.Manager usually)
+//   - A callback to be called whenever a probe is attached (optional, can be nil)
+//   - The binary inspector to be used (e.g., while we usually want NativeBinaryInspector here,
+//     we might want the GoBinaryInspector to attach to Go functions in a different
+//     way).
+//   - The process monitor to be used to subscribe to process start and exit events. The lifecycle of the process monitor is managed by the caller, the attacher
+//     will not stop the monitor when it stops.
 func NewUprobeAttacher(name string, config AttacherConfig, mgr ProbeManager, onAttachCallback AttachCallback, inspector BinaryInspector, processMonitor ProcessMonitor) (*UprobeAttacher, error) {
 	config.SetDefaults()
 
