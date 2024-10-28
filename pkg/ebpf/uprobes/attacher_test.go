@@ -38,7 +38,7 @@ import (
 // === Tests
 
 func TestCanCreateAttacher(t *testing.T) {
-	ua, err := NewUprobeAttacher("mock", AttacherConfig{}, &MockManager{}, nil, nil, &mockProcessMonitor{})
+	ua, err := NewUprobeAttacher("mock", AttacherConfig{}, &MockManager{}, nil, nil, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 }
@@ -50,7 +50,7 @@ func TestAttachPidExcludesInternal(t *testing.T) {
 		ExcludeTargets: ExcludeInternal,
 		ProcRoot:       procRoot,
 	}
-	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil, &mockProcessMonitor{})
+	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -62,7 +62,7 @@ func TestAttachPidExcludesSelf(t *testing.T) {
 	config := AttacherConfig{
 		ExcludeTargets: ExcludeSelf,
 	}
-	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil, &mockProcessMonitor{})
+	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -76,7 +76,7 @@ func TestGetExecutablePath(t *testing.T) {
 	config := AttacherConfig{
 		ProcRoot: procRoot,
 	}
-	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil, &mockProcessMonitor{})
+	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -119,7 +119,7 @@ func TestGetLibrariesFromMapsFile(t *testing.T) {
 	config := AttacherConfig{
 		ProcRoot: procRoot,
 	}
-	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil, &mockProcessMonitor{})
+	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -131,7 +131,7 @@ func TestGetLibrariesFromMapsFile(t *testing.T) {
 }
 
 func TestComputeRequestedSymbols(t *testing.T) {
-	ua, err := NewUprobeAttacher("mock", AttacherConfig{}, &MockManager{}, nil, nil, &mockProcessMonitor{})
+	ua, err := NewUprobeAttacher("mock", AttacherConfig{}, &MockManager{}, nil, nil, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -203,7 +203,7 @@ func TestComputeRequestedSymbols(t *testing.T) {
 }
 
 func TestStartAndStopWithoutLibraryWatcher(t *testing.T) {
-	ua, err := NewUprobeAttacher("mock", AttacherConfig{}, &MockManager{}, nil, nil, &mockProcessMonitor{})
+	ua, err := NewUprobeAttacher("mock", AttacherConfig{}, &MockManager{}, nil, nil, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -222,7 +222,7 @@ func TestStartAndStopWithLibraryWatcher(t *testing.T) {
 	}
 
 	rules := []*AttachRule{{LibraryNameRegex: regexp.MustCompile(`libssl.so`), Targets: AttachToSharedLibraries}}
-	ua, err := NewUprobeAttacher("mock", AttacherConfig{Rules: rules, EbpfConfig: ebpfCfg}, &MockManager{}, nil, nil, &mockProcessMonitor{})
+	ua, err := NewUprobeAttacher("mock", AttacherConfig{Rules: rules, EbpfConfig: ebpfCfg}, &MockManager{}, nil, nil, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 	require.True(t, ua.handlesLibraries())
@@ -332,7 +332,7 @@ func TestSync(t *testing.T) {
 			EnablePeriodicScanNewProcesses: true,
 		}
 
-		ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil, &mockProcessMonitor{})
+		ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil, newMockProcessMonitor())
 		require.NoError(tt, err)
 		require.NotNil(tt, ua)
 
@@ -364,7 +364,7 @@ func TestSync(t *testing.T) {
 			EnablePeriodicScanNewProcesses: true,
 		}
 
-		ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil, &mockProcessMonitor{})
+		ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil, newMockProcessMonitor())
 		require.NoError(tt, err)
 		require.NotNil(tt, ua)
 
@@ -440,7 +440,7 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 
 	mockMan := &MockManager{}
 	inspector := &MockBinaryInspector{}
-	ua, err := NewUprobeAttacher("mock", config, mockMan, nil, inspector, &mockProcessMonitor{})
+	ua, err := NewUprobeAttacher("mock", config, mockMan, nil, inspector, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -501,7 +501,7 @@ func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 
 	mockMan := &MockManager{}
 	inspector := &MockBinaryInspector{}
-	ua, err := NewUprobeAttacher("mock", config, mockMan, nil, inspector, &mockProcessMonitor{})
+	ua, err := NewUprobeAttacher("mock", config, mockMan, nil, inspector, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -582,7 +582,7 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 	mockMan := &MockManager{}
 	inspector := &MockBinaryInspector{}
 	registry := &MockFileRegistry{}
-	ua, err := NewUprobeAttacher("mock", config, mockMan, nil, inspector, &mockProcessMonitor{})
+	ua, err := NewUprobeAttacher("mock", config, mockMan, nil, inspector, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 	ua.fileRegistry = registry
