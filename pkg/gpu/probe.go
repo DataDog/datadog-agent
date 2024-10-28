@@ -55,6 +55,7 @@ type Probe struct {
 	attacher       *uprobes.UprobeAttacher
 	statsGenerator *statsGenerator
 	deps           ProbeDependencies
+	procMon        *monitor.ProcessMonitor
 }
 
 // NewProbe starts the GPU monitoring probe, setting up the eBPF program and the uprobes, the
@@ -146,7 +147,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 		return nil, fmt.Errorf("error initializing process monitor: %w", err)
 	}
 
-	attacher, err := uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{})
+	attacher, err := uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{}, procMon)
 	if err != nil {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
@@ -160,6 +161,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 		cfg:      cfg,
 		attacher: attacher,
 		deps:     deps,
+		procMon:  procMon,
 	}
 
 	sysCtx, err := getSystemContext(deps.NvmlLib)
@@ -192,6 +194,10 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 
 // Close stops the probe
 func (p *Probe) Close() {
+	if p.procMon != nil {
+		p.procMon.Stop()
+	}
+
 	if p.attacher != nil {
 		p.attacher.Stop()
 	}

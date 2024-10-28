@@ -399,10 +399,10 @@ func (ua *UprobeAttacher) handlesExecutables() bool {
 func (ua *UprobeAttacher) Start() error {
 	var cleanupExec, cleanupExit func()
 	if ua.handlesExecutables() {
-		cleanupExec = ua.config.ProcessMonitor.SubscribeExec(ua.handleProcessStart)
+		cleanupExec = ua.processMonitor.SubscribeExec(ua.handleProcessStart)
 	}
 	// We always want to track process deletions, to avoid memory leaks
-	cleanupExit = ua.config.ProcessMonitor.SubscribeExit(ua.handleProcessExit)
+	cleanupExit = ua.processMonitor.SubscribeExit(ua.handleProcessExit)
 
 	if ua.handlesLibraries() {
 		if !sharedlibraries.IsSupported(ua.config.EbpfConfig) {
