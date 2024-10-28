@@ -97,7 +97,7 @@ func (d *Discovery) Stop() {
 
 // GetDiscoveredDeviceConfigs returns discovered device configs
 func (d *Discovery) GetDiscoveredDeviceConfigs() []*devicecheck.DeviceCheck {
-	
+
 	d.discDevMu.RLock()
 	defer d.discDevMu.RUnlock()
 
