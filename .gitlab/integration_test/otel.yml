@@ -66,7 +66,7 @@ ddflare_extension_ocb_build:
     - mkdir -p /tmp/otel-ci
     - cp test/otel/testdata/builder-config.yaml /tmp/otel-ci/
   script:
-    - echo "TODO: Build collector with OCB and test ddflare"
+    - "echo 'TODO: Build collector with OCB and test ddflare'"
   rules:
     - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
       when: never
