@@ -44,10 +44,7 @@ const (
 
 var traceTypes = []string{"enter", "exit"}
 
-// We cannot use sync.Once as we need to reset the singleton when the refcount reaches 0,
-// as we need to completely de-initialize the program (including the eBPF manager) in that case.
-// That way, any future calls to get the singleton will reinitialize the program completely.
-var progSingletonLock sync.Mutex
+var progSingletonOnce sync.Once
 var progSingleton *EbpfProgram
 
 // LibraryCallback defines the type of the callback function that will be called when a shared library event is detected
@@ -91,23 +88,16 @@ func IsSupported(cfg *ddebpf.Config) bool {
 
 // GetEBPFProgram returns an instance of the shared libraries eBPF program singleton
 func GetEBPFProgram(cfg *ddebpf.Config) *EbpfProgram {
-	progSingletonLock.Lock()
-	defer progSingletonLock.Unlock()
-
-	if progSingleton == nil {
-		progSingleton = newEBPFProgram(cfg)
-	}
+	progSingletonOnce.Do(func() {
+		progSingleton = &EbpfProgram{
+			cfg:            cfg,
+			enabledLibsets: make(map[Libset]struct{}),
+			callbacks:      make(map[Libset]map[*LibraryCallback]struct{}),
+		}
+	})
 	progSingleton.refcount.Inc()
 
 	return progSingleton
-}
-
-func newEBPFProgram(c *ddebpf.Config) *EbpfProgram {
-	return &EbpfProgram{
-		cfg:            c,
-		enabledLibsets: make(map[Libset]struct{}),
-		callbacks:      make(map[Libset]map[*LibraryCallback]struct{}),
-	}
 }
 
 func (e *EbpfProgram) setupManagerAndPerfHandlers() {
@@ -343,13 +333,14 @@ func (e *EbpfProgram) Stop() {
 		return
 	}
 
+	// At this point any operations are thread safe, as we're using atomics
+	// so it's guaranteed only one thread can reach this point with refcount == 0
 	log.Info("shared libraries monitor stopping due to a refcount of 0")
 
 	e.stopImpl()
 
-	// Reset the program
-	progSingletonLock.Lock()
-	defer progSingletonLock.Unlock()
+	// Reset the program singleton in case it's used again (e.g. in tests)
+	progSingletonOnce = sync.Once{}
 	progSingleton = nil
 }
 
