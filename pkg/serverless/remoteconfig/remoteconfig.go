@@ -82,7 +82,7 @@ func StartRCService(functionARN string) *remoteconfig.CoreAgentService {
 			config,
 			"Remote Config",
 			baseRawURL,
-			"",
+			functionARN,
 			tagsGetter,
 			telemetryReporter,
 			version.AgentVersion,
