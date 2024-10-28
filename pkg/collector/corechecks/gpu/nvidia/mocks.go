@@ -2,7 +2,7 @@
 
 //go:build linux && test
 
-package nvmlmetrics
+package nvidia
 
 import mock "github.com/stretchr/testify/mock"
 

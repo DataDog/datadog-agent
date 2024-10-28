@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package nvmlmetrics
+package nvidia
 
 import (
 	"fmt"
