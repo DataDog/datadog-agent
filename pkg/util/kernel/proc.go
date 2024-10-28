@@ -90,6 +90,8 @@ func getEnvVariableFromBuffer(reader io.Reader, envVar string) string {
 	return ""
 }
 
+// GetProcessEnvVariable retrieves the given environment variable for the specified process ID, without
+// loading the entire environment into memory. Will return an empty string if the variable is not found.
 func GetProcessEnvVariable(pid int, procRoot string, envVar string) (string, error) {
 	envPath := filepath.Join(procRoot, strconv.Itoa(pid), "environ")
 	envFile, err := os.Open(envPath)
