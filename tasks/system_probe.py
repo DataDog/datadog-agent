@@ -772,7 +772,7 @@ def build_sysprobe_binary(
     if not is_windows and "pcap" in build_tags:
         build_libpcap(ctx)
         cgo_flags = get_libpcap_cgo_flags(ctx, install_path)
-        # append system-probe CGO-related environment variables to any existing ones
+        # append libpcap cgo-related environment variables to any existing ones
         for k, v in cgo_flags.items():
             if k in env:
                 env[k] += f" {v}"

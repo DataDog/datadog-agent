@@ -401,7 +401,7 @@ def build_functional_tests(
         build_tags.append("pcap")
         build_libpcap(ctx)
         cgo_flags = get_libpcap_cgo_flags(ctx)
-        # append system-probe CGO-related environment variables to any existing ones
+        # append libpcap cgo-related environment variables to any existing ones
         for k, v in cgo_flags.items():
             if k in env:
                 env[k] += f" {v}"
