@@ -33,7 +33,7 @@ func getSystemContext(nvmlLib nvml.Interface) (*systemContext, error) {
 		nvmlLib:                nvmlLib,
 	}
 
-	if err := ctx.queryDevices(); err != nil {
+	if err := ctx.getMaxThreadsPerDevice(); err != nil {
 		return nil, fmt.Errorf("error querying devices: %w", err)
 	}
 
@@ -46,7 +46,7 @@ func getSystemContext(nvmlLib nvml.Interface) (*systemContext, error) {
 	return ctx, nil
 }
 
-func (ctx *systemContext) queryDevices() error {
+func (ctx *systemContext) getMaxThreadsPerDevice() error {
 	count, ret := ctx.nvmlLib.DeviceGetCount()
 	if ret != nvml.SUCCESS {
 		return fmt.Errorf("failed to get device count: %s", nvml.ErrorString(ret))
