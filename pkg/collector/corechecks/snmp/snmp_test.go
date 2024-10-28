@@ -7,6 +7,7 @@ package snmp
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
@@ -994,12 +996,47 @@ community_string: public
 	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, "snmp connection error: can't connect")
 }
 
+type mockRDNSQuerier struct {
+	getHostnamesFunc func(ctx context.Context, ipAddrs []string) map[string]rdnsquerier.ReverseDNSResult
+}
+
+func (m *mockRDNSQuerier) GetHostnames(ctx context.Context, ipAddrs []string) map[string]rdnsquerier.ReverseDNSResult {
+	if m.getHostnamesFunc != nil {
+		return m.getHostnamesFunc(ctx, ipAddrs)
+	}
+	return nil
+}
+
+func (m *mockRDNSQuerier) GetHostname(ctx context.Context, ipAddr string) (string, error) {
+	return "mock-hostname", nil
+}
+
+func (q *mockRDNSQuerier) GetHostnameAsync(ipAddr []byte, updateHostnameSync func(string), updateHostnameAsync func(string, error)) error {
+	return nil
+}
+
 func TestCheckID(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
-	check1 := newCheck()
-	check2 := newCheck()
-	check3 := newCheck()
-	checkSubnet := newCheck()
+
+	mockQuerier := &mockRDNSQuerier{
+		getHostnamesFunc: func(ctx context.Context, ipAddrs []string) map[string]rdnsquerier.ReverseDNSResult {
+			// Mock implementation of GetHostnames
+			results := make(map[string]rdnsquerier.ReverseDNSResult)
+			for _, ip := range ipAddrs {
+				results[ip] = rdnsquerier.ReverseDNSResult{
+					IP:       ip,
+					Hostname: "mock-hostname",
+					Err:      nil,
+				}
+			}
+			return results
+		},
+	}
+
+	check1 := newCheck(mockQuerier)
+	check2 := newCheck(mockQuerier)
+	check3 := newCheck(mockQuerier)
+	checkSubnet := newCheck(mockQuerier)
 	// language=yaml
 	rawInstanceConfig1 := []byte(`
 ip_address: 1.1.1.1
