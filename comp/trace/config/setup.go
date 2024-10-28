@@ -225,21 +225,17 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	/**
-	 * NOTE: PeerTagsAggregation is on by default as of Oct 2024. To get the default experience,
+	 * NOTE: PeerTagsAggregation is on by default as of Q4 2024. To get the default experience,
 	 * customers DO NOT NEED to set "apm_config.peer_service_aggregation" (deprecated) or "apm_config.peer_tags_aggregation" (previously defaulted to false, now true).
 	 * However, customers may opt out by explicitly setting "apm_config.peer_tags_aggregation" to "false".
 	 */
-	if core.IsSet("apm_config.peer_tags_aggregation") {
-		c.PeerTagsAggregation = core.GetBool("apm_config.peer_tags_aggregation")
-	}
+	c.PeerTagsAggregation = core.GetBool("apm_config.peer_tags_aggregation")
 
 	if !c.PeerTagsAggregation {
 		log.Info("peer tags aggregation is explicitly disabled. To enable it, remove `apm_config.peer_tags_aggregation: false` from your configuration")
 	}
 
-	if core.IsSet("apm_config.compute_stats_by_span_kind") {
-		c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
-	}
+	c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
 
 	if core.IsSet("apm_config.peer_tags") {
 		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
