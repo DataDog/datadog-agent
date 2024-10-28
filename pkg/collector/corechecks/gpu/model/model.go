@@ -24,6 +24,7 @@ const (
 	ConstantMemAlloc MemAllocType = "constant"
 )
 
+// AllMemAllocTypes contains all possible memory allocation types
 var AllMemAllocTypes = []MemAllocType{KernelMemAlloc, GlobalMemAlloc, SharedMemAlloc, ConstantMemAlloc}
 
 // MemoryStats contains the memory stats for a given memory type
