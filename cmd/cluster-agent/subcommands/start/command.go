@@ -199,6 +199,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				datadogclientmodule.Module(),
 				// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 				// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
+				// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
+				// we can include teh tagger as part of the workloadmeta component.
 				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
 					proccontainers.InitSharedContainerProvider(wmeta, tagger)
 				}),

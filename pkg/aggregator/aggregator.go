@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -265,8 +264,6 @@ type BufferedAggregator struct {
 	tlmContainerTagsEnabled     bool                                         // Whether we should call the tagger to tag agent telemetry metrics
 	agentTags                   func(types.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
 	globalTags                  func(types.TagCardinality) ([]string, error) // This function gets global tags from the tagger when host tags are not available
-	enrichTags                  func(tagset.TagsAccumulator, taggertypes.OriginInfo)
-	checksCardinality           func() types.TagCardinality
 	tagger                      tagger.Component
 	flushAndSerializeInParallel FlushAndSerializeInParallel
 }
@@ -339,8 +336,6 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		tlmContainerTagsEnabled:     pkgconfigsetup.Datadog().GetBool("basic_telemetry_add_container_tags"),
 		agentTags:                   tagger.AgentTags,
 		globalTags:                  tagger.GlobalTags,
-		enrichTags:                  tagger.EnrichTags,
-		checksCardinality:           tagger.ChecksCardinality,
 		tagger:                      tagger,
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
 	}
@@ -481,7 +476,7 @@ func (agg *BufferedAggregator) addServiceCheck(sc servicecheck.ServiceCheck) {
 		sc.Ts = time.Now().Unix()
 	}
 	tb := tagset.NewHashlessTagsAccumulatorFromSlice(sc.Tags)
-	agg.enrichTags(tb, sc.OriginInfo)
+	agg.tagger.EnrichTags(tb, sc.OriginInfo)
 
 	tb.SortUniq()
 	sc.Tags = tb.Get()
@@ -495,7 +490,7 @@ func (agg *BufferedAggregator) addEvent(e event.Event) {
 		e.Ts = time.Now().Unix()
 	}
 	tb := tagset.NewHashlessTagsAccumulatorFromSlice(e.Tags)
-	agg.enrichTags(tb, e.OriginInfo)
+	agg.tagger.EnrichTags(tb, e.OriginInfo)
 
 	tb.SortUniq()
 	e.Tags = tb.Get()
@@ -843,13 +838,13 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	var tags []string
 
 	var err error
-	tags, err = agg.globalTags(agg.checksCardinality())
+	tags, err = agg.globalTags(agg.tagger.ChecksCardinality())
 	if err != nil {
 		log.Debugf("Couldn't get Global tags: %v", err)
 	}
 
 	if agg.tlmContainerTagsEnabled {
-		agentTags, err := agg.agentTags(agg.checksCardinality())
+		agentTags, err := agg.agentTags(agg.tagger.ChecksCardinality())
 		if err == nil {
 			if tags == nil {
 				tags = agentTags
