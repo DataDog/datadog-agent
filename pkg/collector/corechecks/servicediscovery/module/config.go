@@ -30,14 +30,14 @@ func newConfig() *discoveryConfig {
 	conf := &discoveryConfig{
 		cpuUsageUpdateDelay: cfg.GetDuration(join(discoveryNS, "cpu_usage_update_delay")),
 	}
-	conf.loadIgnoredComms(cfg.GetString(join(discoveryNS, "ignored_command_names")))
+
+	conf.loadIgnoredComms(cfg.GetStringSlice(join(discoveryNS, "ignored_command_names")))
 
 	return conf
 }
 
 // loadIgnoredComms read process names that should not be reported as a service from input string
-func (config *discoveryConfig) loadIgnoredComms(commsList string) {
-	comms := strings.Split(strings.ReplaceAll(commsList, " ", ""), ",")
+func (config *discoveryConfig) loadIgnoredComms(comms []string) {
 	if len(comms) == 0 {
 		log.Warn("loading ignored commands found empty commands list")
 		return

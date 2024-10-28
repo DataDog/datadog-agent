@@ -136,76 +136,49 @@ func TestShouldIgnoreComm(t *testing.T) {
 
 				ignore := discovery.shouldIgnoreComm(proc)
 				require.Equal(t, test.ignore, ignore)
-			}, 30*time.Second, 100*time.Millisecond)
+			}, 10*time.Second, 100*time.Millisecond)
 		})
 	}
 }
 
-type testComms struct {
-	commandName  string // process command name to test
-	shouldIgnore bool   // true if command expected to be ignored
-}
-
 type ignoredCommTestAttr struct {
-	name  string      // The name of the test.
-	comms []testComms // list of command names to test
+	name  string   // The name of the test.
+	comms []string // list of command names to test
 }
 
 func (a *ignoredCommTestAttr) buildIgnoredCommandsString() string {
 	var builder strings.Builder
-	for i, cmd := range a.comms {
-		builder.WriteString(cmd.commandName)
-		if i < len(a.comms)-1 {
-			builder.WriteString(" , ")
-		}
+	for _, cmd := range a.comms {
+		builder.WriteString(cmd)
+		builder.WriteString("   ") // intentionally multiple spaces for sensitivity testing
 	}
 	return builder.String()
-}
-
-func (a *ignoredCommTestAttr) countIgnoredCommands() int {
-	count := 0
-	for _, cmd := range a.comms {
-		if cmd.shouldIgnore {
-			count++
-		}
-	}
-	return count
 }
 
 func TestLoadIgnoredComm(t *testing.T) {
 	tests := []ignoredCommTestAttr{
 		{
 			name:  "empty list of commands",
-			comms: []testComms{},
+			comms: []string{},
 		},
 		{
 			name: "short commands in config list",
-			comms: []testComms{
-				{commandName: "cron", shouldIgnore: true},
-				{commandName: "polkitd", shouldIgnore: true},
-				{commandName: "rsyslogd", shouldIgnore: true},
-				{commandName: "bash", shouldIgnore: true},
-				{commandName: "sshd", shouldIgnore: true},
-			},
-		},
-		{
-			name: "malformed commands list",
-			comms: []testComms{
-				{commandName: "rsyslogd", shouldIgnore: true},
-				{commandName: " ", shouldIgnore: false},
-				{commandName: "snapd", shouldIgnore: true},
-				{commandName: " ", shouldIgnore: false},
-				{commandName: "containerd", shouldIgnore: true},
+			comms: []string{
+				"cron",
+				"polkitd",
+				"rsyslogd",
+				"bash",
+				"sshd",
 			},
 		},
 		{
 			name: "long commands in config list",
-			comms: []testComms{
-				{commandName: "containerd-shim-runc-v2", shouldIgnore: true},
-				{commandName: "calico-node", shouldIgnore: true},
-				{commandName: "unattended-upgrade-shutdown", shouldIgnore: true},
-				{commandName: "bash", shouldIgnore: true},
-				{commandName: "kube-controller-manager", shouldIgnore: true},
+			comms: []string{
+				"containerd-shim-runc-v2",
+				"calico-node",
+				"unattended-upgrade-shutdown",
+				"bash",
+				"kube-controller-manager",
 			},
 		},
 	}
@@ -221,16 +194,15 @@ func TestLoadIgnoredComm(t *testing.T) {
 			discovery := newDiscovery()
 			require.NotEmpty(t, discovery)
 
-			count := test.countIgnoredCommands()
-			require.Equal(t, len(discovery.config.ignoreComms), count)
+			require.Equal(t, len(discovery.config.ignoreComms), len(test.comms))
 
 			for _, cmd := range test.comms {
-				if len(cmd.commandName) > maxCommLen {
-					_, found := discovery.config.ignoreComms[cmd.commandName[:maxCommLen]]
-					assert.Equal(t, cmd.shouldIgnore, found)
+				if len(cmd) > maxCommLen {
+					_, found := discovery.config.ignoreComms[cmd[:maxCommLen]]
+					assert.True(t, found)
 				} else {
-					_, found := discovery.config.ignoreComms[cmd.commandName]
-					assert.Equal(t, cmd.shouldIgnore, found)
+					_, found := discovery.config.ignoreComms[cmd]
+					assert.True(t, found)
 				}
 			}
 		})
