@@ -52,13 +52,12 @@ func newNpCollector(deps dependencies) provides {
 
 		// Note that multiple components can share the same rdnsQuerier instance.  If any of them have
 		// reverse DNS enrichment enabled then the deps.RDNSQuerier component passed here will be an
-		// active instance.  However, we also need to check here whether the netflow component has
+		// active instance.  However, we also need to check here whether the network path component has
 		// reverse DNS enrichment enabled to decide whether to use the passed instance or to override
 		// it with a noop implementation.
 		rdnsQuerier := deps.RDNSQuerier
-		if !configs.reverseDNSCacheEnabled {
-			// TODO: is this necessary? When wouldn't we want to use the reverse DNS querier?
-			deps.Logger.Infof("Reverse DNS Cache is disabled for Network Path Collector")
+		if !configs.reverseDNSEnabled {
+			deps.Logger.Infof("Reverse DNS enrichment is disabled for Network Path Collector")
 			rdnsQuerier = nooprdnsquerier.NewNone().Comp
 		}
 

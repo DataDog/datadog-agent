@@ -32,11 +32,10 @@ import (
 )
 
 const (
-	networkPathCollectorMetricPrefix          = "datadog.network_path.collector."
-	reverseDNSLookupMetricPrefix              = networkPathCollectorMetricPrefix + "reverse_dns_lookup."
-	reverseDNSResultsLengthMismatchMetricName = reverseDNSLookupMetricPrefix + "results_length_mismatch"
-	reverseDNSLookupFailedMetricName          = reverseDNSLookupMetricPrefix + "failed"
-	reverseDNSLookupSucceededMetricName       = reverseDNSLookupMetricPrefix + "success"
+	networkPathCollectorMetricPrefix    = "datadog.network_path.collector."
+	reverseDNSLookupMetricPrefix        = networkPathCollectorMetricPrefix + "reverse_dns_lookup."
+	reverseDNSLookupFailuresMetricName  = reverseDNSLookupMetricPrefix + "failures"
+	reverseDNSLookupSuccessesMetricName = reverseDNSLookupMetricPrefix + "successes"
 )
 
 type npCollectorImpl struct {
@@ -95,7 +94,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		collectorConfigs.pathtestTTL,
 		collectorConfigs.pathtestInterval,
 		collectorConfigs.flushInterval,
-		collectorConfigs.reverseDNSCacheEnabled,
+		collectorConfigs.reverseDNSEnabled,
 		collectorConfigs.reverseDNSTimeout,
 	)
 
@@ -301,22 +300,22 @@ func (s *npCollectorImpl) flushWrapper(flushTime time.Time, lastFlushTime time.T
 	s.logger.Debugf("Flush loop at %s", flushTime)
 	if !lastFlushTime.IsZero() {
 		flushInterval := flushTime.Sub(lastFlushTime)
-		s.statsdClient.Gauge("datadog.network_path.collector.flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
+		s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
 	}
 
 	s.flush()
-	s.statsdClient.Gauge("datadog.network_path.collector.flush_duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"flush_duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1) //nolint:errcheck
 }
 
 func (s *npCollectorImpl) flush() {
-	s.statsdClient.Gauge("datadog.network_path.collector.workers", float64(s.workers), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"workers", float64(s.workers), []string{}, 1) //nolint:errcheck
 
 	flowsContexts := s.pathtestStore.GetContextsCount()
-	s.statsdClient.Gauge("datadog.network_path.collector.pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
 
 	flushTime := s.TimeNowFn()
 	flowsToFlush := s.pathtestStore.Flush()
-	s.statsdClient.Gauge("datadog.network_path.collector.pathtest_flushed_count", float64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"pathtest_flushed_count", float64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
 
 	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
@@ -327,6 +326,10 @@ func (s *npCollectorImpl) flush() {
 }
 
 func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath) {
+	if !s.collectorConfigs.reverseDNSEnabled {
+		return
+	}
+
 	ipAddrs := make([]string, 0, len(path.Hops)+1) // +1 for destination
 	ipAddrs = append(ipAddrs, path.Destination.IPAddress)
 	for _, hop := range path.Hops {
@@ -370,17 +373,17 @@ func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath) {
 func (s *npCollectorImpl) getReverseDNSResult(ipAddr string, results map[string]rdnsquerier.ReverseDNSResult) string {
 	result, ok := results[ipAddr]
 	if !ok {
-		s.statsdClient.Incr(reverseDNSLookupMetricPrefix+"failures", []string{"reason:absent"}, 1) //nolint:errcheck
+		s.statsdClient.Incr(reverseDNSLookupFailuresMetricName, []string{"reason:absent"}, 1) //nolint:errcheck
 		s.logger.Tracef("Reverse DNS lookup failed for IP %s", ipAddr)
 	}
 	if result.Err != nil {
-		s.statsdClient.Incr(reverseDNSLookupMetricPrefix+"failures", []string{"reason:error"}, 1) //nolint:errcheck
+		s.statsdClient.Incr(reverseDNSLookupFailuresMetricName, []string{"reason:error"}, 1) //nolint:errcheck
 		s.logger.Tracef("Reverse lookup failed for hop IP %s: %s", ipAddr, result.Err)
 	}
 	if result.Hostname == "" {
-		s.statsdClient.Incr(reverseDNSLookupMetricPrefix+"successes", []string{"status:not_found"}, 1) //nolint:errcheck
+		s.statsdClient.Incr(reverseDNSLookupSuccessesMetricName, []string{"status:empty"}, 1) //nolint:errcheck
 	} else {
-		s.statsdClient.Incr(reverseDNSLookupMetricPrefix+"successes", []string{"status:found"}, 1) //nolint:errcheck
+		s.statsdClient.Incr(reverseDNSLookupSuccessesMetricName, []string{"status:found"}, 1) //nolint:errcheck
 	}
 	return result.Hostname
 }
