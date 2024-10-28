@@ -29,6 +29,7 @@
     - GOOGLE_CREDENTIALS=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_GCP_CREDENTIALS) || exit $?; export GOOGLE_CREDENTIALS
     # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
     - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+    - echo "This job is owned by $(inv owners.find-jobowners --job $CI_JOB_NAME)"
   variables:
     SHOULD_RUN_IN_FLAKES_FINDER: "true"
     KUBERNETES_MEMORY_REQUEST: 12Gi
