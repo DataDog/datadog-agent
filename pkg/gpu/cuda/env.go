@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+const cudaVisibleDevicesEnvVar = "CUDA_VISIBLE_DEVICES"
+
 // getVisibleDevices processes the list of GPU devices according to the value of the CUDA_VISIBLE_DEVICES environment variable
 // Reference: https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#env-vars
 func getVisibleDevices(systemDevices []nvml.Device, cudaVisibleDevices string) ([]nvml.Device, error) {
@@ -59,14 +61,9 @@ func getVisibleDevices(systemDevices []nvml.Device, cudaVisibleDevices string) (
 	return filteredDevices, nil
 }
 
-// getCudaVisibleDevicesEnvVar retrieves the value of the CUDA_VISIBLE_DEVICES environment variable for the specified process
-func getCudaVisibleDevicesEnvVar(pid int, procfs string) (string, error) {
-	return kernel.GetProcessEnvVariable(pid, "CUDA_VISIBLE_DEVICES", procfs)
-}
-
 // GetVisibleDevicesForProcess modifies the list of GPU devices according to the value of the CUDA_VISIBLE_DEVICES environment variable for the specified process
 func GetVisibleDevicesForProcess(systemDevices []nvml.Device, pid int, procfs string) ([]nvml.Device, error) {
-	cudaVisibleDevices, err := getCudaVisibleDevicesEnvVar(pid, procfs)
+	cudaVisibleDevices, err := kernel.GetProcessEnvVariable(pid, cudaVisibleDevicesEnvVar, procfs)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get CUDA_VISIBLE_DEVICES for process %d: %w", pid, err)
 	}
