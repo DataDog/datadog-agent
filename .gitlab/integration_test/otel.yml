@@ -54,3 +54,26 @@ docker_image_build_otel:
     - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
       when: never
     - when: always
+
+
+ddflare_extension_ocb_build:
+  stage: integration_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["go_deps"]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - mkdir -p /tmp/otel-ci
+    - cp test/otel/testdata/builder-config.yaml /tmp/otel-ci/
+  script:
+    - echo "TODO: Build collector with OCB and test ddflare"
+  rules:
+    - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
+      when: never
+    - if: $CI_COMMIT_TAG
+      when: never
+    - if: $CI_COMMIT_MESSAGE =~ /.*\[skip cancel\].*/
+      when: never
+    - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
+      when: never
+    - when: always
