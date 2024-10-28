@@ -8,13 +8,13 @@
 package gpu
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 )
 
 func TestConsumerCanStartAndStop(t *testing.T) {

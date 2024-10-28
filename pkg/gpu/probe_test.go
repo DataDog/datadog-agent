@@ -8,12 +8,12 @@
 package gpu
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"

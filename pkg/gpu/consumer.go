@@ -8,13 +8,13 @@
 package gpu
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/status/health"

@@ -9,7 +9,6 @@ package gpu
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"os"
 	"regexp"
 
@@ -23,6 +22,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

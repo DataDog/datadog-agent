@@ -8,12 +8,12 @@
 package gpu
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 )
 
 // ProbeDependencies holds the dependencies for the probe
