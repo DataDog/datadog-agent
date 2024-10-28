@@ -310,6 +310,9 @@ IGNORED_MODULE_PATHS = [
     # Test files
     Path("./test/integration/serverless/recorder-extension"),
     Path("./test/integration/serverless/src"),
+    # TODO: Remove comp/core/log and pkg/util/tagger once otel agent dependencies are fixed
+    Path("./comp/core/log"),
+    Path("./pkg/util/tagger"),
 ]
 
 MAIN_TEMPLATE = """package main
