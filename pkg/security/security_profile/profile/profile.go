@@ -22,11 +22,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	timeresolver "github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
 // EventTypeState defines an event type state
@@ -58,7 +58,7 @@ type LoadOpts struct {
 // SecurityProfile defines a security profile
 type SecurityProfile struct {
 	sync.Mutex
-	timeResolver        *timeResolver.Resolver
+	timeResolver        *timeresolver.Resolver
 	loadedInKernel      bool
 	loadedNano          uint64
 	selector            cgroupModel.WorkloadSelector
@@ -85,7 +85,7 @@ func NewSecurityProfile(selector cgroupModel.WorkloadSelector, eventTypes []mode
 	// profiles that allow for evaluating new event types, and profiles that don't. As such, the event types allowed to
 	// generate anomaly detections in the input of this function will need to be merged with the event types defined in
 	// the configuration.
-	tr, err := timeResolver.NewResolver()
+	tr, err := timeresolver.NewResolver()
 	if err != nil {
 		return nil
 	}

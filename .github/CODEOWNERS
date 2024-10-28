@@ -139,10 +139,8 @@
 /.gitlab/container_build/fakeintake.yml              @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 /.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 
-/.gitlab/functional_test/security_agent.yml          @DataDog/agent-security @DataDog/agent-devx-infra
 /.gitlab/functional_test/serverless.yml              @DataDog/serverless @Datadog/serverless-aws @DataDog/agent-devx-infra
 /.gitlab/functional_test_cleanup                     @DataDog/agent-security @DataDog/windows-kernel-integrations @DataDog/agent-devx-infra
-/.gitlab/functional_test/common.yml                  @DataDog/agent-devx-infra @DataDog/windows-kernel-integrations
 /.gitlab/functional_test/oracle.yml                  @DataDog/agent-devx-infra @DataDog/database-monitoring
 
 /.gitlab/powershell_script_deploy                    @DataDog/agent-delivery @DataDog/windows-agent
@@ -443,6 +441,7 @@
 /pkg/util/ecs/                          @DataDog/container-integrations
 /pkg/util/funcs/                        @DataDog/ebpf-platform
 /pkg/util/kernel/                       @DataDog/ebpf-platform
+/pkg/util/ktime                         @DataDog/agent-security
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-platform @DataDog/container-app
 /pkg/util/podman/                       @DataDog/container-integrations
 /pkg/util/prometheus                    @DataDog/container-integrations
