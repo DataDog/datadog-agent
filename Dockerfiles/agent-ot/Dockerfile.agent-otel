@@ -26,7 +26,7 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/*
 
 # TEMP: Use github source code
-RUN git clone --depth 1 -b "${AGENT_BRANCH}" --single-branch https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_VERSION}
+RUN git clone --filter=blob:none --branch "${AGENT_BRANCH}" --single-branch https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_VERSION}
 
 # Once we have stable releases, we can use the following code to download the source code
 # TODO: use released agent version once we have an agent release with the otel binary
@@ -67,7 +67,7 @@ RUN go version && \
 RUN python3 -m venv venv && \
     . venv/bin/activate && \
     pip install --upgrade pip && \
-    pip install -r tasks/requirements.txt
+    pip install -r requirements.txt
 
 # Copy the manifest file
 COPY manifest.yaml /workspace/datadog-agent-${AGENT_VERSION}/comp/otelcol/collector-contrib/impl/manifest.yaml
@@ -83,4 +83,3 @@ FROM datadog/agent:${AGENT_VERSION}
 ARG AGENT_VERSION
 # Copy the built OTel agent from the builder stage
 COPY --from=builder /workspace/datadog-agent-${AGENT_VERSION}/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent
-
