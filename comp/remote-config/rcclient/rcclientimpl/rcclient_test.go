@@ -14,7 +14,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -69,7 +69,7 @@ func TestRCClientCreate(t *testing.T) {
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return configmock.New(t) }),
 			settingsimpl.MockModule(),
-			sysprobeconfigimpl.MockModule(),
+			sysprobeconfig.NoneModule(),
 		),
 	)
 	// Missing params
@@ -80,7 +80,7 @@ func TestRCClientCreate(t *testing.T) {
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return configmock.New(t) }),
-			sysprobeconfigimpl.MockModule(),
+			sysprobeconfig.NoneModule(),
 			fx.Supply(
 				rcclient.Params{
 					AgentName:    "test-agent",
@@ -104,7 +104,7 @@ func TestAgentConfigCallback(t *testing.T) {
 			Module(),
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return cfg }),
-			sysprobeconfigimpl.MockModule(),
+			sysprobeconfig.NoneModule(),
 			fx.Supply(
 				rcclient.Params{
 					AgentName:    "test-agent",
