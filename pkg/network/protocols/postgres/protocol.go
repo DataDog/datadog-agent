@@ -31,7 +31,9 @@ const (
 	// InFlightMap is the name of the in-flight map.
 	InFlightMap             = "postgres_in_flight"
 	scratchBufferMap        = "postgres_scratch_buffer"
+	iterationsMap           = "postgres_iterations"
 	processTailCall         = "socket__postgres_process"
+	messageParserCall       = "socket__postgres_message_parser"
 	parseMessageTailCall    = "socket__postgres_process_parse_message"
 	tlsProcessTailCall      = "uprobe__postgres_tls_process"
 	tlsParseMessageTailCall = "uprobe__postgres_tls_process_parse_message"
@@ -59,6 +61,9 @@ var Spec = &protocols.ProtocolSpec{
 			Name: scratchBufferMap,
 		},
 		{
+			Name: iterationsMap,
+		},
+		{
 			Name: "postgres_batch_events",
 		},
 		{
@@ -74,6 +79,13 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramPostgres),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: processTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramPostgresMessageParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: messageParserCall,
 			},
 		},
 		{
