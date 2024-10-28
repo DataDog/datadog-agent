@@ -56,10 +56,10 @@ const (
 )
 
 func newConfig(agentConfig config.Component) *rdnsQuerierConfig {
-	netflowRDNSEnrichmentEnabled := agentConfig.GetBool("network_devices.netflow.reverse_dns_enrichment_enabled")
+	rDNSEnrichmentEnabled := agentConfig.GetBool("network_devices.netflow.reverse_dns_enrichment_enabled") || agentConfig.GetBool("network_devices.snmp.reverse_dns_enrichment.enabled")
 
 	c := &rdnsQuerierConfig{
-		enabled:  netflowRDNSEnrichmentEnabled,
+		enabled:  rDNSEnrichmentEnabled,
 		workers:  agentConfig.GetInt("reverse_dns_enrichment.workers"),
 		chanSize: agentConfig.GetInt("reverse_dns_enrichment.chan_size"),
 

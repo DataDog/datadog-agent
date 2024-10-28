@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -50,14 +51,20 @@ var supportedDeviceTypes = map[string]bool{
 	"wlc":           true,
 }
 
+func hostnameEnrichment(metadata []devicemetadata.DeviceMetadata, rdnsquerier rdnsquerier.Component) []devicemetadata.DeviceMetadata {
+	return metadata
+}
+
 // ReportNetworkDeviceMetadata reports device metadata
-func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, pingStatus devicemetadata.DeviceStatus, diagnoses []devicemetadata.DiagnosisMetadata) {
+func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, pingStatus devicemetadata.DeviceStatus, diagnoses []devicemetadata.DiagnosisMetadata, rdnsquerier rdnsquerier.Component) {
 	tags := utils.CopyStrings(origTags)
 	tags = util.SortUniqInPlace(tags)
 
 	metadataStore := buildMetadataStore(config.Metadata, store)
 
 	devices := []devicemetadata.DeviceMetadata{buildNetworkDeviceMetadata(config.DeviceID, config.DeviceIDTags, config, metadataStore, tags, deviceStatus, pingStatus)}
+
+	devices = hostnameEnrichment(devices, rdnsquerier)
 
 	interfaces := buildNetworkInterfacesMetadata(config.DeviceID, metadataStore)
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
@@ -238,6 +245,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		OsHostname:     osHostname,
 		DeviceType:     deviceType,
 		Integration:    common.SnmpIntegrationName,
+		DNS_Hostname:   "",
 	}
 }
 

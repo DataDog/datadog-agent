@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
@@ -36,6 +37,7 @@ type Discovery struct {
 	discoveredDevices map[checkconfig.DeviceDigest]Device
 
 	sessionFactory session.Factory
+	rdnsquerier    rdnsquerier.Component
 }
 
 // Device implements and store results from the Service interface for the SNMP listener
@@ -210,7 +212,7 @@ func (d *Discovery) checkDevice(job checkDeviceJob) error {
 }
 
 func (d *Discovery) createDevice(deviceDigest checkconfig.DeviceDigest, subnet *snmpSubnet, deviceIP string, writeCache bool) {
-	deviceCk, err := devicecheck.NewDeviceCheck(subnet.config, deviceIP, d.sessionFactory)
+	deviceCk, err := devicecheck.NewDeviceCheck(subnet.config, deviceIP, d.sessionFactory, d.rdnsquerier)
 	if err != nil {
 		// should not happen since the deviceCheck is expected to be valid at this point
 		// and are only changing the device ip
@@ -308,11 +310,12 @@ func (d *Discovery) writeCache(subnet *snmpSubnet) {
 }
 
 // NewDiscovery return a new Discovery instance
-func NewDiscovery(config *checkconfig.CheckConfig, sessionFactory session.Factory) *Discovery {
+func NewDiscovery(config *checkconfig.CheckConfig, sessionFactory session.Factory, rdnsquerier rdnsquerier.Component) *Discovery {
 	return &Discovery{
 		discoveredDevices: make(map[checkconfig.DeviceDigest]Device),
 		stop:              make(chan struct{}),
 		config:            config,
 		sessionFactory:    sessionFactory,
+		rdnsquerier:       rdnsquerier,
 	}
 }

@@ -6,6 +6,7 @@
 package discovery
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"path/filepath"
@@ -15,10 +16,30 @@ import (
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
+
+type mockRDNSQuerier struct {
+	getHostnamesFunc func(ctx context.Context, ipAddrs []string) map[string]rdnsquerier.ReverseDNSResult
+}
+
+func (m *mockRDNSQuerier) GetHostnames(ctx context.Context, ipAddrs []string) map[string]rdnsquerier.ReverseDNSResult {
+	if m.getHostnamesFunc != nil {
+		return m.getHostnamesFunc(ctx, ipAddrs)
+	}
+	return nil
+}
+
+func (m *mockRDNSQuerier) GetHostname(ctx context.Context, ipAddr string) (string, error) {
+	return "mock-hostname", nil
+}
+
+func (q *mockRDNSQuerier) GetHostnameAsync(ipAddr []byte, updateHostnameSync func(string), updateHostnameAsync func(string, error)) error {
+	return nil
+}
 
 func waitForDiscoveredDevices(discovery *Discovery, expectedDeviceCount int, timeout time.Duration) error {
 	var deviceCount int
@@ -59,7 +80,9 @@ func TestDiscovery(t *testing.T) {
 		DiscoveryWorkers:   1,
 		IgnoredIPAddresses: map[string]bool{"192.168.0.5": true},
 	}
-	discovery := NewDiscovery(checkConfig, sessionFactory)
+	mockQuerier := &mockRDNSQuerier{}
+
+	discovery := NewDiscovery(checkConfig, sessionFactory, mockQuerier)
 	discovery.Start()
 	assert.NoError(t, waitForDiscoveredDevices(discovery, 7, 2*time.Second))
 	discovery.Stop()
@@ -109,7 +132,8 @@ func TestDiscoveryCache(t *testing.T) {
 		DiscoveryInterval: 3600,
 		DiscoveryWorkers:  1,
 	}
-	discovery := NewDiscovery(checkConfig, sessionFactory)
+	mockQuerier := &mockRDNSQuerier{}
+	discovery := NewDiscovery(checkConfig, sessionFactory, mockQuerier)
 	discovery.Start()
 	assert.NoError(t, waitForDiscoveredDevices(discovery, 4, 2*time.Second))
 	discovery.Stop()
@@ -141,7 +165,7 @@ func TestDiscoveryCache(t *testing.T) {
 		DiscoveryInterval: 3600,
 		DiscoveryWorkers:  0, // no workers, the devices will be loaded from cache
 	}
-	discovery2 := NewDiscovery(checkConfig, sessionFactory)
+	discovery2 := NewDiscovery(checkConfig, sessionFactory, mockQuerier)
 	discovery2.Start()
 	assert.NoError(t, waitForDiscoveredDevices(discovery2, 4, 2*time.Second))
 	discovery2.Stop()
@@ -180,7 +204,8 @@ func TestDiscoveryTicker(t *testing.T) {
 		DiscoveryInterval: 1,
 		DiscoveryWorkers:  1,
 	}
-	discovery := NewDiscovery(checkConfig, sessionFactory)
+	mockQuerier := &mockRDNSQuerier{}
+	discovery := NewDiscovery(checkConfig, sessionFactory, mockQuerier)
 	discovery.Start()
 	time.Sleep(1500 * time.Millisecond)
 	discovery.Stop()
@@ -227,7 +252,8 @@ func TestDiscovery_checkDevice(t *testing.T) {
 	}
 
 	var sess *session.MockSession
-	discovery := NewDiscovery(checkConfig, session.NewMockSession)
+	mockQuerier := &mockRDNSQuerier{}
+	discovery := NewDiscovery(checkConfig, session.NewMockSession, mockQuerier)
 
 	checkDeviceOnce := func() {
 		sess = session.CreateMockSession()
@@ -315,7 +341,8 @@ func TestDiscovery_createDevice(t *testing.T) {
 		DiscoveryAllowedFailures: 3,
 		Namespace:                "default",
 	}
-	discovery := NewDiscovery(checkConfig, session.NewMockSession)
+	mockQuerier := &mockRDNSQuerier{}
+	discovery := NewDiscovery(checkConfig, session.NewMockSession, mockQuerier)
 	ipAddr, ipNet, err := net.ParseCIDR(checkConfig.Network)
 	assert.Nil(t, err)
 	startingIP := ipAddr.Mask(ipNet.Mask)
