@@ -273,6 +273,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 	targetCmp := rc.config
 	localSysProbeConf, isSet := rc.sysprobeConfig.Get()
 	if isSet && rc.IsSystemProbe {
+		pkglog.Infof("Using system probe config for remote config")
 		targetCmp = localSysProbeConf
 	}
 	// Checks who (the source) is responsible for the last logLevel change
