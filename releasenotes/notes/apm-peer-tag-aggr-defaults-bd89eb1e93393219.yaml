@@ -17,4 +17,4 @@ upgrade:
     It is recommended that you update your tracing libraries according to the instructions `here <https://docs.datadoghq.com/tracing/guide/inferred-service-opt-in/?tab=java#apm-tracing-library-configuration>`_ and set ``DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED`` (or ``dd.trace.remove.integration-service-names.enabled``) to ``true``.
 features:
   - |
-    `Inferred Service dependencies <https://docs.datadoghq.com/tracing/guide/inferred-service-opt-in/>`_ are now Generally Available and enabled by default. Inferred Services of all kinds now have trace metrics and are available in dependency maps.
+    `Inferred Service dependencies <https://docs.datadoghq.com/tracing/guide/inferred-service-opt-in/>`_ are now Generally Available (exiting Beta) and enabled by default. Inferred Services of all kinds now have trace metrics and are available in dependency maps. `apm_config.peer_tags_aggregation` and `apm_config.compute_stats_by_span_kind` both now default to `true` unless explicitly set to `false`.
