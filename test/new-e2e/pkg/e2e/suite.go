@@ -577,6 +577,21 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	defer cancel()
 
 	for id, provisioner := range bs.originalProvisioners {
+		// Run provisioner Diagnose before tearing down the stack
+		if diagnosableProvisioner, ok := provisioner.(Diagnosable); ok {
+			stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
+			if err != nil {
+				bs.T().Logf("unable to get stack name for diagnose, err: %v", err)
+			} else {
+				diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
+				if diagnoseErr != nil {
+					bs.T().Logf("WARNING: Diagnose failed: %v", diagnoseErr)
+				} else if diagnoseResult != "" {
+					bs.T().Logf("Diagnose result: %s", diagnoseResult)
+				}
+			}
+		}
+
 		if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
 			bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 		}
