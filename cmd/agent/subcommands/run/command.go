@@ -396,9 +396,6 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 		taggerimpl.Module(),
 		autodiscoveryimpl.Module(),
-		fx.Provide(func(ac autodiscovery.Component) optional.Option[autodiscovery.Component] {
-			return optional.NewOption[autodiscovery.Component](ac)
-		}),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
 		fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {

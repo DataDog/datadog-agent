@@ -364,23 +364,22 @@ func getDiagnoses(isFlareLocal bool, deps diagnose.SuitesDeps) func() ([]byte, e
 			}
 			return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
 		}
-		if ac, ok := deps.AC.Get(); ok {
-			diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(deps.SenderManager, deps.SecretResolver, deps.WMeta, ac, deps.Tagger)
-			diagnoses, err := diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
-			if err != nil && !diagCfg.RunLocal {
-				fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
-				fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
 
-				diagCfg.RunLocal = true
-				diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
-				if err != nil {
-					fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
-					return err
-				}
+		diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(deps.SenderManager, deps.SecretResolver, deps.WMeta, deps.AC, deps.Tagger)
+		diagnoses, err := diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
+		if err != nil && !diagCfg.RunLocal {
+			fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
+			fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
+
+			diagCfg.RunLocal = true
+			diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
+			if err != nil {
+				fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
+				return err
 			}
-			return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
 		}
-		return fmt.Errorf("collector or autoDiscovery not found")
+		return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
+
 	}
 
 	return func() ([]byte, error) { return functionOutputToBytes(fct), nil }

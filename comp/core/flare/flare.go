@@ -52,7 +52,7 @@ type dependencies struct {
 	Collector             optional.Option[collector.Component]
 	WMeta                 optional.Option[workloadmeta.Component]
 	Secrets               secrets.Component
-	AC                    optional.Option[autodiscovery.Component]
+	AC                    autodiscovery.Component
 	Tagger                tagger.Component
 }
 
