@@ -8,6 +8,7 @@ package report
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -28,12 +30,32 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
+type mockRDNSQuerier struct {
+	getHostnamesFunc func(ctx context.Context, ipAddrs []string) map[string]rdnsquerier.ReverseDNSResult
+}
+
+func (m *mockRDNSQuerier) GetHostnames(ctx context.Context, ipAddrs []string) map[string]rdnsquerier.ReverseDNSResult {
+	if m.getHostnamesFunc != nil {
+		return m.getHostnamesFunc(ctx, ipAddrs)
+	}
+	return nil
+}
+
+func (m *mockRDNSQuerier) GetHostname(ctx context.Context, ipAddr string) (string, error) {
+	return "mock-hostname", nil
+}
+
+func (q *mockRDNSQuerier) GetHostnameAsync(ipAddr []byte, updateHostnameSync func(string), updateHostnameAsync func(string, error)) error {
+	return nil
+}
+
 func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.TraceLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
 	log.SetupLogger(l, "debug")
+	mockQuerier := &mockRDNSQuerier{}
 
 	var storeWithoutIfName = &valuestore.ResultValueStore{
 		ScalarValues: valuestore.ScalarResultValuesType{
@@ -129,7 +151,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusReachable, nil)
+	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusReachable, nil, mockQuerier)
 
 	// language=json
 	event := []byte(`
@@ -181,6 +203,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_profileDeviceVendorFallback(t
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
+	mockQuerier := &mockRDNSQuerier{}
+
 	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
@@ -211,7 +235,7 @@ profiles:
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusReachable, nil)
+	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusReachable, nil, mockQuerier)
 
 	// language=json
 	event := []byte(`
@@ -270,6 +294,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 			},
 		},
 	}
+	mockQuerier := &mockRDNSQuerier{}
 	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -351,7 +376,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 	str := "2014-11-12 11:45:26"
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
-	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, diagnosis)
+	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, diagnosis, mockQuerier)
 
 	ifTags1 := []string{"tag1", "tag2", "status:down", "interface:21", "interface_alias:ifAlias1", "interface_index:1", "oper_status:up", "admin_status:down"}
 	ifTags2 := []string{"tag1", "tag2", "status:off", "interface:22", "interface_index:2", "oper_status:down", "admin_status:down", "muted", "someKey:someValue"}
@@ -432,6 +457,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
+	mockQuerier := &mockRDNSQuerier{}
 	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
@@ -466,7 +492,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, nil)
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, nil, mockQuerier)
 
 	// language=json
 	event := []byte(`
@@ -507,6 +533,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_Nil(t *testing
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
+	mockQuerier := &mockRDNSQuerier{}
 	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
@@ -538,7 +565,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_Nil(t *testing
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, 0, nil)
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, 0, nil, mockQuerier)
 
 	// language=json
 	event := []byte(`
@@ -577,6 +604,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testin
 	var emptyMetadataStore = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
+	mockQuerier := &mockRDNSQuerier{}
 
 	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
@@ -609,7 +637,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testin
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, nil)
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, nil, mockQuerier)
 
 	// language=json
 	event := []byte(`
@@ -650,6 +678,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testi
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
+	mockQuerier := &mockRDNSQuerier{}
 	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
@@ -681,7 +710,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testi
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, nil)
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusUnreachable, nil, mockQuerier)
 
 	// language=json
 	event := []byte(`
