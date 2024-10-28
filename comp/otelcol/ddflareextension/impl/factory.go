@@ -32,13 +32,8 @@ type ddExtensionFactory struct {
 
 // NewFactory creates a factory for Datadog Flare Extension for use with OCB
 func NewFactory() extension.Factory {
-	factories, err := components()
-	if err != nil {
-		return nil
-	}
 	return &ddExtensionFactory{
-		factories: &factories,
-		ocb:       true,
+		ocb: true,
 	}
 }
 
