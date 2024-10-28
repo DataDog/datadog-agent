@@ -169,9 +169,6 @@ DEFAULT_MODULES = {
     "comp/otelcol/ddflareextension/def": GoModule(
         "comp/otelcol/ddflareextension/def", independent=True, used_by_otel=True
     ),
-    "comp/otelcol/ddflareextension/impl": GoModule(
-        "comp/otelcol/ddflareextension/impl", independent=True, used_by_otel=True
-    ),
     "comp/otelcol/logsagentpipeline": GoModule("comp/otelcol/logsagentpipeline", independent=True, used_by_otel=True),
     "comp/otelcol/logsagentpipeline/logsagentpipelineimpl": GoModule(
         "comp/otelcol/logsagentpipeline/logsagentpipelineimpl", independent=True, used_by_otel=True
@@ -310,6 +307,7 @@ IGNORED_MODULE_PATHS = [
     # Test files
     Path("./test/integration/serverless/recorder-extension"),
     Path("./test/integration/serverless/src"),
+    Path("./comp/otelcol/ddflareextension/impl"),
 ]
 
 MAIN_TEMPLATE = """package main
