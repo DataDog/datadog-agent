@@ -143,9 +143,7 @@ static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn
                 .index = PROG_POSTGRES_MESSAGE_PARSER,
             },
         };
-
     pktbuf_tail_call_compact(pkt, message_parser_tail_call_array);
-
     return;
 }
 
@@ -210,7 +208,6 @@ static __always_inline bool process_postgres_messages(pktbuf_t pkt, conn_tuple_t
         pktbuf_set_offset(pkt, iteration_value->data_off);
     }
 
-
 #pragma unroll(POSTGRES_MAX_MESSAGES_PER_TAIL_CALL)
     for (__u32 iteration = 0; iteration < POSTGRES_MAX_MESSAGES_PER_TAIL_CALL; ++iteration) {
         if (!read_message_header(pkt, &header)) {
@@ -241,7 +238,6 @@ static __always_inline bool process_postgres_messages(pktbuf_t pkt, conn_tuple_t
         };
 
     pktbuf_tail_call_compact(pkt, message_parser_tail_call_array);
-
     return 0;
 }
 
@@ -281,6 +277,7 @@ int socket__postgres_process(struct __sk_buff* skb) {
     return 0;
 }
 
+// Handles the message parsing for plaintext Postgres traffic.
 SEC("socket/postgres_message_parser")
 int socket__postgres_message_parser(struct __sk_buff* skb) {
     skb_info_t skb_info = {};
@@ -299,7 +296,6 @@ int socket__postgres_message_parser(struct __sk_buff* skb) {
 
     pktbuf_t pkt = pktbuf_from_skb(skb, &skb_info);
     process_postgres_messages(pkt, conn_tuple);
-
     return 0;
 }
 
@@ -386,7 +382,7 @@ int uprobe__postgres_tls_termination(struct pt_regs *ctx) {
     return 0;
 }
 
-// Handles message parsing for a TLS Postgres connection.
+// Handles message parsing for a TLS Postgres traffic.
 SEC("uprobe/postgres_tls_message_parser")
 int uprobe__postgres_tls_message_parser(struct pt_regs *ctx) {
     const __u32 zero = 0;
@@ -398,10 +394,8 @@ int uprobe__postgres_tls_message_parser(struct pt_regs *ctx) {
 
     // Copying the tuple to the stack to handle verifier issues on kernel 4.14.
     conn_tuple_t tup = args->tup;
-
     pktbuf_t pkt = pktbuf_from_tls(ctx, args);
     process_postgres_messages(pkt, tup);
-
     return 0;
 }
 
