@@ -27,9 +27,11 @@ import (
 )
 
 var devMode = flag.Bool("devmode", false, "enable dev mode")
+var imageTag = flag.String("image-tag", "pr-1226", "Docker image tag to use")
 
 type gpuSuite struct {
 	e2e.BaseSuite[environments.Host]
+	imageTag string
 }
 
 const defaultGpuCheckConfig = `
@@ -45,7 +47,7 @@ gpu_monitoring:
   enabled: true
 `
 
-const vectorAddDockerImg = "nvcr.io/nvidia/k8s/cuda-sample:vectoradd-cuda10.2"
+const vectorAddDockerImg = "ghcr.io/datadog/apps-cuda-basic"
 const gpuEnabledAMI = "ami-0f71e237bb2ba34be" // Ubuntu 22.04 with GPU drivers
 
 // TestGPUSuite runs tests for the VM interface to ensure its implementation is correct.
@@ -67,13 +69,21 @@ func TestGPUSuite(t *testing.T) {
 		suiteParams = append(suiteParams, e2e.WithDevMode())
 	}
 
-	e2e.Run(t, &gpuSuite{}, suiteParams...)
+	suite := &gpuSuite{
+		imageTag: *imageTag,
+	}
+
+	e2e.Run(t, suite, suiteParams...)
 }
 
 func (v *gpuSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
 
-	v.Env().RemoteHost.MustExecute(fmt.Sprintf("docker pull %s", vectorAddDockerImg))
+	v.Env().RemoteHost.MustExecute(fmt.Sprintf("docker pull %s", v.dockerImageName()))
+}
+
+func (v *gpuSuite) dockerImageName() string {
+	return fmt.Sprintf("%s:%s", vectorAddDockerImg, v.imageTag)
 }
 
 // TODO: Extract this to common package? service_discovery uses it too
@@ -93,6 +103,19 @@ type collectorStatus struct {
 	RunnerStats runnerStats `json:"runnerStats"`
 }
 
+func (v *gpuSuite) runCudaDockerWorkload() {
+	// Configure some defaults
+	vectorSize := 50000
+	numLoops := 100      // Loop extra times to ensure the kernel runs for a bit
+	waitTimeSeconds := 5 // Give enough time to our monitor to hook the probes
+	binary := "/usr/local/bin/cuda-basic"
+
+	cmd := fmt.Sprintf("docker run --rm --gpus all %s %s %d %d %d", v.dockerImageName(), binary, vectorSize, numLoops, waitTimeSeconds)
+	out, err := v.Env().RemoteHost.Execute(cmd)
+	v.Require().NoError(err)
+	v.Require().NotEmpty(out)
+}
+
 func (v *gpuSuite) TestGPUCheckIsEnabled() {
 	statusOutput := v.Env().Agent.Client.Status(agentclient.WithArgs([]string{"collector", "--json"}))
 
@@ -106,15 +129,7 @@ func (v *gpuSuite) TestGPUCheckIsEnabled() {
 }
 
 func (v *gpuSuite) TestVectorAddProgramDetected() {
-	vm := v.Env().RemoteHost
-
-	// The vectorAdd program is quite short, so we might
-	numStarts := 3
-	for i := 0; i < numStarts; i++ {
-		out, err := vm.Execute(fmt.Sprintf("docker run --rm --gpus all %s", vectorAddDockerImg))
-		v.Require().NoError(err)
-		v.Require().NotEmpty(out)
-	}
+	v.runCudaDockerWorkload()
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		metricNames := []string{"gpu.memory", "gpu.utilization", "gpu.memory.max"}
