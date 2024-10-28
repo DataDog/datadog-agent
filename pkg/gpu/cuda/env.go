@@ -17,19 +17,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-// WithUUID is an interface for objects that have a GetUUID function,
-type WithUUID interface {
-	GetUUID() (string, nvml.Return)
-}
-
 // getVisibleDevices processes the list of GPU devices according to the value of the CUDA_VISIBLE_DEVICES environment variable
 // Reference: https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#env-vars
-func getVisibleDevices[T WithUUID](systemDevices []T, cudaVisibleDevices string) ([]T, error) {
+func getVisibleDevices(systemDevices []nvml.Device, cudaVisibleDevices string) ([]nvml.Device, error) {
 	if cudaVisibleDevices == "" {
 		return systemDevices, nil
 	}
 
-	var filteredDevices []T
+	var filteredDevices []nvml.Device
 	visibleDevicesList := strings.Split(cudaVisibleDevices, ",")
 
 	for _, visibleDevice := range visibleDevicesList {
@@ -70,7 +65,7 @@ func getCudaVisibleDevicesEnvVar(pid int, procfs string) (string, error) {
 }
 
 // GetVisibleDevicesForProcess modifies the list of GPU devices according to the value of the CUDA_VISIBLE_DEVICES environment variable for the specified process
-func GetVisibleDevicesForProcess[T WithUUID](systemDevices []T, pid int, procfs string) ([]T, error) {
+func GetVisibleDevicesForProcess(systemDevices []nvml.Device, pid int, procfs string) ([]nvml.Device, error) {
 	cudaVisibleDevices, err := getCudaVisibleDevicesEnvVar(pid, procfs)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get CUDA_VISIBLE_DEVICES for process %d: %w", pid, err)

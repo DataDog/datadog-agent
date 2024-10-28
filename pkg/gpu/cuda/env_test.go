@@ -11,35 +11,32 @@ import (
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
-
-type mockGpuDevice struct {
-	mock.Mock
-}
-
-func (m *mockGpuDevice) GetUUID() (string, nvml.Return) {
-	args := m.Called()
-	return args.String(0), args.Get(1).(nvml.Return)
-}
 
 func TestGetVisibleDevices(t *testing.T) {
 	uuid1 := "GPU-8932f937-d72c-4106-c12f-20bd9faed9f6"
 	uuid2 := "GPU-1902f078-a8da-4036-a78f-4032bbddeaf2"
 
-	devList := []WithUUID{
-		&mockGpuDevice{},
-		&mockGpuDevice{},
+	dev1 := &nvmlmock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid1, nvml.SUCCESS
+		},
 	}
 
-	devList[0].(*mockGpuDevice).On("GetUUID").Return(uuid1, nvml.SUCCESS)
-	devList[1].(*mockGpuDevice).On("GetUUID").Return(uuid2, nvml.SUCCESS)
+	dev2 := nvmlmock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid1, nvml.SUCCESS
+		},
+	}
 
+	devList := []nvml.Device{dev1, dev2}
 	cases := []struct {
 		name            string
 		visibleDevices  string
-		expectedDevices []WithUUID
+		expectedDevices []nvml.Device
 		expectsError    bool
 	}{
 		{
@@ -51,13 +48,13 @@ func TestGetVisibleDevices(t *testing.T) {
 		{
 			name:            "UUIDs",
 			visibleDevices:  uuid1,
-			expectedDevices: []WithUUID{devList[0]},
+			expectedDevices: []nvml.Device{devList[0]},
 			expectsError:    false,
 		},
 		{
 			name:            "Index",
 			visibleDevices:  "1",
-			expectedDevices: []WithUUID{devList[1]},
+			expectedDevices: []nvml.Device{devList[1]},
 			expectsError:    false,
 		},
 		{
@@ -80,13 +77,13 @@ func TestGetVisibleDevices(t *testing.T) {
 		},
 		{name: "UnorderedIndexes",
 			visibleDevices:  "1,0",
-			expectedDevices: []WithUUID{devList[1], devList[0]},
+			expectedDevices: []nvml.Device{devList[1], devList[0]},
 			expectsError:    false,
 		},
 		{
 			name:            "MixedIndexesAndUUIDs",
 			visibleDevices:  "0," + uuid2,
-			expectedDevices: []WithUUID{devList[0], devList[1]},
+			expectedDevices: []nvml.Device{devList[0], devList[1]},
 			expectsError:    false,
 		},
 	}
