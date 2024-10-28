@@ -24,6 +24,7 @@ var (
 	imdsNetworkMacs = "/network/interfaces/macs"
 )
 
+// IMDSv2Action is an enum to determine how to interact with the IMDSv2 option
 type IMDSv2Action int
 
 const (

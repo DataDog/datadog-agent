@@ -127,15 +127,14 @@ func getProviderCatalog(disableIMDSv2 bool) []provider {
 			expvarName:       "aws",
 		}
 		return append(providerCatalog, ec2)
-	} else {
-		ec2 := provider{
-			name:             "aws", // ie EC2
-			cb:               fromEC2WithIMDSV2,
-			stopIfSuccessful: false,
-			expvarName:       "aws",
-		}
-		return append(providerCatalog, ec2)
 	}
+	ec2 := provider{
+		name:             "aws", // ie EC2
+		cb:               fromEC2WithIMDSV2,
+		stopIfSuccessful: false,
+		expvarName:       "aws",
+	}
+	return append(providerCatalog, ec2)
 }
 
 func saveHostname(cacheHostnameKey string, hostname string, providerName string) Data {
