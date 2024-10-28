@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -25,7 +26,7 @@ type ProbeDependencies struct {
 type Probe struct{}
 
 // NewProbe is not implemented on non-linux systems
-func NewProbe(_ *Config, _ ProbeDependencies) (*Probe, error) {
+func NewProbe(_ *config.Config, _ ProbeDependencies) (*Probe, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 

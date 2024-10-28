@@ -9,6 +9,7 @@ package modules
 
 import (
 	"fmt"
+	config2 "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"net/http"
 	"time"
 
@@ -24,7 +25,7 @@ import (
 )
 
 var _ module.Module = &GPUMonitoringModule{}
-var gpuMonitoringConfigNamespaces = []string{gpu.GPUNS}
+var gpuMonitoringConfigNamespaces = []string{config2.GPUNS}
 
 // GPUMonitoring Factory
 var GPUMonitoring = module.Factory{
@@ -32,7 +33,7 @@ var GPUMonitoring = module.Factory{
 	ConfigNamespaces: gpuMonitoringConfigNamespaces,
 	Fn: func(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 
-		c := gpu.NewConfig()
+		c := config2.NewConfig()
 		probeDeps := gpu.ProbeDependencies{
 			Telemetry: deps.Telemetry,
 			//if the config parameter doesn't exist or is empty string, the default value is used as defined in go-nvml library

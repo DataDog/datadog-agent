@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"testing"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 
 func TestConsumerCanStartAndStop(t *testing.T) {
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
-	cfg := NewConfig()
+	cfg := config.NewConfig()
 	consumer := newCudaEventConsumer(handler, cfg)
 
 	consumer.Start()
