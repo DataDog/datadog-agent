@@ -28,7 +28,7 @@ func TestGetVisibleDevices(t *testing.T) {
 
 	dev2 := &nvmlmock.Device{
 		GetUUIDFunc: func() (string, nvml.Return) {
-			return uuid1, nvml.SUCCESS
+			return uuid2, nvml.SUCCESS
 		},
 	}
 

@@ -8,7 +8,6 @@
 package cuda
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -71,6 +70,8 @@ func getVisibleDevices(systemDevices []nvml.Device, cudaVisibleDevices string) (
 // or the device is not found, an error is returned.
 func getDeviceWithMatchingUUIDPrefix(systemDevices []nvml.Device, uuidPrefix string) (nvml.Device, error) {
 	var matchingDevice nvml.Device
+	var matchingDeviceUUID string
+
 	for _, device := range systemDevices {
 		uuid, ret := device.GetUUID()
 		if ret != nvml.SUCCESS {
@@ -79,9 +80,10 @@ func getDeviceWithMatchingUUIDPrefix(systemDevices []nvml.Device, uuidPrefix str
 
 		if strings.HasPrefix(uuid, uuidPrefix) {
 			if matchingDevice != nil {
-				return nil, errors.New("duplicate UUID prefix")
+				return nil, fmt.Errorf("non-unique UUID prefix %s, found UUIDs %s and %s", uuidPrefix, matchingDeviceUUID, uuid)
 			}
 			matchingDevice = device
+			matchingDeviceUUID = uuid
 		}
 	}
 
@@ -101,7 +103,7 @@ func getDeviceWithIndex(systemDevices []nvml.Device, visibleDevice string) (nvml
 	}
 
 	if idx < 0 || idx >= len(systemDevices) {
-		return nil, fmt.Errorf("device index %d is out of range", idx)
+		return nil, fmt.Errorf("device index %d is out of range [0, %d]", idx, len(systemDevices)-1)
 	}
 
 	return systemDevices[idx], nil
