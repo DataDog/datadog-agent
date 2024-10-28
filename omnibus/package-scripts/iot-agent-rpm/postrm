@@ -1,0 +1,25 @@
+#!/bin/sh
+#
+# Perform necessary datadog-iot-agent removal steps after package is uninstalled.
+#
+# .rpm: STEP 5 of 6
+
+CONFIG_DIR=/etc/datadog-agent
+
+# Remove the symlink to the binary.
+rm -f "/usr/bin/datadog-agent"
+
+case "$*" in
+    0)
+        # We're uninstalling.
+        # We don't delete the dd-agent user/group (see https://fedoraproject.org/wiki/Packaging:UsersAndGroups#Allocation_Strategies)
+        rm "$CONFIG_DIR/install_info" || true
+    ;;
+    1)
+        # We're upgrading.
+    ;;
+    *)
+    ;;
+esac
+
+exit 0

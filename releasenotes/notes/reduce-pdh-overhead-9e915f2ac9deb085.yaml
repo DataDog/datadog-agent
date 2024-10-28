@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Reduce the overhead of using Windows Performance Counters / PDH in checks.
+fixes:
+  - |
+    Fix a PDH query handle leak that occurred when a counter failed to add to a query.

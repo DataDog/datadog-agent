@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Allow Linux package uninstallation to proceed without errors even on platforms
+    that aren't supported by the Agent

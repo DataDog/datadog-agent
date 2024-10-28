@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixed missing some Agent environment variables in the flare

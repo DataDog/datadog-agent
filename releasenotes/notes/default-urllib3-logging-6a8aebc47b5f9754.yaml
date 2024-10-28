@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Decrease verbosity of ``urllib3``'s logger (used by python checks through the ``requests`` module)

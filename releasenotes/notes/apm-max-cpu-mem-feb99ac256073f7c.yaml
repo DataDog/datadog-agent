@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    APM: Disable ``max_memory`` and ``max_cpu_percent`` by default in containerized environments (Docker-only, ECS and CI).
+    Users rely on the orchestrator / container runtime to set resource limits.
+    Note: ``max_memory`` and ``max_cpu_percent`` have been disabled by default in Kubernetes environments since Agent ``7.18.0``.

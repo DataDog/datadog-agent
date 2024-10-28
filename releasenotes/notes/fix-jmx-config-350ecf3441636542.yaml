@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    A bug was preventing some jmx configuration options to be set from the jmx
+    checks configs.

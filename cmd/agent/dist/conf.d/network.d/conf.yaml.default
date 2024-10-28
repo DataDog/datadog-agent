@@ -1,0 +1,59 @@
+## This file is overwritten upon Agent upgrade.
+## To make modifications to the check configuration, copy this file
+## to `network.yaml` and make your changes on that file.
+
+init_config:
+
+## The Network check only supports one configured instance.
+
+instances:
+
+    ## @param collect_connection_state - boolean - required
+    ## Set to true to collect connection states for your interfaces.
+    #
+  - collect_connection_state: false
+
+    ## @param excluded_interfaces - list of strings - optional
+    ## List of interfaces to exclude from the check.
+    #
+    # excluded_interfaces:
+    #   - lo
+    #   - lo0
+
+    ## @param excluded_interface_re - string - optional
+    ## Completely ignore any network interface matching the given regex.
+    #
+    # excluded_interface_re: <NETWORK_INTERFACE_NAME>.*
+
+    ## @param combine_connection_states - boolean - optional - default: true
+    ## Set to false to prevent combination of connection states.
+    ## By default, states like fin_wait_1 and fin_wait_2 are combined
+    ## together into one state: 'closing' disables this option to get more granular data.
+    #
+    # combine_connection_states: true
+
+    ## @param collect_rate_metrics - boolean - optional - default: true
+    ## By default, most metrics are submitted as rates.
+    ## However, some metrics like TCP/UDP retransmissions and errors are
+    ## better handled as counts.
+    ## Choose to disable rate metrics by setting collect_rate_metrics to false.
+    #
+    # collect_rate_metrics: true
+
+    ## @param collect_count_metrics - boolean - optional - default: false
+    ## By default, most metrics are submitted as rates.
+    ## However, some metrics like TCP/UDP retransmissions and errors are
+    ## better handled as counts.
+    ## Choose to enable count metrics by setting collect_count_metrics to true.
+    ## Count metrics have '.count' added to the metric name.
+    #
+    # collect_count_metrics: false
+
+    ## @param tags - list of strings following the pattern: "key:value" - optional
+    ## List of tags to attach to every metric, event, and service check emitted by this integration.
+    ##
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>

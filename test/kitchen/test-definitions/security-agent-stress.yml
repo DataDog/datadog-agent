@@ -1,0 +1,13 @@
+suites:
+
+# Deploys and run the stress tests
+- name: security-agent-stress
+  run_list:
+    - "recipe[dd-agent-rhel-workaround]"
+    - "recipe[dd-agent-sles-workaround]"
+    - "recipe[dd-security-agent-check]"
+    - "recipe[dd-security-agent-check::stress-tests]"
+  attributes:
+    apt:
+      unattended_upgrades:
+        enable: false

@@ -1,0 +1,27 @@
+<div id="check_run_results">
+  <span class="stat_title">Error running {{.Name}} check: </span>
+  {{ if .LoaderErrs }}
+    {{- range $checkname, $errors := .LoaderErrs}}
+      {{- if eq $.Name $checkname }}
+        <span class="stat_subtitle"> Loader error </span>
+        <span class="stat_data">
+          {{- range $kind, $err := $errors -}}
+            {{- if eq $kind "Python Check Loader"}}
+              {{$kind}}: {{ pythonLoaderError $err -}}<br>
+            {{- else}}
+              {{$kind}}: {{ $err -}}<br>
+            {{end -}}
+          {{end -}}
+        </span>
+      {{end -}}
+    {{end -}}
+  {{ end }}
+  {{ if .ConfigErrs }}
+    {{- range $checkname, $error := .ConfigErrs}}
+      {{- if eq $.Name $checkname }}
+        <span class="stat_subtitle"> Configuration error </span>
+        <span class="stat_data"> {{$error}} </span>
+      {{end -}}
+    {{end -}}
+  {{ end }}
+</div>

@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    Change base Docker image used to build the Agent imges, moving from debian:bullseye to ubuntu:20.10.
+    In the future the Agent will follow Ubuntu stable versions.

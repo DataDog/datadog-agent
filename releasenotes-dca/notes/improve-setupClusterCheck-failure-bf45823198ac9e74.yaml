@@ -1,0 +1,5 @@
+enhancements:
+  - |
+    Increase timeout for ensuring leader identity to 10s
+  - |
+    Do not fail `setupClusterCheck` even if leader engine is not running yet

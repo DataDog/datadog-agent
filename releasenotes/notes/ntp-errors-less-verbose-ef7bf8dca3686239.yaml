@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Make NTP check less verbose when a host can't be reached.
+    Warn only after 10 consecutive errors.

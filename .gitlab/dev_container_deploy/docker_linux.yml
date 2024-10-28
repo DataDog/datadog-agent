@@ -1,0 +1,204 @@
+---
+include:
+  - .gitlab/common/container_publish_job_templates.yml
+
+dev_branch-dogstatsd:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules: !reference [.manual]
+  needs:
+    - docker_build_dogstatsd_amd64
+    - docker_build_dogstatsd_arm64
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
+    IMG_DESTINATIONS: dogstatsd-dev:${CI_COMMIT_REF_SLUG}
+
+dev_branch_multiarch-a7:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules: !reference [.manual]
+  needs:
+    - docker_build_agent7
+    - docker_build_agent7_arm64
+    - docker_build_agent7_jmx
+    - docker_build_agent7_jmx_arm64
+  variables:
+    IMG_REGISTRIES: dev
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64
+        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py3
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-arm64
+        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx
+
+dev_branch_multiarch-dogstatsd:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules: !reference [.manual]
+  needs:
+    - docker_build_dogstatsd_amd64
+    - docker_build_dogstatsd_arm64
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
+    IMG_DESTINATIONS: dogstatsd-dev:${CI_COMMIT_REF_SLUG}
+
+dev_master-a7:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules: !reference [.on_main]
+  needs:
+    - docker_build_agent7
+    - docker_build_agent7_arm64
+    - docker_build_agent7_jmx
+    - docker_build_agent7_jmx_arm64
+  variables:
+    IMG_REGISTRIES: dev
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64
+        IMG_DESTINATIONS: agent-dev:master-py3
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-arm64
+        IMG_DESTINATIONS: agent-dev:master-py3-jmx
+
+dev_master-dogstatsd:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules: !reference [.on_main]
+  needs:
+    - docker_build_dogstatsd_amd64
+    - docker_build_dogstatsd_arm64
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
+    IMG_DESTINATIONS: dogstatsd-dev:master
+
+dca_dev_branch:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules: !reference [.manual]
+  needs:
+    - docker_build_cluster_agent_amd64
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
+    IMG_DESTINATIONS: cluster-agent-dev:${CI_COMMIT_REF_SLUG}
+
+dca_dev_branch_multiarch:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules: !reference [.on_all_builds_manual]
+  needs:
+    - docker_build_cluster_agent_amd64
+    - docker_build_cluster_agent_arm64
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
+    IMG_DESTINATIONS: cluster-agent-dev:${CI_COMMIT_REF_SLUG}
+
+dca_dev_master:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules: !reference [.on_main]
+  needs:
+    - docker_build_cluster_agent_amd64
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
+    IMG_DESTINATIONS: cluster-agent-dev:master
+
+cws_instrumentation_dev_branch_multiarch:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules: !reference [.on_all_builds_manual]
+  needs:
+    - docker_build_cws_instrumentation_amd64
+    - docker_build_cws_instrumentation_arm64
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_CWS_INSTRUMENTATION}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_CWS_INSTRUMENTATION}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
+    IMG_DESTINATIONS: cws-instrumentation-dev:${CI_COMMIT_REF_SLUG}
+
+# deploys nightlies to agent-dev
+dev_nightly-a7:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules: !reference [.on_deploy_nightly_repo_branch]
+  needs:
+    - docker_build_agent7
+    - docker_build_agent7_arm64
+    - docker_build_agent7_jmx
+    - docker_build_agent7_jmx_arm64
+  variables:
+    IMG_REGISTRIES: dev
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64
+        IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}-py3,agent-dev:nightly-${CI_COMMIT_REF_SLUG}-py3
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-arm64
+        IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}-py3-jmx,agent-dev:nightly-${CI_COMMIT_REF_SLUG}-py3-jmx
+
+# deploys nightlies to agent-dev
+dev_nightly-ot-a7:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules: !reference [.on_deploy_nightly_repo_branch]
+  needs:
+    - docker_build_ot_agent7
+    - docker_build_ot_agent7_jmx
+    - docker_build_ot_agent7_arm64
+    - docker_build_ot_agent7_jmx_arm64
+  variables:
+    IMG_REGISTRIES: dev
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-arm64
+        IMG_DESTINATIONS: agent-dev:nightly-ot-beta-${CI_COMMIT_REF_SLUG}
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-arm64
+        IMG_DESTINATIONS: agent-dev:nightly-ot-beta-${CI_COMMIT_REF_SLUG}-jmx
+
+# deploy nightly build to single-machine-performance
+single_machine_performance-nightly-amd64-a7:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules: !reference [.on_scheduled_main]
+  needs:
+    - docker_build_agent7
+  variables:
+    IMG_REGISTRIES: internal-aws-smp
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
+    IMG_DESTINATIONS: 08450328-agent:nightly-${CI_COMMIT_BRANCH}-${CI_COMMIT_SHA}-7-amd64
+
+# deploys nightlies to agent-dev
+dev_nightly-dogstatsd:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules: !reference [.on_deploy_nightly_repo_branch]
+  needs:
+    - docker_build_dogstatsd_amd64
+    - docker_build_dogstatsd_arm64
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
+    IMG_DESTINATIONS: dogstatsd-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA},dogstatsd-dev:nightly-${CI_COMMIT_REF_SLUG}
+
+dev_branch-ot:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules:
+    - !reference [.manual]
+  needs:
+    - docker_build_ot_agent7
+    - docker_build_ot_agent7_jmx
+    - docker_build_ot_agent7_arm64
+    - docker_build_ot_agent7_jmx_arm64
+  variables:
+    IMG_REGISTRIES: dev
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-arm64
+        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-7-ot-beta
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-arm64
+        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-7-ot-beta-jmx
+

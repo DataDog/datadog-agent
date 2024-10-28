@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Show enabled autodiscovery sources in the agent status

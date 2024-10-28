@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CWS/CSPM: Fixes the hostname value attached to CWS and CSPM events, which in rare cases
+    the security agent computed incorrectly.

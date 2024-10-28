@@ -1,0 +1,9 @@
+advanced_ad_identifiers:
+  - kube_service:
+      name: svc-name
+      namespace: svc-ns
+
+init_config:
+
+instances:
+  - foo: bar

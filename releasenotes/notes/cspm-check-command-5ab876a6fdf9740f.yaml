@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    CSPM the check subcommand is now part of the security-agent compliance.
+enhancements:
+  - |
+    CSPM reports the agent version as part of the events

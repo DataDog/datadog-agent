@@ -1,0 +1,94 @@
+instances:
+  - server: localhost
+    port: 8081
+  - server: "1.2.3.4"
+    port: 8082
+    is_jmx: false
+  - host: localhost
+    port: 1099
+    is_jmx: true
+
+init_config:
+  collect_default_metrics: true
+  conf:
+    - include:
+        domain: ManagementCenter
+        exclude_tags:
+          - name
+          - type
+        attribute:
+          LicenseExpirationTime:
+            alias: hazelcast.mc.license_expiration_time
+            metric_type: gauge
+    - include:
+        domain: com.hazelcast
+        type: HazelcastInstance
+        exclude_tags:
+          - instance
+          - name
+          - type
+        tags:
+          hazelcast_instance: $instance
+        attribute:
+          running:
+            alias: hazelcast.instance.running
+            metric_type: gauge
+          version:
+            alias: hazelcast.instance.version
+            metric_type: gauge
+          memberCount:
+            alias: hazelcast.instance.member_count
+            metric_type: gauge
+    - include:
+        domain: com.hazelcast
+        type: HazelcastInstance.PartitionServiceMBean
+        exclude_tags:
+          - instance
+          - name
+          - type
+        tags:
+          hazelcast_instance: $instance
+        attribute:
+          partitionCount:
+            alias: hazelcast.instance.partition_service.partition_count
+            metric_type: gauge
+          activePartitionCount:
+            alias: hazelcast.instance.partition_service.active_partition_count
+            metric_type: gauge
+          isClusterSafe:
+            alias: hazelcast.instance.partition_service.is_cluster_safe
+            metric_type: gauge
+          isLocalMemberSafe:
+            alias: hazelcast.instance.partition_service.is_local_member_safe
+            metric_type: gauge
+    - include:
+        domain: com.hazelcast
+        type: HazelcastInstance.ManagedExecutorService
+        exclude_tags:
+          - instance
+          - name
+          - type
+        tags:
+          hazelcast_instance: $instance
+        attribute:
+          queueSize:
+            alias: hazelcast.instance.managed_executor_service.queue_size
+            metric_type: gauge
+          poolSize:
+            alias: hazelcast.instance.managed_executor_service.pool_size
+            metric_type: gauge
+          maximumPoolSize:
+            alias: hazelcast.instance.managed_executor_service.maximum_pool_size
+            metric_type: gauge
+          remainingQueueCapacity:
+            alias: hazelcast.instance.managed_executor_service.remaining_queue_capacity
+            metric_type: gauge
+          isShutdown:
+            alias: hazelcast.instance.managed_executor_service.is_shutdown
+            metric_type: gauge
+          isTerminated:
+            alias: hazelcast.instance.managed_executor_service.is_terminated
+            metric_type: gauge
+          completedTaskCount:
+            alias: hazelcast.instance.managed_executor_service.completed_task_count
+            metric_type: gauge

@@ -1,0 +1,9 @@
+  Leader Election Status:  {{.leaderelection.status}}
+  {{- if eq .leaderelection.status "Failing"}}
+  Error: {{.leaderelection.error}}
+  {{else}}
+  Leader Name is: {{.leaderelection.leaderName}}
+  Last Acquisition of the lease: {{.leaderelection.acquiredTime}}
+  Renewed leadership: {{.leaderelection.renewedTime}}
+  Number of leader transitions: {{.leaderelection.transitions}}
+  {{- end}}

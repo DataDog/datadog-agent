@@ -1,0 +1,175 @@
+{
+    "centos": {
+        "azure": {
+            "x86_64": {
+                "centos-76": "urn,OpenLogic:CentOS:7.6:7.6.201909120",
+                "centos-77": "urn,OpenLogic:CentOS:7.7:7.7.201912090",
+                "rhel-81": "urn,RedHat:RHEL:8.1:8.1.2021040910",
+                "rhel-85": "urn,RedHat:RHEL:8_5:8.5.2021121501",
+                "rhel-91": "urn,RedHat:RHEL:9_1:9.1.2022112113"
+            }
+        },
+        "ec2": {
+            "x86_64": {
+                "centos-79": "ami-036de472bb001ae9c",
+                "rhel-86": "ami-031eff1ae75bb87e4",
+                "rocky-92": "ami-08f362c39d03a4eb5"
+            },
+            "arm64": {
+                "centos-79": "ami-0cb7a00afccf30559",
+                "rhel-86": "ami-0238411fb452f8275"
+            }
+        },
+        "vagrant": {
+            "x86_64": {
+                "centos-76": "bento/centos-7.6",
+                "centos7": "roboxes/centos7",
+                "centos8": "roboxes/centos8"
+            }
+        }
+    },
+    "debian": {
+        "azure": {
+            "x86_64": {
+                "debian-8": "urn,credativ:Debian:8:8.0.201901221",
+                "debian-9": "urn,credativ:Debian:9:9.20200722.0",
+                "debian-10": "urn,Debian:debian-10:10:0.20230802.1460",
+                "debian-11": "urn,Debian:debian-11:11:0.20230501.1367",
+                "debian-12": "urn,Debian:debian-12:12:0.20230802.1460"
+            }
+        },
+        "ec2": {
+            "x86_64": {
+                "debian-10": "ami-067a196d70cb53732",
+                "debian-11": "ami-0607e701db389efe7",
+                "debian-12": "ami-07edaec601cf2b6d3"
+            },
+            "arm64": {
+                "debian-10": "ami-0b6ee4b8f4aa91fb4",
+                "debian-11": "ami-00988b9ead6afb0b1",
+                "debian-12": "ami-02aab8d5301cb8d68"
+            }
+        }
+    },
+    "fedora": {
+        "ec2": {
+            "x86_64": {
+                "fedora-36": "ami-05e7ccec1e0408397",
+                "fedora-37": "ami-032e9a5778bde5a1a"
+            },
+            "arm64": {
+                "fedora-36": "ami-0487fbde1f898f0f1",
+                "fedora-37": "ami-0e9221491fc51fca6"
+            }
+        }
+    },
+    "suse": {
+        "azure": {
+            "x86_64": {
+                "sles-12": "urn,SUSE:sles-12-sp5-byos:gen1:2023.03.21",
+                "sles-15": "urn,SUSE:sles-15-sp2-byos:gen1:2022.11.09",
+                "opensuse-15-3": "urn,SUSE:opensuse-leap-15-3:gen1:2022.01.28"
+            }
+        },
+        "ec2": {
+            "arm64": {
+                "sles-15": "ami-02f7663f03ca92749"
+            }
+        }
+    },
+    "ubuntu": {
+        "azure": {
+            "x86_64": {
+                "ubuntu-14-04": "urn,Canonical:UbuntuServer:14.04.5-LTS:14.04.201905140",
+                "ubuntu-16-04": "urn,Canonical:UbuntuServer:16.04.0-LTS:16.04.202106110",
+                "ubuntu-18-04-0": "urn,Canonical:UbuntuServer:18.04-LTS:18.04.201809110",
+                "ubuntu-18-04": "urn,Canonical:UbuntuServer:18.04-LTS:18.04.201906040",
+                "ubuntu-18-04-3": "urn,Canonical:UbuntuServer:18.04-LTS:18.04.201912180",
+                "ubuntu-20-04": "urn,Canonical:0001-com-ubuntu-server-focal:20_04-lts:20.04.202004230",
+                "ubuntu-20-04-2": "urn,Canonical:0001-com-ubuntu-server-focal:20_04-lts:20.04.202107200",
+                "ubuntu-22-04": "urn,Canonical:0001-com-ubuntu-server-jammy:22_04-lts:22.04.202205060"
+            }
+        },
+        "ec2": {
+            "x86_64": {
+                "ubuntu-16-04": "ami-089043ae24872fe78",
+                "ubuntu-18-04": "ami-015715c1584e7243c",
+                "ubuntu-20-04": "ami-0ffb8e1df897204c4",
+                "ubuntu-22-04": "ami-02e99c6973f5a184a",
+                "ubuntu-23-04": "ami-09c5d86a379ab69a5",
+                "ubuntu-23-10": "ami-0949b45ef274e55a1"
+            },
+            "arm64": {
+                "ubuntu-18-04": "ami-002c0df0f55a14f82",
+                "ubuntu-20-04": "ami-0ccf50ab09c6df2d4",
+                "ubuntu-20-04-2": "ami-023f1e40b096c3ebc",
+                "ubuntu-21-04": "ami-044f0ceee8e885e87",
+                "ubuntu-22-04": "ami-0f1d4680f8b775120",
+                "ubuntu-23-04": "ami-05fab5da2d7fe0b0b",
+                "ubuntu-23-10": "ami-0dea732dd5f1da0a8"
+            }
+        },
+        "vagrant": {
+            "x86_64": {
+                "ubuntu-16-04": "bento/ubuntu-16.04"
+            },
+            "arm64": {
+                "ubuntu-20-04": "bytesguy/ubuntu-server-20.04-arm64",
+                "ubuntu-22-04": "brycekahle/ubuntu-22.04-arm64"
+            }
+        }
+    },
+    "oracle": {
+        "azure": {
+            "x86_64": {
+                "oracle-7-9": "urn,Oracle:Oracle-Linux:ol79:7.9.9"
+            }
+        }
+    },
+    "amazonlinux": {
+        "ec2": {
+            "x86_64": {
+                "amazonlinux2-4-14": "ami-038b3df3312ddf25d",
+                "amazonlinux2-5-10": "ami-06a0cd9728546d178",
+                "amazonlinux2022-5-15": "ami-0f0f00c2d082c52ae",
+                "amazonlinux2023": "ami-064ed2d3fc01d3ec1"
+            },
+            "arm64": {
+                "amazonlinux2-4-14": "ami-090230ed0c6b13c74",
+                "amazonlinux2-5-10": "ami-09e51988f56677f44",
+                "amazonlinux2022-5-15": "ami-0acc51c3357f26240",
+                "amazonlinux2023": "ami-0a515c154e76934f7"
+            }
+        }
+    },
+    "windows": {
+        "azure": {
+            "x86_64": {
+                "win2016": "urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:latest",
+                "win2019": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:latest",
+                "win2019cn": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-zhcn:latest",
+                "win2022": "urn,MicrosoftWindowsServer:WindowsServer:2022-datacenter-core:latest"
+            }
+        },
+        "ec2": {
+            "x86_64": {
+                "win2016": "ami-03bee25bb430166e4",
+                "comment-win2016": "# Windows_Server-2016-English-Core-Containers-2022.12.14",
+                "win2019": "ami-01cc656499debb56a",
+                "comment-win2019": "Windows_Server-2019-English-Core-ContainersLatest-2023.01.19",
+                "win2022": "ami-0176b2659d40f0696",
+                "comment-win2022": "Windows_Server-2022-English-Core-ContainersLatest-2023.01.19"
+            }
+        },
+        "vagrant": {
+            "x86_64": {
+                "win2022": "cdaf/WindowsServer2022",
+                "comment-win2022": "Windows Server 2022 Standard Desktop Experience Evaluation",
+                "win2022-dc": "cdaf/WindowsServerDC",
+                "comment-win2022-dc": "Windows Server 2022 Standard Evaluation + Domain Controller",
+                "win2019-core": "cdaf/WindowsServerCore",
+                "comment-win2019-core": "Windows Server 2019 Standard Core Evaluation"
+            }
+        }
+    }
+}

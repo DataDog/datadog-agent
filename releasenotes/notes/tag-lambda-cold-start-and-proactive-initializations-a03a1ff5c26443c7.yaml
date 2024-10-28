@@ -1,0 +1,3 @@
+features:
+  - |
+    Tag lambda cold starts and proactive initializations on the root aws.lambda span

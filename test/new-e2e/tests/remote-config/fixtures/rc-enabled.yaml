@@ -1,0 +1,7 @@
+hostname: rc-e2e-ec2-host
+logs_enabled: true
+log_level: debug
+
+remote_configuration:
+  enabled: true
+  refresh_interval: 5s

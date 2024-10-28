@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    ``kubernetes_pod_annotations_as_tags`` (``DD_KUBERNETES_POD_ANNOTATIONS_AS_TAGS``) now support regex wildcards:
+    ``'{"*":"<PREFIX>_%%annotation%%"}'`` can be used as value to collect all pod annotations as tags.
+    ``kubernetes_node_labels_as_tags`` (``DD_KUBERNETES_NODE_LABELS_AS_TAGS``) now support regex wildcards:
+    ``'{"*":"<PREFIX>_%%label%%"}'`` can be used as value to collect all node labels as tags.
+    Note: ``kubernetes_pod_labels_as_tags`` (``DD_KUBERNETES_POD_LABELS_AS_TAGS``) supports this already.

@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The ``health`` command from the Agent and Cluster Agent now have a configurable timeout (60 second by default).

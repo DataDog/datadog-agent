@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Docker: the datadog/dogstatsd image now ships a healthcheck

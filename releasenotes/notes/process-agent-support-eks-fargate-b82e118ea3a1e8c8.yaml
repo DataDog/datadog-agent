@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    EKS Fargate containers now appear in the live containers view.
+    All processes running inside the EKS Fargate Pod appear in the live processes view
+    when `shareProcessNamespace` is enabled in the Pod Spec.

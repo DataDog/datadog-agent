@@ -1,0 +1,48 @@
+---
+denylist:
+  - GPL-2.0
+  - GPL-3.0
+
+allowlist:
+  - 0BSD
+  - Apache-2.0
+  - BSD-2-Clause
+  - BSD-3-Clause
+  - ISC
+  - JSON
+  - MIT
+  - MPL-2.0
+  - MPL-2.0-no-copyleft-exception
+  - NewBSD
+  - FreeBSD
+
+overrides:
+  # https://github.com/bmizerany/pat/blob/master/LICENSE
+  "github.com/bmizerany/pat": MIT
+  # https://github.com/xi2/xz/blob/master/LICENSE
+  "github.com/xi2/xz": Public Domain
+  # https://github.com/acomagu/bufpipe/blob/master/LICENSE
+  "github.com/acomagu/bufpipe": MIT
+  # https://github.com/aquasecurity/trivy-policies/blob/main/LICENSE
+  "github.com/aquasecurity/trivy-policies/pkg/spec": MIT
+  "github.com/aquasecurity/trivy-policies/rules/specs": MIT
+  # https://github.com/csaf-poc/csaf_distribution/blob/main/LICENSES/MIT.txt
+  "github.com/csaf-poc/csaf_distribution/v3/csaf": MIT
+  "github.com/csaf-poc/csaf_distribution/v3/util": MIT
+  # https://bitbucket.org/atlassian/go-asap/src/master/LICENSE.txt
+  "bitbucket.org/atlassian/go-asap/v2": Apache-2.0
+  # https://github.com/JohnCGriffin/overflow/blob/master/README.md
+  "github.com/JohnCGriffin/overflow": MIT
+  # https://github.com/GoogleCloudPlatform/grpc-gcp-go/blob/main/LICENSE
+  "github.com/GoogleCloudPlatform/grpc-gcp-go": Apache-2.0
+
+exceptions:
+  - "golang.org/x/mobile/..."
+  - "golang.org/x/tools/..."
+  - "golang.org/x/mod/..."
+  - "golang.org/x/xerrors/..."
+  - "github.com/stretchr/testify"
+
+additional:
+  # list here paths to additional licenses
+  golang/go: "raw.githubusercontent.com/golang/go/go1.22.8/LICENSE"

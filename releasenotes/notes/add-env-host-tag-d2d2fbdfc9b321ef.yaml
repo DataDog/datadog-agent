@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Adding new "env" top level config option. This will be added to the host
+    tags and propagated to the trace agent.

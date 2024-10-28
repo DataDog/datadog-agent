@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    On Windows the Agent now uses high-resolution icon where possible.
+    The smaller resolution icons have been resampled for better visibility.

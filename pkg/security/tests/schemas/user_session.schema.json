@@ -1,0 +1,20 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "user_session.json",
+    "type": "object",
+    "allOf": [
+        {
+            "anyOf": [
+                {
+                    "$ref": "/schemas/container_event.json"
+                },
+                {
+                    "$ref": "/schemas/host_event.json"
+                }
+            ]
+        },
+        {
+            "$ref": "/schemas/user_session_context.json"
+        }
+    ]
+}

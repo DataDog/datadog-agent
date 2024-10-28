@@ -1,0 +1,163 @@
+name: "Serverless Binary Size"
+
+on:
+  pull_request:
+
+env:
+  SIZE_ALLOWANCE: fromJSON(1000000) # 1 MB
+
+permissions: {}
+
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # Add comment to PR
+    steps:
+      - name: Checkout datadog-agent repository
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          path: go/src/github.com/DataDog/datadog-agent
+
+      - name: Checkout datadog-agent base branch
+        run: |
+          # on pull request, use the merge-base
+          # on merge queue, just use the latest main
+          if [ -n "$GITHUB_HEAD_REF" ]; then
+            cd go/src/github.com/DataDog/datadog-agent
+            git fetch origin $GITHUB_HEAD_REF $GITHUB_BASE_REF
+            TARGET=$(git merge-base origin/$GITHUB_HEAD_REF origin/$GITHUB_BASE_REF)
+            git checkout $TARGET
+          fi
+
+      - name: Checkout the datadog-lambda-extension repository
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          repository: DataDog/datadog-lambda-extension
+          path: go/src/github.com/DataDog/datadog-lambda-extension
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
+
+      - name: Previous binary size and dependencies
+        id: previous
+        run: |
+          cd go/src/github.com/DataDog/datadog-lambda-extension
+
+          OUTPUT=$(./scripts/visualize_size.sh size)
+          echo "binary size before merging this pull request is $OUTPUT"
+          echo "result=$OUTPUT" >> $GITHUB_OUTPUT
+
+          echo "deps<<EOF" >> $GITHUB_OUTPUT
+          ./scripts/visualize_size.sh list_symbols | awk '{print $2}' | head -n 100 >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Checkout datadog-agent pr branch
+        run: |
+          cd go/src/github.com/DataDog/datadog-agent
+          git fetch origin $GITHUB_SHA --depth 1
+          git checkout $GITHUB_SHA
+
+      - name: Current binary size and dependencies
+        id: current
+        run: |
+          cd go/src/github.com/DataDog/datadog-lambda-extension
+
+          OUTPUT=$(./scripts/visualize_size.sh size)
+          echo "binary size after merging this pull request will be $OUTPUT"
+          echo "result=$OUTPUT" >> $GITHUB_OUTPUT
+
+          echo "deps<<EOF" >> $GITHUB_OUTPUT
+          ./scripts/visualize_size.sh list_symbols | awk '{print $2}' | head -n 100 >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Compare sizes
+        id: compare
+        run: |
+          OUTPUT=$(( ${{ steps.current.outputs.result }} - ${{ steps.previous.outputs.result }} ))
+          echo "binary size changed by $OUTPUT bytes"
+          echo "diff=$OUTPUT" >> $GITHUB_OUTPUT
+
+          OUTPUT=$(( $OUTPUT / 100000 ))
+          echo "cold start time changed by $OUTPUT ms"
+          echo "coldstart=$OUTPUT" >> $GITHUB_OUTPUT
+
+      - name: Should post comment
+        id: should
+        run: |
+          cd go/src/github.com/DataDog/datadog-agent
+          git fetch origin $GITHUB_BASE_REF
+          git fetch origin $GITHUB_HEAD_REF
+          if test $(
+            git diff origin/$GITHUB_BASE_REF...origin/$GITHUB_HEAD_REF --name-only | grep dependencies_linux_amd64.txt
+          ); then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "dependencies list changed"
+          elif [[ ${{ steps.compare.outputs.diff }} > env.SIZE_ALLOWANCE ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "binary size changed"
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "nothing changed"
+          fi
+
+      ### Steps below run if size diff > SIZE_ALLOWANCE or file dependencies_linux_amd64.txt changed ###
+
+      - name: Install graphviz
+        uses: ts-graphviz/setup-graphviz@b1de5da23ed0a6d14e0aeee8ed52fdd87af2363c # v2.0.2
+        if: steps.should.outputs.should_run == 'true'
+
+      - name: Install digraph
+        if: steps.should.outputs.should_run == 'true'
+        run: |
+          GOPATH=$(pwd)/go go install golang.org/x/tools/cmd/digraph@latest
+
+      - name: List new dependencies
+        id: deps
+        if: steps.should.outputs.should_run == 'true'
+        run: |
+          echo "deps<<EOF" >> $GITHUB_OUTPUT
+          for dep in $(echo "${{ steps.current.outputs.deps }}"); do
+            if ! echo "${{ steps.previous.outputs.deps }}" | grep -w -q "$dep"; then
+              echo "$dep" >> $GITHUB_OUTPUT
+            fi
+          done
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create dependency graphs
+        if: steps.should.outputs.should_run == 'true'
+        run: |
+          export PATH=$(pwd)/go/bin:$PATH
+          cd go/src/github.com/DataDog/datadog-lambda-extension
+          mkdir graphs
+          for dep in $(echo "${{ steps.deps.outputs.deps }}"); do
+            PACKAGE=$dep ./scripts/visualize_size.sh graph
+            mv .layers/output.svg graphs/$(echo $dep | tr '/' '-').svg
+          done
+
+      - name: Archive dependency graphs
+        uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a # v4.3.6
+        if: steps.should.outputs.should_run == 'true'
+        with:
+          name: dependency-graphs
+          path: go/src/github.com/DataDog/datadog-lambda-extension/graphs
+
+      - name: Write message
+        id: write
+        if: steps.should.outputs.should_run == 'true'
+        env:
+          VAR_COLD_START: ${{ steps.compare.outputs.coldstart }}
+          VAR_DIFF: ${{ steps.compare.outputs.diff }}
+          VAR_DEPS: ${{ steps.deps.outputs.deps }}
+          VAR_RUN_ID: ${{ github.run_id }}
+        run: |
+          cd go/src/github.com/DataDog/datadog-agent
+          ./test/integration/serverless_perf/write_message.sh
+
+      - name: Post comment
+        uses: marocchino/sticky-pull-request-comment@331f8f5b4215f0445d3c07b4967662a32a2d3e31 # v2.9.0
+        if: steps.should.outputs.should_run == 'true'
+        with:
+          header: serverless-binary-size
+          recreate: true
+          path: ${{ steps.write.outputs.filename }}

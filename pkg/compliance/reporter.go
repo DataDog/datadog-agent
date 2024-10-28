@@ -1,0 +1,106 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package compliance
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// LogReporter is responsible for sending compliance logs to DataDog backends.
+type LogReporter struct {
+	hostname         string
+	pipelineProvider pipeline.Provider
+	auditor          auditor.Auditor
+	logSource        *sources.LogSource
+	logChan          chan *message.Message
+	endpoints        *config.Endpoints
+	tags             []string
+}
+
+// NewLogReporter instantiates a new log LogReporter
+func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext) *LogReporter {
+	// setup the auditor
+	auditor := auditor.NewNullAuditor()
+	auditor.Start()
+
+	// setup the pipeline provider that provides pairs of processor and sender
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext, agentimpl.NewStatusProvider(), hostnameimpl.NewHostnameService(), pkgconfigsetup.Datadog())
+	pipelineProvider.Start()
+
+	logSource := sources.NewLogSource(
+		sourceName,
+		&config.LogsConfig{
+			Type:   sourceType,
+			Source: sourceName,
+		},
+	)
+	logChan := pipelineProvider.NextPipelineChan()
+
+	tags := []string{
+		common.QueryAccountIDTag(),
+		fmt.Sprintf("host:%s", hostname),
+	}
+
+	// merge tags from config
+	for _, tag := range configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), true) {
+		if strings.HasPrefix(tag, "host") {
+			continue
+		}
+		tags = append(tags, tag)
+	}
+
+	return &LogReporter{
+		hostname:         hostname,
+		pipelineProvider: pipelineProvider,
+		auditor:          auditor,
+		logSource:        logSource,
+		logChan:          logChan,
+		endpoints:        endpoints,
+		tags:             tags,
+	}
+}
+
+// Stop stops the LogReporter
+func (r *LogReporter) Stop() {
+	r.pipelineProvider.Stop()
+	r.auditor.Stop()
+}
+
+// Endpoints returns the endpoints associated with the log reporter.
+func (r *LogReporter) Endpoints() *config.Endpoints {
+	return r.endpoints
+}
+
+// ReportEvent should be used to send an event to the backend.
+func (r *LogReporter) ReportEvent(event interface{}) {
+	buf, err := json.Marshal(event)
+	if err != nil {
+		log.Errorf("failed to serialize compliance event: %v", err)
+		return
+	}
+	origin := message.NewOrigin(r.logSource)
+	origin.SetTags(r.tags)
+	msg := message.NewMessage(buf, origin, message.StatusInfo, time.Now().UnixNano())
+	msg.Hostname = r.hostname
+	r.logChan <- msg
+}

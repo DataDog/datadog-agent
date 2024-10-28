@@ -1,0 +1,215 @@
+provisioner:
+  name: chef_solo
+  <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
+  root_path: <%= ENV['KITCHEN_CI_ROOT_PATH'] %>/kitchen
+  <% end %>
+  product_name: chef
+  # There is no arm64 distribution of Chef 14 for Debian. Use the Ubuntu package instead
+  <% if ENV['KITCHEN_PLATFORM'] == "debian" && ENV['KITCHEN_ARCH'] == "arm64" %>
+  download_url: https://packages.chef.io/files/stable/chef/14.15.6/ubuntu/18.04/chef_14.15.6-1_arm64.deb
+  product_version: 14.15.6
+  <% elsif (ENV['KITCHEN_PLATFORM'] == "amazonlinux" || ENV['KITCHEN_PLATFORM'] == "suse") && ENV['KITCHEN_ARCH'] == "arm64" %>
+  # There is no arm64 distribution of Chef 14 for Amazon Linux 2022 nor SLES 15. Use the CentOS package instead
+  download_url: https://packages.chef.io/files/stable/chef/14.15.6/el/7/chef-14.15.6-1.el7.aarch64.rpm
+  product_version: 14.15.6
+  <% elsif ENV['KITCHEN_PLATFORM'] == "amazonlinux" && ENV['KITCHEN_ARCH'] == "x86_64" %>
+  # There is no x86_64 distribution of Chef 14 for Amazon Linux 2022. Use the CentOS package instead
+  download_url: https://packages.chef.io/files/stable/chef/14.15.6/el/7/chef-14.15.6-1.el7.x86_64.rpm
+  product_version: 14.15.6
+  <% else %>
+  product_version: <%= ENV['CHEF_VERSION'] ||= '14.12.9' %>
+  <% end %>
+  install_strategy: always
+  # the following settings make it possible to do a reboot during setup
+  # (necessary for FIPS tests which reboot to enable FIPS mode)
+  max_retries: 3
+  wait_for_retry: 90
+  client_rb:
+    client_fork: false
+
+driver:
+  name: ec2
+  <% if ENV['KITCHEN_EC2_SSH_KEY_ID'] %>
+  aws_ssh_key_id: <%= ENV['KITCHEN_EC2_SSH_KEY_ID'] %>
+  <% end %>
+  <% if ENV['KITCHEN_EC2_SG_IDS'] %>
+  security_group_ids: <%= [ENV['KITCHEN_EC2_SG_IDS']] %>
+  <% else %>
+  security_group_ids: [ "sg-7fedd80a","sg-46506837" ]
+  <% end %>
+  # Fix an edge case where IMDSv2 doesn't work for this specific ubuntu AMI
+  # Using this AMI with any other (e.g : KITCHEN_OSVERS: ubuntu-16-04-4.4,ubuntu-18-04) will use IMDSv2 and fail.
+  <% if ENV['KITCHEN_OSVERS'] != "ubuntu-16-04-4.4" %>
+  metadata_options:
+    http_tokens: required
+    http_put_response_hop_limit: 1
+    instance_metadata_tags: enabled
+  <% end %>
+  region: <%= ENV['KITCHEN_EC2_REGION'] ||= "us-east-1" %>
+  instance_type: <%= ENV['KITCHEN_EC2_INSTANCE_TYPE'] ||= 't3.xlarge' %>
+  associate_public_ip: false
+  subnet_id: <%= ENV['KITCHEN_EC2_SUBNET'] ||= 'subnet-b89e00e2' %>
+  iam_profile_name: <%= ENV['KITCHEN_EC2_IAM_PROFILE_NAME'] ||= nil %>
+  <% if ENV['KITCHEN_EC2_SPOT_PRICE'] %>
+  spot_price: <%= ENV['KITCHEN_EC2_SPOT_PRICE'] %>
+  <% end %>
+  block_duration_minutes: <%= ENV['KITCHEN_EC2_SPOT_DURATION'] ||= '60' %>
+  tags:
+    Name: ci-datadog-agent-kitchen
+    Team: agent-devx-loops
+    PipelineId: <%= ENV['DD_PIPELINE_ID'] %>
+    CreatedBy: datadog-agent-kitchen-tests
+    Creator: <%= ENV['KITCHEN_EC2_TAG_CREATOR'] || "datadog-agent-kitchen-user" %>
+
+platforms:
+# Loop through two lists and output a total matrix of all possible platform + chef versions,
+# for both drivers
+
+
+<%
+    # TEST_PLATFORMS syntax is `short_name1,ami|...`
+    ec2_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
+    cws_supported_platforms = (ENV['KITCHEN_CWS_SUPPORTED_OSVERS'] || "").split(',')
+
+    windows_platforms = []
+    sles15_platforms = []
+
+    idx = 0
+    ec2_test_platforms.each do |platform|
+      idx += 1
+
+      host = "ec2"
+      platform_name = platform[0] + "-#{host}-#{ENV['KITCHEN_ARCH']}"
+
+      windows = platform_name.include?("win")
+      sles15 = platform_name.include?("sles-15")
+      al2022 = platform_name.include?("amazonlinux2022")
+      al2023 = platform_name.include?("amazonlinux2023")
+      fedora = platform_name.include?("fedora")
+      rocky = platform_name.include?("rocky")
+
+      if windows
+        windows_platforms << platform_name
+      else
+        if sles15
+          sles15_platforms << platform_name
+        end
+      end
+
+      # Check if we should use allow RSA key usage via user_data
+      allow_rsa_key_platforms = ["ubuntu-22-04"]
+      allow_rsa_key = allow_rsa_key_platforms.any? { |p| platform_name.include?(p) }
+
+      vm_username = ENV['VM_USERNAME'] ? ENV['VM_USERNAME'] : "datadog"
+      vm_password = ENV['SERVER_PASSWORD']
+
+%>
+
+- name: <%= platform_name %>
+  attributes:
+    color_idx: <%= idx %>
+    dd-agent-rspec:
+      enable_cws: <%= ENV['KITCHEN_CWS'] == "true" && cws_supported_platforms.include?(platform[0]) %>
+    <% if ENV["KITCHEN_CWS_PLATFORM"] %>
+    cws_platform: <%= ENV["KITCHEN_CWS_PLATFORM"] %>
+    <% end %>
+    <% if ENV["DOCKER_REGISTRY_LOGIN"] && ENV["DOCKER_REGISTRY_PASSWORD"] %>
+    docker:
+      registry: <%= ENV["DOCKER_REGISTRY_URL"] %>
+      username: <%= ENV["DOCKER_REGISTRY_LOGIN"] %>
+      password: <%%= ENV["DOCKER_REGISTRY_PASSWORD"] %>
+    <% end %>
+  <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
+  provisioner:
+    command_prefix: TMPDIR=<%= ENV['KITCHEN_CI_ROOT_PATH'] %>
+  <% end %>
+  driver:
+    <% if windows %>
+    connection_timeout: 20
+    connection_retries: 40
+    retryable_tries: 600
+    connection_retry_sleep: 20
+    max_wait_until_ready: 1200
+    <% end %>
+    image_id: <%= platform[1] %>
+    block_device_mappings:
+      <% if ENV['KITCHEN_ARCH'] == "arm64" %>
+      - device_name: <%= ENV['KITCHEN_EC2_DEVICE_NAME'] || "/dev/sda1" %>
+      <% else %>
+      - device_name: <%= ENV['KITCHEN_EC2_DEVICE_NAME'] || "/dev/xvda" %>
+      <% end %>
+        ebs:
+          volume_type: gp2
+          volume_size: 100
+          delete_on_termination: true
+    <% if allow_rsa_key || al2022 || al2023 || fedora %>
+    user_data: |
+      #!/bin/sh
+    <% end %>
+    <% if allow_rsa_key %>
+      echo PubkeyAcceptedKeyTypes=+ssh-rsa >> /etc/ssh/sshd_config
+      service ssh reload
+    <% end %>
+    <% if al2022 || al2023 || fedora %>
+      sudo dnf install -y libxcrypt-compat
+    <% end %>
+  <% if (ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH']) || al2022 || al2023 || fedora %>
+  lifecycle:
+    post_create:
+  <% end %>
+  <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
+    - remote: |
+        sudo mkdir -p <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
+        sudo chmod a+rwx <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
+        sudo ln -s <%= ENV['KITCHEN_CI_MOUNT_PATH'] %> <%= ENV['KITCHEN_CI_ROOT_PATH'] %>;
+  <% end %>
+  <% if al2022 || al2023 || fedora %>
+  # Add a hook after creating the host, to make sure we wait until the user_data
+  # script has been run.
+  # Snippet taken from the kitchen docs: https://kitchen.ci/docs/reference/lifecycle-hooks/
+    - local: echo 'Awaiting cloud-init completion'
+    - remote: |
+        declare i=0;
+        declare wait=5;
+        declare timeout=300;
+        while true; do
+          [ -f /var/lib/cloud/instance/boot-finished ] && break;
+          if [ ${i} -ge ${timeout} ]; then
+            echo "Timed out after ${i}s waiting for cloud-init to complete";
+            exit 1;
+          fi;
+          echo "Waited ${i}/${timeout}s for cloud-init to complete, retrying in ${wait} seconds"
+          sleep ${wait};
+          let i+=${wait};
+        done;
+  <% end %>
+  verifier:
+    downloads:
+      "/tmp/junit.tar.gz": junit-<%= platform_name %>.tar.gz
+      "/tmp/testjson.tar.gz": testjson/<%= platform_name %>/testjson.tar.gz
+      "/tmp/kitchen/rspec.xml": kitchen-rspec-<%= platform_name %>.xml
+
+  transport:
+    <% if windows %>
+    name: winrm
+    elevated: true
+    username: administrator
+
+    <% else %>
+    connection_retries: 30
+    connection_retry_sleep: 2
+    max_wait_until_ready: 30
+    <% end %>
+    <% if sles15 || al2022 || al2023 %>
+    # The AWS EC2 driver doesn't recognize Amazon Linux 2022 yet,
+    # therefore it doesn't know that it needs to use ec2-user.
+    username: ec2-user
+    <% end %>
+    <% if rocky %>
+    username: rocky
+    <% end %>
+    <% if ENV['KITCHEN_EC2_SSH_KEY_PATH'] %>
+    ssh_key: <%= ENV['KITCHEN_EC2_SSH_KEY_PATH'] %>
+    <% end %>
+
+<% end %>

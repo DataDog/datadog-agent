@@ -1,0 +1,35 @@
+---
+# Entrypoint for the Windows Docker image
+build_windows_container_entrypoint:
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  stage: binary_build
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  needs: ["lint_windows-x64"]
+  variables:
+    ARCH: "x64"
+  script:
+    - $ErrorActionPreference = "Stop"
+    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
+    - if (Test-Path build-out) { remove-item -recurse -force build-out }
+    - >
+      docker run --rm
+      -m 8192M
+      -v "$(Get-Location):c:\mnt"
+      -e CI_JOB_ID=${CI_JOB_ID}
+      -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
+      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
+      -e WINDOWS_BUILDER=true
+      -e AWS_NETWORKING=true
+      -e TARGET_ARCH="$ARCH"
+      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      c:\mnt\Dockerfiles\agent\windows\entrypoint\build.bat
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - get-childitem build-out\${CI_JOB_ID}
+    - copy build-out\${CI_JOB_ID}\*.exe ./entrypoint.exe
+    - remove-item -recurse -force build-out\${CI_JOB_ID}
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - entrypoint.exe

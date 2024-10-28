@@ -1,0 +1,56 @@
+{{- if .hostinfo }}
+  <div class="stat">
+    <span class="stat_title">Host Info</span>
+    <span class="stat_data">
+      {{- range $type, $value := .hostinfo -}}
+        {{- if ne $type "hostname" -}}
+          {{- if ne $type "hostid" -}}
+            {{if $value}}
+              {{formatTitle $type}}: {{if eq $type "bootTime" -}}{{- formatUnixTime $value -}}
+                              {{- else -}}{{- if eq $type "uptime" -}}{{- humanizeDuration $value "s" -}}
+                              {{- else -}}{{- $value -}}
+                              {{- end -}}{{- end -}}<br>
+            {{end -}}
+          {{end -}}
+        {{end -}}
+      {{- end}}
+    </span>
+  </div>
+{{- end }}
+
+<div class="stat">
+  <span class="stat_title">Hostnames</span>
+  <span class="stat_data">
+    {{- range $type, $value := .metadata.meta -}}
+      {{- if ne $type "timezones" -}}
+        {{- if $value}}
+          {{formatTitle $type}}: {{$value -}}<br>
+        {{end -}}
+      {{- end -}}
+    {{- end}}
+    {{- if gt (len .hostTags) 0 }}
+      <span>Host tags: <br>
+        <span class="stat_subdata">
+          {{- range $tag := .hostTags}}
+            {{$tag}}<br>
+          {{- end }}
+        </span>
+      </span>
+    {{- end }}
+    Hostname Provider: {{.hostnameStats.provider}}<br>
+    {{- if gt (len .hostnameStats.errors) 0 }}
+      <span>Unused Hostname Providers: <br>
+        <span class="stat_subdata">
+          {{- range $name, $value := .hostnameStats.errors -}}
+            {{- if ne $name "all" }}
+              {{formatTitle $name}}: {{$value}}<br>
+            {{- end}}
+          {{- end }}
+        </span>
+      </span>
+    {{- if .hostnameStats.errors.all }}
+      <span class="error">Error</span>: {{.hostnameStats.errors.all}}<br>
+    {{- end }}
+    {{- end }}
+  </span>
+</div>

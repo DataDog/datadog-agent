@@ -1,0 +1,48 @@
+
+{{- with .Stats -}}
+
+  {{- if or .Runs .Checks}}
+    <table id="running_checks_table">
+      <tr> <th>Check Name</th>
+      <th class="l_space">Number of <br>Instances</th>
+      <th class="l_space">Status</th></tr>
+      {{- range $checkname, $instances := .Checks}}
+        <tr> <td>{{$checkname}}</td>
+        <td class="l_space">{{ len $instances }}</td>
+        <td class="l_space">
+        {{ range $instances }}
+          {{- if and (not .LastError) (not .LastWarnings) }}
+            <span class="success"> OK</span>
+          {{ end }}
+          {{ if .LastError }}
+            <span class="error"> Run Error</span>
+          {{ end }}
+          {{ if .LastWarnings }}
+            <span class="warning"> Run Warning</span>
+          {{ end }}
+          <br>
+        {{ end }}
+        </td></tr>
+      {{- end -}}
+
+      {{- range $checkname, $errors := $.LoaderErrs}}
+        <tr><td>{{$checkname}}</td>
+        <td class="l_space"> - </td>
+        <td class="error l_space"> Loader Error </td></tr>
+      {{ end }}
+
+      {{- range $checkname, $errors := $.ConfigErrs}}
+        <tr><td>{{$checkname}}</td>
+        <td class="l_space"> - </td>
+        <td class="error l_space"> Configuration Error </td></tr>
+      {{ end }}
+    </table>
+    <div id="running_checks_info"> See Collector Status for more information.</div>
+
+  {{- else }}
+    <table id="running_checks_table">
+      <tr><th>No checks have run yet</th></tr>
+    </table>
+  {{ end }}
+
+{{- end -}}

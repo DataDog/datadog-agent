@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Accept now short names for docker image in logs configuration file and added to the possibility to filter containers by image name with Kubernetes.

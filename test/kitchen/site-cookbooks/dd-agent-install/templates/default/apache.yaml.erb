@@ -1,0 +1,19 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+instances:
+<% @instances.each do |i| -%>
+  - apache_status_url: <%= i['status_url'] %>
+    <% if i['apache_user'] -%>apache_user: <%= i['apache_user'] %><% end -%>
+    <% if i['apache_password'] -%>apache_password: <%= i['apache_password'] %><% end -%>
+    <% if i['disable_ssl_validation'] -%>disable_ssl_validation: <%= i['disable_ssl_validation'] %><% end -%>
+
+  <% if i.key?('tags') -%>
+    tags:
+    <% i['tags'].each do |t| -%>
+    - <%= t %>
+    <% end -%>
+  <% end -%>
+<% end -%>
+
+# Nothing to configure here
+init_config:

@@ -1,0 +1,6 @@
+---
+upgrade:
+  - |
+    Starting with Agent 7.40, the Agent will fail to start when it is unable to determine the hostname, instead of silently using an irrelevant hostname (usually, a container ID).
+    Hostname resolution is key to many features and failure to determine hostname means that the Agent is not configured properly.
+    This change mostly affects Agents running in containerized environments as we cannot rely on the OS hostname.

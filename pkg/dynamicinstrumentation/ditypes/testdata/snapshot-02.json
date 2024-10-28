@@ -1,0 +1,1645 @@
+{
+    "service": "logs-intake-coordinator",
+    "message": "MetricsClient.parseSuccess response={Cannot find symbol: response} returns {status=ok, resType=time_series, series=..., fromDate=1709233490000, toDate=1709233550000}, ...",
+    "ddsource": "dd_debugger",
+    "duration": 2568054,
+    "ddtags": "git.commit.sha:3698e1f3da2142d6399ef311e80c970e8e89eb02,app:logs-intake-coordinator",
+    "debugger": {
+        "snapshot": {
+            "stack": [
+                {
+                    "fileName": "MetricsClient.java",
+                    "function": "com.dd.logs.metricsclient.MetricsClient.parseSuccess",
+                    "lineNumber": 16
+                },
+                {
+                    "fileName": "AHttpServiceCall.java",
+                    "function": "com.fsmatic.http.AHttpServiceCall.parseResponse",
+                    "lineNumber": 203
+                },
+                {
+                    "fileName": "AHttpServiceCall.java",
+                    "function": "com.fsmatic.http.AHttpServiceCall$HttpCall.lambda$execute$1",
+                    "lineNumber": 389
+                },
+                {
+                    "function": "com.fsmatic.http.AHttpServiceCall$HttpCall$$Lambda/0x00007f8843a54460.apply",
+                    "lineNumber": -1
+                },
+                {
+                    "fileName": "CompletableFuture.java",
+                    "function": "java.util.concurrent.CompletableFuture$UniApply.tryFire",
+                    "lineNumber": 646
+                },
+                {
+                    "fileName": "CompletableFuture.java",
+                    "function": "java.util.concurrent.CompletableFuture.postComplete",
+                    "lineNumber": 510
+                },
+                {
+                    "fileName": "CompletableFuture.java",
+                    "function": "java.util.concurrent.CompletableFuture.complete",
+                    "lineNumber": 2179
+                },
+                {
+                    "fileName": "CompletableCallback.java",
+                    "function": "com.fsmatic.http.CompletableCallback.onResponse",
+                    "lineNumber": 55
+                },
+                {
+                    "fileName": "RealCall.java",
+                    "function": "okhttp3.RealCall$AsyncCall.execute",
+                    "lineNumber": 174
+                },
+                {
+                    "fileName": "NamedRunnable.java",
+                    "function": "okhttp3.internal.NamedRunnable.run",
+                    "lineNumber": 32
+                },
+                {
+                    "fileName": "ThreadPoolExecutor.java",
+                    "function": "java.util.concurrent.ThreadPoolExecutor.runWorker",
+                    "lineNumber": 1144
+                },
+                {
+                    "fileName": "ThreadPoolExecutor.java",
+                    "function": "java.util.concurrent.ThreadPoolExecutor$Worker.run",
+                    "lineNumber": 642
+                },
+                {
+                    "fileName": "Thread.java",
+                    "function": "java.lang.Thread.runWith",
+                    "lineNumber": 1596
+                },
+                {
+                    "fileName": "Thread.java",
+                    "function": "java.lang.Thread.run",
+                    "lineNumber": 1583
+                }
+            ],
+            "captures": {
+                "return": {
+                    "arguments": {
+                        "p0": {
+                            "type": "okhttp3.Response",
+                            "fields": {
+                                "request": {
+                                    "type": "okhttp3.Request",
+                                    "fields": {
+                                        "headers": {
+                                            "type": "okhttp3.Headers",
+                                            "fields": {
+                                                "namesAndValues": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.lang.String[]"
+                                                }
+                                            }
+                                        },
+                                        "method": {
+                                            "type": "java.lang.String",
+                                            "value": "GET"
+                                        },
+                                        "body": {
+                                            "isNull": true,
+                                            "type": "okhttp3.RequestBody"
+                                        },
+                                        "url": {
+                                            "type": "okhttp3.HttpUrl",
+                                            "fields": {
+                                                "password": {
+                                                    "notCapturedReason": "redactedIdent",
+                                                    "type": "java.lang.String"
+                                                },
+                                                "fragment": {
+                                                    "isNull": true,
+                                                    "type": "java.lang.String"
+                                                },
+                                                "scheme": {
+                                                    "type": "java.lang.String",
+                                                    "value": "https"
+                                                },
+                                                "$$DD$source": {
+                                                    "isNull": true,
+                                                    "type": "datadog.trace.api.iast.Taintable$Source"
+                                                },
+                                                "port": {
+                                                    "type": "int",
+                                                    "value": "443"
+                                                },
+                                                "queryNamesAndValues": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$UnmodifiableRandomAccessList"
+                                                },
+                                                "host": {
+                                                    "type": "java.lang.String",
+                                                    "value": "api.datad0g.com"
+                                                },
+                                                "pathSegments": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$UnmodifiableRandomAccessList"
+                                                },
+                                                "url": {
+                                                    "size": "663",
+                                                    "truncated": true,
+                                                    "type": "java.lang.String",
+                                                    "value": "https://api.datad0g.com/api/v1/query?query=timeshift%28%28max%3Akubernetes_state.statefulset.replicas_desired%7Bdatacenter%3Aus1.staging.dog%2Cdds%3Aevent-platform%2Cservice%3Alogs-intake-backend%7D%20by%20%7Bkube_stateful_set%7D%20-%20max%3Akubernetes_st"
+                                                },
+                                                "username": {
+                                                    "type": "java.lang.String",
+                                                    "value": ""
+                                                }
+                                            }
+                                        },
+                                        "cacheControl": {
+                                            "isNull": true,
+                                            "type": "okhttp3.CacheControl"
+                                        },
+                                        "tags": {
+                                            "size": "0",
+                                            "type": "java.util.Collections$EmptyMap"
+                                        }
+                                    }
+                                },
+                                "handshake": {
+                                    "type": "okhttp3.Handshake",
+                                    "fields": {
+                                        "localCertificates": {
+                                            "size": "0",
+                                            "type": "java.util.Collections$EmptyList"
+                                        },
+                                        "peerCertificates": {
+                                            "size": "2",
+                                            "elements": [
+                                                {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "sun.security.x509.X509CertImpl"
+                                                },
+                                                {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "sun.security.x509.X509CertImpl"
+                                                }
+                                            ],
+                                            "type": "java.util.Collections$UnmodifiableRandomAccessList"
+                                        },
+                                        "tlsVersion": {
+                                            "type": "okhttp3.TlsVersion",
+                                            "value": "TLS_1_2"
+                                        },
+                                        "cipherSuite": {
+                                            "type": "okhttp3.CipherSuite",
+                                            "fields": {
+                                                "javaName": {
+                                                    "type": "java.lang.String",
+                                                    "value": "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "headers": {
+                                    "type": "okhttp3.Headers",
+                                    "fields": {
+                                        "namesAndValues": {
+                                            "size": "26",
+                                            "elements": [
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "date"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "Thu, 29 Feb 2024 19:05:52 GMT"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "content-type"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "application/json"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "x-frame-options"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "SAMEORIGIN"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "content-security-policy"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pub293163a918901030b79492fe1ab424cf&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatad0g.com"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "vary"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "Accept-Encoding"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "x-ratelimit-limit"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "100"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "x-ratelimit-period"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "10"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "x-ratelimit-remaining"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "96"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "x-ratelimit-reset"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "10"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "x-ratelimit-name"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "batch_query"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "x-content-type-options"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "nosniff"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "strict-transport-security"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "max-age=31536000; includeSubDomains; preload"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "transfer-encoding"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "chunked"
+                                                }
+                                            ],
+                                            "type": "java.lang.String[]"
+                                        }
+                                    }
+                                },
+                                "code": {
+                                    "type": "int",
+                                    "value": "200"
+                                },
+                                "sentRequestAtMillis": {
+                                    "type": "long",
+                                    "value": "1709233550915"
+                                },
+                                "networkResponse": {
+                                    "type": "okhttp3.Response",
+                                    "fields": {
+                                        "request": {
+                                            "type": "okhttp3.Request",
+                                            "fields": {
+                                                "headers": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.Headers"
+                                                },
+                                                "method": {
+                                                    "type": "java.lang.String",
+                                                    "value": "GET"
+                                                },
+                                                "body": {
+                                                    "isNull": true,
+                                                    "type": "okhttp3.RequestBody"
+                                                },
+                                                "url": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.HttpUrl"
+                                                },
+                                                "cacheControl": {
+                                                    "isNull": true,
+                                                    "type": "okhttp3.CacheControl"
+                                                },
+                                                "tags": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$EmptyMap"
+                                                }
+                                            }
+                                        },
+                                        "handshake": {
+                                            "type": "okhttp3.Handshake",
+                                            "fields": {
+                                                "localCertificates": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$EmptyList"
+                                                },
+                                                "peerCertificates": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$UnmodifiableRandomAccessList"
+                                                },
+                                                "tlsVersion": {
+                                                    "type": "okhttp3.TlsVersion",
+                                                    "value": "TLS_1_2"
+                                                },
+                                                "cipherSuite": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.CipherSuite"
+                                                }
+                                            }
+                                        },
+                                        "headers": {
+                                            "type": "okhttp3.Headers",
+                                            "fields": {
+                                                "namesAndValues": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.lang.String[]"
+                                                }
+                                            }
+                                        },
+                                        "code": {
+                                            "type": "int",
+                                            "value": "200"
+                                        },
+                                        "sentRequestAtMillis": {
+                                            "type": "long",
+                                            "value": "1709233550915"
+                                        },
+                                        "networkResponse": {
+                                            "isNull": true,
+                                            "type": "okhttp3.Response"
+                                        },
+                                        "message": {
+                                            "type": "java.lang.String",
+                                            "value": "OK"
+                                        },
+                                        "body": {
+                                            "isNull": true,
+                                            "type": "okhttp3.ResponseBody"
+                                        },
+                                        "cacheControl": {
+                                            "isNull": true,
+                                            "type": "okhttp3.CacheControl"
+                                        },
+                                        "cacheResponse": {
+                                            "isNull": true,
+                                            "type": "okhttp3.Response"
+                                        },
+                                        "protocol": {
+                                            "type": "okhttp3.Protocol",
+                                            "value": "HTTP_1_1"
+                                        },
+                                        "priorResponse": {
+                                            "isNull": true,
+                                            "type": "okhttp3.Response"
+                                        },
+                                        "receivedResponseAtMillis": {
+                                            "type": "long",
+                                            "value": "1709233552199"
+                                        },
+                                        "exchange": {
+                                            "type": "okhttp3.internal.connection.Exchange",
+                                            "fields": {
+                                                "call": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.RealCall"
+                                                },
+                                                "codec": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.internal.http1.Http1ExchangeCodec"
+                                                },
+                                                "eventListener": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "com.fsmatic.http.OkHttpEventLogger"
+                                                },
+                                                "duplex": {
+                                                    "type": "boolean",
+                                                    "value": "false"
+                                                },
+                                                "transmitter": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.internal.connection.Transmitter"
+                                                },
+                                                "finder": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.internal.connection.ExchangeFinder"
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "message": {
+                                    "type": "java.lang.String",
+                                    "value": "OK"
+                                },
+                                "body": {
+                                    "type": "okhttp3.internal.http.RealResponseBody",
+                                    "fields": {
+                                        "reader": {
+                                            "type": "okhttp3.ResponseBody$BomAwareReader",
+                                            "fields": {
+                                                "delegate": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.io.InputStreamReader"
+                                                },
+                                                "charset": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "sun.nio.cs.UTF_8"
+                                                },
+                                                "skipBuffer": {
+                                                    "notCapturedReason": "java.lang.reflect.InaccessibleObjectException: Unable to make field private char[] java.io.Reader.skipBuffer accessible: module java.base does not \"opens java.io\" to unnamed module @dc24521",
+                                                    "type": "char[]"
+                                                },
+                                                "closed": {
+                                                    "type": "boolean",
+                                                    "value": "true"
+                                                },
+                                                "lock": {
+                                                    "notCapturedReason": "java.lang.reflect.InaccessibleObjectException: Unable to make field protected java.lang.Object java.io.Reader.lock accessible: module java.base does not \"opens java.io\" to unnamed module @dc24521",
+                                                    "type": "java.lang.Object"
+                                                },
+                                                "source": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okio.RealBufferedSource"
+                                                }
+                                            }
+                                        },
+                                        "contentTypeString": {
+                                            "type": "java.lang.String",
+                                            "value": "application/json"
+                                        },
+                                        "contentLength": {
+                                            "type": "long",
+                                            "value": "-1"
+                                        },
+                                        "source": {
+                                            "type": "okio.RealBufferedSource",
+                                            "fields": {
+                                                "closed": {
+                                                    "type": "boolean",
+                                                    "value": "true"
+                                                },
+                                                "buffer": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okio.Buffer"
+                                                },
+                                                "source": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "com.fsmatic.http.OkHttpMonitoringInterceptor$LengthTrackingSource"
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "cacheControl": {
+                                    "isNull": true,
+                                    "type": "okhttp3.CacheControl"
+                                },
+                                "cacheResponse": {
+                                    "isNull": true,
+                                    "type": "okhttp3.Response"
+                                },
+                                "protocol": {
+                                    "type": "okhttp3.Protocol",
+                                    "value": "HTTP_1_1"
+                                },
+                                "priorResponse": {
+                                    "isNull": true,
+                                    "type": "okhttp3.Response"
+                                },
+                                "receivedResponseAtMillis": {
+                                    "type": "long",
+                                    "value": "1709233552199"
+                                },
+                                "exchange": {
+                                    "type": "okhttp3.internal.connection.Exchange",
+                                    "fields": {
+                                        "call": {
+                                            "type": "okhttp3.RealCall",
+                                            "fields": {
+                                                "originalRequest": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.Request"
+                                                },
+                                                "forWebSocket": {
+                                                    "type": "boolean",
+                                                    "value": "false"
+                                                },
+                                                "client": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.OkHttpClient"
+                                                },
+                                                "executed": {
+                                                    "type": "boolean",
+                                                    "value": "true"
+                                                },
+                                                "transmitter": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.internal.connection.Transmitter"
+                                                }
+                                            }
+                                        },
+                                        "codec": {
+                                            "type": "okhttp3.internal.http1.Http1ExchangeCodec",
+                                            "fields": {
+                                                "sink": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okio.RealBufferedSink"
+                                                },
+                                                "client": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.OkHttpClient"
+                                                },
+                                                "realConnection": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.internal.connection.RealConnection"
+                                                },
+                                                "headerLimit": {
+                                                    "type": "long",
+                                                    "value": "261503"
+                                                },
+                                                "source": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okio.RealBufferedSource"
+                                                },
+                                                "state": {
+                                                    "type": "int",
+                                                    "value": "6"
+                                                },
+                                                "trailers": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.Headers"
+                                                }
+                                            }
+                                        },
+                                        "eventListener": {
+                                            "type": "com.fsmatic.http.OkHttpEventLogger",
+                                            "fields": {
+                                                "loggers": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.concurrent.ConcurrentHashMap"
+                                                },
+                                                "hostRegexps": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.ArrayList"
+                                                }
+                                            }
+                                        },
+                                        "duplex": {
+                                            "type": "boolean",
+                                            "value": "false"
+                                        },
+                                        "transmitter": {
+                                            "type": "okhttp3.internal.connection.Transmitter",
+                                            "fields": {
+                                                "request": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.Request"
+                                                },
+                                                "noMoreExchanges": {
+                                                    "type": "boolean",
+                                                    "value": "true"
+                                                },
+                                                "connectionPool": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.internal.connection.RealConnectionPool"
+                                                },
+                                                "callStackTrace": {
+                                                    "isNull": true,
+                                                    "type": "java.lang.Object"
+                                                },
+                                                "timeoutEarlyExit": {
+                                                    "type": "boolean",
+                                                    "value": "false"
+                                                },
+                                                "exchangeResponseDone": {
+                                                    "type": "boolean",
+                                                    "value": "true"
+                                                },
+                                                "timeout": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.internal.connection.Transmitter$1"
+                                                },
+                                                "call": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.RealCall"
+                                                },
+                                                "canceled": {
+                                                    "type": "boolean",
+                                                    "value": "false"
+                                                },
+                                                "exchangeRequestDone": {
+                                                    "type": "boolean",
+                                                    "value": "true"
+                                                },
+                                                "exchangeFinder": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.internal.connection.ExchangeFinder"
+                                                },
+                                                "eventListener": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "com.fsmatic.http.OkHttpEventLogger"
+                                                },
+                                                "client": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.OkHttpClient"
+                                                },
+                                                "connection": {
+                                                    "isNull": true,
+                                                    "type": "okhttp3.internal.connection.RealConnection"
+                                                },
+                                                "exchange": {
+                                                    "isNull": true,
+                                                    "type": "okhttp3.internal.connection.Exchange"
+                                                }
+                                            }
+                                        },
+                                        "finder": {
+                                            "type": "okhttp3.internal.connection.ExchangeFinder",
+                                            "fields": {
+                                                "call": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.RealCall"
+                                                },
+                                                "address": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.Address"
+                                                },
+                                                "connectingConnection": {
+                                                    "isNull": true,
+                                                    "type": "okhttp3.internal.connection.RealConnection"
+                                                },
+                                                "routeSelector": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.internal.connection.RouteSelector"
+                                                },
+                                                "hasStreamFailure": {
+                                                    "type": "boolean",
+                                                    "value": "false"
+                                                },
+                                                "eventListener": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "com.fsmatic.http.OkHttpEventLogger"
+                                                },
+                                                "connectionPool": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.internal.connection.RealConnectionPool"
+                                                },
+                                                "routeSelection": {
+                                                    "isNull": true,
+                                                    "type": "okhttp3.internal.connection.RouteSelector$Selection"
+                                                },
+                                                "nextRouteToTry": {
+                                                    "isNull": true,
+                                                    "type": "okhttp3.Route"
+                                                },
+                                                "transmitter": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.internal.connection.Transmitter"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "p1": {
+                            "type": "com.dd.logs.metricsclient.MetricsClientActions$QueryMetric",
+                            "fields": {
+                                "query": {
+                                    "size": "492",
+                                    "truncated": true,
+                                    "type": "java.lang.String",
+                                    "value": "timeshift((max:kubernetes_state.statefulset.replicas_desired{datacenter:us1.staging.dog,dds:event-platform,service:logs-intake-backend} by {kube_stateful_set} - max:kubernetes_state.statefulset.replicas_desired{datacenter:us1.staging.dog,dds:event-platfor"
+                                },
+                                "notCritical": {
+                                    "type": "boolean",
+                                    "value": "false"
+                                },
+                                "from": {
+                                    "type": "java.time.Instant",
+                                    "value": "2024-02-29T19:04:50.915679003Z"
+                                },
+                                "to": {
+                                    "type": "java.time.Instant",
+                                    "value": "2024-02-29T19:05:50.915679003Z"
+                                }
+                            }
+                        },
+                        "this": {
+                            "type": "com.dd.logs.metricsclient.MetricsClient",
+                            "fields": {
+                                "shouldTrace": {
+                                    "type": "boolean",
+                                    "value": "true"
+                                },
+                                "apiKey": {
+                                    "notCapturedReason": "redactedIdent",
+                                    "type": "java.lang.String"
+                                },
+                                "throttledLogger": {
+                                    "type": "com.dd.logging.ThrottledLogger",
+                                    "fields": {
+                                        "logger": {
+                                            "type": "com.dd.logging.BasicLogger",
+                                            "fields": {
+                                                "metas": {
+                                                    "isNull": true,
+                                                    "type": "java.util.Map"
+                                                },
+                                                "logger": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "ch.qos.logback.classic.Logger"
+                                                },
+                                                "name": {
+                                                    "type": "java.lang.String",
+                                                    "value": "com.fsmatic.http.AHttpServiceCall"
+                                                }
+                                            }
+                                        },
+                                        "throttler": {
+                                            "type": "com.dd.logging.throttler.ByPassThrottler",
+                                            "fields": {
+                                                "current": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.concurrent.atomic.AtomicReference"
+                                                },
+                                                "rate": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "com.dd.logging.throttler.ByPassThrottler$Rate"
+                                                },
+                                                "clock": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.time.Clock$SystemClock"
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "executor": {
+                                    "type": "com.fsmatic.rpc.RPCCallExecutor",
+                                    "fields": {
+                                        "policy": {
+                                            "type": "com.fsmatic.rpc.RPCCallExecutor$Policy$NoOp"
+                                        }
+                                    }
+                                },
+                                "applicationKey": {
+                                    "type": "java.lang.String",
+                                    "value": "<REDACTED>"
+                                },
+                                "wrapper": {
+                                    "type": "com.fsmatic.http.HttpWrapper",
+                                    "fields": {
+                                        "shouldTrace": {
+                                            "type": "boolean",
+                                            "value": "true"
+                                        },
+                                        "clientInstrumentation": {
+                                            "type": "com.fsmatic.http.OkHttpClientInstrumentation",
+                                            "fields": {
+                                                "dispatcherInstrumentation": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "com.fsmatic.http.OkHttpDispatcherInstrumentation"
+                                                }
+                                            }
+                                        },
+                                        "client": {
+                                            "notCapturedReason": "fieldCount",
+                                            "type": "okhttp3.OkHttpClient",
+                                            "fields": {
+                                                "cache": {
+                                                    "isNull": true,
+                                                    "type": "okhttp3.Cache"
+                                                },
+                                                "socketFactory": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "javax.net.DefaultSocketFactory"
+                                                },
+                                                "internalCache": {
+                                                    "isNull": true,
+                                                    "type": "okhttp3.internal.cache.InternalCache"
+                                                },
+                                                "hostnameVerifier": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.internal.tls.OkHostnameVerifier"
+                                                },
+                                                "dns": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.Dns$$Lambda/0x00007f8843706ac8"
+                                                },
+                                                "connectionPool": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.ConnectionPool"
+                                                },
+                                                "certificateChainCleaner": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.internal.tls.BasicCertificateChainCleaner"
+                                                },
+                                                "certificatePinner": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.CertificatePinner"
+                                                },
+                                                "cookieJar": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.CookieJar$1"
+                                                },
+                                                "connectionSpecs": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$UnmodifiableRandomAccessList"
+                                                },
+                                                "networkInterceptors": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$UnmodifiableRandomAccessList"
+                                                },
+                                                "proxySelector": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "sun.net.spi.DefaultProxySelector"
+                                                },
+                                                "proxy": {
+                                                    "isNull": true,
+                                                    "type": "java.net.Proxy"
+                                                },
+                                                "sslSocketFactory": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "sun.security.ssl.SSLSocketFactoryImpl"
+                                                },
+                                                "eventListenerFactory": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.EventListener$$Lambda/0x00007f88437051a8"
+                                                },
+                                                "proxyAuthenticator": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.Authenticator$$Lambda/0x00007f88437066a8"
+                                                },
+                                                "protocols": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$UnmodifiableRandomAccessList"
+                                                },
+                                                "dispatcher": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.Dispatcher"
+                                                },
+                                                "authenticator": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "okhttp3.Authenticator$$Lambda/0x00007f88437066a8"
+                                                },
+                                                "interceptors": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$UnmodifiableRandomAccessList"
+                                                }
+                                            }
+                                        },
+                                        "mapper": {
+                                            "type": "com.fasterxml.jackson.databind.ObjectMapper",
+                                            "fields": {
+                                                "_serializerFactory": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "com.fasterxml.jackson.databind.ser.BeanSerializerFactory"
+                                                },
+                                                "_deserializationContext": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "com.fasterxml.jackson.databind.deser.DefaultDeserializationContext$Impl"
+                                                },
+                                                "_deserializationConfig": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "com.fasterxml.jackson.databind.DeserializationConfig"
+                                                },
+                                                "_injectableValues": {
+                                                    "isNull": true,
+                                                    "type": "com.fasterxml.jackson.databind.InjectableValues"
+                                                },
+                                                "_registeredModuleTypes": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.LinkedHashSet"
+                                                },
+                                                "_jsonFactory": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "com.fasterxml.jackson.databind.MappingJsonFactory"
+                                                },
+                                                "_coercionConfigs": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "com.fasterxml.jackson.databind.cfg.CoercionConfigs"
+                                                },
+                                                "_subtypeResolver": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "com.fasterxml.jackson.databind.jsontype.impl.StdSubtypeResolver"
+                                                },
+                                                "_configOverrides": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "com.fasterxml.jackson.databind.cfg.ConfigOverrides"
+                                                },
+                                                "_serializerProvider": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "com.fasterxml.jackson.databind.ser.DefaultSerializerProvider$Impl"
+                                                },
+                                                "_serializationConfig": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "com.fasterxml.jackson.databind.SerializationConfig"
+                                                },
+                                                "_mixIns": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "com.fasterxml.jackson.databind.introspect.SimpleMixInResolver"
+                                                },
+                                                "_typeFactory": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "com.fasterxml.jackson.databind.type.TypeFactory"
+                                                },
+                                                "_rootDeserializers": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.concurrent.ConcurrentHashMap"
+                                                }
+                                            }
+                                        },
+                                        "metrics": {
+                                            "type": "com.dd.metrics.WeakRefMetricsCache",
+                                            "fields": {
+                                                "cache": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "com.dd.metrics.WeakRefDoubleCache"
+                                                },
+                                                "rootRegistry": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "com.dd.metrics.RootMetricRegistry"
+                                                }
+                                            }
+                                        },
+                                        "internalHttpPort": {
+                                            "type": "int",
+                                            "value": "9091"
+                                        }
+                                    }
+                                },
+                                "metrics": {
+                                    "type": "com.dd.metrics.WeakRefMetricsCache",
+                                    "fields": {
+                                        "cache": {
+                                            "type": "com.dd.metrics.WeakRefDoubleCache",
+                                            "fields": {
+                                                "layer1": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.concurrent.ConcurrentHashMap"
+                                                }
+                                            }
+                                        },
+                                        "rootRegistry": {
+                                            "type": "com.dd.metrics.RootMetricRegistry",
+                                            "fields": {
+                                                "metrics": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.concurrent.ConcurrentHashMap"
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "uri": {
+                                    "type": "okhttp3.HttpUrl",
+                                    "fields": {
+                                        "password": {
+                                            "notCapturedReason": "redactedIdent",
+                                            "type": "java.lang.String"
+                                        },
+                                        "fragment": {
+                                            "isNull": true,
+                                            "type": "java.lang.String"
+                                        },
+                                        "scheme": {
+                                            "type": "java.lang.String",
+                                            "value": "https"
+                                        },
+                                        "$$DD$source": {
+                                            "isNull": true,
+                                            "type": "datadog.trace.api.iast.Taintable$Source"
+                                        },
+                                        "port": {
+                                            "type": "int",
+                                            "value": "443"
+                                        },
+                                        "queryNamesAndValues": {
+                                            "isNull": true,
+                                            "type": "java.util.List"
+                                        },
+                                        "host": {
+                                            "type": "java.lang.String",
+                                            "value": "api.datad0g.com"
+                                        },
+                                        "pathSegments": {
+                                            "size": "3",
+                                            "elements": [
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "api"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "v1"
+                                                },
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "query"
+                                                }
+                                            ],
+                                            "type": "java.util.Collections$UnmodifiableRandomAccessList"
+                                        },
+                                        "url": {
+                                            "type": "java.lang.String",
+                                            "value": "https://api.datad0g.com/api/v1/query"
+                                        },
+                                        "username": {
+                                            "type": "java.lang.String",
+                                            "value": ""
+                                        }
+                                    }
+                                },
+                                "timeout": {
+                                    "type": "long",
+                                    "value": "60000"
+                                },
+                                "tags": {
+                                    "type": "com.dd.metrics.Tags",
+                                    "fields": {
+                                        "hashIsZero": {
+                                            "type": "boolean",
+                                            "value": "false"
+                                        },
+                                        "hash": {
+                                            "type": "int",
+                                            "value": "0"
+                                        },
+                                        "tags": {
+                                            "size": "1",
+                                            "elements": [
+                                                {
+                                                    "type": "java.lang.String",
+                                                    "value": "action_name:metricsclient"
+                                                }
+                                            ],
+                                            "type": "java.util.ArrayList"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "locals": {
+                        "@return": {
+                            "type": "com.dd.logs.metricsclient.ImmutableQueryResponse",
+                            "fields": {
+                                "fromDate": {
+                                    "type": "long",
+                                    "value": "1709233490000"
+                                },
+                                "resType": {
+                                    "type": "java.lang.String",
+                                    "value": "time_series"
+                                },
+                                "series": {
+                                    "size": "9",
+                                    "elements": [
+                                        {
+                                            "type": "com.dd.logs.metricsclient.ImmutableSeries",
+                                            "fields": {
+                                                "unit": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$EmptyList"
+                                                },
+                                                "expression": {
+                                                    "size": "577",
+                                                    "truncated": true,
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((max:kubernetes_state.statefulset.replicas_desired{kube_stateful_set:logs-intake-backend-internal-all,datacenter:us1.staging.dog,dds:event-platform,service:logs-intake-backend} - max:kubernetes_state.statefulset.replicas_desired{kube_stateful_s"
+                                                },
+                                                "metric": {
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((kubernetes_state.statefulset.replicas_desired - kubernetes_state.statefulset.replicas_desired) / kubernetes_state.statefulset.replicas_desired),-60)"
+                                                },
+                                                "pointlist": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$UnmodifiableRandomAccessList"
+                                                },
+                                                "displayName": {
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((kubernetes_state.statefulset.replicas_desired - kubernetes_state.statefulset.replicas_desired) / kubernetes_state.statefulset.replicas_desired),-60)"
+                                                },
+                                                "scope": {
+                                                    "type": "java.lang.String",
+                                                    "value": "datacenter:us1.staging.dog,dds:event-platform,kube_cluster_name:oddish-b,kube_stateful_set:logs-intake-backend-internal-all,service:logs-intake-backend"
+                                                },
+                                                "start": {
+                                                    "type": "long",
+                                                    "value": "1709233490000"
+                                                },
+                                                "length": {
+                                                    "type": "long",
+                                                    "value": "16"
+                                                },
+                                                "end": {
+                                                    "type": "long",
+                                                    "value": "1709233542000"
+                                                },
+                                                "interval": {
+                                                    "type": "long",
+                                                    "value": "1"
+                                                },
+                                                "aggr": {
+                                                    "type": "java.lang.String",
+                                                    "value": "max"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "type": "com.dd.logs.metricsclient.ImmutableSeries",
+                                            "fields": {
+                                                "unit": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$EmptyList"
+                                                },
+                                                "expression": {
+                                                    "size": "556",
+                                                    "truncated": true,
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((max:kubernetes_state.statefulset.replicas_desired{kube_stateful_set:logs-intake-backend-spans,datacenter:us1.staging.dog,dds:event-platform,service:logs-intake-backend} - max:kubernetes_state.statefulset.replicas_desired{kube_stateful_set:logs"
+                                                },
+                                                "metric": {
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((kubernetes_state.statefulset.replicas_desired - kubernetes_state.statefulset.replicas_desired) / kubernetes_state.statefulset.replicas_desired),-60)"
+                                                },
+                                                "pointlist": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$UnmodifiableRandomAccessList"
+                                                },
+                                                "displayName": {
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((kubernetes_state.statefulset.replicas_desired - kubernetes_state.statefulset.replicas_desired) / kubernetes_state.statefulset.replicas_desired),-60)"
+                                                },
+                                                "scope": {
+                                                    "type": "java.lang.String",
+                                                    "value": "datacenter:us1.staging.dog,dds:event-platform,kube_cluster_name:oddish-b,kube_stateful_set:logs-intake-backend-spans,service:logs-intake-backend"
+                                                },
+                                                "start": {
+                                                    "type": "long",
+                                                    "value": "1709233490000"
+                                                },
+                                                "length": {
+                                                    "type": "long",
+                                                    "value": "16"
+                                                },
+                                                "end": {
+                                                    "type": "long",
+                                                    "value": "1709233542000"
+                                                },
+                                                "interval": {
+                                                    "type": "long",
+                                                    "value": "1"
+                                                },
+                                                "aggr": {
+                                                    "type": "java.lang.String",
+                                                    "value": "max"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "type": "com.dd.logs.metricsclient.ImmutableSeries",
+                                            "fields": {
+                                                "unit": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$EmptyList"
+                                                },
+                                                "expression": {
+                                                    "size": "550",
+                                                    "truncated": true,
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((max:kubernetes_state.statefulset.replicas_desired{kube_stateful_set:logs-intake-backend-tcp,datacenter:us1.staging.dog,dds:event-platform,service:logs-intake-backend} - max:kubernetes_state.statefulset.replicas_desired{kube_stateful_set:logs-i"
+                                                },
+                                                "metric": {
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((kubernetes_state.statefulset.replicas_desired - kubernetes_state.statefulset.replicas_desired) / kubernetes_state.statefulset.replicas_desired),-60)"
+                                                },
+                                                "pointlist": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$UnmodifiableRandomAccessList"
+                                                },
+                                                "displayName": {
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((kubernetes_state.statefulset.replicas_desired - kubernetes_state.statefulset.replicas_desired) / kubernetes_state.statefulset.replicas_desired),-60)"
+                                                },
+                                                "scope": {
+                                                    "type": "java.lang.String",
+                                                    "value": "datacenter:us1.staging.dog,dds:event-platform,kube_cluster_name:oddish-b,kube_stateful_set:logs-intake-backend-tcp,service:logs-intake-backend"
+                                                },
+                                                "start": {
+                                                    "type": "long",
+                                                    "value": "1709233490000"
+                                                },
+                                                "length": {
+                                                    "type": "long",
+                                                    "value": "16"
+                                                },
+                                                "end": {
+                                                    "type": "long",
+                                                    "value": "1709233542000"
+                                                },
+                                                "interval": {
+                                                    "type": "long",
+                                                    "value": "1"
+                                                },
+                                                "aggr": {
+                                                    "type": "java.lang.String",
+                                                    "value": "max"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "type": "com.dd.logs.metricsclient.ImmutableSeries",
+                                            "fields": {
+                                                "unit": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$EmptyList"
+                                                },
+                                                "expression": {
+                                                    "size": "562",
+                                                    "truncated": true,
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((max:kubernetes_state.statefulset.replicas_desired{kube_stateful_set:logs-intake-backend-testing,datacenter:us1.staging.dog,dds:event-platform,service:logs-intake-backend} - max:kubernetes_state.statefulset.replicas_desired{kube_stateful_set:lo"
+                                                },
+                                                "metric": {
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((kubernetes_state.statefulset.replicas_desired - kubernetes_state.statefulset.replicas_desired) / kubernetes_state.statefulset.replicas_desired),-60)"
+                                                },
+                                                "pointlist": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$UnmodifiableRandomAccessList"
+                                                },
+                                                "displayName": {
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((kubernetes_state.statefulset.replicas_desired - kubernetes_state.statefulset.replicas_desired) / kubernetes_state.statefulset.replicas_desired),-60)"
+                                                },
+                                                "scope": {
+                                                    "type": "java.lang.String",
+                                                    "value": "datacenter:us1.staging.dog,dds:event-platform,kube_cluster_name:oddish-b,kube_stateful_set:logs-intake-backend-testing,service:logs-intake-backend"
+                                                },
+                                                "start": {
+                                                    "type": "long",
+                                                    "value": "1709233490000"
+                                                },
+                                                "length": {
+                                                    "type": "long",
+                                                    "value": "16"
+                                                },
+                                                "end": {
+                                                    "type": "long",
+                                                    "value": "1709233542000"
+                                                },
+                                                "interval": {
+                                                    "type": "long",
+                                                    "value": "1"
+                                                },
+                                                "aggr": {
+                                                    "type": "java.lang.String",
+                                                    "value": "max"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "type": "com.dd.logs.metricsclient.ImmutableSeries",
+                                            "fields": {
+                                                "unit": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$EmptyList"
+                                                },
+                                                "expression": {
+                                                    "size": "559",
+                                                    "truncated": true,
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((max:kubernetes_state.statefulset.replicas_desired{kube_stateful_set:logs-intake-backend-upload,datacenter:us1.staging.dog,dds:event-platform,service:logs-intake-backend} - max:kubernetes_state.statefulset.replicas_desired{kube_stateful_set:log"
+                                                },
+                                                "metric": {
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((kubernetes_state.statefulset.replicas_desired - kubernetes_state.statefulset.replicas_desired) / kubernetes_state.statefulset.replicas_desired),-60)"
+                                                },
+                                                "pointlist": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$UnmodifiableRandomAccessList"
+                                                },
+                                                "displayName": {
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((kubernetes_state.statefulset.replicas_desired - kubernetes_state.statefulset.replicas_desired) / kubernetes_state.statefulset.replicas_desired),-60)"
+                                                },
+                                                "scope": {
+                                                    "type": "java.lang.String",
+                                                    "value": "datacenter:us1.staging.dog,dds:event-platform,kube_cluster_name:oddish-b,kube_stateful_set:logs-intake-backend-upload,service:logs-intake-backend"
+                                                },
+                                                "start": {
+                                                    "type": "long",
+                                                    "value": "1709233490000"
+                                                },
+                                                "length": {
+                                                    "type": "long",
+                                                    "value": "16"
+                                                },
+                                                "end": {
+                                                    "type": "long",
+                                                    "value": "1709233542000"
+                                                },
+                                                "interval": {
+                                                    "type": "long",
+                                                    "value": "1"
+                                                },
+                                                "aggr": {
+                                                    "type": "java.lang.String",
+                                                    "value": "max"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "type": "com.dd.logs.metricsclient.ImmutableSeries",
+                                            "fields": {
+                                                "unit": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$EmptyList"
+                                                },
+                                                "expression": {
+                                                    "size": "550",
+                                                    "truncated": true,
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((max:kubernetes_state.statefulset.replicas_desired{kube_stateful_set:logs-intake-backend-all,datacenter:us1.staging.dog,dds:event-platform,service:logs-intake-backend} - max:kubernetes_state.statefulset.replicas_desired{kube_stateful_set:logs-i"
+                                                },
+                                                "metric": {
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((kubernetes_state.statefulset.replicas_desired - kubernetes_state.statefulset.replicas_desired) / kubernetes_state.statefulset.replicas_desired),-60)"
+                                                },
+                                                "pointlist": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$UnmodifiableRandomAccessList"
+                                                },
+                                                "displayName": {
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((kubernetes_state.statefulset.replicas_desired - kubernetes_state.statefulset.replicas_desired) / kubernetes_state.statefulset.replicas_desired),-60)"
+                                                },
+                                                "scope": {
+                                                    "type": "java.lang.String",
+                                                    "value": "datacenter:us1.staging.dog,dds:event-platform,kube_cluster_name:oddish-b,kube_stateful_set:logs-intake-backend-all,service:logs-intake-backend"
+                                                },
+                                                "start": {
+                                                    "type": "long",
+                                                    "value": "1709233490000"
+                                                },
+                                                "length": {
+                                                    "type": "long",
+                                                    "value": "16"
+                                                },
+                                                "end": {
+                                                    "type": "long",
+                                                    "value": "1709233542000"
+                                                },
+                                                "interval": {
+                                                    "type": "long",
+                                                    "value": "1"
+                                                },
+                                                "aggr": {
+                                                    "type": "java.lang.String",
+                                                    "value": "max"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "type": "com.dd.logs.metricsclient.ImmutableSeries",
+                                            "fields": {
+                                                "unit": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$EmptyList"
+                                                },
+                                                "expression": {
+                                                    "size": "574",
+                                                    "truncated": true,
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((max:kubernetes_state.statefulset.replicas_desired{kube_stateful_set:logs-intake-backend-all-datadog,datacenter:us1.staging.dog,dds:event-platform,service:logs-intake-backend} - max:kubernetes_state.statefulset.replicas_desired{kube_stateful_se"
+                                                },
+                                                "metric": {
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((kubernetes_state.statefulset.replicas_desired - kubernetes_state.statefulset.replicas_desired) / kubernetes_state.statefulset.replicas_desired),-60)"
+                                                },
+                                                "pointlist": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$UnmodifiableRandomAccessList"
+                                                },
+                                                "displayName": {
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((kubernetes_state.statefulset.replicas_desired - kubernetes_state.statefulset.replicas_desired) / kubernetes_state.statefulset.replicas_desired),-60)"
+                                                },
+                                                "scope": {
+                                                    "type": "java.lang.String",
+                                                    "value": "datacenter:us1.staging.dog,dds:event-platform,kube_cluster_name:oddish-b,kube_stateful_set:logs-intake-backend-all-datadog,service:logs-intake-backend"
+                                                },
+                                                "start": {
+                                                    "type": "long",
+                                                    "value": "1709233490000"
+                                                },
+                                                "length": {
+                                                    "type": "long",
+                                                    "value": "16"
+                                                },
+                                                "end": {
+                                                    "type": "long",
+                                                    "value": "1709233542000"
+                                                },
+                                                "interval": {
+                                                    "type": "long",
+                                                    "value": "1"
+                                                },
+                                                "aggr": {
+                                                    "type": "java.lang.String",
+                                                    "value": "max"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "type": "com.dd.logs.metricsclient.ImmutableSeries",
+                                            "fields": {
+                                                "unit": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$EmptyList"
+                                                },
+                                                "expression": {
+                                                    "size": "562",
+                                                    "truncated": true,
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((max:kubernetes_state.statefulset.replicas_desired{kube_stateful_set:logs-intake-backend-all-rum,datacenter:us1.staging.dog,dds:event-platform,service:logs-intake-backend} - max:kubernetes_state.statefulset.replicas_desired{kube_stateful_set:lo"
+                                                },
+                                                "metric": {
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((kubernetes_state.statefulset.replicas_desired - kubernetes_state.statefulset.replicas_desired) / kubernetes_state.statefulset.replicas_desired),-60)"
+                                                },
+                                                "pointlist": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$UnmodifiableRandomAccessList"
+                                                },
+                                                "displayName": {
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((kubernetes_state.statefulset.replicas_desired - kubernetes_state.statefulset.replicas_desired) / kubernetes_state.statefulset.replicas_desired),-60)"
+                                                },
+                                                "scope": {
+                                                    "type": "java.lang.String",
+                                                    "value": "datacenter:us1.staging.dog,dds:event-platform,kube_cluster_name:oddish-b,kube_stateful_set:logs-intake-backend-all-rum,service:logs-intake-backend"
+                                                },
+                                                "start": {
+                                                    "type": "long",
+                                                    "value": "1709233490000"
+                                                },
+                                                "length": {
+                                                    "type": "long",
+                                                    "value": "16"
+                                                },
+                                                "end": {
+                                                    "type": "long",
+                                                    "value": "1709233542000"
+                                                },
+                                                "interval": {
+                                                    "type": "long",
+                                                    "value": "1"
+                                                },
+                                                "aggr": {
+                                                    "type": "java.lang.String",
+                                                    "value": "max"
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "type": "com.dd.logs.metricsclient.ImmutableSeries",
+                                            "fields": {
+                                                "unit": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$EmptyList"
+                                                },
+                                                "expression": {
+                                                    "size": "553",
+                                                    "truncated": true,
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((max:kubernetes_state.statefulset.replicas_desired{kube_stateful_set:logs-intake-backend-logs,datacenter:us1.staging.dog,dds:event-platform,service:logs-intake-backend} - max:kubernetes_state.statefulset.replicas_desired{kube_stateful_set:logs-"
+                                                },
+                                                "metric": {
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((kubernetes_state.statefulset.replicas_desired - kubernetes_state.statefulset.replicas_desired) / kubernetes_state.statefulset.replicas_desired),-60)"
+                                                },
+                                                "pointlist": {
+                                                    "notCapturedReason": "depth",
+                                                    "type": "java.util.Collections$UnmodifiableRandomAccessList"
+                                                },
+                                                "displayName": {
+                                                    "type": "java.lang.String",
+                                                    "value": "timeshift(((kubernetes_state.statefulset.replicas_desired - kubernetes_state.statefulset.replicas_desired) / kubernetes_state.statefulset.replicas_desired),-60)"
+                                                },
+                                                "scope": {
+                                                    "type": "java.lang.String",
+                                                    "value": "datacenter:us1.staging.dog,dds:event-platform,kube_cluster_name:oddish-b,kube_stateful_set:logs-intake-backend-logs,service:logs-intake-backend"
+                                                },
+                                                "start": {
+                                                    "type": "long",
+                                                    "value": "1709233490000"
+                                                },
+                                                "length": {
+                                                    "type": "long",
+                                                    "value": "16"
+                                                },
+                                                "end": {
+                                                    "type": "long",
+                                                    "value": "1709233542000"
+                                                },
+                                                "interval": {
+                                                    "type": "long",
+                                                    "value": "1"
+                                                },
+                                                "aggr": {
+                                                    "type": "java.lang.String",
+                                                    "value": "max"
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    "type": "java.util.Collections$UnmodifiableRandomAccessList"
+                                },
+                                "toDate": {
+                                    "type": "long",
+                                    "value": "1709233550000"
+                                },
+                                "query": {
+                                    "size": "492",
+                                    "truncated": true,
+                                    "type": "java.lang.String",
+                                    "value": "timeshift((max:kubernetes_state.statefulset.replicas_desired{datacenter:us1.staging.dog,dds:event-platform,service:logs-intake-backend} by {kube_stateful_set} - max:kubernetes_state.statefulset.replicas_desired{datacenter:us1.staging.dog,dds:event-platfor"
+                                },
+                                "groupBy": {
+                                    "size": "1",
+                                    "elements": [
+                                        {
+                                            "type": "java.lang.String",
+                                            "value": "kube_stateful_set"
+                                        }
+                                    ],
+                                    "type": "java.util.Collections$SingletonList"
+                                },
+                                "message": {
+                                    "type": "java.lang.String",
+                                    "value": ""
+                                },
+                                "status": {
+                                    "type": "java.lang.String",
+                                    "value": "ok"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "language": "java",
+            "id": "97775bd9-ca14-4192-8c15-21a177819305",
+            "evaluationErrors": [
+                {
+                    "expr": "response",
+                    "message": "Cannot find symbol: response"
+                }
+            ],
+            "probe": {
+                "location": {
+                    "method": "parseSuccess",
+                    "type": "com.dd.logs.metricsclient.MetricsClient"
+                },
+                "id": "23a08460-521f-4364-aff5-081221aba86d",
+                "version": 3
+            },
+            "timestamp": 1709233552203
+        }
+    },
+    "logger": {
+        "thread_id": 18170,
+        "method": "parseSuccess",
+        "thread_name": "OkHttp https://api.datad0g.com/...",
+        "name": "com.dd.logs.metricsclient.MetricsClient",
+        "version": 2
+    }
+}

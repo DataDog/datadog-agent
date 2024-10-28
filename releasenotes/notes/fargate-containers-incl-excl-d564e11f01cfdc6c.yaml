@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix `container_include_metrics` support for all container checks
+enhancements:
+  - |
+    Add container incl./excl. lists support for ECS Fargate (process-agent)

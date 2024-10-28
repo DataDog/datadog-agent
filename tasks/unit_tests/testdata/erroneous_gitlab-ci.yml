@@ -1,0 +1,4 @@
+---
+variables: 
+  DD_AGENT_IMAGE_SUFFIX: ''
+  DD_AGENT_IMAGE: 42

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Compliance Agent implementing scheduling of compliance checks for Docker and Kubernetes benchmarks.

@@ -1,0 +1,18 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "usr.json",
+    "type": "object",
+    "properties": {
+        "usr": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "group": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

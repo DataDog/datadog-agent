@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix an issue where the security agent would panic, sending on a close
+    channel, if it received a signal when shutting down while all
+    components were disabled.

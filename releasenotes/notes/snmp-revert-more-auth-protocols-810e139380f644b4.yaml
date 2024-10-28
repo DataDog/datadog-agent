@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Revert upgrade of GoSNMP and addition of extra authentication protocols.

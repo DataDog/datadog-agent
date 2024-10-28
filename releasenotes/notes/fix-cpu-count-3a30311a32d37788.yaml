@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Replace usage of `runtime.NumCPU` when used to compute metrics related to CPU Hosts. On some Unix systems, `runtime.NumCPU` can be influenced by CPU affinity set on the Agent, which should not affect the metrics computed for other processes/containers. Affects the CPU Limits metrics (docker/containerd) as well as the live containers page metrics.

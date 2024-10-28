@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    JSON payload serialization and compression now uses shared input and output buffers to reduce
+    total allocations in the lifetime of the agent.

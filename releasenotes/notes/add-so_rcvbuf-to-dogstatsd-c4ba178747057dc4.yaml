@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Add an option to set the read buffer size for dogstatsd socket on POSIX
+    system (SO_RCVBUF).

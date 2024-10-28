@@ -1,0 +1,23 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+instances:
+  <% @instances.each do |i| -%>
+  - kafka_connect_str: <%= i['kafka_connect_str'] %>
+    zk_connect_str: <%= i['zk_connect_str'] %>
+    <% if i['zk_prefix'] -%>
+    zk_prefix: <%= i['zk_prefix'] %>
+    <% end -%>
+    <% if i['consumer_groups'] -%>
+    consumer_groups: <%= i['name'] %>
+      <% i["consumer_groups"].each do |consumer, t| -%>
+        <%= consumer %>:
+          <% t.each do |topic, l| -%>
+            <%= topic %>: <%= l %>
+          <% end -%>
+      <% end -%>
+    <% end -%>
+  <% end -%>
+
+init_config:
+# The Kafka Consumer check does not require any init_config
+

@@ -1,0 +1,13 @@
+---
+upgrade:
+  - |
+    The EventIDs logged to the Windows Application Event Log by the Agent services
+    have been normalized and now have the same meaning across Agent services.
+    Some EventIDs have changed and the rendered message may be incorrect
+    if you view an Event Log from a host that uses a different version of the Agent
+    than the host that created the Event Log. To ensure you see the correct message,
+    choose "Display information for these languages" when exporting the Event
+    Log from the host. This does not affect Event Logs collected by the Datadog Agent's
+    Windows Event Log integration, which renders the event messages on the originating host.
+    The EventIDs and messages used by the Agent services can be viewed in
+    ``pkg/util/winutil/messagestrings/messagestrings.mc``.

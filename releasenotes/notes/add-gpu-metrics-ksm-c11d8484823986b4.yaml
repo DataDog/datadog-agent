@@ -1,0 +1,6 @@
+enhancements:
+  - |
+    Add new GPU metrics in the KSM Core check:
+      - ``kubernetes_state.node.gpu_capacity`` tagged by ``node``, ``resource``, ``unit`` and ``mig_profile``.
+      - ``kubernetes_state.node.gpu_allocatable`` tagged by ``node``, ``resource``, ``unit`` and ``mig_profile``.
+      - ``kubernetes_state.container.gpu_limit`` tagged by kube_namespace, pod_name, kube_container_name, ``node``, ``resource``, ``unit`` and ``mig_profile``.

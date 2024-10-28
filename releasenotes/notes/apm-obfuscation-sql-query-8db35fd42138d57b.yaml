@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+security:
+  - |
+   This update ensures the `sql.query` tag is always obfuscated by the Datadog Agent
+    even if this tag was already set by a tracer or manually by a user.
+    This is to prevent potentially sensitive data from being sent to Datadog.
+    If you wish to have a raw, unobfuscated query within a span, then
+    manually add a span tag of a different name (for example, `sql.rawquery`).

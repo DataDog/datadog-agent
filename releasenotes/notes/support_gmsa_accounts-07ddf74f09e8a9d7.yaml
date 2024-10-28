@@ -1,0 +1,4 @@
+enhancements:
+  - |
+    The Windows installer now supports grouped Managed Service Accounts.
+

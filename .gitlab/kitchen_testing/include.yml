@@ -1,0 +1,7 @@
+---
+# kitchen_testing stage
+# Contains jobs which run kitchen tests on the Agent packages.
+
+include:
+  - .gitlab/kitchen_testing/common.yml
+  - .gitlab/kitchen_testing/windows.yml

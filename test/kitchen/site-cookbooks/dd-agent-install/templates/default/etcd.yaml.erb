@@ -1,0 +1,20 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+instances:
+<% @instances.each do |i| -%>
+  - url: <%= i['url'] %>
+    <% if i['timeout'] -%>timeout: <%= i['timeout'] %><% end -%>
+    <% if i['ssl_keyfile'] -%>ssl_keyfile: <%= i['ssl_keyfile'] %><% end -%>
+    <% if i['ssl_certfile'] -%>ssl_certfile: <%= i['ssl_certfile'] %><% end -%>
+    <% if i['ssl_cert_validation'] -%>ssl_cert_validation: <%= i['ssl_cert_validation'] %><% end -%>
+    <% if i['ssl_ca_certs'] -%>ssl_ca_certs: <%= i['ssl_ca_certs'] %><% end -%>
+    <% if i.key?('tags') -%>
+    tags:
+    <% i['tags'].each do |t| -%>
+    - <%= t %>
+    <% end -%>
+    <% end -%>
+<% end -%>
+
+# Nothing to configure here
+init_config:

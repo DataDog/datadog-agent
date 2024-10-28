@@ -1,0 +1,147 @@
+default_language_version:
+  python: python3
+default_install_hook_types:
+  - pre-commit
+  - pre-push
+default_stages:
+  - pre-commit
+
+repos:
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: 0ccbb5b7942d83fbcf7cb5e0fd99633efd2351d7 # v0.3.5
+  hooks:
+    - id: ruff
+      args: [ --fix ]
+    - id: ruff-format
+- repo: https://github.com/jendrikseipp/vulture
+  rev: 44aed44e226ec0e5660851462f764ec5d5da957c # v2.3
+  hooks:
+    - id: vulture
+      args: ["--ignore-decorators", "@task", "--ignore-names", "test_*,Test*", "tasks"]
+- repo: https://github.com/pre-commit/mirrors-mypy
+  rev: e5ea6670624c24f8321f6328ef3176dbba76db46  # 1.10.0
+  hooks:
+    - id: mypy
+      # Keep in sync with the build image, there's no good way to centralize this.
+      additional_dependencies:
+        - types-pyyaml==6.0.12.20240311
+        - types-requests==2.30.0
+        - types-tabulate==0.9.0.20240106
+        - types-toml==0.10.8.20240310
+- repo: https://github.com/jumanjihouse/pre-commit-hooks
+  rev: 7cc5848088fd8412905ab79feea6c8edc3ac76c6 # 2.1.5
+  hooks:
+    - id: shellcheck
+      args: ["--severity=info", "-e", "SC2059", "-e", "SC2028"]
+- repo: https://github.com/tekwizely/pre-commit-golang
+  rev: bd69b816c43306f28bad4d7b303d981b0ecd2fd5 # v1.0.0-beta.5
+  hooks:
+    - id: go-fmt
+      args: [ "-w", "-s" ]
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 2c9f875913ee60ca25ce70243dc24d5b6415598c # v4.6.0
+    hooks:
+      - id: end-of-file-fixer
+        files: release.json
+- repo: https://github.com/rhysd/actionlint
+  rev: v1.7.3
+  hooks:
+    - id: actionlint
+      args: [ "-ignore", "shellcheck" ]
+- repo: local
+  hooks:
+    - id: protected-branches
+      name: protected-branches
+      description: checks that the commit isn't created on a protected branch
+      entry: 'inv git.check-protected-branch'
+      language: system
+      pass_filenames: false
+      stages: [pre-commit, pre-push]
+    - id: copyright
+      name: copyright
+      description: copyright headers
+      entry: 'inv linter.copyrights --only-staged-files'
+      language: system
+      require_serial: true
+      files: \.go$
+      pass_filenames: false
+    - id: win-clang-format
+      name: win-clang-format
+      description: clang-format
+      entry: 'inv pre-commit.check-winclang-format'
+      language: system
+      types_or: [c, c++]
+      pass_filenames: false
+    - # dotnet format is available on Linux, see https://learn.microsoft.com/en-us/dotnet/core/install/linux
+      id: dotnet-format-installer
+      name: dotnet-format-installer
+      description: Format .net file of the MSI installer
+      language: system
+      # The dotnet format tool requires a solution file to operate.
+      entry: dotnet format ./tools/windows/DatadogAgentInstaller --include 
+      types: [c#]
+    - id: go-mod-tidy
+      name: go-mod-tidy
+      description: check that all go.mod files are tidy
+      entry: 'inv tidy'
+      language: system
+      require_serial: true
+      files: (\.go|^go\.mod|^go\.sum)$
+      pass_filenames: false
+      stages: [pre-push]
+    - id: go-test
+      name: go-test
+      description: run go test on modified packages
+      entry: 'inv test --only-modified-packages'
+      language: system
+      require_serial: true
+      always_run: true
+      pass_filenames: false
+      stages: [pre-push]
+    - id: go-linter
+      name: go-linter
+      description: run go linter on modified packages
+      entry: 'inv linter.go --only-modified-packages'
+      language: system
+      require_serial: true
+      always_run: true
+      pass_filenames: false
+      stages: [ pre-push ]
+    - id: shell-check-no-set-x
+      name: shell-check-no-set-x
+      description: check that no `set -x` is set within github / gitlab workflows
+      entry: 'inv pre-commit.check-set-x'
+      language: system
+      require_serial: true
+      files: (\.yaml|\.yml|\.sh|Dockerfile)$
+      pass_filenames: false
+    - id: gitlab-configuration
+      name: gitlab-configuration
+      description: test the gitlab configuration on main
+      entry: 'inv linter.gitlab-ci -t main'
+      language: system
+      require_serial: true
+      files: .*gitlab.*\.yml$
+      pass_filenames: false
+      stages: [pre-push]
+    - id: gitlab-lint-jobs-codeowners
+      name: gitlab-lint-jobs-codeowners
+      description: lint the gitlab configuration to verify jobs codeowners
+      entry: 'inv linter.gitlab-ci-jobs-codeowners'
+      language: system
+      require_serial: true
+      files: .*gitlab.*\.yml$
+      pass_filenames: false
+    - id: update-go
+      name: update-go
+      description: test formatting of files will allow go update
+      entry: 'inv linter.update-go'
+      language: system
+      pass_filenames: false
+    - id: check-go-modules-in-python
+      name: check-go-modules-in-python
+      description: Validate all go modules are declared in Invoke tasks
+      entry: 'inv modules.validate'
+      language: system
+      pass_filenames: false
+      files: .*go\.mod$

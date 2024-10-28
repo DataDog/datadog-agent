@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Rework autodiscovery label names to be consistent, still support the
+    previous names

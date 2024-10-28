@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WixLocalization Culture="en-us" xmlns="http://schemas.microsoft.com/wix/2006/localization">
+  <String Id="LANG">1033</String>
+  <String Id="ProductName">Datadog Agent</String>
+  <String Id="ManufacturerName">Datadog, Inc.</String>
+  <String Id="CompanyName">Datadog, Inc.</String>
+  <String Id="CompanyNameShort">Datadog</String>
+  <String Id="InstallerComment">Copyright 2015 [CompanyName]</String>
+
+  <!-- Override to make font white in dialog with BannerBitmap -->
+  <String Id="BrowseDlgTitle">{\WixUI_Font_Title_White}Change destination folder</String>
+  <String Id="BrowseDlgDescription">{\WixUI_Font_Normal_White}Browse to the destination folder</String>
+
+  <String Id="CustomizeDlgTitle">{\WixUI_Font_Title_White}Custom Setup</String>
+  <String Id="CustomizeDlgDescription">{\WixUI_Font_Normal_White}Select the way you want features to be installed.</String>
+
+  <String Id="DiskCostDlgTitle">{\WixUI_Font_Title_White}Disk Space Requirements</String>
+  <String Id="DiskCostDlgDescription">{\WixUI_Font_Normal_White}The disk space required for the installation of the selected features.</String>
+
+  <String Id="FeaturesDlgTitle">{\WixUI_Font_Title_White}Product Features</String>
+  <String Id="FeaturesDlgDescription">{\WixUI_Font_Normal_White}Select the way you want features to be installed.</String>
+
+  <String Id="FilesInUseTitle">{\WixUI_Font_Title_White}Files in Use</String>
+  <String Id="FilesInUseDescription">{\WixUI_Font_Normal_White}Some files that need to be updated are currently in use.</String>
+
+  <String Id="InstallDirDlgTitle">{\WixUI_Font_Title_White}Destination Folder</String>
+  <String Id="InstallDirDlgDescription">{\WixUI_Font_Normal_White}Click Next to install to the default folder or click Change to choose another.</String>
+
+  <String Id="InstallScopeDlgTitle">{\WixUI_Font_Title_White}Installation Scope</String>
+  <String Id="InstallScopeDlgDescription">{\WixUI_Font_Normal_White}Choose the installation scope and folder</String>
+
+  <String Id="LicenseAgreementDlgLicenseAcceptedCheckBox">I &amp;agree.</String>
+  <String Id="LicenseAgreementDlgTitle">{\WixUI_Font_Title_White}Software Licensing</String>
+  <String Id="LicenseAgreementDlgDescription">{\WixUI_Font_Normal_White}Please read the following license agreement carefully</String>
+
+  <String Id="LicenseAgreementSubHeader">The <![CDATA[<a href="https://github.com/DataDog/datadog-agent/">Datadog Agent</a>]]> includes open source software and is packaged with a closed source Datadog device driver, which is required for the NPM and USM products.  The driver is licensed under the following End User License Agreement.</String>
+
+  <String Id="MaintenanceTypeDlgTitle">{\WixUI_Font_Title_White}Change, repair, or remove installation</String>
+  <String Id="MaintenanceTypeDlgDescription">{\WixUI_Font_Normal_White}Select the operation you wish to perform.</String>
+
+  <String Id="MsiRMFilesInUseTitle">{\WixUI_Font_Title_White}Files in Use</String>
+  <String Id="MsiRMFilesInUseDescription">{\WixUI_Font_Normal_White}Some files that need to be updated are currently in use.</String>
+
+  <String Id="OutOfDiskDlgTitle">{\WixUI_Font_Title_White}Out of Disk Space</String>
+  <String Id="OutOfDiskDlgDescription">{\WixUI_Font_Normal_White}Disk space required for the installation exceeds available disk space.</String>
+
+  <String Id="OutOfRbDiskDlgTitle">{\WixUI_Font_Title_White}Out of Disk Space</String>
+  <String Id="OutOfRbDiskDlgDescription">{\WixUI_Font_Normal_White}Disk space required for the installation exceeds available disk space.</String>
+
+  <String Id="ProgressDlgTitleInstalling">{\WixUI_Font_Title_White}Installing [ProductName]</String>
+
+  <String Id="ProgressDlgTitleChanging">{\WixUI_Font_Title_White}Changing [ProductName]</String>
+
+  <String Id="ProgressDlgTitleRepairing">{\WixUI_Font_Title_White}Repairing [ProductName]</String>
+
+  <String Id="ProgressDlgTitleRemoving">{\WixUI_Font_Title_White}Removing [ProductName]</String>
+
+  <String Id="ProgressDlgTitleUpdating">{\WixUI_Font_Title_White}Updating [ProductName]</String>
+
+  <String Id="SetupTypeDlgTitle">{\WixUI_Font_Title_White}Choose Setup Type</String>
+  <String Id="SetupTypeDlgDescription">{\WixUI_Font_Normal_White}Choose the setup type that best suits your needs</String>
+
+  <String Id="VerifyReadyDlgInstallTitle">{\WixUI_Font_Title_White}Ready to install [ProductName]</String>
+
+  <String Id="VerifyReadyDlgChangeTitle">{\WixUI_Font_Title_White}Ready to change [ProductName]</String>
+
+  <String Id="VerifyReadyDlgRepairTitle">{\WixUI_Font_Title_White}Ready to repair [ProductName]</String>
+
+  <String Id="VerifyReadyDlgRemoveTitle">{\WixUI_Font_Title_White}Ready to remove [ProductName]</String>
+  <!-- End override to make font white in dialogs with BannerBitmap -->
+
+  <String Id="LaunchAgentManager"> Launch Datadog Agent Manager</String>
+
+  <String Id="NoMoveInstallDir">The installation directory cannot be changed on an upgrade.</String>
+  <String Id="NoMoveConfDir">The configuration file directory cannot be changed on an upgrade.</String>
+
+
+  <!-- these strings for the api key dialog -->
+  <String Id ="ApiKeyDialog_Title">[ProductName] Setup</String>
+  <String Id ="ApiKeyDialogDescription">{\WixUI_Font_Normal_White}Enter the API Key</String>
+  <String Id ="ApiKeyDialogTitle" >{\WixUI_Font_Title_White}[ShortCompanyName] API Key</String>
+  <String Id ="ApiKeyDialogKeyLabel">Please enter the [ShortCompanyName] API Key:</String>
+  <String Id ="ApiKeySampleKey"></String>
+
+  <!-- these strings for the site dialog -->
+  <String Id ="SiteDialog_Title">[ProductName] Setup</String>
+  <String Id ="SiteDialogDescription">{\WixUI_Font_Normal_White}Select the [ShortCompanyName] Region</String>
+  <String Id ="SiteDialogTitle" >{\WixUI_Font_Title_White}[ShortCompanyName] Region </String>
+  <String Id ="SiteDialogKeyLabel">Which [ShortCompanyName] region do you want the Agent to send data to?</String>
+  <String Id ="SiteSampleKey"></String>
+
+  <!-- these strings for the agent user dialog -->
+  <String Id ="DDAgentUserDialog_Title">[ProductName] Setup</String>
+  <String Id ="DDAgentUserDialogDescription">{\WixUI_Font_Normal_White}Enter the agent user account</String>
+  <String Id ="DDAgentUserDialogTitle" >{\WixUI_Font_Title_White}[ShortCompanyName] Agent User Account</String>
+  <String Id ="DDAgentUserDialogUserNameLabel">Please enter the username (leave blank to use ddagentuser):</String>
+  <String Id ="DDAgentUserDialogPasswordLabel">Please enter the password (leave blank to use random password):</String>
+  <String Id ="DDAgentUserInvalidDialogDescription">{\WixUI_Font_Normal_White}Invalid user account</String>
+
+  </WixLocalization>

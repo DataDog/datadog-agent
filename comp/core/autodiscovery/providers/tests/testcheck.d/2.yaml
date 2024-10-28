@@ -1,0 +1,6 @@
+init_config:
+  - test: 84
+
+instances:
+  # No configuration is needed for this check.
+  - foo: bar

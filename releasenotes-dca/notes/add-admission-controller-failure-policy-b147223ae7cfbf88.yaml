@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Added a configuration option to admission controller to allow
+    configuration of the failure policy. Defaults to Ignore which
+    was the previous default. The default of Ignore means that pods
+    will still be admitted even if the webhook is unavailable to
+    inject them. Setting to Fail will require the admission controller
+    to be present and pods to be injected before they are allowed to run.

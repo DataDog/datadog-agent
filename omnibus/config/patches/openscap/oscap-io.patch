@@ -1,0 +1,270 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -338,6 +338,7 @@ cmake_dependent_option(ENABLE_OSCAP_UTIL_SSH "enables the oscap-ssh utility, thi
+ cmake_dependent_option(ENABLE_OSCAP_UTIL_VM "enables the oscap-vm utility, this lets you scan VMs and VM storage images" ON "NOT WIN32" OFF)
+ cmake_dependent_option(ENABLE_OSCAP_UTIL_PODMAN "enables the oscap-podman utility, this lets you scan Podman containers and container images" ON "NOT WIN32" OFF)
+ cmake_dependent_option(ENABLE_OSCAP_UTIL_CHROOT "enables the oscap-chroot utility, this lets you scan entire chroots using offline scanning" ON "NOT WIN32" OFF)
++cmake_dependent_option(ENABLE_OSCAP_UTIL_IO "enables the oscap-io utility" ON "NOT WIN32" OFF)
+ option(ENABLE_OSCAP_UTIL_AUTOTAILOR "enables the autotailor utility that is able to perform command-line tailoring" TRUE)
+ option(ENABLE_OSCAP_REMEDIATE_SERVICE "enables the oscap-remediate service" FALSE)
+ 
+@@ -473,6 +474,7 @@ message(STATUS "oscap-ssh: ${ENABLE_OSCAP_UTIL_SSH}")
+ message(STATUS "oscap-vm: ${ENABLE_OSCAP_UTIL_VM}")
+ message(STATUS "oscap-podman: ${ENABLE_OSCAP_UTIL_PODMAN}")
+ message(STATUS "oscap-chroot: ${ENABLE_OSCAP_UTIL_CHROOT}")
++message(STATUS "oscap-io: ${ENABLE_OSCAP_UTIL_IO}")
+ message(STATUS "autotailor: ${ENABLE_OSCAP_UTIL_AUTOTAILOR}")
+ message(STATUS " ")
+ 
+--- a/utils/CMakeLists.txt
++++ b/utils/CMakeLists.txt
+@@ -147,3 +147,5 @@ if(ENABLE_OSCAP_UTIL_AS_RPM)
+ 		DESTINATION "${CMAKE_INSTALL_MANDIR}/man8"
+ 	)
+ endif()
++
++add_subdirectory("oscap-io")
+--- /dev/null
++++ b/utils/oscap-io/CMakeLists.txt
+@@ -0,0 +1,11 @@
++if(ENABLE_OSCAP_UTIL_IO)
++	file(GLOB UTILS_IO_SOURCES "*.c")
++	add_executable(oscap-io ${UTILS_IO_SOURCES})
++	target_link_libraries(oscap-io openscap)
++
++	set(OSCAP_UTIL_DESTINATION ${CMAKE_INSTALL_BINDIR})
++	# Install the 'oscap-io' utility
++	install(TARGETS "oscap-io"
++		DESTINATION ${OSCAP_UTIL_DESTINATION}
++	)
++endif()
+--- /dev/null
++++ b/utils/oscap-io/oscap-io.c
+@@ -0,0 +1,227 @@
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#include <xccdf_session.h>
++#include <oscap_error.h>
++
++#define nelem(x) (sizeof(x)/sizeof((x)[0]))
++#define dprintf if(verbose)printf
++
++int verbose = 0;
++int syschar = 0;
++
++static char *argv0;
++
++static struct xccdf_session*
++session_new(char *file)
++{
++	struct xccdf_session *session;
++	char *err;
++	int n;
++
++	session = xccdf_session_new(file);
++	if (session == NULL) {
++		err = oscap_err_get_full_error();
++		fprintf(stderr, "error: xccdf_session_new: %s\n", err);
++		free(err);
++		return NULL;
++	}
++
++	xccdf_session_set_validation(session, false, false);
++	xccdf_session_set_product_cpe(session, "cpe:/a:open-scap:oscap");
++
++	n = xccdf_session_load(session);
++	if (n != 0) {
++		err = oscap_err_get_full_error();
++		fprintf(stderr, "error: xccdf_session_load: %s\n", err);
++		free(err);
++		xccdf_session_free(session);
++		return NULL;
++	}
++
++	return session;
++}
++
++static int
++session_set_profile(struct xccdf_session *session, char *profile)
++{
++	int n;
++
++	if (xccdf_session_set_profile_id(session, profile) == 0) {
++		n = xccdf_session_set_profile_id_by_suffix(session, profile);
++		switch (n) {
++		case OSCAP_PROFILE_NO_MATCH:
++			fprintf(stderr, "missing profile %s\n", profile);
++			return 1;
++		case OSCAP_PROFILE_MULTIPLE_MATCHES:
++			fprintf(stderr, "%s matches multiple profiles\n", profile);
++			return 1;
++		default:
++			return 0;
++		}
++	}
++
++	return 0;
++}
++
++static int
++session_evaluate_rule(struct xccdf_session *session, char *rule)
++{
++	struct xccdf_rule_result_iterator *resIt;
++	struct xccdf_rule_result *res;
++	int n, resultCode;
++	char *result, *err;
++	const char *ruleRef;
++
++	if (rule != NULL) {
++		xccdf_session_add_rule(session, rule);
++	}
++
++	if (xccdf_session_evaluate(session) != 0) {
++		err = oscap_err_get_full_error();
++		fprintf(stderr, "error: xccdf_session_evaluate: %s\n", err);
++		free(err);
++		xccdf_session_result_reset(session);
++		return 1;
++	}
++
++	resIt = xccdf_session_get_rule_results(session);
++
++	while (xccdf_rule_result_iterator_has_more(resIt)) {
++		res = xccdf_rule_result_iterator_next(resIt);
++		resultCode = (int)xccdf_rule_result_get_result(res);
++		ruleRef = xccdf_rule_result_get_idref(res);
++		switch (resultCode) {
++		case XCCDF_RESULT_NOT_SELECTED:
++			break;
++		default:
++			printf("%s %d\n", ruleRef, resultCode);
++		}
++		if (verbose) {
++			result = NULL;
++			switch (resultCode) {
++			case XCCDF_RESULT_PASS:
++				result = "passed";
++				break;
++			case XCCDF_RESULT_FAIL:
++				result = "failing";
++				break;
++			case XCCDF_RESULT_ERROR:
++			case XCCDF_RESULT_UNKNOWN:
++				result = "error";
++				break;
++			case XCCDF_RESULT_NOT_APPLICABLE:
++			case XCCDF_RESULT_NOT_CHECKED:
++			case XCCDF_RESULT_NOT_SELECTED:
++				break;
++			}
++			if (result != NULL) {
++				printf("-> %s [%s]\n", ruleRef, result);
++			}
++		}
++	}
++
++	xccdf_rule_result_iterator_free(resIt);
++
++	n = xccdf_session_contains_fail_result(session);
++	if (n != 0) {
++		dprintf("rule %s returned failures or errors\n", rule);
++	}
++
++	if (syschar)
++		xccdf_session_print_syschar(session);
++
++	xccdf_session_result_reset(session);
++
++	return 0;
++}
++
++static struct xccdf_session *global_session;
++
++static int
++evaluate_rule(char *xccdf, char *profile, char *rule)
++{
++	static struct xccdf_session *session;
++	int n;
++
++	if (global_session == NULL) {
++		global_session = session_new(xccdf);
++		if (global_session == NULL) {
++			fprintf(stderr, "error: session_new\n");
++			return 1;
++		}
++	}
++	session = global_session;
++
++	n = session_set_profile(session, profile);
++	if (n != 0) {
++		fprintf(stderr, "error: session_set_profile\n");
++		return 1;
++	}
++
++	n = session_evaluate_rule(session, rule);
++	if (n != 0) {
++		fprintf(stderr, "error: session_evaluate_rule\n");
++		return 1;
++	}
++
++	return 0;
++}
++
++static void
++usage()
++{
++	fprintf(stderr, "usage: %s [ -v ] [ -syschar ] xccdf\n", argv0);
++	exit(1);
++}
++
++int
++main(int argc, char *argv[])
++{
++	int n;
++	char *line, *s, *profile, *rule;
++	size_t len;
++	ssize_t nread;
++
++	argv0 = argv[0];
++	argc--;
++	argv++;
++
++	while (argc > 1) {
++		if (strncmp(argv[0], "-v", 2) == 0)
++			verbose = 1;
++		else if (strncmp(argv[0], "-syschar", 8) == 0)
++			syschar = 1;
++		else
++			usage();
++		argc--;
++		argv++;
++	}
++
++	if (argc != 1)
++		usage();
++
++	rule = NULL;
++	line = NULL;
++	len = 0;
++	while ((nread = getline(&line, &len, stdin)) != -1) {
++		line[strcspn(line, "\n")] = 0;
++		profile = strtok_r(line, " ", &s);
++		if (profile == NULL)
++			continue;
++		rule = strtok_r(s, " ", &s);
++		if (rule == NULL)
++			continue;
++		dprintf("evaluate profile [%s] rule [%s]\n", profile, rule);
++		n = evaluate_rule(argv[0], profile, rule);
++		if (n != 0)
++			fprintf(stderr, "error: evaluate_rule\n");
++		fflush(stdout);
++	}
++	free(line);
++
++	xccdf_session_free(global_session);
++
++	return 0;
++}

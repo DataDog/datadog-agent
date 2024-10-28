@@ -1,0 +1,153 @@
+init_config:
+
+  ## @param custom_jar_paths - string - optional
+  ## Specify custom jars to add to the classpath of the Agent's JVM.
+  ## BREAKING CHANGE NOTICE : Agent 5.x supported a string if there was only one custom JAR. Since Agent 6, this MUST be a list in all cases.
+  #
+  # custom_jar_paths:
+  #   - <JARFILE_1_PATH>.jar
+  #   - <JARFILE_2_PATH>.jar
+
+  ## @param new_gc_metrics - boolean - optional - default: false
+  ## Set to true to use better metric names for garbage collection metrics. The default value is false to ensure backward compatibility.
+  ## jvm.gc.cms.count   => jvm.gc.minor_collection_count
+  ##                       jvm.gc.major_collection_count
+  ## jvm.gc.parnew.time => jvm.gc.minor_collection_time
+  ##                       jvm.gc.major_collection_time
+  #
+  # new_gc_metrics: false
+
+instances:
+
+  -
+
+    ## @param host - string - optional - default: localhost
+    ## JMX host to connect to.
+    #
+    # host: localhost
+
+    ## @param port - integer - required
+    ## JMX port to connect to.
+    #
+    port: 7199
+
+    ## @param user - string - optional
+    ## Username from the credentials needed to connect to the host.
+    #
+    # user: <USERNAME>
+
+    ## @param password - string - optional
+    ## Password from the credentials needed to connect to the host.
+    #
+    # password: <PASSWORD>
+
+    ## @param process_name_regex - string - optional
+    ## Instead of specifying a host and port, the Agent can connect using the attach API.
+    ## This requires the JDK to be installed and the tools_jar_path to be set below.
+    #
+    # process_name_regex: .*process_name.*
+
+    ## @param tools_jar_path - string - optional
+    ## Instead of specifying a host and port, the Agent can connect using the attach API.
+    ## This requires the JDK to be installed and the tools_jar_path to be set below.
+    ## Note: The tools_jar_path must be set when process_name_regex parameter is set.
+    #
+    # tools_jar_path: /usr/lib/jvm/java-7-openjdk-amd64/lib/tools.jar
+
+    ## @param jmx_url - string - optional
+    ## If the Agent needs to connect to a non-default JMX URL, specify it here instead of a host and a port.
+    ## If you use this you need to specify a 'name' for the instance below.
+    #
+    # jmx_url: "service:jmx:rmi:///jndi/rmi://<HOSTNAME>.host:9999/<PATH>"
+
+    ## @param name - string - optional
+    ## Set your instance name.
+    #
+    # name: <INSTANCE_NAME>
+
+    ## @param java_bin_path - string - optional
+    ## java_bin_path should be set if the Agent cannot find your Java executable.
+    #
+    # java_bin_path: <JAVA_PATH>
+
+    ## @param java_options - string - optional
+    ## List of Java JVM options.
+    #
+    # java_options: "-Xmx200m -Xms50m"
+
+    ## @param trust_store_path - string - optional
+    ## trust_store_path should be set if SSL is enabled.
+    ## Path to your trusted store
+    #
+    # trust_store_path: <TRUSTSTORE.JKS_PATH>
+
+    ## @param trust_store_password - string - optional
+    ## trust_store_password should be set if SSL is enabled.
+    ## Password for your TrustStore.jks file
+    #
+    # trust_store_password: <PASSWORD>
+
+    ## @param key_store_path - string - optional
+    ## key_store_path should be set if client authentication is enabled on the target JVM.
+    ## Path to your key store
+    #
+    # key_store_path: <KEYSTORE.JKS_PATH>
+
+    ## @param key_store_password - string - optional
+    ## key_store_password should be set if client authentication is enabled on the target JVM.
+    ## Password for your KeyStore.jks file
+    #
+    # key_store_password: <PASSWORD>
+
+    ## @param rmi_registry_ssl - boolean - optional
+    ## Whether or not the Agent should connect to the RMI registry using SSL.
+    #
+    # rmi_registry_ssl: false
+
+    ## @param refresh_beans - integer - optional - default: 600
+    ## Sets refresh period in seconds for refreshing matching MBeans list.
+    ## Decreasing this value may result in increased CPU usage.
+    #
+    # refresh_beans: 600
+
+    ## @param tags - list of strings following the pattern: "key:value" - optional
+    ## List of tags to attach to every metric, event, and service check emitted by this integration.
+    ##
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
+
+    ## @param conf - object - optional
+    ## List of metrics to be collected by the integration.
+    ## See http://docs.datadoghq.com/integrations/java/ to learn how to customize it.
+    #
+    # conf:
+    #   - include:
+    #       domain: <DOMAIN_1>
+    #       bean:
+    #         - <BEAN_1>
+    #         - <BEAN_2>
+    #       attribute:
+    #         <ATTRIBUTE_1>:
+    #           metric_type: <METRIC_TYPE>
+    #           alias: jmx.<METRIC_1_NAME>
+    #         <ATTRIBUTE_2>:
+    #           metric_type: <METRIC_TYPE>
+    #           alias: jmx.<METRIC_2_NAME>
+    #   - include:
+    #       domain: <DOMAIN_2>
+    #     exclude:
+    #       bean:
+    #         - <EXCLUDED_BEAN>
+    #   - include:
+    #       domain_regex: <REGEX>
+    #     exclude:
+    #       bean_regex:
+    #         - <REGEX>
+
+    ## @param collect_default_jvm_metrics - boolean - optional - default: true
+    ##  Configures the collection of default JVM metrics.
+    #
+    # collect_default_jvm_metrics: true

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix missing logs and metrics for docker-labels based autodiscovery configs after container restart.

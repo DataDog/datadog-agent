@@ -1,0 +1,4 @@
+enhancements:
+  - |
+    Add a retry mechanism to Software Bill of Materials (SBOM) collection for container images.
+    This will help to avoid intermittent failures during the collection process.

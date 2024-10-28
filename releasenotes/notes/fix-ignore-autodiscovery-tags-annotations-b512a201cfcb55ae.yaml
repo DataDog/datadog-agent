@@ -1,0 +1,24 @@
+fixes:
+  - |
+    Corrected a problem where the `ignore_autodiscovery_tags` parameter was not functioning correctly with pod
+    annotations or autodiscovery version 2 (adv2) annotations. This fix ensures that when this parameter is set
+    to `true`, autodiscovery tags are ignored as intended.
+    Example:
+    ```yaml
+    ad.datadoghq.com/redis.checks: |
+      {
+        "redisdb": {
+          "ignore_autodiscovery_tags": true,
+          "instances": [
+            {
+              "host": "%%host%%",
+              "port": "6379"
+            }
+          ]
+        }
+      }
+    ```
+    Moving forward, configurations that attempt to use hybrid setups—combining adv2 for check specification
+    while also employing `adv1` for `ignore_autodiscovery_tags`—are no longer supported by default.
+    Users should set the configuration parameter `cluster_checks.support_hybrid_ignore_ad_tags` to `true`
+    to enable this behavior.

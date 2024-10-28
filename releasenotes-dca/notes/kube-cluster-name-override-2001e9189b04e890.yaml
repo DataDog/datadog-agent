@@ -1,0 +1,12 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Adds the `kube_cluster_name` tag as a static global tag to the cluster agent when the `DD_CLUSTER_NAME` config option is set.
+    This should fix an issue where the tag is not being attached to metrics in certain environments, such as EKS Fargate.

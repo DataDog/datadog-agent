@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes agent to run on Server "Core" versions

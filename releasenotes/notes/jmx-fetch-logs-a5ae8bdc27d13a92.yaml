@@ -1,0 +1,4 @@
+enhancements:
+  - |
+    Logs from JMXFetch will now be included in the Agent logfile, regardless
+    of the ``log_level`` setting of the Agent.

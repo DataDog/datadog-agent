@@ -1,0 +1,8 @@
+logs:
+  - type: journald
+    source: custom_log
+    service: no-datadog
+    exclude_units:
+      - datadog-agent.service
+      - datadog-agent-trace.service
+      - datadog-agent-process.service

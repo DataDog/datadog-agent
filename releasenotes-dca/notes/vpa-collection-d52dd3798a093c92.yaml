@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Enable collection of Vertical Pod Autoscalers by default in the orchestrator check.

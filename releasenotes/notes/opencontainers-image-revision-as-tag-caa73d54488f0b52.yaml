@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Automatically extract the ``org.opencontainers.image.revision`` container label into the ``git.commit.sha`` tag.

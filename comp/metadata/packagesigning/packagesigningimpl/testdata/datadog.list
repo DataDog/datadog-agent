@@ -1,0 +1,6 @@
+deb [signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] https://apt.datadoghq.com/ stable 7
+deb [signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] https://apt.datadoghq.com/ stable 6
+deb [signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] https://apt.datadoghq.com/ beta 7
+deb [signed-by=/usr/vinz/clortho/keyring.gpg trusted=no] https://apt.ghostbusters.com/ stable 84
+deb-src [ signed-by=/don/rosa/carl/barks trusted=yes ] https://duck.family.com scrooge donald huey dewey louie
+deb https://the.invisible.url.com

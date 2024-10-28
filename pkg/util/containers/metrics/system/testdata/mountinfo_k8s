@@ -1,0 +1,25 @@
+2775 2588 0:310 / / rw,relatime master:760 - overlay overlay rw,lowerdir=/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/163/fs,upperdir=/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/164/fs,workdir=/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/164/work
+2776 2775 0:312 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw
+2777 2775 0:313 / /dev rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755
+2778 2777 0:314 / /dev/pts rw,nosuid,noexec,relatime - devpts devpts rw,gid=5,mode=620,ptmxmode=666
+2779 2777 0:301 / /dev/mqueue rw,nosuid,nodev,noexec,relatime - mqueue mqueue rw
+2780 2775 0:306 / /sys ro,nosuid,nodev,noexec,relatime - sysfs sysfs ro
+2781 2780 0:24 / /sys/fs/cgroup ro,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw
+2782 2775 8:1 /var/lib/kubelet/pods/e50f2933-b36b-4e3b-89b1-280707f7bc53/etc-hosts /etc/hosts rw,relatime - ext4 /dev/sda1 rw,commit=30
+2783 2777 8:1 /var/lib/kubelet/pods/e50f2933-b36b-4e3b-89b1-280707f7bc53/containers/bash2/3404dd90 /dev/termination-log rw,relatime - ext4 /dev/sda1 rw,commit=30
+2784 2775 8:1 /var/lib/containerd/io.containerd.grpc.v1.cri/sandboxes/c5866f3bfef020a8c045540b4a05dd9d193443740be76437a6130c7759ab2076/hostname /etc/hostname rw,nosuid,nodev,relatime - ext4 /dev/sda1 rw,commit=30
+2785 2775 8:1 /var/lib/containerd/io.containerd.grpc.v1.cri/sandboxes/c5866f3bfef020a8c045540b4a05dd9d193443740be76437a6130c7759ab2076/resolv.conf /etc/resolv.conf rw,nosuid,nodev,relatime - ext4 /dev/sda1 rw,commit=30
+2786 2777 0:298 / /dev/shm rw,nosuid,nodev,noexec,relatime - tmpfs shm rw,size=65536k
+2787 2775 0:297 / /var/run/secrets/kubernetes.io/serviceaccount ro,relatime - tmpfs tmpfs rw,size=2880088k
+2602 2777 0:314 /0 /dev/console rw,nosuid,noexec,relatime - devpts devpts rw,gid=5,mode=620,ptmxmode=666
+2603 2776 0:312 /bus /proc/bus ro,nosuid,nodev,noexec,relatime - proc proc rw
+2604 2776 0:312 /fs /proc/fs ro,nosuid,nodev,noexec,relatime - proc proc rw
+2605 2776 0:312 /irq /proc/irq ro,nosuid,nodev,noexec,relatime - proc proc rw
+2606 2776 0:312 /sys /proc/sys ro,nosuid,nodev,noexec,relatime - proc proc rw
+2607 2776 0:312 /sysrq-trigger /proc/sysrq-trigger ro,nosuid,nodev,noexec,relatime - proc proc rw
+2608 2776 0:315 / /proc/acpi ro,relatime - tmpfs tmpfs ro
+2609 2776 0:313 /null /proc/kcore rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755
+2610 2776 0:313 /null /proc/keys rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755
+2611 2776 0:313 /null /proc/timer_list rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755
+2612 2776 0:316 / /proc/scsi ro,relatime - tmpfs tmpfs ro
+2613 2780 0:317 / /sys/firmware ro,relatime - tmpfs tmpfs ro

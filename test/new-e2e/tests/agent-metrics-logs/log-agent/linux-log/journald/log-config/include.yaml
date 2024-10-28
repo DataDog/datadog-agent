@@ -1,0 +1,7 @@
+logs:
+  - type: journald
+    path: /var/log/journal/
+    source: custom_log
+    service: random-logger
+    include_units:
+      random-logger.service

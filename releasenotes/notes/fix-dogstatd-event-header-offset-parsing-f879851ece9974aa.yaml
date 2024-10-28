@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix parsing of dogstatsd event strings that contained negative lengths for
+    event title and/or event text length.

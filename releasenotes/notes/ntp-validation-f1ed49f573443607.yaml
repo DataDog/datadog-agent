@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Added validity checks to NTP responses

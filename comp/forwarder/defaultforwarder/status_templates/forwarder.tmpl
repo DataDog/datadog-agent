@@ -1,0 +1,86 @@
+{{with .forwarderStats -}}
+{{ if .Transactions }}
+  Transactions
+  ============
+  {{- range $key, $value := .Transactions }}
+    {{- if and (ne $key "InputBytesByEndpoint") (ne $key "InputCountByEndpoint") (ne $key "DroppedByEndpoint") (ne $key "RequeuedByEndpoint") (ne $key "RetriedByEndpoint") (ne $key "Success") (ne $key "SuccessByEndpoint") (ne $key "SuccessBytesByEndpoint") (ne $key "Errors") (ne $key "ErrorsByType") (ne $key "HTTPErrors") (ne $key "HTTPErrorsByCode") (ne $key "ConnectionEvents")}}
+    {{$key}}: {{humanize $value}}
+    {{- end}}
+  {{- end}}
+  {{- if .Transactions.DroppedOnInput }}
+
+    Warning: the forwarder dropped transactions, there is probably an issue with your network
+    More info at https://github.com/DataDog/datadog-agent/tree/main/docs/agent/status.md
+  {{- end}}
+  {{- if .Transactions.Success}}
+
+  Transaction Successes
+  =====================
+    Total number: {{.Transactions.Success}}
+    Successes By Endpoint:
+          {{- range $type, $count := .Transactions.SuccessByEndpoint }}
+            {{- if $count }}
+      {{$type}}: {{humanize $count}}
+            {{- end}}
+          {{- end}}
+  {{- end}}
+  {{- if .Transactions.Errors }}
+
+  Transaction Errors
+  ==================
+    Total number: {{.Transactions.Errors}}
+    Errors By Type:
+          {{- range $type, $count := .Transactions.ErrorsByType }}
+            {{- if $count }}
+      {{$type}}: {{humanize $count}}
+            {{- end}}
+          {{- end}}
+  {{- end}}
+  {{- if .Transactions.HTTPErrors }}
+
+  HTTP Errors
+  ==================
+    Total number: {{.Transactions.HTTPErrors}}
+    HTTP Errors By Code:
+      {{- range $code, $count := .Transactions.HTTPErrorsByCode }}
+        {{- if $count}}
+      {{$code}}: {{humanize $count}}
+        {{- end}}
+      {{- end}}
+  {{- end}}
+{{- end}}
+
+  On-disk storage
+  ===============
+  {{- if .forwarder_storage_max_size_in_bytes }}
+    {{- if .FileStorage.CurrentSizeInBytes }}
+    Disk usage in bytes: {{ .FileStorage.CurrentSizeInBytes }}
+    Current number of files: {{ .FileStorage.FilesCount }}
+    Number of files dropped: {{ .FileStorage.FilesRemovedCount }}
+    Deserialization errors count: {{ .FileStorage.DeserializeErrorsCount }}
+    Outdated files removed at startup: {{ .RemovalPolicy.OutdatedFilesCount }}
+    {{- else }}
+    Enabled, not in-use.
+    {{- end}}
+  {{- else }}
+    On-disk storage is disabled. Configure `forwarder_storage_max_size_in_bytes` to enable it.
+  {{- end}}
+
+{{- if .APIKeyStatus }}
+
+  API Keys status
+  ===============
+  {{- range $key, $value := .APIKeyStatus }}
+    {{$key}}: {{$value}}
+  {{- end }}
+{{- end}}
+
+{{- if .APIKeyFailure }}
+
+  API Keys errors
+  ===============
+  {{- range $key, $value := .APIKeyFailure }}
+    {{yellowText $key}}{{yellowText ":"}} {{yellowText $value}}
+  {{- end }}
+{{- end}}
+{{- end}}

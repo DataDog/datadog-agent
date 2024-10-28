@@ -1,0 +1,15 @@
+version: '2.1'
+services:
+  pause:
+    image: "gcr.io/google_containers/pause:latest"
+  redis:
+    image: "datadog/docker-library:redis_3_2_11-alpine"
+    labels:
+        low.card.label: "redislow"
+        high.card.label: "redishigh"
+    environment:
+        LOW_CARD_ENV: "redislowenv"
+        HIGH_CARD_ENV: "redishighenv"
+    mem_limit: 32000000
+    mem_reservation: 31000000
+    pids_limit: 25

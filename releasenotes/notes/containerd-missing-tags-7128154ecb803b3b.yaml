@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes submission of containers blkio metrics that may modify array after being already used by aggregator. Can cause missing tags on containerd.* metrics

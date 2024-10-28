@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Standard tags (env, version, service) can be autodiscovered from Service labels
+    and added to Endpoint and Cluster checks.

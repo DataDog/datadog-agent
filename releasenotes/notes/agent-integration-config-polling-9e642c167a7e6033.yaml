@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Optionally poll Agent and Cluster Agent integration configuration files for changes after startup. This allows the Agent/Cluster Agent to pick up new
+    integration configuration without a restart.
+    This is enabled/disabled with the `autoconf_config_files_poll` boolean configuration variable.
+    The polling interval is configured with the `autoconf_config_files_poll_interval` (default 60s).
+    Note: Dynamic removal of logs configuration is currently not supported.

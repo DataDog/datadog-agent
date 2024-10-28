@@ -1,0 +1,78 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+instances:
+<% @instances.each do |i| -%>
+  -  host: <%= i["server"] %>
+     port: <%= i["port"]  %>
+  <% if i.key?("username") -%>
+     user: <%= i["username"] %>
+     password: <%= i["password"] %>
+  <% end -%>
+     name: <%= i["name"] || "tomcat" %>
+<% end -%>
+
+# List of metrics to be collected by the integration
+# You should not need to modify this.
+init_config:
+  conf:
+    - include:
+        type: ThreadPool
+        attribute:
+          maxThreads:
+            alias: tomcat.threads.max
+            metric_type: gauge
+          currentThreadCount:
+            alias: tomcat.threads.count
+            metric_type: gauge
+          currentThreadsBusy:
+            alias: tomcat.threads.busy
+            metric_type: gauge
+    - include:
+        type: GlobalRequestProcessor
+        attribute:
+          bytesSent:
+            alias: tomcat.bytes_sent
+            metric_type: counter
+          bytesReceived:
+            alias: tomcat.bytes_rcvd
+            metric_type: counter
+          errorCount:
+            alias: tomcat.error_count
+            metric_type: counter
+          requestCount:
+            alias: tomcat.request_count
+            metric_type: counter
+          maxTime:
+            alias: tomcat.max_time
+            metric_type: gauge
+          processingTime:
+            alias: tomcat.processing_time
+            metric_type: counter
+    - include:
+        j2eeType: Servlet
+        attribute:
+          processingTime:
+            alias: tomcat.servlet.processing_time
+            metric_type: counter
+          errorCount:
+            alias: tomcat.servlet.error_count
+            metric_type: counter
+          requestCount:
+            alias: tomcat.servlet.request_count
+            metric_type: counter
+    - include:
+        type: Cache
+        accessCount:
+          alias: tomcat.cache.access_count
+          metric_type: counter
+        hitsCounts:
+          alias: tomcat.cache.hits_count
+          metric_type: counter
+    - include:
+        type: JspMonitor
+        jspCount:
+          alias: tomcat.jsp.count
+          metric_type: counter
+        jspReloadCount:
+          alias: tomcat.jsp.reload_count
+          metric_type: counter

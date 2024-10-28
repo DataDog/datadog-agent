@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix for autodiscovered checks not being rescheduled after container restart.

@@ -1,0 +1,42 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "event.json",
+    "type": "object",
+    "properties": {
+        "evt": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "category": {
+                    "type": "string"
+                },
+                "outcome": {
+                    "type": "string"
+                },
+                "async": {
+                    "type": "boolean"
+                },
+                "origin": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "name",
+                "category",
+                "outcome"
+            ]
+        },
+        "syscall": {
+            "type": "object"
+        },
+        "date": {
+            "$ref": "/schemas/datetime.json"
+        }
+    },
+    "required": [
+        "evt",
+        "date"
+    ]
+}

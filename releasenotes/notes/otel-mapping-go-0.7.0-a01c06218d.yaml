@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Populate OTLP resource attributes in Datadog logs
+  - |
+    Changes mapping for jvm.loaded_classes from process.runtime.jvm.classes.loaded to process.runtime.jvm.classes.current_loaded
+  - |
+    The minimum and maximum estimation for OTLP Histogram to Datadog distribution mapping now ensures the average is within [min, max]. 
+  - |
+    This estimation is only used when the minimum and maximum are not available in the OTLP payload or this is a cumulative payload.

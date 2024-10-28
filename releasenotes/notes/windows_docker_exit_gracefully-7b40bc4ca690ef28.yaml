@@ -1,0 +1,4 @@
+fixes:
+  - |
+    On Windows, the Agent now responds to control signals from the OS and shuts down gracefully.
+    Coincidentally, a Windows Agent Container will now gracefully stop when receiving the stop command.

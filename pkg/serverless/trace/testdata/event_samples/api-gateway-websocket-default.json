@@ -1,0 +1,45 @@
+{
+    "headers": {
+        "Host": "p62c47itsb.execute-api.sa-east-1.amazonaws.com",
+        "x-api-key": "",
+        "X-Forwarded-For": "",
+        "x-restapi": "",
+        "x-datadog-trace-id": "12345",
+        "x-datadog-parent-id": "67890",
+        "x-datadog-sampling-priority": "2"
+    },
+    "multiValueHeaders": {
+        "Host": [
+            "p62c47itsb.execute-api.sa-east-1.amazonaws.com"
+        ],
+        "x-api-key": [
+            ""
+        ],
+        "X-Forwarded-For": [
+            ""
+        ],
+        "x-restapi": [
+            ""
+        ]
+    },
+    "requestContext": {
+        "routeKey": "$default",
+        "messageId": "Fc5S3coemjQCJlg=",
+        "eventType": "MESSAGE",
+        "extendedRequestId": "Fc5S3EvdGjQFtsQ=",
+        "requestTime": "10/Sep/2021:14:44:21 +0000",
+        "messageDirection": "IN",
+        "stage": "dev",
+        "connectedAt": 1631285060967,
+        "requestTimeEpoch": 1631285061365,
+        "identity": {
+            "sourceIp": "38.122.226.210"
+        },
+        "requestId": "Fc5S3EvdGjQFtsQ=",
+        "domainName": "p62c47itsb.execute-api.sa-east-1.amazonaws.com",
+        "connectionId": "Fc5SzcoYGjQCJlg=",
+        "apiId": "p62c47itsb"
+    },
+    "body": "\"What's good in the hood?\"",
+    "isBase64Encoded": false
+}

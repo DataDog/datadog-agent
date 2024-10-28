@@ -1,0 +1,147 @@
+syntax = "proto3";
+
+package datadog.api.v1;
+
+import "datadog/model/v1/model.proto";
+import "datadog/remoteconfig/remoteconfig.proto";
+import "datadog/workloadmeta/workloadmeta.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "pkg/proto/pbgo/core"; // golang
+
+
+// The greeting service definition.
+service Agent {
+    // get the hostname
+    rpc GetHostname (datadog.model.v1.HostnameRequest) returns (datadog.model.v1.HostnameReply) {
+        option (google.api.http) = {
+            get: "/v1/grpc/host"
+        };
+    }
+}
+
+service AgentSecure {
+    // subscribes to added, removed, or changed entities in the Tagger
+    // and streams them to clients as events.
+    // can be called through the HTTP gateway, and events will be streamed as JSON:
+    //   $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+    //      -XPOST -k https://localhost:5001/v1/grpc/tagger/stream_entities
+    //   {
+    //    "result": {
+    //        "entity": {
+    //            "id": {
+    //                "prefix": "kubernetes_pod_uid",
+    //                "uid": "4025461f832caf3fceb7fc2a32f879c6"
+    //            },
+    //            "hash": "cad4fc8fc409fcc1",
+    //            "lowCardinalityTags": [
+    //                "kube_namespace:kube-system",
+    //                "pod_phase:running"
+    //            ]
+    //        }
+    //    }
+    //}
+    rpc TaggerStreamEntities(datadog.model.v1.StreamTagsRequest) returns (stream datadog.model.v1.StreamTagsResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/tagger/stream_entities"
+            body: "*"
+        };
+    };
+
+    // fetches an entity from the Tagger with the desired cardinality tags.
+    // can be called through the HTTP gateway, and entity will be returned as JSON:
+    //   $ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+    //      -XPOST -k -H "Content-Type: application/json" \
+    //      --data '{"id":{"prefix":"kubernetes_pod_uid","uid":"d575fb58-82dc-418e-bfb1-aececc9bc507"}}' \
+    //      https://localhost:5001/v1/grpc/tagger/fetch_entity
+    //   {
+    //    "id": {
+    //        "prefix": "kubernetes_pod_uid",
+    //        "uid": "d575fb58-82dc-418e-bfb1-aececc9bc507"
+    //    },
+    //    "tags": [
+    //        "kube_namespace:kube-system",
+    //        "pod_phase:running",
+    //        "kube_deployment:coredns",
+    //        "kube_service:kube-dns"
+    //    ]
+    //}
+    rpc TaggerFetchEntity(datadog.model.v1.FetchEntityRequest) returns (datadog.model.v1.FetchEntityResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/tagger/fetch_entity"
+            body: "*"
+        };
+    };
+
+    // Trigger a dogstatsd capture. Only one capture can be triggered at a time.
+    // Can be called through the HTTP gateway, and entity will be returned as JSON:
+    //      TODO: add the curl code here
+    rpc DogstatsdCaptureTrigger(datadog.model.v1.CaptureTriggerRequest) returns (datadog.model.v1.CaptureTriggerResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/dogstatsd/capture/trigger"
+            body: "*"
+        };
+    };
+
+    // Trigger a dogstatsd capture. Only one capture can be triggered at a time.
+    // Can be called through the HTTP gateway, and entity will be returned as JSON:
+    //      TODO: add the curl code here
+    rpc DogstatsdSetTaggerState(datadog.model.v1.TaggerState) returns (datadog.model.v1.TaggerStateResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/dogstatsd/capture/state"
+            body: "*"
+        };
+    };
+
+    rpc ClientGetConfigs(datadog.config.ClientGetConfigsRequest) returns (datadog.config.ClientGetConfigsResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/remoteconfig/configs"
+            body: "*"
+        };
+    };
+
+    rpc GetConfigState(google.protobuf.Empty) returns (datadog.config.GetStateConfigResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/remoteconfig/state"
+            body: "*"
+        };
+    };
+
+    rpc ClientGetConfigsHA(datadog.config.ClientGetConfigsRequest) returns (datadog.config.ClientGetConfigsResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/remoteconfig/configs_ha"
+            body: "*"
+        };
+    };
+
+    rpc GetConfigStateHA(google.protobuf.Empty) returns (datadog.config.GetStateConfigResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/remoteconfig/state_ha"
+            body: "*"
+        };
+    };
+
+    // Subscribes to added, removed, or changed entities in the Workloadmeta and
+    // streams them to clients as events.
+    // Can be called through the HTTP gateway, and events will be streamed as JSON.
+    // Example call that receives all the events:
+    //   $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+    //      -XPOST -k https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+    // Example call that receives only unset events:
+    //   $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+    //      -XPOST -k -H "Content-Type: application/json" \
+    //      --data '{"filter":{"eventType":2}}' \
+    //      https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+    // Example call that receives only from the cluster orchestrator:
+    //   $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+    //      -XPOST -k -H "Content-Type: application/json" \
+    //      --data '{"filter":{"source":3}}' \
+    //      https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+    rpc WorkloadmetaStreamEntities(datadog.workloadmeta.WorkloadmetaStreamRequest) returns (stream datadog.workloadmeta.WorkloadmetaStreamResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/workloadmeta/stream_entities"
+            body: "*"
+        };
+    };
+}

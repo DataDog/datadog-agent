@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Add logic to support docker restart of containers.

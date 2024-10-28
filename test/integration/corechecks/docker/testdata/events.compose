@@ -1,0 +1,21 @@
+# This file uses YAML anchors to deduplicate steps
+# see https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
+# and https://learnxinyminutes.com/docs/yaml/
+
+version: '2'
+services:
+  recordingevent0: &event_base
+    image: "datadog/docker-library:busybox_1_28_0"
+    entrypoint: /bin/true
+    labels:
+        low.card.label: "eventlow"
+        high.card.label: "eventhigh"
+    environment:
+        LOW_CARD_ENV: "eventlowenv"
+        HIGH_CARD_ENV: "eventhighenv"
+  recordingevent1:
+    <<: *event_base
+  recordingevent2:
+    <<: *event_base
+    image: "datadog/docker-library:redis_3_2_11-alpine"
+

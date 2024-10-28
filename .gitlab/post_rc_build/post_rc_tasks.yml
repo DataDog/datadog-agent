@@ -1,0 +1,19 @@
+# post_rc_build stage
+# Contains jobs that automate post-build Release Candidate tasks
+---
+update_rc_build_links:
+  stage: post_rc_build
+  rules:
+    - if: $RC_BUILD == "true"
+  needs:
+    - job: docker_trigger_internal
+      artifacts: false
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  script:
+    - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE token) || exit $?; export ATLASSIAN_PASSWORD
+    - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
+    - python3 -m pip install -r tasks/requirements_release_tasks.txt
+    - PATCH=$(echo "$CI_COMMIT_REF_NAME" | cut -d'.' -f3 | cut -c1)
+    - if [[ "$PATCH" == "0" ]]; then PATCH_OPTION=""; else PATCH_OPTION="-p"; fi
+    - inv -e release.update-build-links ${CI_COMMIT_REF_NAME} ${PATCH_OPTION}

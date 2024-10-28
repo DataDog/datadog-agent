@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Include `/etc/chrony.conf` for `use_local_defined_servers`.

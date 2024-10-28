@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fix an issue where scrubbing custom sensitive words would not work as intended for the orchestrator check.

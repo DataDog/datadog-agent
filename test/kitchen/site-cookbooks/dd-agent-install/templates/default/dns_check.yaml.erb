@@ -1,0 +1,13 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+instances:
+  <% @instances.each do |i| -%>
+  - hostname: <%= i["hostname"] %>
+    nameserver: <%= i["nameserver"] || '127.0.0.1' %>
+    <% unless i["timeout"].nil? %>
+    timeout: <%= i["timeout"] %>
+    <% end %>
+  <% end %>
+
+init_config:
+  default_timeout: 4

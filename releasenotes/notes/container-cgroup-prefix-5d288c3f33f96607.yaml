@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Added a new ``container_cgroup_prefix`` option to fix some cases where system slices
+    were detected as containers.

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes the container_name tag not being updated after Docker containers were
+    renamed.

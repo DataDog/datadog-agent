@@ -1,0 +1,200 @@
+<%
+  ENV['AZURE_LOCATION'] ||= "North Central US"
+  location = ENV['AZURE_LOCATION']
+%>
+
+<%
+  vm_tags = {
+    'dd_agent_testing': 'dd_agent_testing'
+  }
+  vm_username = ENV['VM_USERNAME'] ? ENV['VM_USERNAME'] : "datadog"
+  if ENV['DD_PIPELINE_ID']
+    vm_tags['pipeline_id'] = ENV['DD_PIPELINE_ID']
+  else
+    vm_tags['pipeline_id'] = 'nopipeline'
+  end
+%>
+
+provisioner:
+  name: chef_solo
+  <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
+  root_path: <%= ENV['KITCHEN_CI_ROOT_PATH'] %>/kitchen
+  <% end %>
+  product_name: chef
+  # There is no arm64 distribution of Chef 14 for Debian. Use the Ubuntu package instead
+  <% if ENV['KITCHEN_PLATFORM'] == "debian" && ENV['KITCHEN_ARCH'] == "arm64" %>
+  download_url: https://packages.chef.io/files/stable/chef/14.15.6/ubuntu/18.04/chef_14.15.6-1_arm64.deb
+  product_version: 14.15.6
+  <% else %>
+  product_version: <%= ENV['CHEF_VERSION'] ||= '14.12.9' %>
+  <% end %>
+  install_strategy: always
+  # the following settings make it possible to do a reboot during setup
+  # (necessary for FIPS tests which reboot to enable FIPS mode)
+  max_retries: 3
+  wait_for_retry: 90
+  client_rb:
+    client_fork: false
+
+driver:
+  name: azurerm
+
+driver_config:
+  subscription_id: <%= ENV['AZURE_SUBSCRIPTION_ID'] %>
+  location: <%= location %>
+  <% if ENV['DD_PIPELINE_ID'] %>
+  azure_resource_group_suffix: pl<%= ENV['DD_PIPELINE_ID'] %>
+  <% else %>
+  azure_resource_group_suffix: plnone
+  <% end %>
+
+platforms:
+# Loop through two lists and output a total matrix of all possible platform + chef versions,
+# for both drivers
+
+
+<%
+    # TEST_PLATFORMS syntax is `short_name1,azure_full_qualified_name1|short_name2,azure_full_qualified_name1`
+    # TEST_PLATFORMS syntax is `short_name1,parent vhd folder,parent_vhd_name|...`
+    azure_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
+    cws_supported_platforms = (ENV['KITCHEN_CWS_SUPPORTED_OSVERS'] || "").split(',')
+
+    if ENV['TEST_IMAGE_SIZE'] != ""
+      sizes = [
+        ENV['TEST_IMAGE_SIZE']
+      ]
+    else
+      sizes = [
+        "Standard_D1_v2",
+        "Standard_A1_v2",
+      ]
+    end
+
+    windows_sizes = [
+      "Standard_D2_v4"
+    ]
+
+    windows_platforms = []
+    sles15_platforms = []
+
+    idx = 0
+    azure_test_platforms.each do |platform|
+      idx += 1
+
+      host = "azure"
+
+      # KITCHEN_PLATFORM_SUFFIX is set for non-standard Agent tests (eg. IoT Agent, FIPS)
+      # that use the same test suites as the standard Agent.
+      # This is needed because the resource group name used by the driver is computed as:
+      # <test suite name>-<platform name>-<timestamp>-<azure_resource_group_suffix>
+      # which means that, without that KITCHEN_PLATFORM_SUFFIX, two types of tests
+      # running at the same time can conflict with each other if they start at the same time,
+      # as they try to use the same resource group name, leading to provisioning errors.
+      if ENV['KITCHEN_PLATFORM_SUFFIX']
+        platform_name = platform[0] + "-" + ENV['KITCHEN_PLATFORM_SUFFIX'] + "-#{host}-#{ENV['KITCHEN_ARCH']}"
+      else
+        platform_name = platform[0] + "-#{host}-#{ENV['KITCHEN_ARCH']}"
+      end
+
+      windows = platform_name.include?("win")
+      sles15 = platform_name.include?("sles-15")
+      debian9 = platform_name.include?("debian-9")
+
+      if windows
+        windows_platforms << platform_name
+        size = windows_sizes[idx % windows_sizes.length]
+      else
+        if sles15
+          sles15_platforms << platform_name
+        end
+        size = sizes[idx % sizes.length]
+      end
+
+      # Check if we should use an ed25519 key, an rsa key or the default key
+      # Some newer platforms don't support rsa, while some older platforms don't support ed25519
+      # In Azure, ed25519 is not supported, but the default key created by the driver works
+      default_key_platforms = ["ubuntu-22-04", "rhel-91", "debian-12"]
+      use_default_key = default_key_platforms.any? { |p| platform_name.include?(p) }
+
+      ed25519_platforms = []
+      use_ed25519 = ed25519_platforms.any? { |p| platform_name.include?(p) }
+
+      vm_password = ENV['SERVER_PASSWORD']
+
+%>
+
+- name: <%= platform_name %>
+  attributes:
+    color_idx: <%= idx %>
+    dd-agent-rspec:
+      enable_cws: <%= ENV['KITCHEN_CWS'] == "true" && cws_supported_platforms.include?(platform[0]) %>
+    <% if ENV["KITCHEN_CWS_PLATFORM"] %>
+    cws_platform: <%= ENV["KITCHEN_CWS_PLATFORM"] %>
+    <% end %>
+  <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
+  provisioner:
+    command_prefix: TMPDIR=<%= ENV['KITCHEN_CI_ROOT_PATH'] %>
+  <% end %>
+  driver_config:
+    machine_size: <%= size %>
+    <% if platform[1] == "urn" %>
+    image_urn: <%= platform[2] %>
+    <% else %>
+    image_id: <%= platform[2] %>
+    <% end %>
+    location: <%= location %>
+    <% if windows %>
+    vm_name: ddat<%= platform[0] %>
+    <% else %>
+    vm_name: dd-agent-testing-<%= platform[0] %>-azure
+    <% end %>
+    vm_tags:
+      <% vm_tags.each do |key,value| %>
+      <%= key %>: <%= value %>
+      <% end %>
+    username: <%= vm_username %>
+    password: <%= vm_password %>
+  <% if (ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH']) || debian9 %>
+  lifecycle:
+    post_create:
+    <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
+    - remote: |
+        sudo mkdir -p <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
+        sudo chmod a+rwx <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
+        sudo ln -s <%= ENV['KITCHEN_CI_MOUNT_PATH'] %> <%= ENV['KITCHEN_CI_ROOT_PATH'] %>;
+    <% end %>
+    <% if debian9 %>
+    - local: echo 'Updating the sources.list file to use archive.debian.org for the stretch suites'
+    - remote: |
+        # Stretch has been moved to archive.debian.org
+        # See https://lists.debian.org/debian-devel-announce/2023/03/msg00006.html
+        sudo sed -i 's/debian-archive.trafficmanager.net/archive.debian.org/g' /etc/apt/sources.list
+        # The stretch-updates dist doesn't exist in archive.debian.org/debian
+        sudo sed -i '/stretch-updates/d' /etc/apt/sources.list
+    <% end %>
+  <% end %>
+
+  transport:
+    <% if windows %>
+    name: winrm
+    username: <%= vm_username %>
+    password: <%= vm_password %>
+    <% else %>
+    connection_retries: 30
+    connection_retry_sleep: 2
+    <% if use_default_key %>
+    ssh_key:
+    <% elsif use_ed25519 %>
+    ssh_key: <%= ENV['KITCHEN_ED25519_SSH_KEY_PATH'] %>
+    <% else %>
+    ssh_key: <%= ENV['KITCHEN_RSA_SSH_KEY_PATH'] %>
+    <% end %>
+    <% end %>
+
+  verifier:
+    downloads:
+      "/tmp/junit.tar.gz": junit-<%= platform_name %>.tar.gz
+      "/tmp/testjson.tar.gz": testjson/<%= platform_name %>/testjson.tar.gz
+      "/tmp/kitchen/rspec.xml": kitchen-rspec-<%= platform_name %>.xml
+
+<% end %>

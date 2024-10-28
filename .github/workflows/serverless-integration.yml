@@ -1,0 +1,82 @@
+name: "Serverless Integration Tests"
+
+on:
+  pull_request:
+    branches-ignore:
+      - 'mq-working-branch-*'
+    paths:
+      - 'cmd/serverless/**'
+      - 'pkg/serverless/**'
+      - 'test/integration/serverless/**'
+      - '.github/workflows/serverless-integration.yml'
+  schedule:
+    - cron: '0 14 * * *' # cron schedule uses UTC timezone. Run tests at the beginning of the day in US-East
+
+permissions: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [amd64, arm64]
+        suite: [metric, log, trace, appsec, proxy]
+    name: ${{ matrix.suite }} on ${{ matrix.architecture }}
+    steps:
+      - name: Checkout datadog-agent repository
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          path: go/src/github.com/DataDog/datadog-agent
+
+      - name: Set up Node 20
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
+        with:
+          node-version: 20
+
+      - name: Install Serverless Framework
+        run: sudo yarn global add serverless@^3.36.0 --prefix /usr/local
+
+      - name: Checkout the datadog-lambda-extension repository
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          repository: DataDog/datadog-lambda-extension
+          path: go/src/github.com/DataDog/datadog-lambda-extension
+
+      - name: Set up QEMU
+        id: qemu
+        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
+        with:
+          image: tonistiigi/binfmt:latest
+          platforms: amd64,arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
+
+      - name: Create raw logs directory
+        id: rawlogs
+        run: |-
+          DIR=$(mktemp -d)
+          echo "dir=${DIR}" >> $GITHUB_OUTPUT
+
+      - name: Run tests if AWS credentials are available
+        id: test
+        uses: nick-fields/retry@7152eba30c6575329ac0576536151aca5a72780e # v3.0.0
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }}
+        with:
+          timeout_minutes: 60
+          max_attempts: 2
+          command: |
+            RAWLOGS_DIR="${{ steps.rawlogs.outputs.dir }}/${{ matrix.architecture }}"
+            cd go/src/github.com/DataDog/datadog-agent
+            ARCHITECTURE=${{ matrix.architecture }} RAWLOGS_DIR=$RAWLOGS_DIR \
+                ./test/integration/serverless/run.sh ${{ matrix.suite }}
+
+      - name: Archive raw logs
+        if: always()
+        uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a # v4.3.6
+        with:
+          name: rawlogs-${{ matrix.suite }}-${{ matrix.architecture }}
+          path: ${{ steps.rawlogs.outputs.dir }}

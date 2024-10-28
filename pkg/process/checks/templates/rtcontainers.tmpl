@@ -1,0 +1,20 @@
+RealTime Containers
+===================
+{{- range $c := .ContainerStats}}
+> ID: {{ .Id }}
+  CPU Limit:    {{ .CpuLimit }}
+  Memory Limit: {{ bytes .MemLimit }}
+  State:  {{ .State }}
+  Health: {{ .Health }}
+  Started: {{ time .Started }}
+  CPU: Total: {{ cpupct .TotalPct }} System: {{ cpupct .SystemPct }} User: {{ cpupct .UserPct }}
+  Memory: RSS: {{ bytes .MemRss }} Cache: {{ bytes .MemCache }}
+  IO:
+    Read:  {{ io .Rbps }} B/s
+    Write: {{ io .Wbps }} B/s
+  Net:
+    Received: {{ io .NetRcvdBps }} B/s {{ io .NetRcvdPs }} Ops/s
+    Sent:     {{ io .NetSentBps }} B/s {{ io .NetSentPs }} Ops/s
+  Thread Count: {{ .ThreadCount }}
+  Thread Limit: {{ .ThreadLimit }}
+{{- end }}

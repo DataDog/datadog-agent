@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix an auto-discovery annotation value parsing limitation in version 6
+    compared to version 5.
+    Now, ``ad.datadoghq.com/*.instances`` annotation key supports value like ``[[{"foo":"bar1"}, {"foo":"bar2"}], {"name":"bar3"}]``

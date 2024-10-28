@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    DBM: Add configuration options to SQL obfuscator to customize the normalization of SQL statements:
+    - ``KeepTrailingSemicolon`` - disable removing trailing semicolon. This option is only valid when ``ObfuscationMode`` is ``obfuscate_and_normalize``.
+    - ``KeepIdentifierQuotation`` - disable removing quotation marks around identifiers. This option is only valid when ``ObfuscationMode`` is ``obfuscate_and_normalize``.

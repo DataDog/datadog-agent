@@ -1,0 +1,25 @@
+---
+# FIXME: our current Gitlab version doesn't support importing a file more than once
+# For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
+# See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
+# include:
+#   - .gitlab/kitchen_testing/testing.yml
+
+# Kitchen: OSes
+# -------------
+
+.kitchen_os_windows:
+  extends:
+    - .kitchen_azure_x64
+  variables:
+    KITCHEN_PLATFORM: "windows"
+    KITCHEN_OSVERS: "win2016,win2019,win2019cn,win2022"
+    DEFAULT_KITCHEN_OSVERS: "win2022"
+  before_script:
+    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
+    - cd $DD_AGENT_TESTING_DIR
+    - tasks/kitchen_setup.sh
+  # Windows kitchen tests are slower and more fragile (lots of WinRM::WinRMAuthorizationError and/or execution expired errors)
+  # Give them one more chance before failing.
+  # TODO: understand why they fail more often than Linux jobs on network errors.
+  retry: 2

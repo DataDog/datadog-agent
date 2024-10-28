@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix a `panic` that could occur in Docker AD listener when doing `docker inspect` fails

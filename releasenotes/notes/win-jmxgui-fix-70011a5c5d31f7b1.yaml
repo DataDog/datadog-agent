@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix GUI for JMX checks, they are now manageable from the web UI.

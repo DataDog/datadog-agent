@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Kubernetes API Server's polling frequency is now customisable.
+

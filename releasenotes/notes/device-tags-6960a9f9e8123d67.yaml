@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes bug whereby device tag was (correctly) removed from tags list, but 
+    device field was only added to the metric on the first run.

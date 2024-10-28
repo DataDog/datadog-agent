@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix a crash in the Cluster Agent when Remote Configuration is disabled

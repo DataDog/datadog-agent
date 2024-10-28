@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Exclude teradata on Mac agents.

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixed Windows Dockerfile scripts to make the ECS Fargate Python check run
+    when the agent is deployed in ECS Fargate Windows.

@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Introduces a new redacting writer that will make sure anything written into
+    the flare is scrubbed from credentials and sensitive information.

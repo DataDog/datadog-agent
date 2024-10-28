@@ -1,0 +1,23 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+issues:
+  - |
+    On Linux kernel versions < 3.15, conntrack (used for NAT info for connections)
+    sampling is not supported, and conntrack updates will be aborted if a higher
+    rate of conntrack updates from the system than set by
+    system_probe_config.conntrack_rate_limit is detected. This is done to limit
+    excessive resource consumption by the netlink conntrack update system. To
+    keep using this system even with a high rate of conntrack updates, increase
+    the system_probe_config.conntrack_rate_limit. This can potentially lead to
+    higher cpu usage.
+fixes:
+  - |
+    Exceeding the conntrack rate limit (system_probe_config.conntrack_rate_limit)
+    would result in conntrack updates from the system not being processed
+    anymore

@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The system-probe will augment network connection information with
+    DNS names gathered by inspecting local DNS traffic.

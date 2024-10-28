@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Added the possibility to filter docker containers by name for log collection.

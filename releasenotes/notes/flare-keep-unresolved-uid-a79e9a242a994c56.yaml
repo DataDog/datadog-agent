@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    When generating the permissions.log file for a flare, if the owner of a file
+    no longer exists in the system, return its id instead instead of failing.

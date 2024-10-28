@@ -1,0 +1,3 @@
+features:
+  - |
+    Implements agent-side compliance rule evaluation in security agent using expressions.

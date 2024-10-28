@@ -1,0 +1,31 @@
+---
+.build_serverless_common:
+  stage: binary_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - inv check-go-version
+    - cd cmd/serverless && go build -ldflags="-w -s" -a -v -tags "serverless otlp" -o $BINARY_NAME
+
+build_serverless-deb_x64:
+  extends: .build_serverless_common
+  variables:
+    BINARY_NAME: datadog-agent-x64
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["go_deps"]
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - $CI_PROJECT_DIR/cmd/serverless
+
+build_serverless-deb_arm64:
+  extends: .build_serverless_common
+  variables:
+    BINARY_NAME: datadog-agent-arm64
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: ["go_deps"]

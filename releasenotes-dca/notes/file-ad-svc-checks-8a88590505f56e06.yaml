@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    File-based cluster checks support Autodiscovery.

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    The agent/dogstatsd docker image now ships the appropriate binary

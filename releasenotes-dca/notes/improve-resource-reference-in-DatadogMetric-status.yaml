@@ -1,0 +1,3 @@
+---
+enhancements:
+- Add autoscaler resource kind (hpa,wpa) inside the DatadogMetrics status references.

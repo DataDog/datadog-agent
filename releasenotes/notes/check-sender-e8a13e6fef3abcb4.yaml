@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fixes an issue where cluster check metrics would be sometimes sent with the host tags.

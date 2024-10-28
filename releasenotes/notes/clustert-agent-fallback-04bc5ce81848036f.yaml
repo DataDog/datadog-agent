@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add an option to disable the cluster agent local fallback for tag collection (disabled by default).
+fixes:
+  - |
+    Fix an issue where the node agent would not retry to connect to the cluster agent for tag collection.

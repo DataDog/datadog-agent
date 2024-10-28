@@ -1,0 +1,20 @@
+[Unit]
+Description=Datadog Agent
+After=network.target
+Wants=datadog-agent-trace.service datadog-agent-process.service datadog-agent-sysprobe.service datadog-agent-security.service
+
+[Service]
+Type=simple
+PIDFile=<%= install_dir %>/run/agent.pid
+User=dd-agent
+Restart=on-failure
+EnvironmentFile=-<%= etc_dir %>/environment
+RuntimeDirectory=datadog
+ExecStart=<%= install_dir %>/bin/agent/agent run -p <%= install_dir %>/run/agent.pid
+# Since systemd 229, should be in [Unit] but in order to support systemd <229,
+# it is also supported to have it here.
+StartLimitInterval=10
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

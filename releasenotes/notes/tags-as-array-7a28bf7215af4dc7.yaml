@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Support setting tags as a YAML array in the logs agent integration configuration

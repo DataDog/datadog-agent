@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    The config options tracemalloc_whitelist and tracemalloc_blacklist have been
+    deprecated in favor of tracemalloc_include and tracemalloc_exclude.

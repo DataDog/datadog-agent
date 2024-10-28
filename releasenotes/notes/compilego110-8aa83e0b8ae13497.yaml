@@ -1,0 +1,5 @@
+---
+
+other:
+  - |
+    The agent is now compiled with Go 1.10.2

@@ -1,0 +1,22 @@
+608 554 0:42 / / rw,relatime master:289 - overlay overlay rw,lowerdir=/var/lib/docker/overlay2/l/RQH52YWGJKBXL6THNS7EASIUNY:/var/lib/docker/overlay2/l/EHJME4ZW2BP2W7SGOCNTKY76NI,upperdir=/var/lib/docker/overlay2/241a77e9a6a048e54d5b5700afaeab6071cb5ffef1fd2acbebbf19935a429897/diff,workdir=/var/lib/docker/overlay2/241a77e9a6a048e54d5b5700afaeab6071cb5ffef1fd2acbebbf19935a429897/work
+609 608 0:46 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw
+610 608 0:47 / /dev rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755,inode64
+611 610 0:48 / /dev/pts rw,nosuid,noexec,relatime - devpts devpts rw,gid=5,mode=620,ptmxmode=666
+615 608 0:49 / /sys ro,nosuid,nodev,noexec,relatime - sysfs sysfs ro
+623 615 0:28 / /sys/fs/cgroup ro,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw,nsdelegate,memory_recursiveprot
+624 610 0:45 / /dev/mqueue rw,nosuid,nodev,noexec,relatime - mqueue mqueue rw
+625 610 0:50 / /dev/shm rw,nosuid,nodev,noexec,relatime - tmpfs shm rw,size=65536k,inode64
+626 608 259:1 /var/lib/docker/containers/0cfa82bf3ab29da271548d6a044e95c948c6fd2f7578fb41833a44ca23da425f/resolv.conf /etc/resolv.conf rw,relatime - ext4 /dev/root rw,discard,errors=remount-ro
+627 608 259:1 /var/lib/docker/containers/0cfa82bf3ab29da271548d6a044e95c948c6fd2f7578fb41833a44ca23da425f/hostname /etc/hostname rw,relatime - ext4 /dev/root rw,discard,errors=remount-ro
+628 608 259:1 /var/lib/docker/containers/0cfa82bf3ab29da271548d6a044e95c948c6fd2f7578fb41833a44ca23da425f/hosts /etc/hosts rw,relatime - ext4 /dev/root rw,discard,errors=remount-ro
+555 609 0:46 /bus /proc/bus ro,nosuid,nodev,noexec,relatime - proc proc rw
+556 609 0:46 /fs /proc/fs ro,nosuid,nodev,noexec,relatime - proc proc rw
+557 609 0:46 /irq /proc/irq ro,nosuid,nodev,noexec,relatime - proc proc rw
+558 609 0:46 /sys /proc/sys ro,nosuid,nodev,noexec,relatime - proc proc rw
+559 609 0:46 /sysrq-trigger /proc/sysrq-trigger ro,nosuid,nodev,noexec,relatime - proc proc rw
+560 609 0:51 / /proc/acpi ro,relatime - tmpfs tmpfs ro,inode64
+561 609 0:47 /null /proc/kcore rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755,inode64
+562 609 0:47 /null /proc/keys rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755,inode64
+563 609 0:47 /null /proc/timer_list rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755,inode64
+564 609 0:52 / /proc/scsi ro,relatime - tmpfs tmpfs ro,inode64
+565 615 0:53 / /sys/firmware ro,relatime - tmpfs tmpfs ro,inode64

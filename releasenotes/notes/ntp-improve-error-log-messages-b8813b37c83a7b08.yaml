@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Improve NTP check error messages to show the specific hosts that are failing.

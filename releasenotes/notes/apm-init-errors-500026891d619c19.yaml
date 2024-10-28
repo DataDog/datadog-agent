@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    APM: Trace Agent not printing critical init errors.

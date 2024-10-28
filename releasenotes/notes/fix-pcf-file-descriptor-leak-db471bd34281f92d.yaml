@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix a file descriptors leak in the Cloud Foundry Cluster Agent.

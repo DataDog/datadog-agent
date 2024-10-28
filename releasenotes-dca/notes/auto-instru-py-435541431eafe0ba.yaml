@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Experimental: The Datadog Admission Controller can inject the Python APM library into Kubernetes containers for auto-instrumentation.

@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Add a static collector in the tagger package for tags that do not change after pod start (such as
+    those from an environment variable).
+fixes:
+  - |
+    Fixes an issue where DD_TAGS were not applied to EKS Fargate pods and containers.

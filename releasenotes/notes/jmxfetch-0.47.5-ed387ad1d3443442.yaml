@@ -1,0 +1,6 @@
+enhancements:
+  - |
+    JMXFetch upgraded to `0.47.5 <https://github.com/DataDog/jmxfetch/releases/0.47.5>`_
+    which now supports pulling metrics from `javax.management.openmbean.TabularDataSupport`.
+    Also contains a fix for pulling metrics from `javax.management.openmbean.TabularDataSupport`
+    when no tags are specified.

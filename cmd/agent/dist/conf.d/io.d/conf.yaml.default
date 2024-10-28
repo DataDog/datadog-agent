@@ -1,0 +1,23 @@
+init_config:
+
+  ## @param device_exclude_re - string - optional
+  ## By default, stats for all block devices (listed in /proc/diskstats on Linux)
+  ## are collected. You might want to ignore sub-devices and transient devices
+  ## for more accurate accounting, by providing a regex pattern acting as an
+  ## exclusion list.
+  ##
+  ## This example regexp excludes LVM logical volumes: "^dm-[0-9]+"
+  #
+  # device_exclude_re: <REGEX>
+
+  ## @param lowercase_device_tag - boolean - optional - default: false
+  ## Windows only. By default, on Windows, the value of the `device` tag sent by
+  ## the io check can have uppercase characters (example: `device:C:`), which is
+  ## inconsistent with the `device` tag sent by the `disk` check.
+  ##
+  ## Set this to `true` to send a lowercased `device` tag value.
+  #
+  # lowercase_device_tag: false
+
+instances:
+- {}

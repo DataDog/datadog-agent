@@ -1,0 +1,46 @@
+ad_identifiers:
+  - _dbm_postgres_aurora
+init_config:
+instances:
+  ## @param host - string - optional
+  ## The hostname to connect to.
+  ## NOTE: Even if the server name is `localhost`, the Agent connects to PostgreSQL using TCP/IP unless you also
+  ## provide a value for the sock key.
+  #
+  - host: "%%host%%"
+
+    ## @param port - integer - optional - default: 5432
+    ## The port to use when connecting to PostgreSQL.
+    #
+    port: "%%port%%"
+
+    ## This block defines the configuration for AWS RDS and Aurora instances.
+    ##
+    ## Complete this section if you have installed the Datadog AWS Integration
+    ## (https://docs.datadoghq.com/integrations/amazon_web_services) to enrich instances
+    ## with Postgres integration telemetry or to use IAM Authentication with RDS.
+    ##
+    aws:
+      instance_endpoint: "%%host%%"
+      region: "%%extra_region%%"
+      ## @param managed_authentication - mapping - optional
+      ## Configure section used for AWS IAM Authentication with RDS.
+      ##
+      ## This supports using IAM database authentication to connect to your database instance.
+      ##
+      ## For more information on configuration, see
+      ## https://docs.datadoghq.com/database_monitoring/guide/managed_authentication
+      ##
+      ## For more information on RDS IAM Authentication, see the AWS docs
+      ## https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.Connecting.html
+      ##
+      ## To enable IAM Authentication, set `aws.managed_authentication.enabled` to `true`.
+      ## If `aws.managed_authentication.enabled` is set, then the `password` fields will be ignored.
+      ## `aws.region` is required to enable IAM Authentication.
+      #
+      managed_authentication:
+        enabled: "%%extra_managed_authentication_enabled%%"
+
+    tags:
+      - "dbclusteridentifier:%%extra_dbclusteridentifier%%"
+      - "region:%%extra_region%%"

@@ -1,0 +1,38 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+instances:
+<% @instances.each do |i| -%>
+  - server: <%= i['server'] %>
+    <% if i.key?('port') -%>
+    port: <%= i['port'] %>
+    <% end -%>
+    user: <%= i['user'] %>
+    pass: <%= i['pass'] %>
+    <% if i.key?('sock') -%>
+    sock: <%= i['sock'] %>
+    <% end -%>
+  <% if i.key?('tags') -%>
+    tags:
+    <% i['tags'].each do |t| -%>
+    - <%= t %>
+    <% end -%>
+  <% end -%>
+  <% if i.key?('options') -%>
+    options:
+    <% i['options'].each do |o| -%>
+      <%= o %>
+    <% end -%>
+  <% end -%>
+  <% if i.key?('queries') -%>
+    queries:
+    <% i['queries'].each do |q| -%>
+      - type: <%= q['type'] %>
+        field: <%= q['field'] %>
+        metric: <%= q['metric'] %>
+        query: <%= q['query'] %>
+    <% end -%>
+  <% end -%>
+<% end -%>
+
+# Nothing to configure here
+init_config:

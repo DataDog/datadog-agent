@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Add a new Agent telemetry metric ``autodiscovery_poll_duration`` (histogram)
+    to monitor configuration poll duration in Autodiscovery.

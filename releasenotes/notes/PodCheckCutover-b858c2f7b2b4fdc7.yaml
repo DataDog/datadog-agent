@@ -1,0 +1,11 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    The orchestrator check is moving from the Process Agent to the Core Agent. Any orchestrator configuration set on the Process Agent will need to be moved to the Core Agent.  No other changes are required. If you need to go back to the old check, you can do so temporarily by manually setting the environment variable ``DD_ORCHESTRATOR_EXPLORER_RUN_ON_NODE_AGENT`` to ``false``. The Process Agent pod check will be deprecated in the following release.

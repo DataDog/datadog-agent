@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Removed the internal ability to send logs to a specific logset at agent level.

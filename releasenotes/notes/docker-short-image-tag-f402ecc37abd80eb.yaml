@@ -1,0 +1,3 @@
+---
+features:
+  - Add `short_image` tag to docker tagger collector

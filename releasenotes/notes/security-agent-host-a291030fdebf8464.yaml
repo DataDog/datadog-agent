@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Do not activate security-agent service by default in the Linux packages of the Agent (RPM/DEB). The security-agent was already properly starting and exiting if not activated in configuration.

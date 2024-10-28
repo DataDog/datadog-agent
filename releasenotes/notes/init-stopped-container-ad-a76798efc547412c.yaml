@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Logs can now be collected from init and stopped containers (possibly short-lived).

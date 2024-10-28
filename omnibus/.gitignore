@@ -1,0 +1,12 @@
+*.gem
+.bundle
+.kitchen/
+.kitchen.local.yml
+kitchen.local.yml
+vendor/bundle
+pkg/*
+.vagrant
+bin/*
+files/**/cache/
+vendor/cookbooks
+Gemfile.lock

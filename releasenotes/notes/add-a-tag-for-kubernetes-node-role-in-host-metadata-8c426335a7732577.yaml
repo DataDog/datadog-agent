@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add kube_node_role tag in host metadata for the node role based on the `kubernetes.io/role` label.

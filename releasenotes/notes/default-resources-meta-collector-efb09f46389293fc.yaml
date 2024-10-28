@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    The ``resources`` metadata provider is now enabled by default in order to
+    populate the "process treemap" visualization continuously (on host dashboards)

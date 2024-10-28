@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix a bug where the status command of the security agent
+    could crash if the agent is not fully initialized.

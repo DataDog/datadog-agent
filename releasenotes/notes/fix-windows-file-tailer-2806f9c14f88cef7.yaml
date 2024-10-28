@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix a bug in the file tailer on Windows where the log-agent would keep a
+    lock on the file preventing users from renaming the it.

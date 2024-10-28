@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix disk check reporting /dev/root instead of the actual
+    block device path and missing its tags when tag_by_label
+    is enabled.

@@ -1,0 +1,86 @@
+# NOTE: You have to use single-quoted strings in TOML for regular expressions.
+# It's the equivalent of r-strings in Python. Multiline strings are treated as
+# verbose regular expressions by Black. Use [ ] to denote a significant space
+# character.
+
+[tool.ruff]
+target-version = "py311"
+exclude = [
+    ".git",
+    ".github",
+    ".circleci",
+    "chocolatey",
+    "Dockerfiles",
+    "docs",
+    "google-marketplace",
+    "omnibus",
+    "releasenotes",
+    "vendor",
+    "venv",
+    "dev",
+]
+line-length = 120
+
+[tool.ruff.lint]
+# All the rules can be found here: https://beta.ruff.rs/docs/rules/
+select = [
+    "B",
+    "C",
+    "E",
+    "F",
+    "G",
+    "I",
+    "U",
+    "W",
+]
+ignore = [
+    "E501", # line-too-long
+    "C901", # complex-structure
+    "UP033", # Ignore the lru_cache for now
+    "UP017", # Ignore datetime.UTC for now
+]
+unfixable = [
+    "UP033", # Don't fix the lru_cache yet
+    "UP017", # Don't fix datetime.UTC yet
+]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.format]
+# Enable preview style formatting.
+quote-style = "preserve"
+
+[tool.mypy]
+python_version = "3.11"
+# Follows imports and type-check imported modules.
+follow_imports = "normal"
+# Ignore errors about imported packages that don't provide type hints.
+ignore_missing_imports = true
+# Don't require that all functions be annotated, as it would create
+# a lot of noise for imported modules that aren't annotated yet.
+# Note that this is the default behavior, but we're making our choice explicit here.
+disallow_untyped_defs = false
+# Include column numbers in errors.
+show_column_numbers = true
+files = ['tasks']
+disable_error_code = [
+    # TODO: fix them later
+    "assignment",
+    "index",
+    "operator",
+    "arg-type",
+    "typeddict-item",
+    "annotation-unchecked",
+    "call-overload",
+    "var-annotated",
+    "type-arg",
+    "union-attr",
+    "list-item",
+    "return-value",
+]
+
+[tool.vulture]
+ignore_decorators = ["@task"]
+ignore_names = ["test_*", "Test*"]
+paths = ["tasks"]

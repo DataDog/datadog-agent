@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fix a Network Performance Monitoring issue where TCP connection direction was incorrectly classified as ``outgoing`` in containerized environments.

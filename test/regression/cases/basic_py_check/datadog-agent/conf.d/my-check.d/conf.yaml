@@ -1,0 +1,3 @@
+instances:
+  - config_option_a: some-value
+    config_option_b: some-other-value

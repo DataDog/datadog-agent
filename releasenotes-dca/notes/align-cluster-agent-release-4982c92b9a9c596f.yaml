@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Align Cluster Agent version to Agent version. Cluster Agent will now be released with 7.x.y tags

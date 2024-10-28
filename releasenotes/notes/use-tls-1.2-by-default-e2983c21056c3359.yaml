@@ -1,0 +1,6 @@
+---
+upgrade:
+    The Agent now defaults to TLS 1.2 instead of TLS 1.0. The ``force_tls_12`` configuration parameter has been
+    removed since it's now the default behavior.
+    To continue using TLS 1.0 or 1.1, you must set the ``min_tls_version`` configuration parameter to either
+    `tlsv1.0` or `tlsv1.1`.

@@ -1,0 +1,3 @@
+fixes:
+  - |
+    The Windows installer can now install on domains where the domain name is different from the Netbios name.

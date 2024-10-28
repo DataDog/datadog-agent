@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixed a bug in the Dual Shipping feature where events were not being
+    emitted on endpoint recovery.

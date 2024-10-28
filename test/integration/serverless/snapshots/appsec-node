@@ -1,0 +1,140 @@
+[
+  {
+    "triggers": [
+      {
+        "rule": {
+          "id": "crs-942-100",
+          "name": "SQL Injection Attack Detected via libinjection",
+          "tags": {
+            "capec": "1000/152/248/66",
+            "category": "attack_attempt",
+            "crs_id": "942100",
+            "cwe": "89",
+            "type": "sql_injection"
+          }
+        },
+        "rule_matches": [
+          {
+            "operator": "is_sqli",
+            "operator_value": "",
+            "parameters": [
+              {
+                "address": "server.request.query",
+                "highlight": [
+                  "1;Tnn"
+                ],
+                "key_path": [
+                  "sql",
+                  "0"
+                ],
+                "value": "105; DROP TABLE Users;"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "rule": {
+          "id": "ua0-600-12x",
+          "name": "Arachni",
+          "tags": {
+            "capec": "1000/118/169",
+            "category": "attack_attempt",
+            "confidence": "1",
+            "cwe": "200",
+            "tool_name": "Arachni",
+            "type": "attack_tool"
+          }
+        },
+        "rule_matches": [
+          {
+            "operator": "match_regex",
+            "operator_value": "^Arachni\\/v",
+            "parameters": [
+              {
+                "address": "server.request.headers.no_cookies",
+                "highlight": [
+                  "Arachni/v"
+                ],
+                "key_path": [
+                  "user-agent",
+                  "0"
+                ],
+                "value": "Arachni/v1"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "triggers": [
+      {
+        "rule": {
+          "id": "crs-942-100",
+          "name": "SQL Injection Attack Detected via libinjection",
+          "tags": {
+            "capec": "1000/152/248/66",
+            "category": "attack_attempt",
+            "crs_id": "942100",
+            "cwe": "89",
+            "type": "sql_injection"
+          }
+        },
+        "rule_matches": [
+          {
+            "operator": "is_sqli",
+            "operator_value": "",
+            "parameters": [
+              {
+                "address": "server.request.query",
+                "highlight": [
+                  "1;Tnn"
+                ],
+                "key_path": [
+                  "sql",
+                  "0"
+                ],
+                "value": "105; DROP TABLE Users;"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "rule": {
+          "id": "ua0-600-12x",
+          "name": "Arachni",
+          "tags": {
+            "capec": "1000/118/169",
+            "category": "attack_attempt",
+            "confidence": "1",
+            "cwe": "200",
+            "tool_name": "Arachni",
+            "type": "attack_tool"
+          }
+        },
+        "rule_matches": [
+          {
+            "operator": "match_regex",
+            "operator_value": "^Arachni\\/v",
+            "parameters": [
+              {
+                "address": "server.request.headers.no_cookies",
+                "highlight": [
+                  "Arachni/v"
+                ],
+                "key_path": [
+                  "user-agent",
+                  "0"
+                ],
+                "value": "Arachni/v1"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

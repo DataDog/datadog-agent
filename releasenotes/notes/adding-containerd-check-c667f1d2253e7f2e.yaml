@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Adding native containerd check, based on the containerd socket.

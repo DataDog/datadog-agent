@@ -1,0 +1,113 @@
+:root > * {
+  /* https://www.datadoghq.com/about/resources/#datadog-purple */
+  --md-primary-fg-color: #632CA6;
+  --md-primary-fg-color--dark: #632CA6;
+
+  /* https://github.com/squidfunk/mkdocs-material/blob/9.1.2/src/assets/stylesheets/palette/_primary.scss#L34 */
+  --md-primary-fg-color--light: #9574CD;
+}
+
+/* Brighter links for dark mode */
+[data-md-color-scheme=slate] {
+  /* https://github.com/squidfunk/mkdocs-material/blob/9.1.2/src/assets/stylesheets/main/_colors.scss#L91-L92 */
+  --md-typeset-a-color: var(--md-primary-fg-color--light);
+}
+
+/* FiraCode https://github.com/tonsky/FiraCode */
+code { font-family: 'Fira Code', monospace; }
+
+@supports (font-variation-settings: normal) {
+  code { font-family: 'Fira Code VF', monospace; }
+}
+
+/* https://github.com/squidfunk/mkdocs-material/issues/1522 */
+.md-typeset h5 {
+  color: var(--md-default-fg-color);
+  text-transform: none;
+}
+
+/* https://facelessuser.github.io/pymdown-extensions/extensions/tabbed/ */
+.md-typeset .tabbed-set {
+  border: 1px solid #eee;
+}
+.md-typeset .tabbed-content {
+  padding: 0.5em 1em;
+}
+
+/* https://facelessuser.github.io/pymdown-extensions/extensions/progressbar/ */
+
+/* TODO: replace all this when there is an updated example https://github.com/facelessuser/pymdown-extensions/issues/912 */
+
+/* Normal colors */
+:root > * {
+  --md-progress-100: #00e676;
+  --md-progress-80: #00e676;
+  --md-progress-60: #fbc02d;
+  --md-progress-40: #ff9100;
+  --md-progress-20: #ff5252;
+  --md-progress-0: #ff1744;
+}
+
+.md-typeset {
+  /* Progress Bars */
+  /* Stripe animation */ }
+  .md-typeset .progress-label {
+    position: absolute;
+    width: 100%;
+    margin: 0;
+    color: var(--md-default-fg-color);
+    font-weight: 700;
+    line-height: 1.4rem;
+    white-space: nowrap;
+    text-align: center;
+    text-shadow: -0.0625em -0.0625em 0.375em var(--md-default-bg-color--light), 0.0625em -0.0625em 0.375em var(--md-default-bg-color--light), -0.0625em 0.0625em 0.375em var(--md-default-bg-color--light), 0.0625em 0.0625em 0.375em var(--md-default-bg-color--light); }
+  .md-typeset .progress-bar {
+    float: left;
+    height: 1.2rem;
+    background-color: #2979ff; }
+  .md-typeset .candystripe-animate .progress-bar {
+    -webkit-animation: animate-stripes 3s linear infinite;
+            animation: animate-stripes 3s linear infinite; }
+  .md-typeset .progress {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 1.2rem;
+    margin: 0.5rem 0;
+    background-color: var(--md-default-fg-color--lightest); }
+    .md-typeset .progress.thin {
+      height: 0.4rem;
+      margin-top: 0.9rem; }
+      .md-typeset .progress.thin .progress-label {
+        margin-top: -0.4rem; }
+      .md-typeset .progress.thin .progress-bar {
+        height: 0.4rem; }
+    .md-typeset .progress.candystripe .progress-bar {
+      background-image: linear-gradient(135deg, var(--md-default-bg-color--lightest) 27%, transparent 27%, transparent 52%, var(--md-default-bg-color--lightest) 52%, var(--md-default-bg-color--lightest) 77%, transparent 77%, transparent);
+      background-size: 2rem 2rem; }
+  .md-typeset .progress-100plus .progress-bar {
+    background-color: var(--md-progress-100); }
+  .md-typeset .progress-80plus .progress-bar {
+    background-color: var(--md-progress-80); }
+  .md-typeset .progress-60plus .progress-bar {
+    background-color: var(--md-progress-60); }
+  .md-typeset .progress-40plus .progress-bar {
+    background-color: var(--md-progress-40); }
+  .md-typeset .progress-20plus .progress-bar {
+    background-color: var(--md-progress-20); }
+  .md-typeset .progress-0plus .progress-bar {
+    background-color: var(--md-progress-0); }
+
+@-webkit-keyframes animate-stripes {
+  0% {
+    background-position: 0 0; }
+  100% {
+    background-position: 6rem 0; } }
+
+@keyframes animate-stripes {
+  0% {
+    background-position: 0 0; }
+  100% {
+    background-position: 6rem 0; } }
+
+/* END TODO */

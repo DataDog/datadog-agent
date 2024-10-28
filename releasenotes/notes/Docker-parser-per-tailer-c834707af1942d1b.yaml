@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Logs docker container ID when parse invalid docker log in DEBUG level.

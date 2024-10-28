@@ -1,0 +1,25 @@
+---
+include:
+  - .gitlab/common/container_publish_job_templates.yml
+
+revert_latest_7:
+  extends: .docker_publish_job_definition
+  rules: !reference [.on_main_manual]
+  stage: maintenance_jobs
+  variables:
+    NEW_LATEST_RELEASE_7: "" # tag name of the non-jmx version, for example "7.21.0"
+    IMG_REGISTRIES: public
+  parallel:
+    matrix:
+      - IMG_SOURCES: datadog/agent:${NEW_LATEST_RELEASE_7}
+        IMG_DESTINATIONS: agent:7,agent:latest
+      - IMG_SOURCES: datadog/agent:${NEW_LATEST_RELEASE_7}-jmx
+        IMG_DESTINATIONS: agent:7-jmx,agent:latest-jmx
+      - IMG_SOURCES: datadog/agent:${NEW_LATEST_RELEASE_7}-servercore
+        IMG_DESTINATIONS: agent:7-servercore,agent:latest-servercore
+      - IMG_SOURCES: datadog/agent:${NEW_LATEST_RELEASE_7}-servercore-jmx
+        IMG_DESTINATIONS: agent:7-servercore-jmx,agent:latest-servercore-jmx
+      - IMG_SOURCES: datadog/dogstatsd:${NEW_LATEST_RELEASE_7}
+        IMG_DESTINATIONS: dogstatsd:7,dogstatsd:latest
+      - IMG_SOURCES: datadog/cluster-agent:${NEW_LATEST_RELEASE_7}
+        IMG_DESTINATIONS: cluster-agent:latest

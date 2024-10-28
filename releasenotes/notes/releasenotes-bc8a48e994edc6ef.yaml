@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Collect SystemInfo for Pods and ECS Tasks.
