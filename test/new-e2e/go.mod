@@ -61,7 +61,7 @@ require (
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
 	github.com/DataDog/test-infra-definitions v0.0.0-20241024081202-f089ef2327de
-	github.com/aws/aws-sdk-go-v2 v1.32.2
+	github.com/aws/aws-sdk-go-v2 v1.32.3
 	github.com/aws/aws-sdk-go-v2/config v1.27.40
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.164.2
 	github.com/aws/aws-sdk-go-v2/service/eks v1.44.1
