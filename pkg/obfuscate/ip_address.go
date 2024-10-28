@@ -47,10 +47,22 @@ func splitPrefix(raw string) (prefix, after string) {
 	if after, ok := strings.CutPrefix(raw, "ip-"); ok { // AWS EC2 hostnames e.g. ip-10-123-4-567.ec2.internal
 		return "ip-", after
 	}
-	subMatches := protocolRegex.FindStringSubmatch(raw)
-	if len(subMatches) >= 2 {
-		prefix = subMatches[1]
+
+	isHintFound := false
+	for _, hint := range []string{"dnspoll", "ftp", "file", "http"} {
+		if strings.Contains(raw, hint) {
+			isHintFound = true
+			break
+		}
 	}
+
+	if isHintFound {
+		subMatches := protocolRegex.FindStringSubmatch(raw)
+		if len(subMatches) >= 2 {
+			prefix = subMatches[1]
+		}
+	}
+
 	return prefix, raw[len(prefix):]
 }
 
