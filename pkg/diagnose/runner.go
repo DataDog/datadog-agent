@@ -409,7 +409,7 @@ type SuitesDeps struct {
 	Collector      optional.Option[collector.Component]
 	SecretResolver secrets.Component
 	WMeta          optional.Option[workloadmeta.Component]
-	AC             optional.Option[autodiscovery.Component]
+	AC             autodiscovery.Component
 }
 
 // SuitesDepsInCLIProcess stores the dependencies for the diagnose suites when running the CLI Process.
@@ -458,7 +458,7 @@ func NewSuitesDeps(
 	senderManager sender.DiagnoseSenderManager,
 	collector optional.Option[collector.Component],
 	secretResolver secrets.Component,
-	wmeta optional.Option[workloadmeta.Component], ac optional.Option[autodiscovery.Component],
+	wmeta optional.Option[workloadmeta.Component], ac autodiscovery.Component,
 ) SuitesDeps {
 	return SuitesDeps{
 		SenderManager:  senderManager,

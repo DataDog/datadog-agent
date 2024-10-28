@@ -1,4 +1,3 @@
-import subprocess
 import unittest
 from collections import OrderedDict
 from unittest.mock import MagicMock, patch
@@ -9,13 +8,16 @@ from invoke import MockContext, Result
 from tasks.libs.ciproviders.gitlab_api import (
     GitlabCIDiff,
     MultiGitlabCIDiff,
+    ReferenceTag,
     clean_gitlab_ci_configuration,
     expand_matrix_jobs,
     filter_gitlab_ci_configuration,
+    find_buildimages,
     gitlab_configuration_is_modified,
     read_includes,
     retrieve_all_paths,
     update_gitlab_config,
+    update_image_tag,
 )
 
 
@@ -483,31 +485,181 @@ class TestGitlabConfigurationIsModified(unittest.TestCase):
         self.assertTrue(gitlab_configuration_is_modified(c))
 
 
-class TestUpdateGitlabCI(unittest.TestCase):
-    gitlabci_file = "tasks/unit_tests/testdata/fake_gitlab-ci.yml"
-    erroneous_file = "tasks/unit_tests/testdata/erroneous_gitlab-ci.yml"
+class TestFilterVariables(unittest.TestCase):
+    def test_no_images(self):
+        variables = {
+            'DATADOG_AGENT_BUILDIMAGES_SUFFIX': '',
+            'DATADOG_AGENT_BUILDIMAGES': 'haddock',
+            'DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX': '',
+            'DATADOG_AGENT_SYSPROBE_BUILDIMAGES': 'v46542806-c7a4a6be',
+            'CI_IMAGE_AGENT': 'tintin',
+            'CI_IMAGE_AGENT_SUFFIX': '',
+            'OTHER_VARIABLE_SUFFIX': '',
+            'OTHER_VARIABLE': 'lampion',
+        }
+        self.assertEqual(
+            list(find_buildimages(variables)), ['DATADOG_AGENT_BUILDIMAGES', 'DATADOG_AGENT_SYSPROBE_BUILDIMAGES']
+        )
 
-    def tearDown(self) -> None:
-        subprocess.run(f"git checkout -- {self.gitlabci_file} {self.erroneous_file}".split())
-        return super().tearDown()
+    def test_one_image(self):
+        variables = {
+            'DATADOG_AGENT_BUILDIMAGES_SUFFIX': '',
+            'DATADOG_AGENT_BUILDIMAGES': 'haddock',
+            'CI_IMAGE_AGENT': 'tintin',
+            'CI_IMAGE_AGENT_SUFFIX': '',
+            'CI_IMAGE_OWNER': 'tournesol',
+            'CI_IMAGE_OWNER_SUFFIX': '',
+            'OTHER_VARIABLE_SUFFIX': '',
+            'OTHER_VARIABLE': 'lampion',
+        }
+        self.assertEqual(list(find_buildimages(variables, "agent", "CI_IMAGE")), ['CI_IMAGE_AGENT'])
+        self.assertEqual(list(find_buildimages(variables, "AGENT", "CI_IMAGE")), ['CI_IMAGE_AGENT'])
 
-    def test_nominal(self):
-        update_gitlab_config(self.gitlabci_file, "1mageV3rsi0n", test_version=True)
-        with open(self.gitlabci_file) as gl:
-            gitlab_ci = yaml.safe_load(gl)
-        for variable, value in gitlab_ci["variables"].items():
-            # TEST_INFRA_DEFINITION_BUILDIMAGE label format differs from other buildimages
-            if variable.endswith("_SUFFIX") and not variable.startswith("TEST_INFRA_DEFINITION"):
-                self.assertEqual("_test_only", value)
+    def test_multi_match(self):
+        variables = {
+            'DATADOG_AGENT_BUILDIMAGES_SUFFIX': '',
+            'DATADOG_AGENT_BUILDIMAGES': 'haddock',
+            'CI_IMAGE_AGENT': 'tintin',
+            'CI_IMAGE_AGENT_SUFFIX': '',
+            'CI_IMAGE_AGENT_42': 'tournesol',
+            'CI_IMAGE_AGENT_42_SUFFIX': '',
+        }
+        self.assertEqual(
+            list(find_buildimages(variables, "agent", "CI_IMAGE")), ['CI_IMAGE_AGENT', 'CI_IMAGE_AGENT_42']
+        )
+        self.assertEqual(
+            list(find_buildimages(variables, "AGENT", "CI_IMAGE")), ['CI_IMAGE_AGENT', 'CI_IMAGE_AGENT_42']
+        )
+
+    def test_all_images(self):
+        variables = {
+            'DATADOG_AGENT_BUILDIMAGES_SUFFIX': '',
+            'DATADOG_AGENT_BUILDIMAGES': 'haddock',
+            'CI_IMAGE_AGENT': 'tintin',
+            'CI_IMAGE_AGENT_SUFFIX': '',
+            'CI_IMAGE_AGENT_42': 'tournesol',
+            'CI_IMAGE_AGENT_42_SUFFIX': '',
+            'CI_IMAGE_OWNER': 'tapioca',
+            'CI_IMAGE_OWNER_SUFFIX': '',
+        }
+        self.assertEqual(
+            list(find_buildimages(variables, "", "CI_IMAGE")), ['CI_IMAGE_AGENT', 'CI_IMAGE_AGENT_42', 'CI_IMAGE_OWNER']
+        )
+        self.assertEqual(
+            list(find_buildimages(variables, "", "CI_IMAGE")), ['CI_IMAGE_AGENT', 'CI_IMAGE_AGENT_42', 'CI_IMAGE_OWNER']
+        )
+
+
+class TestModifyContent(unittest.TestCase):
+    gitlab_ci = None
+
+    def setUp(self) -> None:
+        with open(".gitlab-ci.yml") as gl:
+            self.gitlab_ci = gl.readlines()
+        return super().setUp()
+
+    def test_all_buildimages(self):
+        prefix = 'DATADOG_AGENT_'
+        images = [
+            'DATADOG_AGENT_BUILDIMAGES',
+            'DATADOG_AGENT_WINBUILDIMAGES',
+            'DATADOG_AGENT_ARMBUILDIMAGES',
+            'DATADOG_AGENT_SYSPROBE_BUILDIMAGES',
+            'DATADOG_AGENT_BTF_GEN_BUILDIMAGES',
+        ]
+        modified = update_image_tag(self.gitlab_ci, "1mageV3rsi0n", images)
+        yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+        config = yaml.safe_load("".join(modified))
+        self.assertEqual(
+            5, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "_test_only")
+        )
+        self.assertEqual(
+            5, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "1mageV3rsi0n")
+        )
+
+    def test_one_buildimage(self):
+        prefix = 'DATADOG_AGENT_'
+        images = ['DATADOG_AGENT_BTF_GEN_BUILDIMAGES']
+        modified = update_image_tag(self.gitlab_ci, "1mageV3rsi0n", images)
+        yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+        config = yaml.safe_load("".join(modified))
+        self.assertEqual(
+            1, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "_test_only")
+        )
+        self.assertEqual(
+            1, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "1mageV3rsi0n")
+        )
+
+    def test_one_image(self):
+        prefix = "CI_IMAGE_"
+        images = ['CI_IMAGE_DEB_X64']
+        modified = update_image_tag(self.gitlab_ci, "1mageV3rsi0n", images)
+        yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+        config = yaml.safe_load("".join(modified))
+        self.assertEqual(
+            1, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "_test_only")
+        )
+        self.assertEqual(
+            1, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "1mageV3rsi0n")
+        )
+
+    def test_several_images(self):
+        prefix = "CI_IMAGE_"
+        images = ['CI_IMAGE_DEB_X64', 'CI_IMAGE_RPM_ARMHF']
+        modified = update_image_tag(self.gitlab_ci, "1mageV3rsi0n", images)
+        yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+        config = yaml.safe_load("".join(modified))
+        self.assertEqual(
+            2, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "_test_only")
+        )
+        self.assertEqual(
+            2, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "1mageV3rsi0n")
+        )
+
+    def test_multimatch(self):
+        prefix = "CI_IMAGE_"
+        images = ['X64']
+        modified = update_image_tag(self.gitlab_ci, "1mageV3rsi0n", images)
+        yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+        config = yaml.safe_load("".join(modified))
+        self.assertEqual(
+            7, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "_test_only")
+        )
+        self.assertEqual(
+            7, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "1mageV3rsi0n")
+        )
 
     def test_update_no_test(self):
-        update_gitlab_config(self.gitlabci_file, "1mageV3rsi0n", test_version=False)
-        with open(self.gitlabci_file) as gl:
-            gitlab_ci = yaml.safe_load(gl)
-        for variable, value in gitlab_ci["variables"].items():
-            if variable.endswith("_SUFFIX"):
-                self.assertEqual("", value)
+        prefix = "CI_IMAGE_"
+        images = [
+            'GITLAB_AGENT_DEPLOY',
+            'CI_IMAGE_BTF_GEN',
+            'DEB',
+            'DD_AGENT_TESTING',
+            'DOCKER',
+            'GLIBC',
+            'SYSTEM_PROBE',
+            'RPM',
+            'WIN',
+        ]
+        modified = update_image_tag(self.gitlab_ci, "1mageV3rsi0n", images, test=False)
+        yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+        config = yaml.safe_load("".join(modified))
+        self.assertEqual(
+            0, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "_test_only")
+        )
+        self.assertEqual(
+            17, sum(1 for k, v in config["variables"].items() if k.startswith(prefix) and v == "1mageV3rsi0n")
+        )
 
-    def test_raise(self):
-        with self.assertRaises(RuntimeError):
-            update_gitlab_config(self.erroneous_file, "1mageV3rsi0n", test_version=False)
+
+class TestUpdateGitlabConfig(unittest.TestCase):
+    def test_old_images(self):
+        self.assertEqual(
+            len(update_gitlab_config(".gitlab-ci.yml", tag="gru", images="", test=False, update=False)), 22
+        )
+
+    def test_multi_update(self):
+        self.assertEqual(
+            len(update_gitlab_config(".gitlab-ci.yml", tag="gru", images="deb,rpm", test=False, update=False)), 11
+        )

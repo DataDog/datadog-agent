@@ -71,13 +71,12 @@ def _get_vs_build_command(cmd, vstudio_root=None):
     return cmd
 
 
-def _get_env(ctx, major_version='7', python_runtimes='3', release_version='nightly'):
+def _get_env(ctx, major_version='7', release_version='nightly'):
     env = load_release_versions(ctx, release_version)
 
     env['PACKAGE_VERSION'] = get_version(
         ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
     )
-    env['PY_RUNTIMES'] = python_runtimes
     env['AGENT_INSTALLER_OUTPUT_DIR'] = f'{BUILD_OUTPUT_DIR}'
     env['NUGET_PACKAGES_DIR'] = f'{NUGET_PACKAGES_DIR}'
     return env
@@ -266,13 +265,11 @@ def _build_msi(ctx, env, outdir, name, allowlist):
 
 
 @task
-def build(
-    ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', release_version='nightly', debug=False
-):
+def build(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False):
     """
     Build the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version, python_runtimes, release_version)
+    env = _get_env(ctx, major_version, release_version)
     env['OMNIBUS_TARGET'] = 'main'
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
@@ -358,13 +355,11 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
 
 
 @task
-def test(
-    ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', release_version='nightly', debug=False
-):
+def test(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False):
     """
     Run the unit test for the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version, python_runtimes, release_version)
+    env = _get_env(ctx, major_version, release_version)
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
 

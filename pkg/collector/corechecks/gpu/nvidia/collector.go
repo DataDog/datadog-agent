@@ -5,12 +5,12 @@
 
 //go:build linux
 
-// Package nvmlmetrics holds the logic to collect metrics from the NVIDIA Management Library (NVML).
+// Package nvidia holds the logic to collect metrics from the NVIDIA Management Library (NVML).
 // The main entry point is the BuildCollectors functions, which returns a set of collectors that will
 // gather metrics from the available NVIDIA devices on the system. Each collector is responsible for
 // a specific subsystem of metrics, such as device metrics, GPM metrics, etc. The collected metrics will
 // be returned with the associated tags for each device.
-package nvmlmetrics
+package nvidia
 
 import (
 	"errors"
@@ -56,7 +56,12 @@ var errUnsupportedDevice = errors.New("device does not support the given collect
 type subsystemBuilder func(lib nvml.Interface, device nvml.Device, tags []string) (Collector, error)
 
 // allSubsystems is a map of all the subsystems that can be used to collect metrics from NVML.
-var allSubsystems = map[string]subsystemBuilder{}
+var allSubsystems = map[string]subsystemBuilder{
+	fieldsCollectorName:       newFieldsCollector,
+	deviceCollectorName:       newDeviceCollector,
+	remappedRowsCollectorName: newRemappedRowsCollector,
+	clocksCollectorName:       newClocksCollector,
+}
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
 func BuildCollectors(lib nvml.Interface) ([]Collector, error) {
