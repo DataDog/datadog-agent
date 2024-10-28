@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package datadog.remoteagent;
+
+option go_package = "pkg/proto/pbgo/core"; // golang
+
+message RegistrationData {
+  string agent_id = 1;
+}
+
+message StatusSection {
+  map<string, string> fields = 2;
+}
+
+message StatusData {
+  string agent_id = 1;
+  StatusSection main_section = 2;
+  map<string, StatusSection> named_sections = 3;
+}
+
+message FlareData {
+  string agent_id = 1;
+  map<string, bytes> files = 2;
+}
+
+message RegistrationResponse {
+  string agent_id = 1;
+}
+
+message StatusRequest {
+  string agent_id = 1;
+}
+
+message FlareRequest {
+  string agent_id = 1;
+}
+
+message UpdateRemoteAgentStreamRequest {
+  oneof payload {
+    RegistrationData register = 1;
+    StatusData status = 2;
+    FlareData flare = 3;
+  }
+}
+
+message UpdateRemoteAgentStreamResponse {
+  oneof payload {
+    RegistrationResponse register = 1;
+    string keep_alive = 2;
+    StatusRequest status = 3;
+    FlareRequest flare = 4;
+  }
+}

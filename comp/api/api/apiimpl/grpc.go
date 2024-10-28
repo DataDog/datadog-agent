@@ -20,6 +20,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
+	remoteagentServer "github.com/DataDog/datadog-agent/comp/remoteagent/server"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggerProto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
@@ -48,6 +49,7 @@ type serverSecure struct {
 	dogstatsdServer    dogstatsdServer.Component
 	capture            dsdReplay.Component
 	pidMap             pidmap.Component
+	remoteAgentServer  *remoteagentServer.Server
 }
 
 func (s *grpcServer) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -181,6 +183,11 @@ func (s *serverSecure) GetConfigStateHA(_ context.Context, _ *emptypb.Empty) (*p
 // WorkloadmetaStreamEntities streams entities from the workloadmeta store applying the given filter
 func (s *serverSecure) WorkloadmetaStreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSecure_WorkloadmetaStreamEntitiesServer) error {
 	return s.workloadmetaServer.StreamEntities(in, out)
+}
+
+func (s *serverSecure) UpdateRemoteAgent(srv pb.AgentSecure_UpdateRemoteAgentServer) error {
+	log.Info("Remote agent connected.")
+	return s.remoteAgentServer.UpdateRemoteAgent(srv)
 }
 
 func init() {

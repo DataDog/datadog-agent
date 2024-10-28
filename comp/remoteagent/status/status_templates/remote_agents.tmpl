@@ -1,0 +1,32 @@
+{{ if not .agentStatusMap }}
+No remote agents registered
+{{ else }}
+{{- with .agentStatusMap }}
+  {{- range $agentId, $statusDetail := . }}
+    {{ $agentId }}
+    {{ printDashes $agentId "=" }}
+
+    {{- with $statusDetail }}
+    {{ if .FailureReason }}
+    {{ .FailureReason }}
+    {{ else }}
+    {{- if .MainSection }}
+    {{- range $key, $value := .MainSection }}
+    {{ $key }}: {{ $value }}
+    {{- end }}
+    {{- end }}
+    {{ if .NamedSections }}
+    {{- range $sectionName, $section := .NamedSections }}
+      {{ $sectionName }}
+      {{ printDashes $sectionName "-" }}
+
+    {{- range $key, $value := $section }}
+      {{ $key }}: {{ $value }}
+    {{- end }}
+    {{ end }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}

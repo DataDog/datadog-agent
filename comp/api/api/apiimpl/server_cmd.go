@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
+	remoteagentServer "github.com/DataDog/datadog-agent/comp/remoteagent/server"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -75,6 +76,7 @@ func (server *apiServer) startCMDServer(
 		dogstatsdServer:    server.dogstatsdServer,
 		capture:            server.capture,
 		pidMap:             server.pidMap,
+		remoteAgentServer:  remoteagentServer.NewServer(server.remoteAgent),
 	})
 
 	dcreds := credentials.NewTLS(&tls.Config{

@@ -3,6 +3,7 @@ syntax = "proto3";
 package datadog.api.v1;
 
 import "datadog/model/v1/model.proto";
+import "datadog/remoteagent/remoteagent.proto";
 import "datadog/remoteconfig/remoteconfig.proto";
 import "datadog/workloadmeta/workloadmeta.proto";
 import "google/api/annotations.proto";
@@ -141,6 +142,13 @@ service AgentSecure {
     rpc WorkloadmetaStreamEntities(datadog.workloadmeta.WorkloadmetaStreamRequest) returns (stream datadog.workloadmeta.WorkloadmetaStreamResponse) {
         option (google.api.http) = {
             post: "/v1/grpc/workloadmeta/stream_entities"
+            body: "*"
+        };
+    };
+
+    rpc UpdateRemoteAgent(stream datadog.remoteagent.UpdateRemoteAgentStreamRequest) returns (stream datadog.remoteagent.UpdateRemoteAgentStreamResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/remoteagent/update_remote_agent"
             body: "*"
         };
     };

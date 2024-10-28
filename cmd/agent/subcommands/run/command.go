@@ -122,6 +122,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/rcservicemrfimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
+	remoteagentfx "github.com/DataDog/datadog-agent/comp/remoteagent/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
@@ -471,6 +472,7 @@ func getSharedFxOption() fx.Option {
 		settingsimpl.Module(),
 		agenttelemetryfx.Module(),
 		networkpath.Bundle(),
+		remoteagentfx.Module(),
 	)
 }
 

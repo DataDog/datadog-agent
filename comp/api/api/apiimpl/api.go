@@ -28,6 +28,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
+	remoteagent "github.com/DataDog/datadog-agent/comp/remoteagent/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -53,6 +54,7 @@ type apiServer struct {
 	wmeta             workloadmeta.Component
 	collector         optional.Option[collector.Component]
 	senderManager     diagnosesendermanager.Component
+	remoteAgent       remoteagent.Component
 	cmdListener       net.Listener
 	ipcListener       net.Listener
 	telemetry         telemetry.Component
@@ -79,6 +81,7 @@ type dependencies struct {
 	DiagnoseSenderManager diagnosesendermanager.Component
 	Telemetry             telemetry.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
+	RemoteAgent           remoteagent.Component
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -102,6 +105,7 @@ func newAPIServer(deps dependencies) api.Component {
 		senderManager:     deps.DiagnoseSenderManager,
 		telemetry:         deps.Telemetry,
 		endpointProviders: fxutil.GetAndFilterGroup(deps.EndpointProviders),
+		remoteAgent:       deps.RemoteAgent,
 	}
 
 	deps.Lc.Append(fx.Hook{
