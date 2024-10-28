@@ -1,0 +1,52 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 100
+
+exporters:
+  debug:
+  otlp:
+    endpoint: "localhost:4317"
+    tls:
+      insecure: true  # Set to true for testing; adjust for production.
+  datadog/exporter:
+    api:
+      site: datadoghq.com
+      key: "12345"
+
+extensions:
+  ddflare:
+    include_metadata: true  # Set to true for testing; adjust for production.
+  health_check:
+
+service:
+  extensions:
+    - ddflare
+    - health_check
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug, otlp]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug, otlp]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [datadog/exporter]
+
+# TODO: enable Additional configuration providers
+# providers:
+#   env:
+#   file:
+#   http:
+#   https:
+#   yaml:
