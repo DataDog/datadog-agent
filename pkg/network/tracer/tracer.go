@@ -38,10 +38,10 @@ import (
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	timeresolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -98,7 +98,7 @@ type Tracer struct {
 
 	processCache *processCache
 
-	timeResolver *timeresolver.Resolver
+	timeResolver *ktime.Resolver
 
 	telemetryComp telemetryComponent.Component
 }
@@ -188,7 +188,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		}
 		telemetry.GetCompatComponent().RegisterCollector(tr.processCache)
 
-		if tr.timeResolver, err = timeresolver.NewResolver(); err != nil {
+		if tr.timeResolver, err = ktime.NewResolver(); err != nil {
 			return nil, fmt.Errorf("could not create time resolver: %w", err)
 		}
 
@@ -767,7 +767,7 @@ func (t *Tracer) connVia(cs *network.ConnectionStats) {
 }
 
 // DebugCachedConntrack dumps the cached NAT conntrack data
-func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) {
+func (t *Tracer) DebugCachedConntrack(ctx context.Context) (*DebugConntrackTable, error) {
 	ns, err := t.config.GetRootNetNs()
 	if err != nil {
 		return nil, err
@@ -783,17 +783,15 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) 
 		return nil, err
 	}
 
-	return struct {
-		RootNS  uint32
-		Entries map[uint32][]netlink.DebugConntrackEntry
-	}{
+	return &DebugConntrackTable{
+		Kind:    "cached-" + t.conntracker.GetType(),
 		RootNS:  rootNS,
 		Entries: table,
 	}, nil
 }
 
 // DebugHostConntrack dumps the NAT conntrack data obtained from the host via netlink.
-func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
+func (t *Tracer) DebugHostConntrack(ctx context.Context) (*DebugConntrackTable, error) {
 	ns, err := t.config.GetRootNetNs()
 	if err != nil {
 		return nil, err
@@ -809,12 +807,15 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 		return nil, err
 	}
 
-	return struct {
-		RootNS  uint32
-		Entries map[uint32][]netlink.DebugConntrackEntry
-	}{
-		RootNS:  rootNS,
-		Entries: table,
+	// some clients have tens of thousands of connections and we need to stop early
+	// if netlink takes too long. we indicate this behavior occured early with IsTruncated
+	isTruncated := errors.Is(ctx.Err(), context.DeadlineExceeded)
+
+	return &DebugConntrackTable{
+		Kind:        "host-nat",
+		RootNS:      rootNS,
+		Entries:     table,
+		IsTruncated: isTruncated,
 	}, nil
 }
 

@@ -50,6 +50,7 @@ type ProvisionerParams struct {
 	infraShouldDeployFakeintakeWithLB bool
 	testingWorkload                   bool
 	workloadAppFuncs                  []WorkloadAppFunc
+	fargateWorkloadAppFuncs           []FargateWorkloadAppFunc
 	awsEnv                            *aws.Environment
 }
 
@@ -162,6 +163,17 @@ func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
 	}
 }
 
+// FargateWorkloadAppFunc is a function that deploys a Fargate workload app to an ECS cluster
+type FargateWorkloadAppFunc func(e aws.Environment, clusterArn pulumi.StringInput, apiKeySSMParamName pulumi.StringInput, fakeIntake *fakeintakeComp.Fakeintake) (*ecsComp.Workload, error)
+
+// WithFargateWorkloadApp adds a Fargate workload app to the environment
+func WithFargateWorkloadApp(appFunc FargateWorkloadAppFunc) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.fargateWorkloadAppFuncs = append(params.fargateWorkloadAppFuncs, appFunc)
+		return nil
+	}
+}
+
 // Run deploys a ECS environment given a pulumi.Context
 func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) error {
 	var awsEnv aws.Environment
@@ -211,6 +223,16 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 		_, err := agent.ECSLinuxDaemonDefinition(awsEnv, "ec2-linux-dd-agent", apiKeyParam.Name, fakeIntake, cluster.ClusterArn, params.agentOptions...)
 		if err != nil {
 			return err
+		}
+
+		// Deploy Fargate Apps
+		if params.ecsFargate {
+			for _, fargateAppFunc := range params.fargateWorkloadAppFuncs {
+				_, err := fargateAppFunc(awsEnv, ecsCluster.Arn, apiKeyParam.Name, fakeIntake)
+				if err != nil {
+					return err
+				}
+			}
 		}
 	}
 

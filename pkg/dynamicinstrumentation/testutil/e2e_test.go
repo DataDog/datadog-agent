@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diconfig"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
@@ -31,6 +32,7 @@ import (
 )
 
 func TestGoDI(t *testing.T) {
+	flake.Mark(t)
 	if err := rlimit.RemoveMemlock(); err != nil {
 		require.NoError(t, rlimit.RemoveMemlock())
 	}

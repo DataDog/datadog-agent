@@ -162,15 +162,8 @@ def get_rtloader_paths(embedded_path=None, rtloader_root=None):
     return rtloader_lib, rtloader_headers, rtloader_common_headers
 
 
-def has_both_python(python_runtimes):
-    python_runtimes = python_runtimes.split(',')
-    return '2' in python_runtimes and '3' in python_runtimes
-
-
-def get_win_py_runtime_var(python_runtimes):
-    python_runtimes = python_runtimes.split(',')
-
-    return "PY2_RUNTIME" if '2' in python_runtimes else "PY3_RUNTIME"
+def get_win_py_runtime_var():
+    return "PY3_RUNTIME"
 
 
 def get_embedded_path(ctx):
@@ -217,7 +210,6 @@ def get_build_flags(
     python_home_2=None,
     python_home_3=None,
     major_version='7',
-    python_runtimes='3',
     headless_mode=False,
     arch: Arch | None = None,
 ):
@@ -260,11 +252,8 @@ def get_build_flags(
     if python_home_3:
         ldflags += f"-X {REPO_PATH}/pkg/collector/python.pythonHome3={python_home_3} "
 
-    # If we're not building with both Python, we want to force the use of DefaultPython
-    if not has_both_python(python_runtimes):
-        ldflags += f"-X {REPO_PATH}/pkg/config/setup.ForceDefaultPython=true "
-
-    ldflags += f"-X {REPO_PATH}/pkg/config/setup.DefaultPython={get_default_python(python_runtimes)} "
+    ldflags += f"-X {REPO_PATH}/pkg/config/setup.ForceDefaultPython=true "
+    ldflags += f"-X {REPO_PATH}/pkg/config/setup.DefaultPython=3 "
 
     # adding rtloader libs and headers to the env
     if rtloader_lib:
@@ -409,15 +398,6 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
     return ldflags
 
 
-def get_default_python(python_runtimes):
-    """
-    Get the default python for the current build:
-    - default to 2 if python_runtimes includes 2 (so that builds with 2 and 3 default to 2)
-    - default to 3 otherwise.
-    """
-    return "2" if '2' in python_runtimes.split(',') else "3"
-
-
 def get_go_version():
     """
     Get the version of Go used
@@ -532,7 +512,8 @@ def gitlab_section(section_name, collapsed=False, echo=False):
     """
     - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything
     """
-    section_id = section_name.replace(" ", "_").replace("/", "_")
+    # Replace with "_" every special character (" ", ":", "/", "\") which prevent the section generation
+    section_id = re.sub(r"[ :/\\]", "_", section_name)
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:

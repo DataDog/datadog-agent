@@ -6,13 +6,15 @@
 
 #include "process.h"
 
-int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_cache_t *syscall, struct file *file, struct path *path, struct inode *inode) {
+int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_cache_t *syscall, struct file *file, struct inode *inode) {
     if (syscall->exec.is_parsed) {
         return 0;
     }
     syscall->exec.is_parsed = 1;
 
     syscall->exec.dentry = get_file_dentry(file);
+
+    struct path *path = get_file_f_path_addr(file);
 
     // set mount_id to 0 is this is a fileless exec, meaning that the vfs type is tmpfs and that is an internal mount
     u32 mount_id = is_tmpfs(syscall->exec.dentry) && get_path_mount_flags(path) & MNT_INTERNAL ? 0 : get_path_mount_id(path);

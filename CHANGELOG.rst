@@ -2,6 +2,180 @@
 Release Notes
 =============
 
+.. _Release Notes_7.58.1:
+
+7.58.1
+======
+
+.. _Release Notes_7.58.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-10-24
+
+
+.. _Release Notes_7.58.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Removes a log statement which was causing a lot of noise in the Network Path logs.
+
+
+.. _Release Notes_7.58.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- [CWS] Fixes an issue where the `cws-instrumentation trace` command could panic
+  before launching the traced executable when running on AWS Fargate.
+
+- [CWS] Fixes an issue where ECS Fargate tags would not be resolved correctly
+  on CWS events.
+
+- Fixes an error in system-probe triggered by packet capture in environments with multiple VLANs.
+
+- Fix USM's GO-TLS support for Golang 1.23
+
+
+.. _Release Notes_7.58.0:
+
+7.58.0
+======
+
+.. _Release Notes_7.58.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-10-21
+
+- Please refer to the `7.58.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7580>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.58.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Changes behavior of the timeout for Network Path. Previously, the timeout
+  signified the total time to wait for a full traceroute to complete. Now,
+  the timeout signifies the time to wait for each hop in the traceroute.
+  Additionally, the default timeout has been changed to 1000ms.
+
+
+.. _Release Notes_7.58.0_New Features:
+
+New Features
+------------
+
+- Added capability to tag any Kubernetes resource based on labels and annotations.
+  This feature can be configured with `kubernetes_resources_annotations_as_tags` and `kubernetes_resources_labels_as_tags`.
+  These feature configurations are associate group resources with annotations-to-tags (or labels-to-tags) map
+  For example, `pods` can be associated with an annotations-to-tags map to configure annotations as tags for pods.
+  Example:
+  {`pods`: {`annotationKey1`: `tag1`, `annotationKey2`: `tag2`}}
+
+- The Kubernetes State Metrics (KSM) check can now be configured to collect
+  pods from the Kubelet in node agents instead of collecting them from the API
+  Server in the Cluster Agent or the Cluster check runners. This is useful in
+  clusters with a large number of pods where emitting pod metrics from a
+  single check instance can cause performance issues due to the large number
+  of metrics emitted.
+
+- NPM - adds UDP "Packets Sent" and "Packets Received" to the network telemetry in Linux.
+
+- [oracle] Add the ``active_session_history`` configuration parameter to optionally ingest Oracle active session history samples instead of query sampling.
+
+- Added config option ``logs_config.tag_truncated_logs``.  When
+  enabled, file logs will come with a tag ``truncated:true`` if 
+  they were truncated by the Agent. 
+
+
+.. _Release Notes_7.58.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- [DBM] Bump go-sqllexer to 0.0.14 to skip collecting CTE tables as SQL metadata.
+
+- Agents are now built with Go ``1.22.7``.
+
+- Add the ability to tag cisco-sdwan device and interface metrics with user-defined tags.
+
+- Add support for setting a custom log source from resource attribute or log attribute `datadog.log.source`.
+
+- The default UDP port for traceroute (port 33434) is now used for Network Traffic based paths, instead of the port detected by NPM.
+
+- [oracle] Add ``oracle_client_lib_dir`` config parameter.
+
+- [oracle] Increase tablespace check interval from 1 to 10 minutes.
+
+- [oracle] Don't try to fetch execution plans where ``plan_hash_value`` is ``0``
+
+- The OTLP ingest endpoint now maps the new OTel semantic convention `deployment.environment.name` to `env`
+
+- Prevents the use of the `process_config.run_in_core_agent.enabled` configuration option in unsupported environments.
+
+- APM: Trace payloads are now compressed with zstd by default.
+
+
+.. _Release Notes_7.58.0_Security Notes:
+
+Security Notes
+--------------
+
+- Bump embedded Python version to 3.12.6 to address `CVE-2024-4030` and `CVE-2024-4741`.
+
+- Update cURL to 8.9.1.
+
+- Update OpenSSL to 3.3.2 (on Linux & macOS) in order to mitigate CVE-2024-6119.
+
+
+.. _Release Notes_7.58.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Adds missing support for the logs config key to work with AD annotations V2.
+
+- Fix ``agent jmx [command]`` subcommands for container environments with annotations-based configs.
+
+- Fixed issue with openSUSE 15 RC 6 where the eBPF tracer wouldn't start due to a failed validation of the ``tcp_sendpage`` probe.
+
+- Fixed a rare issue where short-lived containers could cause 
+  logs to be sent with the wrong container ID.
+
+- Fix Windows Process Agent argument stripping to account for spaces in the executable path.
+
+- Fixes issue with the kubelet corecheck where `kubernetes.kubelet.volume.*` metrics
+  were not properly being reported if any matching namespace exclusion filter was present.
+
+- OOM Kill Check now reports the cgroup name of the victim process rather than the triggering process.
+
+- The process agent will no longer exit prematurely when language detection is enabled or
+  when there is a misconfiguration stemming from `process_config.run_in_core_agent.enabled`'s
+  default enablement in Kubernetes.
+
+- Change the ``datadog-security-agent`` Windows service display name from  ``Datadog Security Service`` to
+  ``Datadog Security Agent`` for consistency with other Agent services.
+
+- Fix a bug preventing SNMP V3 reconnection.
+
+
+.. _Release Notes_7.58.0_Other Notes:
+
+Other Notes
+-----------
+
+- Add metric origins for the Kubeflow integration.
+
+- Add functional tests to Oracle using a Docker service to host the database instance.
+
+- Adds Agent telemetry for Oracle collector.
+
+
 .. _Release Notes_7.57.2:
 
 7.57.2

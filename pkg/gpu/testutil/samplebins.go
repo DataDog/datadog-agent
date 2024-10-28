@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // SampleName represents the name of the sample binary.
@@ -42,6 +43,8 @@ func RunSample(t *testing.T, name SampleName) (*exec.Cmd, error) {
 	})
 	err = cmd.Start()
 	require.NoError(t, err)
+
+	log.Infof("Running sample binary %s with PID %d", name, cmd.Process.Pid)
 
 	return cmd, nil
 }
