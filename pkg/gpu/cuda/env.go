@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+// WithUUID is an interface for objects that have a GetUUID function,
 type WithUUID interface {
 	GetUUID() (string, nvml.Return)
 }
@@ -36,7 +37,7 @@ func getVisibleDevices[T WithUUID](systemDevices []T, cudaVisibleDevices string)
 			for _, device := range systemDevices {
 				uuid, ret := device.GetUUID()
 				if ret != nvml.SUCCESS {
-					return nil, fmt.Errorf("cannot get UUID for device: %w", WrapNvmlError(ret))
+					return nil, fmt.Errorf("cannot get UUID for device: %s", nvml.ErrorString(ret))
 				}
 
 				if strings.HasPrefix(uuid, visibleDevice) {
@@ -63,10 +64,12 @@ func getVisibleDevices[T WithUUID](systemDevices []T, cudaVisibleDevices string)
 	return filteredDevices, nil
 }
 
+// getCudaVisibleDevicesEnvVar retrieves the value of the CUDA_VISIBLE_DEVICES environment variable for the specified process
 func getCudaVisibleDevicesEnvVar(pid int, procfs string) (string, error) {
 	return kernel.GetProcessEnvVariable(pid, "CUDA_VISIBLE_DEVICES", procfs)
 }
 
+// GetVisibleDevicesForProcess modifies the list of GPU devices according to the value of the CUDA_VISIBLE_DEVICES environment variable for the specified process
 func GetVisibleDevicesForProcess[T WithUUID](systemDevices []T, pid int, procfs string) ([]T, error) {
 	cudaVisibleDevices, err := getCudaVisibleDevicesEnvVar(pid, procfs)
 	if err != nil {
