@@ -57,7 +57,7 @@ func GetMeta(ctx context.Context, conf model.Reader) *Meta {
 	instanceID, _ := ec2.GetInstanceID(ctx, false)
 
 	var agentHostname string
-	legacyResolutionHostname := "I'm created"
+	var legacyResolutionHostname string
 
 	hostnameData, _ := hostname.GetWithProvider(ctx)
 	if conf.GetBool("hostname_force_config_as_canonical") && hostnameData.FromConfiguration() {
@@ -65,8 +65,11 @@ func GetMeta(ctx context.Context, conf model.Reader) *Meta {
 	}
 	legacyResolutionHostnameData, _ := hostname.GetWithProviderWithoutCacheAndIMDSV2(ctx)
 	if legacyResolutionHostnameData.Hostname != hostnameData.Hostname {
-		legacyResolutionHostname += legacyResolutionHostnameData.Hostname
+		legacyResolutionHostname = legacyResolutionHostnameData.Hostname
+	} else {
+		legacyResolutionHostname = "I'm equal to the hostname | " + legacyResolutionHostnameData.Hostname
 	}
+
 
 	m := &Meta{
 		SocketHostname:           osHostname,
