@@ -196,6 +196,10 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 	if err != nil {
 		return err
 	}
+	err = cluster.Export(ctx, &env.ECSCluster.ClusterOutput)
+	if err != nil {
+		return err
+	}
 
 	var apiKeyParam *ssm.Parameter
 	var fakeIntake *fakeintakeComp.Fakeintake
