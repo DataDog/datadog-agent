@@ -34,9 +34,9 @@ import (
 const (
 	networkPathCollectorMetricPrefix          = "datadog.network_path.collector."
 	reverseDNSLookupMetricPrefix              = networkPathCollectorMetricPrefix + "reverse_dns_lookup."
-	ReverseDNSResultsLengthMismatchMetricName = "datadog.network_path.collector.reverse_dns_lookup.results_length_mismatch"
-	ReverseDNSLookupFailedMetricName          = "datadog.network_path.collector.reverse_dns_lookup.failed"
-	ReverseDNSLookupSucceededMetricName       = "datadog.network_path.collector.reverse_dns_lookup.success"
+	reverseDNSResultsLengthMismatchMetricName = reverseDNSLookupMetricPrefix + "results_length_mismatch"
+	reverseDNSLookupFailedMetricName          = reverseDNSLookupMetricPrefix + "failed"
+	reverseDNSLookupSucceededMetricName       = reverseDNSLookupMetricPrefix + "success"
 )
 
 type npCollectorImpl struct {
