@@ -39,12 +39,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
-	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	stime "github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
 const (
@@ -352,9 +352,6 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	entry.FileEvent.MountOrigin = model.MountOriginProcfs
 	entry.FileEvent.MountSource = model.MountSourceSnapshot
 
-	var id containerutils.CGroupID
-	id, entry.Process.ContainerID = containerutils.GetCGroupContext(containerID, containerFlags)
-	entry.Process.CGroup.CGroupID = id
 	entry.Process.CGroup.CGroupFlags = containerFlags
 	var fileStats unix.Statx_t
 
@@ -369,6 +366,21 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 			seclog.Debugf("snapshot failed for %d: couldn't retrieve inode info: %s", proc.Pid, err)
 		} else {
 			entry.Process.CGroup.CGroupFile.MountID = info.MountID
+		}
+	}
+
+	if cgroupFileContent, err := os.ReadFile(taskPath); err == nil {
+		lines := strings.Split(string(cgroupFileContent), "\n")
+		for _, line := range lines {
+			parts := strings.SplitN(line, ":", 3)
+
+			// Skip potentially malformed lines
+			if len(parts) != 3 {
+				continue
+			}
+
+			entry.Process.CGroup.CGroupID = containerutils.CGroupID(parts[2])
+			break
 		}
 	}
 
@@ -975,6 +987,10 @@ func (p *EBPFResolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, bool
 
 // SetProcessEnvs set envs to cache entry
 func (p *EBPFResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
+	if !p.opts.envsResolutionEnabled {
+		return
+	}
+
 	if entry, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		if pce.EnvsTruncated {
 			p.envsTruncated.Inc()
@@ -1424,7 +1440,7 @@ func (p *EBPFResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
 	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver mount.ResolverInterface,
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
-	pathResolver spath.ResolverInterface, opts *ResolverOpts) (*EBPFResolver, error) {
+	pathResolver spath.ResolverInterface, envVarsResolver *envvars.Resolver, opts *ResolverOpts) (*EBPFResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint64, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
@@ -1459,7 +1475,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		userGroupResolver:         userGroupResolver,
 		timeResolver:              timeResolver,
 		pathResolver:              pathResolver,
-		envVarsResolver:           envvars.NewEnvVarsResolver(config),
+		envVarsResolver:           envVarsResolver,
 	}
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)

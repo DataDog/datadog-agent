@@ -30,7 +30,6 @@ include:
   - .gitlab/integration_test/include.yml
   - .gitlab/internal_image_deploy/internal_image_deploy.yml
   - .gitlab/internal_kubernetes_deploy/include.yml
-  - .gitlab/junit_upload/junit_upload.yml
   - .gitlab/kitchen_cleanup/include.yml
   - .gitlab/kitchen_deploy/kitchen_deploy.yml
   - .gitlab/kitchen_testing/include.yml
@@ -96,7 +95,9 @@ stages:
   - internal_image_deploy
   - install_script_testing
   - e2e_pre_test
+  - e2e_init
   - e2e
+  - e2e_cleanup
   - e2e_k8s
   - e2e_install_packages
   - kitchen_cleanup
@@ -171,15 +172,50 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v45979046-89a73a40
+  DATADOG_AGENT_BUILDIMAGES: v47046711-76471b8e
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v45979046-89a73a40
+  DATADOG_AGENT_WINBUILDIMAGES: v47046711-76471b8e
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v45979046-89a73a40
+  DATADOG_AGENT_ARMBUILDIMAGES: v47046711-76471b8e
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v45979046-89a73a40
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v47046711-76471b8e
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v45979046-89a73a40
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v47046711-76471b8e
+  # New images to enable different version per image - not used yet
+  CI_IMAGE_BTF_GEN: v47046711-76471b8e
+  CI_IMAGE_BTF_GEN_SUFFIX: ""
+  CI_IMAGE_DEB_X64: v47046711-76471b8e
+  CI_IMAGE_DEB_X64_SUFFIX: ""
+  CI_IMAGE_DEB_ARM64: v47046711-76471b8e
+  CI_IMAGE_DEB_ARM64_SUFFIX: ""
+  CI_IMAGE_DEB_ARMHF: v47046711-76471b8e
+  CI_IMAGE_DEB_ARMHF_SUFFIX: ""
+  CI_IMAGE_DD_AGENT_TESTING: v47046711-76471b8e
+  CI_IMAGE_DD_AGENT_TESTING_SUFFIX: ""
+  CI_IMAGE_DOCKER_X64: v47046711-76471b8e
+  CI_IMAGE_DOCKER_X64_SUFFIX: ""
+  CI_IMAGE_DOCKER_ARM64: v47046711-76471b8e
+  CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v47046711-76471b8e
+  CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
+  CI_IMAGE_LINUX_GLIBC_2_17_X64: v47046711-76471b8e
+  CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v47046711-76471b8e
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
+  CI_IMAGE_SYSTEM_PROBE_X64: v47046711-76471b8e
+  CI_IMAGE_SYSTEM_PROBE_X64_SUFFIX: ""
+  CI_IMAGE_SYSTEM_PROBE_ARM64: v47046711-76471b8e
+  CI_IMAGE_SYSTEM_PROBE_ARM64_SUFFIX: ""
+  CI_IMAGE_RPM_X64: v47046711-76471b8e
+  CI_IMAGE_RPM_X64_SUFFIX: ""
+  CI_IMAGE_RPM_ARM64: v47046711-76471b8e
+  CI_IMAGE_RPM_ARM64_SUFFIX: ""
+  CI_IMAGE_RPM_ARMHF: v47046711-76471b8e
+  CI_IMAGE_RPM_ARMHF_SUFFIX: ""
+  CI_IMAGE_WIN_1809_X64: v47046711-76471b8e
+  CI_IMAGE_WIN_1809_X64_SUFFIX: ""
+  CI_IMAGE_WIN_LTSC2022_X64: v47046711-76471b8e
+  CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: c0962c7d
@@ -218,6 +254,7 @@ variables:
   E2E_TESTS_AZURE_TENANT_ID: ci.datadog-agent.e2e_tests_azure_tenant_id  # agent-devx-loops
   E2E_TESTS_AZURE_SUBSCRIPTION_ID: ci.datadog-agent.e2e_tests_azure_subscription_id  # agent-devx-loops
   E2E_TESTS_GCP_CREDENTIALS: ci.datadog-agent.e2e_tests_gcp_credentials  # agent-devx-loops
+  E2E_PULUMI_CONFIG_PASSPHRASE: ci.datadog-agent.pulumi_password  # agent-devx-loops
   KITCHEN_EC2_SSH_KEY: ci.datadog-agent.aws_ec2_kitchen_ssh_key  # agent-devx-loops
   KITCHEN_AZURE_CLIENT_ID: ci.datadog-agent.azure_kitchen_client_id  # agent-devx-loops
   KITCHEN_AZURE_CLIENT_SECRET: ci.datadog-agent.azure_kitchen_client_secret  # agent-devx-loops
@@ -254,14 +291,20 @@ variables:
   VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url  # windows-agent
   WINGET_PAT: ci.datadog-agent.winget_pat  # windows-agent
   # End aws ssm variables
-  # Start vault variables
-  # End vault variables
 
-  ATLASSIAN_WRITE: atlassian-write
-  AGENT_GITHUB_APP: agent-github-app
-  MACOS_GITHUB_APP_1: macos-github-app-one
-  MACOS_GITHUB_APP_2: macos-github-app-two
-  DOCKER_REGISTRY_RO: dockerhub-readonly
+  # Start vault variables
+  AGENT_API_KEY_ORG2: agent-api-key-org-2  # agent-devx-infra
+  AGENT_APP_KEY_ORG2: agent-ci-app-key-org-2  # agent-devx-infra
+  AGENT_GITHUB_APP: agent-github-app  # agent-devx-infra
+  AGENT_QA_E2E: agent-qa-e2e  # agent-devx-loops
+  ATLASSIAN_WRITE: atlassian-write  # agent-devx-infra
+  DOCKER_REGISTRY_RO: dockerhub-readonly  # agent-delivery
+  GITLAB_TOKEN: gitlab-token  # agent-devx-infra
+  INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2  # agent-devx-infra
+  MACOS_GITHUB_APP_1: macos-github-app-one  # agent-devx-infra
+  MACOS_GITHUB_APP_2: macos-github-app-two  # agent-devx-infra
+  SLACK_AGENT: slack-agent-ci  # agent-devx-infra
+  # End vault variables
 
   DD_PKG_VERSION: "latest"
 
@@ -701,7 +744,6 @@ workflow:
   - test/kitchen/site-cookbooks/dd-security-agent-check/**/*
   - test/kitchen/test/integration/security-agent-test/**/*
   - test/kitchen/test/integration/security-agent-stress/**/*
-  - .gitlab/functional_test/security_agent.yml
   - .gitlab/kernel_matrix_testing/security_agent.yml
   - .gitlab/kernel_matrix_testing/common.yml
   - .gitlab/source_test/ebpf.yml
@@ -768,19 +810,6 @@ workflow:
       paths: *system_probe_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
-.on_e2e_changes_or_manual:
-  - <<: *if_main_branch
-  - !reference [.except_mergequeue]
-  - changes:
-      paths:
-        - test/new-e2e/pkg/**/*
-        - test/new-e2e/test-infra-definition/*
-        - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-    when: on_success
-  - when: manual
-    allow_failure: true
-
 # New E2E related rules
 
 .on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
@@ -797,6 +826,7 @@ workflow:
     when: on_success
   - changes:
       paths:
+        - .gitlab/e2e/e2e.yml
         - test/new-e2e/pkg/**/*
         - test/new-e2e/go.mod
         - flakes.yaml
@@ -892,6 +922,7 @@ workflow:
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for npm
+        - pkg/network/**/*
         - test/new-e2e/tests/npm/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
@@ -1010,7 +1041,11 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - cmd/otel-agent/**/*
         - comp/otelcol/**/*
+        - pkg/trace/api/otlp.go
+        - pkg/trace/stats/otel_util.go
+        - pkg/trace/transform/transform.go
         - test/new-e2e/tests/otel/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
@@ -1192,3 +1227,12 @@ workflow:
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
+
+.on_gpu_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/gpu/**/*
+        - test/new-e2e/tests/gpu/**/*
+        - pkg/collector/corechecks/gpu/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916

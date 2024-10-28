@@ -19,4 +19,6 @@ func (m *EventMonitor) init() error {
 	return nil
 }
 
-func (m *EventMonitor) cleanup() {}
+func (m *EventMonitor) cleanup() error {
+	return nil
+}

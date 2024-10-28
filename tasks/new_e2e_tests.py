@@ -5,8 +5,10 @@ Running E2E Tests with infra based on Pulumi
 from __future__ import annotations
 
 import json
+import multiprocessing
 import os
 import os.path
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -22,6 +24,7 @@ from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.utils import REPO_PATH, color_message, running_in_ci
 from tasks.modules import DEFAULT_MODULES
+from tasks.tools.e2e_stacks import destroy_remote_stack
 
 
 @task(
@@ -192,6 +195,62 @@ def clean(ctx, locks=True, stacks=False, output=False, skip_destroy=False):
 
     if output:
         _clean_output()
+
+
+@task
+def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
+    """
+    Clean up remote stacks created by the pipeline
+    """
+    if not running_in_ci():
+        raise Exit("This task should be run in CI only", 1)
+
+    stack_regex = re.compile(stack_regex)
+
+    # Ideally we'd use the pulumi CLI to list all the stacks. However we have way too much stacks in the bucket so the commands hang forever.
+    # Once the bucket is cleaned up we can switch to the pulumi CLI
+    res = ctx.run(
+        "pulumi stack ls --all --json",
+        hide=True,
+        warn=True,
+    )
+    if res.exited != 0:
+        print(f"Failed to list stacks in {pulumi_backend}:", res.stdout, res.stderr)
+        return
+    to_delete_stacks = set()
+    stacks = json.loads(res.stdout)
+    print(stacks)
+    for stack in stacks:
+        stack_id = (
+            stack.get("name", "")
+            .split("/")[-1]
+            .replace(".json.bak", "")
+            .replace(".json", "")
+            .replace(".pulumi/stacks/e2eci", "")
+        )
+        if stack_regex.match(stack_id):
+            to_delete_stacks.add(f"organization/e2eci/{stack_id}")
+
+    if len(to_delete_stacks) == 0:
+        print("No stacks to delete")
+        return
+
+    print("About to delete the following stacks:", to_delete_stacks)
+    with multiprocessing.Pool(len(to_delete_stacks)) as pool:
+        res = pool.map(destroy_remote_stack, to_delete_stacks)
+        destroyed_stack = set()
+        failed_stack = set()
+        for r, stack in res:
+            if r.returncode != 0:
+                failed_stack.add(stack)
+            else:
+                destroyed_stack.add(stack)
+            print(f"Stack {stack}: {r.stdout} {r.stderr}")
+
+    for stack in destroyed_stack:
+        print(f"Stack {stack} destroyed successfully")
+    for stack in failed_stack:
+        print(f"Failed to destroy stack {stack}")
 
 
 @task

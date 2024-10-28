@@ -11,12 +11,12 @@ This image is now built alongside other images in [agent-buildimages](https://gi
 Once you have created a new image by building a new version of agent-buildimages, you can test your modification with the associated invoke task:
 
 ```bash
-invoke -e pipeline.update-buildimages --image-tag v12345678-c0mm1t5
+invoke -e buildimages.update --tag v12345678-c0mm1t5
 ```
-This will update the configuration of circleci and gitlab to use the __test version__ of these images.
-Once your test is successful, you can either move the `_test_version` from files or invoke
+This will update the configuration of circleci and gitlab to use the __test__ version of these images.
+Once your test is successful, you can either move the `_test_only` from files or invoke
 ```bash
-invoke -e pipeline.update-buildimages --image-tag v12345678-c0mm1t5 --no-test-version
+invoke -e buildimages.update --tag v12345678-c0mm1t5 --no-test
 ```
 
 If everything is green, get a review and merge the PR.

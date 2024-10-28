@@ -58,6 +58,7 @@ import (
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 var kv470 = kernel.VersionCode(4, 7, 0)
@@ -247,6 +248,10 @@ func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
 
 func (s *TracerSuite) TestTCPRTT() {
 	t := s.T()
+	// mark as flaky since the offset for RTT can be incorrectly guessed on prebuilt
+	if ebpftest.GetBuildMode() == ebpftest.Prebuilt {
+		flake.Mark(t)
+	}
 	// Enable BPF-based system probe
 	tr := setupTracer(t, testConfig())
 	// Create TCP Server that simply "drains" connection until receiving an EOF

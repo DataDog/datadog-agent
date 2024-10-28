@@ -269,6 +269,8 @@ func (t EventType) String() string {
 		return "change_permission"
 	case LoginUIDWriteEventType:
 		return "login_uid_write"
+	case CgroupWriteEventType:
+		return "cgroup_write"
 	default:
 		return "unknown"
 	}

@@ -12,5 +12,5 @@ import "errors"
 
 // GetSystemProbeTelemetry is not supported without the process agent
 func GetSystemProbeTelemetry(_socketPath string) ([]byte, error) {
-	return nil, errors.New("getSystemProbeTelemetry not supported on build without the process agent")
+	return nil, errors.New("GetSystemProbeTelemetry not supported on builds without the process agent")
 }

@@ -28,7 +28,7 @@ func TestDump(t *testing.T) {
 			Name: "ctr-image",
 		},
 		Resources: wmdef.ContainerResources{
-			GPUType: "nvidia",
+			GPUVendorList: []string{"nvidia"},
 		},
 		Runtime:       wmdef.ContainerRuntimeDocker,
 		RuntimeFlavor: wmdef.ContainerRuntimeFlavorKata,
@@ -53,9 +53,6 @@ func TestDump(t *testing.T) {
 		},
 		PID:        1,
 		CgroupPath: "/default/ctr-id",
-		Resources: wmdef.ContainerResources{
-			GPUType: "nvidia",
-		},
 	}
 
 	s.handleEvents([]wmdef.CollectorEvent{
@@ -89,7 +86,7 @@ Runtime: docker
 RuntimeFlavor: kata
 Running: false
 ----------- Resources -----------
-GPUType: nvidia
+GPUVendor: [nvidia]
 `,
 				},
 			},
@@ -127,7 +124,7 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
-GPUType: nvidia
+GPUVendor: [nvidia]
 Hostname: 
 Network IPs: 
 PID: 0
@@ -157,7 +154,6 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
-GPUType: nvidia
 Hostname: 
 Network IPs: 
 PID: 1
@@ -187,7 +183,7 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
-GPUType: nvidia
+GPUVendor: [nvidia]
 Hostname: 
 Network IPs: 
 PID: 1
