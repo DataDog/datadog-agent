@@ -58,7 +58,10 @@ func (Provider) populateStatus(stats map[string]interface{}) {
 	if autodiscoveryVar != nil {
 		var autodiscoveryConfig snmp.ListenerConfig
 		if pkgconfigsetup.Datadog().IsSet("network_devices.autodiscovery") {
-			pkgconfigsetup.Datadog().UnmarshalKey("network_devices.autodiscovery", &autodiscoveryConfig)
+			err := pkgconfigsetup.Datadog().UnmarshalKey("network_devices.autodiscovery", &autodiscoveryConfig)
+			if err != nil {
+				return
+			}
 			var subnetOrder []string
 			for _, autodiscoveryConfig := range autodiscoveryConfig.Configs {
 				if autodiscoveryConfig.NetworkLegacy != "" {
