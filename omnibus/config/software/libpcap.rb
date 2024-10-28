@@ -5,7 +5,8 @@
 
 name "libpcap"
 default_version "1.10.5"
-
+# system-probe doesn't depend on any particular version of libpcap so use the latest one (as of 2024-10-28)
+# this version should be kept in sync with the one in tasks/system_probe.py
 version "1.10.5" do
   source sha256: "84fa89ac6d303028c1c5b754abff77224f45eca0a94eb1a34ff0aa9ceece3925"
 end

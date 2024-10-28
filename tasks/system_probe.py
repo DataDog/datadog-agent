@@ -32,8 +32,8 @@ from tasks.libs.common.utils import (
     environ,
     get_build_flags,
     get_common_test_args,
+    get_embedded_path,
     get_gobin,
-    get_root,
     parse_kernel_version,
 )
 from tasks.libs.releasing.version import get_version_numeric_only
@@ -85,6 +85,9 @@ arch_mapping = {
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
 CLANG_VERSION_RUNTIME = "12.0.1"
 CLANG_VERSION_SYSTEM_PREFIX = "12.0"
+# system-probe doesn't depend on any particular version of libpcap so use the latest one (as of 2024-10-28)
+# this version should be kept in sync with the one in the agent omnibus build
+LIBPCAP_VERSION = "1.10.5"
 
 TEST_HELPER_CBINS = ["cudasample"]
 
@@ -606,25 +609,27 @@ def ninja_generate(
         ninja_cgo_type_files(nw)
 
 
-def build_libpcap_static(ctx, dev_dir: str):
-    release = "1.10.5"
-    target_file = os.path.join(dev_dir, "lib", "libpcap.a")
-    cgo_flags = {
-        'CGO_CFLAGS': f"-I{os.path.join(dev_dir, 'include')}",
-        'CGO_LDFLAGS': f"-L{os.path.join(dev_dir, 'lib')}",
-    }
+@task
+def build_libpcap(ctx):
+    """Download and build libpcap as a static library in the agent dev directory.
+    The library is not rebuilt if it already exists.
+    """
+    embedded_path = get_embedded_path(ctx)
+    assert embedded_path, "Failed to find embedded path"
+    target_file = os.path.join(embedded_path, "lib", "libpcap.a")
     if os.path.exists(target_file):
         version = ctx.run(f"strings {target_file} | grep -E '^libpcap version' | cut -d ' ' -f 3").stdout.strip()
-        if version == release:
-            return cgo_flags
-    dist_dir = os.path.join(dev_dir, "dist")
-    lib_dir = os.path.join(dist_dir, f"libpcap-{release}")
+        if version == LIBPCAP_VERSION:
+            ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
+            return
+    dist_dir = os.path.join(embedded_path, "dist")
+    lib_dir = os.path.join(dist_dir, f"libpcap-{LIBPCAP_VERSION}")
     ctx.run(f"rm -rf {lib_dir}")
     with ctx.cd(dist_dir):
-        ctx.run(f"curl -L https://www.tcpdump.org/release/libpcap-{release}.tar.xz | tar xJ")
+        ctx.run(f"curl -L https://www.tcpdump.org/release/libpcap-{LIBPCAP_VERSION}.tar.xz | tar xJ")
     with ctx.cd(lib_dir):
         config_opts = [
-            f"--prefix={dev_dir}",
+            f"--prefix={embedded_path}",
             "--disable-shared",
             "--disable-largefile",
             "--disable-instrument-functions",
@@ -637,24 +642,29 @@ def build_libpcap_static(ctx, dev_dir: str):
         ]
         ctx.run(f"./configure {' '.join(config_opts)}")
         ctx.run("make install")
-    ctx.run(f"rm -f {os.path.join(dev_dir, 'bin', 'pcap-config')}")
-    ctx.run(f"rm -rf {os.path.join(dev_dir, 'share')}")
-    ctx.run(f"rm -rf {os.path.join(dev_dir, 'lib', 'pkgconfig')}")
+    ctx.run(f"rm -f {os.path.join(embedded_path, 'bin', 'pcap-config')}")
+    ctx.run(f"rm -rf {os.path.join(embedded_path, 'share')}")
+    ctx.run(f"rm -rf {os.path.join(embedded_path, 'lib', 'pkgconfig')}")
     ctx.run(f"rm -rf {lib_dir}")
     ctx.run(f"strip -g {target_file}")
-    return cgo_flags
 
 
 def get_libpcap_cgo_flags(ctx, install_path: str = None):
+    """Return a dictionary with the CGO flags needed to link against libpcap.
+    If install_path is provided, then we expect this path to contain libpcap as a shared library.
+    """
     if install_path is not None:
         return {
             'CGO_CFLAGS': f"-I{os.path.join(install_path, 'embedded', 'include')}",
             'CGO_LDFLAGS': f"-L{os.path.join(install_path, 'embedded', 'lib')}",
         }
-    repo_dir = get_root()
-    if repo_dir is None or repo_dir == "":
-        raise Exit("could not find the root of the repository")
-    return build_libpcap_static(ctx, dev_dir=f"{repo_dir}/dev")
+    else:
+        embedded_path = get_embedded_path(ctx)
+        assert embedded_path, "Failed to find embedded path"
+        return {
+            'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'include')}",
+            'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'lib')}",
+        }
 
 
 @task
@@ -760,6 +770,7 @@ def build_sysprobe_binary(
         build_tags = list(set(build_tags).difference({"netcgo"}))
 
     if not is_windows and "pcap" in build_tags:
+        build_libpcap(ctx)
         cgo_flags = get_libpcap_cgo_flags(ctx, install_path)
         # append system-probe CGO-related environment variables to any existing ones
         for k, v in cgo_flags.items():

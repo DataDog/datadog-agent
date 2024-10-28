@@ -32,6 +32,7 @@ from tasks.process_agent import TempDir
 from tasks.system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
+    build_libpcap,
     check_for_ninja,
     copy_ebpf_and_related_files,
     get_libpcap_cgo_flags,
@@ -393,11 +394,12 @@ def build_functional_tests(
         build_tags.append("linux_bpf")
         build_tags.append("trivy")
         build_tags.append("containerd")
-        build_tags.append("pcap")
 
         if bundle_ebpf:
             build_tags.append("ebpf_bindata")
 
+        build_tags.append("pcap")
+        build_libpcap(ctx)
         cgo_flags = get_libpcap_cgo_flags(ctx)
         # append system-probe CGO-related environment variables to any existing ones
         for k, v in cgo_flags.items():
