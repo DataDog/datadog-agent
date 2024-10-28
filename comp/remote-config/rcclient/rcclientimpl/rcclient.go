@@ -278,6 +278,8 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 	// Checks who (the source) is responsible for the last logLevel change
 	source := targetCmp.GetSource("log_level")
 
+	pkglog.Infof("A new log level configuration has been received through remote config, (source: %s, log_level '%s')", source, mergedConfig.LogLevel)
+
 	switch source {
 	case model.SourceRC:
 		// 2 possible situations:
