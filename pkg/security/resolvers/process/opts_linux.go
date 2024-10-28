@@ -8,8 +8,9 @@ package process
 
 // ResolverOpts options of resolver
 type ResolverOpts struct {
-	ttyFallbackEnabled bool
-	envsWithValue      map[string]bool
+	ttyFallbackEnabled    bool
+	envsResolutionEnabled bool
+	envsWithValue         map[string]bool
 }
 
 // WithEnvsValue specifies envs with value
@@ -23,6 +24,12 @@ func (o *ResolverOpts) WithEnvsValue(envsWithValue []string) *ResolverOpts {
 // WithTTYFallbackEnabled enables the TTY fallback
 func (o *ResolverOpts) WithTTYFallbackEnabled() *ResolverOpts {
 	o.ttyFallbackEnabled = true
+	return o
+}
+
+// WithEnvsResolutionEnabled enables the envs resolution
+func (o *ResolverOpts) WithEnvsResolutionEnabled() *ResolverOpts {
+	o.envsResolutionEnabled = true
 	return o
 }
 
