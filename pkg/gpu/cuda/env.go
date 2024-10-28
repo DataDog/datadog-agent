@@ -31,7 +31,7 @@ const cudaVisibleDevicesEnvVar = "CUDA_VISIBLE_DEVICES"
 func GetVisibleDevicesForProcess(systemDevices []nvml.Device, pid int, procfs string) ([]nvml.Device, error) {
 	cudaVisibleDevices, err := kernel.GetProcessEnvVariable(pid, cudaVisibleDevicesEnvVar, procfs)
 	if err != nil {
-		return nil, fmt.Errorf("cannot get CUDA_VISIBLE_DEVICES for process %d: %w", pid, err)
+		return nil, fmt.Errorf("cannot get env var %s for process %d: %w", cudaVisibleDevicesEnvVar, pid, err)
 	}
 
 	return getVisibleDevices(systemDevices, cudaVisibleDevices)
