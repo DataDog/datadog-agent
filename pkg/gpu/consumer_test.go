@@ -14,11 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 )
 
 func TestConsumerCanStartAndStop(t *testing.T) {
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
-	cfg := NewConfig()
+	cfg := config.NewConfig()
 	consumer := newCudaEventConsumer(handler, cfg)
 
 	consumer.Start()
