@@ -2363,6 +2363,7 @@ func TestPeerTagsAggregation(t *testing.T) {
 
 	t.Run("deprecated-disabled", func(t *testing.T) {
 		overrides := map[string]interface{}{
+			// Setting peer_service_aggregation to false has no effect. Nobody should be using this flag, though some previous beta customers might still need to migrate to peer_tags_aggregation.
 			"apm_config.peer_service_aggregation": false,
 		}
 
@@ -2376,6 +2377,10 @@ func TestPeerTagsAggregation(t *testing.T) {
 		assert.True(t, cfg.PeerTagsAggregation)
 		assert.Nil(t, cfg.PeerTags)
 		assert.NotNil(t, cfg.ConfiguredPeerTags())
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "db.hostname")   // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "db.system")     // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "peer.hostname") // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "peer.service")  // known peer tag precursors that should be loaded from peer_tags.ini
 	})
 
 	t.Run("both-enabled", func(t *testing.T) {

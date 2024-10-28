@@ -227,22 +227,14 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	/**
 	 * NOTE: PeerTagsAggregation is on by default as of Oct 2024. To get the default experience,
 	 * customers DO NOT NEED to set "apm_config.peer_service_aggregation" (deprecated) or "apm_config.peer_tags_aggregation" (previously defaulted to false, now true).
-	 * However, to prevent breaking changes, we still respect the old flags if EITHER of them are explicitly set to "false".
+	 * However, customers may opt out by explicitly setting "apm_config.peer_tags_aggregation" to "false".
 	 */
-	shouldDisablePeerTagAggregation := false
-	if core.IsSet("apm_config.peer_service_aggregation") {
-		shouldDisablePeerTagAggregation = !core.GetBool("apm_config.peer_service_aggregation")
-		log.Warn("`apm_config.peer_service_aggregation` is deprecated, please use `apm_config.peer_tags_aggregation` instead")
-	}
-
 	if core.IsSet("apm_config.peer_tags_aggregation") {
-		// If peer_tags_aggregation is explicitly set, it takes precedence over peer_service_aggregation.
-		shouldDisablePeerTagAggregation = !core.GetBool("apm_config.peer_tags_aggregation")
+		c.PeerTagsAggregation = core.GetBool("apm_config.peer_tags_aggregation")
 	}
 
-	if shouldDisablePeerTagAggregation {
-		c.PeerTagsAggregation = false
-		log.Info("peer tags aggregation is explicitly disabled. To enable it, remove `apm_config.peer_tags_aggregation: false` and `apm_config.peer_service_aggregation: false` from your configuration")
+	if !c.PeerTagsAggregation {
+		log.Info("peer tags aggregation is explicitly disabled. To enable it, remove `apm_config.peer_tags_aggregation: false` from your configuration")
 	}
 
 	if core.IsSet("apm_config.compute_stats_by_span_kind") {
