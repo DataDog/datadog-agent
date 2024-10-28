@@ -56,6 +56,8 @@ type ddExtension struct {
 	ocb         bool
 }
 
+// TODO: update to reference extensioncapabilities.ConfigWatcher when updated to v0.109.0 or later,
+// see https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/e788e319e129071e74c13db48296464a5253413d/extension/opampextension/opamp_agent.go#L67-L69
 var _ extension.Extension = (*ddExtension)(nil)
 
 // NotifyConfig implements the ConfigWatcher interface, which allows this extension
