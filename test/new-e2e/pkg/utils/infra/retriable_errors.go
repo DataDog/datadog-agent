@@ -39,7 +39,8 @@ func getKnownErrors() []knownError {
 		},
 		{
 			// https://datadoghq.atlassian.net/browse/ADXT-558
-			errorMessage: `Process exited with status 2: running " sudo cloud-init status --wait"`,
+			// https://datadoghq.atlassian.net/browse/ADXT-713
+			errorMessage: `Process exited with status \d+: running " sudo cloud-init status --wait"`,
 			retryType:    ReCreate,
 		},
 		{
