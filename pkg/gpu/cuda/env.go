@@ -19,7 +19,15 @@ import (
 
 const cudaVisibleDevicesEnvVar = "CUDA_VISIBLE_DEVICES"
 
-// GetVisibleDevicesForProcess modifies the list of GPU devices according to the value of the CUDA_VISIBLE_DEVICES environment variable for the specified process
+// GetVisibleDevicesForProcess modifies the list of GPU devices according to the
+// value of the CUDA_VISIBLE_DEVICES environment variable for the specified
+// process. Reference:
+// https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#env-vars
+// Invalid device indexes are ignored, and anything that comes after that is
+// invisible, following the spec: "If one of the indices is invalid, only the
+// devices whose index precedes the invalid index are visible to CUDA
+// applications." If an invalid index is found, an error is returned together
+// with the list of valid devices found up until that point.
 func GetVisibleDevicesForProcess(systemDevices []nvml.Device, pid int, procfs string) ([]nvml.Device, error) {
 	cudaVisibleDevices, err := kernel.GetProcessEnvVariable(pid, cudaVisibleDevicesEnvVar, procfs)
 	if err != nil {
@@ -29,11 +37,8 @@ func GetVisibleDevicesForProcess(systemDevices []nvml.Device, pid int, procfs st
 	return getVisibleDevices(systemDevices, cudaVisibleDevices)
 }
 
-// getVisibleDevices processes the list of GPU devices according to the value of the CUDA_VISIBLE_DEVICES environment variable
-// Reference: https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#env-vars
-// Invalid device indexes are ignored, and anything that comes after that is invisible, following the spec:
-// "If one of the indices is invalid, only the devices whose index precedes the invalid index are visible to CUDA applications."
-// If an invalid index is found, an error is returned together with the list of valid devices found up until that point.
+// getVisibleDevices processes the list of GPU devices according to the value of
+// the CUDA_VISIBLE_DEVICES environment variable
 func getVisibleDevices(systemDevices []nvml.Device, cudaVisibleDevices string) ([]nvml.Device, error) {
 	if cudaVisibleDevices == "" {
 		return systemDevices, nil
