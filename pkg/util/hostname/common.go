@@ -111,8 +111,8 @@ func fromOS(ctx context.Context, currentHostname string) (string, error) {
 	return "", fmt.Errorf("OS hostname is not usable")
 }
 
-func getValidEC2Hostname(ctx context.Context) (string, error) {
-	instanceID, err := ec2GetInstanceID(ctx)
+func getValidEC2Hostname(ctx context.Context, disableIMDSv2 bool) (string, error) {
+	instanceID, err := ec2GetInstanceID(ctx, disableIMDSv2)
 	if err == nil {
 		err = validate.ValidHostname(instanceID)
 		if err == nil {
@@ -123,7 +123,7 @@ func getValidEC2Hostname(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("Unable to determine hostname from EC2: %s", err)
 }
 
-func fromEC2(ctx context.Context, currentHostname string) (string, error) {
+func fromEC2(ctx context.Context, currentHostname string, disableIMDSv2 bool) (string, error) {
 	// We use the instance id if we're on an ECS cluster or we're on EC2
 	// and the hostname is one of the default ones
 
@@ -136,7 +136,7 @@ func fromEC2(ctx context.Context, currentHostname string) (string, error) {
 	// or ec2_prioritize_instance_id_as_hostname is set to true
 	if env.IsFeaturePresent(env.ECSEC2) || ec2.IsDefaultHostname(currentHostname) || prioritizeEC2Hostname {
 		log.Debugf("Trying to fetch hostname from EC2 metadata")
-		return getValidEC2Hostname(ctx)
+		return getValidEC2Hostname(ctx, disableIMDSv2)
 	} else if ec2.IsWindowsDefaultHostname(currentHostname) {
 		log.Debugf("Default EC2 Windows hostname detected")
 		// Display a message when enabling `ec2_use_windows_prefix_detection` would make the hostname resolution change.
@@ -144,7 +144,7 @@ func fromEC2(ctx context.Context, currentHostname string) (string, error) {
 		// As we are in the else clause `ec2.IsDefaultHostname(currentHostname)` is false. If
 		// `ec2.IsWindowsDefaultHostname(currentHostname)`
 		// is `true` that means `ec2_use_windows_prefix_detection` is set to false.
-		ec2Hostname, err := getValidEC2Hostname(ctx)
+		ec2Hostname, err := getValidEC2Hostname(ctx, disableIMDSv2)
 
 		// Check if we get a valid hostname when enabling `ec2_use_windows_prefix_detection` and the hostnames are different.
 		if err == nil && ec2Hostname != currentHostname {
@@ -154,4 +154,12 @@ func fromEC2(ctx context.Context, currentHostname string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("not retrieving hostname from AWS: the host is not an ECS instance and other providers already retrieve non-default hostnames")
+}
+
+func fromEC2WithIMDSV2(ctx context.Context, currentHostname string) (string, error) {
+	return fromEC2(ctx, currentHostname, false)
+}
+
+func fromEC2WithoutIMDSV2(ctx context.Context, currentHostname string) (string, error) {
+	return fromEC2(ctx, currentHostname, true)
 }

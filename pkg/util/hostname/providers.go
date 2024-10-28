@@ -12,6 +12,8 @@ import (
 	"expvar"
 	"fmt"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -62,64 +64,78 @@ type provider struct {
 // * FQDN
 // * OS hostname
 // * EC2
-var providerCatalog = []provider{
-	{
-		name:             configProvider,
-		cb:               fromConfig,
-		stopIfSuccessful: true,
-		expvarName:       "'hostname' configuration/environment",
-	},
-	{
-		name:             "hostnameFile",
-		cb:               fromHostnameFile,
-		stopIfSuccessful: true,
-		expvarName:       "'hostname_file' configuration/environment",
-	},
-	{
-		name:             fargateProvider,
-		cb:               fromFargate,
-		stopIfSuccessful: true,
-		expvarName:       "fargate",
-	},
-	{
-		name:             "gce",
-		cb:               fromGCE,
-		stopIfSuccessful: true,
-		expvarName:       "gce",
-	},
-	{
-		name:             "azure",
-		cb:               fromAzure,
-		stopIfSuccessful: true,
-		expvarName:       "azure",
-	},
+func getProviderCatalog(disableIMDSv2 bool) []provider {
+	providerCatalog := []provider{
+		{
+			name:             configProvider,
+			cb:               fromConfig,
+			stopIfSuccessful: true,
+			expvarName:       "'hostname' configuration/environment",
+		},
+		{
+			name:             "hostnameFile",
+			cb:               fromHostnameFile,
+			stopIfSuccessful: true,
+			expvarName:       "'hostname_file' configuration/environment",
+		},
+		{
+			name:             fargateProvider,
+			cb:               fromFargate,
+			stopIfSuccessful: true,
+			expvarName:       "fargate",
+		},
+		{
+			name:             "gce",
+			cb:               fromGCE,
+			stopIfSuccessful: true,
+			expvarName:       "gce",
+		},
+		{
+			name:             "azure",
+			cb:               fromAzure,
+			stopIfSuccessful: true,
+			expvarName:       "azure",
+		},
 
-	// The following providers are coupled. Their behavior changes depending on the result of the previous provider.
-	// Therefore 'stopIfSuccessful' is set to false.
-	{
-		name:             "fqdn",
-		cb:               fromFQDN,
-		stopIfSuccessful: false,
-		expvarName:       "fqdn",
-	},
-	{
-		name:             "container",
-		cb:               fromContainer,
-		stopIfSuccessful: false,
-		expvarName:       "container",
-	},
-	{
-		name:             "os",
-		cb:               fromOS,
-		stopIfSuccessful: false,
-		expvarName:       "os",
-	},
-	{
-		name:             "aws", // ie EC2
-		cb:               fromEC2,
-		stopIfSuccessful: false,
-		expvarName:       "aws",
-	},
+		// The following providers are coupled. Their behavior changes depending on the result of the previous provider.
+		// Therefore 'stopIfSuccessful' is set to false.
+		{
+			name:             "fqdn",
+			cb:               fromFQDN,
+			stopIfSuccessful: false,
+			expvarName:       "fqdn",
+		},
+		{
+			name:             "container",
+			cb:               fromContainer,
+			stopIfSuccessful: false,
+			expvarName:       "container",
+		},
+		{
+			name:             "os",
+			cb:               fromOS,
+			stopIfSuccessful: false,
+			expvarName:       "os",
+		},
+	}
+
+	if disableIMDSv2 {
+		ec2 := provider{
+			name:             "aws", // ie EC2
+			cb:               fromEC2WithoutIMDSV2,
+			stopIfSuccessful: false,
+			expvarName:       "aws",
+		}
+		return append(providerCatalog, ec2)
+	} else {
+		ec2 := provider{
+			name:             "aws", // ie EC2
+			cb:               fromEC2WithIMDSV2,
+			stopIfSuccessful: false,
+			expvarName:       "aws",
+		}
+		return append(providerCatalog, ec2)
+	}
 }
 
 func saveHostname(cacheHostnameKey string, hostname string, providerName string) Data {
@@ -137,12 +153,11 @@ func saveHostname(cacheHostnameKey string, hostname string, providerName string)
 	return data
 }
 
-// GetWithProvider returns the hostname for the Agent and the provider that was use to retrieve it
-func GetWithProvider(ctx context.Context) (Data, error) {
+func getHostname(ctx context.Context, useCache bool, disableIMDSv2 bool) (Data, error) {
 	cacheHostnameKey := cache.BuildAgentKey("hostname")
 
 	// first check if we have a hostname cached
-	if cacheHostname, found := cache.Cache.Get(cacheHostnameKey); found {
+	if cacheHostname, found := cache.Cache.Get(cacheHostnameKey); found && useCache {
 		return cacheHostname.(Data), nil
 	}
 
@@ -150,7 +165,7 @@ func GetWithProvider(ctx context.Context) (Data, error) {
 	var hostname string
 	var providerName string
 
-	for _, p := range providerCatalog {
+	for _, p := range getProviderCatalog(disableIMDSv2) {
 		log.Debugf("trying to get hostname from '%s' provider", p.name)
 
 		detectedHostname, err := p.cb(ctx, hostname)
@@ -168,14 +183,20 @@ func GetWithProvider(ctx context.Context) (Data, error) {
 
 		if p.stopIfSuccessful {
 			log.Debugf("hostname provider '%s' succeeded, stoping here with hostname '%s'", p.name, detectedHostname)
-			return saveHostname(cacheHostnameKey, hostname, p.name), nil
+			if useCache {
+				return saveHostname(cacheHostnameKey, hostname, p.name), nil
+			}
+			return Data{Hostname: hostname, Provider: p.name}, nil
 		}
 	}
 
 	warnAboutFQDN(ctx, hostname)
 
 	if hostname != "" {
-		return saveHostname(cacheHostnameKey, hostname, providerName), nil
+		if useCache {
+			return saveHostname(cacheHostnameKey, hostname, providerName), nil
+		}
+		return Data{Hostname: hostname, Provider: providerName}, nil
 	}
 
 	err = fmt.Errorf("unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
@@ -183,6 +204,20 @@ func GetWithProvider(ctx context.Context) (Data, error) {
 	expErr.Set(err.Error())
 	hostnameErrors.Set("all", expErr)
 	return Data{}, err
+}
+
+// GetWithProviderWithoutCacheAndIMDSV2 returns the hostname for the Agent and the provider that was use to retrieve it without using the cache and without using IMDSv2
+func GetWithProviderWithoutCacheAndIMDSV2(ctx context.Context) (Data, error) {
+	if !pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") {
+		return Data{}, nil
+	}
+	data, err := getHostname(ctx, false, true)
+	return data, err
+}
+
+// GetWithProvider returns the hostname for the Agent and the provider that was use to retrieve it
+func GetWithProvider(ctx context.Context) (Data, error) {
+	return getHostname(ctx, true, false)
 }
 
 // Get returns the host name for the agent

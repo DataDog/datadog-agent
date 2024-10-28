@@ -112,9 +112,9 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 	}
 
 	if tc.EC2 {
-		ec2GetInstanceID = func(context.Context) (string, error) { return "hostname-from-ec2", nil }
+		ec2GetInstanceID = func(context.Context, bool) (string, error) { return "hostname-from-ec2", nil }
 	} else {
-		ec2GetInstanceID = func(context.Context) (string, error) { return "", fmt.Errorf("some error") }
+		ec2GetInstanceID = func(context.Context, bool) (string, error) { return "", fmt.Errorf("some error") }
 	}
 
 	if tc.EC2Proritized {
