@@ -250,16 +250,16 @@ func init() {
 	// - "tee":    Construct both viper and nodetreemodel. Write to both, only read from viper
 	// - other:    Use viper for the config
 	if found && envvar == "enable" {
-		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	} else if found && envvar == "tee" {
-		var viperConfig = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-		var nodetreeConfig = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		var viperConfig = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))   // nolint: forbidigo // legit use case
+		var nodetreeConfig = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 		datadog = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
 	} else {
-		datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	}
 
-	systemProbe = pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
+	systemProbe = pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 
 	// Configuration defaults
 	initConfig()
@@ -354,7 +354,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("scrubber.additional_keys", []string{})
 
 	// flare configs
-	config.BindEnvAndSetDefault("flare_provider_timeout", 10)
+	config.BindEnvAndSetDefault("flare_provider_timeout", 10*time.Second)
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -537,6 +537,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// - nodes
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resources", []string{})
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resource_annotations_exclude", []string{})
+	config.BindEnvAndSetDefault("cluster_agent.cluster_tagger.grpc_max_message_size", 4<<20) // 4 MB
 
 	// Metadata endpoints
 
@@ -826,13 +827,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Remote process collector
 	config.BindEnvAndSetDefault("workloadmeta.local_process_collector.collection_interval", DefaultLocalProcessCollectorInterval)
-
-	// Tagger Component
-	// This is a temporary/transient flag used to slowly migrate to a new internal implementation of the tagger.
-	// If set to true, the tagger will store all entities in a 2-layered map, the first map is indexed by prefix, and the second one is indexed by id.
-	// If set to false, the tagger will use the default implementation by storing entities in a one-layer map from plain strings to Tag Entities.
-	// TODO: remove this config option when the migration is finalised.
-	config.BindEnvAndSetDefault("tagger.tagstore_use_composite_entity_id", false)
 
 	// SBOM configuration
 	config.BindEnvAndSetDefault("sbom.enabled", false)
@@ -1878,12 +1872,13 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_TRACE_PIPE_NAME":                       {},
 		"DD_TRACE_TRANSPORT":                       {},
 		"DD_VERSION":                               {},
-		// this variable is used by CWS functional tests
-		"DD_TESTS_RUNTIME_COMPILED": {},
 		// this variable is used by the Kubernetes leader election mechanism
 		"DD_POD_NAME": {},
 		// this variable is used by tracers
 		"DD_INSTRUMENTATION_TELEMETRY_ENABLED": {},
+		// these variables are used by source code integration
+		"DD_GIT_COMMIT_SHA":     {},
+		"DD_GIT_REPOSITORY_URL": {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}
@@ -2334,7 +2329,7 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 	if !config.IsKnown(key) || !config.IsSet(key) {
 		return
 	}
-	config.Set(key, strings.TrimSpace(config.GetString(key)), pkgconfigmodel.SourceAgentRuntime)
+	config.Set(key, strings.TrimSpace(config.GetString(key)), config.GetSource(key))
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range

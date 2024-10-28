@@ -71,8 +71,6 @@ system_probe_config:
 
 event_monitoring_config:
   socket: /tmp/test-event-monitor.sock
-  runtime_compilation:
-    enabled: true
   remote_tagger: false
   custom_sensitive_words:
     - "*custom*"
@@ -453,7 +451,6 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event) {
 	if event.Origin != "ebpfless" {
 		nameFields = append(nameFields,
 			"process.ancestors.file.name",
-			"process.parent.file.path",
 			"process.parent.file.name",
 		)
 	}
@@ -465,7 +462,10 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event) {
 		"process.file.path",
 	}
 	if event.Origin != "ebpfless" {
-		pathFields = append(pathFields, "process.ancestors.file.path")
+		pathFields = append(pathFields,
+			"process.parent.file.path",
+			"process.ancestors.file.path",
+		)
 	}
 
 	pathFieldValid := true
@@ -734,12 +734,13 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 	emopts := eventmonitor.Opts{
 		StatsdClient: statsdClient,
 		ProbeOpts: sprobe.Opts{
-			StatsdClient:           statsdClient,
-			DontDiscardRuntime:     true,
-			PathResolutionEnabled:  true,
-			SyscallsMonitorEnabled: true,
-			TTYFallbackEnabled:     true,
-			EBPFLessEnabled:        ebpfLessEnabled,
+			StatsdClient:             statsdClient,
+			DontDiscardRuntime:       true,
+			PathResolutionEnabled:    true,
+			EnvsVarResolutionEnabled: !opts.staticOpts.disableEnvVarsResolution,
+			SyscallsMonitorEnabled:   true,
+			TTYFallbackEnabled:       true,
+			EBPFLessEnabled:          ebpfLessEnabled,
 		},
 	}
 	if opts.staticOpts.tagsResolver != nil {
@@ -791,17 +792,6 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 
 	if err := testMod.eventMonitor.Init(); err != nil {
 		return nil, fmt.Errorf("failed to init module: %w", err)
-	}
-
-	kv, _ := kernel.NewKernelVersion()
-
-	var isRuntimeCompiled bool
-	if p, ok := testMod.eventMonitor.Probe.PlatformProbe.(*sprobe.EBPFProbe); ok {
-		isRuntimeCompiled = p.IsRuntimeCompiled()
-	}
-
-	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && secconfig.Probe.RuntimeCompilationEnabled && !isRuntimeCompiled && !kv.IsSuseKernel() {
-		return nil, errors.New("failed to runtime compile module")
 	}
 
 	if opts.staticOpts.preStartCallback != nil {

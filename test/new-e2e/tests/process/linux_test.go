@@ -116,9 +116,9 @@ func (s *linuxTestSuite) TestProcessChecksInCoreAgent() {
 	}, 1*time.Minute, 5*time.Second)
 
 	// Verify that the process agent is not running
-	assert.EventuallyWithT(t, func(*assert.CollectT) {
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		status := s.Env().RemoteHost.MustExecute("/opt/datadog-agent/embedded/bin/process-agent status")
-		assert.Contains(t, status, "The Process Agent is not running")
+		assert.Contains(c, status, "The Process Agent is not running")
 	}, 1*time.Minute, 5*time.Second)
 
 	// Flush fake intake to remove any payloads which may have

@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
@@ -146,6 +145,7 @@ import (
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
@@ -183,7 +183,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
 				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
-				LogParams:            log.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
+				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
 			}),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 			logging.EnableFxLoggingOnDebug[log.Component](),
@@ -331,12 +331,12 @@ func run(log log.Component,
 func getSharedFxOption() fx.Option {
 	return fx.Options(
 		flare.Module(flare.NewParams(
-			path.GetDistPath(),
-			path.PyChecksPath,
-			path.DefaultLogFile,
-			path.DefaultJmxLogFile,
-			path.DefaultDogstatsDLogFile,
-			path.DefaultStreamlogsLogFile,
+			defaultpaths.GetDistPath(),
+			defaultpaths.PyChecksPath,
+			defaultpaths.LogFile,
+			defaultpaths.JmxLogFile,
+			defaultpaths.DogstatsDLogFile,
+			defaultpaths.StreamlogsLogFile,
 		)),
 		core.Bundle(),
 		lsof.Module(),
@@ -395,10 +395,6 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 		taggerimpl.Module(),
 		autodiscoveryimpl.Module(),
-		fx.Provide(func(ac autodiscovery.Component) optional.Option[autodiscovery.Component] {
-			return optional.NewOption[autodiscovery.Component](ac)
-		}),
-
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
 		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
 		// have to ensure this code gets run first. Once the common package is made into a component, this can be removed.
@@ -478,7 +474,7 @@ func startAgent(
 	_ sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	wmeta workloadmeta.Component,
-	_ tagger.Component,
+	tagger tagger.Component,
 	ac autodiscovery.Component,
 	rcclient rcclient.Component,
 	_ optional.Option[logsAgent.Component],
@@ -579,7 +575,7 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, cfg, telemetry)
+	commonchecks.RegisterChecks(wmeta, tagger, cfg, telemetry)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)

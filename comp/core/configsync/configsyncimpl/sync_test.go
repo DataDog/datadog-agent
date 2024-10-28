@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -63,7 +64,7 @@ func TestFetchConfig(t *testing.T) {
 }
 
 func TestUpdateConfig(t *testing.T) {
-	cfg := pkgconfigmodel.NewConfig("test", "DD", nil)
+	cfg := configmock.New(t)
 	cfg.Set("key1", "value1", pkgconfigmodel.SourceFile)
 	cfg.Set("key3", "set-with-cli", pkgconfigmodel.SourceCLI)
 

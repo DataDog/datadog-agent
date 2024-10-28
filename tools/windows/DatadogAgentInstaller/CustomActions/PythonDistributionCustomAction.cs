@@ -1,8 +1,8 @@
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
-using ICSharpCode.SharpZipLib.Tar;
 using Microsoft.Deployment.WindowsInstaller;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 
@@ -33,37 +33,10 @@ namespace Datadog.CustomActions
             public const int ProgressAddition = 1;
         }
 
-        static void Decompress(ISession session, string compressedFileName)
-        {
-            var decoder = new SevenZip.Compression.LZMA.Decoder();
-            using (var inStream = File.OpenRead(compressedFileName))
-            {
-                using (var outStream = File.Create($"{compressedFileName}.tar"))
-                {
-                    var reader = new BinaryReader(inStream, Encoding.UTF8);
-                    // Properties of the stream are encoded on 5 bytes
-                    var props = reader.ReadBytes(5);
-                    decoder.SetDecoderProperties(props);
-                    var length = reader.ReadInt64();
-                    decoder.Code(inStream, outStream, inStream.Length, length, null);
-                    outStream.Flush();
-                }
-            }
-            var outputPath = Path.GetDirectoryName(Path.GetFullPath(compressedFileName));
-            using (var inStream = File.OpenRead($"{compressedFileName}.tar"))
-            using (var tarArchive = TarArchive.CreateInputTarArchive(inStream, Encoding.UTF8))
-            {
-                tarArchive.ExtractContents(outputPath);
-            }
-            File.Delete($"{compressedFileName}.tar");
-            File.Delete($"{compressedFileName}");
-        }
-
         private static ActionResult DecompressPythonDistribution(
             ISession session,
             string outputDirectoryName,
             string compressedDistributionFile,
-            string pythonDistributionName,
             int pythonDistributionSize)
         {
             var projectLocation = session.Property("PROJECTLOCATION");
@@ -90,7 +63,7 @@ namespace Datadog.CustomActions
                 {
                     using var actionRecord = new Record(
                         "Decompress Python distribution",
-                        $"Decompressing {pythonDistributionName} distribution",
+                        "Decompressing distribution",
                         ""
                     );
                     session.Message(InstallMessage.ActionStart, actionRecord);
@@ -102,7 +75,30 @@ namespace Datadog.CustomActions
                             );
                         session.Message(InstallMessage.Progress, record);
                     }
-                    Decompress(session, embedded);
+
+                    var psi = new ProcessStartInfo
+                    {
+                        CreateNoWindow = true,
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        FileName = Path.Combine(projectLocation, "bin", "7zr.exe"),
+                        // The archive already contains the name of the embedded folder
+                        // so pass the projectLocation to 7z instead.
+                        Arguments = $"x \"{embedded}\" -o\"{projectLocation}\""
+                    };
+                    var proc = new Process();
+                    proc.StartInfo = psi;
+                    proc.OutputDataReceived += (_, args) => session.Log(args.Data);
+                    proc.ErrorDataReceived += (_, args) => session.Log(args.Data);
+                    proc.Start();
+                    proc.BeginOutputReadLine();
+                    proc.BeginErrorReadLine();
+                    proc.WaitForExit();
+                    if (proc.ExitCode != 0)
+                    {
+                        throw new Exception($"extracting embedded python exited with code: {proc.ExitCode}");
+                    }
                     {
                         using var record = new Record(MessageRecordFields.ProgressReport, pythonDistributionSize);
                         session.Message(InstallMessage.Progress, record);
@@ -116,6 +112,8 @@ namespace Datadog.CustomActions
                     }
                     session.Log($"{embedded} not found, skipping decompression.");
                 }
+
+                File.Delete(Path.Combine(projectLocation, "bin", "7zr.exe"));
             }
             catch (Exception e)
             {
@@ -129,22 +127,12 @@ namespace Datadog.CustomActions
         private static ActionResult DecompressPythonDistributions(ISession session)
         {
             var size = 0;
-            var embedded2Size = session.Property("embedded2_SIZE");
-            if (!string.IsNullOrEmpty(embedded2Size))
-            {
-                size = int.Parse(embedded2Size);
-            }
-            var actionResult = DecompressPythonDistribution(session, "embedded2", "embedded2.COMPRESSED", "Python 2", size);
-            if (actionResult != ActionResult.Success)
-            {
-                return actionResult;
-            }
             var embedded3Size = session.Property("embedded3_SIZE");
             if (!string.IsNullOrEmpty(embedded3Size))
             {
                 size = int.Parse(embedded3Size);
             }
-            return DecompressPythonDistribution(session, "embedded3", "embedded3.COMPRESSED", "Python 3", size);
+            return DecompressPythonDistribution(session, "embedded3", "embedded3.COMPRESSED", size);
         }
 
         public static ActionResult DecompressPythonDistributions(Session session)
@@ -157,11 +145,6 @@ namespace Datadog.CustomActions
             try
             {
                 var total = 0;
-                var embedded2Size = session.Property("embedded2_SIZE");
-                if (!string.IsNullOrEmpty(embedded2Size))
-                {
-                    total += int.Parse(embedded2Size);
-                }
                 var embedded3Size = session.Property("embedded3_SIZE");
                 if (!string.IsNullOrEmpty(embedded3Size))
                 {

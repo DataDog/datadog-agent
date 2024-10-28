@@ -38,7 +38,7 @@ type connTag = uint64
 const (
 	tagGnuTLS  connTag = 0x01 // network.ConnTagGnuTLS
 	tagOpenSSL connTag = 0x02 // network.ConnTagOpenSSL
-	tagTLS     connTag = 0x10 // network.ConnTagTLS
+	tagTLS     connTag = 0x8  // network.ConnTagTLS
 )
 
 func getBlobWriter(t *testing.T, assert *assert.Assertions, in *network.Connections, marshalerType string) *bytes.Buffer {
@@ -187,16 +187,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 }
 
 func TestSerialization(t *testing.T) {
-	t.Run("status code", func(t *testing.T) {
-		testSerialization(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testSerialization(t, false)
-	})
-}
-
-func testSerialization(t *testing.T, aggregateByStatusCode bool) {
-	httpReqStats := http.NewRequestStats(aggregateByStatusCode)
+	httpReqStats := http.NewRequestStats()
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
@@ -490,22 +481,13 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 }
 
 func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
-	t.Run("status code", func(t *testing.T) {
-		testHTTPSerializationWithLocalhostTraffic(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testHTTPSerializationWithLocalhostTraffic(t, false)
-	})
-}
-
-func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCode bool) {
 	var (
 		clientPort = uint16(52800)
 		serverPort = uint16(8080)
 		localhost  = util.AddressFromString("127.0.0.1")
 	)
 
-	httpReqStats := http.NewRequestStats(aggregateByStatusCode)
+	httpReqStats := http.NewRequestStats()
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
@@ -659,23 +641,13 @@ func assertConnsEqualHTTP2(t *testing.T, expected, actual *model.Connections) {
 }
 
 func TestHTTP2SerializationWithLocalhostTraffic(t *testing.T) {
-	t.Run("status code", func(t *testing.T) {
-		testHTTP2SerializationWithLocalhostTraffic(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testHTTP2SerializationWithLocalhostTraffic(t, false)
-	})
-
-}
-
-func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCode bool) {
 	var (
 		clientPort = uint16(52800)
 		serverPort = uint16(8080)
 		localhost  = util.AddressFromString("127.0.0.1")
 	)
 
-	http2ReqStats := http.NewRequestStats(aggregateByStatusCode)
+	http2ReqStats := http.NewRequestStats()
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{

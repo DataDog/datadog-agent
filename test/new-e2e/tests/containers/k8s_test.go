@@ -192,6 +192,25 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 	})
 }
 
+func (suite *k8sSuite) TestAdmissionControllerWebhooksExist() {
+	ctx := context.Background()
+	expectedWebhookName := "datadog-webhook"
+
+	suite.Run("agent registered mutating webhook configuration", func() {
+		mutatingConfigs, err := suite.K8sClient.AdmissionregistrationV1().MutatingWebhookConfigurations().List(ctx, metav1.ListOptions{})
+		suite.Require().NoError(err)
+		suite.NotEmpty(mutatingConfigs.Items, "No mutating webhook configuration found")
+		found := false
+		for _, mutatingConfig := range mutatingConfigs.Items {
+			if mutatingConfig.Name == expectedWebhookName {
+				found = true
+				break
+			}
+		}
+		suite.Require().True(found, fmt.Sprintf("None of the mutating webhook configurations have the name '%s'", expectedWebhookName))
+	})
+}
+
 func (suite *k8sSuite) TestVersion() {
 	ctx := context.Background()
 	versionExtractor := regexp.MustCompile(`Commit: ([[:xdigit:]]+)`)
@@ -305,7 +324,7 @@ func (suite *k8sSuite) testAgentCLI() {
 	suite.Run("agent check -r container", func() {
 		var stdout string
 		suite.EventuallyWithT(func(c *assert.CollectT) {
-			stdout, _, err = suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "check", "-r", "container", "--table", "--delay", "1000"})
+			stdout, _, err = suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "check", "-t", "3", "container", "--table", "--delay", "1000", "--pause", "5000"})
 			// Can be replaced by require.NoError(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoError(c, err) {
 				return

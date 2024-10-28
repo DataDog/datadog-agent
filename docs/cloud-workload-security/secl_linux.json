@@ -249,7 +249,7 @@
         },
         {
           "name": "process.ancestors.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -274,7 +274,7 @@
         },
         {
           "name": "process.ancestors.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -379,7 +379,7 @@
         },
         {
           "name": "process.ancestors.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -404,7 +404,7 @@
         },
         {
           "name": "process.ancestors.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -431,6 +431,11 @@
           "name": "process.ancestors.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "process.ancestors.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
         },
         {
           "name": "process.ancestors.pid",
@@ -649,7 +654,7 @@
         },
         {
           "name": "process.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -674,7 +679,7 @@
         },
         {
           "name": "process.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -779,7 +784,7 @@
         },
         {
           "name": "process.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -804,7 +809,7 @@
         },
         {
           "name": "process.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1004,7 +1009,7 @@
         },
         {
           "name": "process.parent.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1029,7 +1034,7 @@
         },
         {
           "name": "process.parent.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1134,7 +1139,7 @@
         },
         {
           "name": "process.parent.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1159,7 +1164,7 @@
         },
         {
           "name": "process.parent.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1445,7 +1450,7 @@
         },
         {
           "name": "chdir.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1470,7 +1475,7 @@
         },
         {
           "name": "chdir.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1574,7 +1579,7 @@
         },
         {
           "name": "chmod.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1599,7 +1604,7 @@
         },
         {
           "name": "chmod.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1718,7 +1723,7 @@
         },
         {
           "name": "chown.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1743,7 +1748,7 @@
         },
         {
           "name": "chown.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1817,7 +1822,7 @@
         },
         {
           "name": "dns.question.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1836,29 +1841,24 @@
           "property_doc_link": "common-ipportcontext-port-doc"
         },
         {
-          "name": "network.device.ifindex",
-          "definition": "Interface ifindex",
-          "property_doc_link": "network-device-ifindex-doc"
-        },
-        {
           "name": "network.device.ifname",
           "definition": "Interface ifname",
-          "property_doc_link": "network-device-ifname-doc"
+          "property_doc_link": "common-networkdevicecontext-ifname-doc"
         },
         {
           "name": "network.l3_protocol",
           "definition": "L3 protocol of the network packet",
-          "property_doc_link": "network-l3_protocol-doc"
+          "property_doc_link": "common-networkcontext-l3_protocol-doc"
         },
         {
           "name": "network.l4_protocol",
           "definition": "L4 protocol of the network packet",
-          "property_doc_link": "network-l4_protocol-doc"
+          "property_doc_link": "common-networkcontext-l4_protocol-doc"
         },
         {
           "name": "network.size",
           "definition": "Size in bytes of the network packet",
-          "property_doc_link": "network-size-doc"
+          "property_doc_link": "common-networkcontext-size-doc"
         },
         {
           "name": "network.source.ip",
@@ -2051,7 +2051,7 @@
         },
         {
           "name": "exec.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2076,7 +2076,7 @@
         },
         {
           "name": "exec.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2181,7 +2181,7 @@
         },
         {
           "name": "exec.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2206,7 +2206,7 @@
         },
         {
           "name": "exec.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2475,7 +2475,7 @@
         },
         {
           "name": "exit.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2500,7 +2500,7 @@
         },
         {
           "name": "exit.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2605,7 +2605,7 @@
         },
         {
           "name": "exit.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2630,7 +2630,7 @@
         },
         {
           "name": "exit.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2763,29 +2763,24 @@
           "property_doc_link": "common-ipportcontext-port-doc"
         },
         {
-          "name": "network.device.ifindex",
-          "definition": "Interface ifindex",
-          "property_doc_link": "network-device-ifindex-doc"
-        },
-        {
           "name": "network.device.ifname",
           "definition": "Interface ifname",
-          "property_doc_link": "network-device-ifname-doc"
+          "property_doc_link": "common-networkdevicecontext-ifname-doc"
         },
         {
           "name": "network.l3_protocol",
           "definition": "L3 protocol of the network packet",
-          "property_doc_link": "network-l3_protocol-doc"
+          "property_doc_link": "common-networkcontext-l3_protocol-doc"
         },
         {
           "name": "network.l4_protocol",
           "definition": "L4 protocol of the network packet",
-          "property_doc_link": "network-l4_protocol-doc"
+          "property_doc_link": "common-networkcontext-l4_protocol-doc"
         },
         {
           "name": "network.size",
           "definition": "Size in bytes of the network packet",
-          "property_doc_link": "network-size-doc"
+          "property_doc_link": "common-networkcontext-size-doc"
         },
         {
           "name": "network.source.ip",
@@ -2868,7 +2863,7 @@
         },
         {
           "name": "link.file.destination.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2893,7 +2888,7 @@
         },
         {
           "name": "link.file.destination.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2963,7 +2958,7 @@
         },
         {
           "name": "link.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2988,7 +2983,7 @@
         },
         {
           "name": "link.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3102,7 +3097,7 @@
         },
         {
           "name": "load_module.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3127,7 +3122,7 @@
         },
         {
           "name": "load_module.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3236,7 +3231,7 @@
         },
         {
           "name": "mkdir.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3261,7 +3256,7 @@
         },
         {
           "name": "mkdir.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3350,7 +3345,7 @@
         },
         {
           "name": "mmap.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3375,7 +3370,7 @@
         },
         {
           "name": "mmap.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3552,7 +3547,7 @@
         },
         {
           "name": "open.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3577,7 +3572,7 @@
         },
         {
           "name": "open.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3619,6 +3614,60 @@
           "name": "open.syscall.path",
           "definition": "Path argument of the syscall",
           "property_doc_link": "open-syscall-path-doc"
+        }
+      ]
+    },
+    {
+      "name": "packet",
+      "definition": "A raw network packet captured",
+      "type": "Network",
+      "from_agent_version": "7.60",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "packet.destination.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "packet.destination.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "packet.device.ifname",
+          "definition": "Interface ifname",
+          "property_doc_link": "common-networkdevicecontext-ifname-doc"
+        },
+        {
+          "name": "packet.l3_protocol",
+          "definition": "L3 protocol of the network packet",
+          "property_doc_link": "common-networkcontext-l3_protocol-doc"
+        },
+        {
+          "name": "packet.l4_protocol",
+          "definition": "L4 protocol of the network packet",
+          "property_doc_link": "common-networkcontext-l4_protocol-doc"
+        },
+        {
+          "name": "packet.size",
+          "definition": "Size in bytes of the network packet",
+          "property_doc_link": "common-networkcontext-size-doc"
+        },
+        {
+          "name": "packet.source.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "packet.source.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "packet.tls.version",
+          "definition": "TLS version",
+          "property_doc_link": "packet-tls-version-doc"
         }
       ]
     },
@@ -3811,7 +3860,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3836,7 +3885,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3941,7 +3990,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3966,7 +4015,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3993,6 +4042,11 @@
           "name": "ptrace.tracee.ancestors.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.pid",
@@ -4211,7 +4265,7 @@
         },
         {
           "name": "ptrace.tracee.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4236,7 +4290,7 @@
         },
         {
           "name": "ptrace.tracee.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4341,7 +4395,7 @@
         },
         {
           "name": "ptrace.tracee.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4366,7 +4420,7 @@
         },
         {
           "name": "ptrace.tracee.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4566,7 +4620,7 @@
         },
         {
           "name": "ptrace.tracee.parent.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4591,7 +4645,7 @@
         },
         {
           "name": "ptrace.tracee.parent.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4696,7 +4750,7 @@
         },
         {
           "name": "ptrace.tracee.parent.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4721,7 +4775,7 @@
         },
         {
           "name": "ptrace.tracee.parent.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4915,7 +4969,7 @@
         },
         {
           "name": "removexattr.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4940,7 +4994,7 @@
         },
         {
           "name": "removexattr.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5034,7 +5088,7 @@
         },
         {
           "name": "rename.file.destination.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5059,7 +5113,7 @@
         },
         {
           "name": "rename.file.destination.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5129,7 +5183,7 @@
         },
         {
           "name": "rename.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5154,7 +5208,7 @@
         },
         {
           "name": "rename.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5253,7 +5307,7 @@
         },
         {
           "name": "rmdir.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5278,7 +5332,7 @@
         },
         {
           "name": "rmdir.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5484,7 +5538,7 @@
         },
         {
           "name": "setxattr.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5509,7 +5563,7 @@
         },
         {
           "name": "setxattr.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5723,7 +5777,7 @@
         },
         {
           "name": "signal.target.ancestors.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5748,7 +5802,7 @@
         },
         {
           "name": "signal.target.ancestors.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5853,7 +5907,7 @@
         },
         {
           "name": "signal.target.ancestors.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5878,7 +5932,7 @@
         },
         {
           "name": "signal.target.ancestors.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5905,6 +5959,11 @@
           "name": "signal.target.ancestors.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "signal.target.ancestors.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
         },
         {
           "name": "signal.target.ancestors.pid",
@@ -6123,7 +6182,7 @@
         },
         {
           "name": "signal.target.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6148,7 +6207,7 @@
         },
         {
           "name": "signal.target.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6253,7 +6312,7 @@
         },
         {
           "name": "signal.target.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6278,7 +6337,7 @@
         },
         {
           "name": "signal.target.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6478,7 +6537,7 @@
         },
         {
           "name": "signal.target.parent.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6503,7 +6562,7 @@
         },
         {
           "name": "signal.target.parent.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6608,7 +6667,7 @@
         },
         {
           "name": "signal.target.parent.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6633,7 +6692,7 @@
         },
         {
           "name": "signal.target.parent.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6822,7 +6881,7 @@
         },
         {
           "name": "splice.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6847,7 +6906,7 @@
         },
         {
           "name": "splice.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6946,7 +7005,7 @@
         },
         {
           "name": "unlink.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6971,7 +7030,7 @@
         },
         {
           "name": "unlink.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -7099,7 +7158,7 @@
         },
         {
           "name": "utimes.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -7124,7 +7183,7 @@
         },
         {
           "name": "utimes.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -8030,6 +8089,19 @@
       "examples": []
     },
     {
+      "name": "*.ifname",
+      "link": "common-networkdevicecontext-ifname-doc",
+      "type": "string",
+      "definition": "Interface ifname",
+      "prefixes": [
+        "network.device",
+        "packet.device"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.in_upper_layer",
       "link": "common-filefields-in_upper_layer-doc",
       "type": "bool",
@@ -8149,7 +8221,9 @@
       "prefixes": [
         "bind.addr",
         "network.destination",
-        "network.source"
+        "network.source",
+        "packet.destination",
+        "packet.source"
       ],
       "constants": "",
       "constants_link": "",
@@ -8266,10 +8340,36 @@
       "examples": []
     },
     {
+      "name": "*.l3_protocol",
+      "link": "common-networkcontext-l3_protocol-doc",
+      "type": "int",
+      "definition": "L3 protocol of the network packet",
+      "prefixes": [
+        "network",
+        "packet"
+      ],
+      "constants": "L3 protocols",
+      "constants_link": "l3-protocols",
+      "examples": []
+    },
+    {
+      "name": "*.l4_protocol",
+      "link": "common-networkcontext-l4_protocol-doc",
+      "type": "int",
+      "definition": "L4 protocol of the network packet",
+      "prefixes": [
+        "network",
+        "packet"
+      ],
+      "constants": "L4 protocols",
+      "constants_link": "l4-protocols",
+      "examples": []
+    },
+    {
       "name": "*.length",
       "link": "common-string-length-doc",
       "type": "int",
-      "definition": "Length of the corresponding string",
+      "definition": "Length of the corresponding element",
       "prefixes": [
         "chdir.file.name",
         "chdir.file.path",
@@ -8298,6 +8398,7 @@
         "mmap.file.path",
         "open.file.name",
         "open.file.path",
+        "process.ancestors",
         "process.ancestors.file.name",
         "process.ancestors.file.path",
         "process.ancestors.interpreter.file.name",
@@ -8310,6 +8411,7 @@
         "process.parent.file.path",
         "process.parent.interpreter.file.name",
         "process.parent.interpreter.file.path",
+        "ptrace.tracee.ancestors",
         "ptrace.tracee.ancestors.file.name",
         "ptrace.tracee.ancestors.file.path",
         "ptrace.tracee.ancestors.interpreter.file.name",
@@ -8332,6 +8434,7 @@
         "rmdir.file.path",
         "setxattr.file.name",
         "setxattr.file.path",
+        "signal.target.ancestors",
         "signal.target.ancestors.file.name",
         "signal.target.ancestors.file.path",
         "signal.target.ancestors.interpreter.file.name",
@@ -8834,7 +8937,9 @@
       "prefixes": [
         "bind.addr",
         "network.destination",
-        "network.source"
+        "network.source",
+        "packet.destination",
+        "packet.source"
       ],
       "constants": "",
       "constants_link": "",
@@ -8943,6 +9048,19 @@
       ],
       "constants": "File mode constants",
       "constants_link": "file-mode-constants",
+      "examples": []
+    },
+    {
+      "name": "*.size",
+      "link": "common-networkcontext-size-doc",
+      "type": "int",
+      "definition": "Size in bytes of the network packet",
+      "prefixes": [
+        "network",
+        "packet"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -9979,66 +10097,6 @@
       "examples": []
     },
     {
-      "name": "network.device.ifindex",
-      "link": "network-device-ifindex-doc",
-      "type": "int",
-      "definition": "Interface ifindex",
-      "prefixes": [
-        "network.device"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "network.device.ifname",
-      "link": "network-device-ifname-doc",
-      "type": "string",
-      "definition": "Interface ifname",
-      "prefixes": [
-        "network.device"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "network.l3_protocol",
-      "link": "network-l3_protocol-doc",
-      "type": "int",
-      "definition": "L3 protocol of the network packet",
-      "prefixes": [
-        "network"
-      ],
-      "constants": "L3 protocols",
-      "constants_link": "l3-protocols",
-      "examples": []
-    },
-    {
-      "name": "network.l4_protocol",
-      "link": "network-l4_protocol-doc",
-      "type": "int",
-      "definition": "L4 protocol of the network packet",
-      "prefixes": [
-        "network"
-      ],
-      "constants": "L4 protocols",
-      "constants_link": "l4-protocols",
-      "examples": []
-    },
-    {
-      "name": "network.size",
-      "link": "network-size-doc",
-      "type": "int",
-      "definition": "Size in bytes of the network packet",
-      "prefixes": [
-        "network"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
       "name": "open.file.destination.mode",
       "link": "open-file-destination-mode-doc",
       "type": "int",
@@ -10093,6 +10151,18 @@
       "definition": "Path argument of the syscall",
       "prefixes": [
         "open"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "packet.tls.version",
+      "link": "packet-tls-version-doc",
+      "type": "int",
+      "definition": "TLS version",
+      "prefixes": [
+        "packet.tls"
       ],
       "constants": "",
       "constants_link": "",

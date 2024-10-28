@@ -146,14 +146,16 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/DataDog/test-infra-definitions/common/utils"
+	"github.com/DataDog/test-infra-definitions/components"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
-	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/DataDog/test-infra-definitions/components"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -189,6 +191,10 @@ type BaseSuite[Env any] struct {
 	currentProvisioners  ProvisionerMap
 
 	firstFailTest string
+	initOnly      bool
+
+	testSessionOutputDir     string
+	onceTestSessionOutputDir sync.Once
 }
 
 //
@@ -212,7 +218,6 @@ func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...Provisioner) {
 		uniqueIDs[provisioner.ID()] = struct{}{}
 		targetProvisioners[provisioner.ID()] = provisioner
 	}
-
 	if err := bs.reconcileEnv(targetProvisioners); err != nil {
 		panic(err)
 	}
@@ -227,6 +232,11 @@ func (bs *BaseSuite[Env]) IsDevMode() bool {
 func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 	for _, o := range options {
 		o(&bs.params)
+	}
+
+	initOnly, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.InitOnly, false)
+	if err == nil {
+		bs.initOnly = initOnly
 	}
 
 	if !runner.GetProfile().AllowDevMode() {
@@ -306,6 +316,11 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error 
 		resources.Merge(provisionerResources)
 	}
 
+	// When INIT_ONLY is set, we only partially provision the environment so we do not want initialize the environment
+	if bs.initOnly {
+		return nil
+	}
+
 	// Env is taken as parameter as some fields may have keys set by Env pulumi program.
 	err = bs.buildEnvFromResources(resources, newEnvFields, newEnvValues)
 	if err != nil {
@@ -328,6 +343,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error 
 
 func (bs *BaseSuite[Env]) createEnv() (*Env, []reflect.StructField, []reflect.Value, error) {
 	var env Env
+
 	envFields := reflect.VisibleFields(reflect.TypeOf(&env).Elem())
 	envValue := reflect.ValueOf(&env)
 
@@ -467,6 +483,10 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 		// `panic()` is required to stop the execution of the test suite. Otherwise `testify.Suite` will keep on running suite tests.
 		panic(err)
 	}
+
+	if bs.initOnly {
+		bs.T().Skip("INIT_ONLY is set, skipping tests")
+	}
 }
 
 // BeforeTest is executed right before the test starts and receives the suite and test names as input.
@@ -513,6 +533,11 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 		return
 	}
 
+	if bs.initOnly {
+		bs.T().Logf("INIT_ONLY is set, skipping deletion")
+		return
+	}
+
 	if bs.firstFailTest != "" && bs.params.skipDeleteOnFailure {
 		bs.Require().FailNow(fmt.Sprintf("%v failed. As SkipDeleteOnFailure feature is enabled the tests after %v were skipped. "+
 			"The environment of %v was kept.", bs.firstFailTest, bs.firstFailTest, bs.firstFailTest))
@@ -527,6 +552,32 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 		}
 	}
+}
+
+// GetRootOutputDir returns the root output directory for tests to store output files and artifacts.
+// The directory is created on the first call to this function and reused in future calls.
+//
+// See BaseSuite.CreateTestOutputDir() for a function that returns a directory for the current test.
+//
+// See CreateRootOutputDir() for details on the root directory creation.
+func (bs *BaseSuite[Env]) GetRootOutputDir() (string, error) {
+	var err error
+	bs.onceTestSessionOutputDir.Do(func() {
+		// Store the timestamped directory to be used by all tests in the suite
+		bs.testSessionOutputDir, err = CreateRootOutputDir()
+	})
+	return bs.testSessionOutputDir, err
+}
+
+// CreateTestOutputDir returns an output directory for the current test.
+//
+// See also CreateTestOutputDir()
+func (bs *BaseSuite[Env]) CreateTestOutputDir() (string, error) {
+	root, err := bs.GetRootOutputDir()
+	if err != nil {
+		return "", err
+	}
+	return CreateTestOutputDir(root, bs.T())
 }
 
 // Run is a helper function to run a test suite.

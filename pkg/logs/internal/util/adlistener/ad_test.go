@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -27,6 +28,7 @@ func TestListenersGetScheduleCalls(t *testing.T) {
 	adsched := scheduler.NewController()
 	ac := fxutil.Test[autodiscovery.Mock](t,
 		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: adsched}),
+		secretsimpl.MockModule(),
 		autodiscoveryimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		core.MockBundle(),
