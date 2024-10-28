@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,9 +34,19 @@ func TestOTelAgentInstalled(s OTelTestSuite) {
 func TestOTelFlare(s OTelTestSuite, providedCfg string, fullCfg string, sources string) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
+	agent := getAgentPod(s)
+
+	s.T().Log("Wait for zpages in otel-agent to be ready")
+	for {
+		stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "otel-agent", []string{"curl", "localhost:55679/debug/servicez"})
+		require.NoError(s.T(), err, "Failed to execute curl")
+		if stderr == "" && strings.Contains(stdout, "Service otel-agent") {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
 
 	s.T().Log("Starting flare")
-	agent := getAgentPod(s)
 	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "flare", "--email", "e2e@test.com", "--send"})
 	require.NoError(s.T(), err, "Failed to execute flare")
 	require.Empty(s.T(), stderr)
