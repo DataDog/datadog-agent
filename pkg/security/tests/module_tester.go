@@ -55,10 +55,6 @@ const (
 	// Skip means that the callback should skip the test
 	Skip
 )
-const (
-	getEventTimeout                 = 10 * time.Second
-	filelessExecutionFilenamePrefix = "memfd:"
-)
 
 var (
 	errSkipEvent = errors.New("skip event")

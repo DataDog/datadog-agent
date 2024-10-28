@@ -148,6 +148,10 @@ runtime_security_config:
         period: {{.EnforcementDisarmerExecutablePeriod}}
 `
 
+const (
+	getEventTimeout = 30 * time.Second
+)
+
 type onRuleHandler func(*model.Event, *rules.Rule)
 type onProbeEventHandler func(*model.Event)
 type onCustomSendEventHandler func(*rules.Rule, *events.CustomEvent)
