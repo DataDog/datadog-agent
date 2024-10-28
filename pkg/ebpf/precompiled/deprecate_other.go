@@ -5,11 +5,11 @@
 
 //go:build !linux
 
-// Package ebpf implements tracing network events with eBPF
-package ebpf
+// package precompiled implements precompiled specific eBPF functionality
+package precompiled
 
-// IsPrecompiledEbpfDeprecated returns true if precompiled ebpf is deprecated
+// IsDeprecated returns true if precompiled ebpf is deprecated
 // on this host
-func IsPrecompiledEbpfDeprecated() bool {
+func IsDeprecated() bool {
 	return false
 }

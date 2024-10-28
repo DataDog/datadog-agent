@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/precompiled"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -120,9 +120,9 @@ func TestEbpfFallbackDeprecation(t *testing.T) {
 	kv, err := kernel.HostVersion()
 	require.NoError(t, err, "could not determine kernel version")
 
-	deprecateVersion := netebpf.PrecompiledEbpfDeprecatedKernelVersion
+	deprecateVersion := precompiled.DeprecatedKernelVersion
 	if family == "rhel" {
-		deprecateVersion = netebpf.PrecompiledEbpfDeprecatedKernelVersionRhel
+		deprecateVersion = precompiled.DeprecatedKernelVersionRhel
 	}
 
 	t.Run("default", func(t *testing.T) {

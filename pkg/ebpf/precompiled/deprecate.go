@@ -5,8 +5,8 @@
 
 //go:build linux
 
-// Package ebpf implements tracing network events with eBPF
-package ebpf
+// package precompiled implements precompiled specific eBPF functionality
+package precompiled
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -14,17 +14,17 @@ import (
 )
 
 var (
-	// PrecompiledEbpfDeprecatedKernelVersionRhel is the kernel version
+	// DeprecatedKernelVersionRhel is the kernel version
 	// where pre-compiled eBPF is deprecated on RHEL based kernels
-	PrecompiledEbpfDeprecatedKernelVersionRhel = kernel.VersionCode(5, 14, 0)
-	// PrecompiledEbpfDeprecatedKernelVersion is the kernel version
+	DeprecatedKernelVersionRhel = kernel.VersionCode(5, 14, 0)
+	// DeprecatedKernelVersion is the kernel version
 	// where pre-compiled eBPF is deprecated on non-RHEL based kernels
-	PrecompiledEbpfDeprecatedKernelVersion = kernel.VersionCode(6, 0, 0)
+	DeprecatedKernelVersion = kernel.VersionCode(6, 0, 0)
 )
 
-// IsPrecompiledEbpfDeprecated returns true if precompiled ebpf is deprecated
+// IsDeprecated returns true if precompiled ebpf is deprecated
 // on this host
-func IsPrecompiledEbpfDeprecated() bool {
+func IsDeprecated() bool {
 	// has to be kernel 6+ or RHEL 9+ (kernel 5.14+)
 	family, err := kernel.Family()
 	if err != nil {
@@ -40,8 +40,8 @@ func IsPrecompiledEbpfDeprecated() bool {
 	}
 
 	if family == "rhel" {
-		return kv >= PrecompiledEbpfDeprecatedKernelVersionRhel
+		return kv >= DeprecatedKernelVersionRhel
 	}
 
-	return kv >= PrecompiledEbpfDeprecatedKernelVersion
+	return kv >= DeprecatedKernelVersion
 }
