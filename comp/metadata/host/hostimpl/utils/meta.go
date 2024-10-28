@@ -65,11 +65,10 @@ func GetMeta(ctx context.Context, conf model.Reader) *Meta {
 	}
 	legacyResolutionHostnameData, _ := hostname.GetWithProviderWithoutCacheAndIMDSV2(ctx)
 	if legacyResolutionHostnameData.Hostname != hostnameData.Hostname {
-		legacyResolutionHostname = legacyResolutionHostnameData.Hostname
+		legacyResolutionHostname = "I'm not equal to the hostname | " + legacyResolutionHostnameData.Hostname
 	} else {
 		legacyResolutionHostname = "I'm equal to the hostname | " + legacyResolutionHostnameData.Hostname
 	}
-
 
 	m := &Meta{
 		SocketHostname:           osHostname,
