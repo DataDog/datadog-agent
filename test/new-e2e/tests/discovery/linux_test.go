@@ -91,7 +91,7 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 			}
 		}
 
-		s.assertService(t, foundMap, serviceExpectedPayload{
+		s.assertService(t, c, foundMap, serviceExpectedPayload{
 			name:                 "json-server",
 			systemdServiceName:   "node-json-server",
 			instrumentation:      "none",
@@ -100,7 +100,7 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 			ddService:            "",
 			serviceNameSource:    "",
 		})
-		s.assertService(t, foundMap, serviceExpectedPayload{
+		s.assertService(t, c, foundMap, serviceExpectedPayload{
 			name:                 "node-instrumented",
 			systemdServiceName:   "node-instrumented",
 			instrumentation:      "provided",
@@ -109,7 +109,7 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 			ddService:            "",
 			serviceNameSource:    "",
 		})
-		s.assertService(t, foundMap, serviceExpectedPayload{
+		s.assertService(t, c, foundMap, serviceExpectedPayload{
 			name:                 "python-svc-dd",
 			systemdServiceName:   "python-svc",
 			instrumentation:      "none",
@@ -118,7 +118,7 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 			ddService:            "python-svc-dd",
 			serviceNameSource:    "provided",
 		})
-		s.assertService(t, foundMap, serviceExpectedPayload{
+		s.assertService(t, c, foundMap, serviceExpectedPayload{
 			name:                 "python.instrumented",
 			systemdServiceName:   "python-instrumented",
 			instrumentation:      "provided",
@@ -127,7 +127,7 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 			ddService:            "",
 			serviceNameSource:    "",
 		})
-		s.assertService(t, foundMap, serviceExpectedPayload{
+		s.assertService(t, c, foundMap, serviceExpectedPayload{
 			name:                 "rails_hello",
 			systemdServiceName:   "rails-svc",
 			instrumentation:      "none",
@@ -196,17 +196,17 @@ type serviceExpectedPayload struct {
 	serviceNameSource    string
 }
 
-func (s *linuxTestSuite) assertService(t *testing.T, foundMap map[string]*aggregator.ServiceDiscoveryPayload, expected serviceExpectedPayload) {
+func (s *linuxTestSuite) assertService(t *testing.T, c *assert.CollectT, foundMap map[string]*aggregator.ServiceDiscoveryPayload, expected serviceExpectedPayload) {
 	t.Helper()
 
 	found := foundMap[expected.name]
-	if assert.NotNil(t, found, "could not find service %q", expected.name) {
-		assert.Equal(t, expected.instrumentation, found.Payload.APMInstrumentation, "service %q: APM instrumentation", expected.name)
-		assert.Equal(t, expected.serviceName, found.Payload.ServiceName, "service %q: service name", expected.name)
-		assert.Equal(t, expected.generatedServiceName, found.Payload.GeneratedServiceName, "service %q: generated service name", expected.name)
-		assert.Equal(t, expected.ddService, found.Payload.DDService, "service %q: DD service", expected.name)
-		assert.Equal(t, expected.serviceNameSource, found.Payload.ServiceNameSource, "service %q: service name source", expected.name)
-		assert.NotZero(t, found.Payload.RSSMemory, "service %q: expected non-zero memory usage", expected.name)
+	if assert.NotNil(c, found, "could not find service %q", expected.name) {
+		assert.Equal(c, expected.instrumentation, found.Payload.APMInstrumentation, "service %q: APM instrumentation", expected.name)
+		assert.Equal(c, expected.serviceName, found.Payload.ServiceName, "service %q: service name", expected.name)
+		assert.Equal(c, expected.generatedServiceName, found.Payload.GeneratedServiceName, "service %q: generated service name", expected.name)
+		assert.Equal(c, expected.ddService, found.Payload.DDService, "service %q: DD service", expected.name)
+		assert.Equal(c, expected.serviceNameSource, found.Payload.ServiceNameSource, "service %q: service name source", expected.name)
+		assert.NotZero(c, found.Payload.RSSMemory, "service %q: expected non-zero memory usage", expected.name)
 	} else {
 		status := s.Env().RemoteHost.MustExecute("sudo systemctl status " + expected.systemdServiceName)
 		logs := s.Env().RemoteHost.MustExecute("sudo journalctl -u " + expected.systemdServiceName)
