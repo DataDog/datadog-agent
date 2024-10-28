@@ -186,6 +186,11 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 			return err
 		}
 	}
+	clusterParams, err := ecs.NewParams(params.ecsOptions...)
+	if err != nil {
+		return err
+	}
+
 	// Create cluster
 	cluster, err := ecs.NewCluster(awsEnv, params.name, params.ecsOptions...)
 	if err != nil {
@@ -226,9 +231,9 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 		}
 
 		// Deploy Fargate Apps
-		if params.ecsFargate {
+		if clusterParams.FargateCapacityProvider {
 			for _, fargateAppFunc := range params.fargateWorkloadAppFuncs {
-				_, err := fargateAppFunc(awsEnv, ecsCluster.Arn, apiKeyParam.Name, fakeIntake)
+				_, err := fargateAppFunc(awsEnv, cluster.ClusterArn, apiKeyParam.Name, fakeIntake)
 				if err != nil {
 					return err
 				}
