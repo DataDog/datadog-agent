@@ -102,8 +102,8 @@ func (c *configs[F]) Unmarshal(conf *confmap.Conf) error {
 
 		c.cfgs[id] = cfg
 	}
-	return nil
 
+	return nil
 }
 
 func errorUnknownType(id component.ID, factories []component.Type) error {
