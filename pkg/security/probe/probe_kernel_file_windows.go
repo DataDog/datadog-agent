@@ -166,6 +166,9 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 
 	// not amazing to double compute the basename..
 	basename := filepath.Base(ca.fileName)
+	if basename == "" {
+		return nil, fmt.Errorf("empty basename for %v", ca.fileName)
+	}
 
 	if !wp.approveFimBasename(basename) {
 		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
