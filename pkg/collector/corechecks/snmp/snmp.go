@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
@@ -44,6 +45,7 @@ type Check struct {
 	discovery                  *discovery.Discovery
 	sessionFactory             session.Factory
 	workerRunDeviceCheckErrors *atomic.Uint64
+	rdnsquerier                rdnsquerier.Component
 }
 
 // Run executes the check
@@ -196,14 +198,17 @@ func (c *Check) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory(rdnsquerier rdnsquerier.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return newCheck(rdnsquerier)
+	})
 }
 
-func newCheck() check.Check {
+func newCheck(rdnsquerier rdnsquerier.Component) check.Check {
 	return &Check{
 		CheckBase:                  core.NewCheckBase(common.SnmpIntegrationName),
 		sessionFactory:             session.NewGosnmpSession,
 		workerRunDeviceCheckErrors: atomic.NewUint64(0),
+		rdnsquerier:                rdnsquerier,
 	}
 }
