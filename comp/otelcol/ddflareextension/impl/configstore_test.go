@@ -129,6 +129,17 @@ func TestGetConfDump(t *testing.T) {
 
 		assert.Equal(t, expectedStringMap, actualStringMap)
 	})
+
+	t.Run("effective-config", func(t *testing.T) {
+		actualEffectiveConfigString, err := ext.configStore.getEffectiveConfigAsString()
+		assert.NoError(t, err)
+		expectedMap, err := confmaptest.LoadConf("testdata/simple-dd/config-effective-result.yaml")
+		assert.NoError(t, err)
+		expectedEffectiveConfigString, err := confMapToString(expectedMap)
+		assert.NoError(t, err)
+
+		assert.Equal(t, expectedEffectiveConfigString, actualEffectiveConfigString)
+	})
 }
 
 func confmapFromResolverSettings(t *testing.T, resolverSettings confmap.ResolverSettings) *confmap.Conf {

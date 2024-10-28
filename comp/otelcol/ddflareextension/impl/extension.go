@@ -51,12 +51,13 @@ var _ extension.Extension = (*ddExtension)(nil)
 // This method is called during the startup process by the Collector's Service right after
 // calling Start.
 func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) error {
-	var cfg *configSettings
-	var err error
+	ext.configStore.setEffectiveConfig(conf)
 	if ext.ocb {
-		ext.configStore.setEffectiveConfig(conf)
 		return nil
 	}
+
+	var cfg *configSettings
+	var err error
 	// unmarshal will only be called if we created this component via the Agent
 	if cfg, err = unmarshal(conf, *ext.cfg.factories); err != nil {
 		return fmt.Errorf("cannot unmarshal the configuration: %w", err)
