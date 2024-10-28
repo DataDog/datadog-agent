@@ -33,6 +33,7 @@ func init() {
 	MinimumKernelVersion = kernel.VersionCode(5, 8, 0)
 }
 
+// CheckGPUSupported checks if the host's kernel supports GPU monitoring
 func CheckGPUSupported() error {
 	kversion, err := kernel.HostVersion()
 	if err != nil {
