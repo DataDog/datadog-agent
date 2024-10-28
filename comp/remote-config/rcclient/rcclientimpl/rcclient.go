@@ -57,7 +57,7 @@ type rcClient struct {
 	settingsComponent settings.Component
 	config            configcomp.Component
 	sysprobeConfig    optional.Option[sysprobeconfig.Component]
-	IsSystemProbe     bool
+	isSystemProbe     bool
 }
 
 type dependencies struct {
@@ -127,6 +127,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		settingsComponent: deps.SettingsComponent,
 		config:            deps.Config,
 		sysprobeConfig:    deps.SysprobeConfig,
+		isSystemProbe:     deps.Params.IsSystemProbe,
 	}
 
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
@@ -272,7 +273,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 
 	targetCmp := rc.config
 	localSysProbeConf, isSet := rc.sysprobeConfig.Get()
-	if isSet && rc.IsSystemProbe {
+	if isSet && rc.isSystemProbe {
 		pkglog.Infof("Using system probe config for remote config")
 		targetCmp = localSysProbeConf
 	}
