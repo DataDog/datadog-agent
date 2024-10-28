@@ -16,6 +16,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/precompiled"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -158,7 +159,7 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 		log.Warnf("error compiling network tracer, falling back to pre-compiled: %s", err)
 	}
 
-	if netebpf.IsPrecompiledEbpfDeprecated() {
+	if precompiled.IsDeprecated() {
 		log.Warnf("using deprecated pre-compiled network tracer")
 	}
 
