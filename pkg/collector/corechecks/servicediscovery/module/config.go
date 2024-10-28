@@ -13,22 +13,44 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const discoveryNS = "discovery"
 
 type discoveryConfig struct {
 	cpuUsageUpdateDelay time.Duration
-	ignoreComms         string
+	ignoreComms         map[string]struct{}
 }
 
 func newConfig() *discoveryConfig {
 	cfg := ddconfig.SystemProbe()
 	sysconfig.Adjust(cfg)
 
-	return &discoveryConfig{
+	conf := &discoveryConfig{
 		cpuUsageUpdateDelay: cfg.GetDuration(join(discoveryNS, "cpu_usage_update_delay")),
-		ignoreComms:         cfg.GetString(join(discoveryNS, "ignore_comms")),
+	}
+	conf.loadIgnoredComms(cfg.GetString(join(discoveryNS, "ignored_command_names")))
+
+	return conf
+}
+
+// loadIgnoredComms read process names that should not be reported as a service from input string
+func (config *discoveryConfig) loadIgnoredComms(commsList string) {
+	comms := strings.Split(strings.ReplaceAll(commsList, " ", ""), ",")
+	if len(comms) == 0 {
+		log.Warn("loading ignored commands found empty commands list")
+		return
+	}
+	config.ignoreComms = make(map[string]struct{}, len(comms))
+
+	for _, comm := range comms {
+		if len(comm) > maxCommLen {
+			config.ignoreComms[comm[:maxCommLen]] = struct{}{}
+			log.Warnf("the command name %d bytes long in config is truncated to maximum %d.", len(comm), maxCommLen)
+		} else if len(comm) > 0 {
+			config.ignoreComms[comm] = struct{}{}
+		}
 	}
 }
 

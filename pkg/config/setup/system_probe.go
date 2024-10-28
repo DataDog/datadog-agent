@@ -402,7 +402,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// Discovery config
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "cpu_usage_update_delay"), "60s")
-	cfg.BindEnvAndSetDefault(join(discoveryNS, "ignore_comms"), "")
+	cfg.BindEnvAndSetDefault(join(discoveryNS, "ignored_command_names"), "chronyd,cilium-agent,containerd,dhclient,dockerd,kubelet,livenessprobe,local-volume-pr,sshd,systemd")
 
 	// Fleet policies
 	cfg.BindEnv("fleet_policies_dir")

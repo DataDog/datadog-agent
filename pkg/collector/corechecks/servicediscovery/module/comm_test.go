@@ -59,8 +59,11 @@ func TestIgnoreComm(t *testing.T) {
 
 // TestIgnoreCommsLengths checks that the map contains names no longer than 15 bytes.
 func TestIgnoreCommsLengths(t *testing.T) {
-	for comm := range ignoreComms {
-		assert.LessOrEqual(t, len(comm), 15, "Process name %q too big", comm)
+	discovery := newDiscovery()
+	require.NotEmpty(t, discovery)
+
+	for comm := range discovery.config.ignoreComms {
+		assert.LessOrEqual(t, len(comm), maxCommLen, "Process name %q too big", comm)
 	}
 }
 
@@ -111,6 +114,10 @@ func TestShouldIgnoreComm(t *testing.T) {
 
 	serverBin := buildTestBin(t)
 	serverDir := filepath.Dir(serverBin)
+	discovery := newDiscovery()
+	require.NotEmpty(t, discovery)
+	require.NotEmpty(t, discovery.config.ignoreComms)
+	require.Equal(t, len(discovery.config.ignoreComms), 10)
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
@@ -126,71 +133,104 @@ func TestShouldIgnoreComm(t *testing.T) {
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
 				proc, err := customNewProcess(int32(cmd.Process.Pid))
 				require.NoError(t, err)
-				ignore := shouldIgnoreComm(proc)
+
+				ignore := discovery.shouldIgnoreComm(proc)
 				require.Equal(t, test.ignore, ignore)
 			}, 30*time.Second, 100*time.Millisecond)
 		})
 	}
 }
 
+type testComms struct {
+	commandName  string // process command name to test
+	shouldIgnore bool   // true if command expected to be ignored
+}
+
+type ignoredCommTestAttr struct {
+	name  string      // The name of the test.
+	comms []testComms // list of command names to test
+}
+
+func (a *ignoredCommTestAttr) buildIgnoredCommandsString() string {
+	var builder strings.Builder
+	for i, cmd := range a.comms {
+		builder.WriteString(cmd.commandName)
+		if i < len(a.comms)-1 {
+			builder.WriteString(" , ")
+		}
+	}
+	return builder.String()
+}
+
+func (a *ignoredCommTestAttr) countIgnoredCommands() int {
+	count := 0
+	for _, cmd := range a.comms {
+		if cmd.shouldIgnore {
+			count++
+		}
+	}
+	return count
+}
+
 func TestLoadIgnoredComm(t *testing.T) {
-	tests := []struct {
-		name   string
-		comms  string
-		expect []bool
-	}{
+	tests := []ignoredCommTestAttr{
 		{
-			name:   "empty list of ignored commands",
-			comms:  "",
-			expect: []bool{false},
+			name:  "empty list of commands",
+			comms: []testComms{},
 		},
 		{
-			name:   "short commands in config list",
-			comms:  "cron, polkitd, rsyslogd, bash, sshd, dockerd",
-			expect: []bool{true, true, true, true, true, true},
+			name: "short commands in config list",
+			comms: []testComms{
+				{commandName: "cron", shouldIgnore: true},
+				{commandName: "polkitd", shouldIgnore: true},
+				{commandName: "rsyslogd", shouldIgnore: true},
+				{commandName: "bash", shouldIgnore: true},
+				{commandName: "sshd", shouldIgnore: true},
+			},
 		},
 		{
-			name:   "malformed commands list",
-			comms:  "rsyslogd, , snapd, ,   udisksd, containerd, ,    ",
-			expect: []bool{true, false, true, false, true, true, false, false},
+			name: "malformed commands list",
+			comms: []testComms{
+				{commandName: "rsyslogd", shouldIgnore: true},
+				{commandName: " ", shouldIgnore: false},
+				{commandName: "snapd", shouldIgnore: true},
+				{commandName: " ", shouldIgnore: false},
+				{commandName: "containerd", shouldIgnore: true},
+			},
 		},
 		{
-			name:   "long commands in config list",
-			comms:  "containerd-shim-runc-v2,unattended-upgrade-shutdown,kube-controller-manager",
-			expect: []bool{true, true, true},
-		},
-		{
-			name:   "commands of different lengths in the configuration list",
-			comms:  "containerd-shim-runc-v2,calico-node,unattended-upgrade-shutdown,bash,kube-controller-manager",
-			expect: []bool{true, true, true, true, true},
+			name: "long commands in config list",
+			comms: []testComms{
+				{commandName: "containerd-shim-runc-v2", shouldIgnore: true},
+				{commandName: "calico-node", shouldIgnore: true},
+				{commandName: "unattended-upgrade-shutdown", shouldIgnore: true},
+				{commandName: "bash", shouldIgnore: true},
+				{commandName: "kube-controller-manager", shouldIgnore: true},
+			},
 		},
 	}
-	defLen := len(ignoreComms)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			mockSystemProbe := mock.NewSystemProbe(t)
 			require.NotEmpty(t, mockSystemProbe)
 
-			mockSystemProbe.SetWithoutSource("discovery.ignore_comms", test.comms)
+			commsStr := test.buildIgnoredCommandsString()
+			mockSystemProbe.SetWithoutSource("discovery.ignored_command_names", commsStr)
 
-			LoadIgnoredComms(newConfig())
+			discovery := newDiscovery()
+			require.NotEmpty(t, discovery)
 
-			comms := strings.Split(strings.ReplaceAll(test.comms, " ", ""), ",")
-			if len(comms) > 0 {
-				if len(comms[0]) == 0 {
-					require.Equal(t, len(ignoreComms), defLen)
+			count := test.countIgnoredCommands()
+			require.Equal(t, len(discovery.config.ignoreComms), count)
+
+			for _, cmd := range test.comms {
+				if len(cmd.commandName) > maxCommLen {
+					_, found := discovery.config.ignoreComms[cmd.commandName[:maxCommLen]]
+					assert.Equal(t, cmd.shouldIgnore, found)
 				} else {
-					require.Greater(t, len(ignoreComms), defLen)
-				}
-			}
-			for n, exp := range test.expect {
-				if len(comms[n]) > 15 {
-					_, found := ignoreComms[comms[n][:15]]
-					require.Equal(t, exp, found)
-				} else {
-					_, found := ignoreComms[comms[n]]
-					require.Equal(t, exp, found)
+					_, found := discovery.config.ignoreComms[cmd.commandName]
+					assert.Equal(t, cmd.shouldIgnore, found)
 				}
 			}
 		})
@@ -255,6 +295,7 @@ func BenchmarkProcName(b *testing.B) {
 
 // BenchmarkShouldIgnoreComm benchmarks reading of command name from /proc/<pid>/comm.
 func BenchmarkShouldIgnoreComm(b *testing.B) {
+	discovery := newDiscovery()
 	cmd := startProcessLongComm(b)
 
 	b.ResetTimer()
@@ -265,7 +306,7 @@ func BenchmarkShouldIgnoreComm(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		ok := shouldIgnoreComm(proc)
+		ok := discovery.shouldIgnoreComm(proc)
 		if ok {
 			b.Fatalf("process should not have been ignored")
 		}

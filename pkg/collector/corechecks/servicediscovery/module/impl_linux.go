@@ -80,18 +80,19 @@ type discovery struct {
 	lastCPUTimeUpdate time.Time
 }
 
-// NewDiscoveryModule creates a new discovery system probe module.
-func NewDiscoveryModule(*sysconfigtypes.Config, module.FactoryDependencies) (module.Module, error) {
-	config := newConfig()
-	LoadIgnoredComms(config)
-
+func newDiscovery() *discovery {
 	return &discovery{
-		config:             config,
+		config:             newConfig(),
 		mux:                &sync.RWMutex{},
 		cache:              make(map[int32]*serviceInfo),
 		privilegedDetector: privileged.NewLanguageDetector(),
 		scrubber:           procutil.NewDefaultDataScrubber(),
-	}, nil
+	}
+}
+
+// NewDiscoveryModule creates a new discovery system probe module.
+func NewDiscoveryModule(*sysconfigtypes.Config, module.FactoryDependencies) (module.Module, error) {
+	return newDiscovery(), nil
 }
 
 // GetStats returns the stats of the discovery module.
@@ -405,7 +406,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		return nil
 	}
 
-	if shouldIgnoreComm(proc) {
+	if s.shouldIgnoreComm(proc) {
 		return nil
 	}
 

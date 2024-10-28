@@ -16,24 +16,14 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ignoreComms is a list of process names that should not be reported as a service.
-var ignoreComms = map[string]struct{}{
-	"systemd":         {}, // manages system and service components
-	"dhclient":        {}, // utility that uses the DHCP to configure network interfaces
-	"local-volume-pr": {}, // 'local-volume-provisioner' manages the lifecycle of Persistent Volumes
-	"sshd":            {}, // a daemon that handles secure communication
-	"cilium-agent":    {}, // accepts configuration for networking, load balancing etc. (like cilium-agent)
-	"kubelet":         {}, // Kubernetes agent
-	"chronyd":         {}, // a daemon that implements the Network Time Protocol (NTP)
-	"containerd":      {}, // engine to run containers
-	"dockerd":         {}, // engine to run containers and 'docker-proxy'
-	"livenessprobe":   {}, // Kubernetes tool that monitors a container's health
-}
+const (
+	maxCommLen = 15 // maximum command name length to process when checking for non-reportable commands
+)
 
-// ignoreFamily list of commands that should not be reported as a service.
+// ignoreFamily list of processes with hyphens in their names,
+// matching up to the hyphen excludes process from reporting.
 var ignoreFamily = map[string]struct{}{
 	"systemd":    {}, // 'systemd-networkd', 'systemd-resolved' etc
 	"datadog":    {}, // datadog processes
@@ -42,7 +32,11 @@ var ignoreFamily = map[string]struct{}{
 }
 
 // shouldIgnoreComm returns true if process should be ignored
-func shouldIgnoreComm(proc *process.Process) bool {
+func (s *discovery) shouldIgnoreComm(proc *process.Process) bool {
+	ignoreComms := s.config.ignoreComms
+	if ignoreComms == nil {
+		return false
+	}
 	commPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "comm")
 	contents, err := os.ReadFile(commPath)
 	if err != nil {
@@ -61,21 +55,4 @@ func shouldIgnoreComm(proc *process.Process) bool {
 	_, found := ignoreComms[comm]
 
 	return found
-}
-
-// LoadIgnoredComms expands the list of ignored commands by adding commands from the configuration
-func LoadIgnoredComms(config *discoveryConfig) {
-	if config == nil {
-		log.Errorf("unexpected nil configuration")
-		return
-	}
-	comms := strings.Split(strings.ReplaceAll(config.ignoreComms, " ", ""), ",")
-
-	for _, comm := range comms {
-		if len(comm) > 15 {
-			ignoreComms[comm[:15]] = struct{}{}
-		} else if len(comm) > 0 {
-			ignoreComms[comm] = struct{}{}
-		}
-	}
 }
