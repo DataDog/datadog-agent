@@ -15,6 +15,8 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/snmp"
 )
 
 //go:embed status_templates
@@ -54,9 +56,32 @@ func (Provider) populateStatus(stats map[string]interface{}) {
 	autodiscoveryVar := expvar.Get("snmpAutodiscovery")
 
 	if autodiscoveryVar != nil {
-		stats["autodiscoverySubnets"] = getSubnetsStatus(autodiscoveryVar)
+		var autodiscoveryConfig snmp.ListenerConfig
+		if pkgconfigsetup.Datadog().IsSet("network_devices.autodiscovery") {
+			pkgconfigsetup.Datadog().UnmarshalKey("network_devices.autodiscovery", &autodiscoveryConfig)
+			var subnetOrder []string
+			for _, autodiscoveryConfig := range autodiscoveryConfig.Configs {
+				if autodiscoveryConfig.NetworkLegacy != "" {
+					subnetOrder = append(subnetOrder, autodiscoveryConfig.NetworkLegacy)
+				} else {
+					subnetOrder = append(subnetOrder, autodiscoveryConfig.Network)
+				}
+			}
+
+			autodiscoverySubnets := getSubnetsStatus(autodiscoveryVar)
+			var orderedSubnets []subnetStatus
+			for _, subnet := range subnetOrder {
+				for _, status := range autodiscoverySubnets {
+					if status.Subnet == subnet {
+						orderedSubnets = append(orderedSubnets, status)
+					}
+				}
+			}
+			stats["autodiscoverySubnets"] = orderedSubnets
+		}
 	}
 
+	// subnets configured in the snmp.d can not be ordered here as we can't retrieve the config here
 	discoveryVar := expvar.Get("snmpDiscovery")
 
 	if discoveryVar != nil {

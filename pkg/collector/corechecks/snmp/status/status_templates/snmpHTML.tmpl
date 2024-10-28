@@ -12,7 +12,7 @@
 <div class="stat">
   <span class="stat_title">SNMP Autodiscovery</span>
   <span class="stat_data">
-    {{- range $key, $subnet := .autodiscoverySubnets}}
+    {{- range $subnet := .autodiscoverySubnets}}
     {{- if eq $subnet.IpsCount $subnet.DevicesScanned }}
     {{- if eq $subnet.DevicesFound "" }}
     Subnet {{$subnet.Subnet}} scanned with config {{$subnet.ConfigHash}}. Found no IPs in the subnet.</br>

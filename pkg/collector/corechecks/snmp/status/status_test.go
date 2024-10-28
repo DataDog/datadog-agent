@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -126,6 +127,18 @@ error2
 }
 
 func TestStatusAutodiscovery(t *testing.T) {
+	snmpConfig := snmp.Config{
+		Network:   "127.0.0.1/24",
+		Community: "public",
+	}
+	listenerConfig := snmp.ListenerConfig{
+		Configs: []snmp.Config{snmpConfig},
+		Workers: 1,
+	}
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
+
 	autodiscoveryExpVar := expvar.NewMap("snmpAutodiscovery")
 	devicesScannedInSubnetVar := expvar.NewMap("devicesScannedInSubnet")
 	autodiscoveryExpVar.Set("devicesScannedInSubnet", devicesScannedInSubnetVar)

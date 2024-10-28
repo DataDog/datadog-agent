@@ -8,7 +8,7 @@
 {{- if or .autodiscoverySubnets .discoverySubnets }}
   Autodiscovery
   =============
-  {{- range $key, $subnet := .autodiscoverySubnets}}
+  {{- range $subnet := .autodiscoverySubnets }}
   {{- if eq $subnet.IpsCount $subnet.DevicesScanned }}
   {{- if eq $subnet.DevicesFound "" }}
   Subnet {{$subnet.Subnet}} scanned with config {{$subnet.ConfigHash}}. Found no IPs in the subnet.
