@@ -32,7 +32,7 @@ func errorNonStaticPacketFilterField(a eval.Evaluator, b eval.Evaluator) error {
 	return fmt.Errorf("field `%s` only supports matching a single static value", field)
 }
 
-func newPacketFilterEvaluator(field string, value string) (*eval.BoolEvaluator, error) {
+func newPacketFilterEvaluator(field string, value string, state *eval.State) (*eval.BoolEvaluator, error) {
 	switch field {
 	case "packet.filter":
 		captureLength := 256 // sizeof(struct raw_packet_t.data)
@@ -40,6 +40,11 @@ func newPacketFilterEvaluator(field string, value string) (*eval.BoolEvaluator, 
 		if err != nil {
 			return nil, fmt.Errorf("failed to compile packet filter `%s` on field `%s`: %v", value, field, err)
 		}
+
+		if err := state.UpdateFieldValues(field, eval.FieldValue{Value: value, Type: eval.ScalarValueType}); err != nil {
+			return nil, err
+		}
+
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
@@ -53,11 +58,11 @@ func newPacketFilterEvaluator(field string, value string) (*eval.BoolEvaluator, 
 
 // PacketFilterMatching is a set of overrides for packet filter fields, it only supports matching a single static value
 var PacketFilterMatching = &eval.OpOverrides{
-	StringEquals: func(a *eval.StringEvaluator, b *eval.StringEvaluator, _ *eval.State) (*eval.BoolEvaluator, error) {
+	StringEquals: func(a *eval.StringEvaluator, b *eval.StringEvaluator, state *eval.State) (*eval.BoolEvaluator, error) {
 		if a.IsStatic() {
-			return newPacketFilterEvaluator(b.GetField(), a.Value)
+			return newPacketFilterEvaluator(b.GetField(), a.Value, state)
 		} else if b.IsStatic() {
-			return newPacketFilterEvaluator(a.GetField(), b.Value)
+			return newPacketFilterEvaluator(a.GetField(), b.Value, state)
 		}
 		return nil, errorNonStaticPacketFilterField(a, b)
 	},
