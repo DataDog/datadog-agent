@@ -234,7 +234,6 @@ DEFAULT_MODULES = {
     "pkg/config/teeconfig": GoModule("pkg/config/teeconfig", independent=True, used_by_otel=True),
     "pkg/config/structure": GoModule("pkg/config/structure", independent=True, used_by_otel=True),
     "pkg/config/utils": GoModule("pkg/config/utils", independent=True, used_by_otel=True),
-    "pkg/clusteragent/autoscaling/loadstore": GoModule("pkg/clusteragent/autoscaling/loadstore", independent=True),
     "pkg/errors": GoModule("pkg/errors", independent=True),
     "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
     "pkg/linters/components/pkgconfigusage": GoModule("pkg/linters/components/pkgconfigusage", should_tag=False),
