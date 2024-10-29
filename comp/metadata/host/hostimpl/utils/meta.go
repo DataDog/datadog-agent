@@ -54,7 +54,7 @@ func GetMeta(ctx context.Context, conf model.Reader) *Meta {
 	osHostname, _ := os.Hostname()
 	tzname, _ := time.Now().Zone()
 	ec2Hostname, _ := ec2.GetHostname(ctx)
-	instanceID, _ := ec2.GetInstanceID(ctx, false)
+	instanceID, _ := ec2.GetInstanceID(ctx)
 
 	var agentHostname string
 
