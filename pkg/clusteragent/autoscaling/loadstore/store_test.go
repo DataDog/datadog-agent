@@ -19,9 +19,9 @@ import (
 )
 
 func createSeriesPayload(i int) *gogen.MetricPayload {
-	container_id := fmt.Sprintf("container_id:%d", i)
-	display_container_name := fmt.Sprintf("display_container_name:%d", i)
-	namespace := fmt.Sprintf("kube_namespace:test")
+	containerID := fmt.Sprintf("container_id:%d", i)
+	displayContainerName := fmt.Sprintf("display_container_name:%d", i)
+	namespace := "kube_namespace:test"
 	payload := gogen.MetricPayload{
 		Series: []*gogen.MetricPayload_MetricSeries{
 			{
@@ -33,7 +33,7 @@ func createSeriesPayload(i int) *gogen.MetricPayload {
 						Value:     1.0,
 					},
 				},
-				Tags: []string{container_id, display_container_name, namespace},
+				Tags: []string{containerID, displayContainerName, namespace},
 				Resources: []*gogen.MetricPayload_Resource{
 					{
 						Type: "host", Name: "localHost",

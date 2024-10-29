@@ -8,5 +8,4 @@
 /*
 Package loadstore stores local failover metrics for the workload that need autoscaling
 */
-
 package loadstore
