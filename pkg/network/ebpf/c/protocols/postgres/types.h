@@ -30,7 +30,7 @@ typedef struct {
 } postgres_event_t;
 
 typedef struct {
-    __u16 iteration;
+    __u8 iteration;
     // Saving the data offset is crucial for maintaining the current read position and ensuring proper utilization
     // of tail calls.
     __u32 data_off;

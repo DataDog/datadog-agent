@@ -63,8 +63,8 @@ const (
 	ProgramKafkaTermination ProgramType = C.PROG_KAFKA_TERMINATION
 	// ProgramPostgres is the Golang representation of the C.PROG_POSTGRES enum
 	ProgramPostgres ProgramType = C.PROG_POSTGRES
-	// ProgramPostgresMessageParser is the Golang representation of the C.PROG_POSTGRES enum
-	ProgramPostgresMessageParser ProgramType = C.PROG_POSTGRES_MESSAGE_PARSER
+	// ProgramPostgresHandleCommandComplete is the Golang representation of the C.PROG_POSTGRES_HANDLE_COMMAND_COMPLETE enum
+	ProgramPostgresHandleCommandComplete ProgramType = C.PROG_POSTGRES_HANDLE_COMMAND_COMPLETE
 	// ProgramPostgresParseMessage is the Golang representation of the C.PROG_POSTGRES_PROCESS_PARSE_MESSAGE enum
 	ProgramPostgresParseMessage ProgramType = C.PROG_POSTGRES_PROCESS_PARSE_MESSAGE
 	// ProgramPostgresTermination is tail call to process Postgres termination.
