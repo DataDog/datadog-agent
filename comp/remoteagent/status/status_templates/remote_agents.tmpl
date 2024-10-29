@@ -6,10 +6,10 @@ No remote agents registered
     {{ $agentId }}
     {{ printDashes $agentId "=" }}
 
-    {{- with $statusDetail }}
-    {{ if .FailureReason }}
-    {{ .FailureReason }}
+    {{ if not $statusDetail }}
+    Timed out waiting for response.
     {{ else }}
+    {{- with $statusDetail }}
     {{- if .MainSection }}
     {{- range $key, $value := .MainSection }}
     {{ $key }}: {{ $value }}

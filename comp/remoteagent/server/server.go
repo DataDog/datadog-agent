@@ -8,19 +8,22 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"time"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	remoteagent "github.com/DataDog/datadog-agent/comp/remoteagent/def"
 	proto "github.com/DataDog/datadog-agent/comp/remoteagent/proto"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	remoteAgentKeepAliveInterval = 9 * time.Minute
-	remoteAgentStreamSendTimeout = 1 * time.Minute
+	remoteAgentKeepAliveInterval = 5 * time.Minute
+	remoteAgentStreamSendTimeout = 10 * time.Second
 )
 
 // NewServer returns a new server with a remoteagent instance
@@ -30,7 +33,7 @@ func NewServer(comp remoteagent.Component) *Server {
 	}
 }
 
-// Server is a grpc server that handles status/flare requests and responses between
+// Server is a gRPC server that handles status/flare requests and responses between
 // this agent and remote agents
 type Server struct {
 	comp remoteagent.Component
@@ -42,7 +45,7 @@ func (s *Server) UpdateRemoteAgent(srv pb.AgentSecure_UpdateRemoteAgentServer) e
 
 	// We expect the remote agent to register itself with an initial streaming request,
 	// and we can't do anything else until that happens.
-	registrationData, err := waitForRegister(srv)
+	registrationData, err := waitForRegister(srv, srv.Context())
 	if err != nil {
 		return err
 	}
@@ -52,8 +55,6 @@ func (s *Server) UpdateRemoteAgent(srv pb.AgentSecure_UpdateRemoteAgentServer) e
 	if err != nil {
 		return fmt.Errorf("error registering remote agent: %s", err)
 	}
-
-	log.Infof("Remote agent registered with ID: %s", agentId)
 
 	err = runRemoteAgentLoop(agentId, srv, statusRequestsIn, flareRequestsIn)
 	s.comp.DeregisterRemoteAgent(agentId)
@@ -71,109 +72,163 @@ func runRemoteAgentLoop(agentId string, srv pb.AgentSecure_UpdateRemoteAgentServ
 
 	for {
 		select {
-		case flareRequest, ok := <-flareRequestsIn:
+		case request, ok := <-flareRequestsIn:
+			log.Tracef("Received request to collect flare.")
+
 			if !ok {
 				return fmt.Errorf("remote agent server closed unexpectedly")
 			}
 
 			// Send a flare request to the remote agent, and then wait for a response.
-			err := sendResponseWithTimeout(srv, buildFlareRequestResponse(agentId))
+			err := sendMessage(srv, request.Context(), buildFlareRequestResponse(agentId))
 			if err != nil {
+				log.Warnf("Error sending flare request to remote agent '%s': %v", agentId, err)
 				return err
 			}
+
+			log.Tracef("Sent flare request to remote agent. Waiting for flare data...")
 
 			ticker.Reset(remoteAgentKeepAliveInterval)
 
-			flareData, err := waitForFlareResponse(srv)
+			flareData, err := waitForFlareData(srv, request.Context())
 			if err != nil {
+				log.Warnf("Error receiving flare data from remote agent '%s': %v", agentId, err)
 				return err
 			}
 
-			flareRequest <- flareData
-		case statusRequest, ok := <-statusRequestsIn:
+			request.Fulfill(flareData)
+
+			log.Trace("Forwarded response back to caller.")
+		case request, ok := <-statusRequestsIn:
+			log.Tracef("Received request to collect status.")
+
 			if !ok {
 				return fmt.Errorf("remote agent server closed unexpectedly")
 			}
 
 			// Send a status request to the remote agent, and then wait for a response.
-			err := sendResponseWithTimeout(srv, buildStatusRequestResponse(agentId))
+			err := sendMessage(srv, request.Context(), buildStatusRequestResponse(agentId))
 			if err != nil {
+				log.Warnf("Error sending status request to remote agent '%s': %v", agentId, err)
 				return err
 			}
+
+			log.Tracef("Sent status request to remote agent. Waiting for status data...")
 
 			ticker.Reset(remoteAgentKeepAliveInterval)
 
-			statusData, err := waitForStatusResponse(srv)
+			statusData, err := waitForStatusData(srv, request.Context())
 			if err != nil {
+				log.Warnf("Error receiving status data from remote agent '%s': %v", agentId, err)
 				return err
 			}
 
-			statusRequest <- statusData
+			request.Fulfill(statusData)
+
+			log.Trace("Forwarded response back to caller.")
 		case <-srv.Context().Done():
-			log.Infof("Remote agent %s disconnected.", agentId)
+			log.Debugf("Remote agent '%s' disconnected.", agentId)
 			return nil
 		case <-ticker.C:
+			log.Debugf("Received keep-alive ticket. Sending ping...")
+
 			// Keep-alive timer fired, so send a keep-alive response to keep the connection alive.
-			err := sendResponseWithTimeout(srv, buildKeepAliveResponse())
+			context, cancel := context.WithTimeout(context.Background(), remoteAgentStreamSendTimeout)
+			defer cancel()
+
+			err := sendMessage(srv, context, buildKeepAliveResponse())
 			if err != nil {
+				log.Warnf("Error sending keep-alive request to remote agent '%s': %v", agentId, err)
 				return err
 			}
 		}
 	}
 }
 
-func sendResponseWithTimeout(srv pb.AgentSecure_UpdateRemoteAgentServer, response *pb.UpdateRemoteAgentStreamResponse) error {
-	err := grpc.DoWithTimeout(func() error {
-		return srv.Send(response)
-	}, remoteAgentStreamSendTimeout)
-
-	if err != nil {
-		log.Warnf("error sending remoteagent event: %s", err)
-		return err
-	}
-
-	return nil
-}
-
-func waitForRegister(srv pb.AgentSecure_UpdateRemoteAgentServer) (*pb.RegistrationData, error) {
-	request, err := srv.Recv()
+func waitForRegister(srv pb.AgentSecure_UpdateRemoteAgentServer, context context.Context) (*pb.RegistrationData, error) {
+	request, err := receiveWithTimeout(srv, context)
 	if err != nil {
 		return nil, err
 	}
 
 	switch x := request.Payload.(type) {
 	case *pb.UpdateRemoteAgentStreamRequest_Register:
+		log.Tracef("Received register response: %v", x.Register)
 		return x.Register, nil
 	default:
-		return nil, fmt.Errorf("expected register request: %v", x)
+		return nil, fmt.Errorf("expected register request, got: %v", x)
 	}
 }
 
-func waitForFlareResponse(srv pb.AgentSecure_UpdateRemoteAgentServer) (*remoteagent.FlareData, error) {
-	request, err := srv.Recv()
+func waitForFlareData(srv pb.AgentSecure_UpdateRemoteAgentServer, context context.Context) (*remoteagent.FlareData, error) {
+	request, err := receiveWithTimeout(srv, context)
 	if err != nil {
 		return nil, err
 	}
 
-	switch x := request.Payload.(type) {
+	switch payload := request.Payload.(type) {
 	case *pb.UpdateRemoteAgentStreamRequest_Flare:
-		return proto.ProtobufToFlareData(x.Flare), nil
+		log.Tracef("Received flare response: %v", payload.Flare)
+		return proto.ProtobufToFlareData(payload.Flare), nil
 	default:
-		return nil, fmt.Errorf("expected flare request: %v", x)
+		return nil, fmt.Errorf("expected flare data, got: %v", payload)
 	}
 }
 
-func waitForStatusResponse(srv pb.AgentSecure_UpdateRemoteAgentServer) (*remoteagent.StatusData, error) {
-	request, err := srv.Recv()
+func waitForStatusData(srv pb.AgentSecure_UpdateRemoteAgentServer, context context.Context) (*remoteagent.StatusData, error) {
+	request, err := receiveWithTimeout(srv, context)
 	if err != nil {
 		return nil, err
 	}
 
-	switch x := request.Payload.(type) {
+	switch payload := request.Payload.(type) {
 	case *pb.UpdateRemoteAgentStreamRequest_Status:
-		return proto.ProtobufToStatusData(x.Status), nil
+		log.Tracef("Received status response: %v", payload.Status)
+		return proto.ProtobufToStatusData(payload.Status), nil
 	default:
-		return nil, fmt.Errorf("expected status request: %v", x)
+		return nil, fmt.Errorf("expected status data, got: %v", payload)
+	}
+}
+
+func sendMessage(srv pb.AgentSecure_UpdateRemoteAgentServer, context context.Context, msg *pb.UpdateRemoteAgentStreamResponse) error {
+	errChan := make(chan error, 1)
+
+	go func() {
+		errChan <- srv.Send(msg)
+		close(errChan)
+	}()
+
+	select {
+	case err := <-errChan:
+		return err
+	case <-context.Done():
+		return status.Errorf(codes.DeadlineExceeded, "timed out waiting for operation")
+	}
+}
+
+func receiveWithTimeout(srv pb.AgentSecure_UpdateRemoteAgentServer, context context.Context) (*pb.UpdateRemoteAgentStreamRequest, error) {
+	msgChan := make(chan *pb.UpdateRemoteAgentStreamRequest, 1)
+	errChan := make(chan error, 1)
+
+	go func() {
+		msg, err := srv.Recv()
+		if err != nil {
+			errChan <- err
+			close(errChan)
+			return
+		}
+
+		msgChan <- msg
+		close(msgChan)
+	}()
+
+	select {
+	case msg := <-msgChan:
+		return msg, nil
+	case err := <-errChan:
+		return nil, err
+	case <-context.Done():
+		return nil, status.Errorf(codes.DeadlineExceeded, "timed out waiting for operation")
 	}
 }
 

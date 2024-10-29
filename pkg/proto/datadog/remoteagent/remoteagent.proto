@@ -9,7 +9,7 @@ message RegistrationData {
 }
 
 message StatusSection {
-  map<string, string> fields = 2;
+  map<string, string> fields = 1;
 }
 
 message StatusData {

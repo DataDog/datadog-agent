@@ -1,10 +1,29 @@
 package remoteagent
 
-type StatusRequest chan<- *StatusData
-type StatusRequests <-chan StatusRequest
+import "context"
 
-type FlareRequest chan<- *FlareData
-type FlareRequests <-chan FlareRequest
+type StatusRequests <-chan *Request[*StatusData]
+type FlareRequests <-chan *Request[*FlareData]
+
+type Request[T any] struct {
+	context context.Context
+	dataOut chan<- T
+}
+
+func NewRequest[T any](context context.Context, dataOut chan<- T) *Request[T] {
+	return &Request[T]{
+		context: context,
+		dataOut: dataOut,
+	}
+}
+
+func (r *Request[T]) Context() context.Context {
+	return r.context
+}
+
+func (r *Request[T]) Fulfill(data T) {
+	r.dataOut <- data
+}
 
 type StatusSection map[string]string
 
