@@ -26,6 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -277,8 +278,10 @@ func (c *Collector) ScanDockerImageFromGraphDriver(ctx context.Context, imgMeta 
 			layers = append(layers, strings.Split(layerDirs, ":")...)
 		}
 
-		for i, layer := range layers {
-			layers[i] = sanitizePath(layer)
+		if env.IsContainerized() {
+			for i, layer := range layers {
+				layers[i] = sanitizeHostPath(layer)
+			}
 		}
 
 		return c.scanOverlayFS(ctx, layers, imgMeta, scanOptions)
@@ -499,10 +502,15 @@ func extractLayersFromOverlayFSMounts(mounts []mount.Mount) []string {
 	return layers
 }
 
-func sanitizePath(path string) string {
-	if index := strings.Index(path, "/var/lib"); index != -1 {
-		return "/host" + path[index:]
+func sanitizeHostPath(path string) string {
+	hostPath := os.Getenv("HOST_ROOT")
+	if hostPath == "" {
+		hostPath = "/host"
 	}
 
-	return path
+	if index := strings.Index(path, "/var/lib"); index != -1 {
+		return hostPath + path[index:]
+	}
+
+	return hostPath + path
 }

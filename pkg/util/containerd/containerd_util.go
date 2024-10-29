@@ -20,6 +20,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/opencontainers/image-spec/identity"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -454,30 +455,32 @@ func (c *ContainerdUtil) getMounts(ctx context.Context, expiration time.Duration
 		return nil, nil, fmt.Errorf("No snapshots returned for image: %s", imageID)
 	}
 
-	for i := range mounts {
-		mounts[i].Source = sanitizePath(mounts[i].Source)
+	if env.IsContainerized() {
+		for i := range mounts {
+			mounts[i].Source = sanitizeHostPath(mounts[i].Source)
 
-		var errs error
-		for j, opt := range mounts[i].Options {
-			for _, prefix := range []string{"upperdir=", "lowerdir=", "workdir="} {
-				if strings.HasPrefix(opt, prefix) {
-					trimmedOpt := strings.TrimPrefix(opt, prefix)
-					dirs := strings.Split(trimmedOpt, ":")
-					for n, dir := range dirs {
-						dirs[n] = sanitizePath(dir)
-						if _, err := os.Stat(dirs[n]); err != nil {
-							errs = multierror.Append(errs, fmt.Errorf("unreachable folder %s for overlayfs mount: %w", dir, err))
+			var errs error
+			for j, opt := range mounts[i].Options {
+				for _, prefix := range []string{"upperdir=", "lowerdir=", "workdir="} {
+					if strings.HasPrefix(opt, prefix) {
+						trimmedOpt := strings.TrimPrefix(opt, prefix)
+						dirs := strings.Split(trimmedOpt, ":")
+						for n, dir := range dirs {
+							dirs[n] = sanitizeHostPath(dir)
+							if _, err := os.Stat(dirs[n]); err != nil {
+								errs = multierror.Append(errs, fmt.Errorf("unreachable folder %s for overlayfs mount: %w", dir, err))
+							}
 						}
+						mounts[i].Options[j] = prefix + strings.Join(dirs, ":")
 					}
-					mounts[i].Options[j] = prefix + strings.Join(dirs, ":")
 				}
+
+				log.Debugf("Sanitized overlayfs mount options to %s", strings.Join(mounts[i].Options, ","))
 			}
 
-			log.Debugf("Sanitized overlayfs mount options to %s", strings.Join(mounts[i].Options, ","))
-		}
-
-		if errs != nil {
-			log.Warnf("Unreachable path detected in mounts for image %s: %s", imageID, errs.Error())
+			if errs != nil {
+				log.Warnf("Unreachable path detected in mounts for image %s: %s", imageID, errs.Error())
+			}
 		}
 	}
 
@@ -493,12 +496,17 @@ func (c *ContainerdUtil) getMounts(ctx context.Context, expiration time.Duration
 	}, nil
 }
 
-func sanitizePath(path string) string {
-	if index := strings.Index(path, "/var/lib"); index != -1 {
-		return "/host" + path[index:]
+func sanitizeHostPath(path string) string {
+	hostPath := os.Getenv("HOST_ROOT")
+	if hostPath == "" {
+		hostPath = "/host"
 	}
 
-	return path
+	if index := strings.Index(path, "/var/lib"); index != -1 {
+		return hostPath + path[index:]
+	}
+
+	return hostPath + path
 }
 
 // Mounts returns the mounts for an image
