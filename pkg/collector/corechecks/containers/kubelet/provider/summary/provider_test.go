@@ -336,7 +336,7 @@ func TestProvider_Provide(t *testing.T) {
 			mockSender.SetupAcceptAll()
 
 			fakeTagger := taggerimpl.SetupFakeTagger(t)
-			defer fakeTagger.ResetTagger()
+
 			for entity, tags := range entityTags {
 				prefix, id, _ := taggercommon.ExtractPrefixAndID(entity)
 				entityID := taggertypes.NewEntityID(prefix, id)
@@ -365,6 +365,7 @@ func TestProvider_Provide(t *testing.T) {
 				},
 				config,
 				store,
+				fakeTagger,
 			)
 			assert.NoError(t, err)
 

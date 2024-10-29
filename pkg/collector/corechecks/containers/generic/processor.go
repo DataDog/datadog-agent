@@ -32,10 +32,11 @@ type Processor struct {
 	metricsAdapter  MetricsAdapter
 	ctrFilter       ContainerFilter
 	extensions      map[string]ProcessorExtension
+	tagger          tagger.Component
 }
 
 // NewProcessor creates a new processor
-func NewProcessor(provider metrics.Provider, lister ContainerAccessor, adapter MetricsAdapter, filter ContainerFilter) Processor {
+func NewProcessor(provider metrics.Provider, lister ContainerAccessor, adapter MetricsAdapter, filter ContainerFilter, tagger tagger.Component) Processor {
 	return Processor{
 		metricsProvider: provider,
 		ctrLister:       lister,
@@ -44,6 +45,7 @@ func NewProcessor(provider metrics.Provider, lister ContainerAccessor, adapter M
 		extensions: map[string]ProcessorExtension{
 			NetworkExtensionID: NewProcessorNetwork(),
 		},
+		tagger: tagger,
 	}
 }
 
@@ -73,7 +75,7 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 
 		entityID := types.NewEntityID(types.ContainerID, container.ID)
 
-		tags, err := tagger.Tag(entityID, types.HighCardinality)
+		tags, err := p.tagger.Tag(entityID, types.HighCardinality)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %q, err: %v", container.ID[:12], err)
 			continue
@@ -117,7 +119,7 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 
 	// Extensions: PostProcess hook
 	for _, extension := range p.extensions {
-		extension.PostProcess()
+		extension.PostProcess(p.tagger)
 	}
 
 	sender.Commit()

@@ -50,8 +50,6 @@ func setupFakeMetricsProvider(mockMetricsProvider metrics.Provider) func() {
 func TestEnrichTags(t *testing.T) {
 	// Create fake tagger
 	fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
-	defer fakeTagger.ResetTagger()
-
 	containerName, initContainerName, containerID, initContainerID, podUID := "container-name", "init-container-name", "container-id", "init-container-id", "pod-uid"
 
 	// Fill fake tagger with entities
@@ -160,7 +158,6 @@ func TestEnrichTags(t *testing.T) {
 
 func TestEnrichTagsOrchestrator(t *testing.T) {
 	fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
-	defer fakeTagger.ResetTagger()
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
 	tb := tagset.NewHashingTagsAccumulator()
 	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", Cardinality: "orchestrator"})
@@ -169,7 +166,7 @@ func TestEnrichTagsOrchestrator(t *testing.T) {
 
 func TestEnrichTagsOptOut(t *testing.T) {
 	fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
-	defer fakeTagger.ResetTagger()
+
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("dogstatsd_origin_optout_enabled", true)
 	fakeTagger.SetTags(types.NewEntityID(types.EntityIDPrefix("foo"), "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
@@ -250,7 +247,6 @@ func TestGenerateContainerIDFromExternalData(t *testing.T) {
 
 func TestAgentTags(t *testing.T) {
 	fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
-	defer fakeTagger.ResetTagger()
 
 	agentContainerID, podUID := "agentContainerID", "podUID"
 	mockMetricsProvider := collectormock.NewMetricsProvider()
@@ -277,8 +273,6 @@ func TestAgentTags(t *testing.T) {
 
 func TestGlobalTags(t *testing.T) {
 	fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
-	defer fakeTagger.ResetTagger()
-
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, []string{"container-high"}, nil)
 	fakeTagger.SetGlobalTags([]string{"global-low"}, []string{"global-orch"}, []string{"global-high"}, nil)
 
@@ -292,6 +286,7 @@ func TestGlobalTags(t *testing.T) {
 }
 
 func TestTaggerCardinality(t *testing.T) {
+	fakeTagger := TaggerClient{}
 	tests := []struct {
 		name        string
 		cardinality string
@@ -320,21 +315,58 @@ func TestTaggerCardinality(t *testing.T) {
 		{
 			name:        "empty",
 			cardinality: "",
-			want:        tagger.DogstatsdCardinality(),
+			want:        fakeTagger.DogstatsdCardinality(),
 		},
 		{
 			name:        "unknown",
 			cardinality: "foo",
-			want:        tagger.DogstatsdCardinality(),
+			want:        fakeTagger.DogstatsdCardinality(),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			l := logmock.New(t)
-			assert.Equal(t, tt.want, taggerCardinality(tt.cardinality, tagger.DogstatsdCardinality(), l))
+			assert.Equal(t, tt.want, taggerCardinality(tt.cardinality, fakeTagger.DogstatsdCardinality(), l))
 		})
 	}
 }
+
+// func TestDefaultCardinality(t *testing.T) {
+// 	cfg := configmock.New(t)
+// 	for _, tt := range []struct {
+// 		name                     string
+// 		wantChecksCardinality    types.TagCardinality
+// 		wantDogstatsdCardinality types.TagCardinality
+// 		setup                    func()
+// 	}{
+// 		{
+// 			name:                     "successful parse config values, use config",
+// 			wantChecksCardinality:    types.HighCardinality,
+// 			wantDogstatsdCardinality: types.OrchestratorCardinality,
+// 			setup: func() {
+// 				cfg.SetWithoutSource("checks_tag_cardinality", types.HighCardinalityString)
+// 				cfg.SetWithoutSource("dogstatsd_tag_cardinality", types.OrchestratorCardinalityString)
+// 			},
+// 		},
+// 		{
+// 			name:                     "fail parse config values, use default",
+// 			wantChecksCardinality:    types.LowCardinality,
+// 			wantDogstatsdCardinality: types.LowCardinality,
+// 			setup: func() {
+// 				cfg.SetWithoutSource("checks_tag_cardinality", "foo")
+// 				cfg.SetWithoutSource("dogstatsd_tag_cardinality", "foo")
+// 			},
+// 		},
+// 	} {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			tt.setup()
+// 			fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
+// 			assert.Equal(t, tt.wantDogstatsdCardinality, fakeTagger.DogstatsdCardinality())
+// 			assert.Equal(t, tt.wantChecksCardinality, fakeTagger.ChecksCardinality())
+// 			fakeTagger.ResetTagger()
+// 		})
+// 	}
+// }
 
 func TestDefaultCardinality(t *testing.T) {
 	cfg := configmock.New(t)
@@ -368,7 +400,6 @@ func TestDefaultCardinality(t *testing.T) {
 			fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
 			assert.Equal(t, tt.wantDogstatsdCardinality, fakeTagger.DogstatsdCardinality())
 			assert.Equal(t, tt.wantChecksCardinality, fakeTagger.ChecksCardinality())
-			fakeTagger.ResetTagger()
 		})
 	}
 }

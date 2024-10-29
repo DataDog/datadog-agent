@@ -64,17 +64,19 @@ type TrafficCaptureWriter struct {
 	oobPacketPoolManager    *packets.PoolManager[[]byte]
 
 	taggerState map[int32]string
+	tagger      tagger.Component
 
 	// Synchronizes access to ongoing, accepting and closing of Traffic
 	sync.RWMutex
 }
 
 // NewTrafficCaptureWriter creates a TrafficCaptureWriter instance.
-func NewTrafficCaptureWriter(depth int) *TrafficCaptureWriter {
+func NewTrafficCaptureWriter(depth int, tagger tagger.Component) *TrafficCaptureWriter {
 
 	return &TrafficCaptureWriter{
 		Traffic:     make(chan *replay.CaptureBuffer, depth),
 		taggerState: make(map[int32]string),
+		tagger:      tagger,
 	}
 }
 
@@ -322,7 +324,7 @@ func (tc *TrafficCaptureWriter) writeState() (int, error) {
 		}
 
 		entityID := types.NewEntityID(prefix, id)
-		entity, err := tagger.GetEntity(entityID)
+		entity, err := tc.tagger.GetEntity(entityID)
 		if err != nil {
 			log.Warnf("There was no entity for container id: %v present in the tagger", entity)
 			continue

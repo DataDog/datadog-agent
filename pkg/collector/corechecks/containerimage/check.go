@@ -13,6 +13,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -87,19 +88,21 @@ func (c *Config) Parse(data []byte) error {
 type Check struct {
 	core.CheckBase
 	workloadmetaStore workloadmeta.Component
+	tagger            tagger.Component
 	instance          *Config
 	processor         *processor
 	stopCh            chan struct{}
 }
 
 // Factory returns a new check factory
-func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+func Factory(store workloadmeta.Component, tagger tagger.Component) optional.Option[func() check.Check] {
 	return optional.NewOption(func() check.Check {
 		return core.NewLongRunningCheckWrapper(&Check{
 			CheckBase:         core.NewCheckBase(CheckName),
 			workloadmetaStore: store,
 			instance:          &Config{},
 			stopCh:            make(chan struct{}),
+			tagger:            tagger,
 		})
 	})
 }
@@ -123,7 +126,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return err
 	}
 
-	c.processor = newProcessor(sender, c.instance.ChunkSize, time.Duration(c.instance.NewImagesMaxLatencySeconds)*time.Second)
+	c.processor = newProcessor(sender, c.instance.ChunkSize, time.Duration(c.instance.NewImagesMaxLatencySeconds)*time.Second, c.tagger)
 
 	return nil
 }
