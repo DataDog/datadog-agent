@@ -139,5 +139,4 @@ func TestContainerdCheckGenericPart(t *testing.T) {
 	mockSender.AssertMetric(t, "MonotonicCount", "containerd.image.pull", 16559, "", []string{"grpc_service:runtime.v1alpha2.ImageService", "grpc_code:not_found"})
 
 	mockSender.AssertMetric(t, "Gauge", "containerd.proc.open_fds", 200, "", expectedTags)
-	mockSender.AssertMetric(t, "Gauge", "containerd.restarts", 42, "", append(expectedTags, "restart_policy:always"))
 }

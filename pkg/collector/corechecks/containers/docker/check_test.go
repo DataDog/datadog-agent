@@ -108,7 +108,6 @@ func TestDockerCheckGenericPart(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "docker.thread.count", 10, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.thread.limit", 20, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.container.open_fds", 200, "", expectedTags)
-	mockSender.AssertMetric(t, "Gauge", "docker.restarts", 42, "", append(expectedTags, "restart_policy:always"))
 }
 
 func TestDockerCustomPart(t *testing.T) {

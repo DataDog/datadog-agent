@@ -40,7 +40,6 @@ var metricsNameMapping = map[string]string{
 	"container.net.rcvd":                       "",                                         // Not present in legacy check
 	"containerd.blkio.service_recursive_bytes": "containerd.blkio.service_recursive_bytes", // Passthrough for custom metrics extension
 	"containerd.blkio.serviced_recursive":      "containerd.blkio.serviced_recursive",      // Passthrough for custom metrics extension
-	"container.restarts":                       "containerd.restarts",
 }
 
 // metricsAdapter implements the generic.MetricsAdapter interface
