@@ -147,7 +147,9 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 		ocb: ocb,
 	}
 	// only initiate the configprovider and set provided config if being built by Agent
-	if !ocb {
+	if ocb {
+		ext.configStore.setProvidedConfigSupported(false)
+	} else {
 		ext.configStore.setProvidedConfigSupported(true)
 		ocpProvided, err := otelcol.NewConfigProvider(cfg.configProviderSettings)
 		if err != nil {
@@ -162,9 +164,6 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		ext.configStore.setProvidedConfigSupported(false)
-
 	}
 	var err error
 	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext, ext.ocb)
