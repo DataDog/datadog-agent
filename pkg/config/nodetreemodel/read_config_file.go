@@ -59,12 +59,6 @@ func (c *ntmConfig) ReadInConfig() error {
 			return err
 		}
 	}
-	root, err := c.readConfigurationContent(content)
-	if err != nil {
-		return err
-	}
-	c.root = root
-
 	return c.mergeAllLayers()
 }
 
@@ -97,6 +91,8 @@ func (c *ntmConfig) readConfigurationContent(content []byte) error {
 		return err
 	}
 	c.warnings = append(c.warnings, loadYamlInto(c.defaults, c.file, obj, "")...)
+	// Mark the config as ready
+	c.ready = true
 	return nil
 }
 

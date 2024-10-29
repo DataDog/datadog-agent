@@ -11,7 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBuildDefault(t *testing.T) {
+// The current implementation uses NewNode to build the tree, but it treats leafs with
+// map data as though those maps should also become nodes.
+func TestBuildDefaultMakesTooManyNodes(t *testing.T) {
 	t.Skip("test fails because the tree builder is too aggressive in making nodes")
 
 	cfg := NewConfig("test", "", nil)
