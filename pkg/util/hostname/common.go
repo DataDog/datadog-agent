@@ -25,14 +25,15 @@ import (
 
 // for testing purposes
 var (
-	isFargateInstance = fargate.IsFargateInstance
-	ec2GetInstanceID  = ec2.GetInstanceID
-	isContainerized   = env.IsContainerized //nolint:unused
-	gceGetHostname    = gce.GetHostname
-	azureGetHostname  = azure.GetHostname
-	osHostname        = os.Hostname
-	fqdnHostname      = getSystemFQDN
-	osHostnameUsable  = isOSHostnameUsable
+	isFargateInstance             = fargate.IsFargateInstance
+	ec2GetInstanceID              = ec2.GetInstanceID
+	ec2GetInstanceIDWithoutIMDSV2 = ec2.GetInstanceIDWithoutIMDSv2
+	isContainerized               = env.IsContainerized //nolint:unused
+	gceGetHostname                = gce.GetHostname
+	azureGetHostname              = azure.GetHostname
+	osHostname                    = os.Hostname
+	fqdnHostname                  = getSystemFQDN
+	osHostnameUsable              = isOSHostnameUsable
 )
 
 // Data contains hostname and the hostname provider
@@ -112,7 +113,13 @@ func fromOS(ctx context.Context, currentHostname string) (string, error) {
 }
 
 func getValidEC2Hostname(ctx context.Context, disableIMDSv2 bool) (string, error) {
-	instanceID, err := ec2GetInstanceID(ctx, disableIMDSv2)
+	var instanceID string
+	var err error
+	if disableIMDSv2 {
+		instanceID, err = ec2GetInstanceIDWithoutIMDSV2(ctx)
+	} else {
+		instanceID, err = ec2GetInstanceID(ctx)
+	}
 	if err == nil {
 		err = validate.ValidHostname(instanceID)
 		if err == nil {

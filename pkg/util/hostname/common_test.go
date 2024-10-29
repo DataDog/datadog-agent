@@ -150,12 +150,12 @@ func TestFromEc2DefaultHostname(t *testing.T) {
 	defer func() { ec2GetInstanceID = ec2.GetInstanceID }()
 
 	// make AWS provider return an error
-	ec2GetInstanceID = func(context.Context, bool) (string, error) { return "", fmt.Errorf("some error") }
+	ec2GetInstanceID = func(context.Context) (string, error) { return "", fmt.Errorf("some error") }
 
 	_, err := fromEC2(context.Background(), "ip-hostname")
 	assert.Error(t, err)
 
-	ec2GetInstanceID = func(context.Context, bool) (string, error) { return "someHostname", nil }
+	ec2GetInstanceID = func(context.Context) (string, error) { return "someHostname", nil }
 
 	hostname, err := fromEC2(context.Background(), "ip-hostname")
 	assert.NoError(t, err)
@@ -170,12 +170,12 @@ func TestFromEc2Prioritize(t *testing.T) {
 	pkgconfigsetup.Datadog().SetWithoutSource("ec2_prioritize_instance_id_as_hostname", true)
 
 	// make AWS provider return an error
-	ec2GetInstanceID = func(context.Context, bool) (string, error) { return "", fmt.Errorf("some error") }
+	ec2GetInstanceID = func(context.Context) (string, error) { return "", fmt.Errorf("some error") }
 
 	_, err := fromEC2(context.Background(), "non-default-hostname")
 	assert.Error(t, err)
 
-	ec2GetInstanceID = func(context.Context, bool) (string, error) { return "someHostname", nil }
+	ec2GetInstanceID = func(context.Context) (string, error) { return "someHostname", nil }
 
 	hostname, err := fromEC2(context.Background(), "non-default-hostname")
 	assert.NoError(t, err)

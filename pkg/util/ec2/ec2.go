@@ -108,11 +108,13 @@ var imdsv2InstanceIDFetcher = cachedfetch.Fetcher{
 }
 
 // GetInstanceID fetches the instance id for current host from the EC2 metadata API
-func GetInstanceID(ctx context.Context, disableIMDSv2 bool) (string, error) {
-	if disableIMDSv2 {
-		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, UseIMDSv2(false, disableIMDSv2))
-	}
+func GetInstanceID(ctx context.Context) (string, error) {
 	return instanceIDFetcher.FetchString(ctx)
+}
+
+// GetInstanceIDWithoutIMDSv2 fetches the instance id for current host from the EC2 metadata API without using IMDSv2
+func GetInstanceIDWithoutIMDSv2(ctx context.Context) (string, error) {
+	return getMetadataItemWithMaxLength(ctx, imdsInstanceID, UseIMDSv2(false, true))
 }
 
 // GetIDMSv2InstanceID fetches the instance id for current host from the IMDSv2 EC2 metadata API
@@ -145,7 +147,7 @@ func IsRunningOn(ctx context.Context) bool {
 
 // GetHostAliases returns the host aliases from the EC2 metadata API.
 func GetHostAliases(ctx context.Context) ([]string, error) {
-	instanceID, err := GetInstanceID(ctx, false)
+	instanceID, err := GetInstanceID(ctx)
 	if err == nil {
 		return []string{instanceID}, nil
 	}
