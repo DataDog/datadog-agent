@@ -123,7 +123,7 @@ func getValidEC2Hostname(ctx context.Context, disableIMDSv2 bool) (string, error
 	return "", fmt.Errorf("Unable to determine hostname from EC2: %s", err)
 }
 
-func fromEC2(ctx context.Context, currentHostname string, disableIMDSv2 bool) (string, error) {
+func resolveEC2Hostname(ctx context.Context, currentHostname string, disableIMDSv2 bool) (string, error) {
 	// We use the instance id if we're on an ECS cluster or we're on EC2
 	// and the hostname is one of the default ones
 
@@ -156,10 +156,10 @@ func fromEC2(ctx context.Context, currentHostname string, disableIMDSv2 bool) (s
 	return "", fmt.Errorf("not retrieving hostname from AWS: the host is not an ECS instance and other providers already retrieve non-default hostnames")
 }
 
-func fromEC2WithIMDSV2(ctx context.Context, currentHostname string) (string, error) {
-	return fromEC2(ctx, currentHostname, false)
+func fromEC2(ctx context.Context, currentHostname string) (string, error) {
+	return resolveEC2Hostname(ctx, currentHostname, false)
 }
 
 func fromEC2WithoutIMDSV2(ctx context.Context, currentHostname string) (string, error) {
-	return fromEC2(ctx, currentHostname, true)
+	return resolveEC2Hostname(ctx, currentHostname, true)
 }

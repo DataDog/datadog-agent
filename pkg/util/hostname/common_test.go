@@ -143,7 +143,7 @@ func TestFromOS(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// fromEC2WithIMDSV2
+// fromEC2
 
 func TestFromEc2DefaultHostname(t *testing.T) {
 	// This test that when a default EC2 hostname is detected we fallback on EC2 instance ID
@@ -152,12 +152,12 @@ func TestFromEc2DefaultHostname(t *testing.T) {
 	// make AWS provider return an error
 	ec2GetInstanceID = func(context.Context, bool) (string, error) { return "", fmt.Errorf("some error") }
 
-	_, err := fromEC2WithIMDSV2(context.Background(), "ip-hostname")
+	_, err := fromEC2(context.Background(), "ip-hostname")
 	assert.Error(t, err)
 
 	ec2GetInstanceID = func(context.Context, bool) (string, error) { return "someHostname", nil }
 
-	hostname, err := fromEC2WithIMDSV2(context.Background(), "ip-hostname")
+	hostname, err := fromEC2(context.Background(), "ip-hostname")
 	assert.NoError(t, err)
 	assert.Equal(t, "someHostname", hostname)
 }
@@ -172,12 +172,12 @@ func TestFromEc2Prioritize(t *testing.T) {
 	// make AWS provider return an error
 	ec2GetInstanceID = func(context.Context, bool) (string, error) { return "", fmt.Errorf("some error") }
 
-	_, err := fromEC2WithIMDSV2(context.Background(), "non-default-hostname")
+	_, err := fromEC2(context.Background(), "non-default-hostname")
 	assert.Error(t, err)
 
 	ec2GetInstanceID = func(context.Context, bool) (string, error) { return "someHostname", nil }
 
-	hostname, err := fromEC2WithIMDSV2(context.Background(), "non-default-hostname")
+	hostname, err := fromEC2(context.Background(), "non-default-hostname")
 	assert.NoError(t, err)
 	assert.Equal(t, "someHostname", hostname)
 }
