@@ -399,6 +399,10 @@ class GithubAPI:
         Get the complexity of the code review for a given PR, taking into account the number of files, lines and comments.
         """
         pr = self._repository.get_pull(pr_id)
+        # Criteria are defined with the average of PR attributes (files, lines, comments) so that:
+        # - easy PRs are merged in less than 1 day
+        # - hard PRs are merged in more than 1 week
+        # More details about criteria definition: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4271079846/Code+Review+Experience+Improvement#Complexity-label
         criteria = {
             'easy': {'files': 4, 'lines': 150, 'comments': 1},
             'hard': {'files': 12, 'lines': 650, 'comments': 9},
