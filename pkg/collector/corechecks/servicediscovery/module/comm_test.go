@@ -132,31 +132,20 @@ func TestShouldIgnoreComm(t *testing.T) {
 
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
 				proc, err := customNewProcess(int32(cmd.Process.Pid))
-				require.NoError(t, err)
+				assert.NoError(t, err)
 
 				ignore := discovery.shouldIgnoreComm(proc)
-				require.Equal(t, test.ignore, ignore)
+				assert.Equal(t, test.ignore, ignore)
 			}, 10*time.Second, 100*time.Millisecond)
 		})
 	}
 }
 
-type ignoredCommTestAttr struct {
-	name  string   // The name of the test.
-	comms []string // list of command names to test
-}
-
-func (a *ignoredCommTestAttr) buildIgnoredCommandsString() string {
-	var builder strings.Builder
-	for _, cmd := range a.comms {
-		builder.WriteString(cmd)
-		builder.WriteString("   ") // intentionally multiple spaces for sensitivity testing
-	}
-	return builder.String()
-}
-
 func TestLoadIgnoredComm(t *testing.T) {
-	tests := []ignoredCommTestAttr{
+	tests := []struct {
+		name  string   // The name of the test.
+		comms []string // list of command names to test
+	}{
 		{
 			name:  "empty list of commands",
 			comms: []string{},
@@ -188,7 +177,7 @@ func TestLoadIgnoredComm(t *testing.T) {
 			mockSystemProbe := mock.NewSystemProbe(t)
 			require.NotEmpty(t, mockSystemProbe)
 
-			commsStr := test.buildIgnoredCommandsString()
+			commsStr := strings.Join(test.comms, "   ") // intentionally multiple spaces for sensitivity testing
 			mockSystemProbe.SetWithoutSource("discovery.ignored_command_names", commsStr)
 
 			discovery := newDiscovery()
@@ -198,12 +187,10 @@ func TestLoadIgnoredComm(t *testing.T) {
 
 			for _, cmd := range test.comms {
 				if len(cmd) > maxCommLen {
-					_, found := discovery.config.ignoreComms[cmd[:maxCommLen]]
-					assert.True(t, found)
-				} else {
-					_, found := discovery.config.ignoreComms[cmd]
-					assert.True(t, found)
+					cmd = cmd[:maxCommLen]
 				}
+				_, found := discovery.config.ignoreComms[cmd]
+				assert.True(t, found)
 			}
 		})
 	}

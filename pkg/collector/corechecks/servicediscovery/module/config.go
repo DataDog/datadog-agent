@@ -47,7 +47,7 @@ func (config *discoveryConfig) loadIgnoredComms(comms []string) {
 	for _, comm := range comms {
 		if len(comm) > maxCommLen {
 			config.ignoreComms[comm[:maxCommLen]] = struct{}{}
-			log.Warnf("the command name %d bytes long in config is truncated to maximum %d.", len(comm), maxCommLen)
+			log.Warnf("truncating command name %q has %d bytes to %d", comm, len(comm), maxCommLen)
 		} else if len(comm) > 0 {
 			config.ignoreComms[comm] = struct{}{}
 		}

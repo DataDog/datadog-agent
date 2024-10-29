@@ -33,8 +33,7 @@ var ignoreFamily = map[string]struct{}{
 
 // shouldIgnoreComm returns true if process should be ignored
 func (s *discovery) shouldIgnoreComm(proc *process.Process) bool {
-	ignoreComms := s.config.ignoreComms
-	if ignoreComms == nil {
+	if s.config.ignoreComms == nil {
 		return false
 	}
 	commPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "comm")
@@ -52,7 +51,7 @@ func (s *discovery) shouldIgnoreComm(proc *process.Process) bool {
 	}
 
 	comm := strings.TrimSuffix(string(contents), "\n")
-	_, found := ignoreComms[comm]
+	_, found := s.config.ignoreComms[comm]
 
 	return found
 }
