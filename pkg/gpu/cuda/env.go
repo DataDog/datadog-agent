@@ -22,7 +22,15 @@ const cudaVisibleDevicesEnvVar = "CUDA_VISIBLE_DEVICES"
 // GetVisibleDevicesForProcess modifies the list of GPU devices according to the
 // value of the CUDA_VISIBLE_DEVICES environment variable for the specified
 // process. Reference:
-// https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#env-vars
+// https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#env-vars.
+//
+// As a summary, the CUDA_VISIBLE_DEVICES environment variable should be a comma
+// separated list of GPU identifiers. These can be either the index of the GPU
+// (0, 1, 2) or the UUID of the GPU (GPU-<UUID>, or
+// MIG-GPU-<UUID>/<instance-index>/<compute-index for multi-instance GPUs). UUID
+// identifiers do not need to be the full UUID, it is enough with specifying the
+// prefix that uniquely identifies the GPU.
+//
 // Invalid device indexes are ignored, and anything that comes after that is
 // invisible, following the spec: "If one of the indices is invalid, only the
 // devices whose index precedes the invalid index are visible to CUDA
