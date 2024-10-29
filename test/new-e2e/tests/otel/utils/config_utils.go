@@ -40,7 +40,7 @@ var otelFlareFiles = []string{
 	"otel/otel-flare/health_check/dd-autoconfigured.dat",
 	"otel/otel-flare/pprof/dd-autoconfigured_debug_pprof_heap.dat",
 	"otel/otel-flare/pprof/dd-autoconfigured_debug_pprof_allocs.dat",
-	"otel/otel-flare/pprof/dd-autoconfigured_debug_pprof_profile.dat",
+	// "otel/otel-flare/pprof/dd-autoconfigured_debug_pprof_profile.dat",
 	"otel/otel-flare/zpages/dd-autoconfigured_debug_tracez.dat",
 	"otel/otel-flare/zpages/dd-autoconfigured_debug_pipelinez.dat",
 	"otel/otel-flare/zpages/dd-autoconfigured_debug_extensionz.dat",
