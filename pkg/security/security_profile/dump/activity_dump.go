@@ -29,13 +29,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	stime "github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -973,15 +973,13 @@ func GenerateRules(ads []*ActivityDump, opts SECLRuleOpts) []*rules.RuleDefiniti
 	var ruleDefs []*rules.RuleDefinition
 	groupID := getGroupID(opts)
 
-	var execs []string
 	lineage := make(map[string][]string)
 	fims := make(map[string][]string)
 
 	for _, ad := range ads {
-		fimPathsperExecPath, execAndParent := ad.ActivityTree.ExtractPaths()
+		fimPathsperExecPath, execAndParent := ad.ActivityTree.ExtractPaths(opts.AllowList, opts.FIM, opts.Lineage)
 
 		for execPath, fimPaths := range fimPathsperExecPath {
-			execs = append(execs, execPath)
 			tmp, ok := fims[execPath]
 			if ok {
 				fims[execPath] = append(tmp, fimPaths...)
@@ -1002,6 +1000,10 @@ func GenerateRules(ads []*ActivityDump, opts SECLRuleOpts) []*rules.RuleDefiniti
 
 	// add exec rules
 	if opts.AllowList {
+		var execs []string
+		for e := range fims {
+			execs = append(execs, e)
+		}
 		ruleDefs = append(ruleDefs, addRule(fmt.Sprintf(`exec.file.path not in [%s]`, strings.Join(execs, ", ")), groupID, opts))
 	}
 

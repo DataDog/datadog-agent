@@ -56,7 +56,7 @@ PyObject *buildTagsList(char **tags)
 
     int i;
     for (i = 0; tags[i]; i++) {
-        PyObject *pyTag = PyStringFromCString(tags[i]);
+        PyObject *pyTag = PyUnicode_FromString(tags[i]);
         cgo_free(tags[i]);
 
         // PyList_Append (unlike `PyList_SetItem`) increments the refcount on pyTag

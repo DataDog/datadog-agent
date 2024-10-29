@@ -98,7 +98,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadmetafx.Module(workloadmeta.Params{
 					AgentType:  workloadmeta.NodeAgent,
 					InitHelper: common.GetWorkloadmetaInit(),
-					NoInstance: !cliParams.runLocal,
 				}),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				taggerimpl.Module(),

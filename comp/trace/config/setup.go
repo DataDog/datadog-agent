@@ -123,7 +123,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 }
 
 func containerTagsFunc(cid string) ([]string, error) {
-	return tagger.Tag(types.NewEntityID(types.ContainerID, cid).String(), types.HighCardinality)
+	return tagger.Tag(types.NewEntityID(types.ContainerID, cid), types.HighCardinality)
 }
 
 // appendEndpoints appends any endpoint configuration found at the given cfgKey.
@@ -224,13 +224,19 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
 	}
 
-	// NOTE: maintain backwards-compatibility with old peer service flag that will eventually be deprecated.
-	c.PeerTagsAggregation = core.GetBool("apm_config.peer_service_aggregation")
-	if c.PeerTagsAggregation {
-		log.Warn("`apm_config.peer_service_aggregation` is deprecated, please use `apm_config.peer_tags_aggregation` instead")
+	/**
+	 * NOTE: PeerTagsAggregation is on by default as of Q4 2024. To get the default experience,
+	 * customers DO NOT NEED to set "apm_config.peer_service_aggregation" (deprecated) or "apm_config.peer_tags_aggregation" (previously defaulted to false, now true).
+	 * However, customers may opt out by explicitly setting "apm_config.peer_tags_aggregation" to "false".
+	 */
+	c.PeerTagsAggregation = core.GetBool("apm_config.peer_tags_aggregation")
+
+	if !c.PeerTagsAggregation {
+		log.Info("peer tags aggregation is explicitly disabled. To enable it, remove `apm_config.peer_tags_aggregation: false` from your configuration")
 	}
-	c.PeerTagsAggregation = c.PeerTagsAggregation || core.GetBool("apm_config.peer_tags_aggregation")
+
 	c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
+
 	if core.IsSet("apm_config.peer_tags") {
 		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
 	}

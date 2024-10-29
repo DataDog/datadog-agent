@@ -1,0 +1,20 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    * Parameter ``peer_tags_aggregation`` (a.k.a. environment variable ``DD_APM_PEER_TAGS_AGGREGATION``) is now enabled by default. This means that aggregation of peer related tags (e.g., `peer.service`, `db.instance`, etc.) now happens in the Agent, which enables statistics for Inferred Entities. If you want to disable this feature, set `peer_tags_aggregation` to `false` in your Agent configuration.
+
+    * Parameter ``compute_stats_by_span_kind`` (a.k.a. environment variable ``DD_APM_COMPUTE_STATS_BY_SPAN_KIND``) is now enabled by default. This means spans with an eligible `span.kind` will have stats computed. If disabled, only top-level and measured spans will have stats computed. If you want to disable this feature, set `compute_stats_by_span_kind` to `false` in your Agent configuration.
+
+      Note: When using ``peer_tags_aggregation`` and ``compute_stats_by_span_kind``, a high cardinality of peer tags or APM resources can contribute to higher CPU and memory consumption. If enabling both causes the Agent to consume too many resources, try disabling `compute_stats_by_span_kind` first.
+
+    It is recommended that you update your tracing libraries according to the instructions `here <https://docs.datadoghq.com/tracing/guide/inferred-service-opt-in/?tab=java#apm-tracing-library-configuration>`_ and set ``DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED`` (or ``dd.trace.remove.integration-service-names.enabled``) to ``true``.
+features:
+  - |
+    `Inferred Service dependencies <https://docs.datadoghq.com/tracing/guide/inferred-service-opt-in/>`_ are now Generally Available (exiting Beta) and enabled by default. Inferred Services of all kinds now have trace metrics and are available in dependency maps. `apm_config.peer_tags_aggregation` and `apm_config.compute_stats_by_span_kind` both now default to `true` unless explicitly set to `false`.

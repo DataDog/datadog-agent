@@ -2308,15 +2308,37 @@ func TestSetMaxMemCPU(t *testing.T) {
 }
 
 func TestPeerTagsAggregation(t *testing.T) {
-	t.Run("disabled", func(t *testing.T) {
+	t.Run("default-enabled", func(t *testing.T) {
 		config := fxutil.Test[Component](t, fx.Options(
 			corecomp.MockModule(),
+			MockModule(),
+		))
+		cfg := config.Object()
+		assert.True(t, cfg.PeerTagsAggregation)
+		assert.Nil(t, cfg.PeerTags)
+
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "_dd.base_service") // global base peer tag precursor
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "db.hostname")      // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "db.system")        // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "peer.hostname")    // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "peer.service")     // known peer tag precursors that should be loaded from peer_tags.ini
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"apm_config.peer_service_aggregation": true,
+			"apm_config.peer_tags_aggregation":    false,
+		}
+		config := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule(),
+			fx.Replace(corecomp.MockParams{Overrides: overrides}),
 			MockModule(),
 		))
 		cfg := config.Object()
 		require.NotNil(t, cfg)
 		assert.False(t, cfg.PeerTagsAggregation)
 		assert.Nil(t, cfg.PeerTags)
+		assert.Nil(t, cfg.ConfiguredPeerTags())
 	})
 
 	t.Run("deprecated-enabled", func(t *testing.T) {
@@ -2333,10 +2355,16 @@ func TestPeerTagsAggregation(t *testing.T) {
 		require.NotNil(t, cfg)
 		assert.True(t, cfg.PeerTagsAggregation)
 		assert.Nil(t, cfg.PeerTags)
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "db.hostname")   // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "db.system")     // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "peer.hostname") // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "peer.service")  // known peer tag precursors that should be loaded from peer_tags.ini
 	})
-	t.Run("enabled", func(t *testing.T) {
+
+	t.Run("deprecated-disabled", func(t *testing.T) {
 		overrides := map[string]interface{}{
-			"apm_config.peer_tags_aggregation": true,
+			// Setting peer_service_aggregation to false has no effect. Nobody should be using this flag, though some previous beta customers might still need to migrate to peer_tags_aggregation.
+			"apm_config.peer_service_aggregation": false,
 		}
 
 		config := fxutil.Test[Component](t, fx.Options(
@@ -2345,9 +2373,16 @@ func TestPeerTagsAggregation(t *testing.T) {
 			MockModule(),
 		))
 		cfg := config.Object()
+		require.NotNil(t, cfg)
 		assert.True(t, cfg.PeerTagsAggregation)
 		assert.Nil(t, cfg.PeerTags)
+		assert.NotNil(t, cfg.ConfiguredPeerTags())
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "db.hostname")   // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "db.system")     // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "peer.hostname") // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "peer.service")  // known peer tag precursors that should be loaded from peer_tags.ini
 	})
+
 	t.Run("both-enabled", func(t *testing.T) {
 		overrides := map[string]interface{}{
 			"apm_config.peer_service_aggregation": true,
@@ -2363,10 +2398,34 @@ func TestPeerTagsAggregation(t *testing.T) {
 		require.NotNil(t, cfg)
 		assert.True(t, cfg.PeerTagsAggregation)
 		assert.Nil(t, cfg.PeerTags)
+		assert.NotNil(t, cfg.ConfiguredPeerTags())
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "db.hostname")   // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "db.system")     // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "peer.hostname") // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "peer.service")  // known peer tag precursors that should be loaded from peer_tags.ini
+	})
+
+	t.Run("both-disabled", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"apm_config.peer_service_aggregation": false,
+			"apm_config.peer_tags_aggregation":    false,
+		}
+
+		config := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule(),
+			fx.Replace(corecomp.MockParams{Overrides: overrides}),
+			MockModule(),
+		))
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.PeerTagsAggregation)
+		assert.Nil(t, cfg.PeerTags)
+		assert.Nil(t, cfg.ConfiguredPeerTags())
 	})
 	t.Run("disabled-user-tags", func(t *testing.T) {
 		overrides := map[string]interface{}{
-			"apm_config.peer_tags": []string{"user_peer_tag"},
+			"apm_config.peer_tags_aggregation": false,
+			"apm_config.peer_tags":             []string{"user_peer_tag"},
 		}
 
 		config := fxutil.Test[Component](t, fx.Options(
@@ -2378,11 +2437,11 @@ func TestPeerTagsAggregation(t *testing.T) {
 		require.NotNil(t, cfg)
 		assert.False(t, cfg.PeerTagsAggregation)
 		assert.Equal(t, []string{"user_peer_tag"}, cfg.PeerTags)
+		assert.Nil(t, cfg.ConfiguredPeerTags())
 	})
-	t.Run("deprecated-enabled-user-tags", func(t *testing.T) {
+	t.Run("default-enabled-user-tags", func(t *testing.T) {
 		overrides := map[string]interface{}{
-			"apm_config.peer_tags":                []string{"user_peer_tag"},
-			"apm_config.peer_service_aggregation": true,
+			"apm_config.peer_tags": []string{"user_peer_tag"},
 		}
 
 		config := fxutil.Test[Component](t, fx.Options(
@@ -2393,6 +2452,11 @@ func TestPeerTagsAggregation(t *testing.T) {
 		cfg := config.Object()
 		assert.True(t, cfg.PeerTagsAggregation)
 		assert.Equal(t, []string{"user_peer_tag"}, cfg.PeerTags)
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "user_peer_tag")
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "db.hostname")   // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "db.system")     // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "peer.hostname") // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "peer.service")  // known peer tag precursors that should be loaded from peer_tags.ini
 	})
 	t.Run("enabled-user-tags", func(t *testing.T) {
 		overrides := map[string]interface{}{
@@ -2409,30 +2473,35 @@ func TestPeerTagsAggregation(t *testing.T) {
 		require.NotNil(t, cfg)
 		assert.True(t, cfg.PeerTagsAggregation)
 		assert.Equal(t, []string{"user_peer_tag"}, cfg.PeerTags)
-	})
-	t.Run("both-enabled-user-tags", func(t *testing.T) {
-		overrides := map[string]interface{}{
-			"apm_config.peer_tags":                []string{"user_peer_tag"},
-			"apm_config.peer_tags_aggregation":    true,
-			"apm_config.peer_service_aggregation": true,
-		}
-
-		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule(),
-			fx.Replace(corecomp.MockParams{Overrides: overrides}),
-			MockModule(),
-		))
-		cfg := config.Object()
-		require.NotNil(t, cfg)
-		assert.True(t, cfg.PeerTagsAggregation)
 		assert.Equal(t, []string{"user_peer_tag"}, cfg.PeerTags)
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "user_peer_tag")
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "db.hostname")   // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "db.system")     // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "peer.hostname") // known peer tag precursors that should be loaded from peer_tags.ini
+		assert.Contains(t, cfg.ConfiguredPeerTags(), "peer.service")  // known peer tag precursors that should be loaded from peer_tags.ini
 	})
 }
 
 func TestComputeStatsBySpanKind(t *testing.T) {
-	t.Run("disabled", func(t *testing.T) {
+
+	t.Run("default-enabled", func(t *testing.T) {
 		config := fxutil.Test[Component](t, fx.Options(
 			corecomp.MockModule(),
+			MockModule(),
+		))
+		cfg := config.Object()
+
+		require.NotNil(t, cfg)
+		assert.True(t, cfg.ComputeStatsBySpanKind)
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"apm_config.compute_stats_by_span_kind": false,
+		}
+		config := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule(),
+			fx.Replace(corecomp.MockParams{Overrides: overrides}),
 			MockModule(),
 		))
 		cfg := config.Object()

@@ -111,7 +111,7 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	if c.config.isMutationEnabled() {
 		mutatingWebhooks = []Webhook{
 			configWebhook.NewWebhook(wmeta, injectionFilter, datadogConfig),
-			tagsfromlabels.NewWebhook(wmeta, injectionFilter),
+			tagsfromlabels.NewWebhook(wmeta, datadogConfig, injectionFilter),
 			agentsidecar.NewWebhook(datadogConfig),
 			autoscaling.NewWebhook(pa),
 		}
