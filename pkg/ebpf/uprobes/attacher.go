@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -160,12 +159,12 @@ type ProcessMonitor interface {
 	// SubscribeExec subscribes to process start events, with a callback that
 	// receives the PID of the process. Returns a function that can be called to
 	// unsubscribe from the event.
-	SubscribeExec(monitor.ProcessCallback) func()
+	SubscribeExec(func(uint32)) func()
 
 	// SubscribeExit subscribes to process exit events, with a callback that
 	// receives the PID of the process. Returns a function that can be called to
 	// unsubscribe from the event.
-	SubscribeExit(monitor.ProcessCallback) func()
+	SubscribeExit(func(uint32)) func()
 }
 
 // AttacherConfig defines the configuration for the attacher
