@@ -48,7 +48,7 @@ type systemContext struct {
 type fileData struct {
 	symbolTable  map[uint64]string
 	fatbin       *cuda.Fatbin
-	lastAccessed time.Time
+	lastAccessed time.Time // keep the last time this file was accessed to cleanup old entries
 }
 
 func (fd *fileData) updateAccessTime() {
@@ -115,6 +115,7 @@ func (ctx *systemContext) getFileData(path string) (*fileData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error opening ELF file %s: %w", path, err)
 	}
+	defer elfFile.Close()
 
 	fatbin, err := cuda.ParseFatbinFromELFFile(elfFile)
 	if err != nil {
@@ -154,10 +155,13 @@ func (ctx *systemContext) getProcessMemoryMaps(pid int) (*kernel.ProcMapEntries,
 	return &maps, nil
 }
 
-func (ctx *systemContext) cleanupDataForProcess(pid int) {
+// removeProcess removes any data associated with a process from the system context.
+func (ctx *systemContext) removeProcess(pid int) {
 	delete(ctx.pidMaps, pid)
 }
 
+// cleanupOldEntries removes any old entries that have not been accessed in a while, to avoid
+// retaining unused data forever
 func (ctx *systemContext) cleanupOldEntries() {
 	maxFatbinAge := 5 * time.Minute
 	fatbinExpirationTime := time.Now().Add(-maxFatbinAge)
