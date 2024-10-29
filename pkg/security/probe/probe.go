@@ -461,8 +461,3 @@ func (p *Probe) IsSecurityProfileEnabled() bool {
 func (p *Probe) EnableEnforcement(state bool) {
 	p.PlatformProbe.EnableEnforcement(state)
 }
-
-// PlaySnapshot plays the snapshot
-func (p *Probe) PlaySnapshot() {
-	p.PlatformProbe.PlaySnapshot()
-}
