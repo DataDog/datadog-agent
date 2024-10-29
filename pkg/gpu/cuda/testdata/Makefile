@@ -1,8 +1,9 @@
 NVCC = /usr/local/cuda/bin/nvcc
+TEMPL_GENERATOR = ./gen-heavy-sample.go
 
-all: sample
+all: sample heavy-sample
 
-sample.o: sample.cu
+%.o: %.cu
 	$(NVCC) -ccbin g++ -m64 -Xcompiler -ggdb -Xcompiler -pg --threads 0 --std=c++11 \
 	-gencode arch=compute_50,code=sm_50 \
 	-gencode arch=compute_52,code=sm_52 \
@@ -15,9 +16,9 @@ sample.o: sample.cu
 	-gencode arch=compute_89,code=sm_89 \
 	-gencode arch=compute_90,code=sm_90 \
 	-gencode arch=compute_90,code=compute_90 \
-	-o sample.o -c sample.cu
+	-o $@ -c $<
 
-sample: sample.o
+%: %.o
 	$(NVCC) -ccbin g++ -m64 -Xcompiler -ggdb -Xcompiler -pg \
 	-gencode arch=compute_50,code=sm_50 \
 	-gencode arch=compute_52,code=sm_52 \
@@ -30,4 +31,7 @@ sample: sample.o
 	-gencode arch=compute_89,code=sm_89 \
 	-gencode arch=compute_90,code=sm_90 \
 	-gencode arch=compute_90,code=compute_90 \
-	-o sample sample.o
+	-o $@ $<
+
+%.cu: %.cu.tmpl $(TEMPL_GENERATOR)
+	go run $(TEMPL_GENERATOR) -template $< -output $@ -kernels 80 -variables 10 -shared-memory 1024
