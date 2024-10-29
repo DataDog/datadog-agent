@@ -80,6 +80,7 @@ const (
 	MetricSourceSonarr
 	MetricSourceSnmpwalk
 	MetricSourceSendmail
+	MetricSourceScaphandre
 	MetricSourceScalr
 	MetricSourceRiakRepl
 	MetricSourceRedpanda
@@ -96,6 +97,7 @@ const (
 	MetricSourcePhpOpcache
 	MetricSourcePhpApcu
 	MetricSourceOpenPolicyAgent
+	MetricSourceOctopusDeploy
 	MetricSourceOctoprint
 	MetricSourceNvml
 	MetricSourceNs1
@@ -107,6 +109,7 @@ const (
 	MetricSourceLogstash
 	MetricSourceLighthouse
 	MetricSourceKernelcare
+	MetricSourceKepler
 	MetricSourceJfrogPlatformSelfHosted
 	MetricSourceHikaricp
 	MetricSourceGrpcCheck
@@ -115,6 +118,7 @@ const (
 	MetricSourceGnatsd
 	MetricSourceGitea
 	MetricSourceGatekeeper
+	MetricSourceFlyIo
 	MetricSourceFluentbit
 	MetricSourceFilemage
 	MetricSourceFilebeat
@@ -474,6 +478,8 @@ func (ms MetricSource) String() string {
 		return "external_dns"
 	case MetricSourceFluentd:
 		return "fluentd"
+	case MetricSourceFlyIo:
+		return "fly_io"
 	case MetricSourceFoundationdb:
 		return "foundationdb"
 	case MetricSourceGearmand:
@@ -518,6 +524,8 @@ func (ms MetricSource) String() string {
 		return "istio"
 	case MetricSourceKafkaConsumer:
 		return "kafka_consumer"
+	case MetricSourceKepler:
+		return "kepler"
 	case MetricSourceKong:
 		return "kong"
 	case MetricSourceKubeAPIserverMetrics:
@@ -782,6 +790,8 @@ func (ms MetricSource) String() string {
 		return "nvml"
 	case MetricSourceOctoprint:
 		return "octoprint"
+	case MetricSourceOctopusDeploy:
+		return "octopus_deploy"
 	case MetricSourceOpenPolicyAgent:
 		return "open_policy_agent"
 	case MetricSourcePhpApcu:
@@ -814,6 +824,8 @@ func (ms MetricSource) String() string {
 		return "riak_repl"
 	case MetricSourceScalr:
 		return "scalr"
+	case MetricSourceScaphandre:
+		return "scaphandre"
 	case MetricSourceSendmail:
 		return "sendmail"
 	case MetricSourceSnmpwalk:
