@@ -7,50 +7,6 @@
 // the gpu core agent check
 package model
 
-// MemoryAllocation represents a memory allocation event
-type MemoryAllocation struct {
-	// Start is the kernel-time timestamp of the allocation event
-	StartKtime uint64 `json:"start"`
-
-	// End is the kernel-time timestamp of the deallocation event. If 0, this means the allocation was not deallocated yet
-	EndKtime uint64 `json:"end"`
-
-	// Size is the size of the allocation in bytes
-	Size uint64 `json:"size"`
-
-	// IsLeaked is true if the allocation was not deallocated
-	IsLeaked bool `json:"is_leaked"`
-}
-
-// KernelSpan represents a span of time during which one or more kernels were running on a GPU until
-// a synchronization event happened
-type KernelSpan struct {
-	// StartKtime is the kernel-time timestamp of the start of the span, the moment the first kernel was launched
-	StartKtime uint64 `json:"start"`
-
-	// EndKtime is the kernel-time timestamp of the end of the span, the moment the synchronization event happened
-	EndKtime uint64 `json:"end"`
-
-	// AvgThreadCount is the average number of threads running on the GPU during the span
-	AvgThreadCount uint64 `json:"avg_thread_count"`
-
-	// NumKernels is the number of kernels that were launched during the span
-	NumKernels uint64 `json:"num_kernels"`
-}
-
-// StreamKey is a unique identifier for a CUDA stream
-type StreamKey struct {
-	Pid    uint32 `json:"pid"`
-	Stream uint64 `json:"stream"`
-}
-
-// StreamData contains kernel spans and allocations for a stream
-type StreamData struct {
-	Key         StreamKey           `json:"key"`
-	Spans       []*KernelSpan       `json:"spans"`
-	Allocations []*MemoryAllocation `json:"allocations"`
-}
-
 // ProcessStats contains the GPU stats for a given PID
 type ProcessStats struct {
 	UtilizationPercentage float64 `json:"utilization_percentage"`

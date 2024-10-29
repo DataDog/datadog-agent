@@ -13,21 +13,19 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestProbeCanLoad(t *testing.T) {
-	kver, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if kver < minimumKernelVersion {
-		t.Skipf("minimum kernel version %s not met, read %s", minimumKernelVersion, kver)
+	if err := config.CheckGPUSupported(); err != nil {
+		t.Skipf("minimum kernel version not met, %v", err)
 	}
 
 	nvmlMock := testutil.GetBasicNvmlMock()
-	probe, err := NewProbe(NewConfig(), ProbeDependencies{NvmlLib: nvmlMock})
+	probe, err := NewProbe(config.NewConfig(), ProbeDependencies{NvmlLib: nvmlMock})
 	require.NoError(t, err)
 	require.NotNil(t, probe)
 	t.Cleanup(probe.Close)
@@ -38,10 +36,8 @@ func TestProbeCanLoad(t *testing.T) {
 }
 
 func TestProbeCanReceiveEvents(t *testing.T) {
-	kver, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if kver < minimumKernelVersion {
-		t.Skipf("minimum kernel version %s not met, read %s", minimumKernelVersion, kver)
+	if err := config.CheckGPUSupported(); err != nil {
+		t.Skipf("minimum kernel version not met, %v", err)
 	}
 
 	procMon := monitor.GetProcessMonitor()
@@ -49,7 +45,7 @@ func TestProbeCanReceiveEvents(t *testing.T) {
 	require.NoError(t, procMon.Initialize(false))
 	t.Cleanup(procMon.Stop)
 
-	cfg := NewConfig()
+	cfg := config.NewConfig()
 	cfg.InitialProcessSync = false
 	cfg.BPFDebug = true
 
@@ -68,8 +64,8 @@ func TestProbeCanReceiveEvents(t *testing.T) {
 	var handlerStream, handlerGlobal *StreamHandler
 	require.Eventually(t, func() bool {
 		for key, h := range probe.consumer.streamHandlers {
-			if key.Pid == uint32(cmd.Process.Pid) {
-				if key.Stream == 0 {
+			if key.pid == uint32(cmd.Process.Pid) {
+				if key.stream == 0 {
 					handlerGlobal = h
 				} else {
 					handlerStream = h
@@ -82,22 +78,20 @@ func TestProbeCanReceiveEvents(t *testing.T) {
 
 	require.Equal(t, 1, len(handlerStream.kernelSpans))
 	span := handlerStream.kernelSpans[0]
-	require.Equal(t, uint64(1), span.NumKernels)
-	require.Equal(t, uint64(1*2*3*4*5*6), span.AvgThreadCount)
-	require.Greater(t, span.EndKtime, span.StartKtime)
+	require.Equal(t, uint64(1), span.numKernels)
+	require.Equal(t, uint64(1*2*3*4*5*6), span.avgThreadCount)
+	require.Greater(t, span.endKtime, span.startKtime)
 
 	require.Equal(t, 1, len(handlerGlobal.allocations))
 	alloc := handlerGlobal.allocations[0]
-	require.Equal(t, uint64(100), alloc.Size)
-	require.False(t, alloc.IsLeaked)
-	require.Greater(t, alloc.EndKtime, alloc.StartKtime)
+	require.Equal(t, uint64(100), alloc.size)
+	require.False(t, alloc.isLeaked)
+	require.Greater(t, alloc.endKtime, alloc.startKtime)
 }
 
 func TestProbeCanGenerateStats(t *testing.T) {
-	kver, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if kver < minimumKernelVersion {
-		t.Skipf("minimum kernel version %s not met, read %s", minimumKernelVersion, kver)
+	if err := config.CheckGPUSupported(); err != nil {
+		t.Skipf("minimum kernel version not met, %v", err)
 	}
 
 	procMon := monitor.GetProcessMonitor()
@@ -105,7 +99,7 @@ func TestProbeCanGenerateStats(t *testing.T) {
 	require.NoError(t, procMon.Initialize(false))
 	t.Cleanup(procMon.Stop)
 
-	cfg := NewConfig()
+	cfg := config.NewConfig()
 	cfg.InitialProcessSync = false
 	cfg.BPFDebug = true
 

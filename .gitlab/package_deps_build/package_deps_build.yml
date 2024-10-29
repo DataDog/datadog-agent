@@ -32,8 +32,8 @@
     - tar -cJf $CI_PROJECT_DIR/minimized-btfs.tar.xz *
     - $S3_CP_CMD $CI_PROJECT_DIR/minimized-btfs.tar.xz $S3_PROJECT_ARTIFACTS_URI/btfs/$MIN_BTFS_FILENAME
   variables:
-    KUBERNETES_MEMORY_REQUEST: "32Gi"
-    KUBERNETES_MEMORY_LIMIT: "32Gi"
+    KUBERNETES_MEMORY_REQUEST: "64Gi"
+    KUBERNETES_MEMORY_LIMIT: "64Gi"
     KUBERNETES_CPU_REQUEST: 24
   artifacts:
     expire_in: 2 weeks
