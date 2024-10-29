@@ -16,7 +16,7 @@ import (
 var roleStore = atomic.NewString("")
 
 func IsEnabled() bool {
-	return pkgconfigsetup.Datadog().GetBool("failover.enabled")
+	return pkgconfigsetup.Datadog().GetBool("ha_agent.enabled")
 }
 
 func IsPrimary() bool {
@@ -28,7 +28,15 @@ func GetRole() string {
 	if role != "" {
 		return role
 	}
-	return pkgconfigsetup.Datadog().GetString("failover.role")
+	return GetInitialRole()
+}
+
+func GetInitialRole() string {
+	return pkgconfigsetup.Datadog().GetString("ha_agent.initial_role")
+}
+
+func GetClusterId() string {
+	return pkgconfigsetup.Datadog().GetString("ha_agent.cluster_id")
 }
 
 func SetRole(role string) {
