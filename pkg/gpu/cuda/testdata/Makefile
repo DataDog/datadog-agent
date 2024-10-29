@@ -3,6 +3,8 @@ TEMPL_GENERATOR = ./gen-heavy-sample.go
 
 all: sample heavy-sample
 
+.PRECIOUS: %.cu
+
 %.o: %.cu
 	$(NVCC) -ccbin g++ -m64 -Xcompiler -ggdb -Xcompiler -pg --threads 0 --std=c++11 \
 	-gencode arch=compute_50,code=sm_50 \

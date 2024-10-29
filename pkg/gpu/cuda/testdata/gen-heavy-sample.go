@@ -19,7 +19,10 @@ var templatePath = flag.String("template", "heavy-sample.cu.tmpl", "Path to the 
 var outputPath = flag.String("output", "heavy-sample.cu", "Path to the output file")
 var numKernels = flag.Int("kernels", 80, "Number of kernels to generate")
 var numVariablesPerKernel = flag.Int("variables", 10, "Number of variables to generate per kernel")
-var numInstructionsPerKernel = flag.Int("instructions", 10000, "Number of instructions to generate per kernel")
+
+// Note that the number of instructions per kernel doesn't really affect our fatbin parser, but it does increase the binary size, so it's
+// useful to keep it low to avoid committing large binaries to the repository
+var numInstructionsPerKernel = flag.Int("instructions", 10, "Number of instructions to generate per kernel")
 var sharedMemorySize = flag.Int("shared-memory", 1024, "Size of the shared memory in bytes")
 
 const sharedMemoryVar = "myVar"
@@ -50,7 +53,7 @@ func genInstructions(numInstructions int) []string {
 	for i := 0; i < numInstructions; i++ {
 		indexSrc := rand.IntN(10)
 		valueMult := rand.Float64() * 50
-		instructions[i] = fmt.Sprintf("%s[%d] = %f * %s[threadIdx];", sharedMemoryVar, indexSrc, valueMult, sharedMemoryVar)
+		instructions[i] = fmt.Sprintf("%s[%d] = %f * %s[threadIdx.x];", sharedMemoryVar, indexSrc, valueMult, sharedMemoryVar)
 	}
 	return instructions
 }
