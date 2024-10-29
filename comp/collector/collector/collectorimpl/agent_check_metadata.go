@@ -55,12 +55,17 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 
 // GetPayload builds a payload of all the agentchecks metadata
 func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
-	hostname, _ := hostname.Get(ctx)
+	hostnameData, _ := hostname.Get(ctx)
 
 	meta := hostMetadataUtils.GetMetaFromCache(ctx, c.config)
-	meta.Hostname = hostname
+	meta.Hostname = hostnameData
 
-	cp := hostMetadataUtils.GetCommonPayload(hostname, c.config)
+	legacyResolutionHostnameData, _ := hostname.GetWithProviderWithoutCacheAndIMDSV2(ctx)
+	if legacyResolutionHostnameData.Hostname != meta.Hostname {
+		meta.LegacyResolutionHostname = legacyResolutionHostnameData.Hostname
+	}
+
+	cp := hostMetadataUtils.GetCommonPayload(hostnameData, c.config)
 	payload := &Payload{
 		CommonPayload:    *cp,
 		Meta:             *meta,
