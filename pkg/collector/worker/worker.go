@@ -140,7 +140,7 @@ func (w *Worker) Run() {
 			continue
 		}
 
-		if haagent.IsEnabled() && check.IsHACheck() {
+		if haagent.IsEnabled() && haagent.IsHACheck(check.String()) {
 			if !haagent.IsPrimary() {
 				checkLogger.Debug("Check skipped since the agent is not primary")
 
