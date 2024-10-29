@@ -260,43 +260,36 @@ func (c ConnectionTuple) String() string {
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
 type ConnectionStats struct {
-	ConnectionTuple
-
+	// move pointer fields first to reduce number of bytes GC has to scan
 	IPTranslation *IPTranslation
 	Via           *Via
-
-	Monotonic StatCounters
-
-	Last StatCounters
-
-	Cookie StatCookie
-
-	// Last time the stats for this connection were updated
-	LastUpdateEpoch uint64
-	Duration        time.Duration
-
-	RTT    uint32 // Stored in µs
-	RTTVar uint32
-
-	Direction        ConnectionDirection
-	SPortIsEphemeral EphemeralPortType
-	StaticTags       uint64
-	Tags             []*intern.Value
-
-	IntraHost bool
-	IsAssured bool
-	IsClosed  bool
-
-	ContainerID struct {
+	Tags          []*intern.Value
+	ContainerID   struct {
 		Source, Dest *intern.Value
 	}
-
-	ProtocolStack protocols.Stack
-
 	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
-
 	// TCPFailures stores the number of failures for a POSIX error code
 	TCPFailures map[uint32]uint32
+
+	ConnectionTuple
+
+	Monotonic StatCounters
+	Last      StatCounters
+	Cookie    StatCookie
+	// LastUpdateEpoch is the last time the stats for this connection were updated
+	LastUpdateEpoch uint64
+	Duration        time.Duration
+	RTT             uint32 // Stored in µs
+	RTTVar          uint32
+	StaticTags      uint64
+	ProtocolStack   protocols.Stack
+
+	// keep these fields last because they are 1 byte each and otherwise inflate the struct size due to alignment
+	Direction        ConnectionDirection
+	SPortIsEphemeral EphemeralPortType
+	IntraHost        bool
+	IsAssured        bool
+	IsClosed         bool
 }
 
 // Via has info about the routing decision for a flow

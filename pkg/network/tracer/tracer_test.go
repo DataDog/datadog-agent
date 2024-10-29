@@ -1407,3 +1407,42 @@ func findFailedConnectionByRemoteAddr(remoteAddr string, conns *network.Connecti
 	}
 	return network.FirstConnection(conns, failureFilter)
 }
+
+func BenchmarkGetActiveConnections(b *testing.B) {
+	cfg := testConfig()
+	tr := setupTracer(b, cfg)
+	server := testutil.NewTCPServer(func(c net.Conn) {
+		io.Copy(io.Discard, c)
+		c.Close()
+	})
+	b.Cleanup(server.Shutdown)
+	require.NoError(b, server.Run())
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for range b.N {
+		c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+		require.NoError(b, err)
+		laddr, raddr := c.LocalAddr(), c.RemoteAddr()
+		c.Write([]byte("hello"))
+		connections := getConnections(b, tr)
+		conn, ok := findConnection(laddr, raddr, connections)
+
+		require.True(b, ok)
+		assert.Equal(b, uint32(1), conn.Last.TCPEstablished)
+		assert.Equal(b, uint32(0), conn.Last.TCPClosed)
+		c.Close()
+
+		// Wait for the connection to be sent from the perf buffer
+		require.Eventually(b, func() bool {
+			var ok bool
+			conn, ok = findConnection(laddr, raddr, getConnections(b, tr))
+			return ok
+		}, 3*time.Second, 10*time.Millisecond, "couldn't find connection")
+
+		require.True(b, ok)
+		assert.Equal(b, uint32(0), conn.Last.TCPEstablished)
+		assert.Equal(b, uint32(1), conn.Last.TCPClosed)
+	}
+}
