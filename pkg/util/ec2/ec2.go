@@ -107,6 +107,13 @@ var imdsv2InstanceIDFetcher = cachedfetch.Fetcher{
 	},
 }
 
+var noIMDSv2InstanceIDFetcher = cachedfetch.Fetcher{
+	Name: "EC2 no IMDSv2 InstanceID",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, UseIMDSv2(false, true))
+	},
+}
+
 // GetInstanceID fetches the instance id for current host from the EC2 metadata API
 func GetInstanceID(ctx context.Context) (string, error) {
 	return instanceIDFetcher.FetchString(ctx)
@@ -114,7 +121,7 @@ func GetInstanceID(ctx context.Context) (string, error) {
 
 // GetInstanceIDWithoutIMDSv2 fetches the instance id for current host from the EC2 metadata API without using IMDSv2
 func GetInstanceIDWithoutIMDSv2(ctx context.Context) (string, error) {
-	return getMetadataItemWithMaxLength(ctx, imdsInstanceID, UseIMDSv2(false, true))
+	return noIMDSv2InstanceIDFetcher.FetchString(ctx)
 }
 
 // GetIDMSv2InstanceID fetches the instance id for current host from the IMDSv2 EC2 metadata API

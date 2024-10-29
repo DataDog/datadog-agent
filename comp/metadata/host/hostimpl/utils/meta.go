@@ -64,13 +64,13 @@ func GetMeta(ctx context.Context, conf model.Reader) *Meta {
 	}
 
 	m := &Meta{
-		SocketHostname:           osHostname,
-		Timezones:                []string{tzname},
-		SocketFqdn:               util.Fqdn(osHostname),
-		EC2Hostname:              ec2Hostname,
-		HostAliases:              cloudproviders.GetHostAliases(ctx),
-		InstanceID:               instanceID,
-		AgentHostname:            agentHostname,
+		SocketHostname: osHostname,
+		Timezones:      []string{tzname},
+		SocketFqdn:     util.Fqdn(osHostname),
+		EC2Hostname:    ec2Hostname,
+		HostAliases:    cloudproviders.GetHostAliases(ctx),
+		InstanceID:     instanceID,
+		AgentHostname:  agentHostname,
 	}
 
 	if finalClusterName := kubelet.GetMetaClusterNameText(ctx, osHostname); finalClusterName != "" {
