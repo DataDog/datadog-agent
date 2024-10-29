@@ -271,6 +271,22 @@ class GithubAPI:
 
         return [label.name for label in pr.get_labels()]
 
+    def update_review_complexity_labels(self, pr_id: int, new_label: str) -> None:
+        """
+        Updates the review complexity label of a pull request
+        """
+        pr = self.get_pr(pr_id)
+        already_there = False
+        for label in pr.get_labels():
+            if label.name.endswith(" review"):
+                if label.name == new_label:
+                    already_there = True
+                else:
+                    pr.remove_from_labels(label.name)
+
+        if not already_there:
+            pr.add_to_labels(new_label)
+
     def get_pr_files(self, pr_id: int) -> list[str]:
         """
         Returns the files involved in the PR
@@ -378,7 +394,10 @@ class GithubAPI:
             draft=draft,
         )
 
-    def get_codereview_complexity(self, pr_id):
+    def get_codereview_complexity(self, pr_id: int) -> str:
+        """
+        Get the complexity of the code review for a given PR, taking into account the number of files, lines and comments.
+        """
         pr = self._repository.get_pull(pr_id)
         criteria = {
             'easy': {'files': 4, 'lines': 150, 'comments': 1},

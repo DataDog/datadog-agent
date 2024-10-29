@@ -420,4 +420,4 @@ def assign_codereview_label(_, pr_id=-1):
 
     gh = GithubAPI('DataDog/datadog-agent')
     complexity = gh.get_codereview_complexity(pr_id)
-    gh.add_pr_label(pr_id, complexity)
+    gh.update_review_complexity_labels(pr_id, complexity)
