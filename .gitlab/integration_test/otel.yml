@@ -64,7 +64,7 @@ ddflare_extension_ocb_build:
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - mkdir -p /tmp/otel-ci
-    - cp test/otel/* /tmp/otel-ci/
+    - cp test/otel/testdata/* /tmp/otel-ci/
     - wget -O /tmp/otel-ci/ocb https://github.com/open-telemetry/opentelemetry-collector/releases/download/cmd%2Fbuilder%2Fv0.105.0/ocb_0.105.0_linux_amd64
     - chmod +x /tmp/otel-ci/ocb
     # - cd /tmp/otel-ci
