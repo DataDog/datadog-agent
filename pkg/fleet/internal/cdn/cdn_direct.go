@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
@@ -46,17 +45,23 @@ func newDirect(env *env.Env, configDBPath string) (CDN, error) {
 		hostname = "unknown"
 	}
 
-	// Remove previous DB if needed
-	err = os.RemoveAll(configDBPath)
-	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("could not remove previous DB: %v", err)
+	// ensures the config db path exists
+	err = os.MkdirAll(configDBPath, 0755)
+	if err != nil {
+		return nil, err
+	}
+
+	configDBPathTemp, err := os.MkdirTemp(configDBPath, "direct-*")
+	if err != nil {
+		return nil, err
 	}
 
 	options := []remoteconfig.Option{
 		remoteconfig.WithAPIKey(env.APIKey),
 		remoteconfig.WithConfigRootOverride(env.Site, ""),
 		remoteconfig.WithDirectorRootOverride(env.Site, ""),
-		remoteconfig.WithDatabaseFileName(filepath.Join(filepath.Base(configDBPath), "remote-config.db")),
+		remoteconfig.WithDatabaseFileName("remote-config.db"),
+		remoteconfig.WithDatabasePath(configDBPathTemp),
 	}
 
 	service, err := remoteconfig.NewService(
@@ -76,7 +81,7 @@ func newDirect(env *env.Env, configDBPath string) (CDN, error) {
 		rcService:           service,
 		currentRootsVersion: 1,
 		clientUUID:          uuid.New().String(),
-		configDBPath:        configDBPath,
+		configDBPath:        configDBPathTemp,
 	}
 	service.Start()
 	return cdn, nil
@@ -175,5 +180,9 @@ func (c *cdnDirect) get(ctx context.Context) (*orderConfig, [][]byte, error) {
 }
 
 func (c *cdnDirect) Close() error {
+	err := os.RemoveAll(c.configDBPath)
+	if err != nil {
+		return err
+	}
 	return c.rcService.Stop()
 }
