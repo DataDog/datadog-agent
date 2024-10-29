@@ -537,9 +537,7 @@ func New() *AgentConfig {
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 
-		Features:               make(map[string]struct{}),
-		PeerTagsAggregation:    true,
-		ComputeStatsBySpanKind: true,
+		Features: make(map[string]struct{}),
 	}
 }
 
