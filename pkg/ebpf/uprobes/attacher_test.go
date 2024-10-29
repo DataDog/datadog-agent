@@ -772,7 +772,7 @@ func TestAttacherSharedLibrary(t *testing.T) {
 	if !precompiled.IsDeprecated() {
 		modes = append(modes, ebpftest.Prebuilt)
 	}
-	ebpftest.TestBuildModes(t, , "", func(tt *testing.T) {
+	ebpftest.TestBuildModes(t, modes, "", func(tt *testing.T) {
 		if !sharedlibraries.IsSupported(ddebpf.NewConfig()) {
 			tt.Skip("shared library tracing not supported for this platform")
 		}
