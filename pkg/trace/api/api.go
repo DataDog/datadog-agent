@@ -79,7 +79,7 @@ func reserveBodySize(buf *bytes.Buffer, req *http.Request) {
 			log.Errorf("could not parse Content-Length header value as integer: %v", err)
 		}
 	} else {
-		log.Errorf("Content-Length header not found, using default buffer size")
+		log.Errorf("Content-Length header not found (headers: %v), using default buffer size", req.Header)
 	}
 	if bufferSize == 0 {
 		bufferSize = defaultReceiverBufferSize
