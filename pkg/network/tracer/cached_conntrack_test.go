@@ -87,10 +87,10 @@ func TestCachedConntrackIgnoreErrNotPermitted(t *testing.T) {
 
 	t.Cleanup(func() { cache.Close() })
 
-	c := &network.ConnectionStats{
+	c := &network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 		NetNS: 123455,
 		Pid:   1,
-	}
+	}}
 
 	exists, err := cache.Exists(c)
 	require.True(t, createCalled, "conntrack creator not called")
@@ -107,10 +107,10 @@ func TestCachedConntrackCacheCreatorError(t *testing.T) {
 
 	t.Cleanup(func() { cache.Close() })
 
-	c := &network.ConnectionStats{
+	c := &network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 		NetNS: 123455,
 		Pid:   1,
-	}
+	}}
 
 	exists, err := cache.Exists(c)
 	require.True(t, createCalled, "conntrack creator not called")
