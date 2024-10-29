@@ -159,11 +159,11 @@ var worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 }
 
 func (l *SNMPListener) checkDevice(job snmpJob) {
-	devicesScannedCounter := devicesScannedInSubnetVar.Get(getSubnetVarKey(*job.subnet))
+	devicesScannedCounter := devicesScannedInSubnetVar.Get(GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey))
 	if devicesScannedCounter != nil {
 		devicesScannedCounter.(*expvar.Int).Add(1)
 	}
-	deviceScanningInSubnet := deviceScanningInSubnetVar.Get(getSubnetVarKey(*job.subnet))
+	deviceScanningInSubnet := deviceScanningInSubnetVar.Get(GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey))
 	if deviceScanningInSubnet != nil {
 		deviceScanningInSubnet.(*expvar.String).Set(job.currentIP.String())
 	}
@@ -193,7 +193,7 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 		} else {
 			log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
 
-			devicesFoundList := devicesFoundInSubnetVar.Get(getSubnetVarKey(*job.subnet))
+			devicesFoundList := devicesFoundInSubnetVar.Get(GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey))
 			if devicesFoundList != nil {
 				devicesFoundListString := devicesFoundList.(*expvar.String)
 				currentValue := devicesFoundListString.Value()
@@ -261,9 +261,9 @@ func (l *SNMPListener) checkDevices() {
 	defer discoveryTicker.Stop()
 	for {
 		for _, subnet := range subnets {
-			devicesScannedInSubnetVar.Set(getSubnetVarKey(subnet), &expvar.Int{})
-			devicesFoundInSubnetVar.Set(getSubnetVarKey(subnet), &expvar.String{})
-			deviceScanningInSubnetVar.Set(getSubnetVarKey(subnet), &expvar.String{})
+			devicesScannedInSubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.cacheKey), &expvar.Int{})
+			devicesFoundInSubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.cacheKey), &expvar.String{})
+			deviceScanningInSubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.cacheKey), &expvar.String{})
 		}
 
 		var subnet *snmpSubnet
@@ -512,6 +512,6 @@ func convertToCommaSepTags(tags []string) string {
 	return strings.Join(normalizedTags, tagSeparator)
 }
 
-func getSubnetVarKey(subnet snmpSubnet) string {
-	return fmt.Sprintf("%s|%s", subnet.config.Network, strings.Trim(subnet.cacheKey, fmt.Sprintf("%s:", cacheKeyPrefix)))
+func GetSubnetVarKey(network string, cacheKey string) string {
+	return fmt.Sprintf("%s|%s", network, strings.Trim(cacheKey, fmt.Sprintf("%s:", cacheKeyPrefix)))
 }

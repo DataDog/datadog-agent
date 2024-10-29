@@ -11,13 +11,13 @@ import (
 	"expvar"
 	"fmt"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
@@ -160,9 +160,9 @@ func (d *Discovery) discoverDevices() {
 	discoveryTicker := time.NewTicker(time.Duration(d.config.DiscoveryInterval) * time.Second)
 	defer discoveryTicker.Stop()
 	for {
-		devicesScannedInSubnetVar.Set(getSubnetVarKey(subnet), &expvar.Int{})
-		devicesFoundInSubnetVar.Set(getSubnetVarKey(subnet), &expvar.String{})
-		deviceScanningInSubnetVar.Set(getSubnetVarKey(subnet), &expvar.String{})
+		devicesScannedInSubnetVar.Set(listeners.GetSubnetVarKey(subnet.config.Network, subnet.cacheKey), &expvar.Int{})
+		devicesFoundInSubnetVar.Set(listeners.GetSubnetVarKey(subnet.config.Network, subnet.cacheKey), &expvar.String{})
+		deviceScanningInSubnetVar.Set(listeners.GetSubnetVarKey(subnet.config.Network, subnet.cacheKey), &expvar.String{})
 
 		log.Debugf("subnet %s: Run discovery", d.config.Network)
 		startingIP := make(net.IP, len(subnet.startingIP))
@@ -199,12 +199,12 @@ func (d *Discovery) discoverDevices() {
 }
 
 func (d *Discovery) checkDevice(job checkDeviceJob) error {
-	devicesScannedCounter := devicesScannedInSubnetVar.Get(getSubnetVarKey(*job.subnet))
+	devicesScannedCounter := devicesScannedInSubnetVar.Get(listeners.GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey))
 	if devicesScannedCounter != nil {
 		devicesScannedCounter.(*expvar.Int).Add(1)
 	}
 
-	deviceScanningInSubnet := deviceScanningInSubnetVar.Get(getSubnetVarKey(*job.subnet))
+	deviceScanningInSubnet := deviceScanningInSubnetVar.Get(listeners.GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey))
 	if deviceScanningInSubnet != nil {
 		deviceScanningInSubnet.(*expvar.String).Set(job.currentIP.String())
 	}
@@ -237,7 +237,7 @@ func (d *Discovery) checkDevice(job checkDeviceJob) error {
 		} else {
 			log.Debugf("subnet %s: SNMP get to %s success: %v", d.config.Network, deviceIP, value.Variables[0].Value)
 
-			devicesFoundList := devicesFoundInSubnetVar.Get(getSubnetVarKey(*job.subnet))
+			devicesFoundList := devicesFoundInSubnetVar.Get(listeners.GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey))
 			if devicesFoundList != nil {
 				devicesFoundListString := devicesFoundList.(*expvar.String)
 				currentValue := devicesFoundListString.Value()
@@ -349,10 +349,6 @@ func (d *Discovery) writeCache(subnet *snmpSubnet) {
 	if err = persistentcache.Write(subnet.cacheKey, string(cacheValue)); err != nil {
 		log.Errorf("subnet %s: Couldn't write cache: %s", d.config.Network, err)
 	}
-}
-
-func getSubnetVarKey(subnet snmpSubnet) string {
-	return fmt.Sprintf("%s|%s", subnet.config.Network, strings.Trim(subnet.cacheKey, fmt.Sprintf("%s:", cacheKeyPrefix)))
 }
 
 // NewDiscovery return a new Discovery instance
