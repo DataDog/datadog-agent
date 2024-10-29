@@ -27,7 +27,7 @@ import (
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/precompiled"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -132,7 +132,7 @@ func TestInitData(t *testing.T) {
 		"system_probe_config.enable_co_re":                     true,
 		"system_probe_config.enable_runtime_compiler":          true,
 		"system_probe_config.enable_kernel_header_download":    true,
-		"system_probe_config.allow_precompiled_fallback":       true,
+		"system_probe_config.allow_prebuilt_fallback":          true,
 		"system_probe_config.telemetry_enabled":                true,
 		"system_probe_config.max_conns_per_message":            10,
 		"system_probe_config.disable_ipv6":                     false,
@@ -472,7 +472,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 		return "", fmt.Errorf("some error")
 	}
 
-	isPrecompiledDeprecated := precompiled.IsDeprecated()
+	isPrebuiltDeprecated := prebuilt.IsDeprecated()
 
 	ia := getTestInventoryPayload(t, nil, nil)
 	ia.fetchSystemProbeMetadata()
@@ -500,7 +500,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["system_probe_runtime_compilation_enabled"].(bool))
 	assert.False(t, ia.data["system_probe_kernel_headers_download_enabled"].(bool))
 	if runtime.GOOS == "linux" {
-		assert.Equal(t, !isPrecompiledDeprecated, ia.data["system_probe_prebuilt_fallback_enabled"].(bool))
+		assert.Equal(t, !isPrebuiltDeprecated, ia.data["system_probe_prebuilt_fallback_enabled"].(bool))
 	}
 	assert.False(t, ia.data["system_probe_telemetry_enabled"].(bool))
 	assert.Equal(t, 600, ia.data["system_probe_max_connections_per_message"].(int))
@@ -618,7 +618,7 @@ system_probe_config:
   enable_co_re: true
   enable_runtime_compiler: true
   enable_kernel_header_download: true
-  allow_precompiled_fallback: true
+  allow_prebuilt_fallback: true
   telemetry_enabled: true
   max_conns_per_message: 123
 

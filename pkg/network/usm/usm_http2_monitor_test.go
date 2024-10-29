@@ -35,7 +35,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/precompiled"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -95,7 +95,7 @@ func skipIfKernelNotSupported(t *testing.T) {
 func TestHTTP2Scenarios(t *testing.T) {
 	skipIfKernelNotSupported(t)
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
-	if !precompiled.IsDeprecated() {
+	if !prebuilt.IsDeprecated() {
 		modes = append(modes, ebpftest.Prebuilt)
 	}
 

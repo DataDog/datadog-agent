@@ -65,8 +65,8 @@ type Config struct {
 	// ZypperReposDir is the path to the zypper repository directory
 	ZypperReposDir string
 
-	// AllowPrecompiledFallback indicates whether we are allowed to fallback to the prebuilt probes if runtime compilation fails.
-	AllowPrecompiledFallback bool
+	// AllowPrebuiltFallback indicates whether we are allowed to fallback to the prebuilt probes if runtime compilation fails.
+	AllowPrebuiltFallback bool
 
 	// AllowRuntimeCompiledFallback indicates whether we are allowed to fallback to runtime compilation if CO-RE fails.
 	AllowRuntimeCompiledFallback bool
@@ -103,7 +103,7 @@ func NewConfig() *Config {
 		AptConfigDir:                 cfg.GetString(sysconfig.FullKeyPath(spNS, "apt_config_dir")),
 		YumReposDir:                  cfg.GetString(sysconfig.FullKeyPath(spNS, "yum_repos_dir")),
 		ZypperReposDir:               cfg.GetString(sysconfig.FullKeyPath(spNS, "zypper_repos_dir")),
-		AllowPrecompiledFallback:     cfg.GetBool(sysconfig.FullKeyPath(spNS, "allow_precompiled_fallback")),
+		AllowPrebuiltFallback:        cfg.GetBool(sysconfig.FullKeyPath(spNS, "allow_prebuilt_fallback")),
 		AllowRuntimeCompiledFallback: cfg.GetBool(sysconfig.FullKeyPath(spNS, "allow_runtime_compiled_fallback")),
 
 		AttachKprobesWithKprobeEventsABI: cfg.GetBool(sysconfig.FullKeyPath(spNS, "attach_kprobes_with_kprobe_events_abi")),

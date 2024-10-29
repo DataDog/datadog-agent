@@ -213,7 +213,7 @@ func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []st
 			cfg.EnableCORE = te.enableCORE
 			cfg.AllowRuntimeCompiledFallback = te.allowRCFallback
 			cfg.EnableRuntimeCompiler = te.enableRC
-			cfg.AllowPrecompiledFallback = te.allowPrebuiltFallback
+			cfg.AllowPrebuiltFallback = te.allowPrebuiltFallback
 
 			prevOffsetGuessingRun := offsetGuessingRun
 			_, closeFn, tracerType, err := LoadTracer(cfg, manager.Options{}, nil, nil)

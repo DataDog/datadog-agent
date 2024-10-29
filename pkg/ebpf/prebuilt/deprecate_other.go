@@ -5,10 +5,10 @@
 
 //go:build !linux
 
-// Package precompiled implements precompiled specific eBPF functionality
-package precompiled
+// Package prebuilt implements prebuilt specific eBPF functionality
+package prebuilt
 
-// IsDeprecated returns true if precompiled ebpf is deprecated
+// IsDeprecated returns true if prebuilt ebpf is deprecated
 // on this host
 func IsDeprecated() bool {
 	return false

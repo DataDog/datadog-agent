@@ -2111,13 +2111,13 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 	}
 
 	type testCase struct {
-		enableCORE               bool
-		allowRuntimeFallback     bool
-		enableRuntimeCompiler    bool
-		allowPrecompiledFallback bool
-		coreError                bool
-		rcError                  bool
-		prebuiltError            bool
+		enableCORE            bool
+		allowRuntimeFallback  bool
+		enableRuntimeCompiler bool
+		allowPrebuiltFallback bool
+		coreError             bool
+		rcError               bool
+		prebuiltError         bool
 
 		err        error
 		isPrebuilt bool
@@ -2127,18 +2127,18 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 	for _, enableCORE := range []bool{false, true} {
 		for _, allowRuntimeFallback := range []bool{false, true} {
 			for _, enableRuntimeCompiler := range []bool{false, true} {
-				for _, allowPrecompiledFallback := range []bool{false, true} {
+				for _, allowPrebuiltFallback := range []bool{false, true} {
 					for _, coreError := range coreErrorValues {
 						for _, rcError := range []bool{false, true} {
 							for _, prebuiltError := range prebuiltErrorValues {
 								tc := testCase{
-									enableCORE:               enableCORE,
-									allowRuntimeFallback:     allowRuntimeFallback,
-									enableRuntimeCompiler:    enableRuntimeCompiler,
-									allowPrecompiledFallback: allowPrecompiledFallback,
-									coreError:                coreError,
-									rcError:                  rcError,
-									prebuiltError:            prebuiltError,
+									enableCORE:            enableCORE,
+									allowRuntimeFallback:  allowRuntimeFallback,
+									enableRuntimeCompiler: enableRuntimeCompiler,
+									allowPrebuiltFallback: allowPrebuiltFallback,
+									coreError:             coreError,
+									rcError:               rcError,
+									prebuiltError:         prebuiltError,
 
 									isPrebuilt: !prebuiltError,
 								}
@@ -2159,7 +2159,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 								}
 
 								pberr := prebuiltError
-								if (enableCORE || rcEnabled) && !allowPrecompiledFallback {
+								if (enableCORE || rcEnabled) && !allowPrebuiltFallback {
 									pberr = true // not enabled, so assume always failed
 									tc.isPrebuilt = false
 								}
@@ -2198,7 +2198,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 			cfg.EnableCORE = te.enableCORE
 			cfg.AllowRuntimeCompiledFallback = te.allowRuntimeFallback
 			cfg.EnableRuntimeCompiler = te.enableRuntimeCompiler
-			cfg.AllowPrecompiledFallback = te.allowPrecompiledFallback
+			cfg.AllowPrebuiltFallback = te.allowPrebuiltFallback
 
 			ebpfConntrackerPrebuiltCreator = getPrebuiltConntracker
 			ebpfConntrackerRCCreator = getRCConntracker

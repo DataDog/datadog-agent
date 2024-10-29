@@ -12,7 +12,7 @@ import (
 
 	"github.com/cilium/ebpf/rlimit"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/precompiled"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -27,7 +27,7 @@ func init() {
 // SupportedBuildModes returns the build modes supported on the current host
 func SupportedBuildModes() []BuildMode {
 	modes := []BuildMode{RuntimeCompiled, CORE}
-	if !precompiled.IsDeprecated() || os.Getenv("TEST_PRECOMPILED_OVERRIDE") == "true" {
+	if !prebuilt.IsDeprecated() || os.Getenv("TEST_PREBUILT_OVERRIDE") == "true" {
 		modes = append(modes, Prebuilt)
 	}
 	if os.Getenv("TEST_FENTRY_OVERRIDE") == "true" ||

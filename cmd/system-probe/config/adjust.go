@@ -42,7 +42,8 @@ func Adjust(cfg model.Config) {
 
 	validateString(cfg, spNS("sysprobe_socket"), defaultSystemProbeAddress, ValidateSocketAddress)
 
-	allowPrecompiledEbpfFallback(cfg)
+	deprecateBool(cfg, spNS("allow_precompiled_fallback"), spNS("allow_prebuilt_fallback"))
+	allowPrebuiltEbpfFallback(cfg)
 
 	adjustNetwork(cfg)
 	adjustUSM(cfg)

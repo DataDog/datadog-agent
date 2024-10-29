@@ -9,12 +9,13 @@ package config
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/precompiled"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
+	allowPrebuiltFallbackKey    = spNS("allow_prebuilt_fallback")
 	allowPrecompiledFallbackKey = spNS("allow_precompiled_fallback")
 )
 
@@ -35,11 +36,11 @@ func ProcessEventDataStreamSupported() bool {
 	return true
 }
 
-func allowPrecompiledEbpfFallback(cfg model.Config) {
-	// only allow falling back to pre-compiled eBPF if the config
-	// is not explicitly set and pre-compiled eBPF is not deprecated
+func allowPrebuiltEbpfFallback(cfg model.Config) {
+	// only allow falling back to prebuilt eBPF if the config
+	// is not explicitly set and prebuilt eBPF is not deprecated
 	// on the platform
-	if !cfg.IsSet(allowPrecompiledFallbackKey) && !precompiled.IsDeprecated() {
-		cfg.Set(allowPrecompiledFallbackKey, true, model.SourceAgentRuntime)
+	if !cfg.IsSet(allowPrebuiltFallbackKey) && !prebuilt.IsDeprecated() {
+		cfg.Set(allowPrebuiltFallbackKey, true, model.SourceAgentRuntime)
 	}
 }

@@ -25,7 +25,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/precompiled"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
@@ -769,7 +769,7 @@ type SharedLibrarySuite struct {
 
 func TestAttacherSharedLibrary(t *testing.T) {
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
-	if !precompiled.IsDeprecated() {
+	if !prebuilt.IsDeprecated() {
 		modes = append(modes, ebpftest.Prebuilt)
 	}
 	ebpftest.TestBuildModes(t, modes, "", func(tt *testing.T) {

@@ -23,7 +23,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/precompiled"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -188,7 +188,7 @@ func (e *ebpfProgram) Init() error {
 			return nil
 		}
 
-		if !e.cfg.AllowRuntimeCompiledFallback && !e.cfg.AllowPrecompiledFallback {
+		if !e.cfg.AllowRuntimeCompiledFallback && !e.cfg.AllowPrebuiltFallback {
 			return fmt.Errorf("co-re load failed: %w", err)
 		}
 		log.Warnf("co-re load failed. attempting fallback: %s", err)
@@ -201,14 +201,14 @@ func (e *ebpfProgram) Init() error {
 			return nil
 		}
 
-		if !e.cfg.AllowPrecompiledFallback {
+		if !e.cfg.AllowPrebuiltFallback {
 			return fmt.Errorf("runtime compilation failed: %w", err)
 		}
 		log.Warnf("runtime compilation failed: attempting fallback: %s", err)
 	}
 
-	if precompiled.IsDeprecated() {
-		log.Warnf("using deprecated pre-compiled USM monitor")
+	if prebuilt.IsDeprecated() {
+		log.Warnf("using deprecated prebuilt USM monitor")
 	}
 
 	e.buildMode = buildmode.Prebuilt

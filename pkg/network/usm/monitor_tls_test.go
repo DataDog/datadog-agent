@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/precompiled"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -53,7 +53,7 @@ type tlsSuite struct {
 
 func TestTLSSuite(t *testing.T) {
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
-	if !precompiled.IsDeprecated() {
+	if !prebuilt.IsDeprecated() {
 		modes = append(modes, ebpftest.Prebuilt)
 	}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {

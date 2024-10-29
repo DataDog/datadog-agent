@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/precompiled"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -105,7 +105,7 @@ func TestPostgresMonitoring(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
-	if !precompiled.IsDeprecated() {
+	if !prebuilt.IsDeprecated() {
 		modes = append(modes, ebpftest.Prebuilt)
 	}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {

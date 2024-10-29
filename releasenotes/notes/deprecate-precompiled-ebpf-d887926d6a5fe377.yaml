@@ -8,10 +8,10 @@
 ---
 deprecations:
   - |
-    Precompiled eBPF for the network tracer system-probe module has been
+    Prebuilt eBPF for the network tracer system-probe module has been
     deprecated in favor of CO-RE and runtime compilation variants on Linux
     kernel versions 6+ and RHEL kernel versions 5.14+. To continue to use
-    the precompiled eBPF network tracer, set
-    `system_probe_config.allow_precompiled_fallback` in the
+    the prebuilt eBPF network tracer, set
+    `system_probe_config.allow_prebuilt_fallback` in the
     system-probe config file, or set the environment variable
-    `DD_ALLOW_PRECOMPILED_FALLBACK` to `true` on those platforms.
+    `DD_ALLOW_PREBUILT_FALLBACK`, to `true` on these platforms.

@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/precompiled"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -113,20 +113,21 @@ func TestNPMEnabled(t *testing.T) {
 	}
 }
 
-func TestEbpfFallbackDeprecation(t *testing.T) {
+func TestEbpfPrebuiltFallbackDeprecation(t *testing.T) {
 	family, err := kernel.Family()
 	require.NoError(t, err, "could not determine kernel family")
 
 	kv, err := kernel.HostVersion()
 	require.NoError(t, err, "could not determine kernel version")
 
-	deprecateVersion := precompiled.DeprecatedKernelVersion
+	deprecateVersion := prebuilt.DeprecatedKernelVersion
 	if family == "rhel" {
-		deprecateVersion = precompiled.DeprecatedKernelVersionRhel
+		deprecateVersion = prebuilt.DeprecatedKernelVersionRhel
 	}
 
 	t.Run("default", func(t *testing.T) {
 		cfg := mock.NewSystemProbe(t)
+		assert.False(t, cfg.GetBool(allowPrebuiltFallbackKey))
 		assert.False(t, cfg.GetBool(allowPrecompiledFallbackKey))
 	})
 
@@ -136,22 +137,25 @@ func TestEbpfFallbackDeprecation(t *testing.T) {
 
 		switch {
 		case kv < deprecateVersion:
-			assert.True(t, cfg.GetBool(allowPrecompiledFallbackKey))
+			assert.True(t, cfg.GetBool(allowPrebuiltFallbackKey))
 		default:
 			// deprecated
-			assert.False(t, cfg.GetBool(allowPrecompiledFallbackKey))
+			assert.False(t, cfg.GetBool(allowPrebuiltFallbackKey))
 		}
 	})
 
 	// if system_probe_config.allow_precompiled_fallback is set
-	// in config, that value should not be changed by Adjust()
-	t.Run("set in config", func(t *testing.T) {
+	// in config, that value should not be changed by Adjust() and
+	// the new key, `system_probe_config.allow_prebuilt_fallback`
+	// should be set to the same value
+	t.Run("allow_precompiled_fallback set in config", func(t *testing.T) {
 		t.Run("true", func(t *testing.T) {
 			cfg := mock.NewSystemProbe(t)
 			cfg.Set(allowPrecompiledFallbackKey, true, model.SourceDefault)
 			Adjust(cfg)
 
 			assert.True(t, cfg.GetBool(allowPrecompiledFallbackKey))
+			assert.Equal(t, cfg.GetBool(allowPrecompiledFallbackKey), cfg.GetBool(allowPrebuiltFallbackKey))
 		})
 
 		t.Run("false", func(t *testing.T) {
@@ -160,6 +164,27 @@ func TestEbpfFallbackDeprecation(t *testing.T) {
 			Adjust(cfg)
 
 			assert.False(t, cfg.GetBool(allowPrecompiledFallbackKey))
+			assert.Equal(t, cfg.GetBool(allowPrecompiledFallbackKey), cfg.GetBool(allowPrebuiltFallbackKey))
+		})
+	})
+
+	// if system_probe_config.allow_prebuilt_fallback is set
+	// in config, that value should not be changed by Adjust()
+	t.Run("allow_prebuilt_fallback set in config", func(t *testing.T) {
+		t.Run("true", func(t *testing.T) {
+			cfg := mock.NewSystemProbe(t)
+			cfg.Set(allowPrebuiltFallbackKey, true, model.SourceDefault)
+			Adjust(cfg)
+
+			assert.True(t, cfg.GetBool(allowPrebuiltFallbackKey))
+		})
+
+		t.Run("false", func(t *testing.T) {
+			cfg := mock.NewSystemProbe(t)
+			cfg.Set(allowPrebuiltFallbackKey, false, model.SourceDefault)
+			Adjust(cfg)
+
+			assert.False(t, cfg.GetBool(allowPrebuiltFallbackKey))
 		})
 	})
 }

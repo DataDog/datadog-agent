@@ -5,8 +5,8 @@
 
 //go:build linux
 
-// Package precompiled implements precompiled specific eBPF functionality
-package precompiled
+// Package prebuilt implements prebuilt specific eBPF functionality
+package prebuilt
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -15,14 +15,14 @@ import (
 
 var (
 	// DeprecatedKernelVersionRhel is the kernel version
-	// where pre-compiled eBPF is deprecated on RHEL based kernels
+	// where prebuilt eBPF is deprecated on RHEL based kernels
 	DeprecatedKernelVersionRhel = kernel.VersionCode(5, 14, 0)
 	// DeprecatedKernelVersion is the kernel version
-	// where pre-compiled eBPF is deprecated on non-RHEL based kernels
+	// where prebuilt eBPF is deprecated on non-RHEL based kernels
 	DeprecatedKernelVersion = kernel.VersionCode(6, 0, 0)
 )
 
-// IsDeprecated returns true if precompiled ebpf is deprecated
+// IsDeprecated returns true if prebuilt ebpf is deprecated
 // on this host
 func IsDeprecated() bool {
 	// has to be kernel 6+ or RHEL 9+ (kernel 5.14+)

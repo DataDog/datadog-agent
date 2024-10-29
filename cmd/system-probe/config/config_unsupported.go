@@ -28,5 +28,5 @@ func ProcessEventDataStreamSupported() bool {
 	return false
 }
 
-func allowPrecompiledEbpfFallback(_ model.Config) {
+func allowPrebuiltEbpfFallback(_ model.Config) {
 }

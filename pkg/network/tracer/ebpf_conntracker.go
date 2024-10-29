@@ -26,7 +26,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/precompiled"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -93,9 +93,9 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		if err != nil {
 			if cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback {
 				log.Warnf("error loading CO-RE conntracker, falling back to runtime compiled: %s", err)
-			} else if cfg.AllowPrecompiledFallback {
+			} else if cfg.AllowPrebuiltFallback {
 				allowRC = false
-				log.Warnf("error loading CO-RE conntracker, falling back to pre-compiled: %s", err)
+				log.Warnf("error loading CO-RE conntracker, falling back to prebuilt: %s", err)
 			} else {
 				return nil, fmt.Errorf("error loading CO-RE conntracker: %w", err)
 			}
@@ -105,16 +105,16 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 	if m == nil && allowRC {
 		m, err = ebpfConntrackerRCCreator(cfg)
 		if err != nil {
-			if !cfg.AllowPrecompiledFallback {
+			if !cfg.AllowPrebuiltFallback {
 				return nil, fmt.Errorf("unable to compile ebpf conntracker: %w", err)
 			}
 
-			log.Warnf("unable to compile ebpf conntracker, falling back to pre-compiled ebpf conntracker: %s", err)
+			log.Warnf("unable to compile ebpf conntracker, falling back to prebuilt ebpf conntracker: %s", err)
 		}
 	}
 
-	if precompiled.IsDeprecated() {
-		log.Warnf("using deprecated pre-compiled conntracker")
+	if prebuilt.IsDeprecated() {
+		log.Warnf("using deprecated prebuilt conntracker")
 	}
 
 	var isPrebuilt bool
