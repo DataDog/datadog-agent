@@ -162,10 +162,6 @@ def get_rtloader_paths(embedded_path=None, rtloader_root=None):
     return rtloader_lib, rtloader_headers, rtloader_common_headers
 
 
-def get_win_py_runtime_var():
-    return "PY3_RUNTIME"
-
-
 def get_embedded_path(ctx):
     base = os.path.dirname(os.path.abspath(__file__))
     task_repo_root = os.path.abspath(os.path.join(base, "..", ".."))

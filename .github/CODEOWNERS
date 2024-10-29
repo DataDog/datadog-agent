@@ -576,9 +576,6 @@
 /test/kitchen/                          @DataDog/agent-devx-loops
 /test/kitchen/test-definitions/         @DataDog/container-ecosystems @DataDog/agent-delivery
 /test/kitchen/test/integration/         @DataDog/container-ecosystems @DataDog/agent-delivery
-/test/kitchen/site-cookbooks/dd-security-agent-check/ @DataDog/agent-security
-/test/kitchen/test/integration/security-agent-stress/ @DataDog/agent-security
-/test/kitchen/test/integration/security-agent-test/ @DataDog/agent-security
 /test/kitchen/site-cookbooks/dd-system-probe-check/ @DataDog/windows-kernel-integrations
 /test/kitchen/test/integration/win-all-subservices/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-alt-dir/ @DataDog/windows-agent
