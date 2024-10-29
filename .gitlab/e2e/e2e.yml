@@ -120,6 +120,7 @@ new-e2e-containers-eks-init:
     TEAM: container-integrations
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_INIT_ONLY: "true"
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
   allow_failure: true
 
 new-e2e-containers-eks:
@@ -256,6 +257,7 @@ new-e2e-npm-eks-init:
     TEAM: network-performance-monitoring
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_INIT_ONLY: "true"
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
   allow_failure: true
 
 new-e2e-npm-eks:
@@ -302,6 +304,7 @@ new-e2e-cws:
     - qa_agent
     - qa_dca
   variables:
+    SHOULD_RUN_IN_FLAKES_FINDER: "false" # Currently broken in flake finder ADXT-687
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
     CWS_INSTRUMENTATION_FULLIMAGEPATH: 669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
@@ -471,6 +474,7 @@ new-e2e-windows-systemprobe:
   variables:
     TARGETS: ./tests/sysprobe-functional
     TEAM: windows-kernel-integrations
+    SHOULD_RUN_IN_FLAKES_FINDER: "false" # Currently broken in flake finder ADXT-687
 
 new-e2e-windows-security-agent:
   extends: .new_e2e_template
@@ -498,6 +502,8 @@ new-e2e-otel-eks-init:
     TEAM: otel
     EXTRA_PARAMS: --run TestOTelAgentIAEKS
     E2E_INIT_ONLY: "true"
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
+
   allow_failure: true
 
 new-e2e-otel-eks:
@@ -641,7 +647,7 @@ new-e2e-eks-cleanup-on-failure:
     # Use S3 backend
     - PULUMI_CONFIG_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_PULUMI_CONFIG_PASSPHRASE) || exit $?; export PULUMI_CONFIG_PASSPHRASE
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
-    - inv -e new-e2e-tests.cleanup-remote-stacks --stack-regex "ci-$CI_PIPELINE_ID.*eks.*" --pulumi-backend=dd-pulumi-state
+    - inv -e new-e2e-tests.cleanup-remote-stacks --stack-regex "ci-init-$CI_PIPELINE_ID.*eks.*" --pulumi-backend=dd-pulumi-state
   variables:
     E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
     E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key

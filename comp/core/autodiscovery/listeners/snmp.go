@@ -357,6 +357,11 @@ func (s *SNMPService) GetTags() ([]string, error) {
 	return []string{}, nil
 }
 
+// GetTagsWithCardinality returns the tags with given cardinality.
+func (s *SNMPService) GetTagsWithCardinality(_ string) ([]string, error) {
+	return s.GetTags()
+}
+
 // GetPid returns nil and an error because pids are currently not supported
 func (s *SNMPService) GetPid(context.Context) (int, error) {
 	return -1, ErrNotSupported

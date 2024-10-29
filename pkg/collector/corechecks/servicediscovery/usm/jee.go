@@ -134,7 +134,7 @@ func (je jeeExtractor) resolveAppServer() (serverVendor, string) {
 	var baseDir string
 	// jboss in domain mode does not expose the domain base dir but that path can be derived from the logging configuration
 	var julConfigFile string
-	for _, a := range je.ctx.args {
+	for _, a := range je.ctx.Args {
 		if serverHomeHint == unknown {
 			switch {
 			case strings.HasPrefix(a, wlsHomeSysProp):
@@ -312,7 +312,7 @@ func (je jeeExtractor) extractServiceNamesForJEEServer() []string {
 		return nil
 	}
 	extractor := extractorCreator(je.ctx)
-	cwd, ok := workingDirFromEnvs(je.ctx.envs)
+	cwd, ok := workingDirFromEnvs(je.ctx.Envs)
 	if ok {
 		domainHome = abs(domainHome, cwd)
 	}

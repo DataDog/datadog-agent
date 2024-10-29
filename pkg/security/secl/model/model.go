@@ -427,8 +427,9 @@ var zeroProcessContext ProcessContext
 type ProcessCacheEntry struct {
 	ProcessContext
 
-	refCount  uint64                       `field:"-"`
-	onRelease []func(_ *ProcessCacheEntry) `field:"-"`
+	refCount    uint64                     `field:"-"`
+	coreRelease func(_ *ProcessCacheEntry) `field:"-"`
+	onRelease   []func()                   `field:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
@@ -440,6 +441,9 @@ func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 func (pc *ProcessCacheEntry) Reset() {
 	pc.ProcessContext = zeroProcessContext
 	pc.refCount = 0
+	// `coreRelease` function should not be cleared on reset
+	// it's used for pool and cache size management
+	pc.onRelease = nil
 }
 
 // Retain increment ref counter
@@ -450,15 +454,16 @@ func (pc *ProcessCacheEntry) Retain() {
 // AppendReleaseCallback set the callback called when the entry is released
 func (pc *ProcessCacheEntry) AppendReleaseCallback(callback func()) {
 	if callback != nil {
-		pc.onRelease = append(pc.onRelease, func(_ *ProcessCacheEntry) {
-			callback()
-		})
+		pc.onRelease = append(pc.onRelease, callback)
 	}
 }
 
 func (pc *ProcessCacheEntry) callReleaseCallbacks() {
 	for _, cb := range pc.onRelease {
-		cb(pc)
+		cb()
+	}
+	if pc.coreRelease != nil {
+		pc.coreRelease(pc)
 	}
 }
 
@@ -473,12 +478,8 @@ func (pc *ProcessCacheEntry) Release() {
 }
 
 // NewProcessCacheEntry returns a new process cache entry
-func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
-	var cbs []func(_ *ProcessCacheEntry)
-	if onRelease != nil {
-		cbs = append(cbs, onRelease)
-	}
-	return &ProcessCacheEntry{onRelease: cbs}
+func NewProcessCacheEntry(coreRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
+	return &ProcessCacheEntry{coreRelease: coreRelease}
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors
@@ -504,6 +505,43 @@ func (it *ProcessAncestorsIterator) Next() *ProcessCacheEntry {
 	}
 
 	return nil
+}
+
+// At returns the element at the given position
+func (it *ProcessAncestorsIterator) At(ctx *eval.Context, regID eval.RegisterID, pos int) *ProcessCacheEntry {
+	if entry := ctx.RegisterCache[regID]; entry != nil && entry.Pos == pos {
+		return entry.Value.(*ProcessCacheEntry)
+	}
+
+	var i int
+
+	ancestor := ctx.Event.(*Event).ProcessContext.Ancestor
+	for ancestor != nil {
+		if i == pos {
+			ctx.RegisterCache[regID] = &eval.RegisterCacheEntry{
+				Pos:   pos,
+				Value: ancestor,
+			}
+			return ancestor
+		}
+		ancestor = ancestor.Ancestor
+		i++
+	}
+
+	return nil
+}
+
+// Len returns the len
+func (it *ProcessAncestorsIterator) Len(ctx *eval.Context) int {
+	var size int
+
+	ancestor := ctx.Event.(*Event).ProcessContext.Ancestor
+	for ancestor != nil {
+		size++
+		ancestor = ancestor.Ancestor
+	}
+
+	return size
 }
 
 // HasParent returns whether the process has a parent

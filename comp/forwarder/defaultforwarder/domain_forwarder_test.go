@@ -8,7 +8,6 @@
 package defaultforwarder
 
 import (
-	"bytes"
 	"testing"
 	"time"
 
@@ -412,9 +411,7 @@ forwarder_high_prio_buffer_size: 1100
 forwarder_low_prio_buffer_size: 1200
 forwarder_requeue_buffer_size: 1300
 `
-	mockConfig.SetConfigType("yaml")
-	err := mockConfig.ReadConfig(bytes.NewBuffer([]byte(datadogYaml)))
-	assert.NoError(t, err)
+	mockConfig = mock.NewFromYAML(t, datadogYaml)
 
 	forwarder = newDomainForwarderForTest(mockConfig, log, 0, false)
 	forwarder.init()

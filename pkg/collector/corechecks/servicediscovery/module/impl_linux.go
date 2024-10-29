@@ -342,20 +342,26 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		return nil, err
 	}
 
-	contextMap := make(usm.DetectorContextMap)
-
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
 	lang := language.FindInArgs(exe, cmdline)
 	if lang == "" {
 		lang = language.FindUsingPrivilegedDetector(s.privilegedDetector, proc.Pid)
 	}
-	envs, err := getTargetEnvs(proc)
+	env, err := getTargetEnvs(proc)
 	if err != nil {
 		return nil, err
 	}
 
-	nameMeta := servicediscovery.GetServiceName(cmdline, envs, root, lang, contextMap)
-	apmInstrumentation := apm.Detect(int(proc.Pid), cmdline, envs, lang, contextMap)
+	contextMap := make(usm.DetectorContextMap)
+	contextMap[usm.ServiceProc] = proc
+
+	fs := usm.NewSubDirFS(root)
+	ctx := usm.NewDetectionContext(cmdline, env, fs)
+	ctx.Pid = int(proc.Pid)
+	ctx.ContextMap = contextMap
+
+	nameMeta := servicediscovery.GetServiceName(lang, ctx)
+	apmInstrumentation := apm.Detect(lang, ctx)
 
 	return &serviceInfo{
 		generatedName:      nameMeta.Name,
@@ -385,19 +391,6 @@ func customNewProcess(pid int32) (*process.Process, error) {
 	return p, nil
 }
 
-// ignoreComms is a list of process names (matched against /proc/PID/comm) to
-// never report as a service. Note that comm is limited to 16 characters.
-var ignoreComms = map[string]struct{}{
-	"sshd":             {},
-	"dhclient":         {},
-	"systemd":          {},
-	"systemd-resolved": {},
-	"systemd-networkd": {},
-	"datadog-agent":    {},
-	"livenessprobe":    {},
-	"docker-proxy":     {},
-}
-
 // maxNumberOfPorts is the maximum number of listening ports which we report per
 // service.
 const maxNumberOfPorts = 50
@@ -409,12 +402,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		return nil
 	}
 
-	comm, err := proc.Name()
-	if err != nil {
-		return nil
-	}
-
-	if _, found := ignoreComms[comm]; found {
+	if shouldIgnoreComm(proc) {
 		return nil
 	}
 

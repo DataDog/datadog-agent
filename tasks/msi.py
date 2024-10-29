@@ -71,13 +71,12 @@ def _get_vs_build_command(cmd, vstudio_root=None):
     return cmd
 
 
-def _get_env(ctx, major_version='7', python_runtimes='3', release_version='nightly'):
+def _get_env(ctx, major_version='7', release_version='nightly'):
     env = load_release_versions(ctx, release_version)
 
     env['PACKAGE_VERSION'] = get_version(
         ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
     )
-    env['PY_RUNTIMES'] = python_runtimes
     env['AGENT_INSTALLER_OUTPUT_DIR'] = f'{BUILD_OUTPUT_DIR}'
     env['NUGET_PACKAGES_DIR'] = f'{NUGET_PACKAGES_DIR}'
     return env
@@ -155,7 +154,7 @@ def _fix_makesfxca_dll(path):
 def sign_file(ctx, path, force=False):
     dd_wcs_enabled = os.environ.get('SIGN_WINDOWS_DD_WCS')
     if dd_wcs_enabled or force:
-        return ctx.run(f'dd-wcs sign {path}')
+        return ctx.run(f'dd-wcs sign "{path}"')
 
 
 def _build(
@@ -266,13 +265,11 @@ def _build_msi(ctx, env, outdir, name, allowlist):
 
 
 @task
-def build(
-    ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', release_version='nightly', debug=False
-):
+def build(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False):
     """
     Build the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version, python_runtimes, release_version)
+    env = _get_env(ctx, major_version, release_version)
     env['OMNIBUS_TARGET'] = 'main'
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
@@ -288,6 +285,10 @@ def build(
     # sign build output that will be included in the installer MSI
     sign_file(ctx, os.path.join(build_outdir, 'CustomActions.dll'))
     sign_file(ctx, os.path.join(build_outdir, 'AgentCustomActions.dll'))
+
+    # We embed this 7zip standalone binary in the installer, sign it too
+    shutil.copy2('C:\\Program Files\\7-zip\\7zr.exe', AGENT_BIN_SOURCE_DIR)
+    sign_file(ctx, os.path.join(AGENT_BIN_SOURCE_DIR, '7zr.exe'))
 
     # Run WixSetup.exe to generate the WXS and other input files
     with timed("Building WXS"):
@@ -354,13 +355,11 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
 
 
 @task
-def test(
-    ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', release_version='nightly', debug=False
-):
+def test(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False):
     """
     Run the unit test for the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version, python_runtimes, release_version)
+    env = _get_env(ctx, major_version, release_version)
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
 
@@ -405,6 +404,19 @@ def validate_msi_createfolder_table(db, allowlist):
           this behavior was also present in the original installer so leave them for now.
     """
 
+    # Skip if CreateFolder table does not exist
+    with MsiClosing(db.OpenView("Select `Name` From `_Tables`")) as view:
+        view.Execute(None)
+        record = view.Fetch()
+        tables = set()
+        while record:
+            tables.add(record.GetString(1))
+            record = view.Fetch()
+        if "CreateFolder" not in tables:
+            print("skipping validation, CreateFolder table not found in MSI")
+            return
+
+    print("Validating MSI CreateFolder table")
     with MsiClosing(db.OpenView("Select Directory_ FROM CreateFolder")) as view:
         view.Execute(None)
         record = view.Fetch()
