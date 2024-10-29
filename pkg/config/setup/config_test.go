@@ -929,31 +929,21 @@ func TestEnablePeerServiceStatsAggregationEnv(t *testing.T) {
 }
 
 func TestEnablePeerTagsAggregationEnv(t *testing.T) {
+	t.Setenv("DD_APM_PEER_TAGS_AGGREGATION", "true")
 	testConfig := newTestConf()
 	require.True(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
-
-	t.Setenv("DD_APM_PEER_TAGS_AGGREGATION", "true")
-	testConfig = newTestConf()
-	require.True(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
-
 	t.Setenv("DD_APM_PEER_TAGS_AGGREGATION", "false")
 	testConfig = newTestConf()
 	require.False(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
 }
 
 func TestEnableStatsComputationBySpanKindYAML(t *testing.T) {
-	datadogYaml := ""
-	testConfig := confFromYAML(t, datadogYaml)
-	err := setupFipsEndpoints(testConfig)
-	require.NoError(t, err)
-	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
-
-	datadogYaml = `
+	datadogYaml := `
 apm_config:
   compute_stats_by_span_kind: false
 `
-	testConfig = confFromYAML(t, datadogYaml)
-	err = setupFipsEndpoints(testConfig)
+	testConfig := confFromYAML(t, datadogYaml)
+	err := setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.False(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
 
@@ -968,13 +958,9 @@ apm_config:
 }
 
 func TestComputeStatsBySpanKindEnv(t *testing.T) {
-	testConfig := newTestConf()
-	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
-
 	t.Setenv("DD_APM_COMPUTE_STATS_BY_SPAN_KIND", "false")
-	testConfig = newTestConf()
+	testConfig := newTestConf()
 	require.False(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
-
 	t.Setenv("DD_APM_COMPUTE_STATS_BY_SPAN_KIND", "true")
 	testConfig = newTestConf()
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))

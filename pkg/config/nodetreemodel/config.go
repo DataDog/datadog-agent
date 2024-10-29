@@ -47,13 +47,18 @@ var sources = []model.Source{
 // - contains metadata about known keys, env var support
 type ntmConfig struct {
 	sync.RWMutex
-	root   Node
 	noimpl notImplementedMethods
 
 	// defaultBuilder is used during Setup to construct the default source tree,
 	// it will be nil once the config is marked as "Ready" for use
-	defaultBuilder    map[string]interface{}
-	defaultSourceRoot Node
+	defaultBuilder map[string]interface{}
+
+	// defaults contains the settings with a default value
+	defaults InnerNode
+	// file contains the settings pulled from YAML files
+	file InnerNode
+	// root contains the final configuration, it's the result of merging all other tree by ordre of priority
+	root InnerNode
 
 	envPrefix      string
 	envKeyReplacer *strings.Replacer
@@ -80,6 +85,11 @@ type ntmConfig struct {
 
 	// extraConfigFilePaths represents additional configuration file paths that will be merged into the main configuration when ReadInConfig() is called.
 	extraConfigFilePaths []string
+
+	// yamlWarnings contains a list of warnings about loaded YAML file.
+	// TODO: remove 'findUnknownKeys' function from pkg/config/setup in favor of those warnings. We should return
+	// them from ReadConfig and ReadInConfig.
+	warnings []string
 }
 
 // NodeTreeConfig is an interface that gives access to nodes
@@ -101,29 +111,44 @@ func (c *ntmConfig) getValue(key string) (interface{}, error) {
 	return c.leafAtPath(key).GetAny()
 }
 
-func (c *ntmConfig) setValueSource(key string, newValue interface{}, source model.Source) {
+func (c *ntmConfig) setValueSource(key string, newValue interface{}, source model.Source) { // nolint: unused // TODO fix
 	err := c.leafAtPath(key).SetWithSource(newValue, source)
 	if err != nil {
 		log.Errorf("%s", err)
 	}
 }
 
+func (c *ntmConfig) set(key string, value interface{}, tree InnerNode, source model.Source) (bool, error) {
+	parts := strings.Split(strings.ToLower(key), ",")
+	return tree.SetAt(parts, value, source)
+}
+
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
-	if source == model.SourceDefault {
-		c.SetDefault(key, newValue)
+	var tree InnerNode
+
+	// TODO: have a dedicated mapping in ntmConfig instead of a switch case
+	// TODO: Default and File source should use SetDefault or ReadConfig instead. Once the defaults are handle we
+	// should remove those two tree from here and consider this a bug.
+	switch source {
+	case model.SourceDefault:
+		tree = c.defaults
+	case model.SourceFile:
+		tree = c.file
+	}
+
+	c.Lock()
+
+	previousValue, _ := c.getValue(key)
+	_, _ = c.set(key, newValue, tree, source)
+	updated, _ := c.set(key, newValue, c.root, source)
+
+	// if no value has changed we don't notify
+	if !updated || reflect.DeepEqual(previousValue, newValue) {
 		return
 	}
 
-	// modify the config then release the lock to avoid deadlocks while notifying
-	var receivers []model.NotificationReceiver
-	c.Lock()
-	previousValue, _ := c.getValue(key)
-	c.setValueSource(key, newValue, source)
-	if !reflect.DeepEqual(previousValue, newValue) {
-		// if the value has not changed, do not duplicate the slice so that no callback is called
-		receivers = slices.Clone(c.notificationReceivers)
-	}
+	receivers := slices.Clone(c.notificationReceivers)
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
@@ -141,12 +166,15 @@ func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
 func (c *ntmConfig) SetDefault(key string, value interface{}) {
 	c.Lock()
 	defer c.Unlock()
+
 	if c.isReady() {
 		panic("cannot SetDefault() once the config has been marked as ready for use")
 	}
 	key = strings.ToLower(key)
 	c.insertDefaultValue(key, value)
 	c.knownKeys[key] = struct{}{}
+
+	_, _ = c.set(key, value, c.defaults, model.SourceDefault)
 }
 
 // UnsetForSource unsets a config entry for a given source
@@ -213,18 +241,18 @@ func (c *ntmConfig) GetKnownKeysLowercased() map[string]interface{} {
 
 // BuildSchema is called when Setup is complete, and the config is ready to be used
 func (c *ntmConfig) BuildSchema() {
-	defaultSourceRoot, err := NewNode(c.defaultBuilder, model.SourceDefault)
+	defaultsRoot, err := NewNode(c.defaultBuilder, model.SourceDefault)
 	if err != nil {
 		log.Errorf("%s", err)
 	}
 	// Assign the built tree to the default source
-	c.defaultSourceRoot = defaultSourceRoot
+	c.defaults = defaultsRoot.(InnerNode)
 	// By clearing the builder, the config is considered "Ready" for use
 	// Furthur calls to SetKnown, BindEnv, SetDefault will panic
 	c.defaultBuilder = nil
 	// TODO: Build the environment variable tree
 	// TODO: Instead of assigning defaultSource to root, merge the trees
-	c.root = c.defaultSourceRoot
+	c.root = c.defaults
 }
 
 func (c *ntmConfig) isReady() bool {
@@ -305,23 +333,24 @@ func (c *ntmConfig) AllKeysLowercased() []string {
 }
 
 func (c *ntmConfig) leafAtPath(key string) LeafNode {
-	pathParts := strings.Split(key, ".")
+	pathParts := strings.Split(strings.ToLower(key), ".")
 	if !c.isReady() {
 		log.Errorf("attempt to read key before config is constructed: %s", key)
 		return &missingLeaf
 	}
-	curr := c.root
+
+	var curr Node = c.root
 	for _, part := range pathParts {
 		next, err := curr.GetChild(part)
 		if err != nil {
-			return &missingLeaf
+			return missingLeaf
 		}
 		curr = next
 	}
 	if leaf, ok := curr.(LeafNode); ok {
 		return leaf
 	}
-	return &missingLeaf
+	return missingLeaf
 }
 
 // GetNode returns a Node for the given key
@@ -790,10 +819,12 @@ func (c *ntmConfig) Object() model.Reader {
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
 	config := ntmConfig{
 		noimpl:         &notImplMethodsImpl{},
-		defaultBuilder: make(map[string]interface{}),
 		configEnvVars:  map[string]struct{}{},
 		knownKeys:      map[string]struct{}{},
 		unknownKeys:    map[string]struct{}{},
+		defaultBuilder: make(map[string]interface{}),
+		defaults:       newInnerNodeImpl(),
+		file:           newInnerNodeImpl(),
 	}
 
 	config.SetTypeByDefaultValue(true)

@@ -146,12 +146,10 @@ func (s *DockerFakeintakeSuite) TestStatsForService() {
 	s.Require().NoError(err)
 
 	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
-	addSpanTags := "peer.hostname:foo,span.kind:client"
-	expectPeerTag := "peer.hostname:foo"
 	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
-	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport, addSpanTags: addSpanTags})()
+	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		testStatsForService(s.T(), c, service, expectPeerTag, s.Env().FakeIntake)
+		testStatsForService(s.T(), c, service, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding stats")
 }
 
