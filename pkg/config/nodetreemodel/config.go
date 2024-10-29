@@ -82,6 +82,11 @@ type ntmConfig struct {
 	extraConfigFilePaths []string
 }
 
+// NodeTreeConfig is an interface that gives access to nodes
+type NodeTreeConfig interface {
+	GetNode(string) (Node, error)
+}
+
 // OnUpdate adds a callback to the list of receivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
 // Callbacks are only called if the value is effectively changed.
@@ -206,8 +211,8 @@ func (c *ntmConfig) GetKnownKeysLowercased() map[string]interface{} {
 	return ret
 }
 
-// SetReady is called when Setup is complete, and the config is ready to be used
-func (c *ntmConfig) SetReady() {
+// BuildSchema is called when Setup is complete, and the config is ready to be used
+func (c *ntmConfig) BuildSchema() {
 	defaultSourceRoot, err := NewNode(c.defaultBuilder, model.SourceDefault)
 	if err != nil {
 		log.Errorf("%s", err)
@@ -242,7 +247,9 @@ func (c *ntmConfig) insertDefaultValue(key string, defaultValue interface{}) {
 			currNode = build
 		} else if conv, ok := currNode[first].(map[string]interface{}); ok {
 			currNode = conv
-		} else {
+		} else if defaultValue != nil {
+			// Node being assigned to already had a default value set, log an error
+			log.Errorf("cannot assign %v to key %q, it already has value %v", defaultValue, key, currNode[first])
 			return
 		}
 	}
@@ -299,12 +306,11 @@ func (c *ntmConfig) AllKeysLowercased() []string {
 
 func (c *ntmConfig) leafAtPath(key string) LeafNode {
 	pathParts := strings.Split(key, ".")
-	curr := c.root
-	if curr == nil {
+	if !c.isReady() {
 		log.Errorf("attempt to read key before config is constructed: %s", key)
 		return &missingLeaf
 	}
-
+	curr := c.root
 	for _, part := range pathParts {
 		next, err := curr.GetChild(part)
 		if err != nil {
@@ -316,6 +322,25 @@ func (c *ntmConfig) leafAtPath(key string) LeafNode {
 		return leaf
 	}
 	return &missingLeaf
+}
+
+// GetNode returns a Node for the given key
+func (c *ntmConfig) GetNode(key string) (Node, error) {
+	pathParts := strings.Split(key, ".")
+	if !c.isReady() {
+		err := fmt.Errorf("attempt to read key before config is constructed: %s", key)
+		log.Errorf("%s", err)
+		return nil, err
+	}
+	curr := c.root
+	for _, part := range pathParts {
+		next, err := curr.GetChild(part)
+		if err != nil {
+			return nil, err
+		}
+		curr = next
+	}
+	return curr, nil
 }
 
 // Get returns a copy of the value for the given key

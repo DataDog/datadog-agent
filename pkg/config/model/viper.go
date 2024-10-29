@@ -267,8 +267,8 @@ func (c *safeConfig) GetKnownKeysLowercased() map[string]interface{} {
 	return c.Viper.GetKnownKeys()
 }
 
-// SetReady is a no-op for the viper based config
-func (c *safeConfig) SetReady() {
+// BuildSchema is a no-op for the viper based config
+func (c *safeConfig) BuildSchema() {
 	// pass
 }
 

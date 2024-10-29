@@ -63,6 +63,7 @@ func (c *ntmConfig) ReadConfig(in io.Reader) error {
 		return err
 	}
 	c.root = root
+	c.defaultBuilder = nil
 	return nil
 }
 

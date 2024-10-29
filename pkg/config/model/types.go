@@ -103,8 +103,8 @@ type ReaderWriter interface {
 type Setup interface {
 	// API implemented by viper.Viper
 
-	// SetReady should be called when Setup is done and the config is ready to be used
-	SetReady()
+	// BuildSchema should be called when Setup is done, it builds the schema making the config ready for use
+	BuildSchema()
 
 	SetDefault(key string, value interface{})
 
