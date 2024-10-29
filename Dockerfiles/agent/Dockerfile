@@ -217,6 +217,7 @@ COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
 COPY --from=extract /opt/bouncycastle-fips/target/dependency/*.jar /opt/bouncycastle-fips/
 COPY bouncycastle-fips/java.security /opt/bouncycastle-fips/
 COPY bouncycastle-fips/bc-fips.policy /opt/bouncycastle-fips/
+RUN if [ -z "$WITH_JMX" ]; then rm -rf /opt/bouncycastle-fips; fi
 
 # Update if optional OTel Agent process should not run
 RUN if [ ! -f /opt/datadog-agent/embedded/bin/otel-agent ]; then \
