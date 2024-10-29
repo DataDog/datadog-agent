@@ -35,7 +35,7 @@ type TaskWithContainers struct {
 }
 
 // ExtractECSTask returns the protobuf model corresponding to an ECS Task resource.
-func ExtractECSTask(task TaskWithContainers) *model.ECSTask {
+func ExtractECSTask(task TaskWithContainers, tagger tagger.Component) *model.ECSTask {
 	if task.Task == nil {
 		return nil
 	}

@@ -16,6 +16,7 @@ import (
 
 	"github.com/coreos/go-systemd/sdjournal"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
@@ -55,10 +56,11 @@ type Tailer struct {
 	// tagProvider provides additional tags to be attached to each log message.  It
 	// is called once for each log message.
 	tagProvider tag.Provider
+	tagger      tagger.Component
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal, processRawMessage bool) *Tailer {
+func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal, processRawMessage bool, tagger tagger.Component) *Tailer {
 	if len(source.Config.ProcessingRules) > 0 && processRawMessage {
 		log.Warn("The logs processing rules currently apply to the raw journald JSON-structured log. These rules can now be applied to the message content only, and we plan to make this the default behavior in the future.")
 		log.Warn("In order to immediately switch to this new behavior, set 'process_raw_message' to 'false' in your logs integration config and adapt your processing rules accordingly.")
@@ -75,6 +77,7 @@ func NewTailer(source *sources.LogSource, outputChan chan *message.Message, jour
 		done:              make(chan struct{}, 1),
 		processRawMessage: processRawMessage,
 		tagProvider:       tag.NewLocalProvider([]string{}),
+		tagger:            tagger,
 	}
 }
 

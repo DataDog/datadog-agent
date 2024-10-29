@@ -16,6 +16,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -42,10 +43,12 @@ func newCollectorBundle(t *testing.T, chk *OrchestratorCheck) *CollectorBundle {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+
 	bundle := &CollectorBundle{
 		discoverCollectors: chk.orchestratorConfig.CollectorDiscoveryEnabled,
 		check:              chk,
-		inventory:          inventory.NewCollectorInventory(cfg, mockStore),
+		inventory:          inventory.NewCollectorInventory(cfg, mockStore, fakeTagger),
 		runCfg: &collectors.CollectorRunConfig{
 			K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
 				APIClient:                   chk.apiClient,
@@ -79,7 +82,9 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	orchCheck := newCheck(cfg, mockStore).(*OrchestratorCheck)
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+
+	orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
 	orchCheck.apiClient = cl
 
 	orchCheck.orchestratorInformerFactory = getOrchestratorInformerFactory(cl)

@@ -18,6 +18,7 @@ import (
 	"github.com/mohae/deepcopy"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -59,8 +60,8 @@ const (
 )
 
 func init() {
-	factory := func(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component]) (check.Loader, error) {
-		return NewPythonCheckLoader(senderManager, logReceiver)
+	factory := func(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component], tagger tagger.Component) (check.Loader, error) {
+		return NewPythonCheckLoader(senderManager, logReceiver, tagger)
 	}
 	loaders.RegisterLoader(20, factory)
 
@@ -89,8 +90,8 @@ type PythonCheckLoader struct {
 }
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
-func NewPythonCheckLoader(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component]) (*PythonCheckLoader, error) {
-	initializeCheckContext(senderManager, logReceiver)
+func NewPythonCheckLoader(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component], tagger tagger.Component) (*PythonCheckLoader, error) {
+	initializeCheckContext(senderManager, logReceiver, tagger)
 	return &PythonCheckLoader{
 		logReceiver: logReceiver,
 	}, nil

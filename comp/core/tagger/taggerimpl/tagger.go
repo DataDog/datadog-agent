@@ -169,7 +169,6 @@ func newTaggerClient(deps dependencies) provides {
 	taggerClient.telemetryStore = telemetryStore
 
 	deps.Log.Info("TaggerClient is created, defaultTagger type: ", reflect.TypeOf(taggerClient.defaultTagger))
-	taggerComp.SetGlobalTaggerClient(taggerClient)
 	deps.Lc.Append(fx.Hook{OnStart: func(_ context.Context) error {
 		var err error
 		checkCard := deps.Config.GetString("checks_tag_cardinality")
@@ -271,6 +270,20 @@ func (t *TaggerClient) Tag(entityID types.EntityID, cardinality types.TagCardina
 	}
 	t.mux.RUnlock()
 	return t.defaultTagger.Tag(entityID, cardinality)
+}
+
+// LegacyTag has the same behaviour as the Tag method, but it receives the entity id as a string and parses it.
+// If possible, avoid using this function, and use the Tag method instead.
+// This function exists in order not to break backward compatibility with rtloader and python
+// integrations using the tagger
+func (t *TaggerClient) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
+	prefix, id, err := taggercommon.ExtractPrefixAndID(entity)
+	if err != nil {
+		return nil, err
+	}
+
+	entityID := types.NewEntityID(prefix, id)
+	return t.Tag(entityID, cardinality)
 }
 
 // AccumulateTagsFor queries the defaultTagger to get entity tags from cache or
