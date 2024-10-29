@@ -1,0 +1,208 @@
+---
+variables:
+  # Directory in which we execute the omnibus build.
+  # For an unknown reason, it does not go well with
+  # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
+  OMNIBUS_BASE_DIR: /omnibus
+  # Directory in which we put the artifacts after the build
+  # Must be in $CI_PROJECT_DIR
+  OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/omnibus/pkg/
+  # Directory in which we put the SUSE artifacts after the SUSE build
+  # Must be in $CI_PROJECT_DIR
+  # RPM builds and SUSE RPM builds create artifacts with the same name.
+  # To differentiate them, we put them in different folders. That also
+  # avoids accidentally overwriting files when downloading artifacts from
+  # both RPM and SUSE rpm jobs.
+  OMNIBUS_PACKAGE_DIR_SUSE: $CI_PROJECT_DIR/omnibus/suse/pkg
+  DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test/kitchen
+  STATIC_BINARIES_DIR: bin/static
+  DOGSTATSD_BINARIES_DIR: bin/dogstatsd
+  AGENT_BINARIES_DIR: bin/agent
+  CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
+  CWS_INSTRUMENTATION_BINARIES_DIR: bin/cws-instrumentation
+  CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR: bin/datadog-cluster-agent-cloudfoundry
+  SYSTEM_PROBE_BINARIES_DIR: bin/system-probe
+  DEB_S3_BUCKET: apt.datad0g.com
+  RPM_S3_BUCKET: yum.datad0g.com
+  MACOS_S3_BUCKET: dd-agent-macostesting
+  WIN_S3_BUCKET: dd-agent-mstesting
+  PROCESS_S3_BUCKET: datad0g-process-agent
+  BUCKET_BRANCH: dev # path inside the staging s3 buckets to release to: 'dev', 'nightly', 'oldnightly', 'beta' or 'stable'
+  DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
+  RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
+  WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
+  WINDOWS_TESTING_S3_BUCKET_A7: pipelines/A7/$CI_PIPELINE_ID
+  WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
+  WINDOWS_POWERSHELL_DIR: $CI_PROJECT_DIR/signed_scripts
+  DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
+  S3_CP_OPTIONS: --no-progress --region us-east-1 --sse AES256
+  S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
+  S3_ARTIFACTS_URI: s3://dd-ci-artefacts-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID
+  S3_PROJECT_ARTIFACTS_URI: s3://dd-ci-artefacts-build-stable/$CI_PROJECT_NAME
+  S3_PERMANENT_ARTIFACTS_URI: s3://dd-ci-persistent-artefacts-build-stable/$CI_PROJECT_NAME
+  S3_SBOM_STORAGE_URI: s3://sbom-root-us1-ddbuild-io/$CI_PROJECT_NAME/$CI_PIPELINE_ID
+  S3_RELEASE_ARTIFACTS_URI: s3://dd-release-artifacts/$CI_PROJECT_NAME/$CI_PIPELINE_ID
+  S3_RELEASE_INSTALLER_ARTIFACTS_URI: s3://dd-release-artifacts/datadog-installer/$CI_PIPELINE_ID
+  ## comment out both lines below (S3_OMNIBUS_CACHE_BUCKET and USE_S3_CACHING) to allow
+  ## build to succeed with S3 caching disabled.
+  S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
+  USE_S3_CACHING: --omnibus-s3-cache
+  OMNIBUS_GIT_CACHE_DIR: /tmp/omnibus-git-cache
+  ## comment out the line below to disable integration wheels cache
+  INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
+  S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
+  S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
+  BTFHUB_ARCHIVE_BRANCH: main
+  GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
+  S3_DSD6_URI: s3://dsd6-staging
+  RELEASE_VERSION_6: nightly
+  RELEASE_VERSION_7: nightly-a7
+
+  # Build images versions
+  # To use images from datadog-agent-buildimages dev branches, set the corresponding
+  # SUFFIX variable to _test_only
+  DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_BUILDIMAGES: v46542806-c7a4a6be
+  DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_WINBUILDIMAGES: v46542806-c7a4a6be
+  DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_ARMBUILDIMAGES: v46542806-c7a4a6be
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v46542806-c7a4a6be
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v46542806-c7a4a6be
+  # New images to enable different version per image - not used yet
+  CI_IMAGE_BTF_GEN: v46542806-c7a4a6be
+  CI_IMAGE_BTF_GEN_SUFFIX: ""
+  CI_IMAGE_DEB_X64: v46542806-c7a4a6be
+  CI_IMAGE_DEB_X64_SUFFIX: ""
+  CI_IMAGE_DEB_ARM64: v46542806-c7a4a6be
+  CI_IMAGE_DEB_ARM64_SUFFIX: ""
+  CI_IMAGE_DEB_ARMHF: v46542806-c7a4a6be
+  CI_IMAGE_DEB_ARMHF_SUFFIX: ""
+  CI_IMAGE_DD_AGENT_TESTING: v46542806-c7a4a6be
+  CI_IMAGE_DD_AGENT_TESTING_SUFFIX: ""
+  CI_IMAGE_DOCKER_X64: v46542806-c7a4a6be
+  CI_IMAGE_DOCKER_X64_SUFFIX: ""
+  CI_IMAGE_DOCKER_ARM64: v46542806-c7a4a6be
+  CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v46542806-c7a4a6be
+  CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
+  CI_IMAGE_LINUX_GLIBC_2_17_X64: v46542806-c7a4a6be
+  CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v46542806-c7a4a6be
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
+  CI_IMAGE_SYSTEM_PROBE_X64: v46542806-c7a4a6be
+  CI_IMAGE_SYSTEM_PROBE_X64_SUFFIX: ""
+  CI_IMAGE_SYSTEM_PROBE_ARM64: v46542806-c7a4a6be
+  CI_IMAGE_SYSTEM_PROBE_ARM64_SUFFIX: ""
+  CI_IMAGE_RPM_X64: v46542806-c7a4a6be
+  CI_IMAGE_RPM_X64_SUFFIX: ""
+  CI_IMAGE_RPM_ARM64: v46542806-c7a4a6be
+  CI_IMAGE_RPM_ARM64_SUFFIX: ""
+  CI_IMAGE_RPM_ARMHF: v46542806-c7a4a6be
+  CI_IMAGE_RPM_ARMHF_SUFFIX: ""
+  CI_IMAGE_WIN_1809_X64: v46542806-c7a4a6be
+  CI_IMAGE_WIN_1809_X64_SUFFIX: ""
+  CI_IMAGE_WIN_LTSC2022_X64: v46542806-c7a4a6be
+  CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
+
+  DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
+  DEB_GPG_KEY_ID: c0962c7d
+  DEB_GPG_KEY_NAME: "Datadog, Inc. APT key"
+  RPM_GPG_KEY_ID: b01082d3
+  RPM_GPG_KEY_NAME: "Datadog, Inc. RPM key"
+  DOCKER_REGISTRY_URL: docker.io
+  KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
+  CLANG_LLVM_VER: 12.0.1
+  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-013ea43cbe85107c0"
+  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-02fbd245475d6a63d"
+  RUN_E2E_TESTS: "auto" # Should be "off", "auto" or "on" it will change the trigger condition for new-e2e tests on branch != main
+  RUN_KMT_TESTS: "auto" # Should be "auto" or "on". "on" forces all Kernel Matrix Testing jobs to run.
+  RUN_UNIT_TESTS: "auto" # Should be "auto", "on", "off" it will change the trigger condition for unit tests on branch != main
+  # skip known flaky tests by default
+  GO_TEST_SKIP_FLAKE: "true"
+
+  # Start aws ssm variables
+  # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed
+  AGENT_QA_PROFILE: ci.datadog-agent.agent-qa-profile  # agent-devx-infra
+  API_KEY_ORG2: ci.datadog-agent.datadog_api_key_org2  # agent-devx-infra
+  API_KEY_DDDEV: ci.datadog-agent.datadog_api_key  # agent-devx-infra
+  APP_KEY_ORG2: ci.datadog-agent.datadog_app_key_org2  # agent-devx-infra
+  CHANGELOG_COMMIT_SHA: ci.datadog-agent.gitlab_changelog_commit_sha  # agent-devx-infra
+  CHOCOLATEY_API_KEY: ci.datadog-agent.chocolatey_api_key  # windows-agent
+  CODECOV_TOKEN: ci.datadog-agent.codecov_token  # agent-devx-infra
+  DEB_GPG_KEY: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}  # agent-delivery
+  DEB_SIGNING_PASSPHRASE: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID}  # agent-delivery
+  DOCKER_REGISTRY_LOGIN: ci.datadog-agent.docker_hub_login  # container-integrations
+  DOCKER_REGISTRY_PWD: ci.datadog-agent.docker_hub_pwd  # container-integrations
+  E2E_TESTS_API_KEY: ci.datadog-agent.e2e_tests_api_key  # agent-devx-loops
+  E2E_TESTS_APP_KEY: ci.datadog-agent.e2e_tests_app_key  # agent-devx-loops
+  E2E_TESTS_RC_KEY: ci.datadog-agent.e2e_tests_rc_key  # agent-devx-loops
+  E2E_TESTS_AZURE_CLIENT_ID: ci.datadog-agent.e2e_tests_azure_client_id  # agent-devx-loops
+  E2E_TESTS_AZURE_CLIENT_SECRET: ci.datadog-agent.e2e_tests_azure_client_secret  # agent-devx-loops
+  E2E_TESTS_AZURE_TENANT_ID: ci.datadog-agent.e2e_tests_azure_tenant_id  # agent-devx-loops
+  E2E_TESTS_AZURE_SUBSCRIPTION_ID: ci.datadog-agent.e2e_tests_azure_subscription_id  # agent-devx-loops
+  E2E_TESTS_GCP_CREDENTIALS: ci.datadog-agent.e2e_tests_gcp_credentials  # agent-devx-loops
+  E2E_PULUMI_CONFIG_PASSPHRASE: ci.datadog-agent.pulumi_password  # agent-devx-loops
+  KITCHEN_EC2_SSH_KEY: ci.datadog-agent.aws_ec2_kitchen_ssh_key  # agent-devx-loops
+  KITCHEN_AZURE_CLIENT_ID: ci.datadog-agent.azure_kitchen_client_id  # agent-devx-loops
+  KITCHEN_AZURE_CLIENT_SECRET: ci.datadog-agent.azure_kitchen_client_secret  # agent-devx-loops
+  KITCHEN_AZURE_SUBSCRIPTION_ID: ci.datadog-agent.azure_kitchen_subscription_id  # agent-devx-loops
+  KITCHEN_AZURE_TENANT_ID: ci.datadog-agent.azure_kitchen_tenant_id  # agent-devx-loops
+  GITHUB_PR_COMMENTER_APP_KEY: pr-commenter.github_app_key  # agent-devx-infra
+  GITHUB_PR_COMMENTER_INTEGRATION_ID: pr-commenter.github_integration_id  # agent-devx-infra
+  GITHUB_PR_COMMENTER_INSTALLATION_ID: pr-commenter.github_installation_id  # agent-devx-infra
+  GITLAB_SCHEDULER_TOKEN: ci.datadog-agent.gitlab_pipelines_scheduler_token  # ci-cd
+  GITLAB_READ_API_TOKEN: ci.datadog-agent.gitlab_read_api_token  # ci-cd
+  GITLAB_FULL_API_TOKEN: ci.datadog-agent.gitlab_full_api_token  # ci-cd
+  INSTALL_SCRIPT_API_KEY: ci.agent-linux-install-script.datadog_api_key_2  # agent-delivery
+  JIRA_READ_API_TOKEN: ci.datadog-agent.jira_read_api_token  # agent-devx-infra
+  AGENT_GITHUB_APP_ID: ci.datadog-agent.platform-github-app-id  # agent-devx-infra
+  AGENT_GITHUB_INSTALLATION_ID: ci.datadog-agent.platform-github-app-installation-id  # agent-devx-infra
+  AGENT_GITHUB_KEY: ci.datadog-agent.platform-github-app-key  # agent-devx-infra
+  MACOS_GITHUB_APP_ID: ci.datadog-agent.macos_github_app_id  # agent-devx-infra
+  MACOS_GITHUB_INSTALLATION_ID: ci.datadog-agent.macos_github_installation_id  # agent-devx-infra
+  MACOS_GITHUB_KEY: ci.datadog-agent.macos_github_key_b64  # agent-devx-infra
+  MACOS_GITHUB_APP_ID_2: ci.datadog-agent.macos_github_app_id_2  # agent-devx-infra
+  MACOS_GITHUB_INSTALLATION_ID_2: ci.datadog-agent.macos_github_installation_id_2  # agent-devx-infra
+  MACOS_GITHUB_KEY_2: ci.datadog-agent.macos_github_key_b64_2  # agent-devx-infra
+  RPM_GPG_KEY: ci.datadog-agent.rpm_signing_private_key_${RPM_GPG_KEY_ID}  # agent-delivery
+  RPM_SIGNING_PASSPHRASE: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID}  # agent-delivery
+  SLACK_AGENT_CI_TOKEN: ci.datadog-agent.slack_agent_ci_token  # agent-devx-infra
+  SMP_ACCOUNT_ID: ci.datadog-agent.single-machine-performance-account-id  # single-machine-performance
+  SMP_AGENT_TEAM_ID: ci.datadog-agent.single-machine-performance-agent-team-id  # single-machine-performance
+  SMP_API: ci.datadog-agent.single-machine-performance-api  # single-machine-performance
+  SMP_BOT_ACCESS_KEY: ci.datadog-agent.single-machine-performance-bot-access-key  # single-machine-performance
+  SMP_BOT_ACCESS_KEY_ID: ci.datadog-agent.single-machine-performance-bot-access-key-id  # single-machine-performance
+  SSH_KEY: ci.datadog-agent.ssh_key  # system-probe
+  SSH_KEY_RSA: ci.datadog-agent.ssh_key_rsa  # agent-devx-loops
+  SSH_PUBLIC_KEY_RSA: ci.datadog-agent.ssh_public_key_rsa  # agent-devx-loops
+  VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url  # windows-agent
+  WINGET_PAT: ci.datadog-agent.winget_pat  # windows-agent
+  # End aws ssm variables
+
+  # Start vault variables
+  AGENT_API_KEY_ORG2: agent-api-key-org-2  # agent-devx-infra
+  AGENT_APP_KEY_ORG2: agent-ci-app-key-org-2  # agent-devx-infra
+  AGENT_GITHUB_APP: agent-github-app  # agent-devx-infra
+  AGENT_QA_E2E: agent-qa-e2e  # agent-devx-loops
+  ATLASSIAN_WRITE: atlassian-write  # agent-devx-infra
+  DOCKER_REGISTRY_RO: dockerhub-readonly  # agent-delivery
+  GITLAB_TOKEN: gitlab-token  # agent-devx-infra
+  INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2  # agent-devx-infra
+  MACOS_GITHUB_APP_1: macos-github-app-one  # agent-devx-infra
+  MACOS_GITHUB_APP_2: macos-github-app-two  # agent-devx-infra
+  SLACK_AGENT: slack-agent-ci  # agent-devx-infra
+  # End vault variables
+
+  DD_PKG_VERSION: "latest"
+
+  # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
+  ARTIFACT_DOWNLOAD_ATTEMPTS: 2
+  EXECUTOR_JOB_SECTION_ATTEMPTS: 2
+  GET_SOURCES_ATTEMPTS: 2
+  RESTORE_CACHE_ATTEMPTS: 2
+  # Feature flags
+  FF_SCRIPT_SECTIONS: 1 # Prevent multiline scripts log collapsing, see https://gitlab.com/gitlab-org/gitlab-runner/-/issues/3392
+  FF_KUBERNETES_HONOR_ENTRYPOINT: true # Honor the entrypoint in the Docker image when running Kubernetes jobs
