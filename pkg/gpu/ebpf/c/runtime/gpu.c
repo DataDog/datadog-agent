@@ -3,6 +3,7 @@
 
 #ifdef COMPILE_RUNTIME
 #include "kconfig.h"
+#include <linux/ptrace.h>
 #endif
 
 #include "ktypes.h"
