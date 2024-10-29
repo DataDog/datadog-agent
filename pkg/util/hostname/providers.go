@@ -119,21 +119,18 @@ func getProviderCatalog(disableIMDSv2 bool) []provider {
 		},
 	}
 
-	if disableIMDSv2 {
-		ec2 := provider{
-			name:             "aws", // ie EC2
-			cb:               fromEC2WithoutIMDSV2,
-			stopIfSuccessful: false,
-			expvarName:       "aws",
-		}
-		return append(providerCatalog, ec2)
-	}
 	ec2 := provider{
 		name:             "aws", // ie EC2
-		cb:               fromEC2,
 		stopIfSuccessful: false,
 		expvarName:       "aws",
 	}
+
+	if disableIMDSv2 {
+		ec2.cb = fromEC2WithoutIMDSV2
+	} else {
+		ec2.cb = fromEC2
+	}
+
 	return append(providerCatalog, ec2)
 }
 
