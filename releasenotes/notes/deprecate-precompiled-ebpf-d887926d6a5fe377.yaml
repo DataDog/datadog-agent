@@ -14,4 +14,4 @@ deprecations:
     the precompiled eBPF network tracer, set
     `system_probe_config.allow_precompiled_fallback` in the
     system-probe config file, or set the environment variable
-    `DD_ALLOW_PRECOMPILED_FALLBACK` to `true` on these platforms.
+    `DD_ALLOW_PRECOMPILED_FALLBACK` to `true` on those platforms.
