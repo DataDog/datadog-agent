@@ -353,7 +353,7 @@ func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath) {
 	hostname := s.getReverseDNSResult(path.Destination.IPAddress, results)
 	// if hostname is blank, use what's given by traceroute
 	// TODO: would it be better to move the logic up from the traceroute command?
-	// benefit to this approach is having consistent behavior for all paths
+	// benefit to the current approach is having consistent behavior for all paths
 	// both static and dynamic
 	if hostname != "" {
 		path.Destination.ReverseDNSHostname = hostname
@@ -375,10 +375,12 @@ func (s *npCollectorImpl) getReverseDNSResult(ipAddr string, results map[string]
 	if !ok {
 		s.statsdClient.Incr(reverseDNSLookupFailuresMetricName, []string{"reason:absent"}, 1) //nolint:errcheck
 		s.logger.Tracef("Reverse DNS lookup failed for IP %s", ipAddr)
+		return ""
 	}
 	if result.Err != nil {
 		s.statsdClient.Incr(reverseDNSLookupFailuresMetricName, []string{"reason:error"}, 1) //nolint:errcheck
 		s.logger.Tracef("Reverse lookup failed for hop IP %s: %s", ipAddr, result.Err)
+		return ""
 	}
 	if result.Hostname == "" {
 		s.statsdClient.Incr(reverseDNSLookupSuccessesMetricName, []string{"status:empty"}, 1) //nolint:errcheck
