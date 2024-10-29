@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 // StatusCodeContainer is a lock around the status code to return
@@ -79,7 +80,7 @@ func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool
 	endpoint.BackoffMax = 10
 	endpoint.RecoveryInterval = 1
 
-	dest := NewDestination(endpoint, JSONContentType, destCtx, senders, retryDestination, "test", cfg, 0)
+	dest := NewDestination(endpoint, JSONContentType, destCtx, senders, retryDestination, "test", cfg, metrics.NewNoopPipelineMonitor(""))
 	return &TestServer{
 		httpServer:          ts,
 		DestCtx:             destCtx,

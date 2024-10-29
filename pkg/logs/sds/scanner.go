@@ -63,8 +63,8 @@ type Scanner struct {
 
 // CreateScanner creates an SDS scanner.
 // Use `Reconfigure` to configure it manually.
-func CreateScanner(pipelineID int) *Scanner {
-	scanner := &Scanner{pipelineID: strconv.Itoa(pipelineID)}
+func CreateScanner(pipelineID string) *Scanner {
+	scanner := &Scanner{pipelineID: pipelineID)
 	log.Debugf("creating a new SDS scanner (internal id: %p)", scanner)
 	return scanner
 }

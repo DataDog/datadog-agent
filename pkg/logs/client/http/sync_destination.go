@@ -34,7 +34,7 @@ func NewSyncDestination(endpoint config.Endpoint,
 	cfg pkgconfigmodel.Reader) *SyncDestination {
 
 	return &SyncDestination{
-		destination:    newDestination(endpoint, contentType, destinationsContext, time.Second*10, 1, false, telemetryName, cfg, 0),
+		destination:    newDestination(endpoint, contentType, destinationsContext, time.Second*10, 1, false, telemetryName, cfg, metrics.NewNoopPipelineMonitor("0")),
 		senderDoneChan: senderDoneChan,
 	}
 }

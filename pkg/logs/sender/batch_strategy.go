@@ -7,7 +7,6 @@
 package sender
 
 import (
-	"strconv"
 	"sync"
 	"time"
 
@@ -38,8 +37,10 @@ type batchStrategy struct {
 	contentEncoding ContentEncoding
 	stopChan        chan struct{} // closed when the goroutine has finished
 	clock           clock.Clock
-	pipelineID      int
-	monitor         *metrics.UtilizationMonitor
+
+	// Telemtry
+	pipelineMonitor metrics.PipelineMonitor
+	utilization     metrics.UtilizationMonitor
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
@@ -54,8 +55,8 @@ func NewBatchStrategy(inputChan chan *message.Message,
 	maxContentSize int,
 	pipelineName string,
 	contentEncoding ContentEncoding,
-	pipelineID int) Strategy {
-	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverless, flushWg, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding, pipelineID)
+	pipelineMonitor metrics.PipelineMonitor) Strategy {
+	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverless, flushWg, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding, pipelineMonitor)
 }
 
 func newBatchStrategyWithClock(inputChan chan *message.Message,
@@ -70,7 +71,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 	pipelineName string,
 	clock clock.Clock,
 	contentEncoding ContentEncoding,
-	pipelineID int) Strategy {
+	pipelineMonitor metrics.PipelineMonitor) Strategy {
 
 	return &batchStrategy{
 		inputChan:       inputChan,
@@ -85,8 +86,8 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 		stopChan:        make(chan struct{}),
 		pipelineName:    pipelineName,
 		clock:           clock,
-		pipelineID:      pipelineID,
-		monitor:         metrics.NewUtilizationMonitor("strategy", strconv.Itoa(pipelineID)),
+		pipelineMonitor: pipelineMonitor,
+		utilization:     pipelineMonitor.MakeUtilizationMonitor("strategy"),
 	}
 }
 
@@ -149,7 +150,7 @@ func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *mess
 // flushBuffer sends all the messages that are stored in the buffer and forwards them
 // to the next stage of the pipeline.
 func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
-	s.monitor.Start()
+	s.utilization.Start()
 	if s.buffer.IsEmpty() {
 		return
 	}
@@ -184,8 +185,8 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 		Encoding:      s.contentEncoding.name(),
 		UnencodedSize: len(serializedMessage),
 	}
-	s.monitor.Stop()
+	s.utilization.Stop()
 	outputChan <- p
-	metrics.ReportComponentEgress(p, "strategy", strconv.Itoa(s.pipelineID))
-	metrics.ReportComponentIngress(p, "sender", strconv.Itoa(s.pipelineID))
+	s.pipelineMonitor.ReportComponentEgress(p, "strategy")
+	s.pipelineMonitor.ReportComponentIngress(p, "sender")
 }

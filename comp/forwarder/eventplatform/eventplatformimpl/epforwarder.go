@@ -9,6 +9,7 @@ package eventplatformimpl
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -412,6 +414,8 @@ func newHTTPPassthroughPipeline(coreConfig model.Reader, eventPlatformReceiver e
 		encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
 	}
 
+	pipelineMonitor := metrics.NewNoopPipelineMonitor(strconv.Itoa(pipelineID))
+
 	var strategy sender.Strategy
 	if desc.contentType == logshttp.ProtobufContentType {
 		strategy = sender.NewStreamStrategy(inputChan, senderInput, encoder)
@@ -427,14 +431,14 @@ func newHTTPPassthroughPipeline(coreConfig model.Reader, eventPlatformReceiver e
 			endpoints.BatchMaxContentSize,
 			desc.eventType,
 			encoder,
-			99)
+			pipelineMonitor)
 	}
 
 	a := auditor.NewNullAuditor()
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",
 		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize)
 	return &passthroughPipeline{
-		sender:                sender.NewSender(coreConfig, senderInput, a.Channel(), destinations, 10, nil, nil, 99),
+		sender:                sender.NewSender(coreConfig, senderInput, a.Channel(), destinations, 10, nil, nil, pipelineMonitor),
 		strategy:              strategy,
 		in:                    inputChan,
 		auditor:               a,

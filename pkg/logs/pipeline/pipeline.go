@@ -9,7 +9,9 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -19,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
@@ -26,14 +29,14 @@ import (
 
 // Pipeline processes and sends messages to the backend
 type Pipeline struct {
-	InputChan  chan *message.Message
-	flushChan  chan struct{}
-	processor  *processor.Processor
-	strategy   sender.Strategy
-	sender     *sender.Sender
-	serverless bool
-	flushWg    *sync.WaitGroup
-	pipelineID int
+	InputChan       chan *message.Message
+	flushChan       chan struct{}
+	processor       *processor.Processor
+	strategy        sender.Strategy
+	sender          *sender.Sender
+	serverless      bool
+	flushWg         *sync.WaitGroup
+	pipelineMonitor metrics.PipelineMonitor
 }
 
 // NewPipeline returns a new Pipeline
@@ -54,6 +57,7 @@ func NewPipeline(outputChan chan *message.Payload,
 		senderDoneChan = make(chan *sync.WaitGroup)
 		flushWg = &sync.WaitGroup{}
 	}
+	pipelineMonitor := metrics.NewTelemetryPipelineMonitor(5*time.Second, strconv.Itoa(pipelineID))
 
 	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, serverless, senderDoneChan, status, cfg)
 
@@ -74,23 +78,23 @@ func NewPipeline(outputChan chan *message.Payload,
 		encoder = processor.RawEncoder
 	}
 
-	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, flushWg, pipelineID)
-	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize, senderDoneChan, flushWg, pipelineID)
+	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, flushWg, pipelineMonitor)
+	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize, senderDoneChan, flushWg, pipelineMonitor)
 
 	inputChan := make(chan *message.Message, config.ChanSize)
 
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, pipelineID)
+		encoder, diagnosticMessageReceiver, hostname, pipelineMonitor)
 
 	return &Pipeline{
-		InputChan:  inputChan,
-		flushChan:  flushChan,
-		processor:  processor,
-		strategy:   strategy,
-		sender:     logsSender,
-		serverless: serverless,
-		flushWg:    flushWg,
-		pipelineID: pipelineID,
+		InputChan:       inputChan,
+		flushChan:       flushChan,
+		processor:       processor,
+		strategy:        strategy,
+		sender:          logsSender,
+		serverless:      serverless,
+		flushWg:         flushWg,
+		pipelineMonitor: pipelineMonitor,
 	}
 }
 
@@ -119,25 +123,25 @@ func (p *Pipeline) Flush(ctx context.Context) {
 	}
 }
 
-func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineID int, serverless bool, senderDoneChan chan *sync.WaitGroup, status statusinterface.Status, cfg pkgconfigmodel.Reader) *client.Destinations {
+func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineMonitor metrics.PipelineMonitor, serverless bool, senderDoneChan chan *sync.WaitGroup, status statusinterface.Status, cfg pkgconfigmodel.Reader) *client.Destinations {
 	reliable := []client.Destination{}
 	additionals := []client.Destination{}
 
 	if endpoints.UseHTTP {
 		for i, endpoint := range endpoints.GetReliableEndpoints() {
-			telemetryName := fmt.Sprintf("logs_%d_reliable_%d", pipelineID, i)
+			telemetryName := fmt.Sprintf("logs_%s_reliable_%d", pipelineMonitor.ID(), i)
 			if serverless {
 				reliable = append(reliable, http.NewSyncDestination(endpoint, http.JSONContentType, destinationsContext, senderDoneChan, telemetryName, cfg))
 			} else {
-				reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, telemetryName, cfg, pipelineID))
+				reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, telemetryName, cfg, pipelineMonitor))
 			}
 		}
 		for i, endpoint := range endpoints.GetUnReliableEndpoints() {
-			telemetryName := fmt.Sprintf("logs_%d_unreliable_%d", pipelineID, i)
+			telemetryName := fmt.Sprintf("logs_%s_unreliable_%d", pipelineMonitor.ID(), i)
 			if serverless {
 				additionals = append(additionals, http.NewSyncDestination(endpoint, http.JSONContentType, destinationsContext, senderDoneChan, telemetryName, cfg))
 			} else {
-				additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName, cfg, pipelineID))
+				additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName, cfg, pipelineMonitor))
 			}
 		}
 		return client.NewDestinations(reliable, additionals)
@@ -153,13 +157,13 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, flushChan chan struct{}, endpoints *config.Endpoints, serverless bool, flushWg *sync.WaitGroup, pipelineID int) sender.Strategy {
+func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, flushChan chan struct{}, endpoints *config.Endpoints, serverless bool, flushWg *sync.WaitGroup, pipelineMonitor metrics.PipelineMonitor) sender.Strategy {
 	if endpoints.UseHTTP || serverless {
 		encoder := sender.IdentityContentType
 		if endpoints.Main.UseCompression {
 			encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
 		}
-		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineID)
+		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor)
 	}
 	return sender.NewStreamStrategy(inputChan, outputChan, sender.IdentityContentType)
 }

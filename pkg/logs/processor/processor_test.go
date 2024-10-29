@@ -315,6 +315,7 @@ func TestBuffering(t *testing.T) {
 	}
 
 	hostnameComponent, _ := hostnameinterface.NewMock("testHostnameFromEnvVar")
+	pm := metrics.NewNoopPipelineMonitor("")
 
 	p := &Processor{
 		encoder:                   JSONEncoder,
@@ -327,9 +328,10 @@ func TestBuffering(t *testing.T) {
 		sds: sdsProcessor{
 			maxBufferSize: len("hello1world") + len("hello2world") + len("hello3world") + 1,
 			buffering:     true,
-			scanner:       sds.CreateScanner(42),
+			scanner:       sds.CreateScanner("42"),
 		},
-		monitor: metrics.NewUtilizationMonitor("processor", ""),
+		pipelineMonitor: pm,
+		utilization:     pm.MakeUtilizationMonitor("processor"),
 	}
 
 	var processedMessages atomic.Int32

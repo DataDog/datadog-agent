@@ -65,7 +65,9 @@ type Message struct {
 	Status             string
 	IngestionTimestamp int64
 	// RawDataLen tracks the original size of the message content before any trimming/transformation.
-	// This is used when calculating the tailer offset - so this will NOT always be equal to `len(Content)`.
+	// This is used when calculating the tailer offset - so this will NOT always be equal to `len(Content)`
+	// This is also used to track the original content size before the message is processed and encoded later
+	// in the pipeline.
 	RawDataLen int
 	// Tags added on processing
 	ProcessingTags []string
@@ -224,6 +226,7 @@ func NewMessage(content []byte, origin *Origin, status string, ingestionTimestam
 		},
 		Origin:             origin,
 		Status:             status,
+		RawDataLen:         len(content),
 		IngestionTimestamp: ingestionTimestamp,
 	}
 }

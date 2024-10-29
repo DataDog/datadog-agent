@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
@@ -309,8 +310,8 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 		return false
 	}
 
-	channel, id := s.pipelineProvider.NextPipelineChanWithInstance()
-	tailer := s.createTailer(file, channel, id)
+	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
+	tailer := s.createTailer(file, channel, monitor)
 
 	var offset int64
 	var whence int
@@ -381,17 +382,17 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 }
 
 // createTailer returns a new initialized tailer
-func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Message, instance int) *tailer.Tailer {
+func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Message, pipelineMonitor metrics.PipelineMonitor) *tailer.Tailer {
 	tailerInfo := status.NewInfoRegistry()
 
 	tailerOptions := &tailer.TailerOptions{
-		OutputChan:    outputChan,
-		File:          file,
-		SleepDuration: s.tailerSleepDuration,
-		Decoder:       decoder.NewDecoderFromSource(file.Source, tailerInfo),
-		Info:          tailerInfo,
-		TagAdder:      s.tagger,
-		PipelineID:    instance,
+		OutputChan:      outputChan,
+		File:            file,
+		SleepDuration:   s.tailerSleepDuration,
+		Decoder:         decoder.NewDecoderFromSource(file.Source, tailerInfo),
+		Info:            tailerInfo,
+		TagAdder:        s.tagger,
+		PipelineMonitor: pipelineMonitor,
 	}
 
 	return tailer.NewTailer(tailerOptions)

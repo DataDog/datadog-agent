@@ -10,6 +10,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
@@ -54,6 +55,6 @@ func (p *mockProvider) NextPipelineChan() chan *message.Message {
 }
 
 // NextPipelineChanWithInstance returns the next pipeline
-func (p *mockProvider) NextPipelineChanWithInstance() (chan *message.Message, int) {
-	return p.msgChan, 0
+func (p *mockProvider) NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor) {
+	return p.msgChan, metrics.NewNoopPipelineMonitor("")
 }

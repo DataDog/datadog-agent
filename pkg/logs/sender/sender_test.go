@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 )
@@ -45,7 +46,7 @@ func TestSender(t *testing.T) {
 	destinations := client.NewDestinations([]client.Destination{destination}, nil)
 
 	cfg := configmock.New(t)
-	sender := NewSender(cfg, input, output, destinations, 0, nil, nil, 0)
+	sender := NewSender(cfg, input, output, destinations, 0, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	expectedMessage := newMessage([]byte("fake line"), source, "")
@@ -73,7 +74,7 @@ func TestSenderSingleDestination(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{server.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, 0)
+	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -103,7 +104,7 @@ func TestSenderDualReliableDestination(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{server1.Destination, server2.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, 0)
+	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -138,7 +139,7 @@ func TestSenderUnreliableAdditionalDestination(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{server1.Destination}, []client.Destination{server2.Destination})
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, 0)
+	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -170,7 +171,7 @@ func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer.Destination}, []client.Destination{unreliableServer.Destination})
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, 0)
+	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -219,7 +220,7 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, 0)
+	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -265,7 +266,7 @@ func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, 0)
+	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}

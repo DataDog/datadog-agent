@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,7 +33,7 @@ type Provider interface {
 	ReconfigureSDSAgentConfig(config []byte) (bool, error)
 	StopSDSProcessing() error
 	NextPipelineChan() chan *message.Message
-	NextPipelineChanWithInstance() (chan *message.Message, int)
+	NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor)
 	// Flush flushes all pipeline contained in this Provider
 	Flush(ctx context.Context)
 }
@@ -182,15 +183,15 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 	return nextPipeline.InputChan
 }
 
-// NextPipelineChanWithInstance returns the next pipeline input channel
-func (p *provider) NextPipelineChanWithInstance() (chan *message.Message, int) {
+// NextPipelineChanWithMonitor returns the next pipeline input channel with it's monitor.
+func (p *provider) NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor) {
 	pipelinesLen := len(p.pipelines)
 	if pipelinesLen == 0 {
-		return nil, -1
+		return nil, nil
 	}
 	index := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
 	nextPipeline := p.pipelines[index]
-	return nextPipeline.InputChan, nextPipeline.pipelineID
+	return nextPipeline.InputChan, nextPipeline.pipelineMonitor
 }
 
 // Flush flushes synchronously all the contained pipeline of this provider.

@@ -7,7 +7,6 @@ package processor
 
 import (
 	"context"
-	"strconv"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -27,7 +26,6 @@ const UnstructuredProcessingMetricName = "datadog.logs_agent.tailer.unstructured
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan.
 type Processor struct {
-	pipelineID int
 	inputChan  chan *message.Message
 	outputChan chan *message.Message // strategy input
 	// ReconfigChan transports rules to use in order to reconfigure
@@ -39,9 +37,12 @@ type Processor struct {
 	diagnosticMessageReceiver diagnostic.MessageReceiver
 	mu                        sync.Mutex
 	hostname                  hostnameinterface.Component
-	monitor                   *metrics.UtilizationMonitor
 
 	sds sdsProcessor
+
+	// Telemetry
+	pipelineMonitor metrics.PipelineMonitor
+	utilization     metrics.UtilizationMonitor
 }
 
 type sdsProcessor struct {
@@ -60,13 +61,12 @@ type sdsProcessor struct {
 // New returns an initialized Processor.
 func New(cfg pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
-	pipelineID int) *Processor {
+	pipelineMonitor metrics.PipelineMonitor) *Processor {
 
 	waitForSDSConfig := sds.ShouldBufferUntilSDSConfiguration(cfg)
 	maxBufferSize := sds.WaitForConfigurationBufferMaxSize(cfg)
 
 	return &Processor{
-		pipelineID:                pipelineID,
 		inputChan:                 inputChan,
 		outputChan:                outputChan, // strategy input
 		ReconfigChan:              make(chan sds.ReconfigureOrder),
@@ -75,13 +75,14 @@ func New(cfg pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message,
 		done:                      make(chan struct{}),
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 		hostname:                  hostname,
-		monitor:                   metrics.NewUtilizationMonitor("processor", strconv.Itoa(pipelineID)),
+		pipelineMonitor:           pipelineMonitor,
+		utilization:               pipelineMonitor.MakeUtilizationMonitor("processor"),
 
 		sds: sdsProcessor{
 			// will immediately starts buffering if it has been configured as so
 			buffering:     waitForSDSConfig,
 			maxBufferSize: maxBufferSize,
-			scanner:       sds.CreateScanner(pipelineID),
+			scanner:       sds.CreateScanner(pipelineMonitor.ID()),
 		},
 	}
 }
@@ -118,7 +119,7 @@ func (p *Processor) Flush(ctx context.Context) {
 				return
 			}
 			msg := <-p.inputChan
-			metrics.ReportComponentIngress(msg, "processor", strconv.Itoa(p.pipelineID))
+			p.pipelineMonitor.ReportComponentIngress(msg, "processor")
 			p.processMessage(msg)
 		}
 	}
@@ -221,7 +222,7 @@ func (s *sdsProcessor) resetBuffer() {
 }
 
 func (p *Processor) processMessage(msg *message.Message) {
-	p.monitor.Start()
+	p.utilization.Start()
 	metrics.LogsDecoded.Add(1)
 	metrics.TlmLogsDecoded.Inc()
 
@@ -246,10 +247,10 @@ func (p *Processor) processMessage(msg *message.Message) {
 			return
 		}
 
-		p.monitor.Stop()
+		p.utilization.Stop()
 		p.outputChan <- msg
-		metrics.ReportComponentEgress(msg, "processor", strconv.Itoa(p.pipelineID))
-		metrics.ReportComponentIngress(msg, "strategy", strconv.Itoa(p.pipelineID))
+		p.pipelineMonitor.ReportComponentEgress(msg, "processor")
+		p.pipelineMonitor.ReportComponentIngress(msg, "strategy")
 	}
 }
 
