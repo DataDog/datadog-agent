@@ -27,7 +27,7 @@ import (
 )
 
 var devMode = flag.Bool("devmode", false, "enable dev mode")
-var imageTag = flag.String("image-tag", "pr-1226", "Docker image tag to use")
+var imageTag = flag.String("image-tag", "main", "Docker image tag to use")
 
 type gpuSuite struct {
 	e2e.BaseSuite[environments.Host]
