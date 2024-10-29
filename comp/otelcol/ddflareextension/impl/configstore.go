@@ -20,7 +20,9 @@ type configStore struct {
 	enhanced                *otelcol.Config
 	mu                      sync.RWMutex
 	providedConfigSupported bool
-	effectiveConfig         *confmap.Conf
+	// TODO: Replace enhanced config with effective config once dependencies
+	// are updated to v0.105.0 or newer (https://github.com/open-telemetry/opentelemetry-collector/pull/10139/files)
+	effectiveConfig *confmap.Conf
 }
 
 // setProvidedConfigSupported sets the variable to determine if provided configuration read/write
