@@ -179,7 +179,7 @@ func TestStatusAutodiscovery(t *testing.T) {
 			expectedTextOutput := `
   Autodiscovery
   =============
-  Subnet 127.0.0.1/24 with config hashconfig is queued for scanning.`
+  Subnet 127.0.0.1/24 is queued for scanning.`
 
 			expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
 			output := strings.Replace(b.String(), "\r\n", "\n", -1)
@@ -196,7 +196,7 @@ func TestStatusAutodiscovery(t *testing.T) {
 <div class="stat">
   <span class="stat_title">SNMP Autodiscovery</span>
   <span class="stat_data">
-    Subnet 127.0.0.1/24 with config hashconfig is queued for scanning.</br>
+    Subnet 127.0.0.1/24 is queued for scanning.</br>
   </span>
 </div>`
 

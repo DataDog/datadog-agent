@@ -11,27 +11,27 @@
   {{- range $subnet := .autodiscoverySubnets }}
   {{- if eq $subnet.IpsCount $subnet.DevicesScanned }}
   {{- if eq $subnet.DevicesFound "" }}
-  Subnet {{$subnet.Subnet}} scanned with config {{$subnet.ConfigHash}}. Found no IPs in the subnet.
+  Subnet {{$subnet.Subnet}} scanned. Found no IPs in the subnet.
   {{- else }}
-  Subnet {{$subnet.Subnet}} scanned with config {{$subnet.ConfigHash}}. Found the following IP(s) : {{$subnet.DevicesFound}}
+  Subnet {{$subnet.Subnet}} scanned. Found the following IP(s) : {{$subnet.DevicesFound}}
   {{- end }}
   {{- else if eq $subnet.DeviceScanning "" }}
-  Subnet {{$subnet.Subnet}} with config {{$subnet.ConfigHash}} is queued for scanning.
+  Subnet {{$subnet.Subnet}} is queued for scanning.
   {{- else}}
-  Scanning subnet {{$subnet.Subnet}} with config {{$subnet.ConfigHash}}... Currently scanning IP {{$subnet.DeviceScanning}}, {{$subnet.DevicesScanned}} IPs out of {{$subnet.IpsCount}} scanned.
+  Scanning subnet {{$subnet.Subnet}}... Currently scanning IP {{$subnet.DeviceScanning}}, {{$subnet.DevicesScanned}} IPs out of {{$subnet.IpsCount}} scanned.
   {{- end }}
   {{- end }}
   {{- range $key, $subnet := .discoverySubnets}}
   {{- if eq $subnet.IpsCount $subnet.DevicesScanned }}
   {{- if eq $subnet.DevicesFound "" }}
-  Subnet {{$subnet.Subnet}} scanned with config {{$subnet.ConfigHash}}. Found no IPs in the subnet.
+  Subnet {{$subnet.Subnet}} scanned. Found no IPs in the subnet.
   {{- else }}
-  Subnet {{$subnet.Subnet}} scanned with config {{$subnet.ConfigHash}}. Found the following IP(s) : {{$subnet.DevicesFound}}
+  Subnet {{$subnet.Subnet}} scanned. Found the following IP(s) : {{$subnet.DevicesFound}}
   {{- end }}
   {{- else if eq $subnet.DeviceScanning "" }}
-  Subnet {{$subnet.Subnet}} with config {{$subnet.ConfigHash}} is queued for scanning.
+  Subnet {{$subnet.Subnet}} is queued for scanning.
   {{- else}}
-  Scanning subnet {{$subnet.Subnet}} with config {{$subnet.ConfigHash}}... Currently scanning IP {{$subnet.DeviceScanning}}, {{$subnet.DevicesScanned}} IPs out of {{$subnet.IpsCount}} scanned.
+  Scanning subnet {{$subnet.Subnet}}... Currently scanning IP {{$subnet.DeviceScanning}}, {{$subnet.DevicesScanned}} IPs out of {{$subnet.IpsCount}} scanned.
   {{- end }}
   {{- end }}
 {{- end -}}
