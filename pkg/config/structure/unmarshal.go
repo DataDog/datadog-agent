@@ -51,7 +51,7 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 	if rawval == nil {
 		return nil
 	}
-	source, err := nodetreemodel.NewNode(rawval)
+	source, err := nodetreemodel.NewNode(rawval, cfg.GetSource(key))
 	if err != nil {
 		return err
 	}
@@ -154,12 +154,12 @@ func copyMap(target reflect.Value, source nodetreemodel.Node, _ *featureSet) err
 	mtype := reflect.MapOf(ktype, vtype)
 	results := reflect.MakeMap(mtype)
 
-	mapKeys, err := source.ChildrenKeys()
-	if err != nil {
-		return err
+	inner, ok := source.(nodetreemodel.InnerNode)
+	if !ok {
+		return fmt.Errorf("can't copy a map into a leaf")
 	}
-	for _, mkey := range mapKeys {
-		child, err := source.GetChild(mkey)
+	for _, mkey := range inner.ChildrenKeys() {
+		child, err := inner.GetChild(mkey)
 		if err != nil {
 			return err
 		}

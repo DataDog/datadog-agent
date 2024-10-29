@@ -25,7 +25,6 @@ from tasks.libs.common.utils import (
     environ,
     get_build_flags,
     get_go_version,
-    get_gopath,
     get_version,
 )
 from tasks.libs.types.arch import ARCH_AMD64, Arch
@@ -45,8 +44,6 @@ is_windows = sys.platform == "win32"
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
 CI_PROJECT_DIR = os.environ.get("CI_PROJECT_DIR", ".")
-KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
-KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-security-agent-check", "files")
 STRESS_TEST_SUITE = "stresssuite"
 
 
@@ -74,9 +71,7 @@ def build(
             go_mod=go_mod,
         )
 
-    ldflags, gcflags, env = get_build_flags(
-        ctx, major_version=major_version, python_runtimes='3', static=static, install_path=install_path
-    )
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, install_path=install_path)
 
     main = "main."
     ld_vars = {
@@ -330,7 +325,9 @@ def create_dir_if_needed(dir):
 
 
 @task
-def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True, compiler="clang"):
+def build_embed_syscall_tester(
+    ctx, arch: str | Arch = CURRENT_ARCH, static=True, compiler="clang", ebpf_compiler="clang"
+):
     arch = Arch.from_str(arch)
     check_for_ninja(ctx)
     build_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "bin")
@@ -340,7 +337,7 @@ def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True
     nf_path = os.path.join(ctx.cwd, 'syscall-tester.ninja')
     with open(nf_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file, width=120)
-        ninja_define_ebpf_compiler(nw, arch=arch)
+        ninja_define_ebpf_compiler(nw, arch=arch, compiler=ebpf_compiler)
         ninja_define_exe_compiler(nw, compiler=compiler)
 
         ninja_syscall_tester(nw, build_dir, static=static, compiler=compiler)
@@ -382,7 +379,7 @@ def build_functional_tests(
                 bundle_ebpf=bundle_ebpf,
                 ebpf_compiler=ebpf_compiler,
             )
-        build_embed_syscall_tester(ctx, compiler=syscall_tester_compiler)
+        build_embed_syscall_tester(ctx, compiler=syscall_tester_compiler, ebpf_compiler=ebpf_compiler)
 
     arch = Arch.from_str(arch)
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, arch=arch)
@@ -541,32 +538,6 @@ def ebpfless_functional_tests(
         verbose=verbose,
         testflags=testflags,
     )
-
-
-@task
-def kitchen_functional_tests(
-    ctx,
-    verbose=False,
-    major_version='7',
-    build_tests=False,
-    testflags='',
-):
-    if build_tests:
-        functional_tests(
-            ctx,
-            verbose=verbose,
-            major_version=major_version,
-            output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite",
-            testflags=testflags,
-        )
-
-    kitchen_dir = os.path.join("test", "kitchen")
-    shutil.copy(
-        os.path.join(kitchen_dir, "kitchen-vagrant-security-agent.yml"), os.path.join(kitchen_dir, "kitchen.yml")
-    )
-
-    with ctx.cd(kitchen_dir):
-        ctx.run("kitchen test")
 
 
 @task
@@ -803,19 +774,18 @@ def go_generate_check(ctx):
         raise Exit(code=1)
 
 
+E2E_ARTIFACT_DIR = os.path.join(CI_PROJECT_DIR, "test", "new-e2e", "tests", "security-agent-functional", "artifacts")
+
+
 @task
-def kitchen_prepare(ctx, skip_linters=False):
+def e2e_prepare_win(ctx):
     """
-    Compile test suite for kitchen
+    Compile test suite for CWS windows new-e2e tests
     """
 
-    out_binary = "testsuite"
-    race = True
-    if is_windows:
-        out_binary = "testsuite.exe"
-        race = False
+    out_binary = "testsuite.exe"
 
-    testsuite_out_dir = os.path.join(KITCHEN_ARTIFACT_DIR, "tests")
+    testsuite_out_dir = E2E_ARTIFACT_DIR
     # Clean up previous build
     if os.path.exists(testsuite_out_dir):
         shutil.rmtree(testsuite_out_dir)
@@ -824,48 +794,24 @@ def kitchen_prepare(ctx, skip_linters=False):
     build_functional_tests(
         ctx,
         bundle_ebpf=False,
-        race=race,
+        race=False,
         debug=True,
         output=testsuite_out_path,
-        skip_linters=skip_linters,
+        skip_linters=True,
     )
-    if is_windows:
-        # build the ETW tests binary also
-        testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", "etw", out_binary)
-        srcpath = 'pkg/security/probe'
-        build_functional_tests(
-            ctx,
-            output=testsuite_out_path,
-            srcpath=srcpath,
-            bundle_ebpf=False,
-            race=race,
-            debug=True,
-            skip_linters=skip_linters,
-        )
 
-        return
-
-    stresssuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", STRESS_TEST_SUITE)
-    build_stress_tests(ctx, output=stresssuite_out_path, skip_linters=skip_linters)
-
-    # Copy clang binaries
-    for bin in ["clang-bpf", "llc-bpf"]:
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/{bin} {KITCHEN_ARTIFACT_DIR}/{bin}")
-
-    # Copy gotestsum binary
-    gopath = get_gopath(ctx)
-    ctx.run(f"cp {gopath}/bin/gotestsum {KITCHEN_ARTIFACT_DIR}/")
-
-    # Build test2json binary
-    ctx.run(f"go build -o {KITCHEN_ARTIFACT_DIR}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
-
-    ebpf_bytecode_dir = os.path.join(KITCHEN_ARTIFACT_DIR, "ebpf_bytecode")
-    ebpf_runtime_dir = os.path.join(ebpf_bytecode_dir, "runtime")
-    bytecode_build_dir = os.path.join(CI_PROJECT_DIR, "pkg", "ebpf", "bytecode", "build")
-
-    ctx.run(f"mkdir -p {ebpf_runtime_dir}")
-    ctx.run(f"cp {bytecode_build_dir}/runtime-security* {ebpf_bytecode_dir}")
-    ctx.run(f"cp {bytecode_build_dir}/runtime/runtime-security* {ebpf_runtime_dir}")
+    # build the ETW tests binary also
+    testsuite_out_path = os.path.join(E2E_ARTIFACT_DIR, "etw", out_binary)
+    srcpath = 'pkg/security/probe'
+    build_functional_tests(
+        ctx,
+        output=testsuite_out_path,
+        srcpath=srcpath,
+        bundle_ebpf=False,
+        race=False,
+        debug=True,
+        skip_linters=True,
+    )
 
 
 @task

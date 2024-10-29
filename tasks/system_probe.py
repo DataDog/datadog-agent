@@ -611,7 +611,6 @@ def build(
     race=False,
     incremental_build=True,
     major_version='7',
-    python_runtimes='3',
     go_mod="mod",
     arch: str = CURRENT_ARCH,
     bundle_ebpf=False,
@@ -622,6 +621,7 @@ def build(
     with_unit_test=False,
     bundle=True,
     ebpf_compiler='clang',
+    static=False,
 ):
     """
     Build the system-probe
@@ -641,7 +641,6 @@ def build(
     build_sysprobe_binary(
         ctx,
         major_version=major_version,
-        python_runtimes=python_runtimes,
         bundle_ebpf=bundle_ebpf,
         go_mod=go_mod,
         race=race,
@@ -649,6 +648,7 @@ def build(
         strip_binary=strip_binary,
         bundle=bundle,
         arch=arch,
+        static=static,
     )
 
 
@@ -668,7 +668,6 @@ def build_sysprobe_binary(
     race=False,
     incremental_build=True,
     major_version='7',
-    python_runtimes='3',
     go_mod="mod",
     arch: str = CURRENT_ARCH,
     binary=BIN_PATH,
@@ -676,13 +675,13 @@ def build_sysprobe_binary(
     bundle_ebpf=False,
     strip_binary=False,
     bundle=True,
+    static=False,
 ) -> None:
     if bundle and not is_windows:
         return agent_build(
             ctx,
             race=race,
             major_version=major_version,
-            python_runtimes=python_runtimes,
             go_mod=go_mod,
             bundle_ebpf=bundle_ebpf,
             bundle=BUNDLED_AGENTS[AgentFlavor.base] + ["system-probe"],
@@ -691,7 +690,11 @@ def build_sysprobe_binary(
     arch_obj = Arch.from_str(arch)
 
     ldflags, gcflags, env = get_build_flags(
-        ctx, install_path=install_path, major_version=major_version, python_runtimes=python_runtimes, arch=arch_obj
+        ctx,
+        install_path=install_path,
+        major_version=major_version,
+        arch=arch_obj,
+        static=static,
     )
 
     build_tags = get_default_build_tags(build="system-probe")
@@ -699,6 +702,10 @@ def build_sysprobe_binary(
         build_tags.append(BUNDLE_TAG)
     if strip_binary:
         ldflags += ' -s -w'
+
+    if static:
+        build_tags.extend(["osusergo", "netgo"])
+        build_tags = list(set(build_tags).difference({"netcgo"}))
 
     if os.path.exists(binary):
         os.remove(binary)
@@ -1501,6 +1508,7 @@ def build_cws_object_files(
         strip_object_files=strip_object_files,
         kernel_release=kernel_release,
         with_unit_test=with_unit_test,
+        ebpf_compiler=ebpf_compiler,
     )
 
     if bundle_ebpf:

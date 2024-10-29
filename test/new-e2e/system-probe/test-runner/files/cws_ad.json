@@ -1,0 +1,14 @@
+{
+	"filters": {
+		"pkg/security": {
+			"exclude": false,
+			"run-only": [
+				"TestActivityDump",
+				"TestSecurityProfile"
+			]
+		}
+	},
+	"additional_env_vars": [
+		"DEDICATED_ACTIVITY_DUMP_NODE=1"
+	]
+}

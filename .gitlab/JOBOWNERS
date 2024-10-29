@@ -132,6 +132,8 @@ trigger_auto_staging_release           @DataDog/agent-delivery
 integration_tests_windows*    @DataDog/windows-agent
 integration_tests_otel        @DataDog/opentelemetry
 docker_image_build_otel       @DataDog/opentelemetry
+agent_integration_tests       @DataDog/container-integrations
+docker_integration_tests      @DataDog/container-integrations
 
 # Functional test
 kitchen_*_system_probe_windows*                @DataDog/windows-kernel-integrations
@@ -147,31 +149,9 @@ k8s-e2e-otlp-*                    @DataDog/opentelemetry
 k8s-e2e-cspm-*                    @DataDog/agent-security
 
 # New E2E
-new-e2e-containers*                    @DataDog/container-integrations
-new-e2e-agent-subcommands*             @DataDog/agent-shared-components
-new-e2e-agent-shared-components*       @DataDog/agent-shared-components
-new-e2e-language-detection*            @DataDog/processes
-new-e2e-process*                       @DataDog/processes
-new-e2e-agent-platform*                @DataDog/container-ecosystems @DataDog/agent-delivery
-new-e2e-platform-integrations*         @DataDog/agent-delivery @DataDog/platform-integrations
-new-e2e-aml*                           @DataDog/agent-metrics-logs
-new-e2e-apm*                           @DataDog/agent-apm
-new-e2e-discovery*                     @Datadog/universal-service-monitoring
-new-e2e-ndm*                           @DataDog/network-device-monitoring
-new-e2e-npm*                           @DataDog/Networks
-new-e2e-cws*                           @DataDog/agent-security
-new-e2e-orchestrator*                  @DataDog/container-app
-new-e2e-otel*                          @DataDog/opentelemetry
-e2e_pre_test*                          @DataDog/agent-devx-loops
-new-e2e-remote-config*                 @DataDog/remote-config
-new-e2e-installer*                     @DataDog/fleet
-new-e2e-installer-windows              @DataDog/windows-agent
-new-e2e-windows*                       @DataDog/windows-agent
-new-e2e-windows-systemprobe            @DataDog/windows-kernel-integrations
-new-e2e-windows-security-agent         @DataDog/windows-kernel-integrations
-new-e2e_windows_powershell_module_test @DataDog/windows-kernel-integrations
-new-e2e-eks-cleanup-on-failure         @DataDog/agent-devx-loops
-new-e2e-gpu*                           @DataDog/ebpf-platform
+e2e_pre_test*                     @DataDog/agent-devx-loops
+new-e2e*                          @DataDog/multiple
+
 
 # Kernel matrix testing
 upload_dependencies*              @DataDog/ebpf-platform
