@@ -6,6 +6,7 @@
 package obfuscate
 
 import (
+	"fmt"
 	"net"
 	"net/netip"
 	"regexp"
@@ -30,7 +31,8 @@ func QuantizePeerIPAddresses(raw string) string {
 	return strings.Join(uniq, ",")
 }
 
-var protocolRegex = regexp.MustCompile(`((?:dnspoll|ftp|file|http|https):/{2,3}).*`)
+var schemes = []string{"dnspoll", "ftp", "file", "http", "https"}
+var protocolRegex = regexp.MustCompile(fmt.Sprintf(`((?:%s):/{2,3}).*`, strings.Join(schemes, "|")))
 
 var allowedIPAddresses = map[string]bool{
 	// localhost
@@ -49,7 +51,7 @@ func splitPrefix(raw string) (prefix, after string) {
 	}
 
 	isHintFound := false
-	for _, hint := range []string{"dnspoll", "ftp", "file", "http"} {
+	for _, hint := range schemes {
 		if strings.Contains(raw, hint) {
 			isHintFound = true
 			break
