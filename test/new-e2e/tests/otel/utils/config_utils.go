@@ -93,6 +93,7 @@ func TestOTelFlare(s OTelTestSuite, providedCfg string, fullCfg string, sources 
 		assert.JSONEq(s.T(), sources, string(srcJSONStr))
 
 		assert.Contains(s.T(), otelflares["otel/otel-flare/health_check/dd-autoconfigured.dat"], `"status":"Server available"`)
+		return
 	}
 
 	s.T().Error("Failed to collect all OTel flares after 20 minutes")
