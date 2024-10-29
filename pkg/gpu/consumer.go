@@ -92,7 +92,7 @@ func (c *cudaEventConsumer) Start() {
 			case <-health.C:
 			case <-processSync.C:
 				c.checkClosedProcesses()
-				c.sysCtx.removeProcess()
+				c.sysCtx.cleanupOldEntries()
 			case batchData, ok := <-dataChannel:
 				if !ok {
 					return

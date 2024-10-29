@@ -9,6 +9,7 @@ package gpu
 
 import (
 	"fmt"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -321,7 +322,8 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 }
 
 func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
+	proc := kernel.ProcFSRoot()
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), proc)
 	require.NoError(t, err)
 
 	// Set up the caches in system context so no actual queries are done
@@ -338,7 +340,7 @@ func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 		kernel.ProcMapEntry{Start: 0, End: 1000, Offset: 0, Path: binPath},
 	}
 
-	procBinPath := fmt.Sprintf("/proc/%d/root/%s", pid, binPath)
+	procBinPath := path.Join(proc, fmt.Sprintf("%d/root/%s", pid, binPath))
 	kernKey := cuda.CubinKernelKey{Name: kernName, SmVersion: smVersion}
 	sysCtx.fileData[procBinPath] = &fileData{
 		symbolTable: map[uint64]string{kernAddress: kernName},
