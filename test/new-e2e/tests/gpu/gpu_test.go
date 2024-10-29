@@ -51,6 +51,7 @@ const vectorAddDockerImg = "ghcr.io/datadog/apps-cuda-basic"
 const gpuEnabledAMI = "ami-0f71e237bb2ba34be" // Ubuntu 22.04 with GPU drivers
 
 // TestGPUSuite runs tests for the VM interface to ensure its implementation is correct.
+// Not to be run in parallel, as some tests wait until the checks are available.
 func TestGPUSuite(t *testing.T) {
 	provisioner := awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(
@@ -126,6 +127,14 @@ func (v *gpuSuite) TestGPUCheckIsEnabled() {
 
 	gpuCheckStatus := status.RunnerStats.Checks["gpu"]
 	v.Require().Equal(gpuCheckStatus.LastError, "")
+}
+
+func (v *gpuSuite) TestGPUSysprobeEndpointIsResponding() {
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		out, err := v.Env().RemoteHost.Execute("sudo curl -s --unix /opt/datadog-agent/run/sysprobe.sock http://unix/gpu/check")
+		assert.NoError(c, err)
+		assert.NotEmpty(c, out)
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (v *gpuSuite) TestVectorAddProgramDetected() {
