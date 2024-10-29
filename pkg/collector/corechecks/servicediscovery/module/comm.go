@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	// maximum command name length to process when checking for non-reportable commands
-	// file /proc/<pid>/comm stores a length of up to 16 bytes, where the last byte is the end of the line.
+	// maximum command name length to process when checking for non-reportable commands,
+	// is one byte less (excludes end of line) than the maximum of /proc/<pid>/comm
+	// defined in https://man7.org/linux/man-pages/man5/proc.5.html.
 	maxCommLen = 15
 )
 

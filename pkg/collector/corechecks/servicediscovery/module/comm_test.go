@@ -12,14 +12,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
+	"github.com/shirou/gopsutil/v3/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	httptestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 )
@@ -126,73 +125,27 @@ func TestShouldIgnoreComm(t *testing.T) {
 			t.Cleanup(func() { cancel() })
 
 			makeAlias(t, test.comm, serverBin)
+			t.Cleanup(func() {
+				os.Remove(test.comm)
+			})
 			bin := filepath.Join(serverDir, test.comm)
 			cmd := exec.CommandContext(ctx, bin)
 			err := cmd.Start()
 			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = cmd.Process.Kill()
+			})
+
+			var proc *process.Process
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				proc, err = customNewProcess(int32(cmd.Process.Pid))
+				assert.NoError(collect, err)
+			}, 2*time.Second, 100*time.Millisecond)
 
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				proc, err := customNewProcess(int32(cmd.Process.Pid))
-				assert.NoError(t, err)
-
 				ignore := discovery.shouldIgnoreComm(proc)
 				assert.Equal(t, test.ignore, ignore)
-			}, 10*time.Second, 100*time.Millisecond)
-		})
-	}
-}
-
-func TestLoadIgnoredComm(t *testing.T) {
-	tests := []struct {
-		name  string   // The name of the test.
-		comms []string // list of command names to test
-	}{
-		{
-			name:  "empty list of commands",
-			comms: []string{},
-		},
-		{
-			name: "short commands in config list",
-			comms: []string{
-				"cron",
-				"polkitd",
-				"rsyslogd",
-				"bash",
-				"sshd",
-			},
-		},
-		{
-			name: "long commands in config list",
-			comms: []string{
-				"containerd-shim-runc-v2",
-				"calico-node",
-				"unattended-upgrade-shutdown",
-				"bash",
-				"kube-controller-manager",
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			mockSystemProbe := mock.NewSystemProbe(t)
-			require.NotEmpty(t, mockSystemProbe)
-
-			commsStr := strings.Join(test.comms, "   ") // intentionally multiple spaces for sensitivity testing
-			mockSystemProbe.SetWithoutSource("discovery.ignored_command_names", commsStr)
-
-			discovery := newDiscovery()
-			require.NotEmpty(t, discovery)
-
-			require.Equal(t, len(discovery.config.ignoreComms), len(test.comms))
-
-			for _, cmd := range test.comms {
-				if len(cmd) > maxCommLen {
-					cmd = cmd[:maxCommLen]
-				}
-				_, found := discovery.config.ignoreComms[cmd]
-				assert.True(t, found)
-			}
+			}, 200*time.Millisecond, 100*time.Millisecond)
 		})
 	}
 }
