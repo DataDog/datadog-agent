@@ -162,7 +162,7 @@ func GetHostAliases(ctx context.Context) ([]string, error) {
 
 	// Try to use IMSDv2 if GetInstanceID didn't try it already
 	imdsv2Action := UseIMDSv2(false, false)
-	if imdsv2Action == disableIMDSv2 {
+	if imdsv2Action == notUseIMDSv2 {
 		imsdv2InstanceID, err := GetIDMSv2InstanceID(ctx)
 		if err == nil {
 			return []string{imsdv2InstanceID}, nil
