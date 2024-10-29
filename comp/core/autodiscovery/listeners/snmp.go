@@ -512,6 +512,7 @@ func convertToCommaSepTags(tags []string) string {
 	return strings.Join(normalizedTags, tagSeparator)
 }
 
+// GetSubnetVarKey returns a key for a subnet in the expvar map
 func GetSubnetVarKey(network string, cacheKey string) string {
 	return fmt.Sprintf("%s|%s", network, strings.Trim(cacheKey, fmt.Sprintf("%s:", cacheKeyPrefix)))
 }
