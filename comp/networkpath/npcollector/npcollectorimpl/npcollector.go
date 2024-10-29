@@ -330,13 +330,18 @@ func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath) {
 		return
 	}
 
-	ipAddrs := make([]string, 0, len(path.Hops)+1) // +1 for destination
-	ipAddrs = append(ipAddrs, path.Destination.IPAddress)
+	// collect unique IP addresses from destination and hops
+	ipSet := make(map[string]struct{}, len(path.Hops)+1) // +1 for destination
+	ipSet[path.Destination.IPAddress] = struct{}{}
 	for _, hop := range path.Hops {
 		if !hop.Reachable {
 			continue
 		}
-		ipAddrs = append(ipAddrs, hop.IPAddress)
+		ipSet[hop.IPAddress] = struct{}{}
+	}
+	ipAddrs := make([]string, 0, len(ipSet))
+	for ip := range ipSet {
+		ipAddrs = append(ipAddrs, ip)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), s.collectorConfigs.reverseDNSTimeout)
