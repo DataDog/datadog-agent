@@ -151,23 +151,23 @@ func saveHostname(cacheHostnameKey string, hostname string, providerName string)
 
 // GetWithProvider returns the hostname for the Agent and the provider that was use to retrieve it
 func GetWithProvider(ctx context.Context) (Data, error) {
-	return getHostname(ctx, true, false)
+	return getHostname(ctx, "hostname", false)
 }
 
 // GetWithProviderWithoutCacheAndIMDSV2 returns the hostname for the Agent and the provider that was use to retrieve it without using the cache and without using IMDSv2
-func GetWithProviderWithoutCacheAndIMDSV2(ctx context.Context) (Data, error) {
+func GetWithProviderWithoutIMDSV2(ctx context.Context) (Data, error) {
 	if !pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") {
 		return Data{}, nil
 	}
-	data, err := getHostname(ctx, false, true)
+	data, err := getHostname(ctx, "legacy_resolution_hostname", true)
 	return data, err
 }
 
-func getHostname(ctx context.Context, useCache bool, disableIMDSv2 bool) (Data, error) {
-	cacheHostnameKey := cache.BuildAgentKey("hostname")
+func getHostname(ctx context.Context, keyCache string, disableIMDSv2 bool) (Data, error) {
+	cacheHostnameKey := cache.BuildAgentKey(keyCache)
 
 	// first check if we have a hostname cached
-	if cacheHostname, found := cache.Cache.Get(cacheHostnameKey); found && useCache {
+	if cacheHostname, found := cache.Cache.Get(cacheHostnameKey); found {
 		return cacheHostname.(Data), nil
 	}
 
@@ -193,20 +193,15 @@ func getHostname(ctx context.Context, useCache bool, disableIMDSv2 bool) (Data, 
 
 		if p.stopIfSuccessful {
 			log.Debugf("hostname provider '%s' succeeded, stoping here with hostname '%s'", p.name, detectedHostname)
-			if useCache {
-				return saveHostname(cacheHostnameKey, hostname, p.name), nil
-			}
-			return Data{Hostname: hostname, Provider: p.name}, nil
+			return saveHostname(cacheHostnameKey, hostname, p.name), nil
+
 		}
 	}
 
 	warnAboutFQDN(ctx, hostname)
 
 	if hostname != "" {
-		if useCache {
-			return saveHostname(cacheHostnameKey, hostname, providerName), nil
-		}
-		return Data{Hostname: hostname, Provider: providerName}, nil
+		return saveHostname(cacheHostnameKey, hostname, providerName), nil
 	}
 
 	err = fmt.Errorf("unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
