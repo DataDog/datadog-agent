@@ -19,7 +19,7 @@ var templatePath = flag.String("template", "heavy-sample.cu.tmpl", "Path to the 
 var outputPath = flag.String("output", "heavy-sample.cu", "Path to the output file")
 var numKernels = flag.Int("kernels", 80, "Number of kernels to generate")
 var numVariablesPerKernel = flag.Int("variables", 10, "Number of variables to generate per kernel")
-var numInstructionsPerKernel = flag.Int("instructions", 1000, "Number of instructions to generate per kernel")
+var numInstructionsPerKernel = flag.Int("instructions", 10000, "Number of instructions to generate per kernel")
 var sharedMemorySize = flag.Int("shared-memory", 1024, "Size of the shared memory in bytes")
 
 const sharedMemoryVar = "myVar"

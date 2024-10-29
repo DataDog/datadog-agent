@@ -105,10 +105,10 @@ func TestParseBigFatbinFromPath(t *testing.T) {
 	var expectedKernels = make([]string, numKernels)
 	for i := 0; i < numKernels; i++ {
 		mangledArgSpec := strings.Repeat("S_", numVariablesPerKernel-1)
-		mangledKernName := fmt.Sprintf("_Z9kernel_%dPf%s", i, mangledArgSpec)
+		funcName := fmt.Sprintf("kernel_%d", i)
+		mangledKernName := fmt.Sprintf("_Z%d%sPf%s", len(funcName), funcName, mangledArgSpec)
 		expectedKernels[i] = mangledKernName
 		expectedSharedMemSizes[mangledKernName] = uint64(sharedMemSize)
-		fmt.Printf("expected kernel: %s\n", mangledKernName)
 	}
 
 	seenSmVersionsAndKernels := make(map[uint32][]string)
