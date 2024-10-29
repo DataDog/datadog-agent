@@ -174,9 +174,8 @@ func (d *tlsDebugger) ClearBlocked() {
 
 	for _, registry := range d.registries {
 		registry.m.Lock()
-		defer registry.m.Unlock()
-
 		registry.blocklistByID.Purge()
+		registry.m.Unlock()
 	}
 }
 
