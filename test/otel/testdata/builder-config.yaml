@@ -1,7 +1,7 @@
 dist:
   name: otelcol-custom
   description: Basic OTel Collector distribution for Developers
-  output_path: ./otelcol-custom
+  output_path: /tmp/otel-ci/otelcol-custom
   otelcol_version: 0.105.0
 exporters:
   - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.105.0

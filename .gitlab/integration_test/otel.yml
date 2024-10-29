@@ -64,11 +64,27 @@ ddflare_extension_ocb_build:
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - mkdir -p /tmp/otel-ci
-    - cp test/otel/testdata/builder-config.yaml /tmp/otel-ci/
+    - cp test/otel/* /tmp/otel-ci/
     - wget -O /tmp/otel-ci/ocb https://github.com/open-telemetry/opentelemetry-collector/releases/download/cmd%2Fbuilder%2Fv0.105.0/ocb_0.105.0_linux_amd64
     - chmod +x /tmp/otel-ci/ocb
+    # - cd /tmp/otel-ci
   script:
-    - "echo 'TODO: Build collector with OCB and test ddflare'"
+    - |
+      echo 'Building collector with OCB and test ddflare extension'
+    - /tmp/otel-ci/ocb --config=/tmp/otel-ci/builder-config.yaml > ocb-output.log 2>&1
+    - grep -q 'Compiled' ocb-output.log || (echo "OCB failed to compile" && exit 1)
+    - |
+      grep -q '{"binary": "/tmp/otel-ci/otelcol-custom/otelcol-custom"}' ocb-output.log || (echo "OCB failed to compile" && exit 1)
+    - /tmp/otel-ci/otelcol-custom/otelcol-custom --config /tmp/otel-ci/collector-config.yaml > otelcol-custom.log 2>&1 &
+    - OTELCOL_PID=$!  # Capture the process ID
+    - sleep 10  # Wait for the process to start
+    - grep -q 'Everything is ready. Begin running and processing data.' otelcol-custom.log || (echo "custom collector failed to start" && kill $OTELCOL_PID && exit 1)
+    - curl -k https://localhost:7777 > flare-info.log 2>&1 # get the dd flare info
+    - |
+      grep -q '"provided_configuration": "ConfigProvider not supported, only enhanced config available"' flare-info.log || (echo "provided config should not be supported with ocb" && kill $OTELCOL_PID && exit 1)
+    - |
+      grep -q 'extensions:\\n  - ddflare\\n' flare-info.log || (echo "ddflare extension should be enabled" && kill $OTELCOL_PID && exit 1)
+    - kill $OTELCOL_PID  # Kill the process
   rules:
     - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
       when: never
