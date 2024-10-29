@@ -149,6 +149,20 @@ func saveHostname(cacheHostnameKey string, hostname string, providerName string)
 	return data
 }
 
+// GetWithProvider returns the hostname for the Agent and the provider that was use to retrieve it
+func GetWithProvider(ctx context.Context) (Data, error) {
+	return getHostname(ctx, true, false)
+}
+
+// GetWithProviderWithoutCacheAndIMDSV2 returns the hostname for the Agent and the provider that was use to retrieve it without using the cache and without using IMDSv2
+func GetWithProviderWithoutCacheAndIMDSV2(ctx context.Context) (Data, error) {
+	if !pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") {
+		return Data{}, nil
+	}
+	data, err := getHostname(ctx, false, true)
+	return data, err
+}
+
 func getHostname(ctx context.Context, useCache bool, disableIMDSv2 bool) (Data, error) {
 	cacheHostnameKey := cache.BuildAgentKey("hostname")
 
@@ -200,20 +214,6 @@ func getHostname(ctx context.Context, useCache bool, disableIMDSv2 bool) (Data, 
 	expErr.Set(err.Error())
 	hostnameErrors.Set("all", expErr)
 	return Data{}, err
-}
-
-// GetWithProviderWithoutCacheAndIMDSV2 returns the hostname for the Agent and the provider that was use to retrieve it without using the cache and without using IMDSv2
-func GetWithProviderWithoutCacheAndIMDSV2(ctx context.Context) (Data, error) {
-	if !pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") {
-		return Data{}, nil
-	}
-	data, err := getHostname(ctx, false, true)
-	return data, err
-}
-
-// GetWithProvider returns the hostname for the Agent and the provider that was use to retrieve it
-func GetWithProvider(ctx context.Context) (Data, error) {
-	return getHostname(ctx, true, false)
 }
 
 // Get returns the host name for the agent
