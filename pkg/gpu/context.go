@@ -34,7 +34,7 @@ type systemContext struct {
 	// deviceSmVersions maps each device index to its SM (Compute architecture) version
 	deviceSmVersions map[int]int
 
-	// fileData maps each file path to its Fatbin file data
+	// fileData maps each executable file path to its Fatbin file data
 	fileData map[string]*fileData
 
 	// pidMaps maps each process ID to its memory maps
