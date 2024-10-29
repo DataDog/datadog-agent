@@ -96,6 +96,7 @@ func createEntitiesFromPayload(payload *gogen.MetricPayload) map[*Entity]*Entity
 	return entities
 }
 
+// ProcessLoadPayload converts the metric payload and stores the entities and their values in the store.
 func ProcessLoadPayload(payload *gogen.MetricPayload, store Store) {
 	if payload == nil || store == nil {
 		return
