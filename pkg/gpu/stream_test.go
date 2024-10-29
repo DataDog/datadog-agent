@@ -13,7 +13,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -393,9 +392,9 @@ func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 	require.Equal(t, currTime, span.endKtime)
 	require.Equal(t, uint64(numLaunches), span.numKernels)
 	require.Equal(t, uint64(threadCount), span.avgThreadCount)
-	require.Equal(t, sharedMem, span.avgMemoryUsage[model.SharedMemAlloc])
-	require.Equal(t, constantMem, span.avgMemoryUsage[model.ConstantMemAlloc])
-	require.Equal(t, kernSize, span.avgMemoryUsage[model.KernelMemAlloc])
+	require.Equal(t, sharedMem, span.avgMemoryUsage[sharedMemAlloc])
+	require.Equal(t, constantMem, span.avgMemoryUsage[constantMemAlloc])
+	require.Equal(t, kernSize, span.avgMemoryUsage[kernelMemAlloc])
 
 	// Now we mark a sync event
 	syncTime := uint64(200)
@@ -411,9 +410,9 @@ func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 	require.Equal(t, syncTime, span.endKtime)
 	require.Equal(t, uint64(numLaunches), span.numKernels)
 	require.Equal(t, uint64(threadCount), span.avgThreadCount)
-	require.Equal(t, sharedMem, span.avgMemoryUsage[model.SharedMemAlloc])
-	require.Equal(t, constantMem, span.avgMemoryUsage[model.ConstantMemAlloc])
-	require.Equal(t, kernSize, span.avgMemoryUsage[model.KernelMemAlloc])
+	require.Equal(t, sharedMem, span.avgMemoryUsage[sharedMemAlloc])
+	require.Equal(t, constantMem, span.avgMemoryUsage[constantMemAlloc])
+	require.Equal(t, kernSize, span.avgMemoryUsage[kernelMemAlloc])
 
 	// We should have no current data
 	require.Nil(t, stream.getCurrentData(currTime))

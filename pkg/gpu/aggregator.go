@@ -100,17 +100,15 @@ func (agg *aggregator) getGPUUtilization() float64 {
 // GPU can run in parallel. This factor allows distributing the utilization
 // over all the streams that were active during the interval.
 func (agg *aggregator) getStats(utilizationNormFactor float64) model.ProcessStats {
-	stats := model.ProcessStats{
-		Memory: make(map[model.MemAllocType]model.MemoryStats),
-	}
+	var stats model.ProcessStats
 
 	if agg.measuredIntervalNs > 0 {
 		stats.UtilizationPercentage = agg.getGPUUtilization() / utilizationNormFactor
 	}
 
-	memTsBuilders := make(map[model.MemAllocType]*tseriesBuilder)
-	for _, allocType := range model.AllMemAllocTypes {
-		memTsBuilders[allocType] = &tseriesBuilder{}
+	memTsBuilders := make(map[memAllocType]*tseriesBuilder)
+	for i := memAllocType(0); i < memAllocTypeCount; i++ {
+		memTsBuilders[memAllocType(i)] = &tseriesBuilder{}
 	}
 
 	for _, alloc := range agg.currentAllocs {
@@ -121,12 +119,10 @@ func (agg *aggregator) getStats(utilizationNormFactor float64) model.ProcessStat
 		memTsBuilders[alloc.allocType].AddEvent(alloc.startKtime, alloc.endKtime, int64(alloc.size))
 	}
 
-	for allocType, memTsBuilder := range memTsBuilders {
+	for _, memTsBuilder := range memTsBuilders {
 		lastValue, maxValue := memTsBuilder.GetLastAndMax()
-		stats.Memory[allocType] = model.MemoryStats{
-			CurrentBytes: uint64(lastValue),
-			MaxBytes:     uint64(maxValue),
-		}
+		stats.Memory.CurrentBytes += uint64(lastValue)
+		stats.Memory.MaxBytes += uint64(maxValue)
 	}
 
 	// Flush the data that we used

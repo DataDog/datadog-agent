@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"math"
 
-	model "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
@@ -48,6 +47,25 @@ type streamData struct {
 	allocations []*memoryAllocation
 }
 
+type memAllocType int
+
+const (
+	// kernelMemAlloc represents allocations due to kernel binary size
+	kernelMemAlloc memAllocType = iota
+
+	// globalMemAlloc represents allocations due to global memory
+	globalMemAlloc
+
+	// sharedMemAlloc represents allocations in shared memory space
+	sharedMemAlloc
+
+	// constantMemAlloc represents allocations in constant memory space
+	constantMemAlloc
+
+	// memAllocTypeCount is the maximum number of memory allocation types
+	memAllocTypeCount
+)
+
 // memoryAllocation represents a memory allocation event
 type memoryAllocation struct {
 	// Start is the kernel-time timestamp of the allocation event
@@ -63,7 +81,7 @@ type memoryAllocation struct {
 	isLeaked bool
 
 	// allocType is the type of the allocation
-	allocType model.MemAllocType
+	allocType memAllocType
 }
 
 // kernelSpan represents a span of time during which one or more kernels were
@@ -82,7 +100,7 @@ type kernelSpan struct {
 	numKernels uint64
 
 	// avgMemoryUsage is the average memory usage during the span, per allocation type
-	avgMemoryUsage map[model.MemAllocType]uint64
+	avgMemoryUsage map[memAllocType]uint64
 }
 
 func newStreamHandler(key streamKey, sysCtx *systemContext) *StreamHandler {
@@ -161,7 +179,7 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 		startKtime: alloc.Header.Ktime_ns,
 		endKtime:   event.Header.Ktime_ns,
 		size:       alloc.Size,
-		allocType:  model.GlobalMemAlloc,
+		allocType:  globalMemAlloc,
 		isLeaked:   false, // Came from a free event, so it's not a leak
 	}
 
@@ -197,7 +215,7 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 		startKtime:     math.MaxUint64,
 		endKtime:       maxTime,
 		numKernels:     0,
-		avgMemoryUsage: make(map[model.MemAllocType]uint64),
+		avgMemoryUsage: make(map[memAllocType]uint64),
 	}
 
 	for _, launch := range sh.kernelLaunches {
@@ -212,12 +230,12 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 		blockSize := launch.Block_size.X * launch.Block_size.Y * launch.Block_size.Z
 		blockCount := launch.Grid_size.X * launch.Grid_size.Y * launch.Grid_size.Z
 		span.avgThreadCount += uint64(blockSize) * uint64(blockCount)
-		span.avgMemoryUsage[model.SharedMemAlloc] += uint64(launch.Shared_mem_size)
+		span.avgMemoryUsage[sharedMemAlloc] += uint64(launch.Shared_mem_size)
 
 		if launch.kernel != nil {
-			span.avgMemoryUsage[model.ConstantMemAlloc] += uint64(launch.kernel.ConstantMem)
-			span.avgMemoryUsage[model.SharedMemAlloc] += uint64(launch.kernel.SharedMem)
-			span.avgMemoryUsage[model.KernelMemAlloc] += uint64(launch.kernel.KernelSize)
+			span.avgMemoryUsage[constantMemAlloc] += uint64(launch.kernel.ConstantMem)
+			span.avgMemoryUsage[sharedMemAlloc] += uint64(launch.kernel.SharedMem)
+			span.avgMemoryUsage[kernelMemAlloc] += uint64(launch.kernel.KernelSize)
 		}
 
 		span.numKernels++
@@ -294,7 +312,7 @@ func (sh *StreamHandler) getCurrentData(now uint64) *streamData {
 			endKtime:   0,
 			size:       alloc.Size,
 			isLeaked:   false,
-			allocType:  model.GlobalMemAlloc,
+			allocType:  globalMemAlloc,
 		})
 	}
 
@@ -319,7 +337,7 @@ func (sh *StreamHandler) markEnd() error {
 			endKtime:   uint64(nowTs),
 			size:       alloc.Size,
 			isLeaked:   true,
-			allocType:  model.GlobalMemAlloc,
+			allocType:  globalMemAlloc,
 		}
 		sh.allocations = append(sh.allocations, &data)
 	}
