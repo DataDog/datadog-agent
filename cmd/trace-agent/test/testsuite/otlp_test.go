@@ -313,7 +313,6 @@ otlp_config:
       endpoint: 0.0.0.0:5111
 apm_config:
   env: my-env
-  compute_stats_by_span_kind: false
 `, port)
 		if err := r.RunAgent([]byte(c)); err != nil {
 			t.Fatal(err)
