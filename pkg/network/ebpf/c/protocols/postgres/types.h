@@ -7,10 +7,10 @@
 #define POSTGRES_BUFFER_SIZE 160
 
 // Represents the maximum number of tail calls we can use to process a single message.
-#define POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES 4
+#define POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES 1
 
 // Represents the maximum number of messages we process in a single tail call.
-#define POSTGRES_MAX_MESSAGES_PER_TAIL_CALL 20
+#define POSTGRES_MAX_MESSAGES_PER_TAIL_CALL 100
 
 // Postgres transaction information we store in the kernel.
 typedef struct {
@@ -31,7 +31,7 @@ typedef struct {
 
 typedef struct {
     __u8 iteration;
-    // Saving the data offset is crucial for maintaining the current read position and ensuring proper utilization
+    // Saving the packet data offset is crucial for maintaining the current read position and ensuring proper utilization
     // of tail calls.
     __u32 data_off;
 } postgres_tail_call_state_t;
