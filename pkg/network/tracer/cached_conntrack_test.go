@@ -87,10 +87,10 @@ func TestCachedConntrackIgnoreErrNotPermitted(t *testing.T) {
 
 	t.Cleanup(func() { cache.Close() })
 
-	c := &network.ConnectionStats{
+	c := &network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 		NetNS: 123455,
 		Pid:   1,
-	}
+	}}
 
 	exists, err := cache.Exists(c)
 	require.True(t, createCalled, "conntrack creator not called")
@@ -107,10 +107,10 @@ func TestCachedConntrackCacheCreatorError(t *testing.T) {
 
 	t.Cleanup(func() { cache.Close() })
 
-	c := &network.ConnectionStats{
+	c := &network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 		NetNS: 123455,
 		Pid:   1,
-	}
+	}}
 
 	exists, err := cache.Exists(c)
 	require.True(t, createCalled, "conntrack creator not called")
@@ -144,7 +144,7 @@ func TestCachedConntrackExists(t *testing.T) {
 	daddr := util.AddressFromString("2.3.4.5")
 	var sport uint16 = 23
 	var dport uint16 = 223
-	ct := &network.ConnectionStats{
+	ct := &network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 		Pid:    uint32(os.Getpid()),
 		NetNS:  1234,
 		Source: saddr,
@@ -153,7 +153,7 @@ func TestCachedConntrackExists(t *testing.T) {
 		DPort:  dport,
 		Type:   network.TCP,
 		Family: network.AFINET,
-	}
+	}}
 
 	m.EXPECT().Exists(gomock.Not(gomock.Nil())).Times(1).DoAndReturn(func(c *netlink.Con) (bool, error) {
 		require.Equal(t, saddr.String(), c.Origin.Src.Addr().String())
