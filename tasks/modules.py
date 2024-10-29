@@ -481,6 +481,8 @@ def validate_used_by_otel(ctx: Context):
 
     # for every module labeled as "used_by_otel"
     for otel_mod in otel_mods:
+        if otel_mod in [path.as_posix() for path in IGNORED_MODULE_PATHS]:
+            continue
         gomod_path = f"{otel_mod}/go.mod"
         # get the go.mod data
         result = ctx.run(f"go mod edit -json {gomod_path}", hide='both')
