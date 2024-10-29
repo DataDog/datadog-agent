@@ -118,7 +118,7 @@ func fetchFromFlare(t *testing.T, flare flare.Flare) map[string]string {
 		if strings.HasSuffix(filename, ".json") || strings.HasSuffix(filename, ".dat") || strings.HasSuffix(filename, ".txt") || strings.HasSuffix(filename, ".cfg") {
 			cnt, err := flare.GetFileContent(filename)
 			require.NoError(t, err)
-			t.Log("Got otel flare: ", filename, "\n", cnt)
+			t.Log("Got otel flare: ", filename)
 			parts := strings.SplitN(filename, "/", 2)
 			require.Len(t, parts, 2)
 			otelflares[parts[1]] = cnt
