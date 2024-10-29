@@ -276,6 +276,7 @@ func TestAPMStats(s OTelTestSuite, numTraces int) {
 		stats, err = s.Env().FakeIntake.Client().GetAPMStats()
 		assert.NoError(c, err)
 		assert.NotEmpty(c, stats)
+		s.T().Log("Got APM stats", stats)
 		hasStatsForService := false
 		for _, payload := range stats {
 			for _, csp := range payload.StatsPayload.Stats {
