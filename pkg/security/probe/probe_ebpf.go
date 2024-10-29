@@ -350,7 +350,7 @@ func (p *EBPFProbe) IsRuntimeCompiled() bool {
 	return p.runtimeCompiled
 }
 
-func (p *EBPFProbe) setupRawPacketProgs() error {
+func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 	rawPacketEventMap, _, err := p.Manager.GetMap("raw_packet_event")
 	if err != nil {
 		return err
@@ -360,7 +360,14 @@ func (p *EBPFProbe) setupRawPacketProgs() error {
 		return err
 	}
 
-	progSpec, err := probes.GetRawPacketTCFilterProg(rawPacketEventMap.FD(), routerMap.FD())
+	fields := rs.GetFieldValues("packet.filter")
+
+	var filters []string
+	for _, field := range fields {
+		filters = append(filters, field.Value.(string))
+	}
+
+	progSpec, err := probes.GetRawPacketTCFilterProg(rawPacketEventMap.FD(), routerMap.FD(), filters)
 	if err != nil {
 		return err
 	}
@@ -401,12 +408,6 @@ func (p *EBPFProbe) Setup() error {
 	}
 
 	p.profileManagers.Start(p.ctx, &p.wg)
-
-	if p.probe.IsNetworkRawPacketEnabled() {
-		if err := p.setupRawPacketProgs(); err != nil {
-			return err
-		}
-	}
 
 	return nil
 }
@@ -1716,6 +1717,12 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 			return nil, err
 		}
 		if err := p.monitors.syscallsMonitor.Enable(); err != nil {
+			return nil, err
+		}
+	}
+
+	if p.probe.IsNetworkRawPacketEnabled() {
+		if err := p.setupRawPacketProgs(rs); err != nil {
 			return nil, err
 		}
 	}

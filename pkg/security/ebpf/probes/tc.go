@@ -79,8 +79,8 @@ var RawPacketTCProgram = []string{
 }
 
 // GetRawPacketTCFilterProg returns a first tc filter
-func GetRawPacketTCFilterProg(rawPacketEventMapFd, clsRouterMapFd int) (*ebpf.ProgramSpec, error) {
-	pcapBPF, err := pcap.CompileBPFFilter(layers.LinkTypeEthernet, 256, "port 5555")
+func GetRawPacketTCFilterProg(rawPacketEventMapFd, clsRouterMapFd int, filters []string) (*ebpf.ProgramSpec, error) {
+	pcapBPF, err := pcap.CompileBPFFilter(layers.LinkTypeEthernet, 256, filters[0])
 	if err != nil {
 		return nil, err
 	}
