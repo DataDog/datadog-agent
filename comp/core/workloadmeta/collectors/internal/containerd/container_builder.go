@@ -28,11 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	// kataRuntimePrefix is the prefix used by Kata Containers runtime
-	kataRuntimePrefix    = "io.containerd.kata"
-	defaultRestartPolicy = "no"
-)
+// kataRuntimePrefix is the prefix used by Kata Containers runtime
+const kataRuntimePrefix = "io.containerd.kata"
 
 // buildWorkloadMetaContainer generates a workloadmeta.Container from a containerd.Container
 func buildWorkloadMetaContainer(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf, store workloadmeta.Component) (workloadmeta.Container, error) {
@@ -115,10 +112,6 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 	if info.Labels[restart.StatusLabel] == string(containerd.Running) {
 		restartCount, _ = strconv.Atoi(info.Labels[restart.CountLabel])
 	}
-	restartPolicy := defaultRestartPolicy
-	if policy := info.Labels[restart.PolicyLabel]; policy != "" {
-		restartPolicy = policy
-	}
 
 	// Some attributes in workloadmeta.Container cannot be fetched from
 	// containerd. I've marked those as "Not available".
@@ -142,10 +135,9 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 			StartedAt:  info.CreatedAt, // StartedAt not available in containerd, mapped to CreatedAt
 			FinishedAt: time.Time{},    // Not available
 		},
-		NetworkIPs:    networkIPs,
-		PID:           pid, // PID will be 0 for non-running containers
-		RestartCount:  restartCount,
-		RestartPolicy: restartPolicy,
+		NetworkIPs:   networkIPs,
+		PID:          pid, // PID will be 0 for non-running containers
+		RestartCount: restartCount,
 	}
 
 	// Spec retrieval is slow if large due to JSON parsing

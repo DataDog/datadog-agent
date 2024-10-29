@@ -85,7 +85,6 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 		"some_label":                   "some_val",
 		"containerd.io/restart.status": "running",
 		"containerd.io/restart.count":  "3",
-		"containerd.io/restart.policy": "always",
 	}
 	imgName := "datadog/agent:7"
 	envVarStrs := []string{
@@ -164,12 +163,11 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 					CreatedAt:  createdAt,
 					FinishedAt: time.Time{}, // Not available
 				},
-				NetworkIPs:    make(map[string]string), // Not available
-				Hostname:      hostName,
-				PID:           12345,
-				CgroupPath:    "kubelet-kubepods-burstable-pod99dcb84d2a34f7e338778606703258c4.slice/cri-containerd-ec9ea0ad54dd0d96142d5dbe11eb3f1509e12ba9af739620c7b5ad377ce94602.scope",
-				RestartCount:  3,
-				RestartPolicy: "always",
+				NetworkIPs:   make(map[string]string), // Not available
+				Hostname:     hostName,
+				PID:          12345,
+				CgroupPath:   "kubelet-kubepods-burstable-pod99dcb84d2a34f7e338778606703258c4.slice/cri-containerd-ec9ea0ad54dd0d96142d5dbe11eb3f1509e12ba9af739620c7b5ad377ce94602.scope",
+				RestartCount: 3,
 			},
 		},
 		{
@@ -213,12 +211,11 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 					CreatedAt:  createdAt,
 					FinishedAt: time.Time{}, // Not available
 				},
-				NetworkIPs:    make(map[string]string), // Not available
-				Hostname:      hostName,
-				PID:           0,
-				CgroupPath:    "kubelet-kubepods-burstable-pod99dcb84d2a34f7e338778606703258c4.slice/cri-containerd-ec9ea0ad54dd0d96142d5dbe11eb3f1509e12ba9af739620c7b5ad377ce94602.scope",
-				RestartCount:  3,
-				RestartPolicy: "always",
+				NetworkIPs:   make(map[string]string), // Not available
+				Hostname:     hostName,
+				PID:          0,
+				CgroupPath:   "kubelet-kubepods-burstable-pod99dcb84d2a34f7e338778606703258c4.slice/cri-containerd-ec9ea0ad54dd0d96142d5dbe11eb3f1509e12ba9af739620c7b5ad377ce94602.scope",
+				RestartCount: 3,
 			},
 		},
 	}

@@ -27,11 +27,10 @@ import (
 )
 
 const (
-	collectorID          = "podman"
-	componentName        = "workloadmeta-podman"
-	defaultBoltDBPath    = "/var/lib/containers/storage/libpod/bolt_state.db"
-	defaultSqlitePath    = "/var/lib/containers/storage/db.sql"
-	defaultRestartPolicy = "no"
+	collectorID       = "podman"
+	componentName     = "workloadmeta-podman"
+	defaultBoltDBPath = "/var/lib/containers/storage/libpod/bolt_state.db"
+	defaultSqlitePath = "/var/lib/containers/storage/db.sql"
 )
 
 type podmanClient interface {
@@ -186,11 +185,6 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 		eventType = workloadmeta.EventTypeUnset
 	}
 
-	restartPolicy := defaultRestartPolicy
-	if config := container.Config; config != nil {
-		restartPolicy = config.RestartPolicy
-	}
-
 	return workloadmeta.CollectorEvent{
 		Type:   eventType,
 		Source: workloadmeta.SourceRuntime,
@@ -219,8 +213,7 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 				CreatedAt:  container.State.StartedTime, // CreatedAt not available
 				FinishedAt: container.State.FinishedTime,
 			},
-			RestartCount:  int(container.State.RestartCount),
-			RestartPolicy: restartPolicy,
+			RestartCount: int(container.State.RestartCount),
 		},
 	}
 }

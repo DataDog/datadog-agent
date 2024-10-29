@@ -190,11 +190,9 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 		p.sendMetric(sender.Gauge, "container.pid.thread_limit", containerStats.PID.ThreadLimit, tags)
 	}
 
-	// RestartPolicy could be empty in at least the following cases:
-	// ECS Fargate < 1.4.0, ECS EC2 < 1.86.0, task metadata endpoint < v4.
-	if container.RestartPolicy != "" {
-		restartCount := float64(container.RestartCount)
-		p.sendMetric(sender.Gauge, "container.restarts", &restartCount, append(tags, "restart_policy:"+container.RestartPolicy))
+	restartCount := float64(container.RestartCount)
+	if 0 < restartCount {
+		p.sendMetric(sender.Gauge, "container.restarts", &restartCount, tags)
 	}
 
 	return nil

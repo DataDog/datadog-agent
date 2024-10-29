@@ -63,7 +63,7 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "container.memory.oom_events", 10, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "container.memory.usage.peak", 50000, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "container.memory.partial_stall", 97000, "", expectedTags)
-	mockSender.AssertMetric(t, "Gauge", "container.restarts", 42, "", append(expectedTags, "restart_policy:always"))
+	mockSender.AssertMetric(t, "Gauge", "container.restarts", 42, "", expectedTags)
 
 	mockSender.AssertMetric(t, "Rate", "container.io.partial_stall", 98000, "", expectedTags)
 	expectedFooTags := taggerUtils.ConcatenateStringTags(expectedTags, "device:/dev/foo", "device_name:/dev/foo")

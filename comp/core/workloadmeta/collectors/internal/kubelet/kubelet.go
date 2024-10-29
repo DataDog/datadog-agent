@@ -307,7 +307,6 @@ func (c *collector) parsePodContainers(
 				Owner:           parent,
 				Resources:       resources,
 				RestartCount:    container.RestartCount,
-				RestartPolicy:   pod.Spec.RestartPolicy,
 			},
 		})
 	}

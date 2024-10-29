@@ -73,7 +73,6 @@ func CreateContainerMeta(runtime, cID string) *workloadmeta.Container {
 			// Put the creation date in the past as, on Windows, the timer resolution may generate a 0 elapsed.
 			StartedAt: time.Now().Add(-2 * time.Second),
 		},
-		RestartCount:  42,
-		RestartPolicy: "always",
+		RestartCount: 42,
 	}
 }

@@ -73,7 +73,6 @@ func TestPull(t *testing.T) {
 						"label-a": "value-a",
 						"label-b": "value-b",
 					},
-					RestartPolicy: "always",
 				},
 				ContainerRootFSConfig: podman.ContainerRootFSConfig{
 					RootfsImageID: "my_image_id_1",
@@ -127,7 +126,6 @@ func TestPull(t *testing.T) {
 						"label-a-dev": "value-a-dev",
 						"label-b-dev": "value-b-dev",
 					},
-					RestartPolicy: "always",
 				},
 				ContainerRootFSConfig: podman.ContainerRootFSConfig{
 					RootfsImageID: "my_image_id_2",
@@ -204,8 +202,7 @@ func TestPull(t *testing.T) {
 					CreatedAt: startTime,
 					StartedAt: startTime,
 				},
-				RestartCount:  1,
-				RestartPolicy: "always",
+				RestartCount: 1,
 			},
 		},
 		{
@@ -255,8 +252,7 @@ func TestPull(t *testing.T) {
 					CreatedAt: startTime,
 					StartedAt: startTime,
 				},
-				RestartCount:  1,
-				RestartPolicy: "always",
+				RestartCount: 1,
 			},
 		},
 	}
