@@ -15,6 +15,7 @@ import (
 
 var lookupAddrFn = net.DefaultResolver.LookupAddr
 
+// GetReverseDNSForIP returns the reverse DNS for the given IP address as a net.IP.
 func GetReverseDNSForIP(destIP net.IP) string {
 	if destIP == nil {
 		return ""
@@ -22,6 +23,7 @@ func GetReverseDNSForIP(destIP net.IP) string {
 	return GetHostname(destIP.String())
 }
 
+// GetHostname returns the hostname for the given IP address as a string.
 func GetHostname(ipAddr string) string {
 	currHost := ""
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
