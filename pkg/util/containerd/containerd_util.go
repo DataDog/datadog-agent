@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
@@ -457,7 +458,7 @@ func (c *ContainerdUtil) getMounts(ctx context.Context, expiration time.Duration
 
 	if env.IsContainerized() {
 		for i := range mounts {
-			mounts[i].Source = sanitizeHostPath(mounts[i].Source)
+			mounts[i].Source = image.SanitizeHostPath(mounts[i].Source)
 
 			var errs error
 			for j, opt := range mounts[i].Options {
@@ -466,7 +467,7 @@ func (c *ContainerdUtil) getMounts(ctx context.Context, expiration time.Duration
 						trimmedOpt := strings.TrimPrefix(opt, prefix)
 						dirs := strings.Split(trimmedOpt, ":")
 						for n, dir := range dirs {
-							dirs[n] = sanitizeHostPath(dir)
+							dirs[n] = image.SanitizeHostPath(dir)
 							if _, err := os.Stat(dirs[n]); err != nil {
 								errs = multierror.Append(errs, fmt.Errorf("unreachable folder %s for overlayfs mount: %w", dir, err))
 							}
@@ -494,19 +495,6 @@ func (c *ContainerdUtil) getMounts(ctx context.Context, expiration time.Duration
 		}
 		return nil
 	}, nil
-}
-
-func sanitizeHostPath(path string) string {
-	hostPath := os.Getenv("HOST_ROOT")
-	if hostPath == "" {
-		hostPath = "/host"
-	}
-
-	if index := strings.Index(path, "/var/lib"); index != -1 {
-		return hostPath + path[index:]
-	}
-
-	return hostPath + path
 }
 
 // Mounts returns the mounts for an image
