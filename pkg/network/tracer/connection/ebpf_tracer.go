@@ -314,15 +314,12 @@ func (t *ebpfTracer) Start(callback func(*network.ConnectionStats)) (err error) 
 		return fmt.Errorf("error initializing port binding maps: %s", err)
 	}
 
-	t.closeConsumer.Start(callback)
-	t.failedConnConsumer.Start()
-
 	if err := t.m.Start(); err != nil {
-		t.closeConsumer.Stop()
-		t.failedConnConsumer.Stop()
 		return fmt.Errorf("could not start ebpf manager: %s", err)
 	}
 
+	t.closeConsumer.Start(callback)
+	t.failedConnConsumer.Start()
 	return nil
 }
 
