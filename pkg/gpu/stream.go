@@ -29,6 +29,9 @@ type StreamHandler struct {
 	sysCtx         *systemContext
 }
 
+// enrichedKernelLaunch is a kernel launch event with the kernel data attached.
+// We need to do it this way as we shouldn't modify the
+// gpuebpf.CudaKernelLaunch, as it's a shared definition with the C probes
 type enrichedKernelLaunch struct {
 	gpuebpf.CudaKernelLaunch
 	kernel *cuda.CubinKernel
