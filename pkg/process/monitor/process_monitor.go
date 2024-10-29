@@ -30,7 +30,7 @@ const (
 	// The size of the process events queue of netlink.
 	processMonitorEventQueueSize = 2048
 	// The size of the callbacks queue for pending tasks.
-	pendingCallbacksQueueSize = 1000
+	pendingCallbacksQueueSize = 5000
 )
 
 var (
@@ -532,7 +532,7 @@ func NewProcessMonitorEventConsumer(em *eventmonitor.EventMonitor) (*EventConsum
 
 // ChanSize returns the channel size used by this consumer
 func (ec *EventConsumer) ChanSize() int {
-	return 100
+	return 500
 }
 
 // ID returns the ID of this consumer

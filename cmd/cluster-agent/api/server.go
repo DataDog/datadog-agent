@@ -53,8 +53,6 @@ var (
 	apiRouter *mux.Router
 )
 
-const maxMessageSize = 4 * 1024 * 1024 // 4 MB
-
 // StartServer creates the router and starts the HTTP server
 func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component) error {
 	// create the root HTTP router
@@ -125,6 +123,7 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 		return struct{}{}, nil
 	})
 
+	maxMessageSize := cfg.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 	opts := []grpc.ServerOption{
 		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
 		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
@@ -133,8 +132,10 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	}
 
 	grpcSrv := grpc.NewServer(opts...)
+	// event size should be small enough to fit within the grpc max message size
+	maxEventSize := maxMessageSize / 2
 	pb.RegisterAgentSecureServer(grpcSrv, &serverSecure{
-		taggerServer: taggerserver.NewServer(taggerComp, maxMessageSize),
+		taggerServer: taggerserver.NewServer(taggerComp, maxEventSize),
 	})
 
 	timeout := pkgconfigsetup.Datadog().GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second

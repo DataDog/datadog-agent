@@ -728,33 +728,3 @@ func configType(c integration.Config) string {
 
 	return "unknown"
 }
-
-// optionalModuleDeps has an optional tagger component
-type optionalModuleDeps struct {
-	fx.In
-	Lc         fx.Lifecycle
-	Config     configComponent.Component
-	Log        logComp.Component
-	TaggerComp optional.Option[tagger.Component]
-	Secrets    secrets.Component
-	WMeta      optional.Option[workloadmeta.Component]
-	Telemetry  telemetry.Component
-}
-
-// OptionalModule defines the fx options when ac should be used as an optional and not started
-func OptionalModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(
-			newOptionalAutoConfig,
-		))
-}
-
-// newOptionalAutoConfig creates an optional AutoConfig instance if tagger is available
-func newOptionalAutoConfig(deps optionalModuleDeps) optional.Option[autodiscovery.Component] {
-	taggerComp, ok := deps.TaggerComp.Get()
-	if !ok {
-		return optional.NewNoneOption[autodiscovery.Component]()
-	}
-	return optional.NewOption[autodiscovery.Component](
-		createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, taggerComp, deps.Log, deps.Telemetry))
-}
