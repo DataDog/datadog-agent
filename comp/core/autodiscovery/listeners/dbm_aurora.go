@@ -67,7 +67,7 @@ type DBMAuroraService struct {
 }
 
 // NewDBMAuroraListener returns a new DBMAuroraListener
-func NewDBMAuroraListener(ServiceListernerOptions) (ServiceListener, error) {
+func NewDBMAuroraListener(ServiceListernerDeps) (ServiceListener, error) {
 	config, err := dbmconfig.NewAuroraAutodiscoveryConfig()
 	if err != nil {
 		return nil, err

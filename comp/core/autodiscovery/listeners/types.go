@@ -65,8 +65,8 @@ type Config interface {
 	IsProviderEnabled(string) bool
 }
 
-// ServiceListernerOptions are the service listerner options
-type ServiceListernerOptions struct {
+// ServiceListernerDeps are the service listerner dependencies
+type ServiceListernerDeps struct {
 	Config    Config
 	Telemetry *telemetry.Store
 	Tagger    tagger.Component
@@ -74,7 +74,7 @@ type ServiceListernerOptions struct {
 }
 
 // ServiceListenerFactory builds a service listener
-type ServiceListenerFactory func(ServiceListernerOptions) (ServiceListener, error)
+type ServiceListenerFactory func(ServiceListernerDeps) (ServiceListener, error)
 
 // Register registers a service listener factory
 func Register(name string,

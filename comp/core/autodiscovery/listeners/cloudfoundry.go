@@ -50,7 +50,7 @@ type CloudFoundryService struct {
 var _ Service = &CloudFoundryService{}
 
 // NewCloudFoundryListener creates a CloudFoundryListener
-func NewCloudFoundryListener(ServiceListernerOptions) (ServiceListener, error) {
+func NewCloudFoundryListener(ServiceListernerDeps) (ServiceListener, error) {
 	bbsCache, err := cloudfoundry.GetGlobalBBSCache()
 	if err != nil {
 		return nil, err

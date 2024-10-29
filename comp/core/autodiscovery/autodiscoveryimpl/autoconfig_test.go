@@ -82,7 +82,7 @@ func (l *MockListener) Stop() {
 	l.stopReceived = true
 }
 
-func (l *MockListener) fakeFactory(listeners.ServiceListernerOptions) (listeners.ServiceListener, error) {
+func (l *MockListener) fakeFactory(listeners.ServiceListernerDeps) (listeners.ServiceListener, error) {
 	return l, nil
 }
 
@@ -98,7 +98,7 @@ type factoryMock struct {
 	returnError error
 }
 
-func (o *factoryMock) make(listeners.ServiceListernerOptions) (listeners.ServiceListener, error) {
+func (o *factoryMock) make(listeners.ServiceListernerDeps) (listeners.ServiceListener, error) {
 	o.Lock()
 	defer o.Unlock()
 	if o.callChan != nil {

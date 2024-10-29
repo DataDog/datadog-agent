@@ -127,7 +127,7 @@ var _ autodiscovery.Component = (*AutoConfig)(nil)
 
 type listenerCandidate struct {
 	factory listeners.ServiceListenerFactory
-	options listeners.ServiceListernerOptions
+	options listeners.ServiceListernerDeps
 }
 
 func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
@@ -506,7 +506,7 @@ func (ac *AutoConfig) addListenerCandidates(listenerConfigs []pkgconfigsetup.Lis
 			continue
 		}
 		log.Debugf("Listener %s was registered", c.Name)
-		factoryOptions := listeners.ServiceListernerOptions{
+		factoryOptions := listeners.ServiceListernerDeps{
 			Config:    &c,
 			Telemetry: ac.telemetryStore,
 			Tagger:    ac.taggerComp,

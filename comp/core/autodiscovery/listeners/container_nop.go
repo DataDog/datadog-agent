@@ -7,6 +7,6 @@
 
 package listeners
 
-type noopServiceListenerFactory func(ServiceListernerOptions) (ServiceListener, error)
+type noopServiceListenerFactory func(ServiceListernerDeps) (ServiceListener, error)
 
 var NewContainerListener noopServiceListenerFactory

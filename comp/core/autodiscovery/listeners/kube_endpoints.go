@@ -66,7 +66,7 @@ type KubeEndpointService struct {
 var _ Service = &KubeEndpointService{}
 
 // NewKubeEndpointsListener returns the kube endpoints implementation of the ServiceListener interface
-func NewKubeEndpointsListener(options ServiceListernerOptions) (ServiceListener, error) {
+func NewKubeEndpointsListener(options ServiceListernerDeps) (ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {

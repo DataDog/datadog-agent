@@ -27,7 +27,7 @@ type StaticConfigService struct {
 var _ Service = &StaticConfigService{}
 
 // NewStaticConfigListener creates a StaticConfigListener
-func NewStaticConfigListener(ServiceListernerOptions) (ServiceListener, error) {
+func NewStaticConfigListener(ServiceListernerDeps) (ServiceListener, error) {
 	return &StaticConfigListener{}, nil
 }
 

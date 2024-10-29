@@ -110,7 +110,7 @@ func (suite *DockerListenerTestSuite) TearDownSuite() {
 }
 
 func (suite *DockerListenerTestSuite) SetupTest() {
-	dl, err := listeners.NewContainerListener(listeners.ServiceListernerOptions{
+	dl, err := listeners.NewContainerListener(listeners.ServiceListernerDeps{
 		Config:    &pkgconfigsetup.Listeners{},
 		Wmeta:     optional.NewOption(suite.wmeta),
 		Telemetry: suite.telemetryStore,

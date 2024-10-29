@@ -28,7 +28,7 @@ type EnvironmentService struct {
 var _ Service = &EnvironmentService{}
 
 // NewEnvironmentListener creates an EnvironmentListener
-func NewEnvironmentListener(ServiceListernerOptions) (ServiceListener, error) {
+func NewEnvironmentListener(ServiceListernerDeps) (ServiceListener, error) {
 	return &EnvironmentListener{}, nil
 }
 
