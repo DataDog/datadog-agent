@@ -60,26 +60,6 @@ type PlatformProbe interface {
 	PlaySnapshot()
 }
 
-// EventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
-type EventHandler interface {
-	HandleEvent(event *model.Event)
-}
-
-// EventConsumerHandler represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
-type EventConsumerHandler interface {
-	IDer
-	ChanSize() int
-	HandleEvent(_ any)
-	Copy(_ *model.Event) any
-	EventTypes() []model.EventType
-}
-
-// IDer provides unique ID for each event consumer
-type IDer interface {
-	// ID returns the ID of the event consumer
-	ID() string
-}
-
 // EventConsumer defines a probe event consumer
 type EventConsumer struct {
 	consumer     EventConsumerHandler
@@ -102,11 +82,6 @@ func (p *EventConsumer) Start(ctx context.Context, wg *sync.WaitGroup) {
 			}
 		}
 	}()
-}
-
-// CustomEventHandler represents an handler for the custom events sent by the probe
-type CustomEventHandler interface {
-	HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 }
 
 // DiscarderPushedCallback describe the callback used to retrieve pushed discarders information
