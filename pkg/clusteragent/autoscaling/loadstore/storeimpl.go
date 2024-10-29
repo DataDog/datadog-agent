@@ -25,10 +25,12 @@ func (h EntityValueHeap) Len() int           { return len(h) }
 func (h EntityValueHeap) Less(i, j int) bool { return h[i].timestamp < h[j].timestamp }
 func (h EntityValueHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 
+// Push a new value to the heap.
 func (h *EntityValueHeap) Push(x interface{}) {
 	*h = append(*h, x.(*EntityValue))
 }
 
+// Pop the earliest value from the heap.
 func (h *EntityValueHeap) Pop() interface{} {
 	old := *h
 	n := len(old)
@@ -240,7 +242,7 @@ func (es *EntityStore) GetStoreInfo() string {
 	for _, entityValues := range es.key2ValuesMap {
 		totalMemoryUsage += entityValues.memoryUsage()
 	}
-	info := fmt.Sprintf("\n===============================Entity Store Information===============================\n")
+	info := "\n===============================Entity Store Information===============================\n"
 	for e, keys := range es.metric2KeysMap {
 		info += fmt.Sprintf("Metric Name: %s, Entity Count:: %d\n", e, len(keys))
 		totalMemoryUsage += uint32(len(keys)) * uint32(unsafe.Sizeof(uint64(0)))

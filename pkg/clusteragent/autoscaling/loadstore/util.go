@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// Timestamp is a uint32 representing a timestamp.
 type Timestamp uint32
 
 // hashEntityToUInt64 generates an uint64 hash for an Entity.
@@ -32,10 +33,6 @@ func hashEntityToUInt64(entity *Entity) uint64 {
 // getCurrentTime returns the current time in uint32
 func getCurrentTime() Timestamp {
 	return timeToTimestamp(time.Now())
-}
-
-func timestampToTime(ts Timestamp) time.Time {
-	return time.Unix(int64(ts), 0)
 }
 
 func timeToTimestamp(t time.Time) Timestamp {

@@ -15,6 +15,7 @@ import (
 // EntityType defines the type of entity.
 type EntityType int
 
+// ValueType defines the datatype of metric value.
 type ValueType float64
 
 // Enumeration of entity types.
@@ -55,6 +56,7 @@ func (e *Entity) String() string {
 		hashEntityToUInt64(e), e.SourceID, e.MetricName, e.EntityName, e.EntityType, e.Host, e.Namespace)
 }
 
+// EntityValue represents a metric value with a timestamp.
 type EntityValue struct {
 	value     ValueType
 	timestamp Timestamp
