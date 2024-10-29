@@ -313,6 +313,7 @@ IGNORED_MODULE_PATHS = [
     # TODO: Remove comp/core/log and pkg/util/tagger once otel agent dependencies are fixed
     Path("./comp/core/log"),
     Path("./pkg/util/tagger"),
+    Path("./comp/otelcol/ddflareextension/impl"),
 ]
 
 MAIN_TEMPLATE = """package main

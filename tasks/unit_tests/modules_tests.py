@@ -6,7 +6,7 @@ import subprocess
 import unittest
 from typing import Any
 
-from tasks.modules import AGENT_MODULE_PATH_PREFIX, DEFAULT_MODULES
+from tasks.modules import AGENT_MODULE_PATH_PREFIX, DEFAULT_MODULES, IGNORED_MODULE_PATHS
 
 """
 Here is an abstract of the go.mod file format:
@@ -93,8 +93,11 @@ class TestModules(unittest.TestCase):
         return results
 
     def test_modules_replace_agent(self):
-        """Ensure that all required datadog-agent modules are replaced"""
+        """Ensure that all required datadog-agent modules are replaced, skipping those
+        in IGNORED_MODULE_PATHS"""
         for module_path in DEFAULT_MODULES.keys():
+            if module_path in [path.as_posix() for path in IGNORED_MODULE_PATHS]:
+                continue
             with self.subTest(module_path=module_path):
                 module = self.load_go_mod(module_path)
                 self.assertIsInstance(module, dict)
