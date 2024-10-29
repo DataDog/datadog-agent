@@ -345,7 +345,7 @@ func (sh *StreamHandler) markEnd() error {
 		sh.allocations = append(sh.allocations, &data)
 	}
 
-	sh.sysCtx.cleanupDataForProcess(int(sh.key.pid))
+	sh.sysCtx.removeProcess(int(sh.key.pid))
 
 	return nil
 }
