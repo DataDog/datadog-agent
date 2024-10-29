@@ -65,6 +65,7 @@ static __always_inline void handle_command_complete(conn_tuple_t *conn_tuple, po
     bpf_map_delete_elem(&postgres_in_flight, conn_tuple);
 }
 
+// Handles a TCP termination event by deleting the connection tuple from the in-flight map.
 static void __always_inline postgres_tcp_termination(conn_tuple_t *tup) {
     bpf_map_delete_elem(&postgres_in_flight, tup);
     flip_tuple(tup);
