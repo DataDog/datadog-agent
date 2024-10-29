@@ -156,7 +156,7 @@ func copyMap(target reflect.Value, source nodetreemodel.Node, _ *featureSet) err
 
 	inner, ok := source.(nodetreemodel.InnerNode)
 	if !ok {
-		return fmt.Errorf("can't copying a map into a leaf")
+		return fmt.Errorf("can't copy a map into a leaf")
 	}
 	for _, mkey := range inner.ChildrenKeys() {
 		child, err := inner.GetChild(mkey)
