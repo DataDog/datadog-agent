@@ -135,6 +135,7 @@ import (
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
@@ -395,10 +396,13 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 		taggerimpl.Module(),
 		autodiscoveryimpl.Module(),
-		fx.Provide(func(ac autodiscovery.Component) optional.Option[autodiscovery.Component] {
-			return optional.NewOption[autodiscovery.Component](ac)
+		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
+		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
+		// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
+		// we can include the tagger as part of the workloadmeta component.
+		fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
+			proccontainers.InitSharedContainerProvider(wmeta, tagger)
 		}),
-
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
 		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
 		// have to ensure this code gets run first. Once the common package is made into a component, this can be removed.
@@ -580,7 +584,7 @@ func startAgent(
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta, tagger, cfg, telemetry)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver), true)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver, tagger), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 

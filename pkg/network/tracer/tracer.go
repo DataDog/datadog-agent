@@ -38,10 +38,10 @@ import (
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	timeresolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -98,7 +98,7 @@ type Tracer struct {
 
 	processCache *processCache
 
-	timeResolver *timeresolver.Resolver
+	timeResolver *ktime.Resolver
 
 	telemetryComp telemetryComponent.Component
 }
@@ -188,7 +188,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		}
 		telemetry.GetCompatComponent().RegisterCollector(tr.processCache)
 
-		if tr.timeResolver, err = timeresolver.NewResolver(); err != nil {
+		if tr.timeResolver, err = ktime.NewResolver(); err != nil {
 			return nil, fmt.Errorf("could not create time resolver: %w", err)
 		}
 
@@ -740,7 +740,8 @@ func (t *Tracer) connectionExpired(conn *network.ConnectionStats, latestTime uin
 
 	// skip connection check for udp connections or if
 	// the pid for the connection is dead
-	if conn.Type == network.UDP || !procutil.PidExists(int(conn.Pid)) {
+	// conn.Pid can be 0 when ebpf-less tracer is running
+	if conn.Type == network.UDP || (conn.Pid > 0 && !procutil.PidExists(int(conn.Pid))) {
 		return true
 	}
 

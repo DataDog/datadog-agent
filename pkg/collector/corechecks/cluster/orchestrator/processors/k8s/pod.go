@@ -14,6 +14,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -37,11 +38,11 @@ type PodHandlers struct {
 }
 
 // NewPodHandlers creates and returns a new PodHanlders object
-func NewPodHandlers(cfg config.Component, store workloadmeta.Component) *PodHandlers {
+func NewPodHandlers(cfg config.Component, store workloadmeta.Component, tagger tagger.Component) *PodHandlers {
 	podHandlers := new(PodHandlers)
 
 	// initialise tag provider
-	podHandlers.tagProvider = podtagprovider.NewPodTagProvider(cfg, store)
+	podHandlers.tagProvider = podtagprovider.NewPodTagProvider(cfg, store, tagger)
 
 	return podHandlers
 }

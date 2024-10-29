@@ -16,6 +16,7 @@ import (
 
 	dockerTypes "github.com/docker/docker/api/types"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -106,7 +107,7 @@ func (dn *dockerNetworkExtension) Process(tags []string, container *workloadmeta
 }
 
 // PostProcess is called once during each check run, after all calls to `Process`
-func (dn *dockerNetworkExtension) PostProcess() {
+func (dn *dockerNetworkExtension) PostProcess(tagger.Component) {
 	// Nothing to do here
 }
 
