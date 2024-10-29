@@ -286,6 +286,7 @@ func cmdDiagnose(cliParams *cliParams,
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
 	_ log.Component,
+	tagger tagger.Component,
 ) error {
 	diagCfg := diagnosis.Config{
 		Verbose:    cliParams.verbose,
@@ -302,7 +303,7 @@ func cmdDiagnose(cliParams *cliParams,
 		return nil
 	}
 
-	diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(senderManager, secretResolver, wmeta, ac)
+	diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(senderManager, secretResolver, wmeta, ac, tagger)
 	// Run command
 
 	// Get the diagnose result

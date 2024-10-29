@@ -12,6 +12,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -41,15 +42,17 @@ type ContainerCheck struct {
 	instance  *ContainerConfig
 	processor Processor
 	store     workloadmeta.Component
+	tagger    tagger.Component
 }
 
 // Factory returns a new check factory
-func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+func Factory(store workloadmeta.Component, tagger tagger.Component) optional.Option[func() check.Check] {
 	return optional.NewOption(func() check.Check {
 		return &ContainerCheck{
 			CheckBase: core.NewCheckBase(CheckName),
 			instance:  &ContainerConfig{},
 			store:     store,
+			tagger:    tagger,
 		}
 	})
 }
@@ -65,7 +68,7 @@ func (c *ContainerCheck) Configure(senderManager sender.SenderManager, _ uint64,
 	if err != nil {
 		return err
 	}
-	c.processor = NewProcessor(metrics.GetProvider(optional.NewOption(c.store)), NewMetadataContainerAccessor(c.store), GenericMetricsAdapter{}, LegacyContainerFilter{OldFilter: filter, Store: c.store})
+	c.processor = NewProcessor(metrics.GetProvider(optional.NewOption(c.store)), NewMetadataContainerAccessor(c.store), GenericMetricsAdapter{}, LegacyContainerFilter{OldFilter: filter, Store: c.store}, c.tagger)
 	return c.instance.Parse(config)
 }
 

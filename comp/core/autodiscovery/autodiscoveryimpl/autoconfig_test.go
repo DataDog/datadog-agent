@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
-	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -83,7 +82,7 @@ func (l *MockListener) Stop() {
 	l.stopReceived = true
 }
 
-func (l *MockListener) fakeFactory(listeners.Config, *acTelemetry.Store) (listeners.ServiceListener, error) {
+func (l *MockListener) fakeFactory(listeners.ServiceListernerDeps) (listeners.ServiceListener, error) {
 	return l, nil
 }
 
@@ -99,7 +98,7 @@ type factoryMock struct {
 	returnError error
 }
 
-func (o *factoryMock) make(listeners.Config, *acTelemetry.Store) (listeners.ServiceListener, error) {
+func (o *factoryMock) make(listeners.ServiceListernerDeps) (listeners.ServiceListener, error) {
 	o.Lock()
 	defer o.Unlock()
 	if o.callChan != nil {
