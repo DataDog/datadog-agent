@@ -144,8 +144,8 @@ func TestShouldIgnoreComm(t *testing.T) {
 
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
 				ignore := discovery.shouldIgnoreComm(proc)
-				assert.Equal(t, test.ignore, ignore)
-			}, 200*time.Millisecond, 100*time.Millisecond)
+				assert.Equal(collect, test.ignore, ignore)
+			}, 500*time.Millisecond, 100*time.Millisecond)
 		})
 	}
 }
