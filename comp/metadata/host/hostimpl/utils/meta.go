@@ -57,15 +57,10 @@ func GetMeta(ctx context.Context, conf model.Reader) *Meta {
 	instanceID, _ := ec2.GetInstanceID(ctx, false)
 
 	var agentHostname string
-	var legacyResolutionHostname string
 
 	hostnameData, _ := hostname.GetWithProvider(ctx)
 	if conf.GetBool("hostname_force_config_as_canonical") && hostnameData.FromConfiguration() {
 		agentHostname = hostnameData.Hostname
-	}
-	legacyResolutionHostnameData, _ := hostname.GetWithProviderWithoutCacheAndIMDSV2(ctx)
-	if legacyResolutionHostnameData.Hostname != hostnameData.Hostname {
-		legacyResolutionHostname = legacyResolutionHostnameData.Hostname
 	}
 
 	m := &Meta{
@@ -76,7 +71,6 @@ func GetMeta(ctx context.Context, conf model.Reader) *Meta {
 		HostAliases:              cloudproviders.GetHostAliases(ctx),
 		InstanceID:               instanceID,
 		AgentHostname:            agentHostname,
-		LegacyResolutionHostname: legacyResolutionHostname,
 	}
 
 	if finalClusterName := kubelet.GetMetaClusterNameText(ctx, osHostname); finalClusterName != "" {
