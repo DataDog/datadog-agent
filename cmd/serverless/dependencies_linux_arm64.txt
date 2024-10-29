@@ -76,6 +76,7 @@ github.com/DataDog/datadog-agent/comp/core/log/impl
 github.com/DataDog/datadog-agent/comp/core/secrets
 github.com/DataDog/datadog-agent/comp/core/status
 github.com/DataDog/datadog-agent/comp/core/tagger
+github.com/DataDog/datadog-agent/comp/core/tagger/common
 github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl
 github.com/DataDog/datadog-agent/comp/core/tagger/telemetry
 github.com/DataDog/datadog-agent/comp/core/tagger/types
@@ -297,7 +298,6 @@ github.com/DataDog/datadog-agent/pkg/util/statstracker
 github.com/DataDog/datadog-agent/pkg/util/sync
 github.com/DataDog/datadog-agent/pkg/util/system
 github.com/DataDog/datadog-agent/pkg/util/system/socket
-github.com/DataDog/datadog-agent/pkg/util/tagger
 github.com/DataDog/datadog-agent/pkg/util/tmplvar
 github.com/DataDog/datadog-agent/pkg/version
 github.com/DataDog/datadog-api-client-go/v2
@@ -346,7 +346,6 @@ github.com/aws/aws-sdk-go-v2/aws
 github.com/aws/aws-sdk-go-v2/aws/arn
 github.com/aws/aws-sdk-go-v2/aws/defaults
 github.com/aws/aws-sdk-go-v2/aws/middleware
-github.com/aws/aws-sdk-go-v2/aws/middleware/private/metrics
 github.com/aws/aws-sdk-go-v2/aws/protocol/query
 github.com/aws/aws-sdk-go-v2/aws/protocol/restjson
 github.com/aws/aws-sdk-go-v2/aws/protocol/xml

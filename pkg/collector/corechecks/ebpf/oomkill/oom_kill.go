@@ -48,17 +48,21 @@ type OOMKillConfig struct {
 type OOMKillCheck struct {
 	core.CheckBase
 	instance *OOMKillConfig
+	tagger   tagger.Component
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory(tagger tagger.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return newCheck(tagger)
+	})
 }
 
-func newCheck() check.Check {
+func newCheck(tagger tagger.Component) check.Check {
 	return &OOMKillCheck{
 		CheckBase: core.NewCheckBase(CheckName),
 		instance:  &OOMKillConfig{},
+		tagger:    tagger,
 	}
 }
 
@@ -115,10 +119,10 @@ func (m *OOMKillCheck) Run() error {
 			log.Debugf("Unable to extract containerID from cgroup name: %s, err: %v", line.CgroupName, err)
 		}
 
-		entityID := types.NewEntityID(types.ContainerID, containerID).String()
+		entityID := types.NewEntityID(types.ContainerID, containerID)
 		var tags []string
-		if entityID != "" {
-			tags, err = tagger.Tag(entityID, tagger.ChecksCardinality())
+		if !entityID.Empty() {
+			tags, err = m.tagger.Tag(entityID, m.tagger.ChecksCardinality())
 			if err != nil {
 				log.Errorf("Error collecting tags for container %s: %s", containerID, err)
 			}

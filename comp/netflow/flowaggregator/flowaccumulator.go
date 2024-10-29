@@ -194,7 +194,7 @@ func (f *flowAccumulator) setDstReverseDNSHostname(aggHash uint64, hostname stri
 }
 
 func (f *flowAccumulator) addRDNSEnrichment(aggHash uint64, srcAddr []byte, dstAddr []byte) {
-	err := f.rdnsQuerier.GetHostname(
+	err := f.rdnsQuerier.GetHostnameAsync(
 		srcAddr,
 		// Sync callback, lock is already held
 		func(hostname string) {
@@ -213,7 +213,7 @@ func (f *flowAccumulator) addRDNSEnrichment(aggHash uint64, srcAddr []byte, dstA
 		f.logger.Debugf("Error requesting reverse DNS enrichment for source IP address: %v error: %v", srcAddr, err)
 	}
 
-	err = f.rdnsQuerier.GetHostname(
+	err = f.rdnsQuerier.GetHostnameAsync(
 		dstAddr,
 		// Sync callback, lock is held
 		func(hostname string) {

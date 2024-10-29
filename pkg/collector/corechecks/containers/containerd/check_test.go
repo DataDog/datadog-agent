@@ -57,7 +57,6 @@ func TestContainerdCheckGenericPart(t *testing.T) {
 		generic.CreateContainerMeta("docker", "cID101"),
 	}
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	containersStats := map[string]mock.ContainerEntry{
 		"cID100": mock.GetFullSampleContainerEntry(),
@@ -65,7 +64,7 @@ func TestContainerdCheckGenericPart(t *testing.T) {
 	}
 
 	// Inject mock processor in check
-	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil))
+	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger)
 	processor.RegisterExtension("containerd-custom-metrics", &containerdCustomMetricsExtension{})
 
 	// Mock the containerd endpoint

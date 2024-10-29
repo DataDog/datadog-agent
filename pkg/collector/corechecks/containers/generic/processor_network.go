@@ -78,11 +78,11 @@ func (pn *ProcessorNetwork) Process(tags []string, container *workloadmeta.Conta
 }
 
 // PostProcess actually computes the metrics
-func (pn *ProcessorNetwork) PostProcess() {
-	pn.processGroupedContainerNetwork()
+func (pn *ProcessorNetwork) PostProcess(tagger tagger.Component) {
+	pn.processGroupedContainerNetwork(tagger)
 }
 
-func (pn *ProcessorNetwork) processGroupedContainerNetwork() {
+func (pn *ProcessorNetwork) processGroupedContainerNetwork(tagger tagger.Component) {
 	// Handle all containers that we could not link to any network isolation group
 	for _, containerNetwork := range pn.ungroupedContainerNetwork {
 		pn.generateNetworkMetrics(containerNetwork.tags, containerNetwork.stats)
@@ -98,7 +98,7 @@ func (pn *ProcessorNetwork) processGroupedContainerNetwork() {
 			pn.generateNetworkMetrics(containerNetworks.tags, containerNetworks.stats)
 		} else if containerNetworks.owner != nil && containerNetworks.owner.Kind == workloadmeta.KindKubernetesPod {
 			podEntityID := types.NewEntityID(types.KubernetesPodUID, containerNetworks.owner.ID)
-			orchTags, err := tagger.Tag(podEntityID.String(), types.HighCardinality)
+			orchTags, err := tagger.Tag(podEntityID, types.HighCardinality)
 			if err != nil {
 				log.Debugf("Unable to get orchestrator tags for pod: %s", containerNetworks.owner.ID)
 				continue

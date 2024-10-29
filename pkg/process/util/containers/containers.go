@@ -62,12 +62,20 @@ type ContainerProvider interface {
 	GetPidToCid(cacheValidity time.Duration) map[int]string
 }
 
-// GetSharedContainerProvider returns a shared ContainerProvider
-func GetSharedContainerProvider(wmeta workloadmeta.Component) ContainerProvider {
+// InitSharedContainerProvider init shared ContainerProvider
+func InitSharedContainerProvider(wmeta workloadmeta.Component, tagger tagger.Component) ContainerProvider {
 	initContainerProvider.Do(func() {
-		sharedContainerProvider = NewDefaultContainerProvider(wmeta)
+		sharedContainerProvider = NewDefaultContainerProvider(wmeta, tagger)
 	})
 	return sharedContainerProvider
+}
+
+// GetSharedContainerProvider returns a shared ContainerProvider
+func GetSharedContainerProvider() (ContainerProvider, error) {
+	if sharedContainerProvider == nil {
+		return nil, log.Errorf("Shared container provider not initialized")
+	}
+	return sharedContainerProvider, nil
 }
 
 // containerProvider provides data about containers usable by process-agent
@@ -75,26 +83,28 @@ type containerProvider struct {
 	metricsProvider metrics.Provider
 	metadataStore   workloadmeta.Component
 	filter          *containers.Filter
+	tagger          tagger.Component
 }
 
 // NewContainerProvider returns a ContainerProvider instance
-func NewContainerProvider(provider metrics.Provider, metadataStore workloadmeta.Component, filter *containers.Filter) ContainerProvider {
+func NewContainerProvider(provider metrics.Provider, metadataStore workloadmeta.Component, filter *containers.Filter, tagger tagger.Component) ContainerProvider {
 	return &containerProvider{
 		metricsProvider: provider,
 		metadataStore:   metadataStore,
 		filter:          filter,
+		tagger:          tagger,
 	}
 }
 
 // NewDefaultContainerProvider returns a ContainerProvider built with default metrics provider and metadata provider
-func NewDefaultContainerProvider(wmeta workloadmeta.Component) ContainerProvider {
+func NewDefaultContainerProvider(wmeta workloadmeta.Component, tagger tagger.Component) ContainerProvider {
 	containerFilter, err := containers.GetSharedMetricFilter()
 	if err != nil {
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
 	// TODO(components): stop relying on globals and use injected components instead whenever possible.
-	return NewContainerProvider(metrics.GetProvider(optional.NewOption(wmeta)), wmeta, containerFilter)
+	return NewContainerProvider(metrics.GetProvider(optional.NewOption(wmeta)), wmeta, containerFilter, tagger)
 }
 
 // GetContainers returns containers found on the machine
@@ -119,8 +129,8 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 			continue
 		}
 
-		entityID := types.NewEntityID(types.ContainerID, container.ID).String()
-		tags, err := tagger.Tag(entityID, types.HighCardinality)
+		entityID := types.NewEntityID(types.ContainerID, container.ID)
+		tags, err := p.tagger.Tag(entityID, types.HighCardinality)
 		if err != nil {
 			log.Debugf("Could not collect tags for container %q, err: %v", container.ID[:12], err)
 		}

@@ -70,7 +70,6 @@ def trigger_macos(
     datadog_agent_ref=DEFAULT_BRANCH,
     release_version="nightly-a7",
     major_version="7",
-    python_runtimes="3",
     destination=".",
     version_cache=None,
     retry_download=3,
@@ -92,7 +91,6 @@ def trigger_macos(
             # ... And provide the release version as a workflow input when needed
             release_version=release_version,
             major_version=major_version,
-            python_runtimes=python_runtimes,
             # Send pipeline id and bucket branch so that the package version
             # can be constructed properly for nightlies.
             gitlab_pipeline_id=os.environ.get("CI_PIPELINE_ID", None),
@@ -108,7 +106,6 @@ def trigger_macos(
             retry_interval,
             workflow_name="test.yaml",
             datadog_agent_ref=datadog_agent_ref,
-            python_runtimes=python_runtimes,
             version_cache_file_content=version_cache,
             fast_tests=fast_tests,
             test_washer=test_washer,
@@ -119,7 +116,6 @@ def trigger_macos(
             release_version,
             workflow_name="lint.yaml",
             datadog_agent_ref=datadog_agent_ref,
-            python_runtimes=python_runtimes,
             version_cache_file_content=version_cache,
         )
     if conclusion != "success":
@@ -413,3 +409,15 @@ def pr_commenter(
 
     if verbose:
         print(f"{action} comment on PR #{pr.number} - {pr.title}")
+
+
+@task
+def assign_codereview_label(_, pr_id=-1):
+    """
+    Assigns a code review complexity label based on PR attributes (files changed, additions, deletions, comments)
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI('DataDog/datadog-agent')
+    complexity = gh.get_codereview_complexity(pr_id)
+    gh.update_review_complexity_labels(pr_id, complexity)

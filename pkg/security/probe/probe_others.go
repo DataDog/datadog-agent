@@ -17,21 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-// EventConsumerInterface represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
-type EventConsumerInterface interface {
-	ID() string
-	ChanSize() int
-	HandleEvent(_ any)
-	Copy(_ *model.Event) any
-	EventTypes() []model.EventType
-}
-
-// EventHandler represents an handler for the events sent by the probe
-type EventHandler interface{}
-
-// CustomEventHandler represents an handler for the custom events sent by the probe
-type CustomEventHandler interface{}
-
 // PlatformProbe represents the no-op platform probe on unsupported platforms
 type PlatformProbe struct {
 }

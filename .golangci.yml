@@ -666,7 +666,8 @@ linters-settings:
              # Actual issues that should be fixed eventually
              "-SA6002", # TODO: Fix sync.Pools
              "-SA4025", # TODO: Fix trace unit test
-             "-SA4011", "-SA4031" # Disabling these to re-enable golanci-lint default tests
+             "-SA4011", "-SA4031", # Disabling these to re-enable golanci-lint default tests
+             "-SA4023"  # Fix the lint_macos_gitlab_amd64 linter discrepancy while we find the issue (see https://github.com/dominikh/go-tools/issues/847)
             ]
   govet:
     settings:
