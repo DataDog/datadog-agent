@@ -5,7 +5,7 @@
 
 //go:build !linux
 
-// package precompiled implements precompiled specific eBPF functionality
+// Package precompiled implements precompiled specific eBPF functionality
 package precompiled
 
 // IsDeprecated returns true if precompiled ebpf is deprecated
