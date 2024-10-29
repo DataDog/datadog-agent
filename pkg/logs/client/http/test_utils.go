@@ -80,7 +80,7 @@ func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool
 	endpoint.BackoffMax = 10
 	endpoint.RecoveryInterval = 1
 
-	dest := NewDestination(endpoint, JSONContentType, destCtx, senders, retryDestination, "test", cfg, metrics.NewNoopPipelineMonitor(""))
+	dest := NewDestination(endpoint, JSONContentType, destCtx, senders, retryDestination, client.NewNoopDestinationMetadata(), cfg, metrics.NewNoopPipelineMonitor(""))
 	return &TestServer{
 		httpServer:          ts,
 		DestCtx:             destCtx,

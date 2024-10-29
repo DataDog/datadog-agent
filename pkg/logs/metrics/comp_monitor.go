@@ -87,7 +87,12 @@ type TelemetryPipelineMonitor struct {
 }
 
 func NewTelemetryPipelineMonitor(interval time.Duration, instanceId string) *TelemetryPipelineMonitor {
-	return &TelemetryPipelineMonitor{monitors: make(map[string]*CapacityMonitor)}
+	return &TelemetryPipelineMonitor{
+		monitors:   make(map[string]*CapacityMonitor),
+		interval:   interval,
+		instanceId: instanceId,
+		lock:       sync.RWMutex{},
+	}
 }
 
 func (c *TelemetryPipelineMonitor) getMonitor(name string) *CapacityMonitor {

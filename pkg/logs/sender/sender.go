@@ -89,8 +89,9 @@ func (s *Sender) run() {
 		for !sent {
 			for _, destSender := range reliableDestinations {
 				if destSender.Send(payload) {
-					s.pipelineMonitor.ReportComponentEgress(payload, "sender")
-					s.pipelineMonitor.ReportComponentIngress(payload, "destination")
+					if destSender.destination.Metadata().ReportingEnabled {
+						s.pipelineMonitor.ReportComponentIngress(payload, destSender.destination.Metadata().MonitorTag())
+					}
 					sent = true
 					if s.senderDoneChan != nil {
 						senderDoneWg.Add(1)
@@ -140,6 +141,7 @@ func (s *Sender) run() {
 			// Decrement the wait group when this payload has been sent
 			s.flushWg.Done()
 		}
+		s.pipelineMonitor.ReportComponentEgress(payload, "sender")
 	}
 
 	// Cleanup the destinations
