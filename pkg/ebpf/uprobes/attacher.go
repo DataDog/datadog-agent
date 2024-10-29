@@ -329,7 +329,7 @@ type UprobeAttacher struct {
 //   - The configuration. Note that the config is copied, not referenced. The attacher caches some values
 //     that depend on the configuration, so any changes to the configuration after the
 //     attacher would make those caches incoherent. This way we ensure that the attacher is always consistent with the configuration it was created with.
-//   - The eBPF probe manager manager (ebpf.Manager usually)
+//   - The eBPF probe manager (ebpf.Manager usually)
 //   - A callback to be called whenever a probe is attached (optional, can be nil)
 //   - The binary inspector to be used (e.g., while we usually want NativeBinaryInspector here,
 //     we might want the GoBinaryInspector to attach to Go functions in a different
