@@ -64,7 +64,7 @@ type provider struct {
 // * FQDN
 // * OS hostname
 // * EC2
-func getProviderCatalog(disableIMDSv2 bool) []provider {
+func getProviderCatalog(notUseIMDSv2 bool) []provider {
 	providerCatalog := []provider{
 		{
 			name:             configProvider,
@@ -125,7 +125,7 @@ func getProviderCatalog(disableIMDSv2 bool) []provider {
 		expvarName:       "aws",
 	}
 
-	if disableIMDSv2 {
+	if notUseIMDSv2 {
 		ec2.cb = fromEC2WithoutIMDSV2
 	} else {
 		ec2.cb = fromEC2
@@ -163,7 +163,7 @@ func GetWithProviderWithoutIMDSV2(ctx context.Context) (Data, error) {
 	return data, err
 }
 
-func getHostname(ctx context.Context, keyCache string, disableIMDSv2 bool) (Data, error) {
+func getHostname(ctx context.Context, keyCache string, notUseIMDSv2 bool) (Data, error) {
 	cacheHostnameKey := cache.BuildAgentKey(keyCache)
 
 	// first check if we have a hostname cached
@@ -175,7 +175,7 @@ func getHostname(ctx context.Context, keyCache string, disableIMDSv2 bool) (Data
 	var hostname string
 	var providerName string
 
-	for _, p := range getProviderCatalog(disableIMDSv2) {
+	for _, p := range getProviderCatalog(notUseIMDSv2) {
 		log.Debugf("trying to get hostname from '%s' provider", p.name)
 
 		detectedHostname, err := p.cb(ctx, hostname)

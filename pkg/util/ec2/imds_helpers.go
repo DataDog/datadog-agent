@@ -28,7 +28,7 @@ var (
 type IMDSv2Action int
 
 const (
-	disableIMDSv2 IMDSv2Action = iota
+	notUseIMDSv2 IMDSv2Action = iota
 	useIMDSv2
 	forceIMDSv2
 )
@@ -81,13 +81,13 @@ func UseIMDSv2(force bool, disable bool) IMDSv2Action {
 		return forceIMDSv2
 		// if disable is set, we disable IMDSv2
 	} else if disable {
-		return disableIMDSv2
+		return notUseIMDSv2
 		// if ec2_prefer_imdsv2 is set, we use IMDSv2
 	} else if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") {
 		return useIMDSv2
 	}
 	// if nothing indicates to use IMDSv2, we default to IMDSv1
-	return disableIMDSv2
+	return notUseIMDSv2
 }
 
 func doHTTPRequest(ctx context.Context, url string, action IMDSv2Action) (string, error) {
