@@ -45,11 +45,72 @@ func TestConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "default config when enabled",
+			name: "disabled when Network Path Collector is enabled, reverse DNS enrichment is disabled",
+			configYaml: `
+network_path:
+  connections_monitoring:
+    enabled: true
+  collector:
+    reverse_dns_enrichment:
+      enabled: false
+`,
+			expectedConfig: rdnsQuerierConfig{
+				enabled:  false,
+				workers:  0,
+				chanSize: 0,
+				cache: cacheConfig{
+					enabled:         true,
+					entryTTL:        0,
+					cleanInterval:   0,
+					persistInterval: 0,
+					maxRetries:      -1,
+					maxSize:         0,
+				},
+				rateLimiter: rateLimiterConfig{
+					enabled:                true,
+					limitPerSec:            0,
+					limitThrottledPerSec:   0,
+					throttleErrorThreshold: 0,
+					recoveryIntervals:      0,
+					recoveryInterval:       0,
+				},
+			},
+		},
+		{
+			name: "default config when enabled through netflow",
 			configYaml: `
 network_devices:
   netflow:
     reverse_dns_enrichment_enabled: true
+`,
+			expectedConfig: rdnsQuerierConfig{
+				enabled:  true,
+				workers:  defaultWorkers,
+				chanSize: defaultChanSize,
+				cache: cacheConfig{
+					enabled:         true,
+					entryTTL:        defaultCacheEntryTTL,
+					cleanInterval:   defaultCacheCleanInterval,
+					persistInterval: defaultCachePersistInterval,
+					maxRetries:      defaultCacheMaxRetries,
+					maxSize:         defaultCacheMaxSize,
+				},
+				rateLimiter: rateLimiterConfig{
+					enabled:                true,
+					limitPerSec:            defaultRateLimitPerSec,
+					limitThrottledPerSec:   defaultRateLimitThrottledPerSec,
+					throttleErrorThreshold: defaultRateLimitThrottleErrorThreshold,
+					recoveryIntervals:      defaultRateLimitRecoveryIntervals,
+					recoveryInterval:       defaultRateLimitRecoveryInterval,
+				},
+			},
+		},
+		{
+			name: "default config when Network Path Collector is enabled",
+			configYaml: `
+network_path:
+  connections_monitoring:
+    enabled: true
 `,
 			expectedConfig: rdnsQuerierConfig{
 				enabled:  true,

@@ -56,7 +56,8 @@ const (
 )
 
 func newConfig(agentConfig config.Component) *rdnsQuerierConfig {
-	netflowRDNSEnrichmentEnabled := agentConfig.GetBool("network_devices.netflow.reverse_dns_enrichment_enabled")
+	netflowRDNSEnrichmentEnabled := agentConfig.GetBool("network_devices.netflow.reverse_dns_enrichment_enabled") ||
+		(agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled") && agentConfig.GetBool("network_path.connections_monitoring.enabled"))
 
 	c := &rdnsQuerierConfig{
 		enabled:  netflowRDNSEnrichmentEnabled,
