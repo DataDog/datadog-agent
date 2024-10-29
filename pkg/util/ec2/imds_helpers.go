@@ -93,7 +93,7 @@ func UseIMDSv2(force bool, disable bool) IMDSv2Action {
 func doHTTPRequest(ctx context.Context, url string, action IMDSv2Action) (string, error) {
 	source := metadataSourceIMDSv1
 	headers := map[string]string{}
-	if action >= useIMDSv2 {
+	if action == useIMDSv2 || action == forceIMDSv2 {
 		tokenValue, err := token.Get(ctx)
 		if err != nil {
 			if action == forceIMDSv2 {
