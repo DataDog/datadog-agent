@@ -87,12 +87,11 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 	))
 
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	// Finally, container provider
 	filter, err := containers.GetPauseContainerFilter()
 	assert.NoError(t, err)
-	return proccontainers.NewContainerProvider(metricsProvider, metadataProvider, filter)
+	return proccontainers.NewContainerProvider(metricsProvider, metadataProvider, filter, fakeTagger)
 }
 
 func TestProcessCheckFirstRun(t *testing.T) {

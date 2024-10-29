@@ -38,7 +38,6 @@ func (f *fakeCIDProvider) ContainerIDForPodUIDAndContName(podUID, contName strin
 func TestEnrichTags(t *testing.T) {
 	// Create fake tagger
 	fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
-	defer fakeTagger.ResetTagger()
 
 	// Fill fake tagger with entities
 	fakeTagger.SetTags(types.NewEntityID(types.KubernetesPodUID, "pod"), "host", []string{"pod-low"}, []string{"pod-orch"}, []string{"pod-high"}, []string{"pod-std"})
@@ -91,7 +90,6 @@ func TestEnrichTags(t *testing.T) {
 
 func TestEnrichTagsOrchestrator(t *testing.T) {
 	fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
-	defer fakeTagger.ResetTagger()
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
 	tb := tagset.NewHashingTagsAccumulator()
 	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", Cardinality: "orchestrator"})
@@ -100,7 +98,7 @@ func TestEnrichTagsOrchestrator(t *testing.T) {
 
 func TestEnrichTagsOptOut(t *testing.T) {
 	fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
-	defer fakeTagger.ResetTagger()
+
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("dogstatsd_origin_optout_enabled", true)
 	fakeTagger.SetTags(types.NewEntityID(types.EntityIDPrefix("foo"), "bar"), "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
@@ -180,6 +178,7 @@ func TestGenerateContainerIDFromExternalData(t *testing.T) {
 }
 
 func TestTaggerCardinality(t *testing.T) {
+	fakeTagger := TaggerClient{}
 	tests := []struct {
 		name        string
 		cardinality string
@@ -208,18 +207,18 @@ func TestTaggerCardinality(t *testing.T) {
 		{
 			name:        "empty",
 			cardinality: "",
-			want:        tagger.DogstatsdCardinality(),
+			want:        fakeTagger.DogstatsdCardinality(),
 		},
 		{
 			name:        "unknown",
 			cardinality: "foo",
-			want:        tagger.DogstatsdCardinality(),
+			want:        fakeTagger.DogstatsdCardinality(),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			l := logmock.New(t)
-			assert.Equal(t, tt.want, taggerCardinality(tt.cardinality, tagger.DogstatsdCardinality(), l))
+			assert.Equal(t, tt.want, taggerCardinality(tt.cardinality, fakeTagger.DogstatsdCardinality(), l))
 		})
 	}
 }
