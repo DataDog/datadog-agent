@@ -178,7 +178,7 @@ func GetPayload(ctx context.Context, conf model.Reader) *Payload {
 	meta := GetMeta(ctx, conf)
 	meta.Hostname = hostnameData.Hostname
 
-	legacyResolutionHostnameData, _ := hostname.GetWithProviderWithoutCacheAndIMDSV2(ctx)
+	legacyResolutionHostnameData, _ := hostname.GetWithProviderWithoutIMDSV2(ctx)
 	if legacyResolutionHostnameData.Hostname != meta.Hostname {
 		meta.LegacyResolutionHostname = legacyResolutionHostnameData.Hostname
 	}
