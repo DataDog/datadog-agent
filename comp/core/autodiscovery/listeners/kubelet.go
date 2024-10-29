@@ -101,6 +101,7 @@ func (l *KubeletListener) createPodService(
 		hosts:         map[string]string{"pod": pod.IP},
 		ports:         ports,
 		ready:         true,
+		tagger:        l.tagger,
 	}
 
 	svcID := buildSvcID(pod.GetID())
@@ -184,6 +185,7 @@ func (l *KubeletListener) createContainerService(
 			containerImg.RawName,
 			pod.Namespace,
 		),
+		tagger: l.tagger,
 	}
 
 	adIdentifier := containerName

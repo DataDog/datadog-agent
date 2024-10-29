@@ -39,6 +39,9 @@ func TestKubeletCreatePodService(t *testing.T) {
 		},
 		IP: "127.0.0.1",
 	}
+
+	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
+
 	tests := []struct {
 		name             string
 		pod              *workloadmeta.KubernetesPod
@@ -84,7 +87,8 @@ func TestKubeletCreatePodService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ready: true,
+						ready:  true,
+						tagger: taggerComponent,
 					},
 				},
 			},
@@ -93,7 +97,7 @@ func TestKubeletCreatePodService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			listener, wlm := newKubeletListener(t)
+			listener, wlm := newKubeletListener(t, taggerComponent)
 
 			listener.createPodService(tt.pod, tt.containers)
 
@@ -222,6 +226,8 @@ func TestKubeletCreateContainerService(t *testing.T) {
 		Runtime: workloadmeta.ContainerRuntimeDocker,
 	}
 
+	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
+
 	tests := []struct {
 		name             string
 		pod              *workloadmeta.KubernetesPod
@@ -257,6 +263,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 							"pod_name":  podName,
 							"pod_uid":   podID,
 						},
+						tagger: taggerComponent,
 					},
 				},
 			},
@@ -289,6 +296,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 							"pod_name":  podName,
 							"pod_uid":   podID,
 						},
+						tagger: taggerComponent,
 					},
 				},
 			},
@@ -343,6 +351,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 							"pod_name":  podName,
 							"pod_uid":   podID,
 						},
+						tagger: taggerComponent,
 					},
 				},
 			},
@@ -383,6 +392,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 							"pod_name":  podName,
 							"pod_uid":   podID,
 						},
+						tagger: taggerComponent,
 					},
 				},
 			},
@@ -416,6 +426,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 							"pod_name":  podName,
 							"pod_uid":   podID,
 						},
+						tagger: taggerComponent,
 					},
 				},
 			},
@@ -461,6 +472,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 							"pod_uid":   podID,
 						},
 						metricsExcluded: true,
+						tagger:          taggerComponent,
 					},
 				},
 			},
@@ -495,6 +507,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 							"pod_uid":   podID,
 						},
 						logsExcluded: true,
+						tagger:       taggerComponent,
 					},
 				},
 			},
@@ -503,7 +516,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			listener, wlm := newKubeletListener(t)
+			listener, wlm := newKubeletListener(t, taggerComponent)
 
 			listener.createContainerService(tt.pod, tt.podContainer, tt.container)
 
@@ -512,10 +525,8 @@ func TestKubeletCreateContainerService(t *testing.T) {
 	}
 }
 
-func newKubeletListener(t *testing.T) (*KubeletListener, *testWorkloadmetaListener) {
+func newKubeletListener(t *testing.T, tagger tagger.Component) (*KubeletListener, *testWorkloadmetaListener) {
 	wlm := newTestWorkloadmetaListener(t)
 
-	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
-
-	return &KubeletListener{workloadmetaListener: wlm, tagger: taggerComponent}, wlm
+	return &KubeletListener{workloadmetaListener: wlm, tagger: tagger}, wlm
 }
