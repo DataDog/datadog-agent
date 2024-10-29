@@ -331,43 +331,6 @@ func TestTaggerCardinality(t *testing.T) {
 	}
 }
 
-// func TestDefaultCardinality(t *testing.T) {
-// 	cfg := configmock.New(t)
-// 	for _, tt := range []struct {
-// 		name                     string
-// 		wantChecksCardinality    types.TagCardinality
-// 		wantDogstatsdCardinality types.TagCardinality
-// 		setup                    func()
-// 	}{
-// 		{
-// 			name:                     "successful parse config values, use config",
-// 			wantChecksCardinality:    types.HighCardinality,
-// 			wantDogstatsdCardinality: types.OrchestratorCardinality,
-// 			setup: func() {
-// 				cfg.SetWithoutSource("checks_tag_cardinality", types.HighCardinalityString)
-// 				cfg.SetWithoutSource("dogstatsd_tag_cardinality", types.OrchestratorCardinalityString)
-// 			},
-// 		},
-// 		{
-// 			name:                     "fail parse config values, use default",
-// 			wantChecksCardinality:    types.LowCardinality,
-// 			wantDogstatsdCardinality: types.LowCardinality,
-// 			setup: func() {
-// 				cfg.SetWithoutSource("checks_tag_cardinality", "foo")
-// 				cfg.SetWithoutSource("dogstatsd_tag_cardinality", "foo")
-// 			},
-// 		},
-// 	} {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			tt.setup()
-// 			fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
-// 			assert.Equal(t, tt.wantDogstatsdCardinality, fakeTagger.DogstatsdCardinality())
-// 			assert.Equal(t, tt.wantChecksCardinality, fakeTagger.ChecksCardinality())
-// 			fakeTagger.ResetTagger()
-// 		})
-// 	}
-// }
-
 func TestDefaultCardinality(t *testing.T) {
 	cfg := configmock.New(t)
 	for _, tt := range []struct {
