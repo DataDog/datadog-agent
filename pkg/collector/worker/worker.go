@@ -140,13 +140,10 @@ func (w *Worker) Run() {
 			continue
 		}
 
-		if haagent.IsEnabled() && haagent.IsHACheck(check.String()) {
-			if !haagent.IsPrimary() {
-				checkLogger.Debug("Check skipped since the agent is not primary")
-
-				w.checksTracker.DeleteCheck(check.ID()) // Remove the check from the running list
-				continue
-			}
+		if haagent.IsEnabled() && haagent.IsHACheck(check.String()) && !haagent.IsPrimary() {
+			checkLogger.Debug("Check skipped since the agent is not primary")
+			w.checksTracker.DeleteCheck(check.ID()) // Remove the check from the running list
+			continue
 		}
 
 		checkStartTime := time.Now()
