@@ -112,6 +112,24 @@ var conntrackerTelemetry = struct {
 	prometheus.NewDesc(telemetryModuleName+"__orphan_size", "Gauge measuring the number of orphaned items in the conntrack cache", nil, nil),
 }
 
+// isNetlinkConntrackSupported checks if we have the right capabilities
+// for netlink conntrack; NET_ADMIN is required
+func isNetlinkConntrackSupported() bool {
+	// check if we have the right capabilities for the netlink NewConntracker
+	// NET_ADMIN is required
+	caps, err := capability.NewPid2(0)
+	if err == nil {
+		err = caps.Load()
+	}
+
+	if err != nil {
+		log.Warnf("could not check if netlink conntracker is supported: %s", err)
+		return false
+	}
+
+	return caps.Get(capability.EFFECTIVE, capability.CAP_NET_ADMIN)
+}
+
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
 func NewConntracker(config *config.Config, telemetrycomp telemetryComp.Component) (Conntracker, error) {
 	var (
@@ -119,16 +137,8 @@ func NewConntracker(config *config.Config, telemetrycomp telemetryComp.Component
 		conntracker Conntracker
 	)
 
-	// check if we have the right capabilities for the netlink NewConntracker
-	// NET_ADMIN is required
-	if caps, err := capability.NewPid2(0); err == nil {
-		if err = caps.Load(); err != nil {
-			return nil, fmt.Errorf("could not load process capabilities: %w", err)
-		}
-
-		if !caps.Get(capability.EFFECTIVE, capability.CAP_NET_ADMIN) {
-			return nil, ErrNotPermitted
-		}
+	if !isNetlinkConntrackSupported() {
+		return nil, ErrNotPermitted
 	}
 
 	done := make(chan struct{})

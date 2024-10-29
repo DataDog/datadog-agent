@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
@@ -142,9 +143,17 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	if opts.TTYFallbackEnabled {
 		processOpts.WithTTYFallbackEnabled()
 	}
+	if opts.EnvVarsResolutionEnabled {
+		processOpts.WithEnvsResolutionEnabled()
+	}
+
+	var envVarsResolver *envvars.Resolver
+	if opts.EnvVarsResolutionEnabled {
+		envVarsResolver = envvars.NewEnvVarsResolver(config.Probe)
+	}
 
 	processResolver, err := process.NewEBPFResolver(manager, config.Probe, statsdClient,
-		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, processOpts)
+		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, envVarsResolver, processOpts)
 	if err != nil {
 		return nil, err
 	}

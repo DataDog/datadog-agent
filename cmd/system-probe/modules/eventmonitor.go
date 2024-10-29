@@ -32,6 +32,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	}
 
 	opts := eventmonitor.Opts{}
+	opts.ProbeOpts.EnvsVarResolutionEnabled = emconfig.EnvVarsResolutionEnabled
 	secmoduleOpts := secmodule.Opts{}
 
 	// adapt options
