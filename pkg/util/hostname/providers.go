@@ -26,7 +26,7 @@ const (
 
 const (
 	// DataKey is the key used to store the hostname in the cache
-	hostnameDataKey = "hostname"
+	hostnameDataKey                 = "hostname"
 	legacyResolutionHostnameDataKey = "legacy_resolution_hostname"
 )
 
@@ -160,7 +160,7 @@ func GetWithProvider(ctx context.Context) (Data, error) {
 	return getHostname(ctx, hostnameDataKey)
 }
 
-// GetWithProviderWithoutCacheAndIMDSV2 returns the hostname for the Agent and the provider that was use to retrieve it without using the cache and without using IMDSv2
+// GetWithProviderWithoutIMDSV2 returns the hostname for the Agent and the provider that was use to retrieve it without using IMDSv2
 func GetWithProviderWithoutIMDSV2(ctx context.Context) (Data, error) {
 	if !pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") {
 		return Data{}, nil
