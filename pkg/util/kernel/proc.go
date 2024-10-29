@@ -56,7 +56,12 @@ func WithAllProcs(procRoot string, fn func(int) error) error {
 	return nil
 }
 
-// scanNullString is a SplitFunc for a Scanner that returns each null-terminated string as a token
+// scanNullString is a SplitFunc for a Scanner that returns each null-terminated
+// string as a token. Receives the data from the scanner that's yet to be
+// processed into tokens, and whether the scanner has reached EOF.
+//
+// Returns the number of bytes to advance the scanner, the token that was
+// detected and an error in case of failure
 func scanNullStrings(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil
