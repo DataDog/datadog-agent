@@ -1,6 +1,10 @@
 #define BPF_NO_PRESERVE_ACCESS_INDEX
 #define BPF_NO_GLOBAL_DATA
 
+#ifdef COMPILE_RUNTIME
+#include "kconfig.h"
+#endif
+
 #include "ktypes.h"
 #include "bpf_metadata.h"
 #include "bpf_helpers.h"
