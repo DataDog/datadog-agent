@@ -24,6 +24,12 @@ const (
 	fargateProvider = hostnameinterface.FargateProvider
 )
 
+const (
+	// DataKey is the key used to store the hostname in the cache
+	hostnameDataKey = "hostname"
+	legacyResolutionHostnameDataKey = "legacy_resolution_hostname"
+)
+
 var (
 	hostnameExpvars  = expvar.NewMap("hostname")
 	hostnameProvider = expvar.String{}
@@ -151,7 +157,7 @@ func saveHostname(cacheHostnameKey string, hostname string, providerName string)
 
 // GetWithProvider returns the hostname for the Agent and the provider that was use to retrieve it
 func GetWithProvider(ctx context.Context) (Data, error) {
-	return getHostname(ctx, "hostname", false)
+	return getHostname(ctx, hostnameDataKey)
 }
 
 // GetWithProviderWithoutCacheAndIMDSV2 returns the hostname for the Agent and the provider that was use to retrieve it without using the cache and without using IMDSv2
@@ -159,11 +165,11 @@ func GetWithProviderWithoutIMDSV2(ctx context.Context) (Data, error) {
 	if !pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") {
 		return Data{}, nil
 	}
-	data, err := getHostname(ctx, "legacy_resolution_hostname", true)
+	data, err := getHostname(ctx, legacyResolutionHostnameDataKey)
 	return data, err
 }
 
-func getHostname(ctx context.Context, keyCache string, notUseIMDSv2 bool) (Data, error) {
+func getHostname(ctx context.Context, keyCache string) (Data, error) {
 	cacheHostnameKey := cache.BuildAgentKey(keyCache)
 
 	// first check if we have a hostname cached
@@ -174,6 +180,13 @@ func getHostname(ctx context.Context, keyCache string, notUseIMDSv2 bool) (Data,
 	var err error
 	var hostname string
 	var providerName string
+
+	var notUseIMDSv2 bool
+	if keyCache == legacyResolutionHostnameDataKey {
+		notUseIMDSv2 = true
+	} else {
+		notUseIMDSv2 = false
+	}
 
 	for _, p := range getProviderCatalog(notUseIMDSv2) {
 		log.Debugf("trying to get hostname from '%s' provider", p.name)
