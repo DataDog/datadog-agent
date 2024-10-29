@@ -19,7 +19,9 @@ import (
 )
 
 const (
-	maxCommLen = 15 // maximum command name length to process when checking for non-reportable commands
+	// maximum command name length to process when checking for non-reportable commands
+	// file /proc/<pid>/comm stores a length of up to 16 bytes, where the last byte is the end of the line.
+	maxCommLen = 15
 )
 
 // ignoreFamily list of processes with hyphens in their names,

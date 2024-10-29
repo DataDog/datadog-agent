@@ -61,6 +61,7 @@ func TestIgnoreComm(t *testing.T) {
 func TestIgnoreCommsLengths(t *testing.T) {
 	discovery := newDiscovery()
 	require.NotEmpty(t, discovery)
+	require.Equal(t, len(discovery.config.ignoreComms), 10)
 
 	for comm := range discovery.config.ignoreComms {
 		assert.LessOrEqual(t, len(comm), maxCommLen, "Process name %q too big", comm)
