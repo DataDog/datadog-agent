@@ -44,14 +44,14 @@ func GetMetaFromCache(ctx context.Context, conf model.Reader) *Meta {
 	res, _ := cache.Get[*Meta](
 		metaCacheKey,
 		func() (*Meta, error) {
-			return GetMeta(ctx, conf), nil
+			return getMeta(ctx, conf), nil
 		},
 	)
 	return res
 }
 
-// GetMeta returns the metadata information about the host and refreshes the cache
-func GetMeta(ctx context.Context, conf model.Reader) *Meta {
+// getMeta returns the metadata information about the host and refreshes the cache
+func getMeta(ctx context.Context, conf model.Reader) *Meta {
 	osHostname, _ := os.Hostname()
 	tzname, _ := time.Now().Zone()
 	ec2Hostname, _ := ec2.GetHostname(ctx)
