@@ -78,6 +78,8 @@ type Telemetry struct {
 	Tcp_done_failed_tuple           uint64
 	Tcp_finish_connect_failed_tuple uint64
 	Tcp_close_target_failures       uint64
+	Tcp_done_connection_flush       uint64
+	Tcp_close_connection_flush      uint64
 }
 type PortBinding struct {
 	Netns     uint32
