@@ -1832,6 +1832,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "exec.is_exec":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.Exec.Process.IsExec
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "exec.is_kworker":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -1845,10 +1854,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				return ev.Exec.Process.IsThread
+				return ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Exec.Process)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "exec.pid":
 		return &eval.IntEvaluator{
@@ -2695,6 +2704,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "exit.is_exec":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.Exit.Process.IsExec
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "exit.is_kworker":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -2708,10 +2726,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				return ev.Exit.Process.IsThread
+				return ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Exit.Process)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "exit.pid":
 		return &eval.IntEvaluator{
@@ -6897,6 +6915,36 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "process.ancestors.is_exec":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				var results []bool
+				iterator := &ProcessAncestorsIterator{}
+				if regID != "" {
+					value := iterator.At(ctx, regID, ctx.Registers[regID])
+					if value == nil {
+						return results
+					}
+					element := value
+					result := element.ProcessContext.Process.IsExec
+					results = append(results, result)
+					return results
+				}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := value
+					result := element.ProcessContext.Process.IsExec
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.BoolCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "process.ancestors.is_kworker":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
@@ -6930,6 +6978,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.is_thread":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				ev := ctx.Event.(*Event)
 				if result, ok := ctx.BoolCache[field]; ok {
 					return result
 				}
@@ -6941,14 +6990,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return results
 					}
 					element := value
-					result := element.ProcessContext.Process.IsThread
+					result := ev.FieldHandlers.ResolveProcessIsThread(ev, &element.ProcessContext.Process)
 					results = append(results, result)
 					return results
 				}
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := value
-					result := element.ProcessContext.Process.IsThread
+					result := ev.FieldHandlers.ResolveProcessIsThread(ev, &element.ProcessContext.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7976,6 +8025,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "process.is_exec":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.BaseEvent.ProcessContext.Process.IsExec
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "process.is_kworker":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -7989,10 +8047,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				return ev.BaseEvent.ProcessContext.Process.IsThread
+				return ev.FieldHandlers.ResolveProcessIsThread(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.parent.args":
 		return &eval.StringEvaluator{
@@ -8926,6 +8984,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "process.parent.is_exec":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return false
+				}
+				return ev.BaseEvent.ProcessContext.Parent.IsExec
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "process.parent.is_kworker":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -8945,10 +9015,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return false
 				}
-				return ev.BaseEvent.ProcessContext.Parent.IsThread
+				return ev.FieldHandlers.ResolveProcessIsThread(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.parent.pid":
 		return &eval.IntEvaluator{
@@ -11562,6 +11632,36 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "ptrace.tracee.ancestors.is_exec":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				var results []bool
+				iterator := &ProcessAncestorsIterator{}
+				if regID != "" {
+					value := iterator.At(ctx, regID, ctx.Registers[regID])
+					if value == nil {
+						return results
+					}
+					element := value
+					result := element.ProcessContext.Process.IsExec
+					results = append(results, result)
+					return results
+				}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := value
+					result := element.ProcessContext.Process.IsExec
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.BoolCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "ptrace.tracee.ancestors.is_kworker":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
@@ -11595,6 +11695,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.is_thread":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				ev := ctx.Event.(*Event)
 				if result, ok := ctx.BoolCache[field]; ok {
 					return result
 				}
@@ -11606,14 +11707,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return results
 					}
 					element := value
-					result := element.ProcessContext.Process.IsThread
+					result := ev.FieldHandlers.ResolveProcessIsThread(ev, &element.ProcessContext.Process)
 					results = append(results, result)
 					return results
 				}
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := value
-					result := element.ProcessContext.Process.IsThread
+					result := ev.FieldHandlers.ResolveProcessIsThread(ev, &element.ProcessContext.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -12641,6 +12742,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "ptrace.tracee.is_exec":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.PTrace.Tracee.Process.IsExec
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "ptrace.tracee.is_kworker":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -12654,10 +12764,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				return ev.PTrace.Tracee.Process.IsThread
+				return ev.FieldHandlers.ResolveProcessIsThread(ev, &ev.PTrace.Tracee.Process)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.parent.args":
 		return &eval.StringEvaluator{
@@ -13591,6 +13701,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "ptrace.tracee.parent.is_exec":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return false
+				}
+				return ev.PTrace.Tracee.Parent.IsExec
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "ptrace.tracee.parent.is_kworker":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -13610,10 +13732,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !ev.PTrace.Tracee.HasParent() {
 					return false
 				}
-				return ev.PTrace.Tracee.Parent.IsThread
+				return ev.FieldHandlers.ResolveProcessIsThread(ev, ev.PTrace.Tracee.Parent)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.parent.pid":
 		return &eval.IntEvaluator{
@@ -17381,6 +17503,36 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "signal.target.ancestors.is_exec":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				var results []bool
+				iterator := &ProcessAncestorsIterator{}
+				if regID != "" {
+					value := iterator.At(ctx, regID, ctx.Registers[regID])
+					if value == nil {
+						return results
+					}
+					element := value
+					result := element.ProcessContext.Process.IsExec
+					results = append(results, result)
+					return results
+				}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := value
+					result := element.ProcessContext.Process.IsExec
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.BoolCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "signal.target.ancestors.is_kworker":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
@@ -17414,6 +17566,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.is_thread":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				ev := ctx.Event.(*Event)
 				if result, ok := ctx.BoolCache[field]; ok {
 					return result
 				}
@@ -17425,14 +17578,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return results
 					}
 					element := value
-					result := element.ProcessContext.Process.IsThread
+					result := ev.FieldHandlers.ResolveProcessIsThread(ev, &element.ProcessContext.Process)
 					results = append(results, result)
 					return results
 				}
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := value
-					result := element.ProcessContext.Process.IsThread
+					result := ev.FieldHandlers.ResolveProcessIsThread(ev, &element.ProcessContext.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -18460,6 +18613,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "signal.target.is_exec":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.Signal.Target.Process.IsExec
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "signal.target.is_kworker":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -18473,10 +18635,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				return ev.Signal.Target.Process.IsThread
+				return ev.FieldHandlers.ResolveProcessIsThread(ev, &ev.Signal.Target.Process)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "signal.target.parent.args":
 		return &eval.StringEvaluator{
@@ -19410,6 +19572,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "signal.target.parent.is_exec":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return false
+				}
+				return ev.Signal.Target.Parent.IsExec
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "signal.target.parent.is_kworker":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -19429,10 +19603,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !ev.Signal.Target.HasParent() {
 					return false
 				}
-				return ev.Signal.Target.Parent.IsThread
+				return ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Signal.Target.Parent)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "signal.target.parent.pid":
 		return &eval.IntEvaluator{
@@ -20477,6 +20651,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.interpreter.file.rights",
 		"exec.interpreter.file.uid",
 		"exec.interpreter.file.user",
+		"exec.is_exec",
 		"exec.is_kworker",
 		"exec.is_thread",
 		"exec.pid",
@@ -20560,6 +20735,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.interpreter.file.rights",
 		"exit.interpreter.file.uid",
 		"exit.interpreter.file.user",
+		"exit.is_exec",
 		"exit.is_kworker",
 		"exit.is_thread",
 		"exit.pid",
@@ -20826,6 +21002,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.interpreter.file.rights",
 		"process.ancestors.interpreter.file.uid",
 		"process.ancestors.interpreter.file.user",
+		"process.ancestors.is_exec",
 		"process.ancestors.is_kworker",
 		"process.ancestors.is_thread",
 		"process.ancestors.length",
@@ -20907,6 +21084,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.interpreter.file.rights",
 		"process.interpreter.file.uid",
 		"process.interpreter.file.user",
+		"process.is_exec",
 		"process.is_kworker",
 		"process.is_thread",
 		"process.parent.args",
@@ -20978,6 +21156,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.interpreter.file.rights",
 		"process.parent.interpreter.file.uid",
 		"process.parent.interpreter.file.user",
+		"process.parent.is_exec",
 		"process.parent.is_kworker",
 		"process.parent.is_thread",
 		"process.parent.pid",
@@ -21069,6 +21248,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.interpreter.file.rights",
 		"ptrace.tracee.ancestors.interpreter.file.uid",
 		"ptrace.tracee.ancestors.interpreter.file.user",
+		"ptrace.tracee.ancestors.is_exec",
 		"ptrace.tracee.ancestors.is_kworker",
 		"ptrace.tracee.ancestors.is_thread",
 		"ptrace.tracee.ancestors.length",
@@ -21150,6 +21330,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.interpreter.file.rights",
 		"ptrace.tracee.interpreter.file.uid",
 		"ptrace.tracee.interpreter.file.user",
+		"ptrace.tracee.is_exec",
 		"ptrace.tracee.is_kworker",
 		"ptrace.tracee.is_thread",
 		"ptrace.tracee.parent.args",
@@ -21221,6 +21402,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.interpreter.file.rights",
 		"ptrace.tracee.parent.interpreter.file.uid",
 		"ptrace.tracee.parent.interpreter.file.user",
+		"ptrace.tracee.parent.is_exec",
 		"ptrace.tracee.parent.is_kworker",
 		"ptrace.tracee.parent.is_thread",
 		"ptrace.tracee.parent.pid",
@@ -21438,6 +21620,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.interpreter.file.rights",
 		"signal.target.ancestors.interpreter.file.uid",
 		"signal.target.ancestors.interpreter.file.user",
+		"signal.target.ancestors.is_exec",
 		"signal.target.ancestors.is_kworker",
 		"signal.target.ancestors.is_thread",
 		"signal.target.ancestors.length",
@@ -21519,6 +21702,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.interpreter.file.rights",
 		"signal.target.interpreter.file.uid",
 		"signal.target.interpreter.file.user",
+		"signal.target.is_exec",
 		"signal.target.is_kworker",
 		"signal.target.is_thread",
 		"signal.target.parent.args",
@@ -21590,6 +21774,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.interpreter.file.rights",
 		"signal.target.parent.interpreter.file.uid",
 		"signal.target.parent.interpreter.file.user",
+		"signal.target.parent.is_exec",
 		"signal.target.parent.is_kworker",
 		"signal.target.parent.is_thread",
 		"signal.target.parent.pid",
@@ -22159,10 +22344,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exec.Process.LinuxBinprm.FileEvent.FileFields), nil
+	case "exec.is_exec":
+		return ev.Exec.Process.IsExec, nil
 	case "exec.is_kworker":
 		return ev.Exec.Process.PIDContext.IsKworker, nil
 	case "exec.is_thread":
-		return ev.Exec.Process.IsThread, nil
+		return ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Exec.Process), nil
 	case "exec.pid":
 		return int(ev.Exec.Process.PIDContext.Pid), nil
 	case "exec.ppid":
@@ -22433,10 +22620,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields), nil
+	case "exit.is_exec":
+		return ev.Exit.Process.IsExec, nil
 	case "exit.is_kworker":
 		return ev.Exit.Process.PIDContext.IsKworker, nil
 	case "exit.is_thread":
-		return ev.Exit.Process.IsThread, nil
+		return ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Exit.Process), nil
 	case "exit.pid":
 		return int(ev.Exit.Process.PIDContext.Pid), nil
 	case "exit.ppid":
@@ -23615,6 +23804,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
+	case "process.ancestors.is_exec":
+		var values []bool
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := ptr
+			result := element.ProcessContext.Process.IsExec
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
 	case "process.ancestors.is_kworker":
 		var values []bool
 		ctx := eval.NewContext(ev)
@@ -23634,7 +23835,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := ptr
-			result := element.ProcessContext.Process.IsThread
+			result := ev.FieldHandlers.ResolveProcessIsThread(ev, &element.ProcessContext.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -23997,10 +24198,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields), nil
+	case "process.is_exec":
+		return ev.BaseEvent.ProcessContext.Process.IsExec, nil
 	case "process.is_kworker":
 		return ev.BaseEvent.ProcessContext.Process.PIDContext.IsKworker, nil
 	case "process.is_thread":
-		return ev.BaseEvent.ProcessContext.Process.IsThread, nil
+		return ev.FieldHandlers.ResolveProcessIsThread(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.parent.args":
 		if !ev.BaseEvent.ProcessContext.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
@@ -24442,6 +24645,11 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields), nil
+	case "process.parent.is_exec":
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return false, &eval.ErrNotSupported{Field: field}
+		}
+		return ev.BaseEvent.ProcessContext.Parent.IsExec, nil
 	case "process.parent.is_kworker":
 		if !ev.BaseEvent.ProcessContext.HasParent() {
 			return false, &eval.ErrNotSupported{Field: field}
@@ -24451,7 +24659,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		if !ev.BaseEvent.ProcessContext.HasParent() {
 			return false, &eval.ErrNotSupported{Field: field}
 		}
-		return ev.BaseEvent.ProcessContext.Parent.IsThread, nil
+		return ev.FieldHandlers.ResolveProcessIsThread(ev, ev.BaseEvent.ProcessContext.Parent), nil
 	case "process.parent.pid":
 		if !ev.BaseEvent.ProcessContext.HasParent() {
 			return 0, &eval.ErrNotSupported{Field: field}
@@ -25307,6 +25515,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
+	case "ptrace.tracee.ancestors.is_exec":
+		var values []bool
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := ptr
+			result := element.ProcessContext.Process.IsExec
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
 	case "ptrace.tracee.ancestors.is_kworker":
 		var values []bool
 		ctx := eval.NewContext(ev)
@@ -25326,7 +25546,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := ptr
-			result := element.ProcessContext.Process.IsThread
+			result := ev.FieldHandlers.ResolveProcessIsThread(ev, &element.ProcessContext.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -25689,10 +25909,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields), nil
+	case "ptrace.tracee.is_exec":
+		return ev.PTrace.Tracee.Process.IsExec, nil
 	case "ptrace.tracee.is_kworker":
 		return ev.PTrace.Tracee.Process.PIDContext.IsKworker, nil
 	case "ptrace.tracee.is_thread":
-		return ev.PTrace.Tracee.Process.IsThread, nil
+		return ev.FieldHandlers.ResolveProcessIsThread(ev, &ev.PTrace.Tracee.Process), nil
 	case "ptrace.tracee.parent.args":
 		if !ev.PTrace.Tracee.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
@@ -26134,6 +26356,11 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields), nil
+	case "ptrace.tracee.parent.is_exec":
+		if !ev.PTrace.Tracee.HasParent() {
+			return false, &eval.ErrNotSupported{Field: field}
+		}
+		return ev.PTrace.Tracee.Parent.IsExec, nil
 	case "ptrace.tracee.parent.is_kworker":
 		if !ev.PTrace.Tracee.HasParent() {
 			return false, &eval.ErrNotSupported{Field: field}
@@ -26143,7 +26370,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		if !ev.PTrace.Tracee.HasParent() {
 			return false, &eval.ErrNotSupported{Field: field}
 		}
-		return ev.PTrace.Tracee.Parent.IsThread, nil
+		return ev.FieldHandlers.ResolveProcessIsThread(ev, ev.PTrace.Tracee.Parent), nil
 	case "ptrace.tracee.parent.pid":
 		if !ev.PTrace.Tracee.HasParent() {
 			return 0, &eval.ErrNotSupported{Field: field}
@@ -27251,6 +27478,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
+	case "signal.target.ancestors.is_exec":
+		var values []bool
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := ptr
+			result := element.ProcessContext.Process.IsExec
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
 	case "signal.target.ancestors.is_kworker":
 		var values []bool
 		ctx := eval.NewContext(ev)
@@ -27270,7 +27509,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := ptr
-			result := element.ProcessContext.Process.IsThread
+			result := ev.FieldHandlers.ResolveProcessIsThread(ev, &element.ProcessContext.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -27633,10 +27872,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields), nil
+	case "signal.target.is_exec":
+		return ev.Signal.Target.Process.IsExec, nil
 	case "signal.target.is_kworker":
 		return ev.Signal.Target.Process.PIDContext.IsKworker, nil
 	case "signal.target.is_thread":
-		return ev.Signal.Target.Process.IsThread, nil
+		return ev.FieldHandlers.ResolveProcessIsThread(ev, &ev.Signal.Target.Process), nil
 	case "signal.target.parent.args":
 		if !ev.Signal.Target.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
@@ -28078,6 +28319,11 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields), nil
+	case "signal.target.parent.is_exec":
+		if !ev.Signal.Target.HasParent() {
+			return false, &eval.ErrNotSupported{Field: field}
+		}
+		return ev.Signal.Target.Parent.IsExec, nil
 	case "signal.target.parent.is_kworker":
 		if !ev.Signal.Target.HasParent() {
 			return false, &eval.ErrNotSupported{Field: field}
@@ -28087,7 +28333,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		if !ev.Signal.Target.HasParent() {
 			return false, &eval.ErrNotSupported{Field: field}
 		}
-		return ev.Signal.Target.Parent.IsThread, nil
+		return ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Signal.Target.Parent), nil
 	case "signal.target.parent.pid":
 		if !ev.Signal.Target.HasParent() {
 			return 0, &eval.ErrNotSupported{Field: field}
@@ -28662,6 +28908,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 	case "exec.interpreter.file.user":
 		return "exec", nil
+	case "exec.is_exec":
+		return "exec", nil
 	case "exec.is_kworker":
 		return "exec", nil
 	case "exec.is_thread":
@@ -28827,6 +29075,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exit.interpreter.file.uid":
 		return "exit", nil
 	case "exit.interpreter.file.user":
+		return "exit", nil
+	case "exit.is_exec":
 		return "exit", nil
 	case "exit.is_kworker":
 		return "exit", nil
@@ -29360,6 +29610,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "", nil
 	case "process.ancestors.interpreter.file.user":
 		return "", nil
+	case "process.ancestors.is_exec":
+		return "", nil
 	case "process.ancestors.is_kworker":
 		return "", nil
 	case "process.ancestors.is_thread":
@@ -29522,6 +29774,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "", nil
 	case "process.interpreter.file.user":
 		return "", nil
+	case "process.is_exec":
+		return "", nil
 	case "process.is_kworker":
 		return "", nil
 	case "process.is_thread":
@@ -29663,6 +29917,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.parent.interpreter.file.uid":
 		return "", nil
 	case "process.parent.interpreter.file.user":
+		return "", nil
+	case "process.parent.is_exec":
 		return "", nil
 	case "process.parent.is_kworker":
 		return "", nil
@@ -29846,6 +30102,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.interpreter.file.user":
 		return "ptrace", nil
+	case "ptrace.tracee.ancestors.is_exec":
+		return "ptrace", nil
 	case "ptrace.tracee.ancestors.is_kworker":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.is_thread":
@@ -30008,6 +30266,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.interpreter.file.user":
 		return "ptrace", nil
+	case "ptrace.tracee.is_exec":
+		return "ptrace", nil
 	case "ptrace.tracee.is_kworker":
 		return "ptrace", nil
 	case "ptrace.tracee.is_thread":
@@ -30149,6 +30409,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "ptrace.tracee.parent.interpreter.file.uid":
 		return "ptrace", nil
 	case "ptrace.tracee.parent.interpreter.file.user":
+		return "ptrace", nil
+	case "ptrace.tracee.parent.is_exec":
 		return "ptrace", nil
 	case "ptrace.tracee.parent.is_kworker":
 		return "ptrace", nil
@@ -30584,6 +30846,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.ancestors.interpreter.file.user":
 		return "signal", nil
+	case "signal.target.ancestors.is_exec":
+		return "signal", nil
 	case "signal.target.ancestors.is_kworker":
 		return "signal", nil
 	case "signal.target.ancestors.is_thread":
@@ -30746,6 +31010,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.interpreter.file.user":
 		return "signal", nil
+	case "signal.target.is_exec":
+		return "signal", nil
 	case "signal.target.is_kworker":
 		return "signal", nil
 	case "signal.target.is_thread":
@@ -30887,6 +31153,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "signal.target.parent.interpreter.file.uid":
 		return "signal", nil
 	case "signal.target.parent.interpreter.file.user":
+		return "signal", nil
+	case "signal.target.parent.is_exec":
 		return "signal", nil
 	case "signal.target.parent.is_kworker":
 		return "signal", nil
@@ -31439,6 +31707,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exec.interpreter.file.user":
 		return reflect.String, nil
+	case "exec.is_exec":
+		return reflect.Bool, nil
 	case "exec.is_kworker":
 		return reflect.Bool, nil
 	case "exec.is_thread":
@@ -31605,6 +31875,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exit.interpreter.file.user":
 		return reflect.String, nil
+	case "exit.is_exec":
+		return reflect.Bool, nil
 	case "exit.is_kworker":
 		return reflect.Bool, nil
 	case "exit.is_thread":
@@ -32137,6 +32409,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.ancestors.interpreter.file.user":
 		return reflect.String, nil
+	case "process.ancestors.is_exec":
+		return reflect.Bool, nil
 	case "process.ancestors.is_kworker":
 		return reflect.Bool, nil
 	case "process.ancestors.is_thread":
@@ -32299,6 +32573,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.interpreter.file.user":
 		return reflect.String, nil
+	case "process.is_exec":
+		return reflect.Bool, nil
 	case "process.is_kworker":
 		return reflect.Bool, nil
 	case "process.is_thread":
@@ -32441,6 +32717,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.parent.interpreter.file.user":
 		return reflect.String, nil
+	case "process.parent.is_exec":
+		return reflect.Bool, nil
 	case "process.parent.is_kworker":
 		return reflect.Bool, nil
 	case "process.parent.is_thread":
@@ -32623,6 +32901,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.interpreter.file.user":
 		return reflect.String, nil
+	case "ptrace.tracee.ancestors.is_exec":
+		return reflect.Bool, nil
 	case "ptrace.tracee.ancestors.is_kworker":
 		return reflect.Bool, nil
 	case "ptrace.tracee.ancestors.is_thread":
@@ -32785,6 +33065,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.interpreter.file.user":
 		return reflect.String, nil
+	case "ptrace.tracee.is_exec":
+		return reflect.Bool, nil
 	case "ptrace.tracee.is_kworker":
 		return reflect.Bool, nil
 	case "ptrace.tracee.is_thread":
@@ -32927,6 +33209,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.parent.interpreter.file.user":
 		return reflect.String, nil
+	case "ptrace.tracee.parent.is_exec":
+		return reflect.Bool, nil
 	case "ptrace.tracee.parent.is_kworker":
 		return reflect.Bool, nil
 	case "ptrace.tracee.parent.is_thread":
@@ -33361,6 +33645,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.ancestors.interpreter.file.user":
 		return reflect.String, nil
+	case "signal.target.ancestors.is_exec":
+		return reflect.Bool, nil
 	case "signal.target.ancestors.is_kworker":
 		return reflect.Bool, nil
 	case "signal.target.ancestors.is_thread":
@@ -33523,6 +33809,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.interpreter.file.user":
 		return reflect.String, nil
+	case "signal.target.is_exec":
+		return reflect.Bool, nil
 	case "signal.target.is_kworker":
 		return reflect.Bool, nil
 	case "signal.target.is_thread":
@@ -33665,6 +33953,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.parent.interpreter.file.user":
 		return reflect.String, nil
+	case "signal.target.parent.is_exec":
+		return reflect.Bool, nil
 	case "signal.target.parent.is_kworker":
 		return reflect.Bool, nil
 	case "signal.target.parent.is_thread":
@@ -35369,6 +35659,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.User = rv
 		return nil
+	case "exec.is_exec":
+		if ev.Exec.Process == nil {
+			ev.Exec.Process = &Process{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.IsExec"}
+		}
+		ev.Exec.Process.IsExec = rv
+		return nil
 	case "exec.is_kworker":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
@@ -36205,6 +36505,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.User"}
 		}
 		ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.User = rv
+		return nil
+	case "exit.is_exec":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.IsExec"}
+		}
+		ev.Exit.Process.IsExec = rv
 		return nil
 	case "exit.is_kworker":
 		if ev.Exit.Process == nil {
@@ -38555,6 +38865,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = rv
 		return nil
+	case "process.ancestors.is_exec":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsExec"}
+		}
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsExec = rv
+		return nil
 	case "process.ancestors.is_kworker":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -39411,6 +39734,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User"}
 		}
 		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = rv
+		return nil
+	case "process.is_exec":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.IsExec"}
+		}
+		ev.BaseEvent.ProcessContext.Process.IsExec = rv
 		return nil
 	case "process.is_kworker":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -40341,6 +40674,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.User"}
 		}
 		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.User = rv
+		return nil
+	case "process.parent.is_exec":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.IsExec"}
+		}
+		ev.BaseEvent.ProcessContext.Parent.IsExec = rv
 		return nil
 	case "process.parent.is_kworker":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -41505,6 +41851,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = rv
 		return nil
+	case "ptrace.tracee.ancestors.is_exec":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.IsExec"}
+		}
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.IsExec = rv
+		return nil
 	case "ptrace.tracee.ancestors.is_kworker":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -42361,6 +42720,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.User"}
 		}
 		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.User = rv
+		return nil
+	case "ptrace.tracee.is_exec":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.IsExec"}
+		}
+		ev.PTrace.Tracee.Process.IsExec = rv
 		return nil
 	case "ptrace.tracee.is_kworker":
 		if ev.PTrace.Tracee == nil {
@@ -43291,6 +43660,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.User"}
 		}
 		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.User = rv
+		return nil
+	case "ptrace.tracee.parent.is_exec":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.IsExec"}
+		}
+		ev.PTrace.Tracee.Parent.IsExec = rv
 		return nil
 	case "ptrace.tracee.parent.is_kworker":
 		if ev.PTrace.Tracee == nil {
@@ -45332,6 +45714,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = rv
 		return nil
+	case "signal.target.ancestors.is_exec":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.IsExec"}
+		}
+		ev.Signal.Target.Ancestor.ProcessContext.Process.IsExec = rv
+		return nil
 	case "signal.target.ancestors.is_kworker":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -46188,6 +46583,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.User"}
 		}
 		ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.User = rv
+		return nil
+	case "signal.target.is_exec":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.IsExec"}
+		}
+		ev.Signal.Target.Process.IsExec = rv
 		return nil
 	case "signal.target.is_kworker":
 		if ev.Signal.Target == nil {
@@ -47118,6 +47523,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.User"}
 		}
 		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.User = rv
+		return nil
+	case "signal.target.parent.is_exec":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.IsExec"}
+		}
+		ev.Signal.Target.Parent.IsExec = rv
 		return nil
 	case "signal.target.parent.is_kworker":
 		if ev.Signal.Target == nil {

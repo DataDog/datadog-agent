@@ -422,7 +422,7 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 	var events []*model.Event
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
-		if entry.Source != model.ProcessCacheEntryFromSnapshot {
+		if entry.Source != model.ProcessCacheEntryFromSnapshot && !entry.IsExec {
 			return
 		}
 		entry.Retain()
