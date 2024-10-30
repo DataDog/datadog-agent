@@ -6,7 +6,7 @@ from unittest.mock import patch
 from invoke.context import Context
 
 import tasks
-from tasks.github_tasks import assign_team_label
+from tasks.github_tasks import assign_team_label, extract_test_qa_description
 
 
 class GithubAPIMock:
@@ -112,3 +112,48 @@ class TestAssignTeamLabelMock(unittest.TestCase):
         expected_labels = []
 
         self.make_test(changed_files, expected_labels, possible_labels=['team/team-doc'])
+
+
+class TestExtractQADescriptionFromPR(unittest.TestCase):
+    def test_single_line_description(self):
+        body = """### What does this PR do?
+
+### Motivation
+
+### Describe how to test/QA your changes
+I added one test
+### Possible Drawbacks / Trade-offs
+
+### Additional Notes
+"""
+        qa_description = extract_test_qa_description(body)
+        self.assertEqual(qa_description, "I added one test")
+
+    def test_multi_line_description(self):
+        body = """### What does this PR do?
+
+### Motivation
+
+### Describe how to test/QA your changes
+I added one unit test
+and one e2e test
+### Possible Drawbacks / Trade-offs
+
+### Additional Notes
+"""
+        qa_description = extract_test_qa_description(body)
+        self.assertEqual(qa_description, "I added one unit test\nand one e2e test")
+
+    def test_empty_description(self):
+        body = """### What does this PR do?
+
+### Motivation
+
+### Describe how to test/QA your changes
+
+### Possible Drawbacks / Trade-offs
+
+### Additional Notes
+"""
+        qa_description = extract_test_qa_description(body)
+        self.assertEqual(qa_description, "")

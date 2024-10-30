@@ -19,7 +19,7 @@ from tasks.libs.ciproviders.github_actions_tools import (
     trigger_macos_workflow,
 )
 from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH
-from tasks.libs.common.datadog_api import create_gauge, send_metrics
+from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
 from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
 from tasks.libs.common.utils import get_git_pretty_ref
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
@@ -409,3 +409,73 @@ def pr_commenter(
 
     if verbose:
         print(f"{action} comment on PR #{pr.number} - {pr.title}")
+
+
+@task
+def pr_merge_dd_event_sender(
+    _,
+    pr_id: int | None = None,
+    dry_run: bool = False,
+):
+    """
+    Sends a PR merged event to Datadog with the following tags:
+    - repo:datadog-agent
+    - pr:<pr_number>
+    - author:<pr_author>
+    - qa_label:missing if the PR doesn't have the qa/done or qa/no-code-change label
+    - qa_description:missing if the PR doesn't have a test/QA description section
+
+    - pr_id: If None, will use $CI_COMMIT_BRANCH to identify which PR
+    """
+
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    github = GithubAPI()
+
+    if pr_id is None:
+        branch = os.environ["CI_COMMIT_BRANCH"]
+        prs = list(github.get_pr_for_branch(branch))
+        assert len(prs) == 1, f"Expected 1 PR for branch {branch}, found {len(prs)} PRs"
+        pr = prs[0]
+    else:
+        pr = github.get_pr(int(pr_id))
+
+    if not pr.merged:
+        raise Exit(f"PR {pr.number} is not merged yet", code=1)
+
+    tags = ['repo:datadog-agent', f'pr:{pr.number}', f'author:{pr.user.login}']
+    labels = set(github.get_pr_labels(pr.number))
+    if labels.isdisjoint({'qa/done', 'qa/no-code-change'}):
+        tags.append('qa_label:missing')
+
+    qa_description = extract_test_qa_description(pr.body)
+    if qa_description.strip() == '':
+        tags.append('qa_description:missing')
+
+    tags.extend([f"team:{label.removeprefix('team/')}" for label in labels if label.startswith('team/')])
+    title = "PR merged"
+    text = f"PR {pr.number} merged to {pr.base.ref} at {pr.base.repo.full_name}"
+
+    if dry_run:
+        print(f'''I would send the following event to Datadog:
+
+title: {title}
+text: {text}
+tags: {tags}''')
+        return
+
+    send_event(
+        title="PR merged",
+        text=f"PR {pr.number} has been merged to {pr.repository.full_name}",
+        tags=tags,
+    )
+
+
+def extract_test_qa_description(pr_body: str) -> str:
+    """
+    Extract the test/QA description section from the PR body
+    """
+    # capture test/QA description section content from PR body
+    # see example for this regex https://regexr.com/87mm2
+    result = re.search(r'^###\ Describe\ how\ to\ test.*\n([^#]*)\n###', pr_body, flags=re.MULTILINE)
+    return result.group(1) if result else ''

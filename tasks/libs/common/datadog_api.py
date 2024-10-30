@@ -58,7 +58,7 @@ def send_metrics(series):
         return response
 
 
-def send_event(title: str, text: str, tags: list[str] = None):  # noqa
+def send_event(title: str, text: str, tags: list[str] = None):
     """
     Post an event returns "OK" response
     """
