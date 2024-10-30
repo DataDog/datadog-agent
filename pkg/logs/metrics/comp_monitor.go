@@ -156,8 +156,8 @@ func (n *NoopUtilizationMonitor) Stop()  {}
 
 type TelemetryUtilizationMonitor struct {
 	sync.Mutex
-	inUse      float64
-	idle       float64
+	inUse      time.Duration
+	idle       time.Duration
 	startIdle  time.Time
 	startInUse time.Time
 	name       string
@@ -178,18 +178,18 @@ func NewTelemetryUtilizationMonitor(name, instance string, interval time.Duratio
 func (u *TelemetryUtilizationMonitor) Start() {
 	u.Lock()
 	defer u.Unlock()
-	u.idle += float64(time.Since(u.startIdle) / time.Millisecond)
+	u.idle += time.Since(u.startIdle)
 	u.startInUse = time.Now()
 }
 
 func (u *TelemetryUtilizationMonitor) Stop() {
 	u.Lock()
 	defer u.Unlock()
-	u.inUse += float64(time.Since(u.startInUse) / time.Millisecond)
+	u.inUse += time.Since(u.startInUse)
 	u.startIdle = time.Now()
 	select {
 	case <-u.ticker.C:
-		TlmUtilization.Set(u.inUse/(u.idle+u.inUse), u.name, u.instance)
+		TlmUtilization.Set(float64(u.inUse)/(float64(u.idle+u.inUse)), u.name, u.instance)
 		u.idle = 0
 		u.inUse = 0
 	default:
