@@ -4456,6 +4456,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "packet.filter":
+		return &eval.StringEvaluator{
+			OpOverrides: PacketFilterMatching,
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.RawPacket.Filter
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "packet.l3_protocol":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -20927,6 +20937,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"packet.destination.ip",
 		"packet.destination.port",
 		"packet.device.ifname",
+		"packet.filter",
 		"packet.l3_protocol",
 		"packet.l4_protocol",
 		"packet.size",
@@ -23004,6 +23015,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.RawPacket.NetworkContext.Destination.Port), nil
 	case "packet.device.ifname":
 		return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.RawPacket.NetworkContext.Device), nil
+	case "packet.filter":
+		return ev.RawPacket.Filter, nil
 	case "packet.l3_protocol":
 		return int(ev.RawPacket.NetworkContext.L3Protocol), nil
 	case "packet.l4_protocol":
@@ -29460,6 +29473,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "packet", nil
 	case "packet.device.ifname":
 		return "packet", nil
+	case "packet.filter":
+		return "packet", nil
 	case "packet.l3_protocol":
 		return "packet", nil
 	case "packet.l4_protocol":
@@ -32258,6 +32273,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "packet.destination.port":
 		return reflect.Int, nil
 	case "packet.device.ifname":
+		return reflect.String, nil
+	case "packet.filter":
 		return reflect.String, nil
 	case "packet.l3_protocol":
 		return reflect.Int, nil
@@ -37900,6 +37917,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "RawPacket.NetworkContext.Device.IfName"}
 		}
 		ev.RawPacket.NetworkContext.Device.IfName = rv
+		return nil
+	case "packet.filter":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RawPacket.Filter"}
+		}
+		ev.RawPacket.Filter = rv
 		return nil
 	case "packet.l3_protocol":
 		rv, ok := value.(int)

@@ -15,6 +15,8 @@ import (
 
 	"modernc.org/mathutil"
 
+	"github.com/google/gopacket"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
@@ -694,4 +696,13 @@ type OnDemandEvent struct {
 // LoginUIDWriteEvent is used to propagate login UID updates to user space
 type LoginUIDWriteEvent struct {
 	AUID uint32 `field:"-"`
+}
+
+// RawPacketEvent represents a packet event
+type RawPacketEvent struct {
+	NetworkContext
+	TLSContext  TLSContext           `field:"tls"`                                       // SECLDoc[tls] Definition:`TLS context`
+	Filter      string               `field:"filter" op_override:"PacketFilterMatching"` // SECLDoc[filter] Definition:`pcap filter expression`
+	CaptureInfo gopacket.CaptureInfo `field:"-"`
+	Data        []byte               `field:"-"`
 }
