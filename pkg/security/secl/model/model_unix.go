@@ -260,9 +260,11 @@ type Process struct {
 	ScrubbedArgvResolved bool           `field:"-"`
 	Variables            eval.Variables `field:"-"`
 
-	IsThread        bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
-	IsExecExec      bool `field:"-"`         // Indicates whether the process is an exec following another exec
-	IsParentMissing bool `field:"-"`         // Indicates the direct parent is missing
+	// IsThread is the negation of IsExec and should be manipulated directly
+	IsThread        bool `field:"is_thread,handler:ResolveProcessIsThread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
+	IsExec          bool `field:"is_exec"`                                  // SECLDoc[is_exec] Definition:`Indicates whether the process entry is from a new binary execution`
+	IsExecExec      bool `field:"-"`                                        // Indicates whether the process is an exec following another exec
+	IsParentMissing bool `field:"-"`                                        // Indicates the direct parent is missing
 
 	Source uint64 `field:"-"`
 
