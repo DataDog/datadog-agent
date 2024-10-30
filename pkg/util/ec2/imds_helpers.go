@@ -24,11 +24,11 @@ var (
 	imdsNetworkMacs = "/network/interfaces/macs"
 )
 
-// IMDSv2Action is an enum to determine how to interact with the IMDSv2 option
-type IMDSv2Action int
+// IMDSv2Usage is an enum to determine how to interact with the IMDSv2 option
+type IMDSv2Usage int
 
 const (
-	notUseIMDSv2 IMDSv2Action = iota
+	notUseIMDSv2 IMDSv2Usage = iota
 	useIMDSv2
 	forceIMDSv2
 )
@@ -53,7 +53,7 @@ func getToken(ctx context.Context) (string, time.Time, error) {
 	return res, expirationDate, nil
 }
 
-func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, action IMDSv2Action) (string, error) {
+func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, action IMDSv2Usage) (string, error) {
 	result, err := getMetadataItem(ctx, endpoint, action)
 	if err != nil {
 		return result, err
@@ -66,7 +66,7 @@ func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, action I
 	return result, err
 }
 
-func getMetadataItem(ctx context.Context, endpoint string, action IMDSv2Action) (string, error) {
+func getMetadataItem(ctx context.Context, endpoint string, action IMDSv2Usage) (string, error) {
 	if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
@@ -75,7 +75,7 @@ func getMetadataItem(ctx context.Context, endpoint string, action IMDSv2Action) 
 }
 
 // UseIMDSv2 returns true if the agent should use IMDSv2
-func UseIMDSv2(force bool, disable bool) IMDSv2Action {
+func UseIMDSv2(force bool, disable bool) IMDSv2Usage {
 	// if force is set, we use IMDSv2, highest priority
 	if force {
 		return forceIMDSv2
@@ -90,7 +90,7 @@ func UseIMDSv2(force bool, disable bool) IMDSv2Action {
 	return notUseIMDSv2
 }
 
-func doHTTPRequest(ctx context.Context, url string, action IMDSv2Action) (string, error) {
+func doHTTPRequest(ctx context.Context, url string, action IMDSv2Usage) (string, error) {
 	source := metadataSourceIMDSv1
 	headers := map[string]string{}
 	if action == useIMDSv2 || action == forceIMDSv2 {
