@@ -218,8 +218,8 @@ type StatCounters struct {
 	// * Value 1 represents a connection that was established after system-probe started;
 	// * Values greater than 1 should be rare, but can occur when multiple connections
 	//   are established with the same tuple between two agent checks;
-	TCPEstablished uint32
-	TCPClosed      uint32
+	TCPEstablished uint16
+	TCPClosed      uint16
 }
 
 // IsZero returns whether all the stat counter values are zeroes
@@ -285,11 +285,15 @@ type ConnectionStats struct {
 	ProtocolStack   protocols.Stack
 
 	// keep these fields last because they are 1 byte each and otherwise inflate the struct size due to alignment
-	Direction        ConnectionDirection
-	SPortIsEphemeral EphemeralPortType
-	IntraHost        bool
-	IsAssured        bool
-	IsClosed         bool
+	Direction ConnectionDirection
+	IntraHost bool
+	IsAssured bool
+	IsClosed  bool
+}
+
+// SPortIsEphemeral returns whether the source port is in the ephemeral range
+func (c *ConnectionStats) SPortIsEphemeral() EphemeralPortType {
+	return IsPortInEphemeralRange(c.Family, c.Type, c.SPort)
 }
 
 // Via has info about the routing decision for a flow

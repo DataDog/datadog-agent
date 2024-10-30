@@ -114,7 +114,6 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 	cs.Type = connectionType
 	cs.Family = family
 	cs.Direction = connDirection(flow.Flags)
-	cs.SPortIsEphemeral = IsPortInEphemeralRange(cs.Family, cs.Type, cs.SPort)
 	cs.Cookie = flow.FlowCookie
 	if connectionType == TCP {
 

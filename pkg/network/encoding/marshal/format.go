@@ -77,7 +77,7 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	})
 	builder.SetFamily(uint64(formatFamily(conn.Family)))
 	builder.SetType(uint64(formatType(conn.Type)))
-	builder.SetIsLocalPortEphemeral(uint64(formatEphemeralType(conn.SPortIsEphemeral)))
+	builder.SetIsLocalPortEphemeral(uint64(formatEphemeralType(conn.SPortIsEphemeral())))
 	builder.SetLastBytesSent(conn.Last.SentBytes)
 	builder.SetLastBytesReceived(conn.Last.RecvBytes)
 	builder.SetLastPacketsSent(conn.Last.SentPackets)
@@ -97,8 +97,8 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	builder.SetRtt(conn.RTT)
 	builder.SetRttVar(conn.RTTVar)
 	builder.SetIntraHost(conn.IntraHost)
-	builder.SetLastTcpEstablished(conn.Last.TCPEstablished)
-	builder.SetLastTcpClosed(conn.Last.TCPClosed)
+	builder.SetLastTcpEstablished(uint32(conn.Last.TCPEstablished))
+	builder.SetLastTcpClosed(uint32(conn.Last.TCPClosed))
 	builder.SetProtocol(func(w *model.ProtocolStackBuilder) {
 		ps := FormatProtocolStack(conn.ProtocolStack, conn.StaticTags)
 		for _, p := range ps.Stack {
