@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"go.uber.org/fx"
 
@@ -30,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/go-multierror"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -273,14 +273,14 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 	}
 
 	var errs error
-  
+
 	targetCmp := rc.config
 	localSysProbeConf, isSet := rc.sysprobeConfig.Get()
 	if isSet && rc.isSystemProbe {
 		pkglog.Infof("Using system probe config for remote config")
 		targetCmp = localSysProbeConf
 	}
-  
+
 	// Checks who (the source) is responsible for the last logLevel change
 	source := targetCmp.GetSource("log_level")
 
@@ -316,7 +316,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 
 		// Need to update the log level even if the level stays the same because we need to update the source
 		// Might be possible to add a check in deeper functions to avoid unnecessary work
-    pkglog.Infof("Changing log level to '%s' through remote config (new source)", mergedConfig.LogLevel)
+		pkglog.Infof("Changing log level to '%s' through remote config (new source)", mergedConfig.LogLevel)
 		if err := rc.settingsComponent.SetRuntimeSetting("log_level", mergedConfig.LogLevel, model.SourceRC); err != nil {
 			errs = multierror.Append(errs, err)
 		}
