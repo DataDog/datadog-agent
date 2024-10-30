@@ -10,6 +10,7 @@ import (
 	"io"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -44,7 +45,7 @@ type TimeSampler struct {
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
-func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, hostname string) *TimeSampler {
+func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, tagger tagger.Component, hostname string) *TimeSampler {
 	if interval == 0 {
 		interval = bucketSize
 	}
@@ -57,7 +58,7 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, hostnam
 
 	s := &TimeSampler{
 		interval:           interval,
-		contextResolver:    newTimestampContextResolver(cache, idString, contextExpireTime, counterExpireTime),
+		contextResolver:    newTimestampContextResolver(tagger, cache, idString, contextExpireTime, counterExpireTime),
 		metricsByTimestamp: map[int64]metrics.ContextMetrics{},
 		sketchMap:          make(sketchMap),
 		id:                 id,

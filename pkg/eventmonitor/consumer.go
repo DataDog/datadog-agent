@@ -8,15 +8,16 @@ package eventmonitor
 
 import "github.com/DataDog/datadog-agent/pkg/security/probe"
 
-// EventConsumer event consumer
-type EventConsumer interface {
-	probe.EventConsumerInterface
+// EventConsumerHandler provides an interface for event consumer handlers
+type EventConsumerHandler interface {
+	probe.EventConsumerHandler
 }
 
-// EventConsumerInterface defines an event consumer
-type EventConsumerInterface interface {
-	// ID returns the ID of the event consumer
-	ID() string
+// EventConsumer provides a state interface for any consumers of the event_monitor module.
+// Each event consumer should also implement the EventConsumerHandler interface to handle the retrieved events
+type EventConsumer interface {
+	// IDer implements the ID method to return unique ID of the event consumer
+	probe.IDer
 	// Start starts the event consumer
 	Start() error
 	// Stop stops the event consumer

@@ -26,8 +26,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	containersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
@@ -276,6 +278,13 @@ func (c *Collector) ScanDockerImageFromGraphDriver(ctx context.Context, imgMeta 
 		if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["UpperDir"]; ok {
 			layers = append(layers, strings.Split(layerDirs, ":")...)
 		}
+
+		if env.IsContainerized() {
+			for i, layer := range layers {
+				layers[i] = containersimage.SanitizeHostPath(layer)
+			}
+		}
+
 		return c.scanOverlayFS(ctx, layers, imgMeta, scanOptions)
 	}
 
@@ -297,6 +306,7 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 }
 
 func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	log.Debugf("Generating SBOM for image %s using overlayfs %+v", imgMeta.ID, layers)
 	overlayFsReader := NewFS(layers)
 	report, err := c.scanFilesystem(ctx, overlayFsReader, "/", imgMeta, scanOptions)
 	if err != nil {

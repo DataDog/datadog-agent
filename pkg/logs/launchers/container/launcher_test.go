@@ -38,7 +38,7 @@ func (tf *testFactory) MakeTailer(source *sources.LogSource) (tailerfactory.Tail
 
 func TestStartStop(t *testing.T) {
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
+
 	l := NewLauncher(nil, optional.NewNoneOption[workloadmeta.Component](), fakeTagger)
 
 	sp := launchers.NewMockSourceProvider()
@@ -58,7 +58,7 @@ func TestStartStop(t *testing.T) {
 
 func TestAddsRemovesSource(t *testing.T) {
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
+
 	l := NewLauncher(nil, optional.NewNoneOption[workloadmeta.Component](), fakeTagger)
 	l.tailerFactory = &testFactory{
 		makeTailer: func(source *sources.LogSource) (tailerfactory.Tailer, error) {
@@ -89,7 +89,7 @@ func TestAddsRemovesSource(t *testing.T) {
 
 func TestCannotMakeTailer(t *testing.T) {
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
+
 	l := NewLauncher(nil, optional.NewNoneOption[workloadmeta.Component](), fakeTagger)
 	l.tailerFactory = &testFactory{
 		makeTailer: func(_ *sources.LogSource) (tailerfactory.Tailer, error) {
@@ -112,7 +112,7 @@ func TestCannotMakeTailer(t *testing.T) {
 
 func TestCannotStartTailer(t *testing.T) {
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
+
 	l := NewLauncher(nil, optional.NewNoneOption[workloadmeta.Component](), fakeTagger)
 	l.tailerFactory = &testFactory{
 		makeTailer: func(source *sources.LogSource) (tailerfactory.Tailer, error) {
