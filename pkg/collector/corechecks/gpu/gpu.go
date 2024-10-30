@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvmlmetrics"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -40,7 +40,7 @@ type Check struct {
 	config       *CheckConfig            // config for the check
 	sysProbeUtil processnet.SysProbeUtil // sysProbeUtil is used to communicate with system probe
 	activePIDs   map[uint32]bool         // activePIDs is a set of PIDs that have been seen in the current check run
-	collectors   []nvmlmetrics.Collector // collectors for NVML metrics
+	collectors   []nvidia.Collector      // collectors for NVML metrics
 	nvmlLib      nvml.Interface          // NVML library interface
 }
 
@@ -75,7 +75,7 @@ func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 
 	var err error
-	m.collectors, err = nvmlmetrics.BuildCollectors(m.nvmlLib)
+	m.collectors, err = nvidia.BuildCollectors(m.nvmlLib)
 	if err != nil {
 		return fmt.Errorf("failed to build NVML collectors: %w", err)
 	}
