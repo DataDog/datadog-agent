@@ -1,6 +1,11 @@
 NVCC = /usr/local/cuda/bin/nvcc
 TEMPL_GENERATOR = ./gen-heavy-sample.go
 
+GENERATOR_VARIABLES = 20
+GENERATOR_KERNELS = 100
+GENERATOR_SHARED_MEMORY = 1024
+GENERATOR_INSTRUCTIONS = 10  # Keep low to avoid large binaries, as number of instructions don't affect the performance of our parsing code
+
 all: sample heavy-sample
 
 .PRECIOUS: %.cu
@@ -35,5 +40,5 @@ all: sample heavy-sample
 	-gencode arch=compute_90,code=compute_90 \
 	-o $@ $<
 
-%.cu: %.cu.tmpl $(TEMPL_GENERATOR)
-	go run $(TEMPL_GENERATOR) -template $< -output $@ -kernels 80 -variables 10 -shared-memory 1024
+%.cu: %.cu.tmpl $(TEMPL_GENERATOR) Makefile
+	go run $(TEMPL_GENERATOR) -template $< -output $@ -kernels $(GENERATOR_KERNELS) -variables $(GENERATOR_VARIABLES) -shared-memory $(GENERATOR_SHARED_MEMORY) -instructions $(GENERATOR_INSTRUCTIONS)

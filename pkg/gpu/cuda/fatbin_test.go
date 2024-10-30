@@ -72,22 +72,17 @@ func TestParseFatbinFromPath(t *testing.T) {
 }
 
 func BenchmarkParseFatbinFromPath(b *testing.B) {
-	path := getCudaSample(b, "sample")
-	for i := 0; i < b.N; i++ {
-		_, err := ParseFatbinFromELFFilePath(path)
-		if err != nil {
-			b.Fatalf("unexpected error: %v", err)
-		}
-	}
-}
-
-func BenchmarkParseHeavyFatbinFromPath(b *testing.B) {
-	path := getCudaSample(b, "heavy-sample")
-	for i := 0; i < b.N; i++ {
-		_, err := ParseFatbinFromELFFilePath(path)
-		if err != nil {
-			b.Fatalf("unexpected error: %v", err)
-		}
+	samples := []string{"sample", "heavy-sample"}
+	for _, sample := range samples {
+		b.Run(sample, func(b *testing.B) {
+			path := getCudaSample(b, sample)
+			for i := 0; i < b.N; i++ {
+				_, err := ParseFatbinFromELFFilePath(path)
+				if err != nil {
+					b.Fatalf("unexpected error: %v", err)
+				}
+			}
+		})
 	}
 }
 
