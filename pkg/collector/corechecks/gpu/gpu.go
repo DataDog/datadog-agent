@@ -83,9 +83,10 @@ func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	return nil
 }
 
+// Cancel stops the check
 func (m *Check) Cancel() {
 	if m.nvmlLib != nil {
-		m.nvmlLib.Shutdown()
+		_ = m.nvmlLib.Shutdown()
 	}
 
 	m.CheckBase.Cancel()
