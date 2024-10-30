@@ -72,9 +72,12 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Compare sizes
+        env:
+          PREVIOUS_SIZE: ${{ steps.previous.outputs.result }}
+          CURRENT_SIZE: ${{ steps.current.outputs.result }}
         id: compare
         run: |
-          OUTPUT=$(( ${{ steps.current.outputs.result }} - ${{ steps.previous.outputs.result }} ))
+          OUTPUT=$(( $CURRENT_SIZE - $PREVIOUS_SIZE ))
           echo "binary size changed by $OUTPUT bytes"
           echo "diff=$OUTPUT" >> $GITHUB_OUTPUT
 
@@ -83,6 +86,8 @@ jobs:
           echo "coldstart=$OUTPUT" >> $GITHUB_OUTPUT
 
       - name: Should post comment
+        env:
+          GIT_DIFF: ${{ steps.compare.outputs.diff }}
         id: should
         run: |
           cd go/src/github.com/DataDog/datadog-agent
@@ -93,7 +98,7 @@ jobs:
           ); then
             echo "should_run=true" >> $GITHUB_OUTPUT
             echo "dependencies list changed"
-          elif [[ ${{ steps.compare.outputs.diff }} > env.SIZE_ALLOWANCE ]]; then
+          elif [[ $GIT_DIFF > env.SIZE_ALLOWANCE ]]; then
             echo "should_run=true" >> $GITHUB_OUTPUT
             echo "binary size changed"
           else
@@ -113,24 +118,29 @@ jobs:
           GOPATH=$(pwd)/go go install golang.org/x/tools/cmd/digraph@latest
 
       - name: List new dependencies
+        env:
+          PREVIOUS_DEPS: ${{ steps.previous.outputs.deps }}
+          CURRENT_DEPS: ${{ steps.current.outputs.deps }}
         id: deps
         if: steps.should.outputs.should_run == 'true'
         run: |
           echo "deps<<EOF" >> $GITHUB_OUTPUT
-          for dep in $(echo "${{ steps.current.outputs.deps }}"); do
-            if ! echo "${{ steps.previous.outputs.deps }}" | grep -w -q "$dep"; then
+          for dep in $(echo "$CURRENT_DEPS"); do
+            if ! echo "$PREVIOUS_DEPS" | grep -w -q "$dep"; then
               echo "$dep" >> $GITHUB_OUTPUT
             fi
           done
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create dependency graphs
+        env:
+          DEPS: ${{ steps.deps.outputs.deps }}
         if: steps.should.outputs.should_run == 'true'
         run: |
           export PATH=$(pwd)/go/bin:$PATH
           cd go/src/github.com/DataDog/datadog-lambda-extension
           mkdir graphs
-          for dep in $(echo "${{ steps.deps.outputs.deps }}"); do
+          for dep in $(echo "$DEPS"); do
             PACKAGE=$dep ./scripts/visualize_size.sh graph
             mv .layers/output.svg graphs/$(echo $dep | tr '/' '-').svg
           done
