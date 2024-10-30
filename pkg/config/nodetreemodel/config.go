@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/viper"
 	"github.com/mohae/deepcopy"
 	"github.com/spf13/afero"
+	"go.uber.org/atomic"
 	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -50,7 +51,7 @@ type ntmConfig struct {
 	noimpl notImplementedMethods
 
 	// ready is whether the schema has been built, which marks the config as ready for use
-	ready bool
+	ready *atomic.Bool
 	// defaults contains the settings with a default value
 	defaults InnerNode
 	// file contains the settings pulled from YAML files
@@ -244,14 +245,16 @@ func (c *ntmConfig) GetKnownKeysLowercased() map[string]interface{} {
 
 // BuildSchema is called when Setup is complete, and the config is ready to be used
 func (c *ntmConfig) BuildSchema() {
-	c.ready = true
+	c.Lock()
+	defer c.Unlock()
+	c.ready.Store(true)
 	// TODO: Build the environment variable tree
 	// TODO: Instead of assigning defaultSource to root, merge the trees
 	c.root = c.defaults
 }
 
 func (c *ntmConfig) isReady() bool {
-	return c.ready
+	return c.ready.Load()
 }
 
 // ParseEnvAsStringSlice registers a transform function to parse an environment variable as a []string.
@@ -304,12 +307,12 @@ func (c *ntmConfig) AllKeysLowercased() []string {
 }
 
 func (c *ntmConfig) leafAtPath(key string) LeafNode {
-	pathParts := strings.Split(strings.ToLower(key), ".")
 	if !c.isReady() {
 		log.Errorf("attempt to read key before config is constructed: %s", key)
 		return missingLeaf
 	}
 
+	pathParts := strings.Split(strings.ToLower(key), ".")
 	var curr Node = c.root
 	for _, part := range pathParts {
 		next, err := curr.GetChild(part)
@@ -326,12 +329,10 @@ func (c *ntmConfig) leafAtPath(key string) LeafNode {
 
 // GetNode returns a Node for the given key
 func (c *ntmConfig) GetNode(key string) (Node, error) {
-	pathParts := strings.Split(key, ".")
 	if !c.isReady() {
-		err := fmt.Errorf("attempt to read key before config is constructed: %s", key)
-		log.Errorf("%s", err)
-		return nil, err
+		return nil, log.Errorf("attempt to read key before config is constructed: %s", key)
 	}
+	pathParts := strings.Split(key, ".")
 	var curr Node = c.root
 	for _, part := range pathParts {
 		next, err := curr.GetChild(part)
@@ -789,6 +790,7 @@ func (c *ntmConfig) Object() model.Reader {
 // NewConfig returns a new Config object.
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
 	config := ntmConfig{
+		ready:         atomic.NewBool(false),
 		noimpl:        &notImplMethodsImpl{},
 		configEnvVars: map[string]struct{}{},
 		knownKeys:     map[string]struct{}{},
