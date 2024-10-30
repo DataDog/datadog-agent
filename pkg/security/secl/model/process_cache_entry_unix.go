@@ -93,7 +93,7 @@ func (pc *ProcessCacheEntry) ApplyExecTimeOf(entry *ProcessCacheEntry) {
 	pc.ExecTime = entry.ExecTime
 }
 
-// SetAsExec set the entry as an exec
+// SetExecParent set the parent of the exec entry
 func (pc *ProcessCacheEntry) SetExecParent(parent *ProcessCacheEntry) {
 	pc.SetAncestor(parent)
 	pc.IsExec = true
@@ -131,7 +131,7 @@ func (pc *ProcessCacheEntry) GetContainerPIDs() ([]uint32, []string) {
 	return pids, paths
 }
 
-// SetAsFork set as a fork
+// SetForkParent set the parent of the fork entry
 func (pc *ProcessCacheEntry) SetForkParent(parent *ProcessCacheEntry) {
 	pc.SetAncestor(parent)
 	if parent != nil {
