@@ -180,8 +180,6 @@
 
 /.gitlab/functional_test/regression_detector.yml     @DataDog/single-machine-performance
 
-
-
 /chocolatey/                            @DataDog/windows-agent
 
 /cmd/                                   @DataDog/agent-shared-components
@@ -320,6 +318,9 @@
 /comp/serializer/compression @DataDog/agent-metrics-logs
 /comp/snmpscan @DataDog/ndm-core
 # END COMPONENTS
+
+# Additional notification to  @iglendd about Agent Telemetry changes for optional approval and governance acknowledgement
+/comp/core/agenttelemetry               @iglendd
 
 # pkg
 /pkg/                                   @DataDog/agent-shared-components
