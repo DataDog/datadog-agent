@@ -81,9 +81,9 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 	spanNameRemappingsEnabledVal := 0.0
 	if cfg.OTLPReceiver.SpanNameRemappings != nil && len(cfg.OTLPReceiver.SpanNameRemappings) > 0 {
 		if operationAndResourceNamesV2GateEnabled {
-			log.Warnf("Detected SpanNameRemappings in config - this feature will be deprecated in a future version. Please remove it to access functionality from feature gate \"enable_operation_and_resource_name_logic_v22\".")
+			log.Warnf("Detected SpanNameRemappings in config - this feature will be deprecated in a future version. Please remove it to access functionality from feature gate \"enable_operation_and_resource_name_logic_v2\".")
 		} else {
-			log.Warnf("Detected SpanNameRemappings in config - this feature will be deprecated in a future version. Please remove it and enable feature gate \"enable_operation_and_resource_name_logic_v22\"")
+			log.Warnf("Detected SpanNameRemappings in config - this feature will be deprecated in a future version. Please remove it and enable feature gate \"enable_operation_and_resource_name_logic_v2\"")
 		}
 		spanNameRemappingsEnabledVal = 1.0
 	}
