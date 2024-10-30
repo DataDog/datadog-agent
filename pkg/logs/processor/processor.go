@@ -251,6 +251,9 @@ func (p *Processor) processMessage(msg *message.Message) {
 		p.outputChan <- msg
 		p.pipelineMonitor.ReportComponentEgress(msg, "processor")
 		p.pipelineMonitor.ReportComponentIngress(msg, "strategy")
+	} else {
+		p.utilization.Stop()
+		p.pipelineMonitor.ReportComponentEgress(msg, "processor")
 	}
 }
 
