@@ -33,7 +33,9 @@ func NewZstdNativeStrategy(level int) *ZstdNativeStrategy {
 	if globalencoder == nil {
 		globalencoder, _ = zstd.NewWriter(nil,
 			zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)),
-			zstd.WithEncoderConcurrency(1))
+			zstd.WithEncoderConcurrency(1)),
+			zstd.WithLowerEncoderMem(true),
+			zstd.WithWindowSize(1<<15)
 	}
 	mutex.Unlock()
 
