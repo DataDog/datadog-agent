@@ -25,17 +25,17 @@ var (
 
 // Meta is the metadata nested under the meta key
 type Meta struct {
-	SocketHostname           string   `json:"socket-hostname"`
-	Timezones                []string `json:"timezones"`
-	SocketFqdn               string   `json:"socket-fqdn"`
-	EC2Hostname              string   `json:"ec2-hostname"`
-	Hostname                 string   `json:"hostname"`
-	HostAliases              []string `json:"host_aliases"`
-	InstanceID               string   `json:"instance-id"`
-	AgentHostname            string   `json:"agent-hostname,omitempty"`
-	ClusterName              string   `json:"cluster-name,omitempty"`
-	LegacyResolutionHostname string   `json:"legacy-resolution-hostname,omitempty"`
-	HostMetaVersion          string   `json:"host-meta-version,omitempty"`
+	SocketHostname            string   `json:"socket-hostname"`
+	Timezones                 []string `json:"timezones"`
+	SocketFqdn                string   `json:"socket-fqdn"`
+	EC2Hostname               string   `json:"ec2-hostname"`
+	Hostname                  string   `json:"hostname"`
+	HostAliases               []string `json:"host_aliases"`
+	InstanceID                string   `json:"instance-id"`
+	AgentHostname             string   `json:"agent-hostname,omitempty"`
+	ClusterName               string   `json:"cluster-name,omitempty"`
+	LegacyResolutionHostname  string   `json:"legacy-resolution-hostname,omitempty"`
+	HostnameResolutionVersion string   `json:"hostname-resolution-version,omitempty"`
 }
 
 // GetMetaFromCache returns the metadata information about the host from the cache and returns it, if the cache is
@@ -65,21 +65,20 @@ func getMeta(ctx context.Context, conf model.Reader) *Meta {
 	}
 
 	m := &Meta{
-		SocketHostname: osHostname,
-		Timezones:      []string{tzname},
-		SocketFqdn:     util.Fqdn(osHostname),
-		EC2Hostname:    ec2Hostname,
-		HostAliases:    cloudproviders.GetHostAliases(ctx),
-		InstanceID:     instanceID,
-		AgentHostname:  agentHostname,
-		HostMetaVersion: "1.0",
+		SocketHostname:            osHostname,
+		Timezones:                 []string{tzname},
+		SocketFqdn:                util.Fqdn(osHostname),
+		EC2Hostname:               ec2Hostname,
+		HostAliases:               cloudproviders.GetHostAliases(ctx),
+		InstanceID:                instanceID,
+		AgentHostname:             agentHostname,
+		HostnameResolutionVersion: "1.0",
 	}
 
 	legacyResolutionHostnameData, _ := hostname.GetWithProviderWithoutIMDSV2(ctx)
 	if legacyResolutionHostnameData.Hostname != hostnameData.Hostname {
 		m.LegacyResolutionHostname = legacyResolutionHostnameData.Hostname
 	}
-
 
 	if finalClusterName := kubelet.GetMetaClusterNameText(ctx, osHostname); finalClusterName != "" {
 		m.ClusterName = finalClusterName
