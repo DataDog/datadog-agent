@@ -36,6 +36,8 @@ jobs:
     steps:
       - name: Checkout branch
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          persist-credentials: false
 
       - name: Fetch branch
         # this step needs the github repository to be already cloned locally
@@ -52,6 +54,7 @@ jobs:
         if: ${{ steps.branch_fetch.outputs.RESULT == 'true' }}
         with:
           ref: ${{ inputs.branch }}
+          persist-credentials: false
 
       - name: Setup Python and pip
         uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
@@ -74,7 +77,7 @@ jobs:
         id: current_go_version
         run: |
           echo "GO_VERSION=$(inv go-version)" >> $GITHUB_OUTPUT
-    
+
       - name: Get current buildimage tag
         id: current_buildimage_tag
         run: |
@@ -123,7 +126,7 @@ jobs:
               --jq 'length')
           if [ $prs -eq 0 ]; then
             echo "CREATE_PR=true" >> $GITHUB_OUTPUT
-          fi 
+          fi
 
       # Create PR only if there is no pre-existing PR on the branch
       - name: Create PR
