@@ -162,7 +162,7 @@ func GetWithProvider(ctx context.Context) (Data, error) {
 
 // GetWithProviderWithoutIMDSV2 returns the hostname for the Agent and the provider that was use to retrieve it without using IMDSv2
 func GetWithProviderWithoutIMDSV2(ctx context.Context) (Data, error) {
-	if !pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") {
+	if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") {
 		return Data{}, nil
 	}
 	data, err := getHostname(ctx, legacyResolutionHostnameDataKey)
