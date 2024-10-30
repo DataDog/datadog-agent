@@ -14,6 +14,7 @@ import (
 	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -30,11 +31,11 @@ type cudaEventConsumer struct {
 	streamHandlers map[streamKey]*StreamHandler
 	wg             sync.WaitGroup
 	running        atomic.Bool
-	cfg            *Config
+	cfg            *config.Config
 }
 
 // newCudaEventConsumer creates a new CUDA event consumer.
-func newCudaEventConsumer(eventHandler ddebpf.EventHandler, cfg *Config) *cudaEventConsumer {
+func newCudaEventConsumer(eventHandler ddebpf.EventHandler, cfg *config.Config) *cudaEventConsumer {
 	return &cudaEventConsumer{
 		eventHandler:   eventHandler,
 		closed:         make(chan struct{}),

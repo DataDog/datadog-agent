@@ -1,5 +1,7 @@
 # Agent 'out of the box' idle experiment. Represents an agent install with the
 # default configuration and no active workload.
+# Further documentation:
+# https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4294836779/Performance+Quality+Gates#idle
 
 optimization_goal: memory
 erratic: false

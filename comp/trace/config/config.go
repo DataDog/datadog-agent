@@ -16,6 +16,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -39,6 +40,7 @@ type Dependencies struct {
 	fx.In
 	Params Params
 	Config coreconfig.Component
+	Tagger tagger.Component
 }
 
 // cfg implements the Component.

@@ -1309,35 +1309,49 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 }
 
 // ToJSON return a json version of the cache
-func (p *EBPFResolver) ToJSON() ([]byte, error) {
+func (p *EBPFResolver) ToJSON(raw bool) ([]byte, error) {
 	dump := struct {
 		Entries []json.RawMessage
 	}{}
 
 	p.Walk(func(entry *model.ProcessCacheEntry) {
-		e := struct {
-			PID             uint32
-			PPID            uint32
-			Path            string
-			Inode           uint64
-			MountID         uint32
-			Source          string
-			ExecInode       uint64
-			IsThread        bool
-			IsParentMissing bool
-		}{
-			PID:             entry.Pid,
-			PPID:            entry.PPid,
-			Path:            entry.FileEvent.PathnameStr,
-			Inode:           entry.FileEvent.Inode,
-			MountID:         entry.FileEvent.MountID,
-			Source:          model.ProcessSourceToString(entry.Source),
-			ExecInode:       entry.ExecInode,
-			IsThread:        entry.IsThread,
-			IsParentMissing: entry.IsParentMissing,
+		var (
+			d   []byte
+			err error
+		)
+
+		if raw {
+			d, err = json.Marshal(entry)
+		} else {
+			e := struct {
+				PID             uint32
+				PPID            uint32
+				Path            string
+				Inode           uint64
+				MountID         uint32
+				Source          string
+				ExecInode       uint64
+				IsThread        bool
+				IsParentMissing bool
+				CGroup          string
+				ContainerID     string
+			}{
+				PID:             entry.Pid,
+				PPID:            entry.PPid,
+				Path:            entry.FileEvent.PathnameStr,
+				Inode:           entry.FileEvent.Inode,
+				MountID:         entry.FileEvent.MountID,
+				Source:          model.ProcessSourceToString(entry.Source),
+				ExecInode:       entry.ExecInode,
+				IsThread:        entry.IsThread,
+				IsParentMissing: entry.IsParentMissing,
+				CGroup:          string(entry.CGroup.CGroupID),
+				ContainerID:     string(entry.ContainerID),
+			}
+
+			d, err = json.Marshal(e)
 		}
 
-		d, err := json.Marshal(e)
 		if err == nil {
 			dump.Entries = append(dump.Entries, d)
 		}
