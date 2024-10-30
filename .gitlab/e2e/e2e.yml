@@ -572,7 +572,7 @@ new-e2e-cspm:
     TARGETS: ./tests/cspm
     TEAM: cspm
   timeout: 35m
- 
+
 new-e2e-gpu:
   extends: .new_e2e_template
   rules:
