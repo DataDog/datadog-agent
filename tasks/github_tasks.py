@@ -26,6 +26,7 @@ from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packag
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 from tasks.release import _get_release_json_value
+from tasks.libs.common.color import color_message
 
 ALL_TEAMS = '@datadog/agent-all'
 
@@ -421,3 +422,30 @@ def assign_codereview_label(_, pr_id=-1):
     gh = GithubAPI('DataDog/datadog-agent')
     complexity = gh.get_codereview_complexity(pr_id)
     gh.update_review_complexity_labels(pr_id, complexity)
+
+@task
+def agenttelemetry_list_change_ack_check(_, pr_id=-1):
+    """
+    Change to `comp/core/agenttelemetry/impl/config.go` file requires to acknowledge
+    potential changes to Agent Telemetry metrics. If Agent Telemetry metric list has been changed,
+    the PR should be labeled with `need-change/agenttelemetry-governance` and follow
+    `Agent Telemetry Governance` instructions to potentially perform additional changes. See
+    https://datadoghq.atlassian.net/wiki/spaces/ASUP/pages/4340679635/Agent+Telemetry+Governance
+    for details.
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI('DataDog/datadog-agent')
+
+    pr_id = int(os.environ.get("PR_ID"))
+
+    labels = gh.get_pr_labels(pr_id)
+    files = gh.get_pr_files(pr_id)
+    if "comp/core/agenttelemetry/impl/config.go" in files:
+        if "need-change/agenttelemetry-governance" not in labels:
+            message = f"{color_message('Error', 'red')}: If you change the `comp/core/agenttelemetry/impl/config.go` file, you need to add `need-change/agenttelemetry-governance` label. Please follow the instructions specified in https://datadoghq.atlassian.net/wiki/spaces/ASUP/pages/4340679635/Agent+Telemetry+Governance"
+            raise Exit(message, code=1)
+        else:
+            print("'need-change/agenttelemetry-governance' label found on the PR: potential change to Agent Telemetry metrics is acknowledged and the governance instructions are followed.")
+   
+    return True
