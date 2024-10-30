@@ -488,7 +488,7 @@ def start_compiler(ctx: Context):
 
 
 def filter_target_domains(vms: str, infra: dict[KMTArchNameOrLocal, HostInstance], arch: Arch | None = None):
-    vmsets = vmconfig.build_vmsets(vmconfig.build_normalized_vm_def_by_set(vms))
+    vmsets = vmconfig.build_vmsets(vmconfig.build_normalized_vm_def_by_set(vms, []))
     domains: list[LibvirtDomain] = []
     for vmset in vmsets:
         if arch is not None and Arch.from_str(vmset.arch) != arch:
