@@ -57,7 +57,6 @@ type PlatformProbe interface {
 	GetEventTags(_ string) []string
 	GetProfileManager() interface{}
 	EnableEnforcement(bool)
-	PlaySnapshot()
 }
 
 // EventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
