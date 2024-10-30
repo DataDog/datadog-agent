@@ -448,11 +448,6 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 	}
 }
 
-// PlaySnapshot plays a snapshot
-func (p *EBPFProbe) PlaySnapshot() {
-	p.playSnapshot(true)
-}
-
 func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
 	tags := p.probe.GetEventTags(string(event.ContainerContext.ContainerID))
 	if service := p.probe.GetService(event); service != "" {
