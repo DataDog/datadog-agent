@@ -302,11 +302,11 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 
 	streamLogsSource := pkgconfigsetup.Datadog().GetSource("logs_config.streaming.enable_streamlogs")
 	if mergedConfig.EnableStreamLogs {
-		if err := rc.settingsComponent.SetRuntimeSetting("enable_streamlogs", mergedConfig.EnableStreamLogs, model.SourceRC); err != nil {
-			errs = multierror.Append(errs, err)
-		}
+		pkgconfigsetup.Datadog().Set("logs_config.streaming.enable_streamlogs", mergedConfig.EnableStreamLogs, model.SourceRC)
+		pkglog.Debugf("Setting enable_streamlogs config to '%t' via remote config", pkgconfigsetup.Datadog().GetBool("logs_config.streaming.enable_streamlogs"))
 	} else if !mergedConfig.EnableStreamLogs && streamLogsSource == model.SourceRC {
 		pkgconfigsetup.Datadog().UnsetForSource("logs_config.streaming.enable_streamlogs", model.SourceRC)
+		pkglog.Debugf("Unsetting enable_streamlogs config to '%t' via remote config", pkgconfigsetup.Datadog().GetBool("logs_config.streaming.enable_streamlogs"))
 	}
 
 	// Apply the new status to all configs

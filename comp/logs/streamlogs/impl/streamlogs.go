@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
@@ -19,6 +20,7 @@ import (
 	coresetting "github.com/DataDog/datadog-agent/comp/core/settings"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -108,8 +110,10 @@ func exportStreamLogs(la logsAgent.Component, logger logger.Component, streamLog
 
 	timer := time.NewTimer(streamLogParams.Duration)
 	defer timer.Stop()
+	var wg sync.WaitGroup
 
 	time.AfterFunc(streamLogParams.Duration, func() {
+		wg.Wait()
 		close(done)
 	})
 
@@ -118,29 +122,29 @@ func exportStreamLogs(la logsAgent.Component, logger logger.Component, streamLog
 		if !ok {
 			return nil
 		}
-		if _, err := bufWriter.WriteString(log + "\n"); err != nil {
-			return fmt.Errorf("failed to write to file: %v", err)
-		}
+
+		wg.Add(1)
+		go func(log string) {
+			defer wg.Done()
+			if _, err := bufWriter.WriteString(log + "\n"); err != nil {
+				logger.Errorf("failed to write to file: %v", err)
+			}
+		}(log)
 	}
 }
 
 // exportStreamLogsIfEnabled streams logs when runtime is enabled
 func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logsAgent logsAgent.Component, streamlogsLogFilePath string) error {
-	// If the streamlog runtime setting is set, start streaming log to default file
-	enableStreamLog, err := sl.coresetting.GetRuntimeSetting("enable_streamlogs")
-	if err != nil {
-		return err
-	}
+	// If the enable_streamlogs config is set, start streaming log to default file
+	enabled := pkgconfigsetup.Datadog().GetBool("logs_config.streaming.enable_streamlogs")
 
-	if values, ok := enableStreamLog.([]interface{}); ok && len(values) > 1 {
-		if enable, ok := values[1].(bool); ok && enable {
-			streamLogParams := LogParams{
-				FilePath: streamlogsLogFilePath,
-				Duration: 60 * time.Second, // Default duration is 60 seconds
-			}
-			if err := exportStreamLogs(logsAgent, sl.logger, &streamLogParams); err != nil {
-				return fmt.Errorf("failed to export stream logs: %w", err)
-			}
+	if enabled {
+		streamLogParams := LogParams{
+			FilePath: streamlogsLogFilePath,
+			Duration: 60 * time.Second, // Default duration is 60 seconds
+		}
+		if err := exportStreamLogs(logsAgent, sl.logger, &streamLogParams); err != nil {
+			return fmt.Errorf("failed to export stream logs: %w", err)
 		}
 	}
 	return nil
