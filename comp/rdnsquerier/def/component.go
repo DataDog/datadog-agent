@@ -10,7 +10,7 @@ import (
 	"context"
 )
 
-// team: network-device-monitoring
+// team: ndm-integrations
 
 // ReverseDNSResult is the result of a reverse DNS lookup
 type ReverseDNSResult struct {
