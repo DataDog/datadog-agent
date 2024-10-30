@@ -672,6 +672,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Autoscaling product
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
+	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false, "DD_AUTOSCALING_FAILOVER_ENABLED")
+	config.BindEnv("autoscaling.failover.metrics", "DD_AUTOSCALING_FAILOVER_METRICS")
 
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
