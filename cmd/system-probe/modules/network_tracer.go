@@ -295,6 +295,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/debug/usm_telemetry", telemetry.Handler)
 	httpMux.HandleFunc("/debug/usm/traced_programs", usm.TracedProgramsEndpoint)
 	httpMux.HandleFunc("/debug/usm/blocked_processes", usm.BlockedPathIDEndpoint)
+	httpMux.HandleFunc("/debug/usm/clear_blocked", usm.ClearBlockedEndpoint)
 	httpMux.HandleFunc("/debug/usm/attach-pid", usm.AttachPIDEndpoint)
 	httpMux.HandleFunc("/debug/usm/detach-pid", usm.DetachPIDEndpoint)
 
