@@ -20,6 +20,13 @@
     KUBERNETES_MEMORY_REQUEST: "6Gi"
     KUBERNETES_MEMORY_LIMIT: "12Gi"
     KUBERNETES_CPU_REQUEST: 6
+  cache:
+    policy: pull
+    key: libpcap-$LIBPCAP_VERSION-$ARCH
+    paths:
+      - $CI_PROJECT_DIR/dev/lib/libpcap.a
+      - $CI_PROJECT_DIR/dev/include/pcap*.h
+      - $CI_PROJECT_DIR/dev/include/pcap/*.h
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -30,7 +37,7 @@ build_system-probe-x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["go_deps"]
+  needs: ["go_deps", "build_libpcap_x64"]
   extends: .system-probe_build_common
   variables:
     ARCH: amd64
@@ -38,7 +45,7 @@ build_system-probe-x64:
 build_system-probe-arm64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  needs: ["go_deps"]
+  needs: ["go_deps", "build_libpcap_arm64"]
   tags: ["arch:arm64"]
   extends: .system-probe_build_common
   variables:

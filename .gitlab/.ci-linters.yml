@@ -13,6 +13,8 @@ needs-rules:
     - build_clang_arm64
     - build_clang_x64
     - build_dogstatsd_static-binary_x64
+    - build_libpcap_arm64
+    - build_libpcap_x64
     - build_processed_btfhub_archive
     - check_already_deployed_version_7
     - cleanup_kitchen_functional_test

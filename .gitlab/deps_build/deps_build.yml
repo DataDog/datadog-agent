@@ -94,3 +94,36 @@ build_processed_btfhub_archive:
     - inv -e system-probe.process-btfhub-archive --branch $BTFHUB_ARCHIVE_BRANCH
     - $S3_CP_CMD btfs-x86_64.tar $S3_DD_AGENT_OMNIBUS_BTFS_URI/$BTFHUB_ARCHIVE_BRANCH/btfs-x86_64.tar --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
     - $S3_CP_CMD btfs-arm64.tar $S3_DD_AGENT_OMNIBUS_BTFS_URI/$BTFHUB_ARCHIVE_BRANCH/btfs-arm64.tar --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+
+.build_libpcap_common:
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  stage: deps_build
+  variables:
+    KUBERNETES_CPU_REQUEST: 2
+  script:
+    - inv -e system-probe.build-libpcap --version=$LIBPCAP_VERSION --sha256sum=$LIBPCAP_SHA256SUM
+    - strings $CI_PROJECT_DIR/dev/lib/libpcap.a | grep -E "^libpcap version $LIBPCAP_VERSION" || exit 1 # ensure we're able to match the expected version
+  timeout: 10m
+  cache:
+    policy: pull-push
+    key: libpcap-$LIBPCAP_VERSION-$ARCH
+    paths:
+      - $CI_PROJECT_DIR/dev/lib/libpcap.a
+      - $CI_PROJECT_DIR/dev/include/pcap*.h
+      - $CI_PROJECT_DIR/dev/include/pcap/*.h
+
+build_libpcap_x64:
+  extends: .build_libpcap_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:amd64"]
+  variables:
+    ARCH: amd64
+
+build_libpcap_arm64:
+  extends: .build_libpcap_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:arm64"]
+  variables:
+    ARCH: arm64

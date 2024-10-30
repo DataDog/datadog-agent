@@ -12,6 +12,7 @@ create_release_qa_cards              @DataDog/agent-devx-infra
 # Deps build
 build_clang_*                        @DataDog/ebpf-platform
 build_processed_btfhub_archive       @DataDog/ebpf-platform
+build_libpcap_*                      @DataDog/agent-security
 
 # Source test
 # Notifications are handled separately for more fine-grained control on go tests

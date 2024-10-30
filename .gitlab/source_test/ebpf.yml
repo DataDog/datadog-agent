@@ -78,7 +78,13 @@ prepare_sysprobe_ebpf_functional_tests_x64:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs: ["go_deps", "go_tools_deps"]
+  cache:
+    policy: pull
+    key: libpcap-$LIBPCAP_VERSION-$ARCH
+    paths:
+      - $CI_PROJECT_DIR/dev/lib/libpcap.a
+      - $CI_PROJECT_DIR/dev/include/pcap*.h
+      - $CI_PROJECT_DIR/dev/include/pcap/*.h
   artifacts:
     when: always
     paths:
@@ -97,6 +103,7 @@ prepare_sysprobe_ebpf_functional_tests_x64:
 
 prepare_secagent_ebpf_functional_tests_arm64:
   extends: .prepare_secagent_ebpf_functional_tests
+  needs: ["go_deps", "go_tools_deps", "build_libpcap_arm64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
@@ -104,6 +111,7 @@ prepare_secagent_ebpf_functional_tests_arm64:
 
 prepare_secagent_ebpf_functional_tests_x64:
   extends: .prepare_secagent_ebpf_functional_tests
+  needs: ["go_deps", "go_tools_deps", "build_libpcap_x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:

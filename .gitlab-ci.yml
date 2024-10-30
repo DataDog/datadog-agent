@@ -233,6 +233,10 @@ variables:
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
 
+  # system-probe deps
+  LIBPCAP_VERSION: 1.10.5
+  LIBPCAP_SHA256SUM: 84fa89ac6d303028c1c5b754abff77224f45eca0a94eb1a34ff0aa9ceece3925
+
   # Start aws ssm variables
   # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed
   AGENT_QA_PROFILE: ci.datadog-agent.agent-qa-profile  # agent-devx-infra

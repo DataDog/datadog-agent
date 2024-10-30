@@ -88,6 +88,7 @@ CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 # system-probe doesn't depend on any particular version of libpcap so use the latest one (as of 2024-10-28)
 # this version should be kept in sync with the one in the agent omnibus build
 LIBPCAP_VERSION = "1.10.5"
+LIBPCAP_SHA256SUM = "84fa89ac6d303028c1c5b754abff77224f45eca0a94eb1a34ff0aa9ceece3925"
 
 TEST_HELPER_CBINS = ["cudasample"]
 
@@ -610,23 +611,28 @@ def ninja_generate(
 
 
 @task
-def build_libpcap(ctx):
+def build_libpcap(ctx, version=LIBPCAP_VERSION, sha256sum=LIBPCAP_SHA256SUM, force=False):
     """Download and build libpcap as a static library in the agent dev directory.
-    The library is not rebuilt if it already exists.
+    The library is not rebuilt if it already exists, except if --force is used.
     """
     embedded_path = get_embedded_path(ctx)
     assert embedded_path, "Failed to find embedded path"
     target_file = os.path.join(embedded_path, "lib", "libpcap.a")
-    if os.path.exists(target_file):
-        version = ctx.run(f"strings {target_file} | grep -E '^libpcap version' | cut -d ' ' -f 3").stdout.strip()
-        if version == LIBPCAP_VERSION:
+    if not force and os.path.exists(target_file):
+        existing_version = ctx.run(
+            f"strings {target_file} | grep -E '^libpcap version' | cut -d ' ' -f 3"
+        ).stdout.strip()
+        if existing_version == version:
             ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
             return
     dist_dir = os.path.join(embedded_path, "dist")
-    lib_dir = os.path.join(dist_dir, f"libpcap-{LIBPCAP_VERSION}")
+    lib_dir = os.path.join(dist_dir, "libpcap")
     ctx.run(f"rm -rf {lib_dir}")
-    with ctx.cd(dist_dir):
-        ctx.run(f"curl -L https://www.tcpdump.org/release/libpcap-{LIBPCAP_VERSION}.tar.xz | tar xJ")
+    ctx.run(f"mkdir -p {lib_dir}")
+    lib_sources = os.path.join(lib_dir, f"libpcap-{version}.tar.xz")
+    ctx.run(f"curl -L https://www.tcpdump.org/release/libpcap-{version}.tar.xz --output {lib_sources}")
+    ctx.run(f"echo '{sha256sum} {lib_sources}' | sha256sum --check")
+    ctx.run(f"tar -xJf {lib_sources} -C {lib_dir} --strip-components=1")
     with ctx.cd(lib_dir):
         config_opts = [
             f"--prefix={embedded_path}",
