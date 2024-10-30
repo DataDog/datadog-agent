@@ -159,6 +159,13 @@ remove_apm_remote_config()
     fi
 }
 
+remove_fips_module()
+{
+    # We explicitly remove the ssl directory because files within this folder are generated via a script
+    # outside of package installation (rpm package only removes files initially present in the package).
+    rm -rf "${INSTALL_DIR}/embedded/ssl/fipsmodule.cnf" || true
+}
+
 case "$*" in
     1)
         # We're upgrading.
@@ -181,6 +188,7 @@ case "$*" in
         remove_version_history
         remove_sysprobe_secagent_files
         remove_remote_config_db
+        remove_fips_module
         remove_persist_integration_files
     ;;
     1)
