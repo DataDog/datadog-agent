@@ -225,7 +225,7 @@ func (b *orderedBTFLoader) checkForMinimizedBTF(extractDir string) (*returnBTF, 
 		if err != nil {
 			return nil, err
 		}
-		b.resultMetadata.filepathUsed = btfRelativePath
+		b.resultMetadata.filepathUsed = extractedBtfPath
 		return &returnBTF{
 			vmlinux:        spec,
 			moduleLoadFunc: nil,
@@ -270,7 +270,7 @@ func (b *orderedBTFLoader) checkforBTF(extractDir string) (*returnBTF, error) {
 
 func (b *orderedBTFLoader) loadEmbedded() (*returnBTF, error) {
 	btfRelativeTarballFilename, err := b.embeddedPath()
-	b.resultMetadata.filepathUsed = btfRelativeTarballFilename
+	b.resultMetadata.tarballUsed = btfRelativeTarballFilename
 	if err != nil {
 		return nil, err
 	}
