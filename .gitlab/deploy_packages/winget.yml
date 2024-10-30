@@ -23,7 +23,7 @@ publish_winget_7_x64:
       -v "$(Get-Location):c:\mnt"
       -e WINGET_GITHUB_ACCESS_TOKEN=${wingetPat}
       -e GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}
-      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       Powershell
       -C "C:\mnt\tasks\winbuildscripts\Update-Winget.ps1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
