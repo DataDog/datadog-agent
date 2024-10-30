@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	configProvider  = hostnameinterface.ConfigProvider
-	fargateProvider = hostnameinterface.FargateProvider
+	configProviderName  = hostnameinterface.ConfigProvider
+	fargateProviderName = hostnameinterface.FargateProvider
 )
 
 var (
@@ -64,74 +64,100 @@ type provider struct {
 // * FQDN
 // * OS hostname
 // * EC2
-func getProviderCatalog(notUseIMDSv2 bool) []provider {
-	providerCatalog := []provider{
-		{
-			name:             configProvider,
-			cb:               fromConfig,
-			stopIfSuccessful: true,
-			expvarName:       "'hostname' configuration/environment",
-		},
-		{
-			name:             "hostnameFile",
-			cb:               fromHostnameFile,
-			stopIfSuccessful: true,
-			expvarName:       "'hostname_file' configuration/environment",
-		},
-		{
-			name:             fargateProvider,
-			cb:               fromFargate,
-			stopIfSuccessful: true,
-			expvarName:       "fargate",
-		},
-		{
-			name:             "gce",
-			cb:               fromGCE,
-			stopIfSuccessful: true,
-			expvarName:       "gce",
-		},
-		{
-			name:             "azure",
-			cb:               fromAzure,
-			stopIfSuccessful: true,
-			expvarName:       "azure",
-		},
-
-		// The following providers are coupled. Their behavior changes depending on the result of the previous provider.
-		// Therefore 'stopIfSuccessful' is set to false.
-		{
-			name:             "fqdn",
-			cb:               fromFQDN,
-			stopIfSuccessful: false,
-			expvarName:       "fqdn",
-		},
-		{
-			name:             "container",
-			cb:               fromContainer,
-			stopIfSuccessful: false,
-			expvarName:       "container",
-		},
-		{
-			name:             "os",
-			cb:               fromOS,
-			stopIfSuccessful: false,
-			expvarName:       "os",
-		},
+var (
+	configProvider = provider{
+		name:             configProviderName,
+		cb:               fromConfig,
+		stopIfSuccessful: true,
+		expvarName:       "'hostname' configuration/environment",
 	}
 
-	ec2 := provider{
+	hostnameFileProvider = provider{
+		name:             "hostnameFile",
+		cb:               fromHostnameFile,
+		stopIfSuccessful: true,
+		expvarName:       "'hostname_file' configuration/environment",
+	}
+
+	fargateProvider = provider{
+		name:             fargateProviderName,
+		cb:               fromFargate,
+		stopIfSuccessful: true,
+		expvarName:       "fargate",
+	}
+
+	gceProvider = provider{
+		name:             "gce",
+		cb:               fromGCE,
+		stopIfSuccessful: true,
+		expvarName:       "gce",
+	}
+
+	azureProvider = provider{
+		name:             "azure",
+		cb:               fromAzure,
+		stopIfSuccessful: true,
+		expvarName:       "azure",
+	}
+
+	// The following providers are coupled. Their behavior changes depending on the result of the previous provider.
+	// Therefore 'stopIfSuccessful' is set to false.
+	fqdnProvider = provider{
+		name:             "fqdn",
+		cb:               fromFQDN,
+		stopIfSuccessful: false,
+		expvarName:       "fqdn",
+	}
+
+	containerProvider = provider{
+		name:             "container",
+		cb:               fromContainer,
+		stopIfSuccessful: false,
+		expvarName:       "container",
+	}
+
+	osProvider = provider{
+		name:             "os",
+		cb:               fromOS,
+		stopIfSuccessful: false,
+		expvarName:       "os",
+	}
+
+	ec2Provider = provider{
 		name:             "aws", // ie EC2
+		cb:               fromEC2,
 		stopIfSuccessful: false,
 		expvarName:       "aws",
 	}
 
-	if notUseIMDSv2 {
-		ec2.cb = fromEC2WithoutIMDSV2
-	} else {
-		ec2.cb = fromEC2
+	ec2HostnameResolutionProvider = provider{
+		name:             "aws",
+		cb:               fromEC2WithoutIMDSV2,
+		stopIfSuccessful: false,
+		expvarName:       "aws",
 	}
 
-	return append(providerCatalog, ec2)
+)
+
+func getProviderCatalog(notUseIMDSv2 bool) []provider {
+	providerCatalog := []provider{
+		configProvider,
+		hostnameFileProvider,
+		fargateProvider,
+		gceProvider,
+		azureProvider,
+		containerProvider,
+		fqdnProvider,
+		osProvider,
+	}
+
+	if notUseIMDSv2 {
+		providerCatalog = append(providerCatalog, ec2HostnameResolutionProvider)
+	} else {
+		providerCatalog = append(providerCatalog, ec2Provider)
+	}
+
+	return providerCatalog
 }
 
 func saveHostname(cacheHostnameKey string, hostname string, providerName string) Data {
@@ -143,7 +169,7 @@ func saveHostname(cacheHostnameKey string, hostname string, providerName string)
 	cache.Cache.Set(cacheHostnameKey, data, cache.NoExpiration)
 	// We don't have a hostname on fargate. 'fromFargate' will return an empty hostname and we don't want to show it
 	// in the status page.
-	if providerName != "" && providerName != fargateProvider {
+	if providerName != "" && providerName != fargateProviderName {
 		hostnameProvider.Set(providerName)
 	}
 	return data
