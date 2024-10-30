@@ -141,7 +141,9 @@ func (v *gpuSuite) TestVectorAddProgramDetected() {
 	v.runCudaDockerWorkload()
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		metricNames := []string{"gpu.memory", "gpu.utilization", "gpu.memory.max"}
+		// We are not including "gpu.memory", as that represents the "current
+		// memory usage" and that might be zero at the time it's checked
+		metricNames := []string{"gpu.utilization", "gpu.memory.max"}
 		for _, metricName := range metricNames {
 			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0))
 			assert.NoError(c, err)
