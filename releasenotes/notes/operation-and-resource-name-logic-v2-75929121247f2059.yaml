@@ -7,4 +7,4 @@
 # Each section note must be formatted as reStructuredText.
 ---
 features:
-  - Added a new feature flag `enable_operation_and_resource_name_logic_v2` in DD_APM_FEATURES. When this flag is enabled, the logic for computing operation and resource names from OTLP spans is modified to create shorter and more readable names and to better align with OpenTelemetry specifications.
+  - Added a new feature flag `enable_operation_and_resource_name_logic_v2` in DD_APM_FEATURES. Enabling this flag modifies the logic for computing operation and resource names from OTLP spans to produce shorter, more readable names and improve alignment with OpenTelemetry specifications.
