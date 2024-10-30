@@ -108,14 +108,14 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 var imdsv2InstanceIDFetcher = cachedfetch.Fetcher{
 	Name: "EC2 IMDSv2 InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, UseIMDSv2(true, false))
+		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, useIMDSv2)
 	},
 }
 
 var legacyInstanceIDFetcher = cachedfetch.Fetcher{
 	Name: "EC2 no IMDSv2 no DMI InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, UseIMDSv2(false, true))
+		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, useIMDSv1)
 	},
 }
 
@@ -141,7 +141,7 @@ func GetIDMSv2InstanceID(ctx context.Context) (string, error) {
 
 // GetHostID returns the instanceID for the current EC2 host using IMDSv2 only.
 func GetHostID(ctx context.Context) string {
-	instanceID, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, UseIMDSv2(true, false))
+	instanceID, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, useIMDSv2)
 	log.Debugf("instanceID from IMDSv2 '%s' (error: %v)", instanceID, err)
 
 	if err == nil {
@@ -179,7 +179,7 @@ func GetHostAliases(ctx context.Context) ([]string, error) {
 
 	// Try to use IMSDv2 if GetInstanceID didn't try it already
 	imdsv2Action := UseIMDSv2(false, false)
-	if imdsv2Action == notUseIMDSv2 {
+	if imdsv2Action == useIMDSv1 {
 		imsdv2InstanceID, err := GetIDMSv2InstanceID(ctx)
 		if err == nil {
 			return []string{imsdv2InstanceID}, nil
