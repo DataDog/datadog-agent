@@ -235,7 +235,6 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	otelres := rspans.Resource()
 	resourceAttributes := otelres.Attributes()
 
-	topLevelByKind := o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
 	tracesByID := make(map[uint64]pb.Trace)
 	priorityByID := make(map[uint64]sampler.SamplingPriority)
 	var spancount int64
@@ -258,7 +257,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 			if tracesByID[traceID] == nil {
 				tracesByID[traceID] = pb.Trace{}
 			}
-			ddspan := transform.OtelSpanToDDSpan(otelspan, otelres, libspans.Scope(), topLevelByKind, o.conf, nil)
+			ddspan := transform.OtelSpanToDDSpan(otelspan, otelres, libspans.Scope(), o.conf, nil)
 
 			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
 				priorityByID[traceID] = sampler.SamplingPriority(p)
@@ -640,10 +639,18 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		span.Service = "OTLPResourceNoServiceName"
 	}
 	if span.Resource == "" {
-		if r := resourceFromTags(span.Meta); r != "" {
-			span.Resource = r
+		if transform.OperationAndResourceNameV2Enabled(o.conf) {
+			res := pcommon.NewResource()
+			for k, v := range rattr {
+				res.Attributes().PutStr(k, v)
+			}
+			span.Resource = traceutil.GetOTelResourceV2(in, res)
 		} else {
-			span.Resource = in.Name()
+			if r := resourceFromTags(span.Meta); r != "" {
+				span.Resource = r
+			} else {
+				span.Resource = in.Name()
+			}
 		}
 	}
 	if span.Type == "" {
