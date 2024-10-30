@@ -9,11 +9,15 @@ package strategy
 import (
 	"bytes"
 	"fmt"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/klauspost/compress/zstd"
 )
+
+var globalencoder *zstd.Encoder
+var mutex sync.Mutex
 
 // ZstdNativeStrategy is the strategy for when serializer_compressor_kind is zstd
 type ZstdNativeStrategy struct {
@@ -25,13 +29,17 @@ type ZstdNativeStrategy struct {
 func NewZstdNativeStrategy(level int) *ZstdNativeStrategy {
 	log.Debugf("Compressing native zstd at level %d", level)
 
-	encoder, _ := zstd.NewWriter(nil,
-		zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)),
-		zstd.WithEncoderConcurrency(1))
+	mutex.Lock()
+	if globalencoder == nil {
+		globalencoder, _ = zstd.NewWriter(nil,
+			zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)),
+			zstd.WithEncoderConcurrency(1))
+	}
+	mutex.Unlock()
 
 	return &ZstdNativeStrategy{
 		level:   level,
-		encoder: encoder,
+		encoder: globalencoder,
 	}
 }
 
