@@ -14,24 +14,30 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func TestFlareCreation(t *testing.T) {
 	realProvider := func(_ types.FlareBuilder) error { return nil }
+
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
 
 	f := newFlare(
 		fxutil.Test[dependencies](
@@ -40,11 +46,16 @@ func TestFlareCreation(t *testing.T) {
 			config.MockModule(),
 			secretsimpl.MockModule(),
 			nooptelemetry.Module(),
-			fx.Provide(func() diagnosesendermanager.Component { return nil }),
+			hostnameimpl.MockModule(),
+			demultiplexerimpl.MockModule(),
 			fx.Provide(func() Params { return Params{} }),
 			collector.NoneModule(),
-			fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
-			fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			autodiscoveryimpl.MockModule(),
+			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: scheduler.NewController()}),
+			fx.Provide(func(ac autodiscovery.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
+			fx.Provide(func() tagger.Mock { return fakeTagger }),
+			fx.Provide(func() tagger.Component { return fakeTagger }),
 			// provider a nil FlareCallback
 			fx.Provide(fx.Annotate(
 				func() types.FlareCallback { return nil },
@@ -67,17 +78,24 @@ func TestRunProviders(t *testing.T) {
 	var secondRan atomic.Bool
 	var secondDone atomic.Bool
 
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+
 	deps := fxutil.Test[dependencies](
 		t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		secretsimpl.MockModule(),
 		nooptelemetry.Module(),
-		fx.Provide(func() diagnosesendermanager.Component { return nil }),
+		hostnameimpl.MockModule(),
+		demultiplexerimpl.MockModule(),
 		fx.Provide(func() Params { return Params{} }),
 		collector.NoneModule(),
-		fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
-		fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		autodiscoveryimpl.MockModule(),
+		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: scheduler.NewController()}),
+		fx.Provide(func(ac autodiscovery.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
+		fx.Provide(func() tagger.Mock { return fakeTagger }),
+		fx.Provide(func() tagger.Component { return fakeTagger }),
 		// provider a nil FlareCallback
 		fx.Provide(fx.Annotate(
 			func() types.FlareCallback { return nil },
@@ -104,14 +122,14 @@ func TestRunProviders(t *testing.T) {
 			fx.ResultTags(`group:"flare"`),
 		)),
 	)
-	deps.Config.Set("flare_provider_timeout", 1, model.SourceAgentRuntime)
+
+	cliProviderTimeout := time.Nanosecond
 	f := newFlare(deps)
 
 	fb, err := helpers.NewFlareBuilder(false)
 	require.NoError(t, err)
 
-	flare := f.Comp.(*flare)
-	flare.runProviders(fb)
+	f.Comp.(*flare).runProviders(fb, cliProviderTimeout)
 
 	require.True(t, firstRan.Load())
 	require.True(t, secondRan.Load())

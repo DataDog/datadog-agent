@@ -844,6 +844,60 @@ func TestHandleKubePod(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "pod with containers requesting gpu resources",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				GPUVendorList: []string{"nvidia"},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:    fullyFleshedContainerID,
+						Name:  containerName,
+						Image: image,
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					EntityID:     podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"gpu_vendor:nvidia",
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source:   podSource,
+					EntityID: fullyFleshedContainerTaggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_id:%s", fullyFleshedContainerID),
+						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
+					},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: append([]string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						fmt.Sprintf("kube_container_name:%s", containerName),
+						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+						"image_name:datadog/agent",
+						"image_tag:latest",
+						"short_image:agent",
+						"gpu_vendor:nvidia",
+					}, standardTags...),
+					StandardTags: standardTags,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1417,10 +1471,11 @@ func TestHandleECSTask(t *testing.T) {
 				ContainerInstanceTags: map[string]string{
 					"instance_type": "g4dn.xlarge",
 				},
-				ClusterName: "ecs-cluster",
-				Family:      "datadog-agent",
-				Version:     "1",
-				LaunchType:  workloadmeta.ECSLaunchTypeEC2,
+				ClusterName:  "ecs-cluster",
+				Family:       "datadog-agent",
+				Version:      "1",
+				AWSAccountID: 1234567891234,
+				LaunchType:   workloadmeta.ECSLaunchTypeEC2,
 				Containers: []workloadmeta.OrchestratorContainer{
 					{
 						ID:   containerID,
@@ -1447,6 +1502,7 @@ func TestHandleECSTask(t *testing.T) {
 						"task_name:datadog-agent",
 						"task_version:1",
 						"ecs_service:datadog-agent-service",
+						"aws_account:1234567891234",
 					},
 					StandardTags: []string{},
 				},
@@ -1471,6 +1527,7 @@ func TestHandleECSTask(t *testing.T) {
 				},
 				AvailabilityZone: "us-east-1c",
 				Region:           "us-east-1",
+				AWSAccountID:     1234567891234,
 			},
 			expected: []*types.TagInfo{
 				{
@@ -1490,6 +1547,7 @@ func TestHandleECSTask(t *testing.T) {
 						"availability_zone:us-east-1c",
 						"availability-zone:us-east-1c",
 						"region:us-east-1",
+						"aws_account:1234567891234",
 					},
 					StandardTags: []string{},
 				},
@@ -1509,6 +1567,7 @@ func TestHandleECSTask(t *testing.T) {
 						"availability_zone:us-east-1c",
 						"availability-zone:us-east-1c",
 						"region:us-east-1",
+						"aws_account:1234567891234",
 					},
 					StandardTags: []string{},
 				},
@@ -2072,7 +2131,7 @@ func TestHandleContainer(t *testing.T) {
 					Name: containerName,
 				},
 				Resources: workloadmeta.ContainerResources{
-					GPUType: "nvidia",
+					GPUVendorList: []string{"nvidia"},
 				},
 			},
 			expected: []*types.TagInfo{
@@ -2085,7 +2144,7 @@ func TestHandleContainer(t *testing.T) {
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
-						"kube_gpu_type:nvidia",
+						"gpu_vendor:nvidia",
 					},
 					StandardTags: []string{},
 				},

@@ -6,7 +6,7 @@ test_gitlab_configuration:
     - !reference [.except_mergequeue]
     - !reference [.on_gitlab_changes]
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - inv -e linter.gitlab-ci
     - inv -e linter.job-change-path
     - inv -e linter.gitlab-change-paths
@@ -20,14 +20,10 @@ test_gitlab_compare_to:
     - !reference [.except_mergequeue]
     - !reference [.on_gitlab_changes]
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - !reference [.setup_agent_github_app]
     - pip install -r tasks/requirements.txt
     - inv pipeline.compare-to-itself
-
-.compute_gitlab_ci_config_rules:
-  - if: $CI_PIPELINE_SOURCE != "push"
-    when: never
 
 # Computes and uploads the GitLab CI configuration diff as an artifact
 compute_gitlab_ci_config:
@@ -35,16 +31,13 @@ compute_gitlab_ci_config:
   stage: .pre
   needs: []
   tags: ["arch:arm64"]
-  rules:
-  - !reference [.compute_gitlab_ci_config_rules]
-  - when: on_success
   before_script:
     # Get main history
     - git fetch origin main
     - git checkout main
     - git checkout -
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - mkdir -p artifacts
     - inv -e gitlab.compute-gitlab-ci-config --before-file artifacts/before.gitlab-ci.yml --after-file artifacts/after.gitlab-ci.yml --diff-file artifacts/diff.gitlab-ci.yml
   artifacts:
@@ -58,9 +51,6 @@ lint_gitlab_ci:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: [compute_gitlab_ci_config]
-  rules:
-    - !reference [.compute_gitlab_ci_config_rules]
-    - !reference [.on_gitlab_changes_or_mergequeue_or_main]
   script:
     - status=0
     - inv -e linter.gitlab-ci-jobs-needs-rules --config-file artifacts/after.gitlab-ci.yml || status=1
@@ -76,7 +66,5 @@ lint_gitlab_ci_jobs_codeowners:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   needs: []
-  rules:
-    - !reference [.on_gitlab_changes]
   script:
     - inv -e linter.gitlab-ci-jobs-codeowners --all-files

@@ -6,6 +6,9 @@ rc_kubernetes_deploy:
   stage: internal_kubernetes_deploy
   rules:
     - if: $RC_K8S_DEPLOYMENTS == "true"
+      when: on_success
+    - if: $RC_BUILD == "true"
+      when: manual
   needs:
     - job: docker_trigger_internal
       artifacts: false
@@ -22,7 +25,7 @@ rc_kubernetes_deploy:
     EXPLICIT_WORKFLOWS: "//workflows:deploy_rc.agents_rc"
     AGENT_IMAGE_TAG: $CI_COMMIT_REF_NAME
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN) || exit $?; export GITLAB_TOKEN
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - "inv pipeline.trigger-child-pipeline --project-name DataDog/k8s-datadog-agent-ops --git-ref main
       --variable OPTION_AUTOMATIC_ROLLOUT
       --variable EXPLICIT_WORKFLOWS

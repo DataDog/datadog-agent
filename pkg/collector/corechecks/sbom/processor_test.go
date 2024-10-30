@@ -27,6 +27,7 @@ import (
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -625,9 +626,11 @@ func TestProcessEvents(t *testing.T) {
 				SBOMsSent.Inc()
 			})
 
+			fakeTagger := taggerimpl.SetupFakeTagger(t)
+
 			// Define a max size of 1 for the queue. With a size > 1, it's difficult to
 			// control the number of events sent on each call.
-			p, err := newProcessor(workloadmetaStore, sender, 1, 50*time.Millisecond, false, time.Second)
+			p, err := newProcessor(workloadmetaStore, sender, fakeTagger, 1, 50*time.Millisecond, false, time.Second)
 			if err != nil {
 				t.Fatal(err)
 			}

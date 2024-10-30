@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -75,7 +76,7 @@ func MockModule() fxutil.Module {
 }
 
 // SetTags calls faketagger SetTags which sets the tags for an entity
-func (m *MockTaggerClient) SetTags(entity, source string, low, orch, high, std []string) {
+func (m *MockTaggerClient) SetTags(entity types.EntityID, source string, low, orch, high, std []string) {
 	if m.TaggerClient == nil {
 		panic("Tagger must be initialized before calling SetTags")
 	}
@@ -97,9 +98,4 @@ func (m *MockTaggerClient) SetGlobalTags(low, orch, high, std []string) {
 // SetupFakeTagger calls fxutil.Test to create a mock tagger for testing
 func SetupFakeTagger(t *testing.T) tagger.Mock {
 	return fxutil.Test[tagger.Mock](t, MockModule())
-}
-
-// ResetTagger resets the tagger
-func (m *MockTaggerClient) ResetTagger() {
-	tagger.UnlockGlobalTaggerClient()
 }

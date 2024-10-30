@@ -22,7 +22,7 @@ docker_trigger_internal:
     TMPL_SRC_REPO: ci/datadog-agent/agent
     RELEASE_STAGING: "true"
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN) || exit $?; export GITLAB_TOKEN
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - if [ "$BUCKET_BRANCH" = "beta" ] || [ "$BUCKET_BRANCH" = "stable" ]; then TMPL_SRC_REPO="${TMPL_SRC_REPO}-release"; fi
     - |
       if [ "$BUCKET_BRANCH" = "nightly" ]; then
@@ -67,7 +67,7 @@ docker_trigger_internal-ot:
     TMPL_SRC_REPO: ci/datadog-agent/agent
     RELEASE_STAGING: "true"
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN) || exit $?; export GITLAB_TOKEN
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - if [ "$BUCKET_BRANCH" = "beta" ] || [ "$BUCKET_BRANCH" = "stable" ]; then TMPL_SRC_REPO="${TMPL_SRC_REPO}-release"; fi
     - |
       if [ "$BUCKET_BRANCH" = "nightly" ]; then
@@ -94,7 +94,7 @@ docker_trigger_internal-ot:
 
 docker_trigger_cluster_agent_internal:
   stage: internal_image_deploy
-  rules: !reference [.on_deploy]
+  rules: !reference [.on_deploy_internal_or_manual]
   needs:
     - job: docker_build_cluster_agent_amd64
       artifacts: false
@@ -113,7 +113,7 @@ docker_trigger_cluster_agent_internal:
     RELEASE_STAGING: "true"
     RELEASE_PROD: "true"
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN) || exit $?; export GITLAB_TOKEN
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - if [ "$BUCKET_BRANCH" = "beta" ] || [ "$BUCKET_BRANCH" = "stable" ]; then TMPL_SRC_REPO="${TMPL_SRC_REPO}-release"; fi
     - |
       if [ "$BUCKET_BRANCH" = "nightly" ]; then
@@ -159,7 +159,7 @@ docker_trigger_cws_instrumentation_internal:
     RELEASE_STAGING: "true"
     RELEASE_PROD: "true"
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN) || exit $?; export GITLAB_TOKEN
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - if [ "$BUCKET_BRANCH" = "beta" ] || [ "$BUCKET_BRANCH" = "stable" ]; then TMPL_SRC_REPO="${TMPL_SRC_REPO}-release"; fi
     - |
       if [ "$BUCKET_BRANCH" = "nightly" ]; then

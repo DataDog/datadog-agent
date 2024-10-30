@@ -11,7 +11,6 @@ package eventmonitor
 import (
 	"context"
 	"fmt"
-	"net"
 	"slices"
 	"sync"
 	"time"
@@ -54,8 +53,7 @@ type EventMonitor struct {
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
 	sendStatsChan  chan chan bool
-	eventConsumers []EventConsumerInterface
-	netListener    net.Listener
+	eventConsumers []EventConsumer
 	wg             sync.WaitGroup
 }
 
@@ -70,8 +68,8 @@ func (m *EventMonitor) Register(_ *module.Router) error {
 	return m.Start()
 }
 
-// AddEventConsumer registers an event handler
-func (m *EventMonitor) AddEventConsumer(consumer EventConsumer) error {
+// AddEventConsumerHandler registers an event handler
+func (m *EventMonitor) AddEventConsumerHandler(consumer EventConsumerHandler) error {
 	for _, eventType := range consumer.EventTypes() {
 		if !slices.Contains(allowedEventTypes, eventType) {
 			return fmt.Errorf("event type (%s) not allowed", eventType)
@@ -82,7 +80,7 @@ func (m *EventMonitor) AddEventConsumer(consumer EventConsumer) error {
 }
 
 // RegisterEventConsumer registers an event consumer
-func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumerInterface) {
+func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumer) {
 	m.eventConsumers = append(m.eventConsumers, consumer)
 }
 
@@ -107,8 +105,6 @@ func (m *EventMonitor) Start() error {
 	if err != nil {
 		return fmt.Errorf("unable to register event monitoring module: %w", err)
 	}
-
-	m.netListener = ln
 
 	m.wg.Add(1)
 	go func() {
@@ -169,17 +165,17 @@ func (m *EventMonitor) Close() {
 		m.GRPCServer.Stop()
 	}
 
-	if m.netListener != nil {
-		m.netListener.Close()
+	if err := m.cleanup(); err != nil {
+		seclog.Errorf("failed to cleanup event monitor: %v", err)
 	}
-
-	m.cleanup()
 
 	m.cancelFnc()
 	m.wg.Wait()
 
 	// all the go routines should be stopped now we can safely call close the probe and remove the eBPF programs
-	m.Probe.Close()
+	if err := m.Probe.Close(); err != nil {
+		seclog.Errorf("failed to close event monitor probe: %v", err)
+	}
 }
 
 // SendStats send stats

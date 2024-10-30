@@ -365,6 +365,7 @@ github.com/signalfx/sapm-proto/*: Copyright 2019 Splunk, Inc.
 go.mongodb.org/atlas/mongodbatlas: Copyright 2022 MongoDB Inc
 github.com/go-jose/go-jose/v4: Copyright 2014 Square Inc.
 github.com/gocolly/colly: Copyright 2018 Adam Tauber
+github.com/puzpuzpuz/xsync/v3: Copyright (c) 2021 Andrey Pechkurov
 
 github.com/vibrantbyte/go-antpath/antpath: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
 github.com/vibrantbyte/go-antpath/extend: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
@@ -373,3 +374,5 @@ github.com/vibrantbyte/go-antpath/extend: vibrantbyte <codingrun@163.com>|suchao
 github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp: Copyright 2024 gRPC authors.
 github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/grpc_gcp: Copyright 2024 gRPC authors.
 github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/multiendpoint: Copyright 2024 gRPC authors.
+
+github.com/NVIDIA/go-nvml/*: Copyright 2023 NVIDIA CORPORATION

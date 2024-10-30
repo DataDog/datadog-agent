@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/examples"
 	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 )
 
 func TestEventMonitor(t *testing.T) {
@@ -72,4 +73,49 @@ func TestEventMonitor(t *testing.T) {
 		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
 		assert.NoError(t, err)
 	})
+}
+
+func TestEventMonitorNoEnvs(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	var sec *examples.SimpleEventConsumer
+	test, err := newTestModule(t, nil, nil, withStaticOpts(testOpts{
+		disableRuntimeSecurity:   true,
+		disableEnvVarsResolution: true,
+		preStartCallback: func(test *testModule) {
+			sec = examples.NewSimpleEventConsumer(test.eventMonitor)
+			test.eventMonitor.RegisterEventConsumer(sec)
+		},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	lsExecutable := which(t, "ls")
+
+	foundLs := atomic.NewBool(false)
+
+	sec.AddHandler(func(evt *examples.SimpleEvent) {
+		if len(evt.Envp) != 0 {
+			t.Errorf("unexpected envp: %+v", evt)
+		}
+
+		if evt.ExecFilePath == lsExecutable {
+			foundLs.Store(true)
+		}
+	})
+
+	cmd := exec.Command(lsExecutable, "-l")
+	if err := cmd.Run(); err != nil {
+		t.Fatal(err)
+	}
+
+	err = retry.Do(func() error {
+		if foundLs.Load() {
+			return nil
+		}
+		return errors.New("event not received")
+	}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
+	assert.NoError(t, err)
 }

@@ -32,16 +32,6 @@ func (os *compositeObjectStore[T]) Get(entityID types.EntityID) (object T, found
 	return
 }
 
-// GetWithEntityIDStr implements ObjectStore#GetWithEntityIDStr
-func (os *compositeObjectStore[T]) GetWithEntityIDStr(id string) (object T, found bool) {
-	entityID, err := types.NewEntityIDFromString(id)
-	if err != nil {
-		return
-	}
-
-	return os.Get(entityID)
-}
-
 // Set implements ObjectStore#Set
 func (os *compositeObjectStore[T]) Set(entityID types.EntityID, object T) {
 	prefix := entityID.GetPrefix()

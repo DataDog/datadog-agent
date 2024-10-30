@@ -8,6 +8,7 @@ package commonchecks
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -27,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/tcpqueuelength"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/ntp"
 	ciscosdwan "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan"
@@ -53,7 +55,7 @@ import (
 )
 
 // RegisterChecks registers all core checks
-func RegisterChecks(store workloadmeta.Component, cfg config.Component, telemetry telemetry.Component) {
+func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg config.Component, telemetry telemetry.Component) {
 	// Required checks
 	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
 	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
@@ -64,20 +66,21 @@ func RegisterChecks(store workloadmeta.Component, cfg config.Component, telemetr
 	corecheckLoader.RegisterCheck(networkpath.CheckName, networkpath.Factory(telemetry))
 	corecheckLoader.RegisterCheck(io.CheckName, io.Factory())
 	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.Factory())
-	corecheckLoader.RegisterCheck(containerimage.CheckName, containerimage.Factory(store))
+	corecheckLoader.RegisterCheck(containerimage.CheckName, containerimage.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(containerlifecycle.CheckName, containerlifecycle.Factory(store))
-	corecheckLoader.RegisterCheck(generic.CheckName, generic.Factory(store))
+	corecheckLoader.RegisterCheck(generic.CheckName, generic.Factory(store, tagger))
 
 	// Flavor specific checks
 	corecheckLoader.RegisterCheck(load.CheckName, load.Factory())
-	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory())
+	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory(tagger))
 	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory())
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
-	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory(store, cfg))
+	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory(store, cfg, tagger))
 	corecheckLoader.RegisterCheck(ebpf.CheckName, ebpf.Factory())
-	corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory(store))
-	corecheckLoader.RegisterCheck(oomkill.CheckName, oomkill.Factory())
-	corecheckLoader.RegisterCheck(tcpqueuelength.CheckName, tcpqueuelength.Factory())
+	corecheckLoader.RegisterCheck(gpu.CheckName, gpu.Factory())
+	corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory(store, tagger))
+	corecheckLoader.RegisterCheck(oomkill.CheckName, oomkill.Factory(tagger))
+	corecheckLoader.RegisterCheck(tcpqueuelength.CheckName, tcpqueuelength.Factory(tagger))
 	corecheckLoader.RegisterCheck(apm.CheckName, apm.Factory())
 	corecheckLoader.RegisterCheck(process.CheckName, process.Factory())
 	corecheckLoader.RegisterCheck(network.CheckName, network.Factory())
@@ -89,12 +92,12 @@ func RegisterChecks(store workloadmeta.Component, cfg config.Component, telemetr
 	corecheckLoader.RegisterCheck(winkmem.CheckName, winkmem.Factory())
 	corecheckLoader.RegisterCheck(winproc.CheckName, winproc.Factory())
 	corecheckLoader.RegisterCheck(systemd.CheckName, systemd.Factory())
-	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(store, cfg))
-	corecheckLoader.RegisterCheck(docker.CheckName, docker.Factory(store))
-	corecheckLoader.RegisterCheck(sbom.CheckName, sbom.Factory(store, cfg))
-	corecheckLoader.RegisterCheck(kubelet.CheckName, kubelet.Factory(store))
-	corecheckLoader.RegisterCheck(containerd.CheckName, containerd.Factory(store))
-	corecheckLoader.RegisterCheck(cri.CheckName, cri.Factory(store))
+	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(store, cfg, tagger))
+	corecheckLoader.RegisterCheck(docker.CheckName, docker.Factory(store, tagger))
+	corecheckLoader.RegisterCheck(sbom.CheckName, sbom.Factory(store, cfg, tagger))
+	corecheckLoader.RegisterCheck(kubelet.CheckName, kubelet.Factory(store, tagger))
+	corecheckLoader.RegisterCheck(containerd.CheckName, containerd.Factory(store, tagger))
+	corecheckLoader.RegisterCheck(cri.CheckName, cri.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(ciscosdwan.CheckName, ciscosdwan.Factory())
 	corecheckLoader.RegisterCheck(servicediscovery.CheckName, servicediscovery.Factory())
 }

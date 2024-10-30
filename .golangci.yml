@@ -18,6 +18,8 @@ issues:
   exclude:
     - "Error return value of `io.WriteString` is not checked" # 'errcheck' errors in tools/dep_tree_resolver/go_deps.go
     - "Error return value of `pem.Encode` is not checked" # 'errcheck' errors in test/integration/utils/certificates.go
+    - "Error return value of `c.logErrorNotImplemented` is not checked" # 'errcheck' errors in pkg/config/nodetreemodel/config.go
+    - "Error return value of `n.logErrorNotImplemented` is not checked" # 'errcheck' errors in pkg/config/nodetreemodel/config.go
     - "exported: exported const Exec should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/process/events/model/model_common.go
     - "exported: exported const APIName should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/serverless/trace/inferredspan/constants.go
     - "unnecessary conversion" # 'unconvert' errors in test/integration/utils/certificates_test.go
@@ -664,7 +666,8 @@ linters-settings:
              # Actual issues that should be fixed eventually
              "-SA6002", # TODO: Fix sync.Pools
              "-SA4025", # TODO: Fix trace unit test
-             "-SA4011", "-SA4031" # Disabling these to re-enable golanci-lint default tests
+             "-SA4011", "-SA4031", # Disabling these to re-enable golanci-lint default tests
+             "-SA4023"  # Fix the lint_macos_gitlab_amd64 linter discrepancy while we find the issue (see https://github.com/dominikh/go-tools/issues/847)
             ]
   govet:
     settings:

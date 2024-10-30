@@ -12,7 +12,7 @@
   - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-$CLANG_LLVM_VER.${PACKAGE_ARCH} /tmp/system-probe/llc-bpf
   - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz /tmp/system-probe/minimized-btfs.tar.xz
   - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
-  - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor "$FLAVOR" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
+  - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor "$FLAVOR" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
   - ls -la $OMNIBUS_PACKAGE_DIR
   - !reference [.upload_sbom_artifacts]
 
@@ -69,7 +69,6 @@
 .agent_7_build:
   variables:
     AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: "3"
     FLAVOR: base
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
@@ -77,7 +76,6 @@
 .ot_agent_7_build:
   variables:
     AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: "3"
     FLAVOR: ot
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
@@ -181,7 +179,7 @@ iot-agent-armhf:
     - !reference [.cache_omnibus_ruby_deps, setup]
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
-    - inv -e omnibus.build --release-version $RELEASE_VERSION_7 --major-version 7 --python-runtimes 3 --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project dogstatsd
+    - inv -e omnibus.build --release-version $RELEASE_VERSION_7 --major-version 7 --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project dogstatsd
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   variables:

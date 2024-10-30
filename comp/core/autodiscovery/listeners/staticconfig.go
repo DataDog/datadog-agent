@@ -9,7 +9,6 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
@@ -28,7 +27,7 @@ type StaticConfigService struct {
 var _ Service = &StaticConfigService{}
 
 // NewStaticConfigListener creates a StaticConfigListener
-func NewStaticConfigListener(Config, *telemetry.Store) (ServiceListener, error) {
+func NewStaticConfigListener(ServiceListernerDeps) (ServiceListener, error) {
 	return &StaticConfigListener{}, nil
 }
 
@@ -90,6 +89,11 @@ func (s *StaticConfigService) GetPorts(context.Context) ([]ContainerPort, error)
 // GetTags retrieves a container's tags
 func (s *StaticConfigService) GetTags() ([]string, error) {
 	return nil, nil
+}
+
+// GetTagsWithCardinality returns the tags with given cardinality.
+func (s *StaticConfigService) GetTagsWithCardinality(_ string) ([]string, error) {
+	return s.GetTags()
 }
 
 // GetPid inspect the container and return its pid

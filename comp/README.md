@@ -615,3 +615,9 @@ Package rdnsquerier provides the reverse DNS querier component.
 *Datadog Team*: agent-metrics-logs
 
 Package compression provides a compression implementation based on the configuration or available build tags.
+
+### [comp/snmpscan](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmpscan)
+
+*Datadog Team*: network-device-monitoring
+
+Package snmpscan is a light component that can be used to perform a scan or a walk of a particular device

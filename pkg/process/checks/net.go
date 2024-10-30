@@ -122,7 +122,11 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.processData.Register(c.serviceExtractor)
 
 	// LocalResolver is a singleton LocalResolver
-	c.localresolver = resolver.NewLocalResolver(proccontainers.GetSharedContainerProvider(c.wmeta), clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)
+	sharedContainerProvider, err := proccontainers.GetSharedContainerProvider()
+	if err != nil {
+		return err
+	}
+	c.localresolver = resolver.NewLocalResolver(sharedContainerProvider, clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)
 	c.localresolver.Run()
 
 	return nil
@@ -505,7 +509,7 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 }
 
 // fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
-func retryGetNetworkID(sysProbeUtil *net.RemoteSysProbeUtil) (string, error) {
+func retryGetNetworkID(sysProbeUtil net.SysProbeUtil) (string, error) {
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
 	if err != nil && sysProbeUtil != nil {
 		log.Infof("no network ID detected. retrying via system-probe: %s", err)

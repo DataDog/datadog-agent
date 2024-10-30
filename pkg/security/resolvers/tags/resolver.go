@@ -24,7 +24,7 @@ import (
 type Tagger interface {
 	Start(ctx context.Context) error
 	Stop() error
-	Tag(entity string, cardinality types.TagCardinality) ([]string, error)
+	Tag(entity types.EntityID, cardinality types.TagCardinality) ([]string, error)
 }
 
 type nullTagger struct{}
@@ -37,7 +37,7 @@ func (n *nullTagger) Stop() error {
 	return nil
 }
 
-func (n *nullTagger) Tag(_ string, _ types.TagCardinality) ([]string, error) {
+func (n *nullTagger) Tag(_ types.EntityID, _ types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 
@@ -80,14 +80,14 @@ func (t *DefaultResolver) Resolve(id string) []string {
 	}
 
 	entityID := types.NewEntityID(types.ContainerID, id)
-	tags, _ := t.tagger.Tag(entityID.String(), types.OrchestratorCardinality)
+	tags, _ := t.tagger.Tag(entityID, types.OrchestratorCardinality)
 	return tags
 }
 
 // ResolveWithErr returns the tags for the given id
 func (t *DefaultResolver) ResolveWithErr(id string) ([]string, error) {
 	entityID := types.NewEntityID(types.ContainerID, id)
-	return t.tagger.Tag(entityID.String(), types.OrchestratorCardinality)
+	return t.tagger.Tag(entityID, types.OrchestratorCardinality)
 }
 
 // GetValue return the tag value for the given id and tag name
@@ -108,7 +108,7 @@ func NewResolver(config *config.Config, telemetry telemetry.Component) Resolver 
 			log.Errorf("unable to configure the remote tagger: %s", err)
 		} else {
 			return &DefaultResolver{
-				tagger: remote.NewTagger(options, pkgconfigsetup.Datadog(), taggerTelemetry.NewStore(telemetry)),
+				tagger: remote.NewTagger(options, pkgconfigsetup.Datadog(), taggerTelemetry.NewStore(telemetry), types.NewMatchAllFilter()),
 			}
 		}
 	}

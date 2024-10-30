@@ -340,7 +340,7 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 
 	// ignore event types not supported
 	if _, exists := rs.opts.EventTypeEnabled["*"]; !exists {
-		if _, exists := rs.opts.EventTypeEnabled[eventType]; !exists {
+		if enabled, exists := rs.opts.EventTypeEnabled[eventType]; !exists || !enabled {
 			return nil, &ErrRuleLoad{Rule: pRule, Err: ErrEventTypeNotEnabled}
 		}
 	}
@@ -743,7 +743,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 		rulesIndex = make(map[string]*PolicyRule)
 	)
 
-	parsingContext := ast.NewParsingContext()
+	parsingContext := ast.NewParsingContext(false)
 
 	policies, err := loader.LoadPolicies(opts)
 	if err != nil {

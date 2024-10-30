@@ -11,11 +11,11 @@
     - !reference [.retrieve_linux_go_e2e_deps]
     # Setup AWS Credentials
     - mkdir -p ~/.aws
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_PROFILE >> ~/.aws/config || exit $?
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E profile >> ~/.aws/config || exit $?
     - export AWS_PROFILE=agent-qa-ci
     # Now all `aws` commands target the agent-qa profile
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_PUBLIC_KEY_RSA > $E2E_PUBLIC_KEY_PATH || exit $?
-    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_KEY_RSA > $E2E_PRIVATE_KEY_PATH || exit $?
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_PUBLIC_KEY_PATH || exit $?
+    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_PRIVATE_KEY_PATH || exit $?
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
     # Setup Azure credentials. https://www.pulumi.com/registry/packages/azure-native/installation-configuration/#set-configuration-using-pulumi-config
@@ -103,10 +103,41 @@ new-e2e-containers:
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.29"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20.04"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22.04"
-      - EXTRA_PARAMS: --run TestEKSSuite
       - EXTRA_PARAMS: --run TestECSSuite
       - EXTRA_PARAMS: --run TestDockerSuite
       - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker)Suite"
+
+new-e2e-containers-eks-init:
+  stage: e2e_init
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    EXTRA_PARAMS: --run TestEKSSuite
+    E2E_INIT_ONLY: "true"
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
+  allow_failure: true
+
+new-e2e-containers-eks:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - new-e2e-containers-eks-init
+    - qa_agent
+    - qa_dca
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    EXTRA_PARAMS: --run TestEKSSuite
+    E2E_PRE_INITIALIZED: "true"
 
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
@@ -210,7 +241,40 @@ new-e2e-npm-docker:
   variables:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
-    EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized|EKSVM)Suite"
+    EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized)Suite"
+
+
+new-e2e-npm-eks-init:
+  stage: e2e_init
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+  rules:
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/npm
+    TEAM: network-performance-monitoring
+    EXTRA_PARAMS: --run "TestEKSVMSuite"
+    E2E_INIT_ONLY: "true"
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
+  allow_failure: true
+
+new-e2e-npm-eks:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - new-e2e-npm-eks-init
+    - qa_agent
+    - qa_dca
+  variables:
+    TARGETS: ./tests/npm
+    TEAM: network-performance-monitoring
+    EXTRA_PARAMS: --run "TestEKSVMSuite"
+    E2E_PRE_INITIALIZED: "true"
 
 new-e2e-aml:
   extends: .new_e2e_template
@@ -240,6 +304,7 @@ new-e2e-cws:
     - qa_agent
     - qa_dca
   variables:
+    SHOULD_RUN_IN_FLAKES_FINDER: "false" # Currently broken in flake finder ADXT-687
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
     CWS_INSTRUMENTATION_FULLIMAGEPATH: 669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
@@ -409,6 +474,7 @@ new-e2e-windows-systemprobe:
   variables:
     TARGETS: ./tests/sysprobe-functional
     TEAM: windows-kernel-integrations
+    SHOULD_RUN_IN_FLAKES_FINDER: "false" # Currently broken in flake finder ADXT-687
 
 new-e2e-windows-security-agent:
   extends: .new_e2e_template
@@ -423,6 +489,40 @@ new-e2e-windows-security-agent:
     TARGETS: ./tests/security-agent-functional
     TEAM: windows-kernel-integrations
 
+new-e2e-otel-eks-init:
+  stage: e2e_init
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_otel_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+  variables:
+    TARGETS: ./tests/otel
+    TEAM: otel
+    EXTRA_PARAMS: --run TestOTelAgentIAEKS
+    E2E_INIT_ONLY: "true"
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
+
+  allow_failure: true
+
+new-e2e-otel-eks:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_otel_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+    - qa_agent
+    - qa_agent_ot
+    - new-e2e-otel-eks-init
+  variables:
+    TARGETS: ./tests/otel
+    EXTRA_PARAMS: --run TestOTelAgentIAEKS
+    TEAM: otel
+    E2E_PRE_INITIALIZED: "true"
+
 new-e2e-otel:
   extends: .new_e2e_template
   rules:
@@ -435,6 +535,7 @@ new-e2e-otel:
     - qa_agent_ot
   variables:
     TARGETS: ./tests/otel
+    EXTRA_PARAMS: --skip TestOTelAgentIAEKS
     TEAM: otel
 
 .new-e2e_package_signing:
@@ -471,6 +572,19 @@ new-e2e-cspm:
     TEAM: cspm
   timeout: 35m
 
+new-e2e-gpu:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_gpu_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/gpu                          # the target path where tests are
+    TEAM: ebpf-platform
+  needs:                                         # list of required jobs. By default gitlab waits for any previous jobs.
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_x64                  # agent 7 debian package
+
+
 generate-flakes-finder-pipeline:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: e2e
@@ -479,6 +593,7 @@ generate-flakes-finder-pipeline:
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
   needs:
+    - compute_gitlab_ci_config
     - deploy_deb_testing-a7_arm64
     - deploy_deb_testing-a7_x64
     - deploy_rpm_testing-a7_arm64
@@ -495,7 +610,6 @@ generate-flakes-finder-pipeline:
     - qa_agent_ot
   tags: ["arch:amd64"]
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
     - inv -e testwasher.generate-flake-finder-pipeline
   artifacts:
     paths:
@@ -516,3 +630,30 @@ trigger-flakes-finder:
       - artifact: flake-finder-gitlab-ci.yml
         job: generate-flakes-finder-pipeline
   allow_failure: true
+
+new-e2e-eks-cleanup-on-failure:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  tags: ["arch:amd64"]
+  stage: e2e_cleanup
+  dependencies: [go_e2e_deps]
+  script:
+    # Setup AWS Credentials
+    - mkdir -p ~/.aws
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E profile >> ~/.aws/config || exit $?
+    - export AWS_PROFILE=agent-qa-ci
+    # Now all `aws` commands target the agent-qa profile
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_PUBLIC_KEY_PATH || exit $?
+    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_PRIVATE_KEY_PATH || exit $?
+    # Use S3 backend
+    - PULUMI_CONFIG_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_PULUMI_CONFIG_PASSPHRASE) || exit $?; export PULUMI_CONFIG_PASSPHRASE
+    - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+    - inv -e new-e2e-tests.cleanup-remote-stacks --stack-regex "ci-init-$CI_PIPELINE_ID.*eks.*" --pulumi-backend=dd-pulumi-state
+  variables:
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PIPELINE_ID: $CI_PIPELINE_ID
+  rules:
+    - !reference [.except_mergequeue]
+    - when: always
+  allow_failure: true
+

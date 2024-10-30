@@ -11,6 +11,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,6 +28,7 @@ var checkContextMutex = sync.Mutex{}
 type checkContext struct {
 	senderManager sender.SenderManager
 	logReceiver   optional.Option[integrations.Component]
+	tagger        tagger.Component
 }
 
 func getCheckContext() (*checkContext, error) {
@@ -39,12 +41,13 @@ func getCheckContext() (*checkContext, error) {
 	return checkCtx, nil
 }
 
-func initializeCheckContext(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component]) {
+func initializeCheckContext(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component], tagger tagger.Component) {
 	checkContextMutex.Lock()
 	if checkCtx == nil {
 		checkCtx = &checkContext{
 			senderManager: senderManager,
 			logReceiver:   logReceiver,
+			tagger:        tagger,
 		}
 
 		if _, ok := logReceiver.Get(); !ok {

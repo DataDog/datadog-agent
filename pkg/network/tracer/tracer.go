@@ -38,10 +38,10 @@ import (
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	timeresolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -98,7 +98,7 @@ type Tracer struct {
 
 	processCache *processCache
 
-	timeResolver *timeresolver.Resolver
+	timeResolver *ktime.Resolver
 
 	telemetryComp telemetryComponent.Component
 }
@@ -188,7 +188,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		}
 		telemetry.GetCompatComponent().RegisterCollector(tr.processCache)
 
-		if tr.timeResolver, err = timeresolver.NewResolver(); err != nil {
+		if tr.timeResolver, err = ktime.NewResolver(); err != nil {
 			return nil, fmt.Errorf("could not create time resolver: %w", err)
 		}
 
@@ -304,10 +304,10 @@ func (t *Tracer) storeClosedConnection(cs *network.ConnectionStats) {
 		return
 	}
 
-	cs.IPTranslation = t.conntracker.GetTranslationForConn(cs)
+	cs.IPTranslation = t.conntracker.GetTranslationForConn(&cs.ConnectionTuple)
 	t.connVia(cs)
 	if cs.IPTranslation != nil {
-		t.conntracker.DeleteTranslation(cs)
+		t.conntracker.DeleteTranslation(&cs.ConnectionTuple)
 	}
 
 	t.addProcessInfo(cs)
@@ -537,7 +537,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 
 	activeConnections = activeBuffer.Connections()
 	for i := range activeConnections {
-		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(&activeConnections[i])
+		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(&activeConnections[i].ConnectionTuple)
 		// do gateway resolution only on active connections outside
 		// the map iteration loop to not add to connections while
 		// iterating (leads to ever-increasing connections in the map,
@@ -590,7 +590,7 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 		}
 
 		// Delete conntrack entry for this connection
-		t.conntracker.DeleteTranslation(entry)
+		t.conntracker.DeleteTranslation(&entry.ConnectionTuple)
 
 		// Append the connection key to the keys to remove from the userspace state
 		toRemove = append(toRemove, entry)
@@ -740,7 +740,8 @@ func (t *Tracer) connectionExpired(conn *network.ConnectionStats, latestTime uin
 
 	// skip connection check for udp connections or if
 	// the pid for the connection is dead
-	if conn.Type == network.UDP || !procutil.PidExists(int(conn.Pid)) {
+	// conn.Pid can be 0 when ebpf-less tracer is running
+	if conn.Type == network.UDP || (conn.Pid > 0 && !procutil.PidExists(int(conn.Pid))) {
 		return true
 	}
 
@@ -767,7 +768,7 @@ func (t *Tracer) connVia(cs *network.ConnectionStats) {
 }
 
 // DebugCachedConntrack dumps the cached NAT conntrack data
-func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) {
+func (t *Tracer) DebugCachedConntrack(ctx context.Context) (*DebugConntrackTable, error) {
 	ns, err := t.config.GetRootNetNs()
 	if err != nil {
 		return nil, err
@@ -783,17 +784,15 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) 
 		return nil, err
 	}
 
-	return struct {
-		RootNS  uint32
-		Entries map[uint32][]netlink.DebugConntrackEntry
-	}{
+	return &DebugConntrackTable{
+		Kind:    "cached-" + t.conntracker.GetType(),
 		RootNS:  rootNS,
 		Entries: table,
 	}, nil
 }
 
 // DebugHostConntrack dumps the NAT conntrack data obtained from the host via netlink.
-func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
+func (t *Tracer) DebugHostConntrack(ctx context.Context) (*DebugConntrackTable, error) {
 	ns, err := t.config.GetRootNetNs()
 	if err != nil {
 		return nil, err
@@ -809,12 +808,15 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 		return nil, err
 	}
 
-	return struct {
-		RootNS  uint32
-		Entries map[uint32][]netlink.DebugConntrackEntry
-	}{
-		RootNS:  rootNS,
-		Entries: table,
+	// some clients have tens of thousands of connections and we need to stop early
+	// if netlink takes too long. we indicate this behavior occured early with IsTruncated
+	isTruncated := errors.Is(ctx.Err(), context.DeadlineExceeded)
+
+	return &DebugConntrackTable{
+		Kind:        "host-nat",
+		RootNS:      rootNS,
+		Entries:     table,
+		IsTruncated: isTruncated,
 	}, nil
 }
 
