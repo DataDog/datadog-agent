@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -104,7 +104,7 @@ func (a *RegistryAuditor) Stop() {
 func (a *RegistryAuditor) createChannels() {
 	a.chansMutex.Lock()
 	defer a.chansMutex.Unlock()
-	a.inputChan = make(chan *message.Payload, config.ChanSize)
+	a.inputChan = make(chan *message.Payload, pkgconfigsetup.Datadog().GetInt("logs_config.chan_size"))
 	a.done = make(chan struct{})
 }
 
