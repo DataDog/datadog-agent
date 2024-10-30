@@ -9,6 +9,8 @@ package strategy
 import (
 	"bytes"
 	"fmt"
+	"os"
+	"strconv"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
@@ -31,11 +33,23 @@ func NewZstdNativeStrategy(level int) *ZstdNativeStrategy {
 
 	mutex.Lock()
 	if globalencoder == nil {
+		conc, err := strconv.Atoi(os.Getenv("WAKKAS_CONCURRENCY"))
+		if err != nil {
+			conc = 1
+		}
+
+		window, err := strconv.Atoi(os.Getenv("WAKKAS_WINDOW"))
+		if err != nil {
+			window = 1 << 15
+		}
+
+		log.Debugf("native zstd concurrency %d", conc)
+		log.Debugf("native zstd window size %d", window)
 		globalencoder, _ = zstd.NewWriter(nil,
 			zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)),
-			zstd.WithEncoderConcurrency(1),
+			zstd.WithEncoderConcurrency(conc),
 			zstd.WithLowerEncoderMem(true),
-			zstd.WithWindowSize(1<<15))
+			zstd.WithWindowSize(window))
 	}
 	mutex.Unlock()
 
