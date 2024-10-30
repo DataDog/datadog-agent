@@ -7,8 +7,9 @@
 
 /* redefinition of some error values */
 #ifdef COMPILE_CORE
-#define EEXIST 17
+#define E2BIG 7
 #define EBUSY 16
+#define EEXIST 17
 #endif
 
 #define STR(x) #x

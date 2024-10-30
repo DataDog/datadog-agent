@@ -193,6 +193,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 			probes.ConnectionProtocolMap:             {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.ConnectionTupleToSocketSKBConnMap: {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.TCPOngoingConnectPid:              {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.ConnCloseFlushed:                  {MaxEntries: config.MaxTrackedConnections / 4, EditorFlag: manager.EditMaxEntries},
 		},
 		ConstantEditors: []manager.ConstantEditor{
 			boolConst("tcpv6_enabled", config.CollectTCPv6Conns),

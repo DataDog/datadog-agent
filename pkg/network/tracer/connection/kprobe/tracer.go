@@ -174,14 +174,12 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	if err := initManager(m, connCloseEventHandler, failedConnsHandler, runtimeTracer, config); err != nil {
 		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)
 	}
-	ringbufferEnabled := false
 	switch connCloseEventHandler.(type) {
 	case *ddebpf.RingBufferHandler:
-		ringbufferEnabled = true
-	}
-	util.AddBoolConst(&mgrOpts, "ringbuffers_enabled", ringbufferEnabled)
-	if ringbufferEnabled {
-		util.EnableRingbuffersViaMapEditor(&mgrOpts)
+		{
+			util.AddBoolConst(&mgrOpts, "ringbuffers_enabled", true)
+			util.EnableRingbuffersViaMapEditor(&mgrOpts)
+		}
 	}
 
 	var undefinedProbes []manager.ProbeIdentificationPair
