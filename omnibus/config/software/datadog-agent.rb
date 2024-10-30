@@ -239,6 +239,38 @@ build do
     delete "#{install_dir}/uselessfile"
   end
 
+  # TODO: move this to omnibus-ruby::health-check.rb
+  # check that linux binaries contains OpenSSL symbols when building to support FIPS
+  if fips_mode? && linux_target?
+      # Put the ruby code in a block to prevent omnibus from running it directly but rather at build step with the rest of the code above.
+      # If not in a block, it will search for binaries that have not been built yet.
+      block do
+        LINUX_BINARIES = [
+          "#{install_dir}/bin/agent/agent",
+          "#{install_dir}/embedded/bin/trace-agent",
+          "#{install_dir}/embedded/bin/process-agent",
+          "#{install_dir}/embedded/bin/security-agent",
+          "#{install_dir}/embedded/bin/system-probe",
+        ]
+
+        symbol = "_Cfunc_go_openssl"
+        check_block = Proc.new { |binary, symbols|
+          count = symbols.scan(symbol).count
+          if count > 0
+            log.info(log_key) { "Symbol '#{symbol}' found #{count} times in binary '#{binary}'." }
+          else
+            raise FIPSSymbolsNotFound.new("Expected to find '#{symbol}' symbol in #{binary} but did not")
+          end
+        }.curry
+
+        LINUX_BINARIES.each do |bin|
+          partially_applied_check = check_block.call(bin)
+          GoSymbolsInspector.new(bin,  &partially_applied_check).inspect()
+        end
+      end
+  end
+
+
   python_scripts_dir = "#{project_dir}/omnibus/python-scripts"
   mkdir "#{install_dir}/python-scripts"
   copy "#{python_scripts_dir}/*", "#{install_dir}/python-scripts"

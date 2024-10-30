@@ -5,6 +5,10 @@ class ForbiddenSymbolsFoundError < StandardError
 
 end
 
+class FIPSSymbolsNotFound < StandardError
+
+end
+
 # Helper class to locate `dumpbin.exe` on Windows
 class Dumpbin
   include Singleton
@@ -74,6 +78,6 @@ class GoSymbolsInspector
 
   def inspect()
     log.info(self.class.name) { "Inspecting binary #{@binary}" }
-    @block.call(`go tool nm #{@binary}`)
+    @block.call(`nm #{@binary}`)
   end
 end
