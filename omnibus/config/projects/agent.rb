@@ -234,6 +234,9 @@ if do_build
 
   if linux_target?
     dependency 'datadog-security-agent-policies'
+    if fips_mode?
+      dependency 'openssl-fips-provider'
+    end
   end
 
   # Include traps db file in snmp.d/traps_db/
