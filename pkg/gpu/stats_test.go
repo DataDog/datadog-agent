@@ -8,12 +8,12 @@
 package gpu
 
 import (
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -27,9 +27,10 @@ func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, map[streamKey]*Str
 	ktime, err := ddebpf.NowNanoseconds()
 	require.NoError(t, err)
 
-	// Align mock time with boot time for consistent time resolution
 	streamHandlers := make(map[streamKey]*StreamHandler)
-	statsGen := newStatsGenerator(sysCtx, ktime, streamHandlers)
+	statsGen := newStatsGenerator(sysCtx, streamHandlers)
+	statsGen.lastGenerationKTime = ktime
+	statsGen.currGenerationKTime = ktime
 	require.NotNil(t, statsGen)
 
 	return statsGen, streamHandlers, ktime

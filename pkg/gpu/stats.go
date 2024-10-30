@@ -9,6 +9,7 @@ package gpu
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
 // statsGenerator connects to the active stream handlers and generates stats for the GPU monitoring, by distributing
@@ -21,7 +22,8 @@ type statsGenerator struct {
 	sysCtx              *systemContext               // sysCtx is the system context with global GPU-system data
 }
 
-func newStatsGenerator(sysCtx *systemContext, currKTime int64, streamHandlers map[streamKey]*StreamHandler) *statsGenerator {
+func newStatsGenerator(sysCtx *systemContext, streamHandlers map[streamKey]*StreamHandler) *statsGenerator {
+	currKTime, _ := ddebpf.NowNanoseconds()
 	return &statsGenerator{
 		streamHandlers:      streamHandlers,
 		aggregators:         make(map[uint32]*aggregator),
@@ -56,7 +58,7 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 
 	normFactor := g.getNormalizationFactor()
 
-	stats := model.GPUStats{
+	stats := &model.GPUStats{
 		ProcessStats: make(map[uint32]model.ProcessStats),
 	}
 
@@ -66,7 +68,7 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 
 	g.lastGenerationKTime = g.currGenerationKTime
 
-	return &stats
+	return stats
 }
 
 func (g *statsGenerator) getOrCreateAggregator(pid uint32) *aggregator {

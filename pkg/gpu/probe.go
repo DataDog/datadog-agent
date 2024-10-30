@@ -9,13 +9,9 @@ package gpu
 
 import (
 	"fmt"
-	"os"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/gpu/probe"
 	"regexp"
-
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/rlimit"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
@@ -25,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
 const (
@@ -32,8 +30,6 @@ const (
 	cudaAllocCacheMap = "cuda_alloc_cache"
 	gpuAttacherName   = "gpu"
 )
-
-const consumerChannelSize = 4096
 
 // ProbeDependencies holds the dependencies for the probe
 type ProbeDependencies struct {
@@ -46,7 +42,7 @@ type ProbeDependencies struct {
 
 // Probe represents the GPU monitoring probe
 type Probe struct {
-	mgr            *ddebpf.Manager
+	m              *ddebpf.Manager
 	cfg            *config.Config
 	consumer       *cudaEventConsumer
 	attacher       *uprobes.UprobeAttacher
@@ -60,56 +56,24 @@ type Probe struct {
 // consumers for the events generated from the uprobes, and the stats generator to aggregate the data from
 // streams into per-process GPU stats.
 func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
-	log.Debugf("starting GPU monitoring probe...")
-	if err := config.CheckGPUSupported(); err != nil {
+	var err error
+	var m *ddebpf.Manager
+	if err = config.CheckGPUSupported(); err != nil {
 		return nil, err
 	}
 
-	var probe *Probe
+	log.Tracef("creating GPU monitoring probe...")
 	filename := "gpu.o"
 	if cfg.BPFDebug {
 		filename = "gpu-debug.o"
 	}
-	err := ddebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
-		var err error
-		probe, err = startGPUProbe(buf, opts, deps, cfg)
-		if err != nil {
-			return fmt.Errorf("cannot start GPU monitoring probe: %s", err)
-		}
-		log.Debugf("started GPU monitoring probe")
-		return nil
+
+	err = ddebpf.LoadCOREAsset(filename, func(ar bytecode.AssetReader, o manager.Options) error {
+		m, err = probe.GetManager(ar, o)
+		return err
 	})
 	if err != nil {
-		return nil, fmt.Errorf("loading asset: %s", err)
-	}
-
-	return probe, nil
-}
-
-func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDependencies, cfg *config.Config) (*Probe, error) {
-	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
-		Maps: []*manager.Map{
-			{Name: cudaAllocCacheMap},
-		}})
-
-	if opts.MapSpecEditors == nil {
-		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
-	}
-
-	// Ring buffer size has to be a multiple of the page size, and we want to have at least 4096 bytes
-	pagesize := os.Getpagesize()
-	ringbufSize := pagesize
-	minRingbufSize := 4096
-	if minRingbufSize > ringbufSize {
-		ringbufSize = (minRingbufSize/pagesize + 1) * pagesize
-	}
-
-	opts.MapSpecEditors[cudaEventMap] = manager.MapSpecEditor{
-		Type:       ebpf.RingBuf,
-		MaxEntries: uint32(ringbufSize),
-		KeySize:    0,
-		ValueSize:  0,
-		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
+		return nil, fmt.Errorf("error loading CO-RE %s: %w", sysconfig.GPUMonitoringModule, err)
 	}
 
 	attachCfg := uprobes.AttacherConfig{
@@ -141,17 +105,18 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 		return nil, fmt.Errorf("error initializing process monitor: %w", err)
 	}
 
-	attacher, err := uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{}, procMon)
+	attacher, err := uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, m, nil, &uprobes.NativeBinaryInspector{}, procMon)
 	if err != nil {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
 
-	if err := rlimit.RemoveMemlock(); err != nil {
-		return nil, err
+	sysCtx, err := getSystemContext(deps.NvmlLib)
+	if err != nil {
+		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
 
 	p := &Probe{
-		mgr:      mgr,
+		m:        m,
 		cfg:      cfg,
 		attacher: attacher,
 		deps:     deps,
@@ -163,27 +128,34 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
 
-	now, err := ddebpf.NowNanoseconds()
-	if err != nil {
-		return nil, fmt.Errorf("error getting current time: %w", err)
-	}
 
-	p.startEventConsumer()
-	p.statsGenerator = newStatsGenerator(p.sysCtx, now, p.consumer.streamHandlers)
-
-	if err := mgr.InitWithOptions(buf, &opts); err != nil {
-		return nil, fmt.Errorf("failed to init manager: %w", err)
-	}
-
-	if err := mgr.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start manager: %w", err)
-	}
-
-	if err := attacher.Start(); err != nil {
-		return nil, fmt.Errorf("error starting uprobes attacher: %w", err)
-	}
-
+	p.consumer = newCudaEventConsumer(probe.EventHandler, p.cfg)
+	//TODO: decouple this to avoid sharing streamHandlers between consumer and statsGenerator
+	p.statsGenerator = newStatsGenerator(sysCtx, p.consumer.streamHandlers)
+	log.Tracef("GPU monitoring probe successfully created")
 	return p, nil
+}
+
+func (p *Probe) Start(deps ProbeDependencies) error {
+	log.Tracef("starting GPU monitoring probe...")
+	// Note: this will later be replaced by a common way to enable the process monitor across system-probe
+	procMon := monitor.GetProcessMonitor()
+	if err := procMon.Initialize(false); err != nil {
+		return fmt.Errorf("error initializing process monitor: %w", err)
+	}
+
+	p.consumer.Start()
+
+	if err := p.m.Start(); err != nil {
+		return fmt.Errorf("failed to start manager: %w", err)
+	}
+
+	if err := p.attacher.Start(); err != nil {
+		return fmt.Errorf("error starting uprobes attacher: %w", err)
+	}
+
+	log.Tracef("GPU monitoring probe sucessfully started")
+	return nil
 }
 
 // Close stops the probe
@@ -196,7 +168,7 @@ func (p *Probe) Close() {
 		p.attacher.Stop()
 	}
 
-	_ = p.mgr.Stop(manager.CleanAll)
+	_ = p.m.Stop(manager.CleanAll)
 
 	if p.consumer != nil {
 		p.consumer.Stop()
@@ -231,7 +203,7 @@ func (p *Probe) startEventConsumer() {
 			RecordGetter:  handler.RecordGetter,
 		},
 	}
-	p.mgr.RingBuffers = append(p.mgr.RingBuffers, rb)
+	p.m.RingBuffers = append(p.m.RingBuffers, rb)
 	p.consumer = newCudaEventConsumer(p.sysCtx, handler, p.cfg)
 	p.consumer.Start()
 }
