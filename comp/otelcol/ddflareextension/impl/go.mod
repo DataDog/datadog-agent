@@ -140,9 +140,7 @@ require (
 	go.opentelemetry.io/collector/receiver v0.111.0
 	go.opentelemetry.io/collector/receiver/nopreceiver v0.111.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.111.0
-	go.opentelemetry.io/collector/service v0.111.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/exp v0.0.0-20241004190924-225e2abe05e6
 	gopkg.in/yaml.v2 v2.4.0
 
 )
@@ -459,6 +457,7 @@ require (
 	go.opentelemetry.io/collector/processor/processorprofiles v0.111.0 // indirect
 	go.opentelemetry.io/collector/receiver/receiverprofiles v0.111.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.111.0 // indirect
+	go.opentelemetry.io/collector/service v0.111.0 // indirect
 	go.opentelemetry.io/contrib/config v0.10.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.55.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.55.0 // indirect
@@ -487,6 +486,7 @@ require (
 	go.uber.org/fx v1.22.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.28.0 // indirect
+	golang.org/x/exp v0.0.0-20241004190924-225e2abe05e6 // indirect
 	golang.org/x/mod v0.21.0 // indirect
 	golang.org/x/net v0.30.0 // indirect
 	golang.org/x/oauth2 v0.23.0 // indirect

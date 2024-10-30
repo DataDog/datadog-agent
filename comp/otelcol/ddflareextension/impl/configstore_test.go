@@ -104,7 +104,16 @@ func TestGetConfDump(t *testing.T) {
 		assertEqual(t, expectedStringMap, actualStringMap)
 	})
 
-	conf := confmapFromResolverSettings(t, newResolverSettings(uriFromFile("simple-dd/config.yaml"), true))
+	cp, err := otelcol.NewConfigProvider(newConfigProviderSettings(uriFromFile("simple-dd/config.yaml"), true))
+	assert.NoError(t, err)
+
+	c, err := cp.Get(context.Background(), factories)
+	assert.NoError(t, err)
+
+	conf := confmap.New()
+	err = conf.Marshal(c)
+	assert.NoError(t, err)
+
 	err = ext.NotifyConfig(context.TODO(), conf)
 	assert.NoError(t, err)
 
