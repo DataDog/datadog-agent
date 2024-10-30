@@ -146,8 +146,8 @@ func getProviderCatalog(notUseIMDSv2 bool) []provider {
 		fargateProvider,
 		gceProvider,
 		azureProvider,
-		containerProvider,
 		fqdnProvider,
+		containerProvider,
 		osProvider,
 	}
 
