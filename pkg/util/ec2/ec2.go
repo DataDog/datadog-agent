@@ -97,12 +97,11 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "EC2 InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		hostname, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, UseIMDSv2(false, false))
-		if err == nil && hostname != "" {
-			return hostname, nil
-		} else if pkgconfigsetup.Datadog().GetBool("ec2_imdsv2_transition") {
+		if err != nil && pkgconfigsetup.Datadog().GetBool("ec2_imdsv2_transition") {
+			log.Debugf("falling back on DMI, failed to get instance ID from IMDSv2: %s", err)
 			return getInstanceIDFromDMI()
 		}
-		return "", err
+		return hostname, err
 	},
 }
 
