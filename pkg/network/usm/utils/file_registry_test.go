@@ -238,6 +238,10 @@ func TestFailedRegistration(t *testing.T) {
 	// Assert that the number of callback executions hasn't changed for this pathID
 	// This is because we have block-listed this file
 	assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID))
+
+	assert.Contains(t, debugger.GetBlockedPathIDs(""), pathID)
+	debugger.ClearBlocked()
+	assert.Empty(t, debugger.GetBlockedPathIDs(""))
 }
 
 func TestShortLivedProcess(t *testing.T) {
@@ -398,5 +402,6 @@ func createSymlink(t *testing.T, old, new string) {
 func newFileRegistry() *FileRegistry {
 	// Ensure that tests relying on telemetry data will always have a clean slate
 	telemetry.Clear()
+	ResetDebugger()
 	return NewFileRegistry("")
 }
