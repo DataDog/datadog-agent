@@ -9,10 +9,10 @@ package ecs
 import (
 	"fmt"
 
+	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ssm"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/aspnetsample"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
@@ -203,6 +203,7 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 
 	var apiKeyParam *ssm.Parameter
 	var fakeIntake *fakeintakeComp.Fakeintake
+
 	// Create task and service
 	if params.agentOptions != nil {
 		if params.fakeintakeOptions != nil {
@@ -219,6 +220,7 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 				return err
 			}
 		}
+
 		apiKeyParam, err = ssm.NewParameter(ctx, awsEnv.Namer.ResourceName("agent-apikey"), &ssm.ParameterArgs{
 			Name:      awsEnv.CommonNamer().DisplayName(1011, pulumi.String("agent-apikey")),
 			Type:      ssm.ParameterTypeSecureString,
@@ -271,7 +273,8 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 		}
 	}
 
-	if params.testingWorkload && params.agentOptions != nil {
+	if clusterParams.FargateCapacityProvider && params.testingWorkload && params.agentOptions != nil {
+
 		if _, err := redis.FargateAppDefinition(awsEnv, cluster.ClusterArn, apiKeyParam.Name, fakeIntake); err != nil {
 			return err
 		}
