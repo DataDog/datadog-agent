@@ -181,6 +181,7 @@ func GetPayload(ctx context.Context, conf model.Reader) *Payload {
 	legacyResolutionHostnameData, _ := hostname.GetWithProviderWithoutIMDSV2(ctx)
 	if legacyResolutionHostnameData.Hostname != meta.Hostname {
 		meta.LegacyResolutionHostname = legacyResolutionHostnameData.Hostname
+		meta.HostMetaVersion = "1.0"
 	}
 
 	p := &Payload{
