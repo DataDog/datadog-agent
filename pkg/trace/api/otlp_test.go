@@ -227,7 +227,9 @@ func TestOTLPNameRemapping(t *testing.T) {
 }
 
 func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
+	// Verify that while EnableOperationAndResourceNamesV2 is in alpha, SpanNameRemappings overrides it
 	cfg := NewTestConfig(t)
+	cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
 	if enableReceiveResourceSpansV2 {
 		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
 	}
@@ -250,6 +252,446 @@ func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		t.Fatal("timed out")
 	case p := <-out:
 		assert.Equal(t, "new", p.TracerPayload.Chunks[0].Spans[0].Name)
+	}
+}
+
+func TestOTLPSpanNameV2(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testOTLPSpanNameV2(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testOTLPSpanNameV2(true, t)
+	})
+}
+
+func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
+	cfg := NewTestConfig(t)
+	cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
+	if enableReceiveResourceSpansV2 {
+		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	}
+	out := make(chan *Payload, 1)
+	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	require := require.New(t)
+	for _, tt := range []struct {
+		in []testutil.OTLPResourceSpan
+		fn func(*pb.TracerPayload)
+	}{
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{{
+						Attributes: map[string]interface{}{semconv.AttributeContainerID: "http.method"},
+					}},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("Internal", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind:       ptrace.SpanKindServer,
+							Attributes: map[string]interface{}{semconv.AttributeHTTPMethod: "GET"},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("http.server.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind:       ptrace.SpanKindClient,
+							Attributes: map[string]interface{}{semconv.AttributeHTTPMethod: "GET"},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("http.client.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind:       ptrace.SpanKindClient,
+							Attributes: map[string]interface{}{semconv.AttributeDBSystem: "mysql"},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("mysql.query", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Attributes: map[string]interface{}{semconv.AttributeDBSystem: "mysql"},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("Internal", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Attributes: map[string]interface{}{semconv.AttributeMessagingSystem: "kafka"},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("Internal", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Attributes: map[string]interface{}{
+								semconv.AttributeMessagingSystem:    "kafka",
+								semconv.AttributeMessagingOperation: "send",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("Internal", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindClient,
+							Attributes: map[string]interface{}{
+								semconv.AttributeMessagingSystem:    "kafka",
+								semconv.AttributeMessagingOperation: "send",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("kafka.send", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindServer,
+							Attributes: map[string]interface{}{
+								semconv.AttributeRPCSystem: "aws-api",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("aws-api.server.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindClient,
+							Attributes: map[string]interface{}{
+								semconv.AttributeRPCSystem: "aws-api",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("aws.client.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindClient,
+							Attributes: map[string]interface{}{
+								semconv.AttributeRPCSystem: "aws-api",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("aws.client.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindClient,
+							Attributes: map[string]interface{}{
+								semconv.AttributeRPCSystem:  "aws-api",
+								semconv.AttributeRPCService: "s3",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("aws.s3.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindClient,
+							Attributes: map[string]interface{}{
+								semconv.AttributeRPCSystem: "grpc",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("grpc.client.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindServer,
+							Attributes: map[string]interface{}{
+								semconv.AttributeRPCSystem: "grpc",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("grpc.server.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindClient,
+							Attributes: map[string]interface{}{
+								semconv.AttributeFaaSInvokedProvider: "gcp",
+								semconv.AttributeFaaSInvokedName:     "foo",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("gcp.foo.invoke", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Attributes: map[string]interface{}{
+								semconv.AttributeFaaSInvokedProvider: "gcp",
+								semconv.AttributeFaaSInvokedName:     "foo",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("Internal", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindServer,
+							Attributes: map[string]interface{}{
+								semconv.AttributeFaaSTrigger: "timer",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("timer.invoke", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Attributes: map[string]interface{}{
+								semconv.AttributeFaaSTrigger: "timer",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("Internal", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Attributes: map[string]interface{}{
+								"graphql.operation.type": "query",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("graphql.server.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindServer,
+							Attributes: map[string]interface{}{
+								"network.protocol.name": "tcp",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("tcp.server.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind:       ptrace.SpanKindServer,
+							Attributes: map[string]interface{}{},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("server.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			rspans := testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0)
+			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{})
+			timeout := time.After(500 * time.Millisecond)
+			select {
+			case <-timeout:
+				t.Fatal("timed out")
+			case p := <-out:
+				tt.fn(p.TracerPayload)
+			}
+		})
 	}
 }
 
@@ -1163,19 +1605,34 @@ func TestOTLPHelpers(t *testing.T) {
 
 func TestOTLPConvertSpan(t *testing.T) {
 	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
-		testOTLPConvertSpan(false, t)
+		t.Run("OperationAndResourceNameV1", func(t *testing.T) {
+			testOTLPConvertSpan(false, false, t)
+		})
+
+		t.Run("OperationAndResourceNameV2", func(t *testing.T) {
+			testOTLPConvertSpan(false, true, t)
+		})
 	})
 
 	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
-		testOTLPConvertSpan(true, t)
+		t.Run("OperationAndResourceNameV1", func(t *testing.T) {
+			testOTLPConvertSpan(true, false, t)
+		})
+
+		t.Run("OperationAndResourceNameV2", func(t *testing.T) {
+			testOTLPConvertSpan(true, true, t)
+		})
 	})
 }
 
-func testOTLPConvertSpan(enableReceiveResourceSpansV2 bool, t *testing.T) {
-	now := uint64(otlpTestSpan.StartTimestamp())
+func testOTLPConvertSpan(enableReceiveResourceSpansV2 bool, enableOperationAndResourceNameV2 bool, t *testing.T) {
 	cfg := NewTestConfig(t)
+	now := uint64(otlpTestSpan.StartTimestamp())
 	if enableReceiveResourceSpansV2 {
 		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	}
+	if enableOperationAndResourceNameV2 {
+		cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
 	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
@@ -1183,6 +1640,10 @@ func testOTLPConvertSpan(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		libname            string
 		libver             string
 		in                 ptrace.Span
+		operationNameV1    string
+		operationNameV2    string
+		resourceNameV1     string
+		resourceNameV2     string
 		out                *pb.Span
 		outTags            map[string]string
 		topLevelOutMetrics map[string]float64
@@ -1193,13 +1654,15 @@ func testOTLPConvertSpan(enableReceiveResourceSpansV2 bool, t *testing.T) {
 				"service.version": "v1.2.3",
 				"env":             "staging",
 			},
-			libname: "ddtracer",
-			libver:  "v2",
-			in:      otlpTestSpan,
+			libname:         "ddtracer",
+			libver:          "v2",
+			in:              otlpTestSpan,
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "server.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
 			out: &pb.Span{
 				Service:  "pylons",
-				Name:     "ddtracer.server",
-				Resource: "/path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1321,10 +1784,12 @@ func testOTLPConvertSpan(enableReceiveResourceSpansV2 bool, t *testing.T) {
 				StatusMsg:  "Error",
 				StatusCode: ptrace.StatusCodeError,
 			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "http.server.request",
+			resourceNameV1:  "GET /path",
+			resourceNameV2:  "GET /path",
 			out: &pb.Span{
 				Service:  "myservice",
-				Name:     "ddtracer.server",
-				Resource: "GET /path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1449,10 +1914,12 @@ func testOTLPConvertSpan(enableReceiveResourceSpansV2 bool, t *testing.T) {
 				StatusMsg:  "Error",
 				StatusCode: ptrace.StatusCodeError,
 			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "http.server.request",
+			resourceNameV1:  "GET /path",
+			resourceNameV2:  "GET /path",
 			out: &pb.Span{
 				Service:  "pylons",
-				Name:     "ddtracer.server",
-				Resource: "GET /path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1517,10 +1984,12 @@ func testOTLPConvertSpan(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					"analytics.event":                 true,
 				},
 			}),
+			operationNameV1: "READ",
+			operationNameV2: "READ",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
 			out: &pb.Span{
 				Service:  "mongo",
-				Name:     "READ",
-				Resource: "/path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1577,10 +2046,12 @@ func testOTLPConvertSpan(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					"error.type":                "WebSocketDisconnect",
 				},
 			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "ddtracer.server",
+			resourceNameV1:  "POST /uploads/:document_id",
+			resourceNameV2:  "POST /uploads/:document_id",
 			out: &pb.Span{
 				Service:  "document-uploader",
-				Name:     "ddtracer.server",
-				Resource: "POST /uploads/:document_id",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1637,10 +2108,12 @@ func testOTLPConvertSpan(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					"error.type":                "WebSocketDisconnect",
 				},
 			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "ddtracer.server",
+			resourceNameV1:  "POST /uploads/:document_id",
+			resourceNameV2:  "POST /uploads/:document_id",
 			out: &pb.Span{
 				Service:  "document-uploader",
-				Name:     "ddtracer.server",
-				Resource: "POST /uploads/:document_id",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1695,10 +2168,12 @@ func testOTLPConvertSpan(enableReceiveResourceSpansV2 bool, t *testing.T) {
 					"error.type":       "WebSocketDisconnect",
 				},
 			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "ddtracer.server",
+			resourceNameV1:  "POST /uploads/:document_id",
+			resourceNameV2:  "POST /uploads/:document_id",
 			out: &pb.Span{
 				Service:  "document-uploader",
-				Name:     "ddtracer.server",
-				Resource: "POST /uploads/:document_id",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1775,6 +2250,13 @@ func testOTLPConvertSpan(enableReceiveResourceSpansV2 bool, t *testing.T) {
 			want.Metrics = nil
 			got.Meta = nil
 			got.Metrics = nil
+			if enableOperationAndResourceNameV2 {
+				want.Name = tt.operationNameV2
+				want.Resource = tt.resourceNameV2
+			} else {
+				want.Name = tt.operationNameV1
+				want.Resource = tt.resourceNameV1
+			}
 			assert.Equal(want, got, i)
 
 			// test new top-level identification feature flag
@@ -1815,26 +2297,45 @@ func TestAppendTags(t *testing.T) {
 
 func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
-		testOTLPConvertSpanSetPeerService(false, t)
+		t.Run("OperationAndResourceNameV1", func(t *testing.T) {
+			testOTLPConvertSpanSetPeerService(false, false, t)
+		})
+
+		t.Run("OperationAndResourceNameV2", func(t *testing.T) {
+			testOTLPConvertSpanSetPeerService(false, true, t)
+		})
 	})
 
 	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
-		testOTLPConvertSpanSetPeerService(true, t)
+		t.Run("OperationAndResourceNameV1", func(t *testing.T) {
+			testOTLPConvertSpanSetPeerService(true, false, t)
+		})
+
+		t.Run("OperationAndResourceNameV2", func(t *testing.T) {
+			testOTLPConvertSpanSetPeerService(true, true, t)
+		})
 	})
 }
-func testOTLPConvertSpanSetPeerService(enableReceiveResourceSpansV2 bool, t *testing.T) {
+func testOTLPConvertSpanSetPeerService(enableReceiveResourceSpansV2 bool, enableOperationAndResourceNameV2 bool, t *testing.T) {
 	now := uint64(otlpTestSpan.StartTimestamp())
 	cfg := NewTestConfig(t)
 	if enableReceiveResourceSpansV2 {
-		cfg.Features["receive_resource_spans_v2"] = struct{}{}
+		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	}
+	if enableOperationAndResourceNameV2 {
+		cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
 	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
-		rattr   map[string]string
-		libname string
-		libver  string
-		in      ptrace.Span
-		out     *pb.Span
+		rattr           map[string]string
+		libname         string
+		libver          string
+		in              ptrace.Span
+		out             *pb.Span
+		operationNameV1 string
+		operationNameV2 string
+		resourceNameV1  string
+		resourceNameV2  string
 	}{
 		{
 			rattr: map[string]string{
@@ -1855,10 +2356,12 @@ func testOTLPConvertSpanSetPeerService(enableReceiveResourceSpansV2 bool, t *tes
 					"deployment.environment": "prod",
 				},
 			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "server.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
 			out: &pb.Span{
 				Service:  "myservice",
-				Name:     "ddtracer.server",
-				Resource: "/path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1900,10 +2403,12 @@ func testOTLPConvertSpanSetPeerService(enableReceiveResourceSpansV2 bool, t *tes
 					"deployment.environment": "prod",
 				},
 			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "server.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
 			out: &pb.Span{
 				Service:  "myservice",
-				Name:     "ddtracer.server",
-				Resource: "/path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1946,10 +2451,12 @@ func testOTLPConvertSpanSetPeerService(enableReceiveResourceSpansV2 bool, t *tes
 					"deployment.environment": "prod",
 				},
 			}),
+			operationNameV1: "ddtracer.client",
+			operationNameV2: "postgres.query",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
 			out: &pb.Span{
 				Service:  "myservice",
-				Name:     "ddtracer.client",
-				Resource: "/path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1992,10 +2499,12 @@ func testOTLPConvertSpanSetPeerService(enableReceiveResourceSpansV2 bool, t *tes
 					"deployment.environment": "prod",
 				},
 			}),
+			operationNameV1: "ddtracer.client",
+			operationNameV2: "client.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
 			out: &pb.Span{
 				Service:  "myservice",
-				Name:     "ddtracer.client",
-				Resource: "/path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -2037,10 +2546,12 @@ func testOTLPConvertSpanSetPeerService(enableReceiveResourceSpansV2 bool, t *tes
 					"deployment.environment": "prod",
 				},
 			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "server.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
 			out: &pb.Span{
 				Service:  "myservice",
-				Name:     "ddtracer.server",
-				Resource: "/path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -2081,10 +2592,12 @@ func testOTLPConvertSpanSetPeerService(enableReceiveResourceSpansV2 bool, t *tes
 					"deployment.environment":   "prod",
 				},
 			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "server.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
 			out: &pb.Span{
 				Service:  "myservice",
-				Name:     "ddtracer.server",
-				Resource: "/path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -2125,10 +2638,12 @@ func testOTLPConvertSpanSetPeerService(enableReceiveResourceSpansV2 bool, t *tes
 					"deployment.environment":   "prod",
 				},
 			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "server.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
 			out: &pb.Span{
 				Service:  "myservice",
-				Name:     "ddtracer.server",
-				Resource: "/path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -2156,7 +2671,16 @@ func testOTLPConvertSpanSetPeerService(enableReceiveResourceSpansV2 bool, t *tes
 			lib.SetName(tt.libname)
 			lib.SetVersion(tt.libver)
 			assert := assert.New(t)
-			assert.Equal(tt.out, o.convertSpan(tt.rattr, lib, tt.in), i)
+			got := o.convertSpan(tt.rattr, lib, tt.in)
+			want := tt.out
+			if enableOperationAndResourceNameV2 {
+				want.Name = tt.operationNameV2
+				want.Resource = tt.resourceNameV2
+			} else {
+				want.Name = tt.operationNameV1
+				want.Resource = tt.resourceNameV1
+			}
+			assert.Equal(want, got, i)
 		})
 	}
 }

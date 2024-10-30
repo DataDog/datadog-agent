@@ -171,8 +171,8 @@ func GetOTelService(span ptrace.Span, res pcommon.Resource, normalize bool) stri
 	return svc
 }
 
-// GetOTelResource returns the DD resource name based on OTel span and resource attributes.
-func GetOTelResource(span ptrace.Span, res pcommon.Resource) (resName string) {
+// GetOTelResourceV1 returns the DD resource name based on OTel span and resource attributes.
+func GetOTelResourceV1(span ptrace.Span, res pcommon.Resource) (resName string) {
 	resName = GetOTelAttrValInResAndSpanAttrs(span, res, false, "resource.name")
 	if resName == "" {
 		if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "http.request.method", semconv.AttributeHTTPMethod); m != "" {
@@ -204,8 +204,140 @@ func GetOTelResource(span ptrace.Span, res pcommon.Resource) (resName string) {
 	return
 }
 
-// GetOTelOperationName returns the DD operation name based on OTel span and resource attributes and given configs.
-func GetOTelOperationName(
+// GetOTelResourceV2 returns the DD resource name based on OTel span and resource attributes.
+func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) (resName string) {
+	resName = GetOTelAttrValInResAndSpanAttrs(span, res, false, "resource.name")
+	if resName == "" {
+		if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "http.request.method", semconv.AttributeHTTPMethod); m != "" {
+			if m == "_OTHER" {
+				m = "HTTP"
+			}
+			// use the HTTP method + route (if available)
+			resName = m
+			if span.Kind() == ptrace.SpanKindServer {
+				if route := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeHTTPRoute); route != "" {
+					resName = resName + " " + route
+				}
+			}
+		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeMessagingOperation); m != "" {
+			resName = m
+			// use the messaging operation
+			if dest := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeMessagingDestination, semconv117.AttributeMessagingDestinationName); dest != "" {
+				resName = resName + " " + dest
+			}
+		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeRPCMethod); m != "" {
+			resName = m
+			// use the RPC method
+			if svc := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeRPCService); m != "" {
+				// ...and service if available
+				resName = resName + " " + svc
+			}
+		} else {
+			resName = span.Name()
+		}
+	}
+	if len(resName) > MaxResourceLen {
+		resName = resName[:MaxResourceLen]
+	}
+	return
+}
+
+// GetOTelOperationNameV2 returns the DD operation name based on OTel span and resource attributes and given configs.
+func GetOTelOperationNameV2(
+	span ptrace.Span,
+) string {
+	if operationName := GetOTelAttrVal(span.Attributes(), false, "operation.name"); operationName != "" {
+		return operationName
+	}
+
+	isClient := span.Kind() == ptrace.SpanKindClient
+	isServer := span.Kind() == ptrace.SpanKindServer
+
+	// http
+	if method := GetOTelAttrVal(span.Attributes(), false, "http.request.method", semconv.AttributeHTTPMethod); method != "" {
+		if isServer {
+			return "http.server.request"
+		}
+		if isClient {
+			return "http.client.request"
+		}
+	}
+
+	// database
+	if v := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeDBSystem); v != "" && isClient {
+		return v + ".query"
+	}
+
+	// messaging
+	system := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeMessagingSystem)
+	op := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeMessagingOperation)
+	if system != "" && op != "" {
+		switch span.Kind() {
+		case ptrace.SpanKindClient, ptrace.SpanKindServer, ptrace.SpanKindConsumer, ptrace.SpanKindProducer:
+			return system + "." + op
+		}
+	}
+
+	// RPC & AWS
+	rpcValue := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeRPCSystem)
+	isRPC := rpcValue != ""
+	isAws := isRPC && (rpcValue == "aws-api")
+	// AWS client
+	if isAws && isClient {
+		if service := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeRPCService); service != "" {
+			return "aws." + service + ".request"
+		}
+		return "aws.client.request"
+	}
+	// RPC client
+	if isRPC && isClient {
+		return rpcValue + ".client.request"
+	}
+	// RPC server
+	if isRPC && isServer {
+		return rpcValue + ".server.request"
+	}
+
+	// FAAS client
+	provider := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeFaaSInvokedProvider)
+	invokedName := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeFaaSInvokedName)
+	if provider != "" && invokedName != "" && isClient {
+		return provider + "." + invokedName + ".invoke"
+	}
+
+	// FAAS server
+	trigger := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeFaaSTrigger)
+	if trigger != "" && isServer {
+		return trigger + ".invoke"
+	}
+
+	// GraphQL
+	if GetOTelAttrVal(span.Attributes(), true, "graphql.operation.type") != "" {
+		return "graphql.server.request"
+	}
+
+	// if nothing matches, checking for generic http server/client
+	protocol := GetOTelAttrVal(span.Attributes(), true, "network.protocol.name")
+	if isServer {
+		if protocol != "" {
+			return protocol + ".server.request"
+		}
+		return "server.request"
+	} else if isClient {
+		if protocol != "" {
+			return protocol + ".client.request"
+		}
+		return "client.request"
+	}
+
+	if span.Kind() != ptrace.SpanKindUnspecified {
+		return span.Kind().String()
+	}
+	return ptrace.SpanKindInternal.String()
+}
+
+// GetOTelOperationNameV1 returns the DD operation name based on OTel span and resource attributes and given configs.
+func GetOTelOperationNameV1(
 	span ptrace.Span,
 	res pcommon.Resource,
 	lib pcommon.InstrumentationScope,
