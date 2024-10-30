@@ -73,11 +73,21 @@ def filter_by_ci_component(platforms: Platforms, component: Component) -> dict[s
             if s not in new_platforms_by_set:
                 new_platforms_by_set[s] = platforms.copy()
 
-            new_platforms_by_set[s][job.arch] = {
-                k: v for k, v in new_platforms_by_set[s][job.arch].items() if k in job.kernels
+            # we need to index `new_platforms_by_set` by a literal to
+            # avoid mypy errors, which is why assign arch to `cur_arch`
+            cur_arch = None
+            for arch in KMT_SUPPORTED_ARCHS:
+                if job.arch == arch:
+                    cur_arch = arch
+
+            if cur_arch is None:
+                raise Exit(f"Unsupported architecture {job.arch} detected for job {job.name}")
+
+            new_platforms_by_set[s][cur_arch] = {
+                k: v for k, v in new_platforms_by_set[s][cur_arch].items() if k in job.kernels
             }
 
-            missing_kernels = job.kernels - set(new_platforms_by_set[s][job.arch].keys())
+            missing_kernels = job.kernels - set(new_platforms_by_set[s][cur_arch].keys())
             if missing_kernels:
                 raise Exit(f"Kernels {missing_kernels} not found in {platforms_file} for {job.arch}")
 
