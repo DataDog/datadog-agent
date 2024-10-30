@@ -35,6 +35,7 @@ func newStatsGenerator(sysCtx *systemContext, streamHandlers map[streamKey]*Stre
 
 // getStats takes data from all active stream handlers, aggregates them and returns the per-process GPU stats.
 // This function gets called by the Probe when it receives a data request in the GetAndFlush method
+// TODO: consider removing this parameter and encapsulate it inside the function (will affect UTs as they rely on precise time intervals)
 func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	g.currGenerationKTime = nowKtime
 

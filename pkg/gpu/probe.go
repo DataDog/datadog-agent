@@ -9,9 +9,14 @@ package gpu
 
 import (
 	"fmt"
+	"io"
+	"math"
+	"os"
+	"regexp"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/cilium/ebpf"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -20,15 +25,47 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
-	"github.com/DataDog/datadog-agent/pkg/gpu/probe"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	cudaEventMap      = "cuda_events"
-	cudaAllocCacheMap = "cuda_alloc_cache"
-	gpuAttacherName   = "gpu"
+	gpuAttacherName = "gpu"
+
+	// consumerChannelSize controls the size of the go channel that buffers ringbuffer
+	// events (*ddebpf.RingBufferHandler).
+	// This value must be multiplied by the single event size and the result will represent the heap memory pre-allocated in Go runtime
+	// TODO: probably we need to reduce this value (see pkg/network/protocols/events/configuration.go for reference)
+	consumerChannelSize = 4096
+)
+
+var (
+	// defaultRingBufferSize controls the amount of memory in bytes used for buffering perf event data
+	defaultRingBufferSize = os.Getpagesize()
+
+	// using a global var to avoid propagation between Probe ctor and event consumer startup
+	eventHandler = ddebpf.NewRingBufferHandler(consumerChannelSize)
+)
+
+// bpfMapName stores the name of the BPF maps storing statistics and other info
+type bpfMapName = string
+
+const (
+	cudaEventsMap     bpfMapName = "cuda_events"
+	cudaAllocCacheMap bpfMapName = "cuda_alloc_cache"
+	cudaSyncCacheMap  bpfMapName = "cuda_sync_cache"
+)
+
+// probeFuncName stores the ebpf hook function name
+type probeFuncName = string
+
+const (
+	cudaLaunchKernelProbe  probeFuncName = "uprobe__cudaLaunchKernel"
+	cudaMallocProbe        probeFuncName = "uprobe__cudaMalloc"
+	cudaMallocRetProbe     probeFuncName = "uretprobe__cudaMalloc"
+	cudaStreamSyncProbe    probeFuncName = "uprobe__cudaStreamSynchronize"
+	cudaStreamSyncRetProbe probeFuncName = "uretprobe__cudaStreamSynchronize"
+	cudaFreeProbe          probeFuncName = "uprobe__cudaFree"
 )
 
 // ProbeDependencies holds the dependencies for the probe
@@ -68,14 +105,14 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	}
 
 	err = ddebpf.LoadCOREAsset(filename, func(ar bytecode.AssetReader, o manager.Options) error {
-		m, err = probe.GetManager(ar, o)
+		m, err = getManager(ar, o)
 		return err
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error loading CO-RE %s: %w", sysconfig.GPUMonitoringModule, err)
 	}
 
-	attachCfg := probe.GetAttacherConfig(cfg)
+	attachCfg := getAttacherConfig(cfg)
 	attacher, err := uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, m, nil, &uprobes.NativeBinaryInspector{})
 	if err != nil {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
@@ -95,8 +132,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		sysCtx:	  sysCtx,
 	}
 
-
-	p.consumer = newCudaEventConsumer(probe.EventHandler, p.cfg)
+	p.consumer = newCudaEventConsumer(eventHandler, p.cfg)
 	//TODO: decouple this to avoid sharing streamHandlers between consumer and statsGenerator
 	p.statsGenerator = newStatsGenerator(sysCtx, p.consumer.streamHandlers)
 	log.Tracef("GPU monitoring probe successfully created")
@@ -158,4 +194,115 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 func (p *Probe) cleanupFinished() {
 	p.statsGenerator.cleanupFinishedAggregators()
 	p.consumer.cleanFinishedHandlers()
+}
+
+// toPowerOf2 converts a number to its nearest power of 2
+func toPowerOf2(x int) int {
+	log := math.Log2(float64(x))
+	return int(math.Pow(2, math.Round(log)))
+}
+
+// setupSharedBuffer sets up the ringbuffer to handle CUDA events produces by ebpf uprobes
+// it must be called BEFORE the InitWithOptions method of the manager is called
+func setupSharedBuffer(m *manager.Manager, o *manager.Options) {
+	rb := &manager.RingBuffer{
+		Map: manager.Map{Name: cudaEventsMap},
+		RingBufferOptions: manager.RingBufferOptions{
+			RecordHandler: eventHandler.RecordHandler,
+			RecordGetter:  eventHandler.RecordGetter,
+		},
+	}
+
+	ringBufferSize := toPowerOf2(defaultRingBufferSize)
+
+	o.MapSpecEditors[cudaEventsMap] = manager.MapSpecEditor{
+		Type:       ebpf.RingBuf,
+		MaxEntries: uint32(ringBufferSize),
+		KeySize:    0,
+		ValueSize:  0,
+		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
+	}
+
+	m.RingBuffers = append(m.RingBuffers, rb)
+}
+
+func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
+	return uprobes.AttacherConfig{
+		Rules: []*uprobes.AttachRule{
+			{
+				LibraryNameRegex: regexp.MustCompile(`libcudart\.so`),
+				Targets:          uprobes.AttachToExecutable | uprobes.AttachToSharedLibraries,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.AllOf{
+						Selectors: []manager.ProbesSelector{
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaLaunchKernelProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaMallocProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaMallocRetProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaStreamSyncProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaStreamSyncRetProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaFreeProbe}},
+						},
+					},
+				},
+			},
+		},
+		EbpfConfig:         &cfg.Config,
+		PerformInitialScan: cfg.InitialProcessSync,
+	}
+}
+
+func getManager(buf io.ReaderAt, opts manager.Options) (*ddebpf.Manager, error) {
+	m := ddebpf.NewManagerWithDefault(&manager.Manager{
+		Probes: []*manager.Probe{
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: cudaLaunchKernelProbe,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: cudaMallocProbe,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: cudaMallocRetProbe,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: cudaStreamSyncProbe,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: cudaStreamSyncRetProbe,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: cudaFreeProbe,
+				},
+			},
+		},
+		Maps: []*manager.Map{
+			{
+				Name: cudaAllocCacheMap,
+			},
+			{
+				Name: cudaSyncCacheMap,
+			},
+		}})
+
+	if opts.MapSpecEditors == nil {
+		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
+	}
+
+	setupSharedBuffer(m.Manager, &opts)
+
+	if err := m.InitWithOptions(buf, &opts); err != nil {
+		return nil, fmt.Errorf("failed to init manager: %w", err)
+	}
+
+	return m, nil
 }
