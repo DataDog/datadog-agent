@@ -1139,10 +1139,10 @@ def my_example_task(ctx, version: int = 7):
     """
     Usage:
 
-    $ inv my-example-task --version 7
+    $ inv release.my-example-task --version 7
     >>> The context won't be switched, the branch is the current branch and the changelog shows 7.58.1
 
-    $ inv my-example-task --version 6
+    $ inv release.my-example-task --version 6
     >>> The context is switched, the branch is 6.53.x and the changelog shows 7.53.0 / 6.53.0
     """
 
