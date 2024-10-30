@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 )
@@ -40,6 +41,9 @@ type CDN interface {
 
 // New creates a new CDN.
 func New(env *env.Env, configDBPath string) (CDN, error) {
+	if runtime.GOOS == "windows" {
+		return newRegular(env, configDBPath)
+	}
 	if !env.RemotePolicies {
 		return newNoop()
 	}
