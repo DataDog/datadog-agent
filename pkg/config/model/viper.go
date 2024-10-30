@@ -267,6 +267,11 @@ func (c *safeConfig) GetKnownKeysLowercased() map[string]interface{} {
 	return c.Viper.GetKnownKeys()
 }
 
+// BuildSchema is a no-op for the viper based config
+func (c *safeConfig) BuildSchema() {
+	// pass
+}
+
 // ParseEnvAsStringSlice registers a transformer function to parse an an environment variables as a []string.
 func (c *safeConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
 	c.Lock()

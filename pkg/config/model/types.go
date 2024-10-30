@@ -103,6 +103,9 @@ type ReaderWriter interface {
 type Setup interface {
 	// API implemented by viper.Viper
 
+	// BuildSchema should be called when Setup is done, it builds the schema making the config ready for use
+	BuildSchema()
+
 	SetDefault(key string, value interface{})
 
 	SetEnvPrefix(in string)
