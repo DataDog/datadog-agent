@@ -579,7 +579,7 @@ func assertStat(t assert.TestingT, svc model.Service) {
 	// in theory an unbounded amount of time between the read of /proc/uptime
 	// and the retrieval of the current time. Allow a 10 second diff as a
 	// reasonable value.
-	assert.InDelta(t, uint64(createTimeMs/1000), svc.StartTimeSecs, 10)
+	assert.InDelta(t, uint64(createTimeMs), svc.StartTimeMilli, 10000)
 }
 
 func assertCPU(t *testing.T, url string, pid int) {

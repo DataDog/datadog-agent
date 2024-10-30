@@ -35,6 +35,7 @@ type eventPayload struct {
 	ServiceLanguage      string   `json:"service_language"`
 	ServiceType          string   `json:"service_type"`
 	StartTime            int64    `json:"start_time"`
+	StartTimeMilli       int64    `json:"start_time_milli"`
 	LastSeen             int64    `json:"last_seen"`
 	APMInstrumentation   string   `json:"apm_instrumentation"`
 	ServiceNameSource    string   `json:"service_name_source,omitempty"`
@@ -81,7 +82,8 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 			Env:                  env,
 			ServiceLanguage:      svc.meta.Language,
 			ServiceType:          svc.meta.Type,
-			StartTime:            int64(svc.service.StartTimeSecs),
+			StartTime:            int64(svc.service.StartTimeMilli / 1000),
+			StartTimeMilli:       int64(svc.service.StartTimeMilli),
 			LastSeen:             svc.LastHeartbeat.Unix(),
 			APMInstrumentation:   svc.meta.APMInstrumentation,
 			ServiceNameSource:    nameSource,
