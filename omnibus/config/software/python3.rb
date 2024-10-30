@@ -2,46 +2,47 @@ name "python3"
 
 default_version "3.12.6"
 
-if ohai["platform"] != "windows"
-
+unless windows?
   dependency "libxcrypt"
   dependency "libffi"
   dependency "ncurses"
   dependency "zlib"
-  dependency "openssl3"
   dependency "bzip2"
   dependency "libsqlite3"
   dependency "liblzma"
   dependency "libyaml"
+end
+dependency "openssl3"
 
-  source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-         :sha256 => "85a4c1be906d20e5c5a69f2466b00da769c221d6a684acfd3a514dbf5bf10a66"
+source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
+       :sha256 => "85a4c1be906d20e5c5a69f2466b00da769c221d6a684acfd3a514dbf5bf10a66"
 
-  relative_path "Python-#{version}"
+relative_path "Python-#{version}"
 
-  python_configure_options = [
-    "--without-readline",  # Disables readline support
-    "--with-ensurepip=yes" # We upgrade pip later, in the pip3 software definition
-  ]
+build do
+  # 2.0 is the license version here, not the python version
+  license "Python-2.0"
 
-  if mac_os_x?
-    python_configure_options.push("--enable-ipv6",
-                          "--with-universal-archs=intel",
-                          "--enable-shared")
-  elsif linux_target?
-    python_configure_options.push("--enable-shared",
-                          "--enable-ipv6")
-  elsif aix?
-    # something here...
-  end
-
-  python_configure_options.push("--with-dbmliborder=")
-
-  build do
-    # 2.0 is the license version here, not the python version
-    license "Python-2.0"
-
+  unless windows_target?
     env = with_standard_compiler_flags(with_embedded_path)
+    python_configure_options = [
+      "--without-readline",  # Disables readline support
+      "--with-ensurepip=yes" # We upgrade pip later, in the pip3 software definition
+    ]
+
+    if mac_os_x?
+      python_configure_options.push("--enable-ipv6",
+                            "--with-universal-archs=intel",
+                            "--enable-shared")
+    elsif linux_target?
+      python_configure_options.push("--enable-shared",
+                            "--enable-ipv6")
+    elsif aix?
+      # something here...
+    end
+
+    python_configure_options.push("--with-dbmliborder=")
+
     # Force different defaults for the "optimization settings"
     # This removes the debug symbol generation and doesn't enable all warnings
     env["OPT"] = "-DNDEBUG -fwrapv"
@@ -64,25 +65,66 @@ if ohai["platform"] != "windows"
     block do
       FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/distutils/command/wininst-*.exe"))
     end
-  end
+  else
+    dependency "vc_redist_14"
 
-else
-  dependency "vc_redist_14"
+    vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
+    ###############################
+    # Setup openssl dependency... #
+    ###############################
+    mkdir "externals/openssl-bin-3.0.15/amd64/include"
+    # Copy the import library to have them point at our own built versions, regardless of
+    # their names in usual python builds
+    copy "#{install_dir}/embedded/lib/libcrypto.dll.a", "externals/openssl-bin-3.0.15/amd64/libcrypto.lib"
+    copy "#{install_dir}/embedded/lib/libssl.dll.a", "externals/openssl-bin-3.0.15/amd64/libssl.lib"
+    copy "#{install_dir}/embedded/lib/libssl.dll.a", "externals/openssl-bin-3.0.15/amd64/libssl.lib"
+    # Copy the actual DLLs, be sure to keep the same name since that's what the IMPLIBs expect
+    copy "#{install_dir}/embedded/bin/libssl-3-x64.dll", "externals/openssl-bin-3.0.15/amd64/libssl-3.dll"
+    command "touch externals/openssl-bin-3.0.15/amd64/libssl-3.pdb"
+    copy "#{install_dir}/embedded/bin/libcrypto-3-x64.dll", "externals/openssl-bin-3.0.15/amd64/libcrypto-3.dll"
+    command "touch externals/openssl-bin-3.0.15/amd64/libcrypto-3.pdb"
+    # The applink "header"
+    copy "#{install_dir}/embedded/include/openssl/applink.c", "externals/openssl-bin-3.0.15/amd64/include/"
+    # And finally the headers:
+    copy "#{install_dir}/embedded/include/openssl", "externals/openssl-bin-3.0.15/amd64/include/"
+    # Now build python itself
+    # -e to enable external libraries. They won't be fetched if already
+    # present, but the modules will be built nonetheless.
 
-  # note that starting with 3.7.3 on Windows, the zip should be created without the built-in pip
-  source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-amd64.zip",
-         :sha256 => "045d20a659fe80041b6fd508b77f250b03330347d64f128b392b88e68897f5a0".downcase
-
-  vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
-  build do
-    # 2.0 is the license version here, not the python version
-    license "Python-2.0"
-
-    command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_3_embedded)}\""
+    ###############################
+    # Build Python...             #
+    ###############################
+    command "PCbuild\\build.bat -e --pgo"
+    command "dir PCbuild/amd64/"
+    # Install the build artifact to their expected locations
+    copy "PCbuild/amd64/*.exe", "#{windows_safe_path(python_3_embedded)}/"
+    copy "PCbuild/amd64/*.dll", "#{windows_safe_path(python_3_embedded)}/"
+    mkdir "#{windows_safe_path(python_3_embedded)}/DLLs"
+    copy "PCbuild/amd64/*.pyd", "#{windows_safe_path(python_3_embedded)}/DLLs/"
+    mkdir "#{windows_safe_path(python_3_embedded)}/libs"
+    copy "PCbuild/amd64/*.lib", "#{windows_safe_path(python_3_embedded)}/libs"
+    copy "Lib", "#{windows_safe_path(python_3_embedded)}/"
     command "copy /y \"#{windows_safe_path(vcrt140_root)}\\*.dll\" \"#{windows_safe_path(python_3_embedded)}\""
 
-    # Install pip
+
+    ###############################
+    # Install build artifacts...  #
+    ###############################
+    # We copied the OpenSSL libraries with the name python expects to keep the build happy
+    # but at runtime, it will attempt to load the DLLs pointed at by the .dll.a generated by
+    # the OpenSSL build, so we need to copy those files to the install directory.
+    # The ones we copied for the build are now irrelevant
+    copy "#{install_dir}/embedded/bin/libcrypto-3-x64.dll", "#{windows_safe_path(python_3_embedded)}/DLLs"
+    copy "#{install_dir}/embedded/bin/libssl-3-x64.dll", "#{windows_safe_path(python_3_embedded)}/DLLs"
+    # We can also remove the DLLs that were put there by the python build since they won't be loaded anyway
+    delete "#{windows_safe_path(python_3_embedded)}/libcrypto-3.dll"
+    delete "#{windows_safe_path(python_3_embedded)}/libssl-3.dll"
+
+    copy "Include", "#{windows_safe_path(python_3_embedded)}\\include"
+    copy "PC/pyconfig.h", "#{windows_safe_path(python_3_embedded)}\\include\\"
+
     python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
     command "#{python} -m ensurepip"
   end
 end
+
