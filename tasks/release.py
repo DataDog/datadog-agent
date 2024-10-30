@@ -1101,3 +1101,62 @@ def create_github_release(_ctx, version, draft=True):
     )
 
     print(f"Link to the release note: {release.html_url}")
+
+
+from contextlib import contextmanager
+
+
+@contextmanager
+def agent_context(ctx, version: int):
+    REPO_AGENT6 = "../datadog-agent-6"
+
+    if version == 6:
+        # Need to go to the agent 6 repository
+
+        # Clone the repo if necessary
+        if not os.path.exists(REPO_AGENT6):
+            print('Cloning agent 6')
+            ctx.run(f"git clone git@github.com:DataDog/datadog-agent.git {REPO_AGENT6}")
+
+        # Ensure it is the target branch
+        cwd = os.path.abspath(os.getcwd())
+        with ctx.cd(REPO_AGENT6):
+            ctx.run("git switch 6.53.x")
+
+            try:
+                # Change directory
+                os.chdir(REPO_AGENT6)
+                yield
+            finally:
+                os.chdir(cwd)
+    else:
+        # Nothing to be done
+        yield
+
+
+@task
+def my_example_task(ctx, version: int = 7):
+    """
+    Usage:
+
+    $ inv my-example-task --version 7
+    >>> The context won't be switched, the branch is the current branch and the changelog shows 7.58.1
+
+    $ inv my-example-task --version 6
+    >>> The context is switched, the branch is 6.53.x and the changelog shows 7.53.0 / 6.53.0
+    """
+
+    with agent_context(ctx, version):
+        print(color_message(f'Agent context for version {version}', 'bold'))
+        print(color_message('Branch:', 'bold'))
+        ctx.run("git rev-parse --abbrev-ref HEAD")
+        print(color_message('Changelog head:', 'bold'))
+        ctx.run("head CHANGELOG.rst")
+        print(color_message('We can git tag, git push, etc. here', 'bold'))
+
+    print()
+    print(color_message('We are back to the original directory', 'bold'))
+    print(color_message('Branch:', 'bold'))
+    ctx.run("git rev-parse --abbrev-ref HEAD")
+    print(color_message('Changelog head:', 'bold'))
+    ctx.run("head CHANGELOG.rst")
