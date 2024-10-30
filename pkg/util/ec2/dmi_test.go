@@ -35,18 +35,18 @@ func TestGetInstanceIDFromDMI(t *testing.T) {
 	pkgconfigsetup.Datadog().SetWithoutSource("ec2_use_dmi", true)
 
 	setupDMIForNotEC2(t)
-	instanceID, err := getInstanceIDFromDMI()
+	instanceID, err := GetInstanceIDFromDMI()
 	assert.Error(t, err)
 	assert.Equal(t, "", instanceID)
 
 	setupDMIForEC2(t)
-	instanceID, err = getInstanceIDFromDMI()
+	instanceID, err = GetInstanceIDFromDMI()
 	assert.NoError(t, err)
 	assert.Equal(t, "i-myinstance", instanceID)
 
 	configmock.New(t)
 	pkgconfigsetup.Datadog().SetWithoutSource("ec2_use_dmi", false)
-	_, err = getInstanceIDFromDMI()
+	_, err = GetInstanceIDFromDMI()
 	assert.Error(t, err)
 }
 

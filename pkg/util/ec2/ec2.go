@@ -161,7 +161,7 @@ func GetHostAliases(ctx context.Context) ([]string, error) {
 	log.Debugf("failed to get instance ID from metadata API for Host Alias: %s", err)
 
 	// we fallback on DMI
-	instanceID, err = getInstanceIDFromDMI()
+	instanceID, err = GetInstanceIDFromDMI()
 	if err == nil {
 		return []string{instanceID}, nil
 	}

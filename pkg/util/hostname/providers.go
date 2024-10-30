@@ -112,6 +112,12 @@ func getProviderCatalog(notUseIMDSv2 bool) []provider {
 			expvarName:       "container",
 		},
 		{
+			name:             "dmi",
+			cb:               fromDMI, // will return an empty string if `legacy_hostname_imdsv2_support` or `ec2_use_dmi` is disable
+			stopIfSuccessful: false,
+			expvarName:       "dmi",
+		},
+		{
 			name:             "os",
 			cb:               fromOS,
 			stopIfSuccessful: false,

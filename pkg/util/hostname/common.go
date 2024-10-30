@@ -170,3 +170,12 @@ func fromEC2(ctx context.Context, currentHostname string) (string, error) {
 func fromEC2WithoutIMDSV2(ctx context.Context, currentHostname string) (string, error) {
 	return resolveEC2Hostname(ctx, currentHostname, true)
 }
+
+func fromDMI(_ context.Context, _ string) (string, error) {
+	// Try to fetch the hostname from the DMI
+	if !pkgconfigsetup.Datadog().GetBool("legacy_hostname_imdsv2_support") {
+		return "", nil
+	}
+
+	return ec2.GetInstanceIDFromDMI()
+}
