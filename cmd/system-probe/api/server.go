@@ -11,6 +11,7 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
+	"runtime"
 
 	gorilla "github.com/gorilla/mux"
 
@@ -54,7 +55,9 @@ func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmet
 	mux.Handle("/debug/vars", http.DefaultServeMux)
 	mux.Handle("/telemetry", telemetry.Handler())
 
-	mux.HandleFunc("/debug/ebpf_btf_loader_info", ebpf.HandleBTFLoaderInfo)
+	if runtime.GOOS == "linux" {
+		mux.HandleFunc("/debug/ebpf_btf_loader_info", ebpf.HandleBTFLoaderInfo)
+	}
 
 	go func() {
 		err = http.Serve(conn.GetListener(), mux)

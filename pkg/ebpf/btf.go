@@ -270,7 +270,6 @@ func (b *orderedBTFLoader) checkforBTF(extractDir string) (*returnBTF, error) {
 
 func (b *orderedBTFLoader) loadEmbedded() (*returnBTF, error) {
 	btfRelativeTarballFilename, err := b.embeddedPath()
-	b.resultMetadata.tarballUsed = btfRelativeTarballFilename
 	if err != nil {
 		return nil, err
 	}
@@ -293,7 +292,8 @@ func (b *orderedBTFLoader) loadEmbedded() (*returnBTF, error) {
 	// of BTFs as a whole is also compressed.
 	// This means that we'll need to first extract the specific BTF which  we're looking for from the collection
 	// tarball, and then unarchive it.
-	btfTarball := filepath.Join(b.embeddedDir)
+	btfTarball := filepath.Join(b.embeddedDir, btfRelativeTarballFilename)
+	b.resultMetadata.tarballUsed = btfTarball
 	if _, err := os.Stat(btfTarball); errors.Is(err, fs.ErrNotExist) {
 		collectionTarball := filepath.Join(b.embeddedDir, btfArchiveName)
 		if err := archive.TarXZExtractFile(collectionTarball, btfRelativeTarballFilename, b.embeddedDir); err != nil {
