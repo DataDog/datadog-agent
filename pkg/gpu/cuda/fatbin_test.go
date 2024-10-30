@@ -92,8 +92,8 @@ func TestParseBigFatbinFromPath(t *testing.T) {
 	require.NoError(t, err)
 
 	// These parameters need to match the same values used in the Makefile to generate the sample
-	numKernels := 80
-	numVariablesPerKernel := 10
+	numKernels := 100
+	numVariablesPerKernel := 20
 	sharedMemSize := 1024
 
 	var expectedSharedMemSizes = make(map[string]uint64)
@@ -113,7 +113,7 @@ func TestParseBigFatbinFromPath(t *testing.T) {
 		require.Equal(t, key.Name, kernel.Name)
 
 		expectedMemSize, ok := expectedSharedMemSizes[key.Name]
-		require.True(t, ok, "unexpected kernel %s, %v", key.Name, expectedKernels)
+		require.True(t, ok, "unexpected kernel %s, expected kernels=%v", key.Name, expectedKernels)
 
 		// The memory sizes are different for sm_90, checked with cuobjdump
 		if key.SmVersion != 90 && false {
