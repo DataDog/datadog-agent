@@ -36,7 +36,7 @@ const (
 	// Name of the Helm chart release to install the Datadog Agent
 	helmChartReleaseName = "CHART_RELEASE_NAME"
 	// Name of the DatadogAgent custom resource to install the Datadog Agent
-	datadogAgentCustomResourceName = "DATADOG_AGENT_CR_NAME"
+	datadogAgentCustomResourceName = "DATADOGAGENT_CR_NAME"
 	// Namespace where the Datadog Agent and Cluster Agent are installed
 	agentResourcesNamespace = "DD_KUBE_RESOURCES_NAMESPACE"
 	// Environment variables to retrieve the DaemonSet and Deployment names of the Agent and Cluster Agent
