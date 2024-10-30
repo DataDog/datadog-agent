@@ -1063,10 +1063,15 @@ def kmt_sysprobe_prepare(
             for cbin in TEST_HELPER_CBINS:
                 source = Path(pkg) / "testdata" / f"{cbin}.c"
                 if source.is_file():
-                    binary_path = os.path.join(target_path, "testdata", cbin)
+                    testdata_folder = os.path.join(target_path, "testdata")
+                    binary_path = os.path.join(testdata_folder, cbin)
                     nw.build(
                         inputs=[os.fspath(source)],
                         outputs=[binary_path],
+                        # Ensure that the testdata folder is created before the
+                        # binary, to avoid races between this command and the
+                        # copy command
+                        implicit=[testdata_folder],
                         rule="cbin",
                         variables={
                             "cc": "clang",
