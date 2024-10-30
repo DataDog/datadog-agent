@@ -11,15 +11,15 @@ package sds
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	sds "github.com/DataDog/dd-sensitive-data-scanner/sds-go/go"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	sds "github.com/DataDog/dd-sensitive-data-scanner/sds-go/go"
 )
 
 const ScannedTag = "sds_agent:true"
@@ -34,7 +34,7 @@ var (
 	tlmSDSReconfigSuccess = telemetry.NewCounterWithOpts("sds", "reconfiguration_success", []string{"pipeline", "type"},
 		"Count of SDS reconfiguration success.", telemetry.Options{DefaultMetric: true})
 	tlmSDSProcessingLatency = telemetry.NewSimpleHistogram("sds", "processing_latency", "Processing latency histogram",
-	                 []float64{10, 250, 500, 2000, 5000, 10000}) // unit: us
+		[]float64{10, 250, 500, 2000, 5000, 10000}) // unit: us
 )
 
 // Scanner wraps an SDS Scanner implementation, adds reconfiguration
@@ -64,7 +64,7 @@ type Scanner struct {
 // CreateScanner creates an SDS scanner.
 // Use `Reconfigure` to configure it manually.
 func CreateScanner(pipelineID string) *Scanner {
-	scanner := &Scanner{pipelineID: pipelineID)
+	scanner := &Scanner{pipelineID: pipelineID}
 	log.Debugf("creating a new SDS scanner (internal id: %p)", scanner)
 	return scanner
 }
