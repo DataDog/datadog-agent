@@ -112,7 +112,7 @@ func WithECSOptions(opts ...ecs.Option) ProvisionerOption {
 	}
 }
 
-// WithTestingWorkload deploys testing workloads
+// WithTestingWorkload deploys testing workloads for nginx, redis, cpustress, dogstatsd, prometheus and tracegen
 func WithTestingWorkload() ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.testingWorkload = true
