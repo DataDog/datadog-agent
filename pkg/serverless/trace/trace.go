@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
 	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -48,7 +49,8 @@ type Load interface {
 
 // LoadConfig is implementing Load to retrieve the config
 type LoadConfig struct {
-	Path string
+	Path   string
+	Tagger tagger.Component
 }
 
 // httpURLMetaKey is the key of the span meta containing the HTTP URL
@@ -89,7 +91,7 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	return comptracecfg.LoadConfigFile(l.Path, c)
+	return comptracecfg.LoadConfigFile(l.Path, c, l.Tagger)
 }
 
 // ServerlessTraceAgentParams represents the parameters needed to start the trace agent

@@ -14,11 +14,17 @@ import (
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
-type nodePodTagProvider struct{}
+type nodePodTagProvider struct {
+	tagger tagger.Component
+}
 
-func newNodePodTagProvider() PodTagProvider { return &nodePodTagProvider{} }
+func newNodePodTagProvider(tagger tagger.Component) PodTagProvider {
+	return &nodePodTagProvider{
+		tagger: tagger,
+	}
+}
 
 // GetTags implements PodTagProvider#GetTags
 func (p *nodePodTagProvider) GetTags(pod *corev1.Pod, cardinality taggertypes.TagCardinality) ([]string, error) {
-	return tagger.Tag(taggertypes.NewEntityID(taggertypes.KubernetesPodUID, string(pod.UID)), cardinality)
+	return p.tagger.Tag(taggertypes.NewEntityID(taggertypes.KubernetesPodUID, string(pod.UID)), cardinality)
 }

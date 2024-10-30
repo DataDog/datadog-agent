@@ -22,7 +22,6 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	mockSender.SetupAcceptAll()
 
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	mockCollector := mock.NewCollector("testCollector")
 
@@ -207,7 +206,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	container7Tags, _ := fakeTagger.Tag(types.NewEntityID(types.ContainerID, "7"), types.HighCardinality)
 	networkProcessor.Process(container7Tags, container7, mockCollector, 0)
 
-	networkProcessor.PostProcess()
+	networkProcessor.PostProcess(fakeTagger)
 
 	// Checking results
 	mockSender.AssertNumberOfCalls(t, "Rate", 12)

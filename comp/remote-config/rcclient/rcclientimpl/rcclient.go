@@ -16,8 +16,10 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/fx"
 
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -28,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Module defines the fx options for this component.
@@ -52,6 +55,9 @@ type rcClient struct {
 	// Tasks are separated from the other products, because they must be executed once
 	taskListeners     []types.RCAgentTaskListener
 	settingsComponent settings.Component
+	config            configcomp.Component
+	sysprobeConfig    optional.Option[sysprobeconfig.Component]
+	isSystemProbe     bool
 }
 
 type dependencies struct {
@@ -64,6 +70,8 @@ type dependencies struct {
 	Listeners         []types.RCListener          `group:"rCListener"`          // <-- Fill automatically by Fx
 	TaskListeners     []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 	SettingsComponent settings.Component
+	Config            configcomp.Component
+	SysprobeConfig    optional.Option[sysprobeconfig.Component]
 }
 
 // newRemoteConfigClient must not populate any Fx groups or return any types that would be consumed as dependencies by
@@ -117,6 +125,9 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		client:            c,
 		clientMRF:         clientMRF,
 		settingsComponent: deps.SettingsComponent,
+		config:            deps.Config,
+		sysprobeConfig:    deps.SysprobeConfig,
+		isSystemProbe:     deps.Params.IsSystemProbe,
 	}
 
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
@@ -260,8 +271,16 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		return
 	}
 
+	targetCmp := rc.config
+	localSysProbeConf, isSet := rc.sysprobeConfig.Get()
+	if isSet && rc.isSystemProbe {
+		pkglog.Infof("Using system probe config for remote config")
+		targetCmp = localSysProbeConf
+	}
 	// Checks who (the source) is responsible for the last logLevel change
-	source := pkgconfigsetup.Datadog().GetSource("log_level")
+	source := targetCmp.GetSource("log_level")
+
+	pkglog.Infof("A new log level configuration has been received through remote config, (source: %s, log_level '%s')", source, mergedConfig.LogLevel)
 
 	switch source {
 	case model.SourceRC:
@@ -269,8 +288,8 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		//     - we want to change (once again) the log level through RC
 		//     - we want to fall back to the log level we had saved as fallback (in that case mergedConfig.LogLevel == "")
 		if len(mergedConfig.LogLevel) == 0 {
-			pkgconfigsetup.Datadog().UnsetForSource("log_level", model.SourceRC)
-			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", pkgconfigsetup.Datadog().Get("log_level"))
+			targetCmp.UnsetForSource("log_level", model.SourceRC)
+			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", targetCmp.Get("log_level"))
 		} else {
 			newLevel := mergedConfig.LogLevel
 			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)
@@ -291,6 +310,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 
 		// Need to update the log level even if the level stays the same because we need to update the source
 		// Might be possible to add a check in deeper functions to avoid unnecessary work
+		pkglog.Infof("Changing log level to '%s' through remote config (new source)", mergedConfig.LogLevel)
 		err = rc.settingsComponent.SetRuntimeSetting("log_level", mergedConfig.LogLevel, model.SourceRC)
 	}
 

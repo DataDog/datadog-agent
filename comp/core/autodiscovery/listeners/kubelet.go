@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -22,17 +21,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // KubeletListener listens to pod creation through a subscription
 // to the workloadmeta store.
 type KubeletListener struct {
 	workloadmetaListener
+	tagger tagger.Component
 }
 
 // NewKubeletListener returns a new KubeletListener.
-func NewKubeletListener(_ Config, wmeta optional.Option[workloadmeta.Component], telemetryStore *telemetry.Store) (ServiceListener, error) {
+func NewKubeletListener(options ServiceListernerDeps) (ServiceListener, error) {
 	const name = "ad-kubeletlistener"
 
 	l := &KubeletListener{}
@@ -41,15 +40,16 @@ func NewKubeletListener(_ Config, wmeta optional.Option[workloadmeta.Component],
 		AddKind(workloadmeta.KindKubernetesPod).
 		Build()
 
-	wmetaInstance, ok := wmeta.Get()
+	wmetaInstance, ok := options.Wmeta.Get()
 	if !ok {
 		return nil, errors.New("workloadmeta store is not initialized")
 	}
 	var err error
-	l.workloadmetaListener, err = newWorkloadmetaListener(name, filter, l.processPod, wmetaInstance, telemetryStore)
+	l.workloadmetaListener, err = newWorkloadmetaListener(name, filter, l.processPod, wmetaInstance, options.Telemetry)
 	if err != nil {
 		return nil, err
 	}
+	l.tagger = options.Tagger
 
 	return l, nil
 }
@@ -96,11 +96,12 @@ func (l *KubeletListener) createPodService(
 	taggerEntityID := common.BuildTaggerEntityID(pod.GetID())
 	svc := &service{
 		entity:        pod,
-		tagsHash:      tagger.GetEntityHash(taggerEntityID, tagger.ChecksCardinality()),
+		tagsHash:      l.tagger.GetEntityHash(taggerEntityID, l.tagger.ChecksCardinality()),
 		adIdentifiers: []string{entity},
 		hosts:         map[string]string{"pod": pod.IP},
 		ports:         ports,
 		ready:         true,
+		tagger:        l.tagger,
 	}
 
 	svcID := buildSvcID(pod.GetID())
@@ -158,7 +159,7 @@ func (l *KubeletListener) createContainerService(
 	entity := containers.BuildEntityName(string(container.Runtime), container.ID)
 	svc := &service{
 		entity:   container,
-		tagsHash: tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID), tagger.ChecksCardinality()),
+		tagsHash: l.tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID), l.tagger.ChecksCardinality()),
 		ready:    pod.Ready,
 		ports:    ports,
 		extraConfig: map[string]string{
@@ -184,6 +185,7 @@ func (l *KubeletListener) createContainerService(
 			containerImg.RawName,
 			pod.Namespace,
 		),
+		tagger: l.tagger,
 	}
 
 	adIdentifier := containerName

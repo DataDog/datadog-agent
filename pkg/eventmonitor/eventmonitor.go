@@ -53,7 +53,7 @@ type EventMonitor struct {
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
 	sendStatsChan  chan chan bool
-	eventConsumers []EventConsumerInterface
+	eventConsumers []EventConsumer
 	wg             sync.WaitGroup
 }
 
@@ -68,8 +68,8 @@ func (m *EventMonitor) Register(_ *module.Router) error {
 	return m.Start()
 }
 
-// AddEventConsumer registers an event handler
-func (m *EventMonitor) AddEventConsumer(consumer EventConsumer) error {
+// AddEventConsumerHandler registers an event handler
+func (m *EventMonitor) AddEventConsumerHandler(consumer EventConsumerHandler) error {
 	for _, eventType := range consumer.EventTypes() {
 		if !slices.Contains(allowedEventTypes, eventType) {
 			return fmt.Errorf("event type (%s) not allowed", eventType)
@@ -80,7 +80,7 @@ func (m *EventMonitor) AddEventConsumer(consumer EventConsumer) error {
 }
 
 // RegisterEventConsumer registers an event consumer
-func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumerInterface) {
+func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumer) {
 	m.eventConsumers = append(m.eventConsumers, consumer)
 }
 

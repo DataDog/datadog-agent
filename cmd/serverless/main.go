@@ -114,7 +114,7 @@ func runAgent(tagger tagger.Component) {
 	lambdaInitMetricChan := make(chan *serverlessLogs.LambdaInitMetric)
 	//nolint:revive // TODO(SERV) Fix revive linter
 	coldStartSpanId := random.Random.Uint64()
-	metricAgent := startMetricAgent(serverlessDaemon, logChannel, lambdaInitMetricChan)
+	metricAgent := startMetricAgent(serverlessDaemon, logChannel, lambdaInitMetricChan, tagger)
 
 	// Start RC service if remote configuration is enabled
 	rcService := serverlessRemoteConfig.StartRCService(serverlessDaemon.ExecutionContext.GetCurrentState().ARN)
@@ -123,7 +123,7 @@ func runAgent(tagger tagger.Component) {
 	var wg sync.WaitGroup
 	wg.Add(3)
 
-	go startTraceAgent(&wg, lambdaSpanChan, coldStartSpanId, serverlessDaemon, rcService)
+	go startTraceAgent(&wg, lambdaSpanChan, coldStartSpanId, serverlessDaemon, tagger, rcService)
 	go startOtlpAgent(&wg, metricAgent, serverlessDaemon)
 	go startTelemetryCollection(&wg, serverlessID, logChannel, serverlessDaemon, tagger)
 
@@ -211,9 +211,10 @@ func setupProxy(appsecProxyProcessor *httpsec.ProxyLifecycleProcessor, ta trace.
 	}
 }
 
-func startMetricAgent(serverlessDaemon *daemon.Daemon, logChannel chan *logConfig.ChannelMessage, lambdaInitMetricChan chan *serverlessLogs.LambdaInitMetric) *metrics.ServerlessMetricAgent {
+func startMetricAgent(serverlessDaemon *daemon.Daemon, logChannel chan *logConfig.ChannelMessage, lambdaInitMetricChan chan *serverlessLogs.LambdaInitMetric, tagger tagger.Component) *metrics.ServerlessMetricAgent {
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
+		Tagger:               tagger,
 	}
 	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	serverlessDaemon.SetStatsdServer(metricAgent)
@@ -341,12 +342,12 @@ func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAge
 
 }
 
-func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon, rcService *remoteconfig.CoreAgentService) {
+func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon, tagger tagger.Component, rcService *remoteconfig.CoreAgentService) {
 	defer wg.Done()
 	traceAgent := trace.StartServerlessTraceAgent(
 		&trace.ServerlessTraceAgentParams{
 			Enabled:         pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
-			LoadConfig:      &trace.LoadConfig{Path: datadogConfigPath},
+			LoadConfig:      &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
 			LambdaSpanChan:  lambdaSpanChan,
 			ColdStartSpanID: coldStartSpanId,
 			RCService:       rcService,
