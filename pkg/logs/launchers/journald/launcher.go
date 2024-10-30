@@ -11,6 +11,9 @@ package journald
 import (
 	"os"
 
+	"github.com/coreos/go-systemd/sdjournal"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -21,7 +24,6 @@ import (
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/journald"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-	"github.com/coreos/go-systemd/sdjournal"
 )
 
 // SDJournalFactory is a JournalFactory implementation that produces sdjournal instances
@@ -46,20 +48,22 @@ type Launcher struct {
 	stop             chan struct{}
 	journalFactory   tailer.JournalFactory
 	fc               *flareController.FlareController
+	tagger           tagger.Component
 }
 
 // NewLauncher returns a new Launcher.
-func NewLauncher(fc *flareController.FlareController) *Launcher {
-	return NewLauncherWithFactory(&SDJournalFactory{}, fc)
+func NewLauncher(fc *flareController.FlareController, tagger tagger.Component) *Launcher {
+	return NewLauncherWithFactory(&SDJournalFactory{}, fc, tagger)
 }
 
 // NewLauncherWithFactory returns a new Launcher.
-func NewLauncherWithFactory(journalFactory tailer.JournalFactory, fc *flareController.FlareController) *Launcher {
+func NewLauncherWithFactory(journalFactory tailer.JournalFactory, fc *flareController.FlareController, tagger tagger.Component) *Launcher {
 	return &Launcher{
 		tailers:        make(map[string]*tailer.Tailer),
 		stop:           make(chan struct{}),
 		journalFactory: journalFactory,
 		fc:             fc,
+		tagger:         tagger,
 	}
 }
 
@@ -139,7 +143,7 @@ func (l *Launcher) setupTailer(source *sources.LogSource) (*tailer.Tailer, error
 		return nil, err
 	}
 
-	tailer := tailer.NewTailer(source, l.pipelineProvider.NextPipelineChan(), journal, source.Config.ShouldProcessRawMessage())
+	tailer := tailer.NewTailer(source, l.pipelineProvider.NextPipelineChan(), journal, source.Config.ShouldProcessRawMessage(), l.tagger)
 	cursor := l.registry.GetOffset(tailer.Identifier())
 
 	err = tailer.Start(cursor)

@@ -78,12 +78,12 @@ func (s *HTTP2Suite) TestFormatHTTP2Stats() {
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
-				{
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: localhost,
 					Dest:   localhost,
 					SPort:  clientPort,
 					DPort:  serverPort,
-				},
+				}},
 			},
 		},
 		HTTP2: map[http.Key]*http.RequestStats{
@@ -155,12 +155,12 @@ func (s *HTTP2Suite) TestFormatHTTP2StatsByPath() {
 	payload := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
-				{
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: util.AddressFromString("10.1.1.1"),
 					Dest:   util.AddressFromString("10.2.2.2"),
 					SPort:  60000,
 					DPort:  80,
-				},
+				}},
 			},
 		},
 		HTTP2: map[http.Key]*http.RequestStats{
@@ -202,20 +202,20 @@ func (s *HTTP2Suite) TestHTTP2IDCollisionRegression() {
 	http2Stats := http.NewRequestStats()
 	assert := assert.New(t)
 	connections := []network.ConnectionStats{
-		{
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("1.1.1.1"),
 			SPort:  60000,
 			Dest:   util.AddressFromString("2.2.2.2"),
 			DPort:  80,
 			Pid:    1,
-		},
-		{
+		}},
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("1.1.1.1"),
 			SPort:  60000,
 			Dest:   util.AddressFromString("2.2.2.2"),
 			DPort:  80,
 			Pid:    2,
-		},
+		}},
 	}
 
 	httpKey := http.NewKey(
@@ -264,20 +264,20 @@ func (s *HTTP2Suite) TestHTTP2LocalhostScenario() {
 	cliport := uint16(6000)
 	serverport := uint16(80)
 	connections := []network.ConnectionStats{
-		{
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("127.0.0.1"),
 			SPort:  cliport,
 			Dest:   util.AddressFromString("127.0.0.1"),
 			DPort:  serverport,
 			Pid:    1,
-		},
-		{
+		}},
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("127.0.0.1"),
 			SPort:  serverport,
 			Dest:   util.AddressFromString("127.0.0.1"),
 			DPort:  cliport,
 			Pid:    2,
-		},
+		}},
 	}
 
 	http2Stats := http.NewRequestStats()

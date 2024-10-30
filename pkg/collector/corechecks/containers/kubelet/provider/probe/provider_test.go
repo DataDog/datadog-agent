@@ -274,14 +274,14 @@ func TestProvider_Provide(t *testing.T) {
 			mockSender.SetupAcceptAll()
 
 			fakeTagger := taggerimpl.SetupFakeTagger(t)
-			defer fakeTagger.ResetTagger()
+
 			for entity, tags := range probeTags {
 				prefix, id, _ := taggercommon.ExtractPrefixAndID(entity)
 				entityID := taggertypes.NewEntityID(prefix, id)
 				fakeTagger.SetTags(entityID, "foo", tags, nil, nil, nil)
 			}
 
-			err = commontesting.StorePopulatedFromFile(store, tt.podsFile, common.NewPodUtils())
+			err = commontesting.StorePopulatedFromFile(store, tt.podsFile, common.NewPodUtils(fakeTagger))
 			if err != nil {
 				t.Errorf("unable to populate store from file at: %s, err: %v", tt.podsFile, err)
 			}
@@ -314,6 +314,7 @@ func TestProvider_Provide(t *testing.T) {
 				},
 				config,
 				store,
+				fakeTagger,
 			)
 			assert.NoError(t, err)
 

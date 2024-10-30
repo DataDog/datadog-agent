@@ -47,13 +47,12 @@ func TestGetContainers(t *testing.T) {
 	))
 
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	// Finally, container provider
 	testTime := time.Now()
 	filter, err := containers.GetPauseContainerFilter()
 	assert.NoError(t, err)
-	containerProvider := NewContainerProvider(metricsProvider, metadataProvider, filter)
+	containerProvider := NewContainerProvider(metricsProvider, metadataProvider, filter, fakeTagger)
 
 	// Containers:
 	// cID1 full stats

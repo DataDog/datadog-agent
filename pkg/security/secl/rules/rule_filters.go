@@ -89,7 +89,7 @@ type SECLRuleFilter struct {
 func NewSECLRuleFilter(model eval.Model) *SECLRuleFilter {
 	return &SECLRuleFilter{
 		model:          model,
-		parsingContext: ast.NewParsingContext(),
+		parsingContext: ast.NewParsingContext(false),
 	}
 }
 

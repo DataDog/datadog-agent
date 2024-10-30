@@ -1274,7 +1274,7 @@ func TestMapGetChildNotFound(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, err.Error(), "not found")
 
-	keys, err := n.ChildrenKeys()
-	assert.NoError(t, err)
-	assert.Equal(t, keys, []string{"a", "b"})
+	inner, ok := n.(nodetreemodel.InnerNode)
+	assert.True(t, ok)
+	assert.Equal(t, inner.ChildrenKeys(), []string{"a", "b"})
 }
