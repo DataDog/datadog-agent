@@ -37,7 +37,7 @@ const cudaVisibleDevicesEnvVar = "CUDA_VISIBLE_DEVICES"
 // applications." If an invalid index is found, an error is returned together
 // with the list of valid devices found up until that point.
 func GetVisibleDevicesForProcess(systemDevices []nvml.Device, pid int, procfs string) ([]nvml.Device, error) {
-	cudaVisibleDevices, err := kernel.GetProcessEnvVariable(pid, cudaVisibleDevicesEnvVar, procfs)
+	cudaVisibleDevices, err := kernel.GetProcessEnvVariable(pid, procfs, cudaVisibleDevicesEnvVar)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get env var %s for process %d: %w", cudaVisibleDevicesEnvVar, pid, err)
 	}
