@@ -5,7 +5,7 @@
 
 //go:build linux || windows
 
-package consumers
+package consumer
 
 import (
 	"fmt"
