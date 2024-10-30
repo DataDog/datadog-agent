@@ -21,14 +21,14 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/proto v0.59.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.59.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/backoff v0.59.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/grpc v0.59.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/http v0.59.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/proto v0.59.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.59.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/util/backoff v0.59.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/util/grpc v0.59.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/util/http v0.59.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0-rc.7
 	github.com/Masterminds/semver v1.5.0
 	github.com/benbjohnson/clock v1.3.0
 	github.com/pkg/errors v0.9.1
@@ -42,8 +42,8 @@ require (
 
 require (
 	github.com/DataDog/appsec-internal-go v1.7.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.59.0-rc.6 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/cache v0.59.0-rc.6 // indirect
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.59.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/cache v0.59.0-rc.7 // indirect
 	github.com/DataDog/datadog-go/v5 v5.5.0 // indirect
 	github.com/DataDog/go-libddwaf/v3 v3.3.0 // indirect
 	github.com/DataDog/go-sqllexer v0.0.15 // indirect
@@ -75,7 +75,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0-rc.6 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0-rc.7 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2
 	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
