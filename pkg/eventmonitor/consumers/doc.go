@@ -6,4 +6,4 @@
 // Package consumer contains consumers that can be readily used by other packages without
 // having to implement the EventConsumerHandler interface manually:
 // - ProcessConsumer (process.go): a consumer of process exec/exit events that can be subscribed to via callbacks
-package consumer
+package consumers
