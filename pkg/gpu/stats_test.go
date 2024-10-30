@@ -8,12 +8,12 @@
 package gpu
 
 import (
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
