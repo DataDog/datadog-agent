@@ -9,6 +9,7 @@ import yaml
 from tasks.kernel_matrix_testing.tool import Exit
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
+from tasks.libs.types.arch import Arch
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import (
@@ -27,7 +28,7 @@ def get_platforms():
 
 
 class KMTTestJob:
-    def __init__(self, name, arch, test_set, kernels):
+    def __init__(self, name: str, arch: KMTArchName, test_set: str, kernels: set[str]):
         self.name = name
         self.arch = arch
         self.test_set = test_set
@@ -65,7 +66,7 @@ def filter_by_ci_component(platforms: Platforms, component: Component) -> dict[s
             sets = ci_config[job]["parallel"]["matrix"][0]["TEST_SET"]
             kernels = ci_config[job]["parallel"]["matrix"][0]["TAG"]
 
-            test_jobs.append(KMTTestJob(job, arch, sets, set(kernels)))
+            test_jobs.append(KMTTestJob(job, Arch.from_str(arch).kmt_arch, sets, set(kernels)))
 
     new_platforms_by_set = {}
     for job in test_jobs:
