@@ -35,6 +35,7 @@ type Meta struct {
 	AgentHostname            string   `json:"agent-hostname,omitempty"`
 	ClusterName              string   `json:"cluster-name,omitempty"`
 	LegacyResolutionHostname string   `json:"legacy-resolution-hostname,omitempty"`
+	HostMetaVersion          string   `json:"host-meta-version,omitempty"`
 }
 
 // GetMetaFromCache returns the metadata information about the host from the cache and returns it, if the cache is
