@@ -53,6 +53,7 @@ var pipelineError = atomic.NewError(nil)
 
 type tagEnricher struct {
 	cardinality types.TagCardinality
+	tagger      tagger.Component
 }
 
 func (t *tagEnricher) SetCardinality(cardinality string) (err error) {
@@ -73,7 +74,7 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 	prefix, id, err := common.ExtractPrefixAndID(dimensions.OriginID())
 	if err != nil {
 		entityID := types.NewEntityID(prefix, id)
-		entityTags, err := tagger.Tag(entityID, t.cardinality)
+		entityTags, err := t.tagger.Tag(entityID, t.cardinality)
 		if err != nil {
 			log.Tracef("Cannot get tags for entity %s: %s", dimensions.OriginID(), err)
 		} else {
@@ -83,7 +84,7 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 		log.Tracef("Cannot get tags for entity %s: %s", dimensions.OriginID(), err)
 	}
 
-	globalTags, err := tagger.GlobalTags(t.cardinality)
+	globalTags, err := t.tagger.GlobalTags(t.cardinality)
 	if err != nil {
 		log.Trace(err.Error())
 	} else {
@@ -118,7 +119,7 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 
 	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
-		serializerexporter.NewFactory(s, &tagEnricher{cardinality: types.LowCardinality}, hostname.Get, nil, nil),
+		serializerexporter.NewFactory(s, &tagEnricher{cardinality: types.LowCardinality, tagger: tagger}, hostname.Get, nil, nil),
 		debugexporter.NewFactory(),
 	}
 

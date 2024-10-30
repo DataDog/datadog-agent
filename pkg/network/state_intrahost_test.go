@@ -37,13 +37,13 @@ func TestSNATIntraHost(t *testing.T) {
 }
 
 func CreateConnectionStat(source string, dest string, SPort uint16, DPort uint16, connType ConnectionType) ConnectionStats {
-	return ConnectionStats{
+	return ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Source: util.AddressFromString(source),
 		Dest:   util.AddressFromString(dest),
 		SPort:  SPort,
 		DPort:  DPort,
 		Type:   connType,
-	}
+	}}
 }
 
 func AddIPTranslationToConnection(conn *ConnectionStats, ReplSrcIP string, ReplDstIP string, ReplSrcPort uint16, ReplDstPort uint16) {

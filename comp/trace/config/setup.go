@@ -56,14 +56,14 @@ const (
 func setupConfigCommon(deps Dependencies, _ string) (*config.AgentConfig, error) {
 	confFilePath := deps.Config.ConfigFileUsed()
 
-	return LoadConfigFile(confFilePath, deps.Config)
+	return LoadConfigFile(confFilePath, deps.Config, deps.Tagger)
 }
 
 // LoadConfigFile returns a new configuration based on the given path. The path must not necessarily exist
 // and a valid configuration can be returned based on defaults and environment variables. If a
 // valid configuration can not be obtained, an error is returned.
-func LoadConfigFile(path string, c corecompcfg.Component) (*config.AgentConfig, error) {
-	cfg, err := prepareConfig(c)
+func LoadConfigFile(path string, c corecompcfg.Component, tagger tagger.Component) (*config.AgentConfig, error) {
+	cfg, err := prepareConfig(c, tagger)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
@@ -80,7 +80,7 @@ func LoadConfigFile(path string, c corecompcfg.Component) (*config.AgentConfig, 
 	return cfg, validate(cfg, c)
 }
 
-func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
+func prepareConfig(c corecompcfg.Component, tagger tagger.Component) (*config.AgentConfig, error) {
 	cfg := config.New()
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
@@ -117,13 +117,11 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 			cfg.RemoteConfigClient = client
 		}
 	}
-	cfg.ContainerTags = containerTagsFunc
+	cfg.ContainerTags = func(cid string) ([]string, error) {
+		return tagger.Tag(types.NewEntityID(types.ContainerID, cid), types.HighCardinality)
+	}
 	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
 	return cfg, nil
-}
-
-func containerTagsFunc(cid string) ([]string, error) {
-	return tagger.Tag(types.NewEntityID(types.ContainerID, cid), types.HighCardinality)
 }
 
 // appendEndpoints appends any endpoint configuration found at the given cfgKey.

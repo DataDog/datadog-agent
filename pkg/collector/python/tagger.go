@@ -10,7 +10,6 @@ package python
 import (
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -24,19 +23,20 @@ import (
 */
 import "C"
 
-// for testing purposes
-var (
-	tagsFunc = tagger.LegacyTag
-)
-
 // Tags bridges towards tagger.Tag to retrieve container tags
 //
 //export Tags
 func Tags(id *C.char, cardinality C.int) **C.char {
+	checkContext, err := getCheckContext()
+	if err != nil {
+		log.Errorf("Python check context: %v", err)
+		return nil
+	}
+
 	goID := C.GoString(id)
 	var tags []string
 
-	tags, _ = tagsFunc(goID, types.TagCardinality(cardinality))
+	tags, _ = checkContext.tagger.LegacyTag(goID, types.TagCardinality(cardinality))
 
 	length := len(tags)
 	if length == 0 {

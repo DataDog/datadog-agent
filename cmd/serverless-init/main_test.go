@@ -29,7 +29,6 @@ func TestTagsSetup(t *testing.T) {
 	t.Skip()
 
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	configmock.New(t)
 
