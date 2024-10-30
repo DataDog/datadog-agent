@@ -132,14 +132,13 @@ var (
 
 	ec2HostnameResolutionProvider = provider{
 		name:             "aws",
-		cb:               fromEC2WithoutIMDSV2,
+		cb:               fromEC2WithLegacyHostnameResolution,
 		stopIfSuccessful: false,
 		expvarName:       "aws",
 	}
-
 )
 
-func getProviderCatalog(notUseIMDSv2 bool) []provider {
+func getProviderCatalog(legacyHostnameResolution bool) []provider {
 	providerCatalog := []provider{
 		configProvider,
 		hostnameFileProvider,
@@ -151,7 +150,7 @@ func getProviderCatalog(notUseIMDSv2 bool) []provider {
 		osProvider,
 	}
 
-	if notUseIMDSv2 {
+	if legacyHostnameResolution {
 		providerCatalog = append(providerCatalog, ec2HostnameResolutionProvider)
 	} else {
 		providerCatalog = append(providerCatalog, ec2Provider)
@@ -181,16 +180,11 @@ func GetWithProvider(ctx context.Context) (Data, error) {
 }
 
 // GetWithProviderWithoutIMDSV2 returns the hostname for the Agent and the provider that was use to retrieve it without using IMDSv2
-func GetWithProviderWithoutIMDSV2(ctx context.Context) (Data, error) {
-	// If the user has set the ec2_prefer_imdsv2 then IMDSv2 is used by default by the user, `legacy_resolution_hostname` is not needed for the transition
-	// If the user has set the ec2_imdsv2_transition then IMDSv2 is used by default by the agent, `legacy_resolution_hostname` is needed for the transition
-	if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || !pkgconfigsetup.Datadog().GetBool("ec2_imdsv2_transition") {
-		return Data{}, nil
-	}
+func GetWithProviderWithLegacyHostnameResolution(ctx context.Context) (Data, error) {
 	return getHostname(ctx, "legacy_resolution_hostname", true)
 }
 
-func getHostname(ctx context.Context, keyCache string, notUseIMDSv2 bool) (Data, error) {
+func getHostname(ctx context.Context, keyCache string, legacyHostnameResolution bool) (Data, error) {
 	cacheHostnameKey := cache.BuildAgentKey(keyCache)
 
 	// first check if we have a hostname cached
@@ -202,7 +196,7 @@ func getHostname(ctx context.Context, keyCache string, notUseIMDSv2 bool) (Data,
 	var hostname string
 	var providerName string
 
-	for _, p := range getProviderCatalog(notUseIMDSv2) {
+	for _, p := range getProviderCatalog(legacyHostnameResolution) {
 		log.Debugf("trying to get hostname from '%s' provider", p.name)
 
 		detectedHostname, err := p.cb(ctx, hostname)

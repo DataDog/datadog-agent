@@ -112,8 +112,8 @@ var imdsv2InstanceIDFetcher = cachedfetch.Fetcher{
 	},
 }
 
-var noIMDSv2InstanceIDFetcher = cachedfetch.Fetcher{
-	Name: "EC2 no IMDSv2 InstanceID",
+var legacyInstanceIDFetcher = cachedfetch.Fetcher{
+	Name: "EC2 no IMDSv2 no DMI InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, UseIMDSv2(false, true))
 	},
@@ -124,9 +124,14 @@ func GetInstanceID(ctx context.Context) (string, error) {
 	return instanceIDFetcher.FetchString(ctx)
 }
 
-// GetInstanceIDWithoutIMDSv2 fetches the instance id for current host from the EC2 metadata API without using IMDSv2
-func GetInstanceIDWithoutIMDSv2(ctx context.Context) (string, error) {
-	return noIMDSv2InstanceIDFetcher.FetchString(ctx)
+// GetInstanceIDWithLegacyHostnameResolution fetches the instance id for current host from the EC2 metadata API without using IMDSv2
+func GetInstanceIDWithLegacyHostnameResolution(ctx context.Context) (string, error) {
+	// If the user has set the ec2_prefer_imdsv2 then IMDSv2 is used by default by the user, `legacy_resolution_hostname` is not needed for the transition
+	// If the user has set the ec2_imdsv2_transition then IMDSv2 is used by default by the agent, `legacy_resolution_hostname` is needed for the transition
+	if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || !pkgconfigsetup.Datadog().GetBool("ec2_imdsv2_transition") {
+		return "", nil
+	}
+	return legacyInstanceIDFetcher.FetchString(ctx)
 }
 
 // GetIDMSv2InstanceID fetches the instance id for current host from the IMDSv2 EC2 metadata API
