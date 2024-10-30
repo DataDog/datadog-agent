@@ -18,6 +18,7 @@ from tasks.libs.ciproviders.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
+from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH
 from tasks.libs.common.datadog_api import create_gauge, send_metrics
 from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
@@ -421,3 +422,33 @@ def assign_codereview_label(_, pr_id=-1):
     gh = GithubAPI('DataDog/datadog-agent')
     complexity = gh.get_codereview_complexity(pr_id)
     gh.update_review_complexity_labels(pr_id, complexity)
+
+
+@task
+def agenttelemetry_list_change_ack_check(_, pr_id=-1):
+    """
+    Change to `comp/core/agenttelemetry/impl/config.go` file requires to acknowledge
+    potential changes to Agent Telemetry metrics. If Agent Telemetry metric list has been changed,
+    the PR should be labeled with `need-change/agenttelemetry-governance` and follow
+    `Agent Telemetry Governance` instructions to potentially perform additional changes. See
+    https://datadoghq.atlassian.net/wiki/spaces/ASUP/pages/4340679635/Agent+Telemetry+Governance
+    for details.
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI('DataDog/datadog-agent')
+
+    pr_id = int(os.environ.get("PR_ID"))
+
+    labels = gh.get_pr_labels(pr_id)
+    files = gh.get_pr_files(pr_id)
+    if "comp/core/agenttelemetry/impl/config.go" in files:
+        if "need-change/agenttelemetry-governance" not in labels:
+            message = f"{color_message('Error', 'red')}: If you change the `comp/core/agenttelemetry/impl/config.go` file, you need to add `need-change/agenttelemetry-governance` label. Please follow the instructions specified in https://datadoghq.atlassian.net/wiki/spaces/ASUP/pages/4340679635/Agent+Telemetry+Governance"
+            raise Exit(message, code=1)
+        else:
+            print(
+                "'need-change/agenttelemetry-governance' label found on the PR: potential change to Agent Telemetry metrics is acknowledged and the governance instructions are followed."
+            )
+
+    return True
