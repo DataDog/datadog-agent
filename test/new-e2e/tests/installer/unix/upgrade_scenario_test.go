@@ -10,11 +10,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
 type packageName string
@@ -59,22 +60,22 @@ var testCatalog = catalog{
 		{
 			Package: string(datadogAgent),
 			Version: latestAgentImageVersion,
-			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", latestAgentImageVersion),
+			URL:     fmt.Sprintf("oci://public.ecr.aws/datadoghq/agent-package:%s", latestAgentImageVersion),
 		},
 		{
 			Package: string(datadogAgent),
 			Version: previousAgentImageVersion,
-			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", previousAgentImageVersion),
+			URL:     fmt.Sprintf("oci:/public.ecr.aws/datadoghq/agent-package:%s", previousAgentImageVersion),
 		},
 		{
 			Package: string(datadogInstaller),
 			Version: latestInstallerImageVersion,
-			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/installer-package:%s", latestInstallerImageVersion),
+			URL:     fmt.Sprintf("oci://public.ecr.aws/datadoghq/installer-package:%s", latestInstallerImageVersion),
 		},
 		{
 			Package: string(datadogInstaller),
 			Version: previousInstallerImageVersion,
-			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/installer-package:%s", previousInstallerImageVersion),
+			URL:     fmt.Sprintf("oci://public.ecr.aws/datadoghq/installer-package:%s", previousInstallerImageVersion),
 		},
 	},
 }
@@ -209,7 +210,7 @@ func (s *upgradeScenarioSuite) TestExperimentCurrentVersion() {
 			{
 				Package: "datadog-agent",
 				Version: currentVersion,
-				URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", currentVersion),
+				URL:     fmt.Sprintf("oci://public.ecr.aws/datadoghq/agent-package:%s", currentVersion),
 			},
 		},
 	}
