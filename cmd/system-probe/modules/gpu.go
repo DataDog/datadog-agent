@@ -52,7 +52,7 @@ var GPUMonitoring = module.Factory{
 		}
 
 		if err := p.Start(); err != nil {
-			fmt.Errorf("unable to start %s: %w", config.GPUMonitoringModule, err)
+			return nil, fmt.Errorf("unable to start %s: %w", config.GPUMonitoringModule, err)
 		}
 
 		return &GPUMonitoringModule{
