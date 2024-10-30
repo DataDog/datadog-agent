@@ -23,6 +23,7 @@ import (
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
 	"gopkg.in/yaml.v3"
@@ -75,9 +76,14 @@ type EventStream interface {
 	Resume() error
 }
 
-// MaxOnDemandEventsPerSecond represents the maximum number of on demand events per second
-// allowed before we switch off the subsystem
-const MaxOnDemandEventsPerSecond = 1_000
+const (
+	// MaxOnDemandEventsPerSecond represents the maximum number of on demand events per second
+	// allowed before we switch off the subsystem
+	MaxOnDemandEventsPerSecond = 1_000
+
+	playSnapShotState int32 = iota + 1
+	replaySnapShotState
+)
 
 var (
 	// defaultEventTypes event types used whatever the event handlers or the rules
@@ -151,6 +157,9 @@ type EBPFProbe struct {
 
 	// hash action
 	fileHasher *FileHasher
+
+	// snapshot
+	playSnapShotState *atomic.Int32
 }
 
 // GetProfileManager returns the Profile Managers
@@ -406,9 +415,6 @@ func (p *EBPFProbe) Setup() error {
 
 // Start the probe
 func (p *EBPFProbe) Start() error {
-	// Apply rules to the snapshotted data before starting the event stream to avoid concurrency issues
-	p.playSnapshot(true)
-
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
 
@@ -633,6 +639,11 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 }
 
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
+	// handle play snapshot
+	if state := p.playSnapShotState.Swap(0); state != 0 {
+		p.playSnapshot(state == playSnapShotState)
+	}
+
 	offset := 0
 	event := p.zeroEvent()
 
@@ -1687,7 +1698,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	}
 
 	// replay the snapshot
-	p.playSnapshot(false)
+	p.playSnapShotState.Store(replaySnapShotState)
 
 	return ars, nil
 }
@@ -1752,6 +1763,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 		newTCNetDevices:      make(chan model.NetDevice, 16),
 		processKiller:        processKiller,
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, 1),
+		playSnapShotState:    atomic.NewInt32(playSnapShotState),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
