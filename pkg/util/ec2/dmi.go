@@ -23,11 +23,11 @@ func isBoardVendorEC2() bool {
 	return dmi.GetBoardVendor() == DMIBoardVendor
 }
 
-// GetInstanceIDFromDMI fetches the instance id for current host from DMI
+// getInstanceIDFromDMI fetches the instance id for current host from DMI
 //
 // On AWS Nitro instances dmi information contains the instanceID for the host. We check that the board vendor is
 // EC2 and that the board_asset_tag match an instanceID format before using it
-func GetInstanceIDFromDMI() (string, error) {
+func getInstanceIDFromDMI() (string, error) {
 	// we don't want to collect anything on Fargate
 	if fargate.IsFargateInstance() {
 		return "", fmt.Errorf("host alias detection through DMI is disabled on Fargate")

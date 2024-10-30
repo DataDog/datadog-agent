@@ -110,6 +110,10 @@ var imdsv2InstanceIDFetcher = cachedfetch.Fetcher{
 var noIMDSv2InstanceIDFetcher = cachedfetch.Fetcher{
 	Name: "EC2 no IMDSv2 InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
+		hostname, err := getInstanceIDFromDMI()
+		if err == nil && hostname != "" {
+			return hostname, nil
+		}
 		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, UseIMDSv2(false, true))
 	},
 }
@@ -161,7 +165,7 @@ func GetHostAliases(ctx context.Context) ([]string, error) {
 	log.Debugf("failed to get instance ID from metadata API for Host Alias: %s", err)
 
 	// we fallback on DMI
-	instanceID, err = GetInstanceIDFromDMI()
+	instanceID, err = getInstanceIDFromDMI()
 	if err == nil {
 		return []string{instanceID}, nil
 	}

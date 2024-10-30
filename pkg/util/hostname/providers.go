@@ -112,12 +112,6 @@ func getProviderCatalog(notUseIMDSv2 bool) []provider {
 			expvarName:       "container",
 		},
 		{
-			name:             "dmi",
-			cb:               fromDMI, // will return an empty string if `legacy_hostname_imdsv2_support` or `ec2_use_dmi` is disable
-			stopIfSuccessful: false,
-			expvarName:       "dmi",
-		},
-		{
 			name:             "os",
 			cb:               fromOS,
 			stopIfSuccessful: false,
@@ -162,7 +156,7 @@ func GetWithProvider(ctx context.Context) (Data, error) {
 
 // GetWithProviderWithoutIMDSV2 returns the hostname for the Agent and the provider that was use to retrieve it without using IMDSv2
 func GetWithProviderWithoutIMDSV2(ctx context.Context) (Data, error) {
-	if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || !pkgconfigsetup.Datadog().GetBool("legacy_hostname_imdsv2_support") {
+	if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || !pkgconfigsetup.Datadog().GetBool("smooth_imdsv2_transition") {
 		return Data{}, nil
 	}
 	data, err := getHostname(ctx, "legacy_resolution_hostname", true)
