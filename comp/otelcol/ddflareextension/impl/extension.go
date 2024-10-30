@@ -136,7 +136,7 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 			Sources: map[string]extensionDef.OTelFlareSource{},
 		},
 	}
-	
+
 	conf := confmap.New()
 	err = conf.Marshal(providedConf)
 	if err != nil {
