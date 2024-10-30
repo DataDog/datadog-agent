@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -153,6 +152,19 @@ func (r *AttachRule) Validate() error {
 	}
 
 	return result
+}
+
+// ProcessMonitor is an interface that allows subscribing to process start and exit events
+type ProcessMonitor interface {
+	// SubscribeExec subscribes to process start events, with a callback that
+	// receives the PID of the process. Returns a function that can be called to
+	// unsubscribe from the event.
+	SubscribeExec(func(uint32)) func()
+
+	// SubscribeExit subscribes to process exit events, with a callback that
+	// receives the PID of the process. Returns a function that can be called to
+	// unsubscribe from the event.
+	SubscribeExit(func(uint32)) func()
 }
 
 // AttacherConfig defines the configuration for the attacher
@@ -307,19 +319,24 @@ type UprobeAttacher struct {
 	// handlesExecutablesCached is a cache for the handlesExecutables function, avoiding
 	// recomputation every time
 	handlesExecutablesCached *bool
+
+	// processMonitor is the process monitor that we use to subscribe to process start and exit events
+	processMonitor ProcessMonitor
 }
 
-// NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments the
-// name of the attacher, the configuration, the probe manager (ebpf.Manager
-// usually), a callback to be called whenever a probe is attached (optional, can
-// be nil), and the binary inspector to be used (e.g., while we usually want
-// NativeBinaryInspector here, we might want the GoBinaryInspector to attach to
-// Go functions in a different way).
-// Note that the config is copied, not referenced. The attacher caches some values
-// that depend on the configuration, so any changes to the configuration after the
-// attacher would make those caches incoherent. This way we ensure that the attacher
-// is always consistent with the configuration it was created with.
-func NewUprobeAttacher(name string, config AttacherConfig, mgr ProbeManager, onAttachCallback AttachCallback, inspector BinaryInspector) (*UprobeAttacher, error) {
+// NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments
+//   - The name of the attacher
+//   - The configuration. Note that the config is copied, not referenced. The attacher caches some values
+//     that depend on the configuration, so any changes to the configuration after the
+//     attacher would make those caches incoherent. This way we ensure that the attacher is always consistent with the configuration it was created with.
+//   - The eBPF probe manager (ebpf.Manager usually)
+//   - A callback to be called whenever a probe is attached (optional, can be nil)
+//   - The binary inspector to be used (e.g., while we usually want NativeBinaryInspector here,
+//     we might want the GoBinaryInspector to attach to Go functions in a different
+//     way).
+//   - The process monitor to be used to subscribe to process start and exit events. The lifecycle of the process monitor is managed by the caller, the attacher
+//     will not stop the monitor when it stops.
+func NewUprobeAttacher(name string, config AttacherConfig, mgr ProbeManager, onAttachCallback AttachCallback, inspector BinaryInspector, processMonitor ProcessMonitor) (*UprobeAttacher, error) {
 	config.SetDefaults()
 
 	if err := config.Validate(); err != nil {
@@ -335,6 +352,7 @@ func NewUprobeAttacher(name string, config AttacherConfig, mgr ProbeManager, onA
 		pathToAttachedProbes: make(map[string][]manager.ProbeIdentificationPair),
 		done:                 make(chan struct{}),
 		inspector:            inspector,
+		processMonitor:       processMonitor,
 	}
 
 	utils.AddAttacher(name, ua)
@@ -381,12 +399,11 @@ func (ua *UprobeAttacher) handlesExecutables() bool {
 // Start starts the attacher, attaching to the processes and libraries as needed
 func (ua *UprobeAttacher) Start() error {
 	var cleanupExec, cleanupExit func()
-	procMonitor := monitor.GetProcessMonitor()
 	if ua.handlesExecutables() {
-		cleanupExec = procMonitor.SubscribeExec(ua.handleProcessStart)
+		cleanupExec = ua.processMonitor.SubscribeExec(ua.handleProcessStart)
 	}
 	// We always want to track process deletions, to avoid memory leaks
-	cleanupExit = procMonitor.SubscribeExit(ua.handleProcessExit)
+	cleanupExit = ua.processMonitor.SubscribeExit(ua.handleProcessExit)
 
 	if ua.handlesLibraries() {
 		if !sharedlibraries.IsSupported(ua.config.EbpfConfig) {
@@ -424,7 +441,6 @@ func (ua *UprobeAttacher) Start() error {
 				cleanupExec()
 			}
 			cleanupExit()
-			procMonitor.Stop()
 			ua.fileRegistry.Clear()
 			if ua.soWatcher != nil {
 				ua.soWatcher.Stop()
