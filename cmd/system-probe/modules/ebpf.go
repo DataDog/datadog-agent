@@ -9,7 +9,6 @@ package modules
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -58,17 +57,6 @@ func (o *ebpfModule) Register(httpMux *module.Router) error {
 		stats := o.Probe.GetAndFlush()
 		utils.WriteAsJSON(w, stats)
 	}))
-
-	httpMux.HandleFunc("/btf_loader_info", func(w http.ResponseWriter, _ *http.Request) {
-		info, err := ebpf.GetBTFLoaderInfo()
-		if err != nil {
-			log.Errorf("unable to get ebpf_btf_loader info: %s", err)
-			w.WriteHeader(500)
-			return
-		}
-
-		io.WriteString(w, info)
-	})
 
 	return nil
 }

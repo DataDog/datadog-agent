@@ -33,7 +33,7 @@ const (
 	telemetryURL         = "http://unix/telemetry"
 	conntrackCachedURL   = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/cached"
 	conntrackHostURL     = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/host"
-	ebpfBTFLoaderURL     = "http://unix/" + string(sysconfig.EBPFModule) + "/btf_loader_info"
+	ebpfBTFLoaderURL     = "http://unix/ebpf_btf_loader_info"
 	netType              = "unix"
 )
 
@@ -86,7 +86,7 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 	}
 }
 
-// GetBTFLoaderInfo queries btf_loader_info to get information about where btf files came from
+// GetBTFLoaderInfo queries ebpf_btf_loader_info to get information about where btf files came from
 func (r *RemoteSysProbeUtil) GetBTFLoaderInfo() ([]byte, error) {
 	req, err := http.NewRequest(http.MethodGet, ebpfBTFLoaderURL, nil)
 	if err != nil {
