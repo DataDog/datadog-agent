@@ -177,7 +177,7 @@ func GetWithProvider(ctx context.Context) (Data, error) {
 	return getHostname(ctx, "hostname", false)
 }
 
-// GetWithProviderWithoutIMDSV2 returns the hostname for the Agent and the provider that was use to retrieve it without using IMDSv2
+// GetWithProviderWithLegacyHostnameResolution returns the hostname for the Agent and the provider that was use to retrieve it without using IMDSv2 and MDI
 func GetWithProviderWithLegacyHostnameResolution(ctx context.Context) (Data, error) {
 	return getHostname(ctx, "legacy_resolution_hostname", true)
 }
