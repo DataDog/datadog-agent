@@ -180,6 +180,9 @@
 
 /.gitlab/functional_test/regression_detector.yml     @DataDog/single-machine-performance
 
+# Additional and explict ownership for the file which control list emits Agent Telemetry metrics
+# (until we have a better way to manage this by dedicated team or process)
+/comp/core/agenttelemetry/impl/config.go             @iglendd
 
 
 /chocolatey/                            @DataDog/windows-agent
