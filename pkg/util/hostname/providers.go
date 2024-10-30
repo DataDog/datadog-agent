@@ -157,8 +157,8 @@ func GetWithProvider(ctx context.Context) (Data, error) {
 // GetWithProviderWithoutIMDSV2 returns the hostname for the Agent and the provider that was use to retrieve it without using IMDSv2
 func GetWithProviderWithoutIMDSV2(ctx context.Context) (Data, error) {
 	// If the user has set the ec2_prefer_imdsv2 then IMDSv2 is used by default by the user, `legacy_resolution_hostname` is not needed for the transition
-	// If the user has set the smooth_imdsv2_transition then IMDSv2 is used by default by the agent, `legacy_resolution_hostname` is needed for the transition
-	if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || !pkgconfigsetup.Datadog().GetBool("smooth_imdsv2_transition") {
+	// If the user has set the ec2_imdsv2_transition then IMDSv2 is used by default by the agent, `legacy_resolution_hostname` is needed for the transition
+	if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || !pkgconfigsetup.Datadog().GetBool("ec2_imdsv2_transition") {
 		return Data{}, nil
 	}
 	data, err := getHostname(ctx, "legacy_resolution_hostname", true)

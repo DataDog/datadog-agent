@@ -96,7 +96,11 @@ func GetSourceName() string {
 var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "EC2 InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, UseIMDSv2(false, false))
+		hostname, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, UseIMDSv2(false, false))
+		if err == nil && hostname != "" {
+			return hostname, nil
+		}
+		return getInstanceIDFromDMI()
 	},
 }
 
@@ -110,10 +114,6 @@ var imdsv2InstanceIDFetcher = cachedfetch.Fetcher{
 var noIMDSv2InstanceIDFetcher = cachedfetch.Fetcher{
 	Name: "EC2 no IMDSv2 InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		hostname, err := getInstanceIDFromDMI()
-		if err == nil && hostname != "" {
-			return hostname, nil
-		}
 		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, UseIMDSv2(false, true))
 	},
 }
