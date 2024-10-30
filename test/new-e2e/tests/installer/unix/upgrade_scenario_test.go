@@ -734,23 +734,27 @@ func (s *upgradeScenarioSuite) assertSuccessfulConfigStopExperiment(timestamp ho
 
 func (s *upgradeScenarioSuite) getInstallerStatus() installerStatus {
 	socketPath := "/opt/datadog-packages/run/installer.sock"
-	s.host.WaitForFileExists(true, socketPath)
 
-	requestHeader := " -H 'Content-Type: application/json' -H 'Accept: application/json' "
-	response, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
-		"sudo curl -s --unix-socket %s %s http://daemon/status",
-		socketPath,
-		requestHeader,
-	))
-	require.NoError(s.T(), err, "Failed to get installer status: %s",
-		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer --no-pager"),
+	var response string
+	assert.Eventually(s.T(), func() bool {
+		var err error
+		requestHeader := " -H 'Content-Type: application/json' -H 'Accept: application/json' "
+		response, err = s.Env().RemoteHost.Execute(fmt.Sprintf(
+			"sudo curl -s --unix-socket %s %s http://daemon/status",
+			socketPath,
+			requestHeader,
+		))
+		return err == nil
+	}, time.Second*30, time.Second*1, "Failed to get installer status: %s\n\n%s",
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer-exp"),
 	)
 
 	// {"version":"7.56.0-devel+git.446.acf2836","packages":{
 	//     "datadog-agent":{"Stable":"7.56.0-devel.git.446.acf2836.pipeline.37567760-1","Experiment":"7.54.1-1"},
 	//     "datadog-installer":{"Stable":"7.56.0-devel.git.446.acf2836.pipeline.37567760-1","Experiment":""}}}
 	var status installerStatus
-	err = json.Unmarshal([]byte(response), &status)
+	err := json.Unmarshal([]byte(response), &status)
 	if err != nil {
 		s.T().Fatal(err)
 	}

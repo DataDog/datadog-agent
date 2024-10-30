@@ -30,6 +30,7 @@ type cdnDirect struct {
 	currentRootsVersion uint64
 	clientUUID          string
 	configDBPath        string
+	firstRequest        bool
 }
 
 // newDirect creates a new direct CDN: it fetches the configuration from the remote config service instead of cloudfront
@@ -82,6 +83,7 @@ func newDirect(env *env.Env, configDBPath string) (CDN, error) {
 		currentRootsVersion: 1,
 		clientUUID:          uuid.New().String(),
 		configDBPath:        configDBPathTemp,
+		firstRequest:        true,
 	}
 	service.Start()
 	return cdn, nil
@@ -111,6 +113,16 @@ func (c *cdnDirect) Get(ctx context.Context, pkg string) (cfg Config, err error)
 
 // get calls the Remote Config service to get the ordered layers.
 func (c *cdnDirect) get(ctx context.Context) (*orderConfig, [][]byte, error) {
+	if c.firstRequest {
+		// A first request is made to the remote config service at service startup,
+		// so if we do another request too close to the first one (in the same second)
+		// we'll get the same director version (== timestamp) with different contents,
+		// which will cause the response to be rejected silently and we won't get
+		// the configurations
+		time.Sleep(1 * time.Second)
+		c.firstRequest = false
+	}
+
 	agentConfigUpdate, err := c.rcService.ClientGetConfigs(ctx, &pbgo.ClientGetConfigsRequest{
 		Client: &pbgo.Client{
 			Id:        c.clientUUID,
@@ -180,9 +192,9 @@ func (c *cdnDirect) get(ctx context.Context) (*orderConfig, [][]byte, error) {
 }
 
 func (c *cdnDirect) Close() error {
-	err := os.RemoveAll(c.configDBPath)
+	err := c.rcService.Stop()
 	if err != nil {
 		return err
 	}
-	return c.rcService.Stop()
+	return os.RemoveAll(c.configDBPath)
 }
