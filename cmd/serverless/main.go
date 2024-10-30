@@ -338,7 +338,7 @@ func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAge
 func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon, tagger tagger.Component) {
 	defer wg.Done()
 	apmEnabled := configUtils.IsDefaultPayloadsEnabled(pkgconfigsetup.Datadog()) && pkgconfigsetup.Datadog().GetBool("apm_config.enabled")
-	log.Infof("Got apmEnabled: \"%b\", \"default_payloads.enabled\": %t, \"apm_config.enabled\": %t",
+	log.Infof("Got apmEnabled: \"%t\", \"default_payloads.enabled\": %t, \"apm_config.enabled\": %t",
 		apmEnabled,
 		configUtils.IsDefaultPayloadsEnabled(pkgconfigsetup.Datadog()),
 		pkgconfigsetup.Datadog().GetBool("apm_config.enabled"))

@@ -34,12 +34,19 @@ func SetLogLevel(level string, config pkgconfigmodel.Writer, source pkgconfigmod
 
 // IsDefaultPayloadsEnabled checks if the Agent is able to send the payloads it and other Agents need to function with
 func IsDefaultPayloadsEnabled(cfg pkgconfigmodel.Reader) bool {
+	log.Infof("default_payloads.enabled: %t", cfg.GetBool("default_payloads.enabled"))
 	if !cfg.GetBool("default_payloads.enabled") {
 		return false
 	}
 
 	// default_payloads.enabled can be true but the following payloads if set to false means
 	// default_payloads are disabled
+	log.Infof("enable_payloads.events: %t, enable_payloads.series: %t, enable_payloads.service_checks: %t, enable_payloads.sketches: %t",
+		cfg.GetBool("enable_payloads.events"),
+		cfg.GetBool("enable_payloads.series"),
+		cfg.GetBool("enable_payloads.service_checks"),
+		cfg.GetBool("enable_payloads.sketches"),
+	)
 	if !cfg.GetBool("enable_payloads.events") &&
 		!cfg.GetBool("enable_payloads.series") &&
 		!cfg.GetBool("enable_payloads.service_checks") &&
