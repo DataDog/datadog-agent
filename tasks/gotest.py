@@ -32,7 +32,12 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
-from tasks.libs.common.utils import clean_nested_paths, get_build_flags, gitlab_section, running_in_ci
+from tasks.libs.common.utils import (
+    clean_nested_paths,
+    get_build_flags,
+    gitlab_section,
+    running_in_ci,
+)
 from tasks.libs.releasing.json import _get_release_json_value
 from tasks.modules import DEFAULT_MODULES, GoModule, get_module_by_path
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
@@ -249,7 +254,6 @@ def test(
     python_home_3=None,
     cpus=None,
     major_version='7',
-    python_runtimes='3',
     timeout=180,
     cache=True,
     test_run_name="",
@@ -297,7 +301,6 @@ def test(
         python_home_2=python_home_2,
         python_home_3=python_home_3,
         major_version=major_version,
-        python_runtimes=python_runtimes,
     )
 
     # Use stdout if no profile is set

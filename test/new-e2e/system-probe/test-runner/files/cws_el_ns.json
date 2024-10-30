@@ -1,0 +1,11 @@
+{
+    "filters": {
+        "*": {
+            "exclude": false
+        }
+    },
+    "additional_test_args": [
+        "-trace",
+        "-disable-seccomp"
+    ]
+}

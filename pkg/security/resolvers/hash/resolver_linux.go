@@ -18,6 +18,7 @@ import (
 	"io/fs"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/glaslos/ssdeep"
@@ -384,23 +385,29 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	}
 
 	for i, algorithm := range resolver.opts.HashAlgorithms {
-		var hashStr string
-		if hashStr = algorithm.String(); len(hashStr) > 0 {
-			hashStr += ":"
+		var hashStr strings.Builder
+		hashStr.WriteString(algorithm.String())
+		if hashStr.Len() > 0 {
+			hashStr.WriteByte(':')
 		}
+		digest := hashers[i].(hash.Hash).Sum(nil)
 		if algorithm == model.SSDEEP {
-			digest := hashers[i].(hash.Hash).Sum(nil)
 			if len(digest) == 0 {
 				// we failed to compute the digest
 				resolver.hashMiss[eventType][model.HashFailed].Inc()
 				continue
 			}
-			hashStr += string(digest)
+			hashStr.Write(digest)
 		} else {
-			hashStr += hex.EncodeToString(hashers[i].(hash.Hash).Sum(nil))
+			hencoder := hex.NewEncoder(&hashStr)
+			if _, err := hencoder.Write(digest); err != nil {
+				// we failed to compute the digest
+				resolver.hashMiss[eventType][model.HashFailed].Inc()
+				continue
+			}
 		}
 
-		file.Hashes = append(file.Hashes, hashStr)
+		file.Hashes = append(file.Hashes, hashStr.String())
 		resolver.hashCount[eventType][algorithm].Inc()
 	}
 
