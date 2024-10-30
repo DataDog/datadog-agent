@@ -48,24 +48,29 @@ func (c *ContainerApp) GetTags() map[string]string {
 	replica := os.Getenv(ContainerAppReplicaName)
 
 	tags := map[string]string{
-		"app_name":     appName,
-		"region":       region,
-		"revision":     revision,
-		"replica_name": replica,
-		"origin":       c.GetOrigin(),
-		"_dd.origin":   c.GetOrigin(),
+		"app_name":         appName,
+		"region":           region,
+		"revision":         revision,
+		"replica_name":     replica,
+		"aca.replica.name": replica,
+		"origin":           c.GetOrigin(),
+		"_dd.origin":       c.GetOrigin(),
 	}
 
 	if c.SubscriptionId != "" {
 		tags["subscription_id"] = c.SubscriptionId
+		tags["aca.subscription.id"] = c.SubscriptionId
 	}
 
 	if c.ResourceGroup != "" {
 		tags["resource_group"] = c.ResourceGroup
+		tags["aca.resource.group"] = c.ResourceGroup
 	}
 
 	if c.SubscriptionId != "" && c.ResourceGroup != "" {
-		tags["resource_id"] = fmt.Sprintf("/subscriptions/%v/resourcegroups/%v/providers/microsoft.app/containerapps/%v", c.SubscriptionId, c.ResourceGroup, strings.ToLower(appName))
+		resourceID := fmt.Sprintf("/subscriptions/%v/resourcegroups/%v/providers/microsoft.app/containerapps/%v", c.SubscriptionId, c.ResourceGroup, strings.ToLower(appName))
+		tags["resource_id"] = resourceID
+		tags["aca.resource.id"] = resourceID
 	}
 
 	return tags

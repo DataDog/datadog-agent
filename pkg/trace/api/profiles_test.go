@@ -314,7 +314,7 @@ func TestProfileProxyHandler(t *testing.T) {
 				kv := strings.Split(tag, ":")
 				m[kv[0]] = kv[1]
 			}
-			for _, tag := range []string{"subscription_id", "resource_group", "resource_id"} {
+			for _, tag := range []string{"subscription_id", "resource_group", "resource_id", "aca.subscription.id", "aca.resource.group", "aca.resource.id", "aca.replica.name"} {
 				if _, ok := m[tag]; !ok {
 					t.Fatalf("invalid X-Datadog-Additional-Tags header, should contain '%s': %q", tag, v)
 				}
@@ -324,9 +324,13 @@ func TestProfileProxyHandler(t *testing.T) {
 		conf := newTestReceiverConfig()
 		conf.ProfilingProxy = config.ProfilingProxyConfig{DDURL: srv.URL}
 		conf.GlobalTags = map[string]string{
-			"subscription_id": "123",
-			"resource_group":  "test-rg",
-			"resource_id":     "456",
+			"subscription_id":     "123",
+			"resource_group":      "test-rg",
+			"resource_id":         "456",
+			"aca.subscription.id": "123",
+			"aca.resource.group":  "test-rg",
+			"aca.resource.id":     "456",
+			"aca.replica.name":    "test-replica",
 		}
 		req, err := http.NewRequest("POST", "/some/path", nil)
 		if err != nil {

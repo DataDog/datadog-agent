@@ -87,15 +87,21 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 		tags.WriteString("_dd.origin:lambda")
 	}
 
-	// Azure Container App metadata
-	if subscriptionID, ok := r.conf.GlobalTags["subscription_id"]; ok {
-		tags.WriteString(fmt.Sprintf(",subscription_id:%s", subscriptionID))
+	azureContainerAppTags := []string{
+		"subscription_id",
+		"resource_group",
+		"resource_id",
+		"replicate_name",
+		"aca.subscription.id",
+		"aca.resource.group",
+		"aca.resource.id",
+		"aca.replica.name",
 	}
-	if resourceGroup, ok := r.conf.GlobalTags["resource_group"]; ok {
-		tags.WriteString(fmt.Sprintf(",resource_group:%s", resourceGroup))
-	}
-	if resourceID, ok := r.conf.GlobalTags["resource_id"]; ok {
-		tags.WriteString(fmt.Sprintf(",resource_id:%s", resourceID))
+
+	for _, azureContainerAppTag := range azureContainerAppTags {
+		if value, ok := r.conf.GlobalTags[azureContainerAppTag]; ok {
+			tags.WriteString(fmt.Sprintf(",%s:%s", azureContainerAppTag, value))
+		}
 	}
 
 	return newProfileProxy(r.conf, targets, keys, tags.String(), r.statsd)
