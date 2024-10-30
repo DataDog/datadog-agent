@@ -31,4 +31,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt -r tasks/requirements.txt
       - name: Check code review complexity
-        run: inv -e github.assign-codereview-label --pr-id='${{ github.event.pull_request.number }}'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: inv -e github.assign-codereview-label --pr-id="$PR_NUMBER"

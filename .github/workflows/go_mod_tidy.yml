@@ -22,9 +22,10 @@ jobs:
       - name: Checkout PR
         # run only if triggered manually, otherwise we are already on the right branch and we won't have `pr_number`
         if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: gh pr checkout ${{ github.event.inputs.pr_number }}
+        run: gh pr checkout "$PR_NUMBER"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.inputs.pr_number }}
       - name: Install go
         uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
@@ -51,5 +52,7 @@ jobs:
         with:
           commit_message: Auto-generate go.sum and LICENSE-3rdparty.csv changes
       - name: changes
+        env:
+          CHANGES: ${{ steps.autocommit.outputs.changes_detected }}
         run: |
-          echo "Changes detected: ${{ steps.autocommit.outputs.changes_detected }}"
+          echo "Changes detected: $CHANGES"
