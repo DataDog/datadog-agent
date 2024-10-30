@@ -72,7 +72,14 @@ func getMeta(ctx context.Context, conf model.Reader) *Meta {
 		HostAliases:    cloudproviders.GetHostAliases(ctx),
 		InstanceID:     instanceID,
 		AgentHostname:  agentHostname,
+		HostMetaVersion: "1.0",
 	}
+
+	legacyResolutionHostnameData, _ := hostname.GetWithProviderWithoutIMDSV2(ctx)
+	if legacyResolutionHostnameData.Hostname != hostnameData.Hostname {
+		m.LegacyResolutionHostname = legacyResolutionHostnameData.Hostname
+	}
+
 
 	if finalClusterName := kubelet.GetMetaClusterNameText(ctx, osHostname); finalClusterName != "" {
 		m.ClusterName = finalClusterName

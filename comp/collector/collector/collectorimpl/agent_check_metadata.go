@@ -60,12 +60,6 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 	meta := hostMetadataUtils.GetMetaFromCache(ctx, c.config)
 	meta.Hostname = hostnameData
 
-	legacyResolutionHostnameData, _ := hostname.GetWithProviderWithoutIMDSV2(ctx)
-	if legacyResolutionHostnameData.Hostname != meta.Hostname {
-		meta.LegacyResolutionHostname = legacyResolutionHostnameData.Hostname
-		meta.HostMetaVersion = "1.0"
-	}
-
 	cp := hostMetadataUtils.GetCommonPayload(hostnameData, c.config)
 	payload := &Payload{
 		CommonPayload:    *cp,

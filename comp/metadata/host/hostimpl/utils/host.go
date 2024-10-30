@@ -178,12 +178,6 @@ func GetPayload(ctx context.Context, conf model.Reader) *Payload {
 	meta := getMeta(ctx, conf)
 	meta.Hostname = hostnameData.Hostname
 
-	legacyResolutionHostnameData, _ := hostname.GetWithProviderWithoutIMDSV2(ctx)
-	if legacyResolutionHostnameData.Hostname != meta.Hostname {
-		meta.LegacyResolutionHostname = legacyResolutionHostnameData.Hostname
-		meta.HostMetaVersion = "1.0"
-	}
-
 	p := &Payload{
 		Os:            osName,
 		AgentFlavor:   flavor.GetFlavor(),
