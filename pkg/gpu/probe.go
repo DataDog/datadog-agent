@@ -44,7 +44,7 @@ var (
 	defaultRingBufferSize = os.Getpagesize()
 
 	// using a global var to avoid propagation between Probe ctor and event consumer startup
-	eventHandler = ddebpf.NewRingBufferHandler(consumerChannelSize)
+	eventHandler ddebpf.EventHandler
 )
 
 // bpfMapName stores the name of the BPF maps storing statistics and other info
@@ -205,11 +205,12 @@ func toPowerOf2(x int) int {
 // setupSharedBuffer sets up the ringbuffer to handle CUDA events produces by ebpf uprobes
 // it must be called BEFORE the InitWithOptions method of the manager is called
 func setupSharedBuffer(m *manager.Manager, o *manager.Options) {
+	rbHandler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	rb := &manager.RingBuffer{
 		Map: manager.Map{Name: cudaEventsMap},
 		RingBufferOptions: manager.RingBufferOptions{
-			RecordHandler: eventHandler.RecordHandler,
-			RecordGetter:  eventHandler.RecordGetter,
+			RecordHandler: rbHandler.RecordHandler,
+			RecordGetter:  rbHandler.RecordGetter,
 		},
 	}
 
@@ -224,6 +225,7 @@ func setupSharedBuffer(m *manager.Manager, o *manager.Options) {
 	}
 
 	m.RingBuffers = append(m.RingBuffers, rb)
+	eventHandler = rbHandler
 }
 
 func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
