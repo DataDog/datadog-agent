@@ -560,7 +560,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 	config.BindEnvAndSetDefault("collect_ec2_tags_use_imds", false)
 	config.BindEnvAndSetDefault("exclude_ec2_tags", []string{})
-	config.BindEnvAndSetDefault("legacy_hostname_imdsv2_support", true)
+	config.BindEnvAndSetDefault("legacy_hostname_imdsv2_support", false)
 
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
