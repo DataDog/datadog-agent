@@ -9,20 +9,20 @@ package gpu
 
 import (
 	"fmt"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/gpu/probe"
-	"regexp"
 
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	"github.com/DataDog/datadog-agent/pkg/gpu/probe"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
 const (
@@ -48,11 +48,10 @@ type Probe struct {
 	attacher       *uprobes.UprobeAttacher
 	statsGenerator *statsGenerator
 	deps           ProbeDependencies
-	sysCtx         *systemContext
 	procMon        *monitor.ProcessMonitor
 }
 
-// NewProbe starts the GPU monitoring probe, setting up the eBPF program and the uprobes, the
+// NewProbe creates a GPU monitoring probe, containing relevant eBPF programs (uprobes), the
 // consumers for the events generated from the uprobes, and the stats generator to aggregate the data from
 // streams into per-process GPU stats.
 func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
@@ -76,36 +75,8 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		return nil, fmt.Errorf("error loading CO-RE %s: %w", sysconfig.GPUMonitoringModule, err)
 	}
 
-	attachCfg := uprobes.AttacherConfig{
-		Rules: []*uprobes.AttachRule{
-			{
-				LibraryNameRegex: regexp.MustCompile(`libcudart\.so`),
-				Targets:          uprobes.AttachToExecutable | uprobes.AttachToSharedLibraries,
-				ProbesSelector: []manager.ProbesSelector{
-					&manager.AllOf{
-						Selectors: []manager.ProbesSelector{
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__cudaLaunchKernel"}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__cudaMalloc"}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uretprobe__cudaMalloc"}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__cudaStreamSynchronize"}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uretprobe__cudaStreamSynchronize"}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__cudaFree"}},
-						},
-					},
-				},
-			},
-		},
-		EbpfConfig:         &cfg.Config,
-		PerformInitialScan: cfg.InitialProcessSync,
-	}
-
-	// Note: this will later be replaced by a common way to enable the process monitor across system-probe
-	procMon := monitor.GetProcessMonitor()
-	if err := procMon.Initialize(false); err != nil {
-		return nil, fmt.Errorf("error initializing process monitor: %w", err)
-	}
-
-	attacher, err := uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, m, nil, &uprobes.NativeBinaryInspector{}, procMon)
+	attachCfg := probe.GetAttacherConfig(cfg)
+	attacher, err := uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, m, nil, &uprobes.NativeBinaryInspector{})
 	if err != nil {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
@@ -121,11 +92,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		attacher: attacher,
 		deps:     deps,
 		procMon:  procMon,
-	}
-
-	p.sysCtx, err = getSystemContext(deps.NvmlLib, cfg.Config.ProcRoot)
-	if err != nil {
-		return nil, fmt.Errorf("error getting system context: %w", err)
+		sysCtx:	  sysCtx,
 	}
 
 
@@ -136,7 +103,8 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	return p, nil
 }
 
-func (p *Probe) Start(deps ProbeDependencies) error {
+// Start loads the ebpf programs using the ebpf manager and starts the process monitor and event consumer
+func (p *Probe) Start() error {
 	log.Tracef("starting GPU monitoring probe...")
 	// Note: this will later be replaced by a common way to enable the process monitor across system-probe
 	procMon := monitor.GetProcessMonitor()
@@ -181,9 +149,7 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error getting current time: %w", err)
 	}
-
 	stats := p.statsGenerator.getStats(now)
-
 	p.cleanupFinished()
 
 	return stats, nil
@@ -192,18 +158,4 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 func (p *Probe) cleanupFinished() {
 	p.statsGenerator.cleanupFinishedAggregators()
 	p.consumer.cleanFinishedHandlers()
-}
-
-func (p *Probe) startEventConsumer() {
-	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
-	rb := &manager.RingBuffer{
-		Map: manager.Map{Name: cudaEventMap},
-		RingBufferOptions: manager.RingBufferOptions{
-			RecordHandler: handler.RecordHandler,
-			RecordGetter:  handler.RecordGetter,
-		},
-	}
-	p.m.RingBuffers = append(p.m.RingBuffers, rb)
-	p.consumer = newCudaEventConsumer(p.sysCtx, handler, p.cfg)
-	p.consumer.Start()
 }

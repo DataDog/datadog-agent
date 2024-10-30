@@ -12,11 +12,14 @@ import (
 	"io"
 	"math"
 	"os"
+	"regexp"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 )
 
 // defaultRingBufferSize controls the amount of memory in bytes used for buffering perf event data
@@ -50,6 +53,32 @@ const (
 	cudaStreamSyncRetProbe probeFuncName = "uretprobe__cudaStreamSynchronize"
 	cudaFreeProbe          probeFuncName = "uprobe__cudaFree"
 )
+
+// GetAttacherConfig returns the configuration for the uprobeAttacher
+func GetAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
+	return uprobes.AttacherConfig{
+		Rules: []*uprobes.AttachRule{
+			{
+				LibraryNameRegex: regexp.MustCompile(`libcudart\.so`),
+				Targets:          uprobes.AttachToExecutable | uprobes.AttachToSharedLibraries,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.AllOf{
+						Selectors: []manager.ProbesSelector{
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaLaunchKernelProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaMallocProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaMallocRetProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaStreamSyncProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaStreamSyncRetProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaFreeProbe}},
+						},
+					},
+				},
+			},
+		},
+		EbpfConfig:         &cfg.Config,
+		PerformInitialScan: cfg.InitialProcessSync,
+	}
+}
 
 func GetManager(buf io.ReaderAt, opts manager.Options) (*ddebpf.Manager, error) {
 	m := ddebpf.NewManagerWithDefault(&manager.Manager{
@@ -108,6 +137,7 @@ func GetManager(buf io.ReaderAt, opts manager.Options) (*ddebpf.Manager, error) 
 }
 
 // setupSharedBuffer sets up the ringbuffer to handle CUDA events produces by ebpf uprobes
+// it must be called BEFORE the InitWithOptions method of the manager is called
 func setupSharedBuffer(m *manager.Manager, o *manager.Options) {
 	rb := &manager.RingBuffer{
 		Map: manager.Map{Name: cudaEventsMap},
@@ -124,7 +154,7 @@ func setupSharedBuffer(m *manager.Manager, o *manager.Options) {
 		MaxEntries: uint32(ringBufferSize),
 		KeySize:    0,
 		ValueSize:  0,
-		EditorFlag: manager.EditMaxEntries | manager.EditKeyValue,
+		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
 	}
 
 	m.RingBuffers = append(m.RingBuffers, rb)
