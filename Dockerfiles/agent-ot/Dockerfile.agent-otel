@@ -1,5 +1,7 @@
 ARG AGENT_VERSION=7.57.0-v1.0-ot-beta-jmx
 ARG AGENT_BRANCH=7.57.x-otel-beta-v1
+# Default to pulling from github agent-ot branch
+ARG SOURCE=github 
 # Use the Ubuntu Slim AMD64 base image
 FROM ubuntu:24.04 AS builder
 
@@ -25,8 +27,14 @@ RUN apt-get update && \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+COPY . /tmp/local-datadog-agent
 # TEMP: Use github source code
-RUN git clone --depth 1 -b "${AGENT_BRANCH}" --single-branch https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_VERSION}
+# allow for copying local branch for integration testing if SOURCE passed in
+RUN if [ "$SOURCE" = "github" ]; then \
+    git clone --depth 1 -b "${AGENT_BRANCH}" --single-branch https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_VERSION}; \
+    else \
+    cp -r /tmp/local-datadog-agent /workspace/datadog-agent-${AGENT_VERSION}; \
+    fi
 
 # Once we have stable releases, we can use the following code to download the source code
 # TODO: use released agent version once we have an agent release with the otel binary
