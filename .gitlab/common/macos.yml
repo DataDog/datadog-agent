@@ -1,7 +1,7 @@
 ---
 # This is the scripts to be executed on the Gitlab macOS runners before every job.
 # We don't have virtualization now so we need to clean the environment and install the proper dependencies before every job.
-.list_go_versions_commands: &list_go_versions_commands
+.list_go_versions_commands:
   - |
     echo "Don't forget to regularly delete Go unused versions. Here are the installed Go versions and their disk space on the runner:"
     echo "Go:"
@@ -9,7 +9,7 @@
     echo "To remove a Go version please run:"
     echo "gimme uninstall <version>"
 
-.list_python_versions_commands: &list_python_versions_commands
+.list_python_versions_commands:
   - |
     echo "Don't forget to regularly delete Python unused versions. Here are the installed Python versions and their disk space on the runner:"
     echo "Python:"
@@ -17,7 +17,7 @@
     echo "To remove a Python version please run:"
     echo "pyenv uninstall -f <version>"
 
-.select_python_env_commands: &select_python_env_commands
+.select_python_env_commands:
   # Print a warning if the current Python version is different from the one in .python-version
   # Select the virtualenv using the current Python version. Create it if it doesn't exist.
   - |
@@ -40,10 +40,10 @@
       eval $(gimme $(cat .go-version))
       export GOPATH=$GOROOT
     # Selecting the current Python version
-    - *select_python_env_commands
+    - !reference [.select_python_env_commands]
     # List Python and Go existing environments and their disk space
-    - *list_go_versions_commands
-    - *list_python_versions_commands
+    - !reference [.list_go_versions_commands]
+    - !reference [.list_python_versions_commands]
     # Installing the job dependencies
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt
     - pyenv rehash
