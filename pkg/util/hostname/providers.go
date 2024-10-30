@@ -161,8 +161,7 @@ func GetWithProviderWithoutIMDSV2(ctx context.Context) (Data, error) {
 	if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || !pkgconfigsetup.Datadog().GetBool("ec2_imdsv2_transition") {
 		return Data{}, nil
 	}
-	data, err := getHostname(ctx, "legacy_resolution_hostname", true)
-	return data, err
+	return getHostname(ctx, "legacy_resolution_hostname", true)
 }
 
 func getHostname(ctx context.Context, keyCache string, notUseIMDSv2 bool) (Data, error) {
