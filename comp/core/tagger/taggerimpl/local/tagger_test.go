@@ -27,8 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestTagBuilder(t *testing.T) {
-
+func TestAccumulateTagsFor(t *testing.T) {
 	entityID := types.NewEntityID("", "entity_name")
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -61,7 +60,53 @@ func TestTagBuilder(t *testing.T) {
 	})
 
 	tb := tagset.NewHashlessTagsAccumulator()
-	err := tagger.AccumulateTagsFor(entityID.String(), types.HighCardinality, tb)
+	err := tagger.AccumulateTagsFor(entityID, types.HighCardinality, tb)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []string{"high", "low1", "low2"}, tb.Get())
+}
+
+func TestTag(t *testing.T) {
+	entityID := types.NewEntityID(types.ContainerID, "123")
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Supply(config.Params{}),
+		fx.Supply(log.Params{}),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		config.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+	cfg := configmock.New(t)
+	tagger := NewTagger(cfg, store, telemetryStore)
+
+	tagger.tagStore.ProcessTagInfo([]*types.TagInfo{
+		{
+			EntityID:             entityID,
+			Source:               "stream",
+			LowCardTags:          []string{"low1"},
+			OrchestratorCardTags: []string{"orchestrator1"},
+			HighCardTags:         []string{"high1"},
+		},
+		{
+			EntityID:             entityID,
+			Source:               "pull",
+			LowCardTags:          []string{"low2"},
+			OrchestratorCardTags: []string{"orchestrator2"},
+			HighCardTags:         []string{"high2"},
+		},
+	})
+
+	lowCardTags, err := tagger.Tag(entityID, types.LowCardinality)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{"low1", "low2"}, lowCardTags)
+
+	orchestratorCardTags, err := tagger.Tag(entityID, types.OrchestratorCardinality)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{"low1", "low2", "orchestrator1", "orchestrator2"}, orchestratorCardTags)
+
+	highCardTags, err := tagger.Tag(entityID, types.HighCardinality)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{"low1", "low2", "orchestrator1", "orchestrator2", "high1", "high2"}, highCardTags)
 }

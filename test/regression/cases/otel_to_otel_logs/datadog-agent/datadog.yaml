@@ -9,6 +9,7 @@ dd_url: http://127.0.0.1:9092
 process_config.process_dd_url: http://localhost:9093
 
 telemetry.enabled: true
+telemetry.checks: '*'
 
 apm_config:
   enabled: true
@@ -35,4 +36,4 @@ otlp_config:
   traces:
     enabled: true
   debug:
-    loglevel: info
+    verbosity: normal

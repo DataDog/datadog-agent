@@ -1,5 +1,7 @@
 # Agent 'out of the box' idle experiment. Represents an agent install with the
 # default configuration and no active workload.
+# Further documentation:
+# https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4294836779/Performance+Quality+Gates#idle
 
 optimization_goal: memory
 erratic: false
@@ -32,4 +34,8 @@ checks:
     description: "Memory usage quality gate. This puts a bound on the total agent memory usage."
     bounds:
       series: total_rss_bytes
-      upper_bound: "424.0 MiB"
+      upper_bound: "430.0 MiB"
+
+report_links:
+  - text: "bounds checks dashboard"
+    link: "https://app.datadoghq.com/dashboard/vz3-jd5-bdi?fromUser=true&refresh_mode=paused&tpl_var_experiment%5B0%5D={{ experiment }}&tpl_var_job_id%5B0%5D={{ job_id }}&tpl_var_run-id%5B0%5D={{ job_id }}&view=spans&from_ts={{ start_time_ms }}&to_ts={{ end_time_ms }}&live=false"

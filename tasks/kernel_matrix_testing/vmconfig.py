@@ -13,7 +13,7 @@ from invoke.context import Context
 
 from tasks.kernel_matrix_testing.kmt_os import Linux, get_kmt_os
 from tasks.kernel_matrix_testing.platforms import filter_by_ci_component, get_platforms
-from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, stack_exists
+from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, destroy_stack, stack_exists
 from tasks.kernel_matrix_testing.tool import Exit, ask, convert_kmt_arch_or_local, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, VMCONFIG
 from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
@@ -658,9 +658,9 @@ def gen_config_for_stack(
 
     ## get all possible (recipe, version, arch) combinations we can support.
     vmconfig_file = f"{get_kmt_os().stacks_dir}/{stack}/{VMCONFIG}"
-    if os.path.exists(vmconfig_file):
+    if os.path.exists(vmconfig_file) and not new:
         raise Exit(
-            "Editing configuration is current not supported. Destroy the stack first to change the configuration."
+            "Editing configuration is currently not supported. Destroy the stack first to change the configuration."
         )
 
     if new or not os.path.exists(vmconfig_file):
@@ -677,14 +677,26 @@ def gen_config_for_stack(
     with open(tmpfile, "w") as f:
         f.write(vm_config_str)
 
-    if new:
-        empty_config("/tmp/empty.json")
-        ctx.run(f"git diff /tmp/empty.json {tmpfile}", warn=True)
-    else:
-        ctx.run(f"git diff {vmconfig_file} {tmpfile}", warn=True)
+    info(f"[+] We will apply the following configuration to {stack} (file: {vmconfig_file}): ")
+    for vmset in vm_config["vmsets"]:
+        if "arch" not in vmset:
+            continue
+
+        arch = vmset["arch"]
+        if arch == local_arch:
+            print(f"Local {Arch.local().name} VMs")
+        else:
+            print(f"Remote {arch} VMs (running in EC2 instance)")
+
+        for cpu, mem in itertools.product(vmset.get("vcpu", []), vmset.get("memory", [])):
+            for kernel in vmset.get("kernels", []):
+                print(f"  - {kernel['tag']} ({cpu} vCPUs, {mem} MB memory)")
+
+        print()
 
     if not yes and ask("are you sure you want to apply the diff? (y/n)") != "y":
         warn("[-] diff not applied")
+        destroy_stack(ctx, stack, False, None)
         return
 
     with open(vmconfig_file, "w") as f:

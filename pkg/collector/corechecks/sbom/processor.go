@@ -10,9 +10,6 @@ package sbom
 import (
 	"context"
 	"errors"
-	"io/fs"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -21,9 +18,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 
-	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
@@ -38,13 +34,14 @@ import (
 )
 
 var /* const */ (
-	envVarEnv   = ddConfig.Datadog().GetString("env")
+	envVarEnv   = pkgconfigsetup.Datadog().GetString("env")
 	sourceAgent = "agent"
 )
 
 type processor struct {
 	queue                 chan *model.SBOMEntity
 	workloadmetaStore     workloadmeta.Component
+	tagger                tagger.Component
 	imageRepoDigests      map[string]string              // Map where keys are image repo digest and values are image ID
 	imageUsers            map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
 	sbomScanner           *sbomscanner.Scanner
@@ -55,7 +52,7 @@ type processor struct {
 	hostHeartbeatValidity time.Duration
 }
 
-func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool, hostHeartbeatValidity time.Duration) (*processor, error) {
+func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender, tagger tagger.Component, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool, hostHeartbeatValidity time.Duration) (*processor, error) {
 	sbomScanner := sbomscanner.GetGlobalScanner()
 	if sbomScanner == nil {
 		return nil, errors.New("failed to get global SBOM scanner")
@@ -82,6 +79,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender
 			sender.EventPlatformEvent(encoded, eventplatform.EventTypeContainerSBOM)
 		}),
 		workloadmetaStore:     workloadmetaStore,
+		tagger:                tagger,
 		imageRepoDigests:      make(map[string]string),
 		imageUsers:            make(map[string]map[string]struct{}),
 		sbomScanner:           sbomScanner,
@@ -222,39 +220,13 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	p.queue <- sbom
 }
 
-type relFS struct {
-	root string
-	fs   fs.FS
-}
-
-func newFS(root string) fs.FS {
-	fs := os.DirFS(root)
-	return &relFS{root: "/", fs: fs}
-}
-
-func (f *relFS) Open(name string) (fs.File, error) {
-	if filepath.IsAbs(name) {
-		var err error
-		name, err = filepath.Rel(f.root, name)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return f.fs.Open(name)
-}
-
 func (p *processor) triggerHostScan() {
 	if !p.hostSBOM {
 		return
 	}
 	log.Debugf("Triggering host SBOM refresh")
 
-	scanPath := "/"
-	if hostRoot := os.Getenv("HOST_ROOT"); env.IsContainerized() && hostRoot != "" {
-		scanPath = hostRoot
-	}
-	scanRequest := host.NewScanRequest(scanPath, newFS("/"))
+	scanRequest := host.NewHostScanRequest()
 
 	if err := p.sbomScanner.Scan(scanRequest); err != nil {
 		log.Errorf("Failed to trigger SBOM generation for host: %s", err)
@@ -272,8 +244,8 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 		return
 	}
 
-	entityID := types.NewEntityID(types.ContainerImageMetadata, img.ID).String()
-	ddTags, err := tagger.Tag(entityID, types.HighCardinality)
+	entityID := types.NewEntityID(types.ContainerImageMetadata, img.ID)
+	ddTags, err := p.tagger.Tag(entityID, types.HighCardinality)
 	if err != nil {
 		log.Errorf("Could not retrieve tags for container image %s: %v", img.ID, err)
 	}

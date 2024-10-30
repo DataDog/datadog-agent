@@ -136,6 +136,16 @@ func NewTraceWriter(
 	return tw
 }
 
+// UpdateAPIKey updates the API Key, if needed, on Trace Writer senders.
+func (w *TraceWriter) UpdateAPIKey(oldKey, newKey string) {
+	for _, s := range w.senders {
+		if oldKey == s.cfg.apiKey {
+			log.Debugf("API Key updated for traces endpoint=%s", s.cfg.url)
+			s.cfg.apiKey = newKey
+		}
+	}
+}
+
 func (w *TraceWriter) reporter() {
 	tck := time.NewTicker(w.tick)
 	defer tck.Stop()
@@ -294,14 +304,14 @@ func (w *TraceWriter) serialize(pl *pb.AgentPayload) {
 	if err != nil {
 		// it will never happen, unless an invalid compression is chosen;
 		// we know gzip.BestSpeed is valid.
-		log.Errorf("Failed to initialize gzip writer. No traces can be sent: %v", err)
+		log.Errorf("Failed to initialize %s writer. No traces can be sent: %v", w.compressor.Encoding(), err)
 		return
 	}
 	if _, err := writer.Write(b); err != nil {
-		log.Errorf("Error gzipping trace payload: %v", err)
+		log.Errorf("Error %s trace payload: %v", w.compressor.Encoding(), err)
 	}
 	if err := writer.Close(); err != nil {
-		log.Errorf("Error closing gzip stream when writing trace payload: %v", err)
+		log.Errorf("Error closing %s stream when writing trace payload: %v", w.compressor.Encoding(), err)
 	}
 	sendPayloads(w.senders, p, w.syncMode)
 

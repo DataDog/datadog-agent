@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -144,6 +145,8 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			&podID,
 		)
 
+		GPUVendors := getGPUVendorsFromContainers(initContainerEvents, containerEvents)
+
 		podOwners := pod.Owners()
 		owners := make([]workloadmeta.KubernetesPodOwner, 0, len(podOwners))
 		for _, o := range podOwners {
@@ -174,6 +177,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			IP:                         pod.Status.PodIP,
 			PriorityClass:              pod.Spec.PriorityClassName,
 			QOSClass:                   pod.Status.QOSClass,
+			GPUVendorList:              GPUVendors,
 			RuntimeClass:               RuntimeClassName,
 			SecurityContext:            PodSecurityContext,
 		}
@@ -219,7 +223,7 @@ func (c *collector) parsePodContainers(
 
 		image, err := workloadmeta.NewContainerImage(imageID, container.Image)
 		if err != nil {
-			if stdErrors.Is(err, containers.ErrImageIsSha256) {
+			if stdErrors.Is(err, pkgcontainersimage.ErrImageIsSha256) {
 				// try the resolved image ID if the image name in the container
 				// status is a SHA256. this seems to happen sometimes when
 				// pinning the image to a SHA256
@@ -312,6 +316,23 @@ func (c *collector) parsePodContainers(
 	return podContainers, events
 }
 
+func getGPUVendorsFromContainers(initContainerEvents, containerEvents []workloadmeta.CollectorEvent) []string {
+	gpuUniqueTypes := make(map[string]bool)
+	for _, event := range append(initContainerEvents, containerEvents...) {
+		container := event.Entity.(*workloadmeta.Container)
+		for _, GPUVendor := range container.Resources.GPUVendorList {
+			gpuUniqueTypes[GPUVendor] = true
+		}
+	}
+
+	GPUVendors := make([]string, 0, len(gpuUniqueTypes))
+	for GPUVendor := range gpuUniqueTypes {
+		GPUVendors = append(GPUVendors, GPUVendor)
+	}
+
+	return GPUVendors
+}
+
 func extractPodRuntimeClassName(spec *kubelet.Spec) string {
 	if spec.RuntimeClassName == nil {
 		return ""
@@ -397,6 +418,21 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 	return env
 }
 
+func extractGPUVendor(gpuNamePrefix kubelet.ResourceName) string {
+	gpuVendor := ""
+	switch gpuNamePrefix {
+	case kubelet.ResourcePrefixNvidiaMIG, kubelet.ResourceGenericNvidiaGPU:
+		gpuVendor = "nvidia"
+	case kubelet.ResourcePrefixAMDGPU:
+		gpuVendor = "amd"
+	case kubelet.ResourcePrefixIntelGPU:
+		gpuVendor = "intel"
+	default:
+		gpuVendor = string(gpuNamePrefix)
+	}
+	return gpuVendor
+}
+
 func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {
 	resources := workloadmeta.ContainerResources{}
 	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
@@ -406,6 +442,31 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 	if memoryReq, found := spec.Resources.Requests[kubelet.ResourceMemory]; found {
 		resources.MemoryRequest = pointer.Ptr(uint64(memoryReq.Value()))
 	}
+
+	// extract GPU resource info from the possible GPU sources
+	uniqueGPUVendor := make(map[string]bool)
+
+	resourceKeys := make([]kubelet.ResourceName, 0, len(spec.Resources.Requests))
+	for resourceName := range spec.Resources.Requests {
+		resourceKeys = append(resourceKeys, resourceName)
+	}
+
+	for _, gpuResourceName := range kubelet.GetGPUResourceNames() {
+		for _, resourceKey := range resourceKeys {
+			if strings.HasPrefix(string(resourceKey), string(gpuResourceName)) {
+				if gpuReq, found := spec.Resources.Requests[resourceKey]; found {
+					resources.GPURequest = pointer.Ptr(uint64(gpuReq.Value()))
+					uniqueGPUVendor[extractGPUVendor(gpuResourceName)] = true
+					break
+				}
+			}
+		}
+	}
+	gpuVendorList := make([]string, 0, len(uniqueGPUVendor))
+	for GPUVendor := range uniqueGPUVendor {
+		gpuVendorList = append(gpuVendorList, GPUVendor)
+	}
+	resources.GPUVendorList = gpuVendorList
 
 	return resources
 }

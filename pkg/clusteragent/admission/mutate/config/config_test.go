@@ -10,9 +10,11 @@ package config
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	admiv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -76,7 +78,8 @@ func TestInjectHostIP(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
+	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
+	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter(), datadogConfig)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
 	assert.True(t, injected)
@@ -87,7 +90,8 @@ func TestInjectService(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "service"})
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
+	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
+	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter(), datadogConfig)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
 	assert.True(t, injected)
@@ -116,7 +120,8 @@ func TestInjectEntityID(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				fx.Replace(config.MockParams{Overrides: tt.configOverrides}),
 			)
-			webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
+			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
+			webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter(), datadogConfig)
 			injected, err := webhook.inject(pod, "", nil)
 			assert.Nil(t, err)
 			assert.True(t, injected)
@@ -303,10 +308,12 @@ func TestInjectSocket(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "socket"})
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
+	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
+	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter(), datadogConfig)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
 	assert.True(t, injected)
+
 	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm.socket"))
 	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd.socket"))
 	assert.Equal(t, pod.Spec.Containers[0].VolumeMounts[0].MountPath, "/var/run/datadog")
@@ -315,6 +322,69 @@ func TestInjectSocket(t *testing.T) {
 	assert.Equal(t, pod.Spec.Volumes[0].Name, "datadog")
 	assert.Equal(t, pod.Spec.Volumes[0].VolumeSource.HostPath.Path, "/var/run/datadog")
 	assert.Equal(t, *pod.Spec.Volumes[0].VolumeSource.HostPath.Type, corev1.HostPathDirectoryOrCreate)
+	assert.Equal(t, "datadog", pod.Annotations[mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation])
+}
+
+func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
+	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
+	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "socket"})
+	wmeta := fxutil.Test[workloadmeta.Component](
+		t,
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		fx.Replace(config.MockParams{
+			Overrides: map[string]interface{}{"admission_controller.inject_config.type_socket_volumes": true},
+		}),
+	)
+	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
+	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter(), datadogConfig)
+	injected, err := webhook.inject(pod, "", nil)
+	assert.Nil(t, err)
+	assert.True(t, injected)
+
+	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm.socket"))
+	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd.socket"))
+
+	expectedVolumeMounts := []corev1.VolumeMount{
+		{
+			Name:      "datadog-dogstatsd",
+			MountPath: "/var/run/datadog/dsd.socket",
+			ReadOnly:  true,
+		},
+		{
+			Name:      "datadog-trace-agent",
+			MountPath: "/var/run/datadog/apm.socket",
+			ReadOnly:  true,
+		},
+	}
+	assert.ElementsMatch(t, pod.Spec.Containers[0].VolumeMounts, expectedVolumeMounts)
+
+	expectedVolumes := []corev1.Volume{
+		{
+			Name: "datadog-dogstatsd",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/var/run/datadog/dsd.socket",
+					Type: pointer.Ptr(corev1.HostPathSocket),
+				},
+			},
+		},
+		{
+			Name: "datadog-trace-agent",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/var/run/datadog/apm.socket",
+					Type: pointer.Ptr(corev1.HostPathSocket),
+				},
+			},
+		},
+	}
+	assert.ElementsMatch(t, pod.Spec.Volumes, expectedVolumes)
+
+	safeToEvictVolumes := strings.Split(pod.Annotations[mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation], ",")
+	assert.Len(t, safeToEvictVolumes, 2)
+	assert.Contains(t, safeToEvictVolumes, "datadog-dogstatsd")
+	assert.Contains(t, safeToEvictVolumes, "datadog-trace-agent")
 }
 
 func TestInjectSocketWithConflictingVolumeAndInitContainer(t *testing.T) {
@@ -338,7 +408,11 @@ func TestInjectSocketWithConflictingVolumeAndInitContainer(t *testing.T) {
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      "foo",
-							MountPath: "/var/run/datadog",
+							MountPath: "/var/run/datadog/dsd.socket",
+						},
+						{
+							Name:      "bar",
+							MountPath: "/var/run/datadog/apm.socket",
 						},
 					},
 				},
@@ -358,7 +432,8 @@ func TestInjectSocketWithConflictingVolumeAndInitContainer(t *testing.T) {
 	}
 
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
+	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
+	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter(), datadogConfig)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.True(t, injected)
 	assert.Nil(t, err)
@@ -397,17 +472,17 @@ func TestJSONPatchCorrectness(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				fx.Replace(config.MockParams{Overrides: tt.overrides}),
 			)
-			webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
-			request := admission.MutateRequest{
+			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
+			webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter(), datadogConfig)
+			request := admission.Request{
 				Raw:       podJSON,
 				Namespace: "bar",
 			}
-			jsonPatch, err := webhook.MutateFunc()(&request)
-			assert.NoError(t, err)
+			admissionResponse := webhook.WebhookFunc()(&request)
 
 			expected, err := os.ReadFile(tt.file)
 			assert.NoError(t, err)
-			assert.JSONEq(t, string(expected), string(jsonPatch))
+			assert.JSONEq(t, string(expected), string(admissionResponse.Patch))
 		})
 	}
 }
@@ -428,19 +503,19 @@ func BenchmarkJSONPatch(b *testing.B) {
 	}
 
 	wmeta := fxutil.Test[workloadmeta.Component](b, core.MockBundle())
-	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
+	datadogConfig := fxutil.Test[config.Component](b, core.MockBundle())
+	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter(), datadogConfig)
 	podJSON := obj.(*admiv1.AdmissionReview).Request.Object.Raw
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		request := admission.MutateRequest{
+		request := admission.Request{
 			Raw:       podJSON,
 			Namespace: "bar",
 		}
-		jsonPatch, err := webhook.MutateFunc()(&request)
-		if err != nil {
-			b.Fatal(err)
-		}
+		admissionResponse := webhook.WebhookFunc()(&request)
+		jsonPatch, err := json.Marshal(admissionResponse.Patch)
+		require.NoError(b, err)
 
 		if len(jsonPatch) < 100 {
 			b.Fatal("Empty JSONPatch")

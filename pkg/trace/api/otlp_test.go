@@ -19,6 +19,8 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/transform"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -150,8 +152,21 @@ func NewBenchmarkTestConfig(b *testing.B) *config.AgentConfig {
 }
 
 func TestOTLPMetrics(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testOTLPMetrics(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testOTLPMetrics(true, t)
+	})
+}
+
+func testOTLPMetrics(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	assert := assert.New(t)
 	cfg := NewTestConfig(t)
+	if enableReceiveResourceSpansV2 {
+		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	}
 	stats := &teststatsd.Client{}
 
 	out := make(chan *Payload, 1)
@@ -202,7 +217,20 @@ func TestOTLPMetrics(t *testing.T) {
 }
 
 func TestOTLPNameRemapping(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testOTLPNameRemapping(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testOTLPNameRemapping(true, t)
+	})
+}
+
+func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	cfg := NewTestConfig(t)
+	if enableReceiveResourceSpansV2 {
+		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	}
 	cfg.OTLPReceiver.SpanNameRemappings = map[string]string{"libname.unspecified": "new"}
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
@@ -226,7 +254,20 @@ func TestOTLPNameRemapping(t *testing.T) {
 }
 
 func TestCreateChunks(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testCreateChunk(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testCreateChunk(true, t)
+	})
+}
+
+func testCreateChunk(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	cfg := NewTestConfig(t)
+	if enableReceiveResourceSpansV2 {
+		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	}
 	cfg.OTLPReceiver.ProbabilisticSampling = 50
 	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	const (
@@ -268,13 +309,27 @@ func TestCreateChunks(t *testing.T) {
 }
 
 func TestOTLPReceiveResourceSpans(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testOTLPReceiveResourceSpans(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testOTLPReceiveResourceSpans(true, t)
+	})
+}
+
+func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	cfg := NewTestConfig(t)
+	if enableReceiveResourceSpansV2 {
+		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	}
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	require := require.New(t)
 	for _, tt := range []struct {
-		in []testutil.OTLPResourceSpan
-		fn func(*pb.TracerPayload)
+		enableReceiveResourceSpansV2 bool
+		in                           []testutil.OTLPResourceSpan
+		fn                           func(*pb.TracerPayload)
 	}{
 		{
 			in: []testutil.OTLPResourceSpan{
@@ -293,6 +348,18 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				{
 					LibName:    "libname",
 					LibVersion: "1.2",
+					Attributes: map[string]interface{}{"deployment.environment.name": "staging"},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("staging", out.Env)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
 					Attributes: map[string]interface{}{},
 					Spans: []*testutil.OTLPSpan{
 						{Attributes: map[string]interface{}{string(semconv.AttributeDeploymentEnvironment): "spanenv"}},
@@ -300,7 +367,26 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
-				require.Equal("spanenv", out.Env)
+				if !enableReceiveResourceSpansV2 {
+					require.Equal("spanenv", out.Env)
+				}
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{Attributes: map[string]interface{}{"deployment.environment.name": "spanenv2"}},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				if !enableReceiveResourceSpansV2 {
+					require.Equal("spanenv2", out.Env)
+				}
 			},
 		},
 		{
@@ -312,7 +398,9 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
-				require.Equal("dd.host", out.Hostname)
+				if !enableReceiveResourceSpansV2 {
+					require.Equal("dd.host", out.Hostname)
+				}
 			},
 		},
 		{
@@ -378,7 +466,9 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
-				require.Equal("123cid", out.ContainerID)
+				if !enableReceiveResourceSpansV2 {
+					require.Equal("123cid", out.ContainerID)
+				}
 			},
 		},
 		{
@@ -393,7 +483,9 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
-				require.Equal("23cid", out.ContainerID)
+				if !enableReceiveResourceSpansV2 {
+					require.Equal("23cid", out.ContainerID)
+				}
 			},
 		},
 		{
@@ -480,6 +572,23 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				}
 			},
 		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					Spans: []*testutil.OTLPSpan{
+						{
+							TraceID:    [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+							Name:       "first",
+							Attributes: map[string]interface{}{"sampling.priority": -1},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Len(out.Chunks, 1)
+				require.Equal(int32(-1), out.Chunks[0].Priority)
+			},
+		},
 	} {
 		t.Run("", func(t *testing.T) {
 			rspans := testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0)
@@ -560,15 +669,15 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 			require.False(p.ClientComputedTopLevel)
 		}))
 
-		t.Run("header", testAndExpect(testSpans, http.Header{
-			header.ComputedTopLevel: []string{"true"},
-		}, func(p *Payload) {
-			require.True(p.ClientComputedTopLevel)
-		}))
-
 		cfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
 
 		t.Run("withFeatureFlag", testAndExpect(testSpans, http.Header{}, func(p *Payload) {
+			require.True(p.ClientComputedTopLevel)
+		}))
+
+		t.Run("header", testAndExpect(testSpans, http.Header{
+			header.ComputedTopLevel: []string{"true"},
+		}, func(p *Payload) {
 			require.True(p.ClientComputedTopLevel)
 		}))
 
@@ -581,38 +690,38 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 }
 
 func TestOTLPSetAttributes(t *testing.T) {
-	t.Run("setMetaOTLP", func(t *testing.T) {
+	t.Run("SetMetaOTLP", func(t *testing.T) {
 		s := &pb.Span{Meta: make(map[string]string), Metrics: make(map[string]float64)}
 
-		setMetaOTLP(s, "a", "b")
+		transform.SetMetaOTLP(s, "a", "b")
 		require.Equal(t, "b", s.Meta["a"])
 
-		setMetaOTLP(s, "operation.name", "on")
+		transform.SetMetaOTLP(s, "operation.name", "on")
 		require.Equal(t, "on", s.Name)
 
-		setMetaOTLP(s, "service.name", "sn")
+		transform.SetMetaOTLP(s, "service.name", "sn")
 		require.Equal(t, "sn", s.Service)
 
-		setMetaOTLP(s, "span.type", "st")
+		transform.SetMetaOTLP(s, "span.type", "st")
 		require.Equal(t, "st", s.Type)
 
-		setMetaOTLP(s, "analytics.event", "true")
+		transform.SetMetaOTLP(s, "analytics.event", "true")
 		require.Equal(t, float64(1), s.Metrics[sampler.KeySamplingRateEventExtraction])
 
-		setMetaOTLP(s, "analytics.event", "false")
+		transform.SetMetaOTLP(s, "analytics.event", "false")
 		require.Equal(t, float64(0), s.Metrics[sampler.KeySamplingRateEventExtraction])
 	})
 
-	t.Run("setMetricOTLP", func(t *testing.T) {
+	t.Run("SetMetricOTLP", func(t *testing.T) {
 		s := &pb.Span{Meta: make(map[string]string), Metrics: make(map[string]float64)}
 
-		setMetricOTLP(s, "a", 1)
+		transform.SetMetricOTLP(s, "a", 1)
 		require.Equal(t, float64(1), s.Metrics["a"])
 
-		setMetricOTLP(s, "sampling.priority", 2)
+		transform.SetMetricOTLP(s, "sampling.priority", 2)
 		require.Equal(t, float64(2), s.Metrics["_sampling_priority_v1"])
 
-		setMetricOTLP(s, "_sampling_priority_v1", 3)
+		transform.SetMetricOTLP(s, "_sampling_priority_v1", 3)
 		require.Equal(t, float64(3), s.Metrics["_sampling_priority_v1"])
 	})
 }
@@ -670,7 +779,17 @@ func TestUnflatten(t *testing.T) {
 }
 
 func TestOTLPHostname(t *testing.T) {
-	for _, tt := range []struct {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testOTLPHostname(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testOTLPHostname(true, t)
+	})
+}
+
+func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
+	testcases := []struct {
 		config, resource, span string
 		out                    string
 	}{
@@ -684,13 +803,23 @@ func TestOTLPHostname(t *testing.T) {
 			config: "config-hostname",
 			out:    "config-hostname",
 		},
-		{
+	}
+
+	if !enableReceiveResourceSpansV2 {
+		testcases = append(testcases, struct {
+			config, resource, span string
+			out                    string
+		}{
 			config: "config-hostname",
 			span:   "span-hostname",
 			out:    "span-hostname",
-		},
-	} {
+		})
+	}
+	for _, tt := range testcases {
 		cfg := NewTestConfig(t)
+		if enableReceiveResourceSpansV2 {
+			cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+		}
 		cfg.Hostname = tt.config
 		out := make(chan *Payload, 1)
 		rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
@@ -723,13 +852,30 @@ func TestOTLPHostname(t *testing.T) {
 }
 
 func TestOTLPReceiver(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testOTLPReceiver(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testOTLPReceiver(true, t)
+	})
+}
+
+func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	t.Run("New", func(t *testing.T) {
 		cfg := NewTestConfig(t)
+		if enableReceiveResourceSpansV2 {
+			cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+		}
 		assert.NotNil(t, NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}).conf)
 	})
 
 	t.Run("Start/nil", func(t *testing.T) {
-		o := NewOTLPReceiver(nil, NewTestConfig(t), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		cfg := NewTestConfig(t)
+		if enableReceiveResourceSpansV2 {
+			cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+		}
+		o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.Start()
 		defer o.Stop()
 		assert.Nil(t, o.grpcsrv)
@@ -738,6 +884,9 @@ func TestOTLPReceiver(t *testing.T) {
 	t.Run("Start/grpc", func(t *testing.T) {
 		port := testutil.FreeTCPPort(t)
 		cfg := NewTestConfig(t)
+		if enableReceiveResourceSpansV2 {
+			cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+		}
 		cfg.OTLPReceiver = &config.OTLP{
 			BindHost: "localhost",
 			GRPCPort: port,
@@ -755,7 +904,11 @@ func TestOTLPReceiver(t *testing.T) {
 
 	t.Run("processRequest", func(t *testing.T) {
 		out := make(chan *Payload, 5)
-		o := NewOTLPReceiver(out, NewTestConfig(t), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		cfg := NewTestConfig(t)
+		if enableReceiveResourceSpansV2 {
+			cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+		}
+		o := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.processRequest(context.Background(), http.Header(map[string][]string{
 			header.Lang:        {"go"},
 			header.ContainerID: {"containerdID"},
@@ -765,7 +918,9 @@ func TestOTLPReceiver(t *testing.T) {
 		for i := 0; i < 2; i++ {
 			select {
 			case p := <-out:
-				assert.Equal(t, "go", p.Source.Lang)
+				if !enableReceiveResourceSpansV2 {
+					assert.Equal(t, "go", p.Source.Lang)
+				}
 				assert.Equal(t, "opentelemetry_grpc_v1", p.Source.EndpointVersion)
 				assert.Len(t, p.TracerPayload.Chunks, 1)
 				ps[i] = p
@@ -810,7 +965,7 @@ func TestOTLPHelpers(t *testing.T) {
 		}{
 			{
 				status: ptrace.StatusCodeError,
-				events: makeEventsSlice("exception", map[string]string{
+				events: makeEventsSlice("exception", map[string]any{
 					"exception.message":    "Out of memory",
 					"exception.type":       "mem",
 					"exception.stacktrace": "1/2/3",
@@ -826,7 +981,7 @@ func TestOTLPHelpers(t *testing.T) {
 			},
 			{
 				status: ptrace.StatusCodeError,
-				events: makeEventsSlice("exception", map[string]string{
+				events: makeEventsSlice("exception", map[string]any{
 					"exception.message": "Out of memory",
 				}, 0, 0),
 				out: pb.Span{
@@ -836,7 +991,7 @@ func TestOTLPHelpers(t *testing.T) {
 			},
 			{
 				status: ptrace.StatusCodeError,
-				events: makeEventsSlice("EXCEPTION", map[string]string{
+				events: makeEventsSlice("EXCEPTION", map[string]any{
 					"exception.message": "Out of memory",
 				}, 0, 0),
 				out: pb.Span{
@@ -846,7 +1001,7 @@ func TestOTLPHelpers(t *testing.T) {
 			},
 			{
 				status: ptrace.StatusCodeError,
-				events: makeEventsSlice("OTher", map[string]string{
+				events: makeEventsSlice("OTher", map[string]any{
 					"exception.message": "Out of memory",
 				}, 0, 0),
 				out: pb.Span{Error: 1},
@@ -869,7 +1024,7 @@ func TestOTLPHelpers(t *testing.T) {
 			},
 			{
 				status: ptrace.StatusCodeOk,
-				events: makeEventsSlice("exception", map[string]string{
+				events: makeEventsSlice("exception", map[string]any{
 					"exception.message":    "Out of memory",
 					"exception.type":       "mem",
 					"exception.stacktrace": "1/2/3",
@@ -882,7 +1037,7 @@ func TestOTLPHelpers(t *testing.T) {
 			status := ptrace.NewStatus()
 			status.SetCode(tt.status)
 			status.SetMessage(tt.msg)
-			status2Error(status, tt.events, &span)
+			transform.Status2Error(status, tt.events, &span)
 			assert.Equal(tt.out.Error, span.Error)
 			for _, prop := range []string{"error.msg", "error.type", "error.stack"} {
 				if v, ok := tt.out.Meta[prop]; ok {
@@ -1007,8 +1162,21 @@ func TestOTLPHelpers(t *testing.T) {
 }
 
 func TestOTLPConvertSpan(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testOTLPConvertSpan(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testOTLPConvertSpan(true, t)
+	})
+}
+
+func testOTLPConvertSpan(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	now := uint64(otlpTestSpan.StartTimestamp())
 	cfg := NewTestConfig(t)
+	if enableReceiveResourceSpansV2 {
+		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	}
 	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
 		rattr              map[string]string
@@ -1049,7 +1217,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"service.version":         "v1.2.3",
 					"w3c.tracestate":          "state",
 					"version":                 "v1.2.3",
-					"events":                  `[{"time_unix_nano":123,"name":"boom","attributes":{"key":"Out of memory","accuracy":"2.4"},"dropped_attributes_count":2},{"time_unix_nano":456,"name":"exception","attributes":{"exception.message":"Out of memory","exception.type":"mem","exception.stacktrace":"1/2/3"},"dropped_attributes_count":2}]`,
+					"events":                  `[{"time_unix_nano":123,"name":"boom","attributes":{"key":"Out of memory","accuracy":2.4},"dropped_attributes_count":2},{"time_unix_nano":456,"name":"exception","attributes":{"exception.message":"Out of memory","exception.type":"mem","exception.stacktrace":"1/2/3"},"dropped_attributes_count":2}]`,
 					"_dd.span_links":          `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","trace_state":"dd=asdf256,ee=jkl;128", "attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
 					"error.msg":               "Out of memory",
 					"error.type":              "mem",
@@ -1175,7 +1343,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"service.version":         "v1.2.3",
 					"w3c.tracestate":          "state",
 					"version":                 "v1.2.3",
-					"events":                  "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":\"2.4\"},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
+					"events":                  "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
 					"_dd.span_links":          `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","trace_state":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
 					"error.msg":               "Out of memory",
 					"error.type":              "mem",
@@ -1302,7 +1470,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"w3c.tracestate":          "state",
 					"version":                 "v1.2.3",
 					"otel.trace_id":           "72df520af2bde7a5240031ead750e5f3",
-					"events":                  "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":\"2.4\"},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
+					"events":                  "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
 					"_dd.span_links":          `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","trace_state":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
 					"error.msg":               "Out of memory",
 					"error.type":              "mem",
@@ -1565,7 +1733,16 @@ func TestOTLPConvertSpan(t *testing.T) {
 			lib.SetVersion(tt.libver)
 			assert := assert.New(t)
 			want := tt.out
-			got := o.convertSpan(tt.rattr, lib, tt.in)
+			res := pcommon.NewResource()
+			for k, v := range tt.rattr {
+				res.Attributes().PutStr(k, v)
+			}
+			var got *pb.Span
+			if enableReceiveResourceSpansV2 {
+				got = transform.OtelSpanToDDSpan(tt.in, res, lib, o.conf, nil)
+			} else {
+				got = o.convertSpan(tt.rattr, lib, tt.in)
+			}
 			if len(want.Meta) != len(got.Meta) {
 				t.Fatalf("(%d) Meta count mismatch:\n%#v", i, got.Meta)
 			}
@@ -1611,7 +1788,11 @@ func TestOTLPConvertSpan(t *testing.T) {
 
 			// test new top-level identification feature flag
 			o.conf.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
-			got = o.convertSpan(tt.rattr, lib, tt.in)
+			if enableReceiveResourceSpansV2 {
+				got = transform.OtelSpanToDDSpan(tt.in, res, lib, o.conf, nil)
+			} else {
+				got = o.convertSpan(tt.rattr, lib, tt.in)
+			}
 			wantMetrics := tt.topLevelOutMetrics
 			if len(wantMetrics) != len(got.Metrics) {
 				t.Fatalf("(%d) Metrics count mismatch:\n\n%v\n\n%v", i, wantMetrics, got.Metrics)
@@ -1646,8 +1827,20 @@ func TestAppendTags(t *testing.T) {
 }
 
 func TestOTLPConvertSpanSetPeerService(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testOTLPConvertSpanSetPeerService(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testOTLPConvertSpanSetPeerService(true, t)
+	})
+}
+func testOTLPConvertSpanSetPeerService(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	now := uint64(otlpTestSpan.StartTimestamp())
 	cfg := NewTestConfig(t)
+	if enableReceiveResourceSpansV2 {
+		cfg.Features["receive_resource_spans_v2"] = struct{}{}
+	}
 	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
 		rattr   map[string]string
@@ -1976,7 +2169,17 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 			lib.SetName(tt.libname)
 			lib.SetVersion(tt.libver)
 			assert := assert.New(t)
-			assert.Equal(tt.out, o.convertSpan(tt.rattr, lib, tt.in), i)
+			res := pcommon.NewResource()
+			for k, v := range tt.rattr {
+				res.Attributes().PutStr(k, v)
+			}
+			var got *pb.Span
+			if enableReceiveResourceSpansV2 {
+				got = transform.OtelSpanToDDSpan(tt.in, res, lib, o.conf, nil)
+			} else {
+				got = o.convertSpan(tt.rattr, lib, tt.in)
+			}
+			assert.Equal(tt.out, got, i)
 		})
 	}
 }
@@ -1984,15 +2187,29 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 // TestResourceAttributesMap is a regression test ensuring that the resource attributes map
 // passed to convertSpan is not modified by it.
 func TestResourceAttributesMap(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testResourceAttributesMap(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testResourceAttributesMap(true, t)
+	})
+}
+
+func testResourceAttributesMap(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	rattr := map[string]string{"key": "val"}
 	lib := pcommon.NewInstrumentationScope()
 	span := testutil.NewOTLPSpan(&testutil.OTLPSpan{})
-	NewOTLPReceiver(nil, NewTestConfig(t), &statsd.NoOpClient{}, &timing.NoopReporter{}).convertSpan(rattr, lib, span)
+	cfg := NewTestConfig(t)
+	if enableReceiveResourceSpansV2 {
+		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	}
+	NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}).convertSpan(rattr, lib, span)
 	assert.Len(t, rattr, 1) // ensure "rattr" has no new entries
 	assert.Equal(t, "val", rattr["key"])
 }
 
-func makeEventsSlice(name string, attrs map[string]string, timestamp int, dropped uint32) ptrace.SpanEventSlice {
+func makeEventsSlice(name string, attrs map[string]any, timestamp int, dropped uint32) ptrace.SpanEventSlice {
 	s := ptrace.NewSpanEventSlice()
 	e := s.AppendEmpty()
 	e.SetName(name)
@@ -2004,7 +2221,17 @@ func makeEventsSlice(name string, attrs map[string]string, timestamp int, droppe
 	for _, k := range keys {
 		_, ok := e.Attributes().Get(k)
 		if !ok {
-			e.Attributes().PutStr(k, attrs[k])
+			switch attrs[k].(type) {
+			case []any:
+				s := e.Attributes().PutEmptySlice(k)
+				if v, ok := attrs[k].([]any); ok {
+					s.FromRaw(v)
+				}
+			default:
+				if v, ok := attrs[k].(string); ok {
+					e.Attributes().PutStr(k, v)
+				}
+			}
 		}
 	}
 	e.SetTimestamp(pcommon.Timestamp(timestamp))
@@ -2018,7 +2245,7 @@ func TestMarshalEvents(t *testing.T) {
 		out string
 	}{
 		{
-			in: makeEventsSlice("", map[string]string{
+			in: makeEventsSlice("", map[string]any{
 				"message": "OOM",
 			}, 0, 3),
 			out: `[{
@@ -2029,7 +2256,7 @@ func TestMarshalEvents(t *testing.T) {
 			in:  makeEventsSlice("boom", nil, 0, 0),
 			out: `[{"name":"boom"}]`,
 		}, {
-			in: makeEventsSlice("boom", map[string]string{
+			in: makeEventsSlice("boom", map[string]any{
 				"message": "OOM",
 			}, 0, 3),
 			out: `[{
@@ -2038,7 +2265,7 @@ func TestMarshalEvents(t *testing.T) {
 					"dropped_attributes_count":3
 				}]`,
 		}, {
-			in: makeEventsSlice("boom", map[string]string{
+			in: makeEventsSlice("boom", map[string]any{
 				"message": "OOM",
 			}, 123, 2),
 			out: `[{
@@ -2051,7 +2278,7 @@ func TestMarshalEvents(t *testing.T) {
 			in:  makeEventsSlice("", nil, 0, 2),
 			out: `[{"dropped_attributes_count":2}]`,
 		}, {
-			in: makeEventsSlice("", map[string]string{
+			in: makeEventsSlice("", map[string]any{
 				"message":  "OOM",
 				"accuracy": "2.40",
 			}, 123, 2),
@@ -2064,7 +2291,7 @@ func TestMarshalEvents(t *testing.T) {
 					"dropped_attributes_count":2
 				}]`,
 		}, {
-			in: makeEventsSlice("boom", map[string]string{
+			in: makeEventsSlice("boom", map[string]any{
 				"message":  "OOM",
 				"accuracy": "2.40",
 			}, 123, 0),
@@ -2084,7 +2311,7 @@ func TestMarshalEvents(t *testing.T) {
 					"dropped_attributes_count":2
 				}]`,
 		}, {
-			in: makeEventsSlice("boom", map[string]string{
+			in: makeEventsSlice("boom", map[string]any{
 				"message":  "OOM",
 				"accuracy": "2.4",
 			}, 123, 2),
@@ -2099,11 +2326,11 @@ func TestMarshalEvents(t *testing.T) {
 				}]`,
 		}, {
 			in: (func() ptrace.SpanEventSlice {
-				e1 := makeEventsSlice("boom", map[string]string{
+				e1 := makeEventsSlice("boom", map[string]any{
 					"message":  "OOM",
 					"accuracy": "2.4",
 				}, 123, 2)
-				e2 := makeEventsSlice("exception", map[string]string{
+				e2 := makeEventsSlice("exception", map[string]any{
 					"exception.message":    "OOM",
 					"exception.stacktrace": "1/2/3",
 					"exception.type":       "mem",
@@ -2131,8 +2358,39 @@ func TestMarshalEvents(t *testing.T) {
 				}]`,
 		},
 	} {
-		assert.Equal(t, trimSpaces(tt.out), marshalEvents(tt.in))
+		assert.Equal(t, trimSpaces(tt.out), transform.MarshalEvents(tt.in))
 	}
+}
+
+func TestMarshalJSONUnsafeEvents(t *testing.T) {
+	name := `something:"nested"`
+	key := `abc\def\`
+	val := []any{`test\"1\`, `/test2\\`}
+
+	events := makeEventsSlice(name, map[string]any{
+		key: val,
+	}, 0, 3)
+
+	jsonName, err := json.Marshal(name)
+	if err != nil {
+		t.Fatal("Failure parsing name")
+	}
+	jsonKey, err := json.Marshal(key)
+	if err != nil {
+		t.Fatal("Failure parsing key")
+	}
+	jsonVal, err := json.Marshal(val)
+	if err != nil {
+		t.Fatal("Failure parsing val")
+	}
+
+	out := fmt.Sprintf(`[{
+				"name": %v,
+				"attributes": {%v: %v},
+				"dropped_attributes_count":3
+			}]`, string(jsonName), string(jsonKey), string(jsonVal))
+
+	assert.Equal(t, trimSpaces(out), transform.MarshalEvents(events))
 }
 
 func trimSpaces(str string) string {
@@ -2294,7 +2552,7 @@ func TestMarshalSpanLinks(t *testing.T) {
 			       }]`,
 		},
 	} {
-		assert.Equal(t, trimSpaces(tt.out), marshalLinks(tt.in))
+		assert.Equal(t, trimSpaces(tt.out), transform.MarshalLinks(tt.in))
 	}
 }
 
@@ -2392,7 +2650,15 @@ func generateTraceRequest(traceCount int, spanCount int, attrCount int, attrLeng
 	return testutil.NewOTLPTracesRequest(traces)
 }
 
-func BenchmarkProcessRequest(b *testing.B) {
+func BenchmarkProcessRequestV1(b *testing.B) {
+	benchmarkProcessRequest(false, b)
+}
+
+func BenchmarkProcessRequestV2(b *testing.B) {
+	benchmarkProcessRequest(true, b)
+}
+
+func benchmarkProcessRequest(enableReceiveResourceSpansV2 bool, b *testing.B) {
 	largeTraces := generateTraceRequest(10, 100, 100, 100)
 	metadata := http.Header(map[string][]string{
 		header.Lang:        {"go"},
@@ -2413,6 +2679,9 @@ func BenchmarkProcessRequest(b *testing.B) {
 	}()
 
 	cfg := NewBenchmarkTestConfig(b)
+	if enableReceiveResourceSpansV2 {
+		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	}
 	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -2424,7 +2693,15 @@ func BenchmarkProcessRequest(b *testing.B) {
 	<-end
 }
 
-func BenchmarkProcessRequestTopLevel(b *testing.B) {
+func BenchmarkProcessRequestTopLevelV1(b *testing.B) {
+	benchmarkProcessRequestTopLevel(false, b)
+}
+
+func BenchmarkProcessRequestTopLevelV2(b *testing.B) {
+	benchmarkProcessRequestTopLevel(true, b)
+}
+
+func benchmarkProcessRequestTopLevel(enableReceiveResourceSpansV2 bool, b *testing.B) {
 	largeTraces := generateTraceRequest(10, 100, 100, 100)
 	metadata := http.Header(map[string][]string{
 		header.Lang:        {"go"},
@@ -2445,6 +2722,9 @@ func BenchmarkProcessRequestTopLevel(b *testing.B) {
 	}()
 
 	cfg := NewBenchmarkTestConfig(b)
+	if enableReceiveResourceSpansV2 {
+		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	}
 	cfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
 	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 

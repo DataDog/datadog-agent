@@ -13,7 +13,7 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
-	dd_config "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -102,7 +102,7 @@ func (wcr *WinCrashReporter) CheckForCrash() (*probe.WinCrashStatus, error) {
 		return nil, nil
 	}
 	sysProbeUtil, err := process_net.GetRemoteSystemProbeUtil(
-		dd_config.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+		pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	if err != nil {
 		return nil, wcr.handleStartupError(err)
 	}
@@ -115,6 +115,13 @@ func (wcr *WinCrashReporter) CheckForCrash() (*probe.WinCrashStatus, error) {
 	if !ok {
 		return nil, fmt.Errorf("Raw data has incorrect type")
 	}
+
+	// Crash dump processing is not done yet, nothing to send at the moment. Try later.
+	if crash.StatusCode == probe.WinCrashStatusCodeBusy {
+		log.Infof("Crash dump processing is busy")
+		return nil, nil
+	}
+
 	/*
 	 * originally did this with a sync.once.  The problem is the check is run prior to the
 	 * system probe being successfully started.  This is OK; we just need to detect the BSOD
@@ -124,7 +131,7 @@ func (wcr *WinCrashReporter) CheckForCrash() (*probe.WinCrashStatus, error) {
 	 * we don't need to run any more
 	 */
 	wcr.hasRunOnce = true
-	if !crash.Success {
+	if crash.StatusCode == probe.WinCrashStatusCodeFailed {
 		return nil, fmt.Errorf("Error getting crash data %s", crash.ErrString)
 	}
 

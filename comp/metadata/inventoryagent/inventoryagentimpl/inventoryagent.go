@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
+	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -60,7 +61,7 @@ var (
 	fetchSecurityConfig    = configFetcher.SecurityAgentConfig
 	fetchProcessConfig     = func(cfg model.Reader) (string, error) { return configFetcher.ProcessAgentConfig(cfg, true) }
 	fetchTraceConfig       = configFetcher.TraceAgentConfig
-	fetchSystemProbeConfig = configFetcher.SystemProbeConfig
+	fetchSystemProbeConfig = sysprobeConfigFetcher.SystemProbeConfig
 )
 
 type agentMetadata map[string]interface{}
@@ -298,10 +299,8 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	ia.data["feature_usm_kafka_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_kafka_monitoring")
 	ia.data["feature_usm_postgres_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_postgres_monitoring")
 	ia.data["feature_usm_redis_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_redis_monitoring")
-	ia.data["feature_usm_java_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.java.enabled")
 	ia.data["feature_usm_http2_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http2_monitoring")
 	ia.data["feature_usm_istio_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.istio.enabled")
-	ia.data["feature_usm_http_by_status_code_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http_stats_by_status_code")
 	ia.data["feature_usm_go_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.go.enabled")
 
 	// Discovery module / system-probe

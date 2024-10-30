@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -119,20 +120,31 @@ func ProcRootPath(pid uint32) string {
 
 // ProcRootFilePath returns the path to the input file after prepending the proc root path of the given pid
 func ProcRootFilePath(pid uint32, file string) string {
+	// if file starts with /, the result of filepath.Join will look, before cleaning, like
+	//   /proc/$PID/root//file
+	// and this will require a re-allocation in filepath.Clean
+	// to prevent this, we remove the leading / from the file if it's there. In most cases
+	// it will be enough
+	if file != "" && file[0] == os.PathSeparator {
+		file = file[1:]
+	}
 	return procPidPath2(pid, "root", file)
 }
 
+// we do not use `HostProc` here because of the double call to `filepath.Join`
+// and those functions can be called in a tight loop
+
 func procPidPath(pid uint32, path string) string {
-	return kernel.HostProc(strconv.FormatUint(uint64(pid), 10), path)
+	return filepath.Join(kernel.ProcFSRoot(), strconv.FormatUint(uint64(pid), 10), path)
 }
 
 func procPidPath2(pid uint32, path1 string, path2 string) string {
-	return kernel.HostProc(strconv.FormatUint(uint64(pid), 10), path1, path2)
+	return filepath.Join(kernel.ProcFSRoot(), strconv.FormatUint(uint64(pid), 10), path1, path2)
 }
 
 // ModulesPath returns the path to the modules file in /proc
 func ModulesPath() string {
-	return kernel.HostProc("modules")
+	return filepath.Join(kernel.ProcFSRoot(), "modules")
 }
 
 // GetLoginUID returns the login uid of the provided process

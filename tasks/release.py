@@ -29,7 +29,7 @@ from tasks.libs.common.git import (
     clone,
     get_current_branch,
     get_last_commit,
-    get_last_tag,
+    get_last_release_tag,
     try_git_command,
 )
 from tasks.libs.common.user_interactions import yes_no_question
@@ -598,6 +598,7 @@ def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", up
     current = current_version(ctx, max(list_major_versions))
     next = current.next_version(bump_minor=True)
     current.rc = False
+    current.devel = False
     next.devel = False
 
     # Strings with proper branch/tag names
@@ -1008,7 +1009,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
     changes = 'false'
     for repo_name, repo in repo_data.items():
         head_commit = get_last_commit(ctx, repo_name, repo['branch'])
-        last_tag_commit, last_tag_name = get_last_tag(ctx, repo_name, next_version.tag_pattern())
+        last_tag_commit, last_tag_name = get_last_release_tag(ctx, repo_name, next_version.tag_pattern())
         if last_tag_commit != "" and last_tag_commit != head_commit:
             changes = 'true'
             print(f"{repo_name} has new commits since {last_tag_name}", file=sys.stderr)
@@ -1033,3 +1034,70 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
             )
     # Send a value for the create_rc_pr.yml workflow
     print(changes)
+
+
+@task
+def create_qa_cards(ctx, tag):
+    """
+    Automate the call to ddqa
+    """
+    from tasks.libs.releasing.qa import get_labels, setup_ddqa
+
+    version = _create_version_from_match(VERSION_RE.match(tag))
+    if not version.rc:
+        print(f"{tag} is not a release candidate, skipping")
+        return
+    setup_ddqa(ctx)
+    ctx.run(f"ddqa --auto create {version.previous_rc_version()} {tag} {get_labels(version)}")
+
+
+@task
+def create_github_release(_ctx, version, draft=True):
+    """
+    Create a GitHub release for the given tag.
+    """
+    import pandoc
+
+    sections = (
+        ("Agent", "CHANGELOG.rst"),
+        ("Datadog Cluster Agent", "CHANGELOG-DCA.rst"),
+    )
+
+    notes = []
+
+    for section, filename in sections:
+        text = pandoc.write(pandoc.read(file=filename), format="markdown_strict", options=["--wrap=none"])
+
+        header_found = False
+        lines = []
+
+        # Extract the section for the given version
+        for line in text.splitlines():
+            # Move to the right section
+            if line.startswith("## " + version):
+                header_found = True
+                continue
+
+            if header_found:
+                # Next version found, stop
+                if line.startswith("## "):
+                    break
+                lines.append(line)
+
+        # if we found the header, add the section to the final release note
+        if header_found:
+            notes.append(f"# {section}")
+            notes.extend(lines)
+
+    if not notes:
+        print(f"No release notes found for {version}")
+        raise Exit(code=1)
+
+    github = GithubAPI()
+    release = github.create_release(
+        version,
+        "\n".join(notes),
+        draft=draft,
+    )
+
+    print(f"Link to the release note: {release.html_url}")

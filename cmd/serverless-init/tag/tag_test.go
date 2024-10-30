@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 )
@@ -26,7 +26,7 @@ func TestGetBaseTagsArrayWithMetadataTagsNoMetadata(t *testing.T) {
 	t.Setenv("DD_ENV", "myEnv")
 	t.Setenv("DD_SERVICE", "superService")
 	t.Setenv("DD_VERSION", "123.4")
-	tags := serverlessTag.MapToArray(GetBaseTagsMapWithMetadata(make(map[string]string, 0), "init"))
+	tags := serverlessTag.MapToArray(GetBaseTagsMapWithMetadata(make(map[string]string, 0), "datadog_init_version"))
 	sort.Strings(tags)
 	assert.Equal(t, 5, len(tags))
 	assert.Contains(t, tags[0], "_dd.compute_stats:1")
@@ -82,11 +82,11 @@ func TestGetBaseTagsArrayWithMetadataTags(t *testing.T) {
 	tags := serverlessTag.MapToArray(GetBaseTagsMapWithMetadata(map[string]string{
 		"location":      "mysuperlocation",
 		"othermetadata": "mysuperothermetadatavalue",
-	}, "init"))
+	}, "_dd.datadog_sidecar_version"))
 	sort.Strings(tags)
 	assert.Equal(t, 4, len(tags))
 	assert.Contains(t, tags[0], "_dd.compute_stats:1")
-	assert.Contains(t, tags[1], "datadog_init_version")
+	assert.Contains(t, tags[1], "_dd.datadog_sidecar_version")
 	assert.Equal(t, "location:mysuperlocation", tags[2])
 	assert.Equal(t, "othermetadata:mysuperothermetadatavalue", tags[3])
 }
@@ -97,7 +97,7 @@ func TestDdTags(t *testing.T) {
 	overwritingTags := map[string]string{
 		"originalKey": "overWrittenValue",
 	}
-	mergedTags := serverlessTag.MergeWithOverwrite(serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(config.Datadog(), false)), overwritingTags)
+	mergedTags := serverlessTag.MergeWithOverwrite(serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)), overwritingTags)
 	assert.Equal(t, "overWrittenValue", mergedTags["originalKey"])
 	assert.Equal(t, "value2", mergedTags["key2"])
 	assert.Equal(t, "value3", mergedTags["key3"])

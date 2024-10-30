@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	log "github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,7 +30,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -111,7 +111,7 @@ func TestSuiteAPIServer(t *testing.T) {
 		}()
 
 		mockConfig := configmock.New(t)
-		config.SetFeatures(t, env.Kubernetes)
+		env.SetFeatures(t, env.Kubernetes)
 		mockConfig.SetWithoutSource("leader_election_default_resource", tt.leaderElectionDefaultResource)
 
 		// Start compose stack

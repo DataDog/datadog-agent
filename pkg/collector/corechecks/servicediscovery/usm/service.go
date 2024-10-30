@@ -17,6 +17,9 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 )
 
 type detectorCreatorFn func(ctx DetectionContext) detector
@@ -28,10 +31,12 @@ type DetectorContextMap map[int]interface{}
 
 // DetectorContextMap keys enum
 const (
-	// The path to the Node service's package.json
+	// NodePackageJSONPath The path to the Node service's package.json
 	NodePackageJSONPath = iota
-	// The SubdirFS instance package.json path is valid in.
+	// ServiceSubFS The SubdirFS instance package.json path is valid in.
 	ServiceSubFS = iota
+	// The pointer to the Process instance of the service
+	ServiceProc = iota
 )
 
 const (
@@ -44,9 +49,10 @@ const (
 
 // ServiceMetadata holds information about a service.
 type ServiceMetadata struct {
-	Name            string
-	AdditionalNames []string
-	FromDDService   bool
+	Name              string
+	AdditionalNames   []string
+	DDService         string
+	DDServiceInjected bool
 	// for future usage: we can detect also the type, vendor, frameworks, etc
 }
 
@@ -57,6 +63,21 @@ func NewServiceMetadata(name string, additional ...string) ServiceMetadata {
 		slices.Sort(additional)
 	}
 	return ServiceMetadata{Name: name, AdditionalNames: additional}
+}
+
+// SetAdditionalNames set additional names for the service
+func (s *ServiceMetadata) SetAdditionalNames(additional ...string) {
+	if len(additional) > 1 {
+		// names are discovered in unpredictable order. We need to keep them sorted if we're going to join them
+		slices.Sort(additional)
+	}
+	s.AdditionalNames = additional
+}
+
+// SetNames sets generated names for the service.
+func (s *ServiceMetadata) SetNames(name string, additional ...string) {
+	s.Name = name
+	s.SetAdditionalNames(additional...)
 }
 
 // GetServiceKey returns the key for the service.
@@ -89,28 +110,35 @@ func newDotnetDetector(ctx DetectionContext) detector {
 
 // DetectionContext allows to detect ServiceMetadata.
 type DetectionContext struct {
-	args       []string
-	envs       map[string]string
-	fs         fs.SubFS
-	contextMap DetectorContextMap
+	// Pid process PID
+	Pid int
+	// Args the command line arguments of the process
+	Args []string
+	// Envs targeted environment variables of the process
+	Envs envs.Variables
+	// Fs provides access to a file system
+	fs fs.SubFS
+	// DetectorContextMap a map to pass data between detectors, like some paths.
+	ContextMap DetectorContextMap
 }
 
 // NewDetectionContext initializes DetectionContext.
-func NewDetectionContext(args []string, envs map[string]string, fs fs.SubFS) DetectionContext {
+func NewDetectionContext(args []string, envs envs.Variables, fs fs.SubFS) DetectionContext {
 	return DetectionContext{
-		args: args,
-		envs: envs,
+		Pid:  0,
+		Args: args,
+		Envs: envs,
 		fs:   fs,
 	}
 }
 
 // workingDirFromEnvs returns the current working dir extracted from the PWD env
-func workingDirFromEnvs(envs map[string]string) (string, bool) {
+func workingDirFromEnvs(envs envs.Variables) (string, bool) {
 	return extractEnvVar(envs, "PWD")
 }
 
-func extractEnvVar(envs map[string]string, name string) (string, bool) {
-	value, ok := envs[name]
+func extractEnvVar(envs envs.Variables, name string) (string, bool) {
+	value, ok := envs.Get(name)
 	if !ok {
 		return "", false
 	}
@@ -149,54 +177,49 @@ func SizeVerifiedReader(file fs.File) (io.Reader, error) {
 	return io.LimitReader(file, min(size, maxParseFileSize)), nil
 }
 
-// List of binaries that usually have additional process context of what's running
-var binsWithContext = map[string]detectorCreatorFn{
-	"python":    newPythonDetector,
-	"python2.7": newPythonDetector,
-	"python3":   newPythonDetector,
-	"python3.7": newPythonDetector,
-	"ruby2.3":   newSimpleDetector,
-	"ruby":      newSimpleDetector,
-	"java":      newJavaDetector,
-	"sudo":      newSimpleDetector,
-	"node":      newNodeDetector,
-	"dotnet":    newDotnetDetector,
-	"php":       newPhpDetector,
-	"gunicorn":  newGunicornDetector,
+// Map languages to their context detectors
+var languageDetectors = map[language.Language]detectorCreatorFn{
+	language.Python: newPythonDetector,
+	language.Ruby:   newSimpleDetector,
+	language.Java:   newJavaDetector,
+	language.Node:   newNodeDetector,
+	language.DotNet: newDotnetDetector,
+	language.PHP:    newPhpDetector,
 }
 
-func checkForInjectionNaming(envs map[string]string) bool {
-	fromDDService := true
-	if env, ok := envs["DD_INJECTION_ENABLED"]; ok {
+// Map executables that usually have additional process context of what's
+// running, to context detectors
+var executableDetectors = map[string]detectorCreatorFn{
+	"gunicorn": newGunicornDetector,
+	"puma":     newRailsDetector,
+	"sudo":     newSimpleDetector,
+}
+
+func serviceNameInjected(envs envs.Variables) bool {
+	if env, ok := envs.Get("DD_INJECTION_ENABLED"); ok {
 		values := strings.Split(env, ",")
 		for _, v := range values {
 			if v == "service_name" {
-				fromDDService = false
-				break
+				return true
 			}
 		}
 	}
-	return fromDDService
+	return false
 }
 
 // ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.
-func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS, contextMap DetectorContextMap) (ServiceMetadata, bool) {
-	dc := DetectionContext{
-		args:       args,
-		envs:       envs,
-		fs:         fs,
-		contextMap: contextMap,
-	}
-	cmd := dc.args
+func ExtractServiceMetadata(lang language.Language, ctx DetectionContext) (metadata ServiceMetadata, success bool) {
+	cmd := ctx.Args
 	if len(cmd) == 0 || len(cmd[0]) == 0 {
-		return ServiceMetadata{}, false
+		return
 	}
 
-	if value, ok := chooseServiceNameFromEnvs(dc.envs); ok {
-		metadata := NewServiceMetadata(value)
-		// we only want to set FromDDService to true if the name wasn't assigned by injection
-		metadata.FromDDService = checkForInjectionNaming(dc.envs)
-		return metadata, true
+	// We always return a service name from here on
+	success = true
+
+	if value, ok := chooseServiceNameFromEnvs(ctx.Envs); ok {
+		metadata.DDService = value
+		metadata.DDServiceInjected = serviceNameInjected(ctx.Envs)
 	}
 
 	exe := cmd[0]
@@ -219,9 +242,25 @@ func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS, 
 
 	exe = normalizeExeName(exe)
 
-	if detectorProvider, ok := binsWithContext[exe]; ok {
-		if metadata, ok := detectorProvider(dc).detect(cmd[1:]); ok {
-			return metadata, true
+	detectorProvider, ok := executableDetectors[exe]
+	if !ok {
+		detectorProvider, ok = languageDetectors[lang]
+	}
+
+	if ok {
+		langMeta, ok := detectorProvider(ctx).detect(cmd[1:])
+
+		// The detector could return a DD Service name (eg. Java, from the
+		// dd.service property), but still fail to generate a service name (ok =
+		// false) so check this first.
+		if langMeta.DDService != "" {
+			metadata.DDService = langMeta.DDService
+		}
+
+		if ok {
+			metadata.Name = langMeta.Name
+			metadata.SetAdditionalNames(langMeta.AdditionalNames...)
+			return
 		}
 	}
 
@@ -230,7 +269,8 @@ func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS, 
 		exe = exe[:i]
 	}
 
-	return NewServiceMetadata(exe), true
+	metadata.Name = exe
+	return
 }
 
 func removeFilePath(s string) string {
@@ -295,11 +335,11 @@ func normalizeExeName(exe string) string {
 
 // chooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
 // returns the service name, true if found, otherwise "", false
-func chooseServiceNameFromEnvs(envs map[string]string) (string, bool) {
-	if val, ok := envs["DD_SERVICE"]; ok {
+func chooseServiceNameFromEnvs(envs envs.Variables) (string, bool) {
+	if val, ok := envs.Get("DD_SERVICE"); ok {
 		return val, true
 	}
-	if val, ok := envs["DD_TAGS"]; ok && strings.Contains(val, "service:") {
+	if val, ok := envs.Get("DD_TAGS"); ok && strings.Contains(val, "service:") {
 		parts := strings.Split(val, ",")
 		for _, p := range parts {
 			if strings.HasPrefix(p, "service:") {

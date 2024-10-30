@@ -20,7 +20,6 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -115,6 +114,7 @@ type WindowsProbe struct {
 	// approvers
 	currentEventTypes []string
 	approvers         map[eval.Field][]approver
+	approverLock      sync.RWMutex
 }
 
 type approver interface {
@@ -195,6 +195,8 @@ type etwCallback func(n interface{}, pid uint32)
 
 // Init initializes the probe
 func (p *WindowsProbe) Init() error {
+
+	p.processKiller.Start(p.ctx, &p.wg)
 
 	if !p.opts.disableProcmon {
 		pm, err := procmon.NewWinProcMon(p.onStart, p.onStop, p.onError, procmon.ProcmonDefaultReceiveSize, procmon.ProcmonDefaultNumBufs)
@@ -411,6 +413,9 @@ func (p *WindowsProbe) approve(field eval.Field, eventType string, value string)
 	if !p.config.Probe.EnableApprovers {
 		return true
 	}
+
+	p.approverLock.RLock()
+	defer p.approverLock.RUnlock()
 
 	approvers, exists := p.approvers[field]
 	if !exists {
@@ -749,6 +754,8 @@ func (p *WindowsProbe) Start() error {
 				return
 
 			case <-p.onError:
+				log.Errorf("error in underlying procmon")
+				continue
 				// in this case, we got some sort of error that the underlying
 				// subsystem can't recover from.  Need to initiate some sort of cleanup
 
@@ -797,7 +804,7 @@ func (p *WindowsProbe) handleProcessStart(ev *model.Event, start *procmon.Proces
 
 	}
 
-	pce, err := p.Resolvers.ProcessResolver.AddNewEntry(pid, uint32(start.PPid), start.ImageFile, start.CmdLine, start.OwnerSidString)
+	pce, err := p.Resolvers.ProcessResolver.AddNewEntry(pid, uint32(start.PPid), start.ImageFile, start.EnvBlock, start.CmdLine, start.OwnerSidString)
 	if err != nil {
 		log.Errorf("error in resolver %v", err)
 		return false
@@ -1109,6 +1116,9 @@ func (p *WindowsProbe) SendStats() error {
 	if err != nil {
 		return err
 	}
+
+	p.processKiller.SendStats(p.statsdClient)
+
 	return nil
 }
 
@@ -1261,10 +1271,13 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 	}
 
 	// remove old approvers
+	p.approverLock.Lock()
+	defer p.approverLock.Unlock()
+
 	clear(p.approvers)
 
 	for eventType, report := range ars.Policies {
-		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
+		if err := p.setApprovers(eventType, report.Approvers); err != nil {
 			return nil, err
 		}
 	}
@@ -1274,6 +1287,11 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 	}
 
 	return ars, nil
+}
+
+// OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
+func (p *WindowsProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
+	p.processKiller.Reset(rs)
 }
 
 // FlushDiscarders invalidates all the discarders
@@ -1356,9 +1374,11 @@ func (p *WindowsProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				return
 			}
 
-			p.processKiller.KillAndReport(action.Def.Kill.Scope, action.Def.Kill.Signal, rule, ev, func(pid uint32, sig uint32) error {
+			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev, func(pid uint32, sig uint32) error {
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
-			})
+			}) {
+				p.probe.onRuleActionPerformed(rule, action.Def)
+			}
 		}
 	}
 }
@@ -1382,8 +1402,13 @@ func (p *Probe) Origin() string {
 	return ""
 }
 
+// EnableEnforcement sets the enforcement mode
+func (p *WindowsProbe) EnableEnforcement(state bool) {
+	p.processKiller.SetState(state)
+}
+
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, opts Opts, _ workloadmeta.Component, telemetry telemetry.Component) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts, telemetry telemetry.Component) (*Probe, error) {
 	opts.normalize()
 
 	p := newProbe(config, opts)
@@ -1397,8 +1422,8 @@ func NewProbe(config *config.Config, opts Opts, _ workloadmeta.Component, teleme
 	return p, nil
 }
 
-// SetApprovers applies approvers and removes the unused ones
-func (p *WindowsProbe) SetApprovers(_ eval.EventType, approvers rules.Approvers) error {
+// setApprovers applies approvers and removes the unused ones
+func (p *WindowsProbe) setApprovers(_ eval.EventType, approvers rules.Approvers) error {
 	for name, els := range approvers {
 		for _, el := range els {
 			if el.Type == eval.ScalarValueType || el.Type == eval.PatternValueType {
@@ -1418,4 +1443,9 @@ func (p *WindowsProbe) SetApprovers(_ eval.EventType, approvers rules.Approvers)
 	}
 
 	return nil
+}
+
+// PlaySnapshot plays a snapshot
+func (p *WindowsProbe) PlaySnapshot() {
+	// TODO: Implement this method if needed.
 }

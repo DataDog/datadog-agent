@@ -18,7 +18,7 @@ import (
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
 
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
@@ -32,7 +32,7 @@ type RuntimeSecurityClient struct {
 // SecurityModuleClientWrapper represents a security module client
 type SecurityModuleClientWrapper interface {
 	DumpDiscarders() (string, error)
-	DumpProcessCache(withArgs bool) (string, error)
+	DumpProcessCache(withArgs bool, format string) (string, error)
 	GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error)
 	ListActivityDumps() (*api.ActivityDumpListMessage, error)
 	StopActivityDump(name, containerid string) (*api.ActivityDumpStopMessage, error)
@@ -61,8 +61,8 @@ func (c *RuntimeSecurityClient) DumpDiscarders() (string, error) {
 }
 
 // DumpProcessCache sends a process cache dump request
-func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool) (string, error) {
-	response, err := c.apiClient.DumpProcessCache(context.Background(), &api.DumpProcessCacheParams{WithArgs: withArgs})
+func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool, format string) (string, error) {
+	response, err := c.apiClient.DumpProcessCache(context.Background(), &api.DumpProcessCacheParams{WithArgs: withArgs, Format: format})
 	if err != nil {
 		return "", err
 	}
@@ -182,7 +182,7 @@ func (c *RuntimeSecurityClient) Close() {
 
 // NewRuntimeSecurityClient instantiates a new RuntimeSecurityClient
 func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
-	socketPath := coreconfig.Datadog().GetString("runtime_security_config.socket")
+	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
 	if socketPath == "" {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}

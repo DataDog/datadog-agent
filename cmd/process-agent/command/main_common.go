@@ -52,13 +52,15 @@ import (
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -174,7 +176,10 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide the corresponding tagger Params to configure the tagger
 		fx.Provide(func(c config.Component) tagger.Params {
-			if c.GetBool("process_config.remote_tagger") {
+			if c.GetBool("process_config.remote_tagger") ||
+				// If the agent is running in ECS or ECS Fargate and the ECS task collection is enabled, use the remote tagger
+				// as remote tagger can return more tags than the local tagger.
+				((env.IsECS() || env.IsECSFargate()) && c.GetBool("ecs_task_collection_enabled")) {
 				return tagger.NewNodeRemoteTaggerParams()
 			}
 			return tagger.NewTaggerParams()
@@ -182,6 +187,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provides specific features to our own fx wrapper (logging, lifecycle, shutdowner)
 		fxutil.FxAgentBase(),
+		logging.EnableFxLoggingOnDebug[logcomp.Component](),
 
 		// Set the pid file path
 		fx.Supply(pidimpl.NewParams(globalParams.PidFilePath)),
@@ -272,6 +278,7 @@ type miscDeps struct {
 	HostInfo     hostinfo.Component
 	WorkloadMeta workloadmeta.Component
 	Logger       logcomp.Component
+	Tagger       tagger.Component
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
@@ -281,6 +288,12 @@ func initMisc(deps miscDeps) error {
 	if err := ddutil.SetupCoreDump(deps.Config); err != nil {
 		deps.Logger.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
+
+	// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
+	// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
+	// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
+	// we can include the tagger as part of the workloadmeta component.
+	proccontainers.InitSharedContainerProvider(deps.WorkloadMeta, deps.Tagger)
 
 	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg)
 
@@ -312,7 +325,7 @@ func initMisc(deps miscDeps) error {
 // shouldStayAlive determines whether the process agent should stay alive when no checks are running.
 // This can happen when the checks are running on the core agent but a process agent container is
 // still brought up. The process-agent is kept alive to prevent crash loops.
-func shouldStayAlive(cfg ddconfig.Reader) bool {
+func shouldStayAlive(cfg model.Reader) bool {
 	if env.IsKubernetes() && cfg.GetBool("process_config.run_in_core_agent.enabled") {
 		log.Warn("The process-agent is staying alive to prevent crash loops due to the checks running on the core agent. Thus, the process-agent is idle. Update your Helm chart or Datadog Operator to the latest version to prevent this (https://docs.datadoghq.com/containers/kubernetes/installation/).")
 		return true

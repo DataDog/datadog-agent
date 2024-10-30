@@ -13,8 +13,8 @@ import (
 	"os"
 	"sync"
 
+	"github.com/cihub/seelog"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
-
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
@@ -78,11 +78,16 @@ func NewFilePath(procRoot, namespacedPath string, pid uint32) (FilePath, error) 
 	return FilePath{HostPath: path, ID: pathID, PID: pid}, nil
 }
 
-type callback func(FilePath) error
+// Callback is a function that is executed when a file becomes active or inactive
+type Callback func(FilePath) error
 
 // IgnoreCB is just a dummy callback that doesn't do anything
 // Meant for testing purposes
 var IgnoreCB = func(FilePath) error { return nil }
+
+// ErrEnvironment indicates that the error is not with the path itself, so the
+// path itself should not be blocked from further attempts at hooking.
+var ErrEnvironment = errors.New("Environment error, path will not be blocked")
 
 // NewFileRegistry creates a new `FileRegistry` instance
 func NewFileRegistry(programName string) *FileRegistry {
@@ -122,7 +127,7 @@ var (
 // If no current registration exists for the given `PathIdentifier`, we execute
 // its *activation* callback. Otherwise, we increment the reference counter for
 // the existing registration if and only if `pid` is new;
-func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB, alreadyRegistered callback) error {
+func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB, alreadyRegistered Callback) error {
 	if activationCB == nil || deactivationCB == nil {
 		return errCallbackIsMissing
 	}
@@ -163,14 +168,29 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 	}
 
 	if err := activationCB(path); err != nil {
+		// We need to call `deactivationCB` here as some uprobes could be
+		// already attached. This could be the case even when the checks below
+		// indicate that the process is gone, since the process could disappear
+		// between two uprobe registrations.
+		_ = deactivationCB(FilePath{ID: pathID})
+
+		if errors.Is(err, ErrEnvironment) {
+			return err
+		}
+
 		// short living process would be hard to catch and will failed when we try to open the library
 		// so let's failed silently
 		if errors.Is(err, os.ErrNotExist) {
 			return err
 		}
+		// Adding the path to the block list is irreversible, so double-check
+		// that we really didn't fail because the process is gone (the path is
+		// /proc/PID/root/...), since we can't be certain that ErrNotExist is
+		// always correctly propagated from the activation callback.
+		if _, statErr := os.Stat(path.HostPath); errors.Is(statErr, os.ErrNotExist) {
+			return errors.Join(statErr, err)
+		}
 
-		// we are calling `deactivationCB` here as some uprobes could be already attached
-		err = deactivationCB(FilePath{ID: pathID})
 		if r.blocklistByID != nil {
 			// add `pathID` to blocklist so we don't attempt to re-register files
 			// that are problematic for some reason
@@ -243,7 +263,9 @@ func (r *FileRegistry) GetRegisteredProcesses() map[uint32]struct{} {
 
 // Log state of `FileRegistry`
 func (r *FileRegistry) Log() {
-	log.Debugf("file_registry summary: program=%s %s", r.telemetry.programName, r.telemetry.metricGroup.Summary())
+	if log.ShouldLog(seelog.DebugLvl) {
+		log.Debugf("file_registry summary: program=%s %s", r.telemetry.programName, r.telemetry.metricGroup.Summary())
+	}
 }
 
 // Clear removes all registrations calling their deactivation callbacks
@@ -281,7 +303,7 @@ func (r *FileRegistry) Clear() {
 	r.stopped = true
 }
 
-func (r *FileRegistry) newRegistration(sampleFilePath string, deactivationCB callback) *registration {
+func (r *FileRegistry) newRegistration(sampleFilePath string, deactivationCB Callback) *registration {
 	return &registration{
 		deactivationCB:       deactivationCB,
 		uniqueProcessesCount: atomic.NewInt32(1),
@@ -292,7 +314,7 @@ func (r *FileRegistry) newRegistration(sampleFilePath string, deactivationCB cal
 
 type registration struct {
 	uniqueProcessesCount *atomic.Int32
-	deactivationCB       callback
+	deactivationCB       Callback
 
 	// we are sharing the telemetry from FileRegistry
 	telemetry *registryTelemetry

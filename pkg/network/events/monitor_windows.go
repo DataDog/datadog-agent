@@ -62,7 +62,7 @@ func getAPMTags(already map[string]struct{}, filename string) []*intern.Value {
 
 	tags := make([]*intern.Value, 0, 3)
 	// see if there's an app.config in the directory
-	appConfig := filepath.Join(dir, "app.config")
+	appConfig := filename + ".config"
 	ddJSON := filepath.Join(dir, "datadog.json")
 	if _, err := os.Stat(appConfig); err == nil {
 
@@ -74,7 +74,7 @@ func getAPMTags(already map[string]struct{}, filename string) []*intern.Value {
 			}
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
-		log.Warnf("Error reading app.config: %v", err)
+		log.Warnf("Error reading app.config: %s %v", appConfig, err)
 	}
 	if len(already) == len(envFilter) {
 		// we've seen all we need, no point in looking in datadog.json

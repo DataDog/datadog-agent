@@ -18,8 +18,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language/reader"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -38,7 +38,7 @@ const (
 	Injected Instrumentation = "injected"
 )
 
-type detector func(pid int, args []string, envs map[string]string, contextMap usm.DetectorContextMap) Instrumentation
+type detector func(ctx usm.DetectionContext) Instrumentation
 
 var (
 	detectorMap = map[language.Language]detector{
@@ -48,38 +48,27 @@ var (
 		language.Python: pythonDetector,
 		language.Go:     goDetector,
 	}
-	// For now, only allow a subset of the above detectors to actually run.
-	allowedLangs = map[language.Language]struct{}{
-		language.Java:   {},
-		language.Node:   {},
-		language.Python: {},
-		language.Go:     {},
-	}
 
 	nodeAPMCheckRegex = regexp.MustCompile(`"dd-trace"`)
 )
 
 // Detect attempts to detect the type of APM instrumentation for the given service.
-func Detect(pid int, args []string, envs map[string]string, lang language.Language, contextMap usm.DetectorContextMap) Instrumentation {
+func Detect(lang language.Language, ctx usm.DetectionContext) Instrumentation {
 	// first check to see if the DD_INJECTION_ENABLED is set to tracer
-	if isInjected(envs) {
+	if isInjected(ctx.Envs) {
 		return Injected
-	}
-
-	if _, ok := allowedLangs[lang]; !ok {
-		return None
 	}
 
 	// different detection for provided instrumentation for each
 	if detect, ok := detectorMap[lang]; ok {
-		return detect(pid, args, envs, contextMap)
+		return detect(ctx)
 	}
 
 	return None
 }
 
-func isInjected(envs map[string]string) bool {
-	if val, ok := envs["DD_INJECTION_ENABLED"]; ok {
+func isInjected(envs envs.Variables) bool {
+	if val, ok := envs.Get("DD_INJECTION_ENABLED"); ok {
 		parts := strings.Split(val, ",")
 		for _, v := range parts {
 			if v == "tracer" {
@@ -108,8 +97,8 @@ const (
 // goDetector detects APM instrumentation for Go binaries by checking for
 // the presence of the dd-trace-go symbols in the ELF. This only works for
 // unstripped binaries.
-func goDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorContextMap) Instrumentation {
-	exePath := kernel.HostProc(strconv.Itoa(pid), "exe")
+func goDetector(ctx usm.DetectionContext) Instrumentation {
+	exePath := kernel.HostProc(strconv.Itoa(ctx.Pid), "exe")
 
 	elfFile, err := elf.Open(exePath)
 	if err != nil {
@@ -118,12 +107,16 @@ func goDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorContextM
 	}
 	defer elfFile.Close()
 
-	_, err = bininspect.GetAnySymbolWithPrefix(elfFile, ddTraceGoPrefix, ddTraceGoMaxLength)
-	if err != nil {
-		return None
+	if _, err = bininspect.GetAnySymbolWithPrefix(elfFile, ddTraceGoPrefix, ddTraceGoMaxLength); err == nil {
+		return Provided
 	}
 
-	return Provided
+	// We failed to find symbols in the regular symbols section, now we can try the pclntab
+	if _, err = bininspect.GetAnySymbolWithPrefixPCLNTAB(elfFile, ddTraceGoPrefix, ddTraceGoMaxLength); err == nil {
+		return Provided
+	}
+	return None
+
 }
 
 func pythonDetectorFromMapsReader(reader io.Reader) Instrumentation {
@@ -150,8 +143,8 @@ func pythonDetectorFromMapsReader(reader io.Reader) Instrumentation {
 // For example:
 // 7aef453fc000-7aef453ff000 rw-p 0004c000 fc:06 7895473  /home/foo/.local/lib/python3.10/site-packages/ddtrace/internal/_encoding.cpython-310-x86_64-linux-gnu.so
 // 7aef45400000-7aef45459000 r--p 00000000 fc:06 7895588  /home/foo/.local/lib/python3.10/site-packages/ddtrace/internal/datadog/profiling/libdd_wrapper.so
-func pythonDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorContextMap) Instrumentation {
-	mapsPath := kernel.HostProc(strconv.Itoa(pid), "maps")
+func pythonDetector(ctx usm.DetectionContext) Instrumentation {
+	mapsPath := kernel.HostProc(strconv.Itoa(ctx.Pid), "maps")
 	mapsFile, err := os.Open(mapsPath)
 	if err != nil {
 		return None
@@ -180,14 +173,14 @@ func isNodeInstrumented(f fs.File) bool {
 // To check for APM instrumentation, we try to find a package.json in
 // the parent directories of the service. If found, we then check for a
 // `dd-trace` entry to be present.
-func nodeDetector(_ int, _ []string, _ map[string]string, contextMap usm.DetectorContextMap) Instrumentation {
-	pkgJSONPath, ok := contextMap[usm.NodePackageJSONPath]
+func nodeDetector(ctx usm.DetectionContext) Instrumentation {
+	pkgJSONPath, ok := ctx.ContextMap[usm.NodePackageJSONPath]
 	if !ok {
 		log.Debugf("could not get package.json path from context map")
 		return None
 	}
 
-	fs, ok := contextMap[usm.ServiceSubFS]
+	fs, ok := ctx.ContextMap[usm.ServiceSubFS]
 	if !ok {
 		log.Debugf("could not get SubFS for package.json")
 		return None
@@ -207,7 +200,7 @@ func nodeDetector(_ int, _ []string, _ map[string]string, contextMap usm.Detecto
 	return None
 }
 
-func javaDetector(_ int, args []string, envs map[string]string, _ usm.DetectorContextMap) Instrumentation {
+func javaDetector(ctx usm.DetectionContext) Instrumentation {
 	ignoreArgs := map[string]bool{
 		"-version":     true,
 		"-Xshare:dump": true,
@@ -215,7 +208,7 @@ func javaDetector(_ int, args []string, envs map[string]string, _ usm.DetectorCo
 	}
 
 	// Check simple args on builtIn list.
-	for _, v := range args {
+	for _, v := range ctx.Args {
 		if ignoreArgs[v] {
 			return None
 		}
@@ -237,7 +230,7 @@ func javaDetector(_ int, args []string, envs map[string]string, _ usm.DetectorCo
 		"JDPA_OPTS",
 	}
 	for _, name := range toolOptionEnvs {
-		if val, ok := envs[name]; ok {
+		if val, ok := ctx.Envs.Get(name); ok {
 			if strings.Contains(val, "-javaagent:") && strings.Contains(val, "dd-java-agent.jar") {
 				return Provided
 			}
@@ -246,93 +239,44 @@ func javaDetector(_ int, args []string, envs map[string]string, _ usm.DetectorCo
 	return None
 }
 
-func findFile(fileName string) (io.ReadCloser, bool) {
-	f, err := os.Open(fileName)
-	if err != nil {
-		return nil, false
+func dotNetDetectorFromMapsReader(reader io.Reader) Instrumentation {
+	scanner := bufio.NewScanner(bufio.NewReader(reader))
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if strings.HasSuffix(line, "Datadog.Trace.dll") {
+			return Provided
+		}
 	}
-	return f, true
+
+	return None
 }
 
-const datadogDotNetInstrumented = "Datadog.Trace.ClrProfiler.Native"
+// dotNetDetector detects instrumentation in .NET applications.
+//
+// The primary check is for the environment variables which enables .NET
+// profiling. This is required for auto-instrumentation, and besides that custom
+// instrumentation using version 3.0.0 or later of Datadog.Trace requires
+// auto-instrumentation. It is also set if some third-party
+// profiling/instrumentation is active.
+//
+// The secondary check is to detect cases where an older version of
+// Datadog.Trace is used for manual instrumentation without enabling
+// auto-instrumentation. For this, we check for the presence of the DLL in the
+// maps file. Note that this does not work for single-file deployments.
+//
+// 785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267 /home/foo/.../publish/Datadog.Trace.dll
+func dotNetDetector(ctx usm.DetectionContext) Instrumentation {
+	if val, ok := ctx.Envs.Get("CORECLR_ENABLE_PROFILING"); ok && val == "1" {
+		return Provided
+	}
 
-func dotNetDetector(_ int, args []string, envs map[string]string, _ usm.DetectorContextMap) Instrumentation {
-	// if it's just the word `dotnet` by itself, don't instrument
-	if len(args) == 1 && args[0] == "dotnet" {
+	mapsPath := kernel.HostProc(strconv.Itoa(ctx.Pid), "maps")
+	mapsFile, err := os.Open(mapsPath)
+	if err != nil {
 		return None
 	}
+	defer mapsFile.Close()
 
-	/*
-			From Kevin Gosse:
-			- CORECLR_ENABLE_PROFILING=1
-		    - CORECLR_PROFILER_PATH environment variables set
-		      (it means that a profiler is attached, it doesn't really matter if it's ours or another vendor)
-	*/
-	// don't instrument if the tracer is already installed
-	foundFlags := 0
-	if _, ok := envs["CORECLR_PROFILER_PATH"]; ok {
-		foundFlags |= 1
-	}
-	if val, ok := envs["CORECLR_ENABLE_PROFILING"]; ok && val == "1" {
-		foundFlags |= 2
-	}
-	if foundFlags == 3 {
-		return Provided
-	}
-
-	ignoreArgs := map[string]bool{
-		"build":   true,
-		"clean":   true,
-		"restore": true,
-		"publish": true,
-	}
-
-	if len(args) > 1 {
-		// Ignore only if the first arg match with the ignore list
-		if ignoreArgs[args[1]] {
-			return None
-		}
-		// Check to see if there's a DLL on the command line that contain the string Datadog.Trace.ClrProfiler.Native
-		// If so, it's already instrumented with Datadog, ignore the process
-		for _, v := range args[1:] {
-			if strings.HasSuffix(v, ".dll") {
-				if f, ok := findFile(v); ok {
-					defer f.Close()
-					offset, err := reader.Index(f, datadogDotNetInstrumented)
-					if offset != -1 && err == nil {
-						return Provided
-					}
-				}
-			}
-		}
-	}
-
-	// does the binary contain the string Datadog.Trace.ClrProfiler.Native (this should cover all single-file deployments)
-	// if so, it's already instrumented with Datadog, ignore the process
-	if f, ok := findFile(args[0]); ok {
-		defer f.Close()
-		offset, err := reader.Index(f, datadogDotNetInstrumented)
-		if offset != -1 && err == nil {
-			return Provided
-		}
-	}
-
-	// check if there's a .dll in the directory with the same name as the binary used to launch it
-	// if so, check if it has the Datadog.Trace.ClrProfiler.Native string
-	// if so, it's already instrumented with Datadog, ignore the process
-	if f, ok := findFile(args[0] + ".dll"); ok {
-		defer f.Close()
-		offset, err := reader.Index(f, datadogDotNetInstrumented)
-		if offset != -1 && err == nil {
-			return Provided
-		}
-	}
-
-	// does the application folder contain the file Datadog.Trace.dll (this should cover "classic" deployments)
-	// if so, it's already instrumented with Datadog, ignore the process
-	if f, ok := findFile("Datadog.Trace.dll"); ok {
-		f.Close()
-		return Provided
-	}
-	return None
+	return dotNetDetectorFromMapsReader(mapsFile)
 }

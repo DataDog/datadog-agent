@@ -7,6 +7,7 @@ package apm
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -68,13 +69,16 @@ func testTPS(c *assert.CollectT, intake *components.FakeIntake, tps float64) {
 	}
 }
 
-func testStatsForService(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
+func testStatsForService(t *testing.T, c *assert.CollectT, service string, expectedPeerTag string, intake *components.FakeIntake) {
 	t.Helper()
 	stats, err := intake.Client().GetAPMStats()
 	assert.NoError(c, err)
 	assert.NotEmpty(c, stats)
-	t.Log("Got apm stats", stats)
-	assert.True(c, hasStatsForService(stats, service))
+	t.Logf("Got %d apm stats", len(stats))
+	assert.True(c, hasStatsForService(stats, service), "got stats: %v", stats)
+	if expectedPeerTag != "" {
+		assert.True(c, hasPeerTagsStats(stats, expectedPeerTag), "got stats: %v", stats)
+	}
 }
 
 func testTracesHaveContainerTag(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
@@ -82,8 +86,8 @@ func testTracesHaveContainerTag(t *testing.T, c *assert.CollectT, service string
 	traces, err := intake.Client().GetTraces()
 	assert.NoError(c, err)
 	assert.NotEmpty(c, traces)
-	t.Log("Got traces", traces)
-	assert.True(c, hasContainerTag(traces, fmt.Sprintf("container_name:%s", service)))
+	t.Logf("Got %d apm traces", len(traces))
+	assert.True(c, hasContainerTag(traces, fmt.Sprintf("container_name:%s", service)), "got traces: %v", traces)
 }
 
 func testAutoVersionTraces(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
@@ -91,7 +95,7 @@ func testAutoVersionTraces(t *testing.T, c *assert.CollectT, intake *components.
 	traces, err := intake.Client().GetTraces()
 	assert.NoError(c, err)
 	assert.NotEmpty(c, traces)
-	t.Log("Got traces", traces)
+	t.Logf("Got %d apm traces", len(traces))
 	for _, tr := range traces {
 		for _, tp := range tr.TracerPayloads {
 			t.Log("Tracer Payload Tags:", tp.Tags["_dd.tags.container"])
@@ -110,7 +114,7 @@ func tracesSampledByProbabilitySampler(t *testing.T, c *assert.CollectT, intake 
 	traces, err := intake.Client().GetTraces()
 	assert.NoError(c, err)
 	assert.NotEmpty(c, traces)
-	t.Log("Got traces", traces)
+	t.Logf("Got %d apm traces", len(traces))
 	for _, p := range traces {
 		for _, tp := range p.AgentPayload.TracerPayloads {
 			for _, chunk := range tp.Chunks {
@@ -131,7 +135,7 @@ func testAutoVersionStats(t *testing.T, c *assert.CollectT, intake *components.F
 	stats, err := intake.Client().GetAPMStats()
 	assert.NoError(c, err)
 	assert.NotEmpty(c, stats)
-	t.Log("Got apm stats:", spew.Sdump(stats))
+	t.Logf("Got %d apm stats", len(stats))
 	for _, p := range stats {
 		for _, s := range p.StatsPayload.Stats {
 			t.Log("Client Payload:", spew.Sdump(s))
@@ -148,7 +152,7 @@ func testIsTraceRootTag(t *testing.T, c *assert.CollectT, intake *components.Fak
 	stats, err := intake.Client().GetAPMStats()
 	assert.NoError(c, err)
 	assert.NotEmpty(c, stats)
-	t.Log("Got apm stats:", spew.Sdump(stats))
+	t.Logf("Got %d apm stats", len(stats))
 	for _, p := range stats {
 		for _, s := range p.StatsPayload.Stats {
 			t.Log("Client Payload:", spew.Sdump(s))
@@ -185,6 +189,21 @@ func hasStatsForService(payloads []*aggregator.APMStatsPayload, service string) 
 			for _, bucket := range s.Stats {
 				for _, ss := range bucket.Stats {
 					if ss.Service == service {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func hasPeerTagsStats(payloads []*aggregator.APMStatsPayload, fullTag string) bool {
+	for _, p := range payloads {
+		for _, s := range p.StatsPayload.Stats {
+			for _, bucket := range s.Stats {
+				for _, ss := range bucket.Stats {
+					if slices.Contains(ss.GetPeerTags(), fullTag) {
 						return true
 					}
 				}
@@ -350,12 +369,12 @@ func hasPoisonPill(t *testing.T, intake *components.FakeIntake) bool {
 	t.Helper()
 	stats, err := intake.Client().GetAPMStats()
 	assert.NoError(t, err)
-	t.Log("Got apm stats", stats)
+	t.Logf("Got %d stats", len(stats))
 	if !hasStatsForResource(stats, "poison_pill") { // tracegen sends this resource as the last trace before shutting down.
 		return false
 	}
 	traces, err := intake.Client().GetTraces()
 	assert.NoError(t, err)
-	t.Log("Got traces", traces)
+	t.Logf("Got %d traces", len(traces))
 	return hasTraceForResource(traces, "poison_pill")
 }

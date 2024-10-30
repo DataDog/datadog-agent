@@ -38,11 +38,10 @@ func TestCriCheck(t *testing.T) {
 		"cID101": mock.GetFullSampleContainerEntry(),
 	}
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	// Inject mock processor in check
 	mockCri := &crimock.MockCRIClient{}
-	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil))
+	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil), fakeTagger)
 	processor.RegisterExtension("cri-custom-metrics", &criCustomMetricsExtension{criGetter: func() (cri.CRIClient, error) { return mockCri, nil }})
 
 	mockCri.On("ListContainerStats").Return(map[string]*criTypes.ContainerStats{

@@ -50,8 +50,6 @@ func (pn *ProcessNode) snapshot(owner Owner, stats *Stats, newEvent func() *mode
 	// snapshot files
 	if owner.IsEventTypeValid(model.FileOpenEventType) {
 		pn.snapshotAllFiles(p, stats, newEvent, reducer)
-	} else {
-		pn.snapshotMemoryMappedFiles(p, stats, newEvent, reducer)
 	}
 
 	// snapshot sockets
@@ -70,6 +68,12 @@ func (pn *ProcessNode) snapshotAllFiles(p *process.Process, stats *Stats, newEve
 	if err != nil {
 		seclog.Warnf("error while listing files (pid: %v): %s", p.Pid, err)
 	}
+
+	// filter out fd corresponding to anon inodes, pipes, sockets, etc. when snapshotting process opened files
+	// the goal is to avoid sampling opened files for processes that mostly open files not present on the filesystem
+	fileFDs = slices.DeleteFunc(fileFDs, func(fd process.OpenFilesStat) bool {
+		return !strings.HasPrefix(fd.Path, "/")
+	})
 
 	var (
 		isSampling = false
@@ -107,16 +111,6 @@ func (pn *ProcessNode) snapshotAllFiles(p *process.Process, stats *Stats, newEve
 	}
 
 	pn.addFiles(files, stats, newEvent, reducer)
-}
-
-func (pn *ProcessNode) snapshotMemoryMappedFiles(p *process.Process, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer) {
-	// list the mmaped files of the process
-	mmapedFiles, err := getMemoryMappedFiles(p.Pid, pn.Process.FileEvent.PathnameStr)
-	if err != nil {
-		seclog.Warnf("error while listing memory maps (pid: %v): %s", p.Pid, err)
-	}
-
-	pn.addFiles(mmapedFiles, stats, newEvent, reducer)
 }
 
 func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer) {

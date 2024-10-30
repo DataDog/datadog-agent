@@ -37,6 +37,7 @@ var nonLocalFlareFiles = []string{
 	"process-agent_tagger-list.json",
 	"tagger-list.json",
 	"workload-list.log",
+	"agent_open_files.txt",
 }
 
 // defaultLogFiles contains all the log files that are created with a default installation
@@ -85,9 +86,7 @@ var windowsFiles = []string{
 }
 
 // linuxFiles contains files that are specific to Linux
-var linuxFiles = []string{
-	"agent_open_files.txt",
-}
+var linuxFiles = []string{}
 
 var profilingFiles = []string{
 	"profiles/core-1st-heap.pprof",

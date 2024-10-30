@@ -224,6 +224,11 @@ func (s *Scanner) startScanRequestHandler(ctx context.Context) {
 	}()
 }
 
+// GetCollector returns the collector with the specified name
+func (s *Scanner) GetCollector(collector string) collectors.Collector {
+	return s.collectors[collector]
+}
+
 func (s *Scanner) handleScanRequest(ctx context.Context, r interface{}) {
 	request, ok := r.(sbom.ScanRequest)
 	if !ok {
@@ -232,8 +237,8 @@ func (s *Scanner) handleScanRequest(ctx context.Context, r interface{}) {
 		return
 	}
 
-	collector, ok := s.collectors[request.Collector()]
-	if !ok {
+	collector := s.GetCollector(request.Collector())
+	if collector == nil {
 		_ = log.Errorf("invalid collector '%s'", request.Collector())
 		s.scanQueue.Forget(request)
 		return
@@ -276,7 +281,7 @@ func (s *Scanner) processScan(ctx context.Context, request sbom.ScanRequest, img
 	if result == nil {
 		scanContext, cancel := context.WithTimeout(ctx, timeout(collector))
 		defer cancel()
-		result = s.performScan(scanContext, request, collector)
+		result = s.PerformScan(scanContext, request, collector)
 		errorType = "scan"
 	}
 	sendResult(ctx, request.ID(), result, collector)
@@ -299,7 +304,8 @@ func (s *Scanner) checkDiskSpace(imgMeta *workloadmeta.ContainerImageMetadata, c
 	return result
 }
 
-func (s *Scanner) performScan(ctx context.Context, request sbom.ScanRequest, collector collectors.Collector) *sbom.ScanResult {
+// PerformScan processes a scan request with the selected collector and returns the SBOM
+func (s *Scanner) PerformScan(ctx context.Context, request sbom.ScanRequest, collector collectors.Collector) *sbom.ScanResult {
 	createdAt := time.Now()
 
 	s.cacheMutex.Lock()

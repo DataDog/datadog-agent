@@ -3,12 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// ---------------------------------------------------
-//
-// This is experimental code and is subject to change.
-//
-// ---------------------------------------------------
-
 package agenttelemetryimpl
 
 import (
@@ -40,14 +34,12 @@ type Profile struct {
 	// parsed
 	Name     string             `yaml:"name"`
 	Metric   *AgentMetricConfig `yaml:"metric,omitempty"`
-	Status   *AgentStatusConfig `yaml:"status"`
 	Schedule *Schedule          `yaml:"schedule"`
 
 	// compiled
-	statusExtraBuilder []jBuilder
-	metricsMap         map[string]*MetricConfig
-	excludeZeroMetric  bool
-	excludeTagsMap     map[string]any
+	metricsMap        map[string]*MetricConfig
+	excludeZeroMetric bool
+	excludeTagsMap    map[string]any
 }
 
 // AgentMetricConfig specifies agent telemetry metrics payloads to be generated and emitted
@@ -71,12 +63,6 @@ type MetricConfig struct {
 	// compiled
 	aggregateTagsExists bool
 	aggregateTagsMap    map[string]any
-}
-
-// AgentStatusConfig is a single agent telemetry status payload
-type AgentStatusConfig struct {
-	Template string            `yaml:"template"`
-	Extra    map[string]string `yaml:"extra,omitempty"`
 }
 
 // Schedule is a schedule for agent telemetry payloads to be generated and emitted
@@ -135,63 +121,6 @@ type Schedule struct {
 // reserved tag"). If not specified, specified, default value of `false` will be used.
 // It is useful only if "aggregate_tags" is also specified and will be ignored otherwise.
 //
-// profiles[].status (optional)
-// --------------------------------
-// When included, agent telemetry status payloads will be generated and emitted.
-//
-// profiles[].status.template (optional)
-// --------------------------------------
-// Name of agent status JSON rendering template which generates agent telemetry status
-// payload. Used as a suffix to
-//   "pkg\status\render\templates\agent-telemetry-<template name>.tmpl" file path. Currently
-// two templates ("basic" and "none") are supported. When "none" template is used for a
-// profile, agent telemetry status payload will not be generated for that profile (unless
-// "extra" configuration is specified).
-//
-// profiles[].status.extra (optional)
-// ----------------------------------
-// Map of extra telemetry JSON objects/attributes selected or calculated from the main Agent
-// Status JSON object. Each map entry specifies a single JSON object and its single
-// attribute to be added to the agent status telemetry payload.
-//
-//    key - "." separated elements specifying "target" JSON path to the additional JSON object
-//      to be added to the agent status telemetry payload. The rightmost component is the
-//      object's attribute name.
-//
-//    value - JQ expression to be applied to the full agent status JSON to compute a value for
-//      for the specified in the key agent telemetry status JSON attribute. For privacy and
-//      security reasons, claculated value can  only be int, float or bool. Strings will be
-//      allowed as exceptions provided they had been approved.
-//
-//       Example. If agent status JSON is ...
-//           {
-//             "runnerStats": {
-//               "Workers": {
-//                 "Count": 2,
-//                 "Instances": {
-//                   "worker_1": {
-//                     "Utilization": 0.05
-//                   },
-//                   "worker_2": {
-//                     "Utilization": 0.17
-//                   }
-//                 }
-//               }
-//             }
-//           }
-//
-//       ... with "extra" like this ...
-//           ...
-//           extra:
-//             workers.count: '.runnerStats.Workers.Count'
-//             workers.utilization: '[.runnerStats.Workers | .. | objects | .Utilization] | add'
-//
-//       ... the following JSON object will be added to the agent telemetry statys payload ...
-//           "workers": {
-//             "count": 2,
-//             "utilization": 0.22
-//           }
-//
 // profiles[].schedule (optional)
 // --------------------------------
 // Specified when agent telemetry payloads to be generated and emitted. If not specified,
@@ -237,26 +166,37 @@ var defaultProfiles = `
           - check_name:network
           - check_name:io
           - check_name:file_handle
-      metrics:  
-        - name: checks.runs
-          aggregate_tags:
-            - check_name
-            - state
+      metrics:
         - name: checks.execution_time
           aggregate_tags:
             - check_name
-        - name: checks.warnings
-          aggregate_tags:
-            - check_name
+        - name: pymem.inuse
+        - name: pymem.alloc
         - name: logs.decoded
         - name: logs.processed
         - name: logs.sent
-        - name: logs.network_errors
         - name: logs.dropped
         - name: logs.sender_latency
-        - name: logs.destination_http_resp
-          aggregate_tags:
-            - status_code
+        - name: logs.bytes_sent
+        - name: logs.encoded_bytes_sent
+        - name: logs.bytes_missed
+        - name: point.sent
+        - name: point.dropped
+        - name: oracle.activity_samples_count
+        - name: oracle.activity_latency
+        - name: oracle.statement_metrics
+        - name: oracle.statement_plan_errors
+        - name: postgres.schema_tables_elapsed_ms
+        - name: postgres.schema_tables_count
+        - name: postgres.collect_relations_autodiscovery_ms
+        - name: postgres.collect_stat_autodiscovery_ms
+        - name: postgres.get_new_pg_stat_activity_ms
+        - name: postgres.get_new_pg_stat_activity_count
+        - name: postgres.get_active_connections_ms
+        - name: postgres.get_active_connections_count
+        - name: postgres.collect_activity_snapshot_ms
+        - name: postgres.collect_statement_samples_ms
+        - name: postgres.collect_statement_samples_count
         - name: transactions.input_count
         - name: transactions.requeued
         - name: transactions.retries
@@ -267,26 +207,25 @@ var defaultProfiles = `
           aggregate_tags:
             - transport
             - state
-        - name: dogstatsd.uds_origin_detection_error
-          aggregate_tags:
-            - transport
-        - name: dogstatsd.uds_connections
-          aggregate_tags:
-            - transport
     schedule:
       start_after: 30
       iterations: 0
       period: 900
-  - name: core-status
-    status:
-      template: basic
-      extra:
-        runner.workers.count: '.runnerStats.Workers.Count'
-        runner.workers.utilization: '[.runnerStats.Workers | .. | objects | .Utilization] | add'
+  - name: api
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: api_server.request_duration_seconds
+          aggregate_tags:
+            - servername
+            - status_code
+            - method
+            - path
     schedule:
-      start_after: 30
+      start_after: 600
       iterations: 0
-      period: 900
+      period: 14400
 `
 
 func compileMetricsExclude(p *Profile) error {
@@ -384,30 +323,6 @@ func compileMetrics(p *Profile) error {
 	return nil
 }
 
-// Compile status section
-func compileStatus(p *Profile) error {
-	// No status section - nothing to do
-	if p.Status == nil {
-		return nil
-	}
-
-	// Validate template (optional with default "basic". "none" is also supported)
-	if len(p.Status.Template) == 0 {
-		p.Status.Template = "basic"
-	} else if p.Status.Template != "basic" && p.Status.Template != "none" {
-		return fmt.Errorf("profile '%s' template attribute can have 'basic' or 'none' value but %s is provided", p.Name, p.Status.Template)
-	}
-
-	// Compile status extra
-	var err error
-	p.statusExtraBuilder, err = compileJBuilders(p.Status.Extra)
-	if err != nil {
-		return fmt.Errorf("failed to compile 'extra' attribute for profile '%s'. Error: %w", p.Name, err)
-	}
-
-	return nil
-}
-
 // Compile profile
 func compileProfile(p *Profile) error {
 	// Profile requires name
@@ -416,10 +331,6 @@ func compileProfile(p *Profile) error {
 	}
 
 	if err := compileMetrics(p); err != nil {
-		return err
-	}
-
-	if err := compileStatus(p); err != nil {
 		return err
 	}
 

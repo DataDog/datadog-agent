@@ -9,19 +9,13 @@ package ddflareextensionimpl
 import (
 	"testing"
 
-	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap"
 )
 
-func getTestConfig(t *testing.T) *Config {
-	conv, err := configstore.NewConfigStore()
-	require.NoError(t, err)
-
+func getTestConfig() *Config {
 	return &Config{
-		ConfigStore: conv,
 		HTTPConfig: &confighttp.ServerConfig{
 			Endpoint: "localhost:0",
 		},
@@ -29,7 +23,7 @@ func getTestConfig(t *testing.T) *Config {
 }
 
 func TestValidate(t *testing.T) {
-	cfg := getTestConfig(t)
+	cfg := getTestConfig()
 
 	err := cfg.Validate()
 	assert.NoError(t, err)
@@ -44,7 +38,7 @@ func TestValidate(t *testing.T) {
 }
 
 func TestUnmarshal(t *testing.T) {
-	cfg := getTestConfig(t)
+	cfg := getTestConfig()
 
 	endpoint := "localhost:1234"
 
@@ -73,21 +67,15 @@ func TestExtractors(t *testing.T) {
 
 	myConfMap := confmap.NewFromStringMap(m)
 
-	for extension, extractor := range supportedDebugExtensions {
-		expectedCrawl := false
-		if extension == "zpages" {
-			expectedCrawl = true
-		}
-
-		uri, crawl, err := extractor(myConfMap)
+	for _, extractor := range supportedDebugExtensions {
+		uri, err := extractor(myConfMap)
 		assert.NoError(t, err)
-		assert.Equal(t, expectedCrawl, crawl)
 		assert.Equal(t, endpoint, uri)
 	}
 
 	myConfMap = confmap.New()
 	for _, extractor := range supportedDebugExtensions {
-		_, _, err := extractor(myConfMap)
+		_, err := extractor(myConfMap)
 		assert.Error(t, err)
 	}
 

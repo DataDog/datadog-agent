@@ -26,6 +26,8 @@ import (
 	"time"
 	"unsafe"
 
+	"gopkg.in/yaml.v3"
+
 	spconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
@@ -640,7 +642,7 @@ func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *model.Event, field str
 	return false
 }
 
-func setTestPolicy(dir string, onDemandProbes []rules.OnDemandHookPoint, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {
+func setTestPolicy(dir string, onDemandProbes []rules.OnDemandHookPoint, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition) (string, error) {
 	testPolicyFile, err := os.Create(path.Join(dir, "secagent-policy.policy"))
 	if err != nil {
 		return "", err
@@ -651,21 +653,19 @@ func setTestPolicy(dir string, onDemandProbes []rules.OnDemandHookPoint, macros 
 		return err
 	}
 
-	tmpl, err := template.New("test-policy").Parse(testPolicy)
+	policyDef := &rules.PolicyDef{
+		Version:            "1.2.3",
+		Macros:             macroDefs,
+		Rules:              ruleDefs,
+		OnDemandHookPoints: onDemandProbes,
+	}
+
+	testPolicy, err := yaml.Marshal(policyDef)
 	if err != nil {
 		return "", fail(err)
 	}
 
-	buffer := new(bytes.Buffer)
-	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"OnDemandProbes": onDemandProbes,
-		"Rules":          rules,
-		"Macros":         macros,
-	}); err != nil {
-		return "", fail(err)
-	}
-
-	_, err = testPolicyFile.Write(buffer.Bytes())
+	_, err = testPolicyFile.Write(testPolicy)
 	if err != nil {
 		return "", fail(err)
 	}
@@ -775,6 +775,13 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"NetworkIngressEnabled":                      opts.networkIngressEnabled,
 		"OnDemandRateLimiterEnabled":                 !opts.disableOnDemandRateLimiter,
 		"EnforcementExcludeBinary":                   opts.enforcementExcludeBinary,
+		"EnforcementDisarmerContainerEnabled":        opts.enforcementDisarmerContainerEnabled,
+		"EnforcementDisarmerContainerMaxAllowed":     opts.enforcementDisarmerContainerMaxAllowed,
+		"EnforcementDisarmerContainerPeriod":         opts.enforcementDisarmerContainerPeriod,
+		"EnforcementDisarmerExecutableEnabled":       opts.enforcementDisarmerExecutableEnabled,
+		"EnforcementDisarmerExecutableMaxAllowed":    opts.enforcementDisarmerExecutableMaxAllowed,
+		"EnforcementDisarmerExecutablePeriod":        opts.enforcementDisarmerExecutablePeriod,
+		"EventServerRetention":                       opts.eventServerRetention,
 	}); err != nil {
 		return nil, nil, err
 	}
@@ -832,7 +839,7 @@ type fakeMsgSender struct {
 	msgs    map[eval.RuleID]*api.SecurityEventMessage
 }
 
-func (fs *fakeMsgSender) Send(msg *api.SecurityEventMessage, expireFnc func(*api.SecurityEventMessage)) {
+func (fs *fakeMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEventMessage)) {
 	fs.Lock()
 	defer fs.Unlock()
 

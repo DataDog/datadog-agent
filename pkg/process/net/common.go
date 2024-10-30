@@ -44,6 +44,7 @@ type Conn interface {
 
 const (
 	contentTypeProtobuf = "application/protobuf"
+	contentTypeJSON     = "application/json"
 )
 
 var (
@@ -58,14 +59,17 @@ type RemoteSysProbeUtil struct {
 	// Retrier used to setup system probe
 	initRetry retry.Retrier
 
-	path                  string
-	httpClient            http.Client
-	pprofClient           http.Client
-	extendedTimeoutClient http.Client
+	path             string
+	httpClient       http.Client
+	pprofClient      http.Client
+	tracerouteClient http.Client
 }
 
+// ensure that GetRemoteSystemProbeUtil implements SysProbeUtilGetter
+var _ SysProbeUtilGetter = GetRemoteSystemProbeUtil
+
 // GetRemoteSystemProbeUtil returns a ready to use RemoteSysProbeUtil. It is backed by a shared singleton.
-func GetRemoteSystemProbeUtil(path string) (*RemoteSysProbeUtil, error) {
+func GetRemoteSystemProbeUtil(path string) (SysProbeUtil, error) {
 	err := CheckPath(path)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up remote system probe util, %v", err)
@@ -166,6 +170,32 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 	return conns, nil
 }
 
+// GetNetworkID fetches the network_id (vpc_id) from system-probe
+func (r *RemoteSysProbeUtil) GetNetworkID() (string, error) {
+	req, err := http.NewRequest("GET", networkIDURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Accept", "text/plain")
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("network_id request failed: url: %s, status code: %d", networkIDURL, resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	return string(body), nil
+}
+
 // GetPing returns the results of a ping to a host
 func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, interval time.Duration, timeout time.Duration) ([]byte, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s?client_id=%s&count=%d&interval=%d&timeout=%d", pingURL, host, clientID, count, interval, timeout), nil)
@@ -173,7 +203,7 @@ func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, in
 		return nil, err
 	}
 
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept", contentTypeJSON)
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -199,14 +229,19 @@ func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, in
 }
 
 // GetTraceroute returns the results of a traceroute to a host
-func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port uint16, protocol nppayload.Protocol, maxTTL uint8, timeout uint) ([]byte, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s", tracerouteURL, host, clientID, port, maxTTL, timeout, protocol), nil)
+func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port uint16, protocol nppayload.Protocol, maxTTL uint8, timeout time.Duration) ([]byte, error) {
+	httpTimeout := timeout*time.Duration(maxTTL) + 10*time.Second // allow extra time for the system probe communication overhead, calculate full timeout for TCP traceroute
+	log.Tracef("Network Path traceroute HTTP request timeout: %s", httpTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s", tracerouteURL, host, clientID, port, maxTTL, timeout, protocol), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Set("Accept", "application/json")
-	resp, err := r.extendedTimeoutClient.Do(req)
+	req.Header.Set("Accept", contentTypeJSON)
+	resp, err := r.tracerouteClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -278,45 +313,6 @@ func (r *RemoteSysProbeUtil) Register(clientID string) error {
 	}
 
 	return nil
-}
-
-func newSystemProbe(path string) *RemoteSysProbeUtil {
-	return &RemoteSysProbeUtil{
-		path: path,
-		httpClient: http.Client{
-			Timeout: 10 * time.Second,
-			Transport: &http.Transport{
-				MaxIdleConns:    2,
-				IdleConnTimeout: 30 * time.Second,
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial(netType, path)
-				},
-				TLSHandshakeTimeout:   1 * time.Second,
-				ResponseHeaderTimeout: 5 * time.Second,
-				ExpectContinueTimeout: 50 * time.Millisecond,
-			},
-		},
-		pprofClient: http.Client{
-			Transport: &http.Transport{
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial(netType, path)
-				},
-			},
-		},
-		extendedTimeoutClient: http.Client{
-			Timeout: 60 * time.Second,
-			Transport: &http.Transport{
-				MaxIdleConns:    2,
-				IdleConnTimeout: 30 * time.Second,
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial(netType, path)
-				},
-				TLSHandshakeTimeout:   1 * time.Second,
-				ResponseHeaderTimeout: 50 * time.Second,
-				ExpectContinueTimeout: 50 * time.Millisecond,
-			},
-		},
-	}
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -402,6 +398,82 @@ func (r *RemoteSysProbeUtil) GetDiscoveryServices() (*discoverymodel.ServicesRes
 		return nil, err
 	}
 	return res, nil
+}
+
+// GetTelemetry queries the telemetry endpoint from system-probe.
+func (r *RemoteSysProbeUtil) GetTelemetry() ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, telemetryURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(`GetTelemetry got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
+	}
+
+	return data, nil
+}
+
+// GetConnTrackCached queries conntrack/cached, which uses our conntracker implementation (typically ebpf)
+// to return the list of NAT'd connections
+func (r *RemoteSysProbeUtil) GetConnTrackCached() ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, conntrackCachedURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(`GetConnTrackCached got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
+	}
+
+	return data, nil
+}
+
+// GetConnTrackHost queries conntrack/host, which uses netlink to return the list of NAT'd connections
+func (r *RemoteSysProbeUtil) GetConnTrackHost() ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, conntrackHostURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(`GetConnTrackHost got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
+	}
+
+	return data, nil
 }
 
 func (r *RemoteSysProbeUtil) init() error {

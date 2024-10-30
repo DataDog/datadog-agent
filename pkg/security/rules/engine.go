@@ -63,6 +63,7 @@ type RuleEngine struct {
 	eventSender      events.EventSender
 	rulesetListeners []rules.RuleSetListener
 	AutoSuppression  autosuppression.AutoSuppression
+	pid              uint32
 }
 
 // APIServer defines the API server
@@ -85,10 +86,13 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		policyLoader:     rules.NewPolicyLoader(),
 		statsdClient:     statsdClient,
 		rulesetListeners: rulesetListeners,
+		pid:              utils.Getpid(),
 	}
 
 	engine.AutoSuppression.Init(autosuppression.Opts{
+		SecurityProfileEnabled:                config.SecurityProfileEnabled,
 		SecurityProfileAutoSuppressionEnabled: config.SecurityProfileAutoSuppressionEnabled,
+		ActivityDumpEnabled:                   config.ActivityDumpEnabled,
 		ActivityDumpAutoSuppressionEnabled:    config.ActivityDumpAutoSuppressionEnabled,
 		EventTypes:                            config.SecurityProfileAutoSuppressionEventTypes,
 	})
@@ -164,6 +168,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 			if err := e.ReloadPolicies(); err != nil {
 				seclog.Errorf("failed to reload policies: %s", err)
 			}
+			e.probe.PlaySnapshot()
 		}
 	}()
 
@@ -328,6 +333,9 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 		return fmt.Errorf("failed to flush discarders: %w", err)
 	}
 
+	// reset the probe process killer state once the new ruleset is loaded
+	e.probe.OnNewRuleSetLoaded(rs)
+
 	content, _ := json.Marshal(report)
 	seclog.Debugf("Policy report: %s", content)
 
@@ -360,7 +368,7 @@ func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 
 	// add remote config as config provider if enabled.
 	if e.config.RemoteConfigurationEnabled {
-		rcPolicyProvider, err := rconfig.NewRCPolicyProvider(e.config.RemoteConfigurationDumpPolicies)
+		rcPolicyProvider, err := rconfig.NewRCPolicyProvider(e.config.RemoteConfigurationDumpPolicies, e.rcStateCallback)
 		if err != nil {
 			seclog.Errorf("will be unable to load remote policies: %s", err)
 		} else {
@@ -376,6 +384,15 @@ func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 	}
 
 	return policyProviders
+}
+
+func (e *RuleEngine) rcStateCallback(state bool) {
+	if state {
+		seclog.Infof("Connection to remote config established")
+	} else {
+		seclog.Infof("Connection to remote config lost")
+	}
+	e.probe.EnableEnforcement(state)
 }
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
@@ -467,7 +484,12 @@ func (e *RuleEngine) getEventTypeEnabled() map[eval.EventType]bool {
 	if e.probe.IsNetworkEnabled() {
 		if eventTypes, exists := categories[model.NetworkCategory]; exists {
 			for _, eventType := range eventTypes {
-				enabled[eventType] = true
+				switch eventType {
+				case model.RawPacketEventType.String():
+					enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
+				default:
+					enabled[eventType] = true
+				}
 			}
 		}
 	}
@@ -505,6 +527,11 @@ func (e *RuleEngine) SetRulesetLoadedCallback(cb func(es *rules.RuleSet, err *mu
 
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (e *RuleEngine) HandleEvent(event *model.Event) {
+	// don't eval event originating from myself
+	if !e.probe.Opts.DontDiscardRuntime && event.ProcessContext != nil && event.ProcessContext.Pid == e.pid {
+		return
+	}
+
 	// event already marked with an error, skip it
 	if event.Error != nil {
 		return

@@ -44,7 +44,7 @@ func addDDAgentGroup(ctx context.Context) error {
 func SetupInstaller(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
-			log.Errorf("Failed to setup installer: %s, reverting", err)
+			log.Errorf("Failed to setup installer, reverting: %s", err)
 			err = RemoveInstaller(ctx)
 		}
 	}()
@@ -52,7 +52,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err = addDDAgentGroup(ctx); err != nil {
 		return fmt.Errorf("error creating dd-agent group: %w", err)
 	}
-	if addDDAgentUser(ctx) != nil {
+	if err = addDDAgentUser(ctx); err != nil {
 		return fmt.Errorf("error creating dd-agent user: %w", err)
 	}
 	err = exec.CommandContext(ctx, "usermod", "-g", "dd-agent", "dd-agent").Run()
@@ -74,6 +74,11 @@ func SetupInstaller(ctx context.Context) (err error) {
 	err = os.MkdirAll("/opt/datadog-packages/run", 0755)
 	if err != nil {
 		return fmt.Errorf("error creating /opt/datadog-packages/run: %w", err)
+	}
+	// Run directory can already be created by the RC client
+	err = os.Chmod("/opt/datadog-packages/run", 0755)
+	if err != nil {
+		return fmt.Errorf("error changing permissions of /opt/datadog-packages/run/locks: %w", err)
 	}
 	err = os.MkdirAll("/opt/datadog-packages/run/locks", 0777)
 	if err != nil {

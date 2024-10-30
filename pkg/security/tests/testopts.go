@@ -21,6 +21,7 @@ import (
 type testOpts struct {
 	disableFilters                             bool
 	disableApprovers                           bool
+	disableEnvVarsResolution                   bool
 	enableActivityDump                         bool
 	activityDumpRateLimiter                    int
 	activityDumpTagRules                       bool
@@ -64,6 +65,14 @@ type testOpts struct {
 	ebpfLessEnabled                            bool
 	dontWaitEBPFLessClient                     bool
 	enforcementExcludeBinary                   string
+	enforcementDisarmerContainerEnabled        bool
+	enforcementDisarmerContainerMaxAllowed     int
+	enforcementDisarmerContainerPeriod         time.Duration
+	enforcementDisarmerExecutableEnabled       bool
+	enforcementDisarmerExecutableMaxAllowed    int
+	enforcementDisarmerExecutablePeriod        time.Duration
+	eventServerRetention                       time.Duration
+	discardRuntime                             bool
 }
 
 type dynamicTestOpts struct {
@@ -100,6 +109,7 @@ func withForceReload() optFunc {
 
 func (to testOpts) Equal(opts testOpts) bool {
 	return to.disableApprovers == opts.disableApprovers &&
+		to.disableEnvVarsResolution == opts.disableEnvVarsResolution &&
 		to.enableActivityDump == opts.enableActivityDump &&
 		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
 		to.activityDumpTagRules == opts.activityDumpTagRules &&
@@ -139,5 +149,13 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.networkIngressEnabled == opts.networkIngressEnabled &&
 		to.disableOnDemandRateLimiter == opts.disableOnDemandRateLimiter &&
 		to.ebpfLessEnabled == opts.ebpfLessEnabled &&
-		to.enforcementExcludeBinary == opts.enforcementExcludeBinary
+		to.enforcementExcludeBinary == opts.enforcementExcludeBinary &&
+		to.enforcementDisarmerContainerEnabled == opts.enforcementDisarmerContainerEnabled &&
+		to.enforcementDisarmerContainerMaxAllowed == opts.enforcementDisarmerContainerMaxAllowed &&
+		to.enforcementDisarmerContainerPeriod == opts.enforcementDisarmerContainerPeriod &&
+		to.enforcementDisarmerExecutableEnabled == opts.enforcementDisarmerExecutableEnabled &&
+		to.enforcementDisarmerExecutableMaxAllowed == opts.enforcementDisarmerExecutableMaxAllowed &&
+		to.enforcementDisarmerExecutablePeriod == opts.enforcementDisarmerExecutablePeriod &&
+		to.eventServerRetention == opts.eventServerRetention &&
+		to.discardRuntime == opts.discardRuntime
 }

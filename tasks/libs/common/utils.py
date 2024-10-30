@@ -8,6 +8,7 @@ import os
 import platform
 import re
 import sys
+import tempfile
 import time
 import traceback
 from collections import Counter
@@ -18,15 +19,12 @@ from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
 
+import requests
 from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import (
-    ALLOWED_REPO_ALL_BRANCHES,
-    DEFAULT_BRANCH,
-    REPO_PATH,
-)
+from tasks.libs.common.constants import ALLOWED_REPO_ALL_BRANCHES, DEFAULT_BRANCH, REPO_PATH
 from tasks.libs.common.git import get_commit_sha
 from tasks.libs.owners.parsing import search_owners
 from tasks.libs.releasing.version import get_version
@@ -164,17 +162,6 @@ def get_rtloader_paths(embedded_path=None, rtloader_root=None):
     return rtloader_lib, rtloader_headers, rtloader_common_headers
 
 
-def has_both_python(python_runtimes):
-    python_runtimes = python_runtimes.split(',')
-    return '2' in python_runtimes and '3' in python_runtimes
-
-
-def get_win_py_runtime_var(python_runtimes):
-    python_runtimes = python_runtimes.split(',')
-
-    return "PY2_RUNTIME" if '2' in python_runtimes else "PY3_RUNTIME"
-
-
 def get_embedded_path(ctx):
     base = os.path.dirname(os.path.abspath(__file__))
     task_repo_root = os.path.abspath(os.path.join(base, "..", ".."))
@@ -219,7 +206,6 @@ def get_build_flags(
     python_home_2=None,
     python_home_3=None,
     major_version='7',
-    python_runtimes='3',
     headless_mode=False,
     arch: Arch | None = None,
 ):
@@ -262,11 +248,8 @@ def get_build_flags(
     if python_home_3:
         ldflags += f"-X {REPO_PATH}/pkg/collector/python.pythonHome3={python_home_3} "
 
-    # If we're not building with both Python, we want to force the use of DefaultPython
-    if not has_both_python(python_runtimes):
-        ldflags += f"-X {REPO_PATH}/pkg/config/setup.ForceDefaultPython=true "
-
-    ldflags += f"-X {REPO_PATH}/pkg/config/setup.DefaultPython={get_default_python(python_runtimes)} "
+    ldflags += f"-X {REPO_PATH}/pkg/config/setup.ForceDefaultPython=true "
+    ldflags += f"-X {REPO_PATH}/pkg/config/setup.DefaultPython=3 "
 
     # adding rtloader libs and headers to the env
     if rtloader_lib:
@@ -334,6 +317,15 @@ def get_build_flags(
         env["GOARCH"] = arch.go_arch
         env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
         env["CC"] = arch.gcc_compiler()
+    if os.getenv('DD_CC'):
+        env['CC'] = os.getenv('DD_CC')
+    if os.getenv('DD_CXX'):
+        env['CXX'] = os.getenv('DD_CXX')
+
+    if sys.platform == 'linux':
+        # Enable lazy binding, which seems to be overridden when loading containerd
+        # Required to fix go-nvml compilation (see https://github.com/NVIDIA/go-nvml/issues/18)
+        extldflags += "-Wl,-z,lazy "
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
@@ -400,15 +392,6 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
             # https://github.com/DataDog/dd-go/blob/cada5b3c2929473a2bd4a4142011767fe2dcce52/remote-config/apps/rc-api-internal/updater/health_check.go#L219
             ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={get_version(ctx, include_git=True, major_version=major_version)}-1 "
     return ldflags
-
-
-def get_default_python(python_runtimes):
-    """
-    Get the default python for the current build:
-    - default to 2 if python_runtimes includes 2 (so that builds with 2 and 3 default to 2)
-    - default to 3 otherwise.
-    """
-    return "2" if '2' in python_runtimes.split(',') else "3"
 
 
 def get_go_version():
@@ -525,7 +508,8 @@ def gitlab_section(section_name, collapsed=False, echo=False):
     """
     - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything
     """
-    section_id = section_name.replace(" ", "_").replace("/", "_")
+    # Replace with "_" every special character (" ", ":", "/", "\") which prevent the section generation
+    section_id = re.sub(r"[ :/\\]", "_", section_name)
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:
@@ -667,7 +651,6 @@ def file_match(word):
         'internal',
         'omnibus',
         'pkg',
-        'pkg-config',
         'rtloader',
         'tasks',
         'test',
@@ -699,3 +682,51 @@ def team_to_label(team):
         'asm-go': "agent-security",
     }
     return dico.get(team, team)
+
+
+@contextmanager
+def download_to_tempfile(url, checksum=None):
+    """
+    Download a file from @url to a temporary file and yields the path.
+
+    The temporary file is removed when the context manager exits.
+
+    if @checksum is provided it will be updated with each chunk of the file
+    """
+    fd, tmp_path = tempfile.mkstemp()
+    try:
+        with requests.get(url, stream=True) as r:
+            r.raise_for_status()
+            with os.fdopen(fd, "wb") as f:
+                # fd will be closed by context manager, so we no longer need it
+                fd = None
+                for chunk in r.iter_content(chunk_size=8192):
+                    if checksum:
+                        checksum.update(chunk)
+                    f.write(chunk)
+        yield tmp_path
+    finally:
+        if fd is not None:
+            os.close(fd)
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
+def experimental(message):
+    """
+    Marks this task as experimental and prints the message.
+
+    Note: This decorator must be placed after the `task` decorator.
+    """
+
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            fname = f.__name__
+            print(color_message(f"Warning: {fname} is experimental: {message}", Color.ORANGE), file=sys.stderr)
+
+            return f(*args, **kwargs)
+
+        return wrapper
+
+    return decorator

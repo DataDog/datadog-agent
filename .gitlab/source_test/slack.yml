@@ -9,6 +9,5 @@ slack_teams_channels_check:
     - !reference [.except_mergequeue]
     - when: on_success
   script:
-    - source /root/.bashrc
     - python3 -m pip install codeowners -c tasks/libs/requirements-notifications.txt
     - inv -e notify.check-teams

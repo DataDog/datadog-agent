@@ -2,6 +2,7 @@
 msi namespaced tasks
 """
 
+import hashlib
 import mmap
 import os
 import shutil
@@ -11,7 +12,7 @@ from contextlib import contextmanager
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
-from tasks.libs.common.utils import timed
+from tasks.libs.common.utils import download_to_tempfile, timed
 from tasks.libs.releasing.version import get_version, load_release_versions
 
 # Windows only import
@@ -29,6 +30,8 @@ SOURCE_ROOT_DIR = os.path.join(os.getcwd(), "tools", "windows", "DatadogAgentIns
 BUILD_ROOT_DIR = os.path.join('C:\\', "dev", "msi", "DatadogAgentInstaller")
 BUILD_SOURCE_DIR = os.path.join(BUILD_ROOT_DIR, "src")
 BUILD_OUTPUT_DIR = os.path.join(BUILD_ROOT_DIR, "output")
+# Match to AgentInstaller.cs BinSource
+AGENT_BIN_SOURCE_DIR = os.path.join('C:\\', 'opt', 'datadog-agent', 'bin', 'agent')
 
 NUGET_PACKAGES_DIR = os.path.join(BUILD_ROOT_DIR, 'packages')
 NUGET_CONFIG_FILE = os.path.join(BUILD_ROOT_DIR, 'NuGet.config')
@@ -68,13 +71,12 @@ def _get_vs_build_command(cmd, vstudio_root=None):
     return cmd
 
 
-def _get_env(ctx, major_version='7', python_runtimes='3', release_version='nightly'):
+def _get_env(ctx, major_version='7', release_version='nightly'):
     env = load_release_versions(ctx, release_version)
 
     env['PACKAGE_VERSION'] = get_version(
         ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
     )
-    env['PY_RUNTIMES'] = python_runtimes
     env['AGENT_INSTALLER_OUTPUT_DIR'] = f'{BUILD_OUTPUT_DIR}'
     env['NUGET_PACKAGES_DIR'] = f'{NUGET_PACKAGES_DIR}'
     return env
@@ -152,7 +154,7 @@ def _fix_makesfxca_dll(path):
 def sign_file(ctx, path, force=False):
     dd_wcs_enabled = os.environ.get('SIGN_WINDOWS_DD_WCS')
     if dd_wcs_enabled or force:
-        return ctx.run(f'dd-wcs sign {path}')
+        return ctx.run(f'dd-wcs sign "{path}"')
 
 
 def _build(
@@ -178,7 +180,7 @@ def _build(
     # back to the mount.
     try:
         ctx.run(
-            f'robocopy {SOURCE_ROOT_DIR} {BUILD_SOURCE_DIR} /MIR /XF cabcache packages embedded2.COMPRESSED embedded3.COMPRESSED',
+            f'robocopy {SOURCE_ROOT_DIR} {BUILD_SOURCE_DIR} /MIR /XF *.COMPRESSED *.g.wxs *.msi *.exe /XD bin obj .vs cab cabcache packages',
             hide=True,
         )
     except UnexpectedExit as e:
@@ -263,13 +265,11 @@ def _build_msi(ctx, env, outdir, name, allowlist):
 
 
 @task
-def build(
-    ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', release_version='nightly', debug=False
-):
+def build(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False):
     """
     Build the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version, python_runtimes, release_version)
+    env = _get_env(ctx, major_version, release_version)
     env['OMNIBUS_TARGET'] = 'main'
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
@@ -285,6 +285,10 @@ def build(
     # sign build output that will be included in the installer MSI
     sign_file(ctx, os.path.join(build_outdir, 'CustomActions.dll'))
     sign_file(ctx, os.path.join(build_outdir, 'AgentCustomActions.dll'))
+
+    # We embed this 7zip standalone binary in the installer, sign it too
+    shutil.copy2('C:\\Program Files\\7-zip\\7zr.exe', AGENT_BIN_SOURCE_DIR)
+    sign_file(ctx, os.path.join(AGENT_BIN_SOURCE_DIR, '7zr.exe'))
 
     # Run WixSetup.exe to generate the WXS and other input files
     with timed("Building WXS"):
@@ -351,13 +355,11 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
 
 
 @task
-def test(
-    ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', release_version='nightly', debug=False
-):
+def test(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False):
     """
     Run the unit test for the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version, python_runtimes, release_version)
+    env = _get_env(ctx, major_version, release_version)
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
 
@@ -402,6 +404,19 @@ def validate_msi_createfolder_table(db, allowlist):
           this behavior was also present in the original installer so leave them for now.
     """
 
+    # Skip if CreateFolder table does not exist
+    with MsiClosing(db.OpenView("Select `Name` From `_Tables`")) as view:
+        view.Execute(None)
+        record = view.Fetch()
+        tables = set()
+        while record:
+            tables.add(record.GetString(1))
+            record = view.Fetch()
+        if "CreateFolder" not in tables:
+            print("skipping validation, CreateFolder table not found in MSI")
+            return
+
+    print("Validating MSI CreateFolder table")
     with MsiClosing(db.OpenView("Select Directory_ FROM CreateFolder")) as view:
         view.Execute(None)
         record = view.Fetch()
@@ -433,3 +448,85 @@ def MsiClosing(obj):
         yield obj
     finally:
         obj.Close()
+
+
+def get_msm_info(ctx, release_version):
+    """
+    Get the merge module info from the release.json for the given release_version
+    """
+    env = load_release_versions(ctx, release_version)
+    base_url = "https://s3.amazonaws.com/dd-windowsfilter/builds"
+    msm_info = {}
+    if 'WINDOWS_DDNPM_VERSION' in env:
+        info = {
+            'filename': 'DDNPM.msm',
+            'build': env['WINDOWS_DDNPM_DRIVER'],
+            'version': env['WINDOWS_DDNPM_VERSION'],
+            'shasum': env['WINDOWS_DDNPM_SHASUM'],
+        }
+        info['url'] = f"{base_url}/{info['build']}/ddnpminstall-{info['version']}.msm"
+        msm_info['DDNPM'] = info
+    if 'WINDOWS_DDPROCMON_VERSION' in env:
+        info = {
+            'filename': 'DDPROCMON.msm',
+            'build': env['WINDOWS_DDPROCMON_DRIVER'],
+            'version': env['WINDOWS_DDPROCMON_VERSION'],
+            'shasum': env['WINDOWS_DDPROCMON_SHASUM'],
+        }
+        info['url'] = f"{base_url}/{info['build']}/ddprocmoninstall-{info['version']}.msm"
+        msm_info['DDPROCMON'] = info
+    if 'WINDOWS_APMINJECT_VERSION' in env:
+        info = {
+            'filename': 'ddapminstall.msm',
+            'build': env['WINDOWS_APMINJECT_MODULE'],
+            'version': env['WINDOWS_APMINJECT_VERSION'],
+            'shasum': env['WINDOWS_APMINJECT_SHASUM'],
+        }
+        info['url'] = f"{base_url}/{info['build']}/ddapminstall-{info['version']}.msm"
+        msm_info['APMINJECT'] = info
+    return msm_info
+
+
+@task(
+    iterable=['drivers'],
+    help={
+        'drivers': 'List of drivers to fetch (default: DDNPM, DDPROCMON, APMINJECT)',
+        'release_version': 'Release version to fetch drivers from (default: nightly-a7)',
+    },
+)
+def fetch_driver_msm(ctx, drivers=None, release_version=None):
+    """
+    Fetch the driver merge modules (.msm) that are consumed by the Agent MSI.
+
+    Defaults to the versions provided in the @release_version section of release.json
+    """
+    ALLOWED_DRIVERS = ['DDNPM', 'DDPROCMON', 'APMINJECT']
+    if not release_version:
+        release_version = 'nightly-a7'
+
+    msm_info = get_msm_info(ctx, release_version)
+    if not drivers:
+        # if user did not specify drivers, use the ones in the release.json
+        drivers = msm_info.keys()
+
+    for driver in drivers:
+        driver = driver.upper()
+        if driver not in ALLOWED_DRIVERS:
+            raise Exit(f"Invalid driver: {driver}, choose from {ALLOWED_DRIVERS}")
+
+        info = msm_info[driver]
+        url = info['url']
+        shasum = info['shasum']
+        path = os.path.join(AGENT_BIN_SOURCE_DIR, info['filename'])
+
+        # download from url with requests package
+        checksum = hashlib.sha256()
+        with download_to_tempfile(url, checksum) as tmp_path:
+            # check sha256
+            if checksum.hexdigest().lower() != shasum.lower():
+                raise Exit(f"Checksum mismatch for {url}")
+            # move to final path
+            shutil.move(tmp_path, path)
+
+        print(f"Updated {driver}")
+        print(f"\t-> Downloaded {url} to {path}")

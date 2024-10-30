@@ -15,7 +15,11 @@ import (
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -50,17 +54,27 @@ type Check struct {
 	processor  *processors.Processor
 	config     *oconfig.OrchestratorConfig
 	systemInfo *model.SystemInfo
+	store      workloadmeta.Component
+	cfg        config.Component
+	tagger     tagger.Component
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory(store workloadmeta.Component, cfg config.Component, tagger tagger.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(
+		func() check.Check {
+			return newCheck(store, cfg, tagger)
+		},
+	)
 }
 
-func newCheck() check.Check {
+func newCheck(store workloadmeta.Component, cfg config.Component, tagger tagger.Component) check.Check {
 	return &Check{
 		CheckBase: core.NewCheckBase(CheckName),
 		config:    oconfig.NewDefaultOrchestratorConfig(),
+		store:     store,
+		cfg:       cfg,
+		tagger:    tagger,
 	}
 }
 
@@ -93,7 +107,7 @@ func (c *Check) Configure(
 	}
 
 	if c.processor == nil {
-		c.processor = processors.NewProcessor(new(k8sProcessors.PodHandlers))
+		c.processor = processors.NewProcessor(k8sProcessors.NewPodHandlers(c.cfg, c.store, c.tagger))
 	}
 
 	if c.sender == nil {

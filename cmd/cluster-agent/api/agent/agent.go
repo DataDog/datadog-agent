@@ -15,16 +15,16 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,7 +32,7 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for cluster agent endpoints
-func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component) {
+func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, taggerComp tagger.Component) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +48,7 @@ func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery
 	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settings.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settings.SetValue).Methods("POST")
-	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
+	r.HandleFunc("/tagger-list", func(w http.ResponseWriter, r *http.Request) { getTaggerList(w, r, taggerComp) }).Methods("GET")
 	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
 		getWorkloadList(w, r, wmeta)
 	}).Methods("GET")
@@ -144,11 +144,11 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 		}
 	}
 
-	logFile := config.Datadog().GetString("log_file")
+	logFile := pkgconfigsetup.Datadog().GetString("log_file")
 	if logFile == "" {
-		logFile = path.DefaultDCALogFile
+		logFile = defaultpaths.DCALogFile
 	}
-	filePath, err := flare.CreateDCAArchive(false, path.GetDistPath(), logFile, profile, statusComponent)
+	filePath, err := flare.CreateDCAArchive(false, defaultpaths.GetDistPath(), logFile, profile, statusComponent)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)
@@ -177,8 +177,8 @@ func getConfigCheck(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Com
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func getTaggerList(w http.ResponseWriter, _ *http.Request) {
-	response := tagger.List()
+func getTaggerList(w http.ResponseWriter, _ *http.Request, taggerComp tagger.Component) {
+	response := taggerComp.List()
 
 	jsonTags, err := json.Marshal(response)
 	if err != nil {

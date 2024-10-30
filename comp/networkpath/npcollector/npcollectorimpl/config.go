@@ -14,6 +14,8 @@ import (
 type collectorConfigs struct {
 	connectionsMonitoringEnabled bool
 	workers                      int
+	timeout                      time.Duration
+	maxTTL                       int
 	pathtestInputChanSize        int
 	pathtestProcessingChanSize   int
 	pathtestContextsLimit        int
@@ -24,9 +26,12 @@ type collectorConfigs struct {
 }
 
 func newConfig(agentConfig config.Component) *collectorConfigs {
+
 	return &collectorConfigs{
 		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled"),
 		workers:                      agentConfig.GetInt("network_path.collector.workers"),
+		timeout:                      agentConfig.GetDuration("network_path.collector.timeout") * time.Millisecond,
+		maxTTL:                       agentConfig.GetInt("network_path.collector.max_ttl"),
 		pathtestInputChanSize:        agentConfig.GetInt("network_path.collector.input_chan_size"),
 		pathtestProcessingChanSize:   agentConfig.GetInt("network_path.collector.processing_chan_size"),
 		pathtestContextsLimit:        agentConfig.GetInt("network_path.collector.pathtest_contexts_limit"),

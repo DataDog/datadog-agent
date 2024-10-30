@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -18,7 +19,6 @@ import (
 type ContainersTelemetry struct {
 	TelemetrySender SimpleTelemetrySender
 	MetadataStore   workloadmeta.Component
-	IgnoreDDAgent   bool
 }
 
 // NewContainersTelemetry returns a new ContainersTelemetry based on default/global objects
@@ -40,16 +40,15 @@ func (c *ContainersTelemetry) ReportContainers(metricName string) {
 	containers := c.ListRunningContainers()
 
 	for _, container := range containers {
-		if c.IgnoreDDAgent {
-			value := container.EnvVars["DOCKER_DD_AGENT"]
-			value = strings.ToLower(value)
-			if value == "yes" || value == "true" {
-				log.Debugf("ignoring container: name=%s id=%s image_id=%s", container.Name, container.ID, container.Image.ID)
-				continue
-			}
+		// ignore DD agent containers
+		value := container.EnvVars["DOCKER_DD_AGENT"]
+		value = strings.ToLower(value)
+		if value == "yes" || value == "true" {
+			log.Debugf("ignoring container: name=%s id=%s image_id=%s", container.Name, container.ID, container.Image.ID)
+			continue
 		}
 
-		c.TelemetrySender.Gauge(metricName, 1.0, []string{"container_id:" + container.ID})
+		c.TelemetrySender.Gauge(metricName, 1.0, []string{"container_id:" + container.ID, constants.CardinalityTagPrefix + "orch"})
 	}
 	c.TelemetrySender.Commit()
 }

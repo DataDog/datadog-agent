@@ -885,6 +885,8 @@ api_key:
   # enabled: false
 
 {{ end }}
+
+
 {{ end -}}
 
 {{- if .LogsAgent }}
@@ -1013,11 +1015,17 @@ api_key:
   #
   # max_message_size_bytes: 256000
 
-  ## @param integrations_logs_files_max_size - integer - optional - default: 100
-  ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_FILES_MAX_SIZE - integer - optional - default: 100
-  ## The combined size in MB of all the integration logs files the Agent is allowed to write.
+  ## @param integrations_logs_files_max_size - integer - optional - default: 10
+  ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_FILES_MAX_SIZE - integer - optional - default: 10
+  ## The max size in MB that an integration logs file is allowed to use
   #
   # integrations_logs_files_max_size
+
+  ## @param integrations_logs_total_usage - integer - optional - default: 100
+  ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_TOTAL_USAGE - integer - optional - default: 100
+  ## The total combined usage all integrations logs files can use
+  #
+  # integrations_logs_total_usage
 
 {{ end -}}
 {{- if .TraceAgent }}
@@ -1322,23 +1330,23 @@ api_key:
   #
   # connection_limit: 2000
 
-  ## @param compute_stats_by_span_kind - bool - default: false
-  ## @env DD_APM_COMPUTE_STATS_BY_SPAN_KIND - bool - default: false
-  ## [BETA] Enables an additional stats computation check on spans to see they have an eligible `span.kind` (server, consumer, client, producer).
+  ## @param compute_stats_by_span_kind - bool - default: true
+  ## @env DD_APM_COMPUTE_STATS_BY_SPAN_KIND - bool - default: true
+  ## Enables an additional stats computation check on spans to see they have an eligible `span.kind` (server, consumer, client, producer).
   ## If enabled, a span with an eligible `span.kind` will have stats computed. If disabled, only top-level and measured spans will have stats computed.
   ## NOTE: For stats computed from OTel traces, only top-level spans are considered when this option is off.
   ## If you are sending OTel traces and want stats on non-top-level spans, this flag will need to be enabled.
   ## If you are sending OTel traces and do not want stats computed by span kind, you need to disable this flag and remove the "enable_otlp_compute_top_level_by_span_kind" APM feature if present.
-  # compute_stats_by_span_kind: false
+  # compute_stats_by_span_kind: true
 
-  ## @param peer_service_aggregation - bool - default: false
-  ## @env DD_APM_PEER_SERVICE_AGGREGATION - bool - default: false
+  ## @param peer_service_aggregation - bool - default: true
+  ## @env DD_APM_PEER_SERVICE_AGGREGATION - bool - default: true
   ## DEPRECATED - please use `peer_tags_aggregation` instead.
-  # peer_service_aggregation: false
+  # peer_service_aggregation: true
 
-  ## @param peer_tags_aggregation - bool - default: false
-  ## @env DD_APM_PEER_TAGS_AGGREGATION - bool - default: false
-  ## [BETA] Enables aggregation of peer related tags (e.g., `peer.service`, `db.instance`, etc.) in the Agent.
+  ## @param peer_tags_aggregation - bool - default: true
+  ## @env DD_APM_PEER_TAGS_AGGREGATION - bool - default: true
+  ## Enables aggregation of peer related tags (e.g., `peer.service`, `db.instance`, etc.) in the Agent.
   ## If disabled, aggregated trace stats will not include these tags as dimensions on trace metrics.
   ## For the best experience with peer tags, Datadog also recommends enabling `compute_stats_by_span_kind`.
   ## If you are using an OTel tracer, it's best to have both enabled because client/producer spans with relevant peer tags
@@ -1347,11 +1355,11 @@ api_key:
   ## A high cardinality of peer tags or APM resources can also contribute to higher CPU and memory consumption.
   ## You can check for the cardinality of these fields by making trace search queries in the Datadog UI.
   ## The default list of peer tags can be found in pkg/trace/stats/concentrator.go.
-  # peer_tags_aggregation: false
+  # peer_tags_aggregation: true
 
   ## @param peer_tags - list of strings - optional
   ## @env DD_APM_PEER_TAGS - list of strings - optional
-  ## [BETA] Optional list of supplementary peer tags that go beyond the defaults. The Datadog backend validates all tags
+  ## Optional list of supplementary peer tags that go beyond the defaults. The Datadog backend validates all tags
   ## and will drop ones that are unapproved.
   # peer_tags: []
 
@@ -1361,7 +1369,7 @@ api_key:
   ## The list of items available under apm_config.features is not guaranteed to persist across versions;
   ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
   #
-  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache","enable_otlp_compute_top_level_by_span_kind"]
+  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache","sqllexer","enable_otlp_compute_top_level_by_span_kind","enable_receive_resource_spans_v2"]
 
   ## @param additional_endpoints - object - optional
   ## @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional
@@ -1482,6 +1490,15 @@ api_key:
 ## See https://docs.datadoghq.com/graphing/infrastructure/process/
 #
 # process_config:
+
+  {{- if (eq .OS "linux")}}
+  ## @param run_in_core_agent - custom object - optional
+  ## Controls whether the process Agent or core Agent collects process and/or container information (Linux only).
+  # run_in_core_agent:
+    ## @param enabled - boolean - optional - default: false
+    ## Enables process/container collection on the core Agent instead of the process Agent.
+    # enabled: false
+  {{ end }}
 
   ## @param process_collection - custom object - optional
   ## Specifies settings for collecting processes.
@@ -1707,6 +1724,28 @@ api_key:
   ## @env DD_COMPLIANCE_CONFIG_CHECK_MAX_EVENTS_PER_RUN - integer - optional - default: 100
   ##
   # check_max_events_per_run: 100
+{{ end -}}
+
+{{- if .SBOM }}
+## @param sbom - custom object - optional
+## Enter specific configuration for the Cloud Security Management Vulnerability Management feature
+# sbom:
+  ## @param enabled - boolean - optional - default: false
+  ## set to true to enable Cloud Security Management Vulnerability Management
+  # enabled: false
+
+  ## uncomment the sections below to enable where the vulnerability scanning is done
+
+  ## @param enabled - boolean - optional - default: false
+  ## set to true to enable Infrastructure Vulnerabiltilies
+  # host:
+  #  enabled: false
+{{- if (eq .OS "linux")}}
+
+
+  # container_image:
+  #   enabled: false
+{{ end -}}
 {{ end -}}
 {{- if .SystemProbe }}
 
@@ -2879,6 +2918,28 @@ api_key:
   #
   # enabled: false
 
+  ## @param validation - custom object - optional
+  ## The admission controller's validation configuration.
+  #
+  # validation:
+
+    ## @param enabled - boolean - optional - default: true
+    ## @env DD_ADMISSION_CONTROLLER_VALIDATION_ENABLED - boolean - optional - default: true
+    ## Set to true to enable validation webhooks controller in the cluster-agent.
+    #
+    # enabled: true
+
+  ## @param mutation - custom object - optional
+  ## The admission controller's mutation configuration.
+  #
+  # mutation:
+
+    ## @param enabled - boolean - optional - default: true
+    ## @env DD_ADMISSION_CONTROLLER_MUTATION_ENABLED - boolean - optional - default: true
+    ## Set to true to enable mutation webhooks controller in the cluster-agent.
+    #
+    # enabled: true
+
   ## @param mutate_unlabelled - boolean - optional - default: false
   ## @env DD_ADMISSION_CONTROLLER_MUTATE_ENABLED - boolean - optional - default: false
   ## Enable injecting config without having the pod label admission.datadoghq.com/enabled="true".
@@ -2986,6 +3047,15 @@ api_key:
     ## Only applicable in "socket" mode.
     #
     # trace_agent_socket: unix:///var/run/datadog/apm.socket
+
+    ## @param type_socket_volumes - boolean - optional - default: false
+    ## @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_TYPE_SOCKET_VOLUMES - boolean - optional - default: false
+    ## When enabled, injected volumes are of type "Socket". This means that
+    ## injected pods will not start until the Agent creates the dogstatsd and
+    ## trace-agent sockets. This ensures no lost traces or dogstatsd metrics but
+    ## can cause the pod to wait if the agent has issues creating the sockets.
+    #
+    # type_socket_volumes: false
 
   ## @param inject_tags - custom object - optional
   ## Tags injection parameters.
@@ -4386,22 +4456,13 @@ api_key:
   ## Debug-specific configuration for OTLP ingest in the Datadog Agent.
   ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
   ## for a full list of available settings:
-  ## https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/loggingexporter#getting-started
+  ## https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/debugexporter#getting-started
   #
   # debug:
-
-    ## Deprecated (v[6/7].41.0) - use `verbosity` instead
-    ## @param loglevel - string - optional - default: none
-    ## @env DD_OTLP_CONFIG_DEBUG_LOGLEVEL - string - optional - default: none
-    ## Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
-    ## Valid values are disabled, debug, info, error, warn.
-    #
-    # loglevel: info
-
     ## @param verbosity - string - optional - default: normal
     ## @env DD_OTLP_CONFIG_DEBUG_VERBOSITY - string - optional - default: normal
     ## Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
-    ## Valid values are basic, normal, detailed.
+    ## Valid values are basic, normal, detailed, none.
     #
     # verbosity: normal
 {{- if (eq .OS "windows")}}

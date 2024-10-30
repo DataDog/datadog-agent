@@ -23,17 +23,17 @@ type tagStore struct {
 	telemetry map[string]float64
 	cfg       config.Component
 
-	subscriber     *subscriber.Subscriber
-	telemetryStore *telemetry.Store
+	subscriptionManager subscriber.SubscriptionManager
+	telemetryStore      *telemetry.Store
 }
 
 func newTagStore(cfg config.Component, telemetryStore *telemetry.Store) *tagStore {
 	return &tagStore{
-		store:          genericstore.NewObjectStore[*types.Entity](cfg),
-		telemetry:      make(map[string]float64),
-		cfg:            cfg,
-		subscriber:     subscriber.NewSubscriber(telemetryStore),
-		telemetryStore: telemetryStore,
+		store:               genericstore.NewObjectStore[*types.Entity](),
+		telemetry:           make(map[string]float64),
+		cfg:                 cfg,
+		subscriptionManager: subscriber.NewSubscriptionManager(telemetryStore),
+		telemetryStore:      telemetryStore,
 	}
 }
 
@@ -81,7 +81,7 @@ func (s *tagStore) getEntity(entityID types.EntityID) *types.Entity {
 func (s *tagStore) listEntities() []*types.Entity {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	return s.store.ListObjects()
+	return s.store.ListObjects(types.NewMatchAllFilter())
 }
 
 func (s *tagStore) collectTelemetry() {
@@ -93,7 +93,7 @@ func (s *tagStore) collectTelemetry() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	s.store.ForEach(func(_ types.EntityID, e *types.Entity) { s.telemetry[string(e.ID.GetPrefix())]++ })
+	s.store.ForEach(nil, func(_ types.EntityID, e *types.Entity) { s.telemetry[string(e.ID.GetPrefix())]++ })
 
 	for prefix, storedEntities := range s.telemetry {
 		s.telemetryStore.StoredEntities.Set(storedEntities, remoteSource, prefix)
@@ -101,28 +101,24 @@ func (s *tagStore) collectTelemetry() {
 	}
 }
 
-func (s *tagStore) subscribe(cardinality types.TagCardinality) chan []types.EntityEvent {
+func (s *tagStore) subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	events := make([]types.EntityEvent, 0, s.store.Size())
 
-	s.store.ForEach(func(_ types.EntityID, e *types.Entity) {
+	s.store.ForEach(nil, func(_ types.EntityID, e *types.Entity) {
 		events = append(events, types.EntityEvent{
 			EventType: types.EventTypeAdded,
 			Entity:    *e,
 		})
 	})
 
-	return s.subscriber.Subscribe(cardinality, events)
-}
-
-func (s *tagStore) unsubscribe(ch chan []types.EntityEvent) {
-	s.subscriber.Unsubscribe(ch)
+	return s.subscriptionManager.Subscribe(subscriptionID, filter, events)
 }
 
 func (s *tagStore) notifySubscribers(events []types.EntityEvent) {
-	s.subscriber.Notify(events)
+	s.subscriptionManager.Notify(events)
 }
 
 // reset clears the local store, preparing it to be re-initialized from a fresh
@@ -138,7 +134,7 @@ func (s *tagStore) reset() {
 
 	events := make([]types.EntityEvent, 0, s.store.Size())
 
-	s.store.ForEach(func(_ types.EntityID, e *types.Entity) {
+	s.store.ForEach(nil, func(_ types.EntityID, e *types.Entity) {
 		events = append(events, types.EntityEvent{
 			EventType: types.EventTypeDeleted,
 			Entity:    types.Entity{ID: e.ID},
@@ -147,5 +143,5 @@ func (s *tagStore) reset() {
 
 	s.notifySubscribers(events)
 
-	s.store = genericstore.NewObjectStore[*types.Entity](s.cfg)
+	s.store = genericstore.NewObjectStore[*types.Entity]()
 }

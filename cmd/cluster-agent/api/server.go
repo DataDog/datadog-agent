@@ -41,9 +41,10 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 var (
@@ -59,7 +60,7 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
 
 	// IPC REST API server
-	agent.SetupHandlers(router, w, ac, statusComponent, settings)
+	agent.SetupHandlers(router, w, ac, statusComponent, settings, taggerComp)
 
 	// API V1 Metadata APIs
 	v1.InstallMetadataEndpoints(apiRouter, w)
@@ -79,10 +80,10 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 		return fmt.Errorf("unable to create the api server: %v", err)
 	}
 	// Internal token
-	util.CreateAndSetAuthToken(pkgconfig.Datadog()) //nolint:errcheck
+	util.CreateAndSetAuthToken(pkgconfigsetup.Datadog()) //nolint:errcheck
 
 	// DCA client token
-	util.InitDCAAuthToken(pkgconfig.Datadog()) //nolint:errcheck
+	util.InitDCAAuthToken(pkgconfigsetup.Datadog()) //nolint:errcheck
 
 	// create cert
 	hosts := []string{"127.0.0.1", "localhost"}
@@ -107,12 +108,12 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 		MinVersion:   tls.VersionTLS13,
 	}
 
-	if pkgconfig.Datadog().GetBool("cluster_agent.allow_legacy_tls") {
+	if pkgconfigsetup.Datadog().GetBool("cluster_agent.allow_legacy_tls") {
 		tlsConfig.MinVersion = tls.VersionTLS10
 	}
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := pkgconfig.NewTLSHandshakeErrorWriter(4, seelog.WarnLvl)
+	logWriter, _ := pkglogsetup.NewTLSHandshakeErrorWriter(4, seelog.WarnLvl)
 
 	authInterceptor := grpcutil.AuthInterceptor(func(token string) (interface{}, error) {
 		if token != util.GetDCAAuthToken() {
@@ -122,17 +123,22 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 		return struct{}{}, nil
 	})
 
+	maxMessageSize := cfg.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 	opts := []grpc.ServerOption{
 		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
 		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
+		grpc.MaxSendMsgSize(maxMessageSize),
+		grpc.MaxRecvMsgSize(maxMessageSize),
 	}
 
 	grpcSrv := grpc.NewServer(opts...)
+	// event size should be small enough to fit within the grpc max message size
+	maxEventSize := maxMessageSize / 2
 	pb.RegisterAgentSecureServer(grpcSrv, &serverSecure{
-		taggerServer: taggerserver.NewServer(taggerComp),
+		taggerServer: taggerserver.NewServer(taggerComp, maxEventSize),
 	})
 
-	timeout := pkgconfig.Datadog().GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second
+	timeout := pkgconfigsetup.Datadog().GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second
 	srv := grpcutil.NewMuxedGRPCServer(
 		listener.Addr().String(),
 		tlsConfig,

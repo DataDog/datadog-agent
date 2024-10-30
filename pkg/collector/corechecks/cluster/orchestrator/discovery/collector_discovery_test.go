@@ -3,23 +3,39 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator
+//go:build kubeapiserver && orchestrator && test
 
 package discovery
 
 import (
 	"testing"
 
+	"go.uber.org/fx"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
+	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestWalkAPIResources(t *testing.T) {
-	inventory := inventory.NewCollectorInventory()
+	cfg := mockconfig.New(t)
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+
+	inventory := inventory.NewCollectorInventory(cfg, mockStore, fakeTagger)
 	provider := NewAPIServerDiscoveryProvider()
 
 	preferredResources := []*v1.APIResourceList{

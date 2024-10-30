@@ -185,7 +185,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 
 	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
 	if isTLS {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid(), utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
 	}
 
 	tests := []postgresParsingTestAttributes{
@@ -478,7 +478,6 @@ func testDecoding(t *testing.T, isTLS bool) {
 				}, isTLS)
 			},
 		},
-		// This test validates that the SHOW command is currently not supported.
 		{
 			name: "show command",
 			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
@@ -497,8 +496,8 @@ func testDecoding(t *testing.T, isTLS bool) {
 			},
 			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
-					"UNKNOWN": {
-						postgres.UnknownOP: adjustCount(1),
+					"search_path": {
+						postgres.ShowOP: adjustCount(1),
 					},
 				}, isTLS)
 			},
@@ -724,11 +723,106 @@ func validatePostgres(t *testing.T, monitor *Monitor, expectedStats map[string]m
 			if hasTLSTag != tls {
 				continue
 			}
-			if _, ok := found[key.TableName]; !ok {
-				found[key.TableName] = make(map[postgres.Operation]int)
+			if _, ok := found[key.Parameters]; !ok {
+				found[key.Parameters] = make(map[postgres.Operation]int)
 			}
-			found[key.TableName][key.Operation] += stats.Count
+			found[key.Parameters][key.Operation] += stats.Count
 		}
 		return reflect.DeepEqual(expectedStats, found)
 	}, time.Second*5, time.Millisecond*100, "Expected to find a %v stats, instead captured %v", &expectedStats, &found)
+}
+
+func (s *postgresProtocolParsingSuite) TestExtractParameters() {
+	t := s.T()
+
+	units := []struct {
+		name     string
+		expected string
+		event    ebpf.EbpfEvent
+	}{
+		{
+			name:     "query_size longer than the actual length of the content",
+			expected: "version and status",
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    createFragment([]byte("SHOW version and status")),
+					Original_query_size: 64,
+				},
+			},
+		},
+		{
+			name:     "query_size shorter than the actual length of the content",
+			expected: "param1 param2",
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    createFragment([]byte("SHOW param1 param2 param3")),
+					Original_query_size: 18,
+				},
+			},
+		},
+		{
+			name:     "the query has no parameters",
+			expected: postgres.EmptyParameters,
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    createFragment([]byte("SHOW ")),
+					Original_query_size: 10,
+				},
+			},
+		},
+		{
+			name:     "command has trailing zeros",
+			expected: "param",
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    [ebpf.BufferSize]byte{'S', 'H', 'O', 'W', ' ', 'p', 'a', 'r', 'a', 'm', 0, 0, 0},
+					Original_query_size: 13,
+				},
+			},
+		},
+		{
+			name:     "malformed command with wrong query_size",
+			expected: postgres.EmptyParameters,
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    [ebpf.BufferSize]byte{'S', 'H', 'O', 'W', ' ', 0, 0, 'a', ' ', 'b', 'c', 0, 0, 0},
+					Original_query_size: 14,
+				},
+			},
+		},
+		{
+			name:     "empty parameters with spaces and nils",
+			expected: postgres.EmptyParameters,
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    [ebpf.BufferSize]byte{'S', 'H', 'O', 'W', ' ', 0, ' ', 0, ' ', 0, 0, 0},
+					Original_query_size: 12,
+				},
+			},
+		},
+		{
+			name:     "parameters with control codes only",
+			expected: "\x01\x02\x03\x04\x05",
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    [ebpf.BufferSize]byte{'S', 'H', 'O', 'W', ' ', 1, 2, 3, 4, 5},
+					Original_query_size: 10,
+				},
+			},
+		},
+	}
+	for _, unit := range units {
+		t.Run(unit.name, func(t *testing.T) {
+			e := postgres.NewEventWrapper(&unit.event)
+			require.NotNil(t, e)
+			e.Operation()
+			require.Equal(t, unit.expected, e.Parameters())
+		})
+	}
+}
+
+func createFragment(fragment []byte) [ebpf.BufferSize]byte {
+	var b [ebpf.BufferSize]byte
+	copy(b[:], fragment)
+	return b
 }

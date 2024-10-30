@@ -218,3 +218,50 @@ func Test_injectVolume(t *testing.T) {
 		})
 	}
 }
+
+func TestMarkVolumeAsSafeToEvictForAutoscaler(t *testing.T) {
+	tests := []struct {
+		name                                  string
+		currentSafeToEvictAnnotationValue     string
+		volumeToAdd                           string
+		expectedNewSafeToEvictAnnotationValue string
+	}{
+		{
+			name:                                  "the annotation is not set",
+			currentSafeToEvictAnnotationValue:     "",
+			volumeToAdd:                           "datadog",
+			expectedNewSafeToEvictAnnotationValue: "datadog",
+		},
+		{
+			name:                                  "the annotation is already set",
+			currentSafeToEvictAnnotationValue:     "someVolume1,someVolume2",
+			volumeToAdd:                           "datadog",
+			expectedNewSafeToEvictAnnotationValue: "someVolume1,someVolume2,datadog",
+		},
+		{
+			name:                                  "the annotation is already set and the volume is already in the list",
+			currentSafeToEvictAnnotationValue:     "someVolume1,someVolume2",
+			volumeToAdd:                           "someVolume2",
+			expectedNewSafeToEvictAnnotationValue: "someVolume1,someVolume2",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(_ *testing.T) {
+			annotations := map[string]string{}
+			if test.currentSafeToEvictAnnotationValue != "" {
+				annotations["cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"] = test.currentSafeToEvictAnnotationValue
+			}
+			pod := FakePodWithAnnotations(annotations)
+
+			MarkVolumeAsSafeToEvictForAutoscaler(pod, test.volumeToAdd)
+
+			assert.Equal(
+				t,
+				test.expectedNewSafeToEvictAnnotationValue,
+				pod.Annotations["cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"],
+			)
+		})
+	}
+
+}

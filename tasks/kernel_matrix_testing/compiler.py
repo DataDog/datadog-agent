@@ -11,8 +11,8 @@ from invoke.context import Context
 from invoke.runners import Result
 
 from tasks.kernel_matrix_testing.tool import Exit, info, warn
+from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
-from tasks.pipeline import GitlabYamlLoader
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import PathOrStr
@@ -29,8 +29,9 @@ DOCKER_IMAGE_BASE = f"{DOCKER_REGISTRY}/ci/datadog-agent-buildimages/system-prob
 
 def get_build_image_suffix_and_version() -> tuple[str, str]:
     gitlab_ci_file = Path(__file__).parent.parent.parent / ".gitlab-ci.yml"
+    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
     with open(gitlab_ci_file) as f:
-        ci_config = yaml.load(f, Loader=GitlabYamlLoader())
+        ci_config = yaml.safe_load(f)
 
     ci_vars = ci_config['variables']
     return ci_vars['DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX'], ci_vars['DATADOG_AGENT_SYSPROBE_BUILDIMAGES']
@@ -118,7 +119,7 @@ class CompilerImage:
         self.ensure_running()
 
         # Set FORCE_COLOR=1 so that termcolor works in the container
-        self.ctx.run(
+        return self.ctx.run(
             f"docker exec -u {user} -i -e FORCE_COLOR=1 {self.name} bash -c \"{cmd}\"",
             hide=(not verbose),
             warn=allow_fail,
@@ -221,7 +222,7 @@ class CompilerImage:
         # Extract into a .tar file and then use tar to extract the contents to avoid issues
         # with dpkg-deb not respecting symlinks.
         self.exec(f"dpkg-deb --fsys-tarfile {header_package_path} > {header_package_path}.tar", user="root")
-        self.exec(f"tar -h -xvf {header_package_path}.tar -C /", user="root")
+        self.exec(f"tar -h -xf {header_package_path}.tar -C /", user="root")
 
         # Install the corresponding arch compilers
         self.exec(f"apt update && apt install -y gcc-{target.gcc_arch.replace('_', '-')}-linux-gnu", user="root")

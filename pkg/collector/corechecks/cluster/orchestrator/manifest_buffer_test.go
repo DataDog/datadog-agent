@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator
+//go:build kubeapiserver && orchestrator && test
 
 package orchestrator
 
@@ -15,17 +15,25 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+	"go.uber.org/fx"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 var manifestToSend []*model.CollectorManifest
 
 func TestOrchestratorManifestBuffer(t *testing.T) {
-	mb := getManifestBuffer()
+	mb := getManifestBuffer(t)
 	mb.Start(getSender(t))
 
 	b := []*model.Manifest{
@@ -94,8 +102,16 @@ func getSender(t *testing.T) *mocksender.MockSender {
 }
 
 // getManifestBuffer returns a manifest buffer for test with buffer size = 2
-func getManifestBuffer() *ManifestBuffer {
-	orchCheck := newCheck().(*OrchestratorCheck)
+func getManifestBuffer(t *testing.T) *ManifestBuffer {
+	cfg := mockconfig.New(t)
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+
+	orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
 	mb := NewManifestBuffer(orchCheck)
 	mb.Cfg.MaxBufferedManifests = 2
 	mb.Cfg.ManifestBufferFlushInterval = 3 * time.Second

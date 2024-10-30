@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
@@ -132,10 +131,11 @@ import (
 	profileStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/status"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
@@ -146,8 +146,10 @@ import (
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
@@ -182,9 +184,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
 				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
-				LogParams:            log.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
+				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
 			}),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
+			logging.EnableFxLoggingOnDebug[log.Component](),
 			getSharedFxOption(),
 			getPlatformModules(),
 		)
@@ -329,12 +332,12 @@ func run(log log.Component,
 func getSharedFxOption() fx.Option {
 	return fx.Options(
 		flare.Module(flare.NewParams(
-			path.GetDistPath(),
-			path.PyChecksPath,
-			path.DefaultLogFile,
-			path.DefaultJmxLogFile,
-			path.DefaultDogstatsDLogFile,
-			path.DefaultStreamlogsLogFile,
+			defaultpaths.GetDistPath(),
+			defaultpaths.PyChecksPath,
+			defaultpaths.LogFile,
+			defaultpaths.JmxLogFile,
+			defaultpaths.DogstatsDLogFile,
+			defaultpaths.StreamlogsLogFile,
 		)),
 		core.Bundle(),
 		lsof.Module(),
@@ -376,7 +379,7 @@ func getSharedFxOption() fx.Option {
 		apiimpl.Module(),
 		commonendpoints.Module(),
 		compressionimpl.Module(),
-		demultiplexerimpl.Module(),
+		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
 		fx.Provide(func(logsagent optional.Option[logsAgent.Component]) optional.Option[logsagentpipeline.Component] {
@@ -393,10 +396,13 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 		taggerimpl.Module(),
 		autodiscoveryimpl.Module(),
-		fx.Provide(func(ac autodiscovery.Component) optional.Option[autodiscovery.Component] {
-			return optional.NewOption[autodiscovery.Component](ac)
+		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
+		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
+		// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
+		// we can include the tagger as part of the workloadmeta component.
+		fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
+			proccontainers.InitSharedContainerProvider(wmeta, tagger)
 		}),
-
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
 		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
 		// have to ensure this code gets run first. Once the common package is made into a component, this can be removed.
@@ -408,7 +414,7 @@ func getSharedFxOption() fx.Option {
 			lc.Append(fx.Hook{
 				OnStart: func(_ context.Context) error {
 					//  setup the AutoConfig instance
-					common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog().GetString("confd_path"))
+					common.LoadComponents(secretResolver, wmeta, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 					return nil
 				},
 			})
@@ -416,15 +422,7 @@ func getSharedFxOption() fx.Option {
 		logs.Bundle(),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
-		// injecting the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
-		// other already migrated components to request it.
-		fx.Provide(func(config config.Component) demultiplexerimpl.Params {
-			params := demultiplexerimpl.NewDefaultParams()
-			params.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
-			return params
-		}),
-		orchestratorForwarderImpl.Module(),
-		fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
+		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 		eventplatformreceiverimpl.Module(),
 
@@ -443,8 +441,7 @@ func getSharedFxOption() fx.Option {
 		collectorimpl.Module(),
 		process.Bundle(),
 		guiimpl.Module(),
-		agent.Bundle(),
-		fx.Supply(jmxloggerimpl.NewDefaultParams()),
+		agent.Bundle(jmxloggerimpl.NewDefaultParams()),
 		fx.Provide(func(config config.Component) healthprobe.Options {
 			return healthprobe.Options{
 				Port:           config.GetInt("health_port"),
@@ -485,7 +482,7 @@ func startAgent(
 	_ sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	wmeta workloadmeta.Component,
-	_ tagger.Component,
+	tagger tagger.Component,
 	ac autodiscovery.Component,
 	rcclient rcclient.Component,
 	_ optional.Option[logsAgent.Component],
@@ -512,17 +509,17 @@ func startAgent(
 		log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 	}
 
-	if err := util.SetupCoreDump(pkgconfig.Datadog()); err != nil {
+	if err := util.SetupCoreDump(pkgconfigsetup.Datadog()); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	if v := pkgconfig.Datadog().GetBool("internal_profiling.capture_all_allocations"); v {
+	if v := pkgconfigsetup.Datadog().GetBool("internal_profiling.capture_all_allocations"); v {
 		runtime.MemProfileRate = 1
 		log.Infof("MemProfileRate set to 1, capturing every single memory allocation!")
 	}
 
 	// Setup Internal Profiling
-	common.SetupInternalProfiling(settings, pkgconfig.Datadog(), "")
+	common.SetupInternalProfiling(settings, pkgconfigsetup.Datadog(), "")
 
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()
@@ -538,14 +535,14 @@ func startAgent(
 	log.Infof("Hostname is: %s", hostnameDetected)
 
 	// start remote configuration management
-	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog()) {
+	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		// Subscribe to `AGENT_TASK` product
 		rcclient.SubscribeAgentTask()
 
 		// Subscribe to `APM_TRACING` product
 		rcclient.SubscribeApmTracing()
 
-		if pkgconfig.Datadog().GetBool("remote_configuration.agent_integrations.enabled") {
+		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config
 			rcProvider := providers.NewRemoteConfigProvider()
 			rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
@@ -556,7 +553,7 @@ func startAgent(
 
 	// start clc runner server
 	// only start when the cluster agent is enabled and a cluster check runner host is enabled
-	if pkgconfig.Datadog().GetBool("cluster_agent.enabled") && pkgconfig.Datadog().GetBool("clc_runner_enabled") {
+	if pkgconfigsetup.Datadog().GetBool("cluster_agent.enabled") && pkgconfigsetup.Datadog().GetBool("clc_runner_enabled") {
 		if err = clcrunnerapi.StartCLCRunnerServer(map[string]http.Handler{
 			"/telemetry": telemetryHandler,
 		}, ac); err != nil {
@@ -565,7 +562,7 @@ func startAgent(
 	}
 
 	// Create the Leader election engine without initializing it
-	if pkgconfig.Datadog().GetBool("leader_election") {
+	if pkgconfigsetup.Datadog().GetBool("leader_election") {
 		leaderelection.CreateGlobalLeaderEngine(ctx)
 	}
 
@@ -586,8 +583,8 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, cfg, telemetry)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver), true)
+	commonchecks.RegisterChecks(wmeta, tagger, cfg, telemetry)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver, tagger), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 

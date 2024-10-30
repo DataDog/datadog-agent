@@ -4,6 +4,7 @@
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
 flavor = ENV['AGENT_FLAVOR']
+output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
 
 if flavor.nil? || flavor == 'base'
   name 'agent'
@@ -46,7 +47,6 @@ if windows_target?
   # dir will be determined by the Windows installer. This path must not contain
   # spaces because Omnibus doesn't quote the Git commands it launches.
   INSTALL_DIR = 'C:/opt/datadog-agent/'
-  PYTHON_2_EMBEDDED_DIR = format('%s/embedded2', INSTALL_DIR)
   PYTHON_3_EMBEDDED_DIR = format('%s/embedded3', INSTALL_DIR)
 else
   INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
@@ -55,7 +55,6 @@ end
 install_dir INSTALL_DIR
 
 if windows_target?
-  python_2_embedded PYTHON_2_EMBEDDED_DIR
   python_3_embedded PYTHON_3_EMBEDDED_DIR
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
@@ -231,14 +230,7 @@ if do_build
     dependency 'datadog-agent-mac-app'
   end
 
-  if with_python_runtime? "2"
-    dependency 'pylint2'
-    dependency 'datadog-agent-integrations-py2'
-  end
-
-  if with_python_runtime? "3"
-    dependency 'datadog-agent-integrations-py3'
-  end
+  dependency 'datadog-agent-integrations-py3'
 
   if linux_target?
     dependency 'datadog-security-agent-policies'
@@ -280,7 +272,7 @@ elsif do_package
 end
 
 if linux_target?
-  extra_package_file '/etc/datadog-agent/'
+  extra_package_file "#{output_config_dir}/etc/datadog-agent/"
   extra_package_file '/usr/bin/dd-agent'
   extra_package_file '/var/log/datadog/'
 end
@@ -344,14 +336,6 @@ if windows_target?
       "#{install_dir}\\bin\\agent\\ddtray.exe",
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
     ]
-    if with_python_runtime? "2"
-      BINARIES_TO_SIGN.concat([
-        "#{install_dir}\\bin\\agent\\libdatadog-agent-two.dll",
-        "#{install_dir}\\embedded2\\python.exe",
-        "#{install_dir}\\embedded2\\python27.dll",
-        "#{install_dir}\\embedded2\\pythonw.exe"
-      ])
-    end
 
     BINARIES_TO_SIGN.each do |bin|
       sign_file bin

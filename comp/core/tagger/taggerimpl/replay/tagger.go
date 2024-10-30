@@ -8,10 +8,12 @@ package replay
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
@@ -63,16 +65,28 @@ func (t *Tagger) Stop() error {
 }
 
 // Tag returns tags for a given entity at the desired cardinality.
-func (t *Tagger) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
-	id, _ := types.NewEntityIDFromString(entityID)
-	tags := t.store.Lookup(id, cardinality)
+func (t *Tagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
+	tags := t.store.Lookup(entityID, cardinality)
 	return tags, nil
 }
 
+// LegacyTag has the same behaviour as the Tag method, but it receives the entity id as a string and parses it.
+// If possible, avoid using this function, and use the Tag method instead.
+// This function exists in order not to break backward compatibility with rtloader and python
+// integrations using the tagger
+func (t *Tagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
+	prefix, id, err := taggercommon.ExtractPrefixAndID(entity)
+	if err != nil {
+		return nil, err
+	}
+
+	entityID := types.NewEntityID(prefix, id)
+	return t.Tag(entityID, cardinality)
+}
+
 // AccumulateTagsFor returns tags for a given entity at the desired cardinality.
-func (t *Tagger) AccumulateTagsFor(entityID string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
-	id, _ := types.NewEntityIDFromString(entityID)
-	tags := t.store.LookupHashed(id, cardinality)
+func (t *Tagger) AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
+	tags := t.store.LookupHashed(entityID, cardinality)
 
 	if tags.Len() == 0 {
 		t.telemetryStore.QueriesByCardinality(cardinality).EmptyTags.Inc()
@@ -86,9 +100,8 @@ func (t *Tagger) AccumulateTagsFor(entityID string, cardinality types.TagCardina
 }
 
 // Standard returns the standard tags for a given entity.
-func (t *Tagger) Standard(entityID string) ([]string, error) {
-	id, _ := types.NewEntityIDFromString(entityID)
-	tags, err := t.store.LookupStandard(id)
+func (t *Tagger) Standard(entityID types.EntityID) ([]string, error) {
+	tags, err := t.store.LookupStandard(entityID)
 	if err != nil {
 		return []string{}, err
 	}
@@ -102,14 +115,9 @@ func (t *Tagger) List() types.TaggerListResponse {
 }
 
 // Subscribe does nothing in the replay tagger this tagger does not respond to events.
-func (t *Tagger) Subscribe(types.TagCardinality) chan []types.EntityEvent {
+func (t *Tagger) Subscribe(_ string, _ *types.Filter) (types.Subscription, error) {
 	// NOP
-	return nil
-}
-
-// Unsubscribe does nothing in the replay tagger this tagger does not respond to events.
-func (t *Tagger) Unsubscribe(chan []types.EntityEvent) {
-	// NOP
+	return nil, fmt.Errorf("not implemented")
 }
 
 // ReplayTagger returns the replay tagger instance
@@ -144,7 +152,6 @@ func (t *Tagger) LoadState(state []types.Entity) {
 }
 
 // GetEntity returns the entity corresponding to the specified id and an error
-func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
-	id, _ := types.NewEntityIDFromString(entityID)
-	return t.store.GetEntity(id)
+func (t *Tagger) GetEntity(entityID types.EntityID) (*types.Entity, error) {
+	return t.store.GetEntity(entityID)
 }

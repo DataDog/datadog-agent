@@ -9,6 +9,8 @@ package daemon
 
 import (
 	"context"
+	"syscall"
+
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/updater/localapi"
@@ -16,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/judwhite/go-svc"
 	"go.uber.org/fx"
-	"syscall"
 )
 
 type windowsService struct {

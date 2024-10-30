@@ -78,6 +78,7 @@ jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "opentelemetry"
 github_labels = ["team/opentelemetry"]
+exclude_members = ["ancostas", "Maascamp"]
 
 [teams."eBPF Platform"]
 jira_project = "EBPF"
@@ -202,9 +203,9 @@ jira_statuses = ["💼 To Do", "💡 In Progress", "✅ Done"]
 github_team = "container-app"
 github_labels = ["team/container-app"]
 
-[teams."APM Onboarding"]
-jira_project = "APMON"
-jira_issue_type = "Story"
+[teams."APM Injection Platform"]
+jira_project = "INPLAT"
+jira_issue_type = "Task"
 jira_statuses = ["Selected For Development", "In Progress", "Done"]
 github_team = "apm-onboarding"
 github_labels = ["team/apm-onboarding"]
@@ -215,3 +216,10 @@ jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-release-management"
 github_labels = ["team/agent-release-management"]
+
+[teams."Dynamic Instrumentation"]
+jira_project = "DEBUG"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "debugger-go"
+github_labels = ["team/dynamic-instrumentation"]

@@ -48,7 +48,31 @@ func (s *testInstallerSuite) startServiceWithConfigFile() {
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
 		HasAService(installerwindows.ServiceName).
-		WithStatus("Running")
+		WithStatus("Running").
+		HasNamedPipe(installerwindows.NamedPipe).
+		WithSecurity(
+			// Only accessible to Administrators and LocalSystem
+			common.NewProtectedSecurityInfo(
+				common.GetIdentityForSID(common.AdministratorsSID),
+				common.GetIdentityForSID(common.LocalSystemSID),
+				[]common.AccessRule{
+					common.NewExplicitAccessRule(
+						common.GetIdentityForSID(common.LocalSystemSID),
+						common.FileFullControl,
+						common.AccessControlTypeAllow,
+					),
+					common.NewExplicitAccessRule(
+						common.GetIdentityForSID(common.AdministratorsSID),
+						common.FileFullControl,
+						common.AccessControlTypeAllow,
+					),
+				},
+			))
+	status, err := s.Installer().Status()
+	s.Require().NoError(err)
+	// with no packages installed just prints version
+	// e.g. Datadog Installer v7.60.0-devel+git.56.86b2ae2
+	s.Require().Contains(status, "Datadog Installer")
 }
 
 func (s *testInstallerSuite) uninstall() {
@@ -67,7 +91,9 @@ func (s *testInstallerSuite) installWithExistingConfigFile() {
 	// Arrange
 
 	// Act
-	s.Require().NoError(s.Installer().Install())
+	s.Require().NoError(s.Installer().Install(
+		installerwindows.WithMSILogFile("with-config-install.log"),
+	))
 
 	// Assert
 	s.requireInstalled()
@@ -82,7 +108,9 @@ func (s *testInstallerSuite) repair() {
 	s.Require().NoError(s.Env().RemoteHost.Remove(installerwindows.BinaryPath))
 
 	// Act
-	s.Require().NoError(s.Installer().Install())
+	s.Require().NoError(s.Installer().Install(
+		installerwindows.WithMSILogFile("repair.log"),
+	))
 
 	// Assert
 	s.requireInstalled()

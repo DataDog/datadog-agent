@@ -81,7 +81,11 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Facto
 		var err error
 		var module Module
 		withModule(factory.Name, func() {
-			module, err = factory.Fn(cfg, wmeta, telemetry)
+			deps := FactoryDependencies{
+				WMeta:     wmeta,
+				Telemetry: telemetry,
+			}
+			module, err = factory.Fn(cfg, deps)
 		})
 
 		// In case a module failed to be started, do not make the whole `system-probe` abort.
@@ -156,7 +160,11 @@ func RestartModule(factory Factory, wmeta workloadmeta.Component, telemetry tele
 	var err error
 	withModule(factory.Name, func() {
 		currentModule.Close()
-		newModule, err = factory.Fn(l.cfg, wmeta, telemetry)
+		deps := FactoryDependencies{
+			WMeta:     wmeta,
+			Telemetry: telemetry,
+		}
+		newModule, err = factory.Fn(l.cfg, deps)
 	})
 	if err != nil {
 		l.errors[factory.Name] = err

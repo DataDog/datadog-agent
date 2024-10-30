@@ -9,21 +9,16 @@
 package collectorimpl
 
 import (
-	"context"
-	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
-
-	"github.com/gocolly/colly/v2"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -106,46 +101,9 @@ func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 				fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.dat", name), data)
 			}
 
-			if !src.Crawl {
-				continue
-			}
-
-			// crawl the url by following any hyperlinks
-			col := colly.NewCollector()
-			col.OnHTML("a", func(e *colly.HTMLElement) {
-				// visit all links
-				link := e.Attr("href")
-				if err := e.Request.Visit(e.Request.AbsoluteURL(link)); err != nil {
-					filename := strings.ReplaceAll(url.PathEscape(link), ":", "_")
-					fb.AddFile(fmt.Sprintf("otel/otel-flare/crawl-%s.err", filename), []byte(err.Error()))
-				}
-			})
-			col.OnResponse(func(r *colly.Response) {
-				// the root sources (from the extension.Response) were already fetched earlier
-				// don't re-fetch them
-				responseURL := r.Request.URL.String()
-				if contains(sourceURLs, responseURL) {
-					return
-				}
-				// use the url as the basis for the filename saved in the flare
-				filename := strings.ReplaceAll(url.PathEscape(responseURL), ":", "_")
-				fb.AddFile(fmt.Sprintf("otel/otel-flare/crawl-%s", filename), r.Body)
-			})
-			if err := col.Visit(sourceURL); err != nil {
-				fb.AddFile("otel/otel-flare/crawl.err", []byte(err.Error()))
-			}
 		}
 	}
 	return nil
-}
-
-func contains(s []string, e string) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-	return false
 }
 
 func toJSON(it interface{}) string {
@@ -169,35 +127,15 @@ func (c *collectorImpl) requestOtelConfigInfo(endpointURL string) ([]byte, error
 		return []byte(overrideConfigResponse), nil
 	}
 
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	client := &http.Client{Transport: tr}
-
-	timeoutSeconds := c.config.GetInt("otelcollector.extension_timeout")
-	if timeoutSeconds == 0 {
-		timeoutSeconds = defaultExtensionTimeout
+	options := apiutil.ReqOptions{
+		Ctx:       c.ctx,
+		Authtoken: c.authToken.Get(),
 	}
 
-	ctx := context.TODO()
-	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, "GET", endpointURL, nil)
+	data, err := apiutil.DoGetWithOptions(c.client, endpointURL, &options)
 	if err != nil {
 		return nil, err
 	}
 
-	res, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	body, err := io.ReadAll(res.Body)
-	res.Body.Close()
-	if err != nil {
-		return nil, err
-	}
-	if res.StatusCode >= 400 {
-		return nil, errors.New(string(body))
-	}
-	return body, nil
+	return data, nil
 }

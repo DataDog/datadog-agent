@@ -55,10 +55,16 @@ func TestLoginUID(t *testing.T) {
 	}
 	defer dockerInstance.stop()
 
-	t.Run("login-uid-open-test", func(t *testing.T) {
+	t.Run("open", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			// run the syscall drift test command
-			cmd := dockerInstance.Command(goSyscallTester, []string{"-login-uid-open-test"}, []string{})
+			args := []string{
+				"-login-uid-test",
+				"-login-uid-event-type", "open",
+				"-login-uid-path", "/tmp/test-auid",
+				"-login-uid-value", "1005",
+			}
+
+			cmd := dockerInstance.Command(goSyscallTester, args, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -67,10 +73,16 @@ func TestLoginUID(t *testing.T) {
 		})
 	})
 
-	t.Run("login-uid-exec-test", func(t *testing.T) {
+	t.Run("exec", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			// run the syscall drift test command
-			cmd := dockerInstance.Command(goSyscallTester, []string{"-login-uid-exec-test", "-login-uid-exec-path", goSyscallTester}, []string{})
+			args := []string{
+				"-login-uid-test",
+				"-login-uid-event-type", "exec",
+				"-login-uid-path", goSyscallTester,
+				"-login-uid-value", "1005",
+			}
+
+			cmd := dockerInstance.Command(goSyscallTester, args, []string{})
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				t.Logf("command exited with an error: out:'%s' err:'%v'", string(out), err)

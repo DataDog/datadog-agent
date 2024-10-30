@@ -855,7 +855,7 @@ void Three::setModuleAttrString(char *module, char *attr, char *value)
         return;
     }
 
-    PyObject *py_value = PyStringFromCString(value);
+    PyObject *py_value = PyUnicode_FromString(value);
     if (PyObject_SetAttrString(py_module, attr, py_value) != 0) {
         setError("error setting the '" + std::string(module) + "." + std::string(attr)
                  + "' attribute: " + _fetchPythonError());
@@ -998,6 +998,11 @@ void Three::setGetProcessStartTimeCb(cb_get_process_start_time_t cb)
 void Three::setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t cb)
 {
     _set_obfuscate_mongodb_string_cb(cb);
+}
+
+void Three::setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t cb)
+{
+    _set_emit_agent_telemetry_cb(cb);
 }
 
 // Python Helpers

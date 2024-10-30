@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
@@ -43,7 +42,7 @@ func TestSNMPListener(t *testing.T) {
 		}
 	}
 
-	l, err := NewSNMPListener(&config.Listeners{}, nil)
+	l, err := NewSNMPListener(ServiceListernerDeps{})
 	assert.Equal(t, nil, err)
 	l.Listen(newSvc, delSvc)
 
@@ -142,7 +141,7 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 		}
 	}
 
-	l, err := NewSNMPListener(&config.Listeners{}, nil)
+	l, err := NewSNMPListener(ServiceListernerDeps{})
 	assert.Equal(t, nil, err)
 	l.Listen(newSvc, delSvc)
 

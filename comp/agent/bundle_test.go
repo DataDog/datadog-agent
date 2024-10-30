@@ -8,8 +8,6 @@ package agent
 import (
 	"testing"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -24,15 +22,13 @@ import (
 
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t,
-		Bundle(),
+		Bundle(jmxloggerimpl.NewDefaultParams()),
 		core.MockBundle(),
 		compressionimpl.MockModule(),
 		defaultforwarder.MockModule(),
 		orchestratorimpl.MockModule(),
 		eventplatformimpl.MockModule(),
-		demultiplexerimpl.Module(),
-		fx.Supply(demultiplexerimpl.NewDefaultParams()),
-		fx.Supply(jmxloggerimpl.NewDefaultParams()),
+		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
 }

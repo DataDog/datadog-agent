@@ -21,9 +21,10 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	containerdutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
@@ -246,8 +247,8 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			defaultExcludePauseContainers := config.Datadog().GetBool("exclude_pause_container")
-			config.Datadog().SetWithoutSource("exclude_pause_container", test.excludePauseContainers)
+			defaultExcludePauseContainers := pkgconfigsetup.Datadog().GetBool("exclude_pause_container")
+			pkgconfigsetup.Datadog().SetWithoutSource("exclude_pause_container", test.excludePauseContainers)
 
 			if test.generateCreateEvent {
 				eventCreateContainer, err := createContainerEvent(testNamespace, test.containerID)
@@ -276,7 +277,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 				assert.Empty(t, sub.Flush(time.Now().Unix()))
 			}
 
-			config.Datadog().SetWithoutSource("exclude_pause_container", defaultExcludePauseContainers)
+			pkgconfigsetup.Datadog().SetWithoutSource("exclude_pause_container", defaultExcludePauseContainers)
 		})
 	}
 
@@ -285,9 +286,11 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 
 // TestComputeEvents checks the conversion of Containerd events to Datadog events
 func TestComputeEvents(t *testing.T) {
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
 	containerdCheck := &ContainerdCheck{
 		instance:  &ContainerdConfig{},
 		CheckBase: corechecks.NewCheckBase("containerd"),
+		tagger:    fakeTagger,
 	}
 	mocked := mocksender.NewMockSender(containerdCheck.ID())
 	var err error
@@ -370,7 +373,7 @@ func TestComputeEvents(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			computeEvents(test.events, mocked, containerdCheck.containerFilter)
+			containerdCheck.computeEvents(test.events, mocked, containerdCheck.containerFilter)
 			mocked.On("Event", mock.AnythingOfType("event.Event"))
 			if len(mocked.Calls) > 0 {
 				res := (mocked.Calls[0].Arguments.Get(0)).(event.Event)

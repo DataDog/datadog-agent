@@ -10,6 +10,7 @@ package kubelet
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -47,41 +48,43 @@ type KubeletCheck struct {
 	providers []Provider
 	podUtils  *common.PodUtils
 	store     workloadmeta.Component
+	tagger    tagger.Component
 }
 
 // NewKubeletCheck returns a new KubeletCheck
-func NewKubeletCheck(base core.CheckBase, instance *common.KubeletConfig, store workloadmeta.Component) *KubeletCheck {
+func NewKubeletCheck(base core.CheckBase, instance *common.KubeletConfig, store workloadmeta.Component, tagger tagger.Component) *KubeletCheck {
 	return &KubeletCheck{
 		CheckBase: base,
 		instance:  instance,
 		store:     store,
+		tagger:    tagger,
 	}
 }
 
-func initProviders(filter *containers.Filter, config *common.KubeletConfig, podUtils *common.PodUtils, store workloadmeta.Component) []Provider {
-	podProvider := pod.NewProvider(filter, config, podUtils)
+func initProviders(filter *containers.Filter, config *common.KubeletConfig, podUtils *common.PodUtils, store workloadmeta.Component, tagger tagger.Component) []Provider {
+	podProvider := pod.NewProvider(filter, config, podUtils, tagger)
 	// nodeProvider collects from the /spec endpoint, which was hidden by default in k8s 1.18 and removed in k8s 1.19.
 	// It is here for backwards compatibility.
 	nodeProvider := node.NewProvider(config)
 	healthProvider := health.NewProvider(config)
-	summaryProvider := summary.NewProvider(filter, config, store)
+	summaryProvider := summary.NewProvider(filter, config, store, tagger)
 
 	sliProvider, err := slis.NewProvider(filter, config, store)
 	if err != nil {
 		log.Warnf("Can't get sli provider: %v", err)
 	}
 
-	probeProvider, err := probe.NewProvider(filter, config, store)
+	probeProvider, err := probe.NewProvider(filter, config, store, tagger)
 	if err != nil {
 		log.Warnf("Can't get probe provider: %v", err)
 	}
 
-	kubeletProvider, err := kube.NewProvider(filter, config, store, podUtils)
+	kubeletProvider, err := kube.NewProvider(filter, config, store, podUtils, tagger)
 	if err != nil {
 		log.Warnf("Can't get kubelet provider: %v", err)
 	}
 
-	cadvisorProvider, err := cadvisor.NewProvider(filter, config, store, podUtils)
+	cadvisorProvider, err := cadvisor.NewProvider(filter, config, store, podUtils, tagger)
 	if err != nil {
 		log.Warnf("Can't get cadvisor provider: %v", err)
 	}
@@ -99,9 +102,9 @@ func initProviders(filter *containers.Filter, config *common.KubeletConfig, podU
 }
 
 // Factory returns a new KubeletCheck factory
-func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+func Factory(store workloadmeta.Component, tagger tagger.Component) optional.Option[func() check.Check] {
 	return optional.NewOption(func() check.Check {
-		return NewKubeletCheck(core.NewCheckBase(CheckName), &common.KubeletConfig{}, store)
+		return NewKubeletCheck(core.NewCheckBase(CheckName), &common.KubeletConfig{}, store, tagger)
 	})
 }
 
@@ -129,8 +132,8 @@ func (k *KubeletCheck) Configure(senderManager sender.SenderManager, _ uint64, c
 		k.instance.SendHistogramBuckets = &sendBuckets
 	}
 
-	k.podUtils = common.NewPodUtils()
-	k.providers = initProviders(filter, k.instance, k.podUtils, k.store)
+	k.podUtils = common.NewPodUtils(k.tagger)
+	k.providers = initProviders(filter, k.instance, k.podUtils, k.store, k.tagger)
 
 	return nil
 }

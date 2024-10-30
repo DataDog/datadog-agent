@@ -212,18 +212,25 @@ func TestFailedRegistration(t *testing.T) {
 	registerRecorder.ReturnError = fmt.Errorf("failed registration")
 	registerCallback := registerRecorder.Callback()
 
+	unregisterRecorder := new(CallbackRecorder)
+	unregisterCallback := unregisterRecorder.Callback()
+
 	r := newFileRegistry()
 	path, pathID := createTempTestFile(t, "foobar")
 	cmd, err := testutil.OpenFromAnotherProcess(t, path)
 	require.NoError(t, err)
 	pid := uint32(cmd.Process.Pid)
 
-	require.NoError(t, r.Register(path, pid, registerCallback, IgnoreCB, IgnoreCB))
+	err = r.Register(path, pid, registerCallback, unregisterCallback, IgnoreCB)
+	require.ErrorIs(t, err, registerRecorder.ReturnError)
 
 	// First let's assert that the callback was executed once, but there are no
 	// registered processes because the registration should have failed
 	assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID))
 	assert.Empty(t, r.GetRegisteredProcesses())
+
+	// The unregister callback should have been called to clean up the failed registration.
+	assert.Equal(t, 1, unregisterRecorder.CallsForPathID(pathID))
 
 	// Now let's try to register the same process again
 	require.Equal(t, errPathIsBlocked, r.Register(path, pid, registerCallback, IgnoreCB, IgnoreCB))
@@ -231,6 +238,93 @@ func TestFailedRegistration(t *testing.T) {
 	// Assert that the number of callback executions hasn't changed for this pathID
 	// This is because we have block-listed this file
 	assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID))
+
+	assert.Contains(t, debugger.GetBlockedPathIDs(""), pathID)
+	debugger.ClearBlocked()
+	assert.Empty(t, debugger.GetBlockedPathIDs(""))
+}
+
+func TestShortLivedProcess(t *testing.T) {
+	// Create a callback recorder that returns an error on purpose
+	registerRecorder := new(CallbackRecorder)
+	registerRecorder.ReturnError = fmt.Errorf("failed registration")
+	recorderCallback := registerRecorder.Callback()
+
+	unregisterRecorder := new(CallbackRecorder)
+	unregisterCallback := unregisterRecorder.Callback()
+
+	r := newFileRegistry()
+	path, pathID := createTempTestFile(t, "foobar")
+	cmd, err := testutil.OpenFromAnotherProcess(t, path)
+	require.NoError(t, err)
+	pid := uint32(cmd.Process.Pid)
+
+	registerCallback := func(fp FilePath) error {
+		// Simulate a short-lived process by killing it during the registration.
+		cmd.Process.Kill()
+		cmd.Process.Wait()
+		return recorderCallback(fp)
+	}
+
+	err = r.Register(path, pid, registerCallback, unregisterCallback, IgnoreCB)
+	require.ErrorIs(t, err, registerRecorder.ReturnError)
+
+	// First let's assert that the callback was executed once, but there are no
+	// registered processes because the registration should have failed
+	assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID))
+	assert.Empty(t, r.GetRegisteredProcesses())
+
+	// The unregister callback should have been called to clean up the failed registration.
+	assert.Equal(t, 1, unregisterRecorder.CallsForPathID(pathID))
+
+	cmd, err = testutil.OpenFromAnotherProcess(t, path)
+	require.NoError(t, err)
+	pid = uint32(cmd.Process.Pid)
+
+	registerRecorder.ReturnError = nil
+
+	// Now let's try to register the same path again
+	require.Nil(t, r.Register(path, pid, recorderCallback, IgnoreCB, IgnoreCB))
+
+	// Assert that the path is successfully registered since it shouldn't have been blocked.
+	assert.Equal(t, 2, registerRecorder.CallsForPathID(pathID))
+	assert.Contains(t, r.GetRegisteredProcesses(), pid)
+}
+
+func TestNoBlockErrEnvironment(t *testing.T) {
+	registerRecorder := new(CallbackRecorder)
+	registerRecorder.ReturnError = fmt.Errorf("%w: failed registration", ErrEnvironment)
+	registerCallback := registerRecorder.Callback()
+
+	unregisterRecorder := new(CallbackRecorder)
+	unregisterCallback := unregisterRecorder.Callback()
+
+	r := newFileRegistry()
+	path, pathID := createTempTestFile(t, "foobar")
+	cmd, err := testutil.OpenFromAnotherProcess(t, path)
+	require.NoError(t, err)
+	pid := uint32(cmd.Process.Pid)
+
+	err = r.Register(path, pid, registerCallback, unregisterCallback, IgnoreCB)
+	require.ErrorIs(t, err, registerRecorder.ReturnError)
+
+	// First let's assert that the callback was executed once, but there are no
+	// registered processes because the registration should have failed
+	assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID))
+	assert.Empty(t, r.GetRegisteredProcesses())
+
+	// The unregister callback should have been called to clean up the failed registration.
+	assert.Equal(t, 1, unregisterRecorder.CallsForPathID(pathID))
+
+	registerRecorder.ReturnError = nil
+
+	// Now let's try to register the same path again
+	require.Nil(t, r.Register(path, pid, registerCallback, IgnoreCB, IgnoreCB))
+
+	// Assert that the path is successfully registered since it shouldn't have
+	// been blocked since we retruned an error wrapping ErrEnvironment.
+	assert.Equal(t, 2, registerRecorder.CallsForPathID(pathID))
+	assert.Contains(t, r.GetRegisteredProcesses(), pid)
 }
 
 func TestFilePathInCallbackArgument(t *testing.T) {
@@ -308,5 +402,6 @@ func createSymlink(t *testing.T, old, new string) {
 func newFileRegistry() *FileRegistry {
 	// Ensure that tests relying on telemetry data will always have a clean slate
 	telemetry.Clear()
+	ResetDebugger()
 	return NewFileRegistry("")
 }

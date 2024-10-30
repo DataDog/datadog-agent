@@ -15,6 +15,7 @@ import (
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -70,7 +71,7 @@ func GlobalProcessingRules(coreConfig pkgconfigmodel.Reader) ([]*ProcessingRule,
 	if s, ok := raw.(string); ok && s != "" {
 		err = json.Unmarshal([]byte(s), &rules)
 	} else {
-		err = coreConfig.UnmarshalKey("logs_config.processing_rules", &rules)
+		err = structure.UnmarshalKey(coreConfig, "logs_config.processing_rules", &rules, structure.ConvertEmptyStringToNil)
 	}
 	if err != nil {
 		return nil, err
@@ -232,7 +233,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 
 	// Add in the MRF endpoint if MRF is enabled.
 	if coreConfig.GetBool("multi_region_failover.enabled") {
-		mrfURL, err := pkgconfigutils.GetMRFEndpoint(coreConfig, endpointPrefix, "multi_region_failover.dd_url")
+		mrfURL, err := pkgconfigutils.GetMRFLogsEndpoint(coreConfig, endpointPrefix)
 		if err != nil {
 			return nil, fmt.Errorf("cannot construct MRF endpoint: %s", err)
 		}

@@ -22,7 +22,6 @@ import (
 
 	"github.com/DataDog/viper"
 	"github.com/mohae/deepcopy"
-	"github.com/spf13/afero"
 	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -72,10 +71,29 @@ var sources = []Source{
 	SourceCLI,
 }
 
+// sourcesPriority give each source a priority, the higher the more important a source. This is used when merging
+// configuration tree (a higher priority overwrites a lower one).
+var sourcesPriority = map[Source]int{
+	SourceDefault:            0,
+	SourceUnknown:            1,
+	SourceFile:               2,
+	SourceEnvVar:             3,
+	SourceFleetPolicies:      4,
+	SourceAgentRuntime:       5,
+	SourceLocalConfigProcess: 6,
+	SourceRC:                 7,
+	SourceCLI:                8,
+}
+
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
 type ValueWithSource struct {
 	Source Source
 	Value  interface{}
+}
+
+// IsGreaterOrEqualThan returns true if the current source is of higher priority than the one given as a parameter
+func (s Source) IsGreaterOrEqualThan(x Source) bool {
+	return sourcesPriority[s] >= sourcesPriority[x]
 }
 
 // String casts Source into a string
@@ -161,12 +179,25 @@ func (c *safeConfig) SetDefault(key string, value interface{}) {
 	c.Viper.SetDefault(key, value)
 }
 
-// UnsetForSource wraps Viper for concurrent access
+// UnsetForSource unsets a config entry for a given source
 func (c *safeConfig) UnsetForSource(key string, source Source) {
+	// modify the config then release the lock to avoid deadlocks while notifying
+	var receivers []NotificationReceiver
 	c.Lock()
-	defer c.Unlock()
+	previousValue := c.Viper.Get(key)
 	c.configSources[source].Set(key, nil)
 	c.mergeViperInstances(key)
+	newValue := c.Viper.Get(key) // Can't use nil, so we get the newly computed value
+	if previousValue != nil {
+		// if the value has not changed, do not duplicate the slice so that no callback is called
+		receivers = slices.Clone(c.notificationReceivers)
+	}
+	c.Unlock()
+
+	// notifying all receiver about the updated setting
+	for _, receiver := range receivers {
+		receiver(key, previousValue, newValue)
+	}
 }
 
 // mergeViperInstances is called after a change in an instance of Viper
@@ -264,13 +295,6 @@ func (c *safeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) 
 	c.Lock()
 	defer c.Unlock()
 	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
-}
-
-// SetFs wraps Viper for concurrent access
-func (c *safeConfig) SetFs(fs afero.Fs) {
-	c.Lock()
-	defer c.Unlock()
-	c.Viper.SetFs(fs)
 }
 
 // IsSet wraps Viper for concurrent access
@@ -523,17 +547,17 @@ func (c *safeConfig) mergeWithEnvPrefix(key string) string {
 }
 
 // BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
-func (c *safeConfig) BindEnv(input ...string) {
+func (c *safeConfig) BindEnv(key string, envvars ...string) {
 	c.Lock()
 	defer c.Unlock()
 	var envKeys []string
 
 	// If one input is given, viper derives an env key from it; otherwise, all inputs after
 	// the first are literal env vars.
-	if len(input) == 1 {
-		envKeys = []string{c.mergeWithEnvPrefix(input[0])}
+	if len(envvars) == 0 {
+		envKeys = []string{c.mergeWithEnvPrefix(key)}
 	} else {
-		envKeys = input[1:]
+		envKeys = envvars
 	}
 
 	for _, key := range envKeys {
@@ -544,8 +568,9 @@ func (c *safeConfig) BindEnv(input ...string) {
 		c.configEnvVars[key] = struct{}{}
 	}
 
-	_ = c.configSources[SourceEnvVar].BindEnv(input...)
-	_ = c.Viper.BindEnv(input...)
+	newKeys := append([]string{key}, envvars...)
+	_ = c.configSources[SourceEnvVar].BindEnv(newKeys...)
+	_ = c.Viper.BindEnv(newKeys...)
 }
 
 // SetEnvKeyReplacer wraps Viper for concurrent access
@@ -558,25 +583,12 @@ func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 }
 
 // UnmarshalKey wraps Viper for concurrent access
+// DEPRECATED: use pkg/config/structure.UnmarshalKey instead
 func (c *safeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
 	return c.Viper.UnmarshalKey(key, rawVal, opts...)
-}
-
-// Unmarshal wraps Viper for concurrent access
-func (c *safeConfig) Unmarshal(rawVal interface{}) error {
-	c.RLock()
-	defer c.RUnlock()
-	return c.Viper.Unmarshal(rawVal)
-}
-
-// UnmarshalExact wraps Viper for concurrent access
-func (c *safeConfig) UnmarshalExact(rawVal interface{}) error {
-	c.RLock()
-	defer c.RUnlock()
-	return c.Viper.UnmarshalExact(rawVal)
 }
 
 // ReadInConfig wraps Viper for concurrent access
@@ -640,6 +652,8 @@ func (c *safeConfig) MergeConfig(in io.Reader) error {
 // MergeFleetPolicy merges the configuration from the reader given with an existing config
 // it overrides the existing values with the new ones in the FleetPolicies source, and updates the main config
 // according to sources priority order.
+//
+// Note: this should only be called at startup, as notifiers won't receive a notification when this loads
 func (c *safeConfig) MergeFleetPolicy(configPath string) error {
 	c.Lock()
 	defer c.Unlock()
@@ -810,9 +824,9 @@ func (c *safeConfig) GetEnvVars() []string {
 }
 
 // BindEnvAndSetDefault implements the Config interface
-func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, env ...string) {
+func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
 	c.SetDefault(key, val)
-	c.BindEnv(append([]string{key}, env...)...) //nolint:errcheck
+	c.BindEnv(key, envvars...) //nolint:errcheck
 }
 
 func (c *safeConfig) Warnings() *Warnings {

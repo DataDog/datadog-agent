@@ -399,13 +399,14 @@ func (id *inodeDiscarders) discardParentInode(req *erpc.Request, rs *rules.RuleS
 	parentKey := pathKey
 
 	for i := 0; i < discarderDepth; i++ {
-		parentKey, err = id.dentryResolver.GetParent(parentKey)
+		key, err := id.dentryResolver.GetParent(parentKey)
 		if err != nil || dentry.IsFakeInode(pathKey.Inode) {
 			if i == 0 {
 				return false, 0, 0, err
 			}
 			break
 		}
+		parentKey = key
 	}
 
 	// do not insert multiple time the same discarder

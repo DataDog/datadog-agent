@@ -13,8 +13,10 @@ import (
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
@@ -26,19 +28,22 @@ import (
 )
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
+func Module(params Params) fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newDemultiplexer))
+		fx.Provide(newDemultiplexer),
+		fx.Supply(params))
 }
 
 type dependencies struct {
 	fx.In
 	Lc                     fx.Lifecycle
+	Config                 config.Component
 	Log                    log.Component
 	SharedForwarder        defaultforwarder.Component
 	OrchestratorForwarder  orchestratorforwarder.Component
 	EventPlatformForwarder eventplatform.Component
 	Compressor             compression.Component
+	Tagger                 tagger.Component
 
 	Params Params
 }
@@ -67,22 +72,24 @@ type provides struct {
 func newDemultiplexer(deps dependencies) (provides, error) {
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
-		if deps.Params.ContinueOnMissingHostname {
+		if deps.Params.continueOnMissingHostname {
 			deps.Log.Warnf("Error getting hostname: %s", err)
 			hostnameDetected = ""
 		} else {
 			return provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
 		}
 	}
-
+	options := createAgentDemultiplexerOptions(deps.Config, deps.Params)
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,
 		deps.SharedForwarder,
 		deps.OrchestratorForwarder,
-		deps.Params.AgentDemultiplexerOptions,
+		options,
 		deps.EventPlatformForwarder,
 		deps.Compressor,
-		hostnameDetected)
+		deps.Tagger,
+		hostnameDetected,
+	)
 	demultiplexer := demultiplexer{
 		AgentDemultiplexer: agentDemultiplexer,
 	}
@@ -100,6 +107,19 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		}),
 		AggregatorDemultiplexer: demultiplexer,
 	}, nil
+}
+
+func createAgentDemultiplexerOptions(config config.Component, params Params) aggregator.AgentDemultiplexerOptions {
+	options := aggregator.DefaultAgentDemultiplexerOptions()
+	if params.useDogstatsdNoAggregationPipelineConfig {
+		options.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
+	}
+
+	// Override FlushInterval only if flushInterval is set by the user
+	if v, ok := params.flushInterval.Get(); ok {
+		options.FlushInterval = v
+	}
+	return options
 }
 
 // LazyGetSenderManager gets an instance of SenderManager lazily.

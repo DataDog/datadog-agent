@@ -1,5 +1,5 @@
 lading:
-  version: 0.23.0
+  version: 0.23.3
 
 target:
   ddprof_replicas: 3

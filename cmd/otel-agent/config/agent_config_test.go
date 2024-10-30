@@ -7,11 +7,12 @@ package config
 
 import (
 	"context"
+	"fmt"
+	"io/fs"
 	"os"
-	"strings"
 	"testing"
 
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/stretchr/testify/assert"
@@ -23,8 +24,12 @@ type ConfigTestSuite struct {
 }
 
 func (suite *ConfigTestSuite) SetupTest() {
-	datadog := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	pkgconfigsetup.SetDatadog(datadog)
+	configmock.New(suite.T())
+}
+
+func TestNoURIsProvided(t *testing.T) {
+	_, err := NewConfigComponent(context.Background(), "", []string{})
+	assert.Error(t, err, "no URIs provided for configs")
 }
 
 func (suite *ConfigTestSuite) TestAgentConfig() {
@@ -174,15 +179,25 @@ func (suite *ConfigTestSuite) TestEnvBadLogLevel() {
 	assert.Error(t, err)
 }
 
+func (suite *ConfigTestSuite) TestBadDDConfigFile() {
+	t := suite.T()
+	fileName := "testdata/config_default.yaml"
+	ddFileName := "testdata/doesnotexists.yaml"
+	_, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+
+	assert.ErrorIs(t, err, fs.ErrNotExist)
+}
+
 func (suite *ConfigTestSuite) TestBadLogLevel() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
 	ddFileName := "testdata/datadog_bad_log_level.yaml"
 	_, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
 
-	// log_level from service config takes precedence -> more verbose
-	// ddFlleName configures level warn, Telemetry defaults to info
-	assert.Error(t, err)
+	expectedError := fmt.Sprintf(
+		"invalid log level (%v) set in the Datadog Agent configuration",
+		pkgconfigsetup.Datadog().GetString("log_level"))
+	assert.ErrorContains(t, err, expectedError)
 }
 
 func (suite *ConfigTestSuite) TestNoDDExporter() {

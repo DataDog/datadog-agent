@@ -13,7 +13,6 @@ import (
 	"reflect"
 	"runtime"
 	"time"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -103,6 +102,11 @@ type NetworkContext struct {
 	Source      IPPortContext `field:"source"`      // source of the network packet
 	Destination IPPortContext `field:"destination"` // destination of the network packet
 	Size        uint32        `field:"size"`        // SECLDoc[size] Definition:`Size in bytes of the network packet`
+}
+
+// IsZero returns if there is a network context
+func (nc *NetworkContext) IsZero() bool {
+	return nc.Size == 0
 }
 
 // SpanContext describes a span context
@@ -313,8 +317,9 @@ type MatchedRule struct {
 
 // ActionReport defines an action report
 type ActionReport interface {
-	ToJSON() ([]byte, bool, error)
+	ToJSON() ([]byte, error)
 	IsMatchingRule(ruleID eval.RuleID) bool
+	IsResolved() bool
 }
 
 // NewMatchedRule return a new MatchedRule instance
@@ -422,8 +427,9 @@ var zeroProcessContext ProcessContext
 type ProcessCacheEntry struct {
 	ProcessContext
 
-	refCount  uint64                       `field:"-"`
-	onRelease []func(_ *ProcessCacheEntry) `field:"-"`
+	refCount    uint64                     `field:"-"`
+	coreRelease func(_ *ProcessCacheEntry) `field:"-"`
+	onRelease   []func()                   `field:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
@@ -435,6 +441,9 @@ func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 func (pc *ProcessCacheEntry) Reset() {
 	pc.ProcessContext = zeroProcessContext
 	pc.refCount = 0
+	// `coreRelease` function should not be cleared on reset
+	// it's used for pool and cache size management
+	pc.onRelease = nil
 }
 
 // Retain increment ref counter
@@ -445,15 +454,16 @@ func (pc *ProcessCacheEntry) Retain() {
 // AppendReleaseCallback set the callback called when the entry is released
 func (pc *ProcessCacheEntry) AppendReleaseCallback(callback func()) {
 	if callback != nil {
-		pc.onRelease = append(pc.onRelease, func(_ *ProcessCacheEntry) {
-			callback()
-		})
+		pc.onRelease = append(pc.onRelease, callback)
 	}
 }
 
 func (pc *ProcessCacheEntry) callReleaseCallbacks() {
 	for _, cb := range pc.onRelease {
-		cb(pc)
+		cb()
+	}
+	if pc.coreRelease != nil {
+		pc.coreRelease(pc)
 	}
 }
 
@@ -468,12 +478,8 @@ func (pc *ProcessCacheEntry) Release() {
 }
 
 // NewProcessCacheEntry returns a new process cache entry
-func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
-	var cbs []func(_ *ProcessCacheEntry)
-	if onRelease != nil {
-		cbs = append(cbs, onRelease)
-	}
-	return &ProcessCacheEntry{onRelease: cbs}
+func NewProcessCacheEntry(coreRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
+	return &ProcessCacheEntry{coreRelease: coreRelease}
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors
@@ -482,23 +488,60 @@ type ProcessAncestorsIterator struct {
 }
 
 // Front returns the first element
-func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
+func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) *ProcessCacheEntry {
 	if front := ctx.Event.(*Event).ProcessContext.Ancestor; front != nil {
 		it.prev = front
-		return unsafe.Pointer(front)
+		return front
 	}
 
 	return nil
 }
 
 // Next returns the next element
-func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
+func (it *ProcessAncestorsIterator) Next() *ProcessCacheEntry {
 	if next := it.prev.Ancestor; next != nil {
 		it.prev = next
-		return unsafe.Pointer(next)
+		return next
 	}
 
 	return nil
+}
+
+// At returns the element at the given position
+func (it *ProcessAncestorsIterator) At(ctx *eval.Context, regID eval.RegisterID, pos int) *ProcessCacheEntry {
+	if entry := ctx.RegisterCache[regID]; entry != nil && entry.Pos == pos {
+		return entry.Value.(*ProcessCacheEntry)
+	}
+
+	var i int
+
+	ancestor := ctx.Event.(*Event).ProcessContext.Ancestor
+	for ancestor != nil {
+		if i == pos {
+			ctx.RegisterCache[regID] = &eval.RegisterCacheEntry{
+				Pos:   pos,
+				Value: ancestor,
+			}
+			return ancestor
+		}
+		ancestor = ancestor.Ancestor
+		i++
+	}
+
+	return nil
+}
+
+// Len returns the len
+func (it *ProcessAncestorsIterator) Len(ctx *eval.Context) int {
+	var size int
+
+	ancestor := ctx.Event.(*Event).ProcessContext.Ancestor
+	for ancestor != nil {
+		size++
+		ancestor = ancestor.Ancestor
+	}
+
+	return size
 }
 
 // HasParent returns whether the process has a parent
@@ -580,4 +623,16 @@ func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(_ *Event) (*ProcessCacheE
 // ResolveContainerContext stub implementation
 func (dfh *FakeFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerContext, bool) {
 	return nil, false
+}
+
+// TLSContext represents a tls context
+type TLSContext struct {
+	Version uint16 `field:"version"` // SECLDoc[version] Definition:`TLS version`
+}
+
+// RawPacketEvent represents a packet event
+type RawPacketEvent struct {
+	NetworkContext
+
+	TLSContext TLSContext `field:"tls"` // SECLDoc[tls] Definition:`TLS context`
 }

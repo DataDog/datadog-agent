@@ -33,7 +33,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -105,7 +105,7 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 
-	evalCmd.Flags().StringVar(&evalArgs.dir, "policies-dir", pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	evalCmd.Flags().StringVar(&evalArgs.dir, "policies-dir", pkgconfigsetup.DefaultRuntimePoliciesDir, "Path to policies directory")
 	evalCmd.Flags().StringVar(&evalArgs.ruleID, "rule-id", "", "Rule ID to evaluate")
 	_ = evalCmd.MarkFlagRequired("rule-id")
 	evalCmd.Flags().StringVar(&evalArgs.eventFile, "event-file", "", "File of the event data")
@@ -138,7 +138,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 		},
 	}
 
-	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, "policies-dir", pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, "policies-dir", pkgconfigsetup.DefaultRuntimePoliciesDir, "Path to policies directory")
 	commonCheckPoliciesCmd.Flags().BoolVar(&cliParams.evaluateAllPolicySources, "loaded-policies", false, "Evaluate loaded policies")
 	if runtime.GOOS == "linux" {
 		commonCheckPoliciesCmd.Flags().BoolVar(&cliParams.windowsModel, "windows-model", false, "Evaluate policies using the Windows model")
@@ -223,6 +223,7 @@ type processCacheDumpCliParams struct {
 	*command.GlobalParams
 
 	withArgs bool
+	format   string
 }
 
 //nolint:unused // TODO(SEC) Fix unused linter
@@ -246,6 +247,7 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 	processCacheDumpCmd.Flags().BoolVar(&cliParams.withArgs, "with-args", false, "add process arguments to the dump")
+	processCacheDumpCmd.Flags().StringVar(&cliParams.format, "format", "dot", "process cache dump format")
 
 	processCacheCmd := &cobra.Command{
 		Use:   "process-cache",
@@ -328,7 +330,7 @@ func dumpProcessCache(_ log.Component, _ config.Component, _ secrets.Component, 
 	}
 	defer client.Close()
 
-	filename, err := client.DumpProcessCache(processCacheDumpArgs.withArgs)
+	filename, err := client.DumpProcessCache(processCacheDumpArgs.withArgs, processCacheDumpArgs.format)
 	if err != nil {
 		return fmt.Errorf("unable to get a process cache dump: %w", err)
 	}
@@ -352,7 +354,7 @@ func dumpNetworkNamespace(_ log.Component, _ config.Component, _ secrets.Compone
 	}
 
 	if len(resp.GetError()) > 0 {
-		return fmt.Errorf("couldn't dump network namespaces: %w", err)
+		return fmt.Errorf("couldn't dump network namespaces: %s", resp.GetError())
 	}
 
 	fmt.Printf("Network namespace dump: %s\n", resp.GetDumpFilename())
@@ -551,6 +553,16 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 			if err := event.SetFieldValue(k, int(value)); err != nil {
 				return nil, err
 			}
+		case []any:
+			if stringSlice, ok := anySliceToStringSlice(v); ok {
+				if err := event.SetFieldValue(k, stringSlice); err != nil {
+					return nil, err
+				}
+			} else {
+				if err := event.SetFieldValue(k, v); err != nil {
+					return nil, err
+				}
+			}
 		default:
 			if err := event.SetFieldValue(k, v); err != nil {
 				return nil, err
@@ -559,6 +571,18 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 	}
 
 	return event, nil
+}
+
+func anySliceToStringSlice(in []any) ([]string, bool) {
+	out := make([]string, len(in))
+	for i, v := range in {
+		val, ok := v.(string)
+		if !ok {
+			return nil, false
+		}
+		out[i] = val
+	}
+	return out, true
 }
 
 func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs *evalCliParams) error {
@@ -684,8 +708,7 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	// start/stop order is important, agent need to be stopped first and started after all the others
 	// components
 	agent, err := secagent.NewRuntimeSecurityAgent(statsdClient, hostname, secagent.RSAOptions{
-		LogProfiledWorkloads:    config.GetBool("runtime_security_config.log_profiled_workloads"),
-		IgnoreDDAgentContainers: config.GetBool("runtime_security_config.telemetry.ignore_dd_agent_containers"),
+		LogProfiledWorkloads: config.GetBool("runtime_security_config.log_profiled_workloads"),
 	}, wmeta)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create a runtime security agent instance: %w", err)

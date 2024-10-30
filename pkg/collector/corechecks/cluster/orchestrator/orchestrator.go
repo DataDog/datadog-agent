@@ -15,12 +15,15 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -74,6 +77,9 @@ type OrchestratorCheck struct {
 	orchestratorConfig          *orchcfg.OrchestratorConfig
 	instance                    *OrchestratorInstance
 	collectorBundle             *CollectorBundle
+	wlmStore                    workloadmeta.Component
+	cfg                         configcomp.Component
+	tagger                      tagger.Component
 	stopCh                      chan struct{}
 	clusterID                   string
 	groupID                     *atomic.Int32
@@ -82,26 +88,32 @@ type OrchestratorCheck struct {
 	orchestratorInformerFactory *collectors.OrchestratorInformerFactory
 }
 
-func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *OrchestratorCheck {
+func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, cfg configcomp.Component, wlmStore workloadmeta.Component, tagger tagger.Component) *OrchestratorCheck {
 	return &OrchestratorCheck{
 		CheckBase:          base,
 		orchestratorConfig: orchcfg.NewDefaultOrchestratorConfig(),
 		instance:           instance,
+		wlmStore:           wlmStore,
+		tagger:             tagger,
+		cfg:                cfg,
 		stopCh:             make(chan struct{}),
 		groupID:            atomic.NewInt32(rand.Int31()),
-		isCLCRunner:        config.IsCLCRunner(),
+		isCLCRunner:        pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
 	}
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory(wlm workloadmeta.Component, cfg configcomp.Component, tagger tagger.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check { return newCheck(cfg, wlm, tagger) })
 }
 
-func newCheck() check.Check {
+func newCheck(cfg configcomp.Component, wlm workloadmeta.Component, tagger tagger.Component) check.Check {
 	return newOrchestratorCheck(
 		core.NewCheckBase(CheckName),
 		&OrchestratorInstance{},
+		cfg,
+		wlm,
+		tagger,
 	)
 }
 
@@ -176,7 +188,7 @@ func (o *OrchestratorCheck) Run() error {
 	// we also do a safety check for dedicated runners to avoid trying the leader election
 	if !o.isCLCRunner || !o.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
-		if !config.Datadog().GetBool("leader_election") {
+		if !pkgconfigsetup.Datadog().GetBool("leader_election") {
 			return log.Errorc("Leader Election not enabled. The cluster-agent will not run the check.", orchestrator.ExtraLogContext...)
 		}
 

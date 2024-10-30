@@ -16,22 +16,25 @@ import (
 	"github.com/spf13/afero"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 //nolint:revive // TODO(AML) Fix revive linter
 type Requires struct {
 	Lc     compdef.Lifecycle
 	Config configComponent.Component
+	Tagger tagger.Component
 }
 
 // trafficCapture allows capturing traffic from our listeners and writing it to file
 type trafficCapture struct {
 	writer       *TrafficCaptureWriter
-	config       config.Reader
+	config       model.Reader
+	tagger       tagger.Component
 	startUpError error
 
 	sync.RWMutex
@@ -41,6 +44,7 @@ type trafficCapture struct {
 func NewTrafficCapture(deps Requires) replay.Component {
 	tc := &trafficCapture{
 		config: deps.Config,
+		tagger: deps.Tagger,
 	}
 	deps.Lc.Append(compdef.Hook{
 		OnStart: tc.configure,
@@ -50,7 +54,7 @@ func NewTrafficCapture(deps Requires) replay.Component {
 }
 
 func (tc *trafficCapture) configure(_ context.Context) error {
-	writer := NewTrafficCaptureWriter(tc.config.GetInt("dogstatsd_capture_depth"))
+	writer := NewTrafficCaptureWriter(tc.config.GetInt("dogstatsd_capture_depth"), tc.tagger)
 	if writer == nil {
 		tc.startUpError = fmt.Errorf("unable to instantiate capture writer")
 	}

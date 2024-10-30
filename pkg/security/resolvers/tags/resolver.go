@@ -8,12 +8,13 @@ package tags
 
 import (
 	"context"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/remote"
 	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	rootconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,7 +24,7 @@ import (
 type Tagger interface {
 	Start(ctx context.Context) error
 	Stop() error
-	Tag(entity string, cardinality types.TagCardinality) ([]string, error)
+	Tag(entity types.EntityID, cardinality types.TagCardinality) ([]string, error)
 }
 
 type nullTagger struct{}
@@ -36,7 +37,7 @@ func (n *nullTagger) Stop() error {
 	return nil
 }
 
-func (n *nullTagger) Tag(_ string, _ types.TagCardinality) ([]string, error) {
+func (n *nullTagger) Tag(_ types.EntityID, _ types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 
@@ -72,15 +73,21 @@ func (t *DefaultResolver) Start(ctx context.Context) error {
 
 // Resolve returns the tags for the given id
 func (t *DefaultResolver) Resolve(id string) []string {
+	// container id for ecs task are composed of task id + container id.
+	// use only the container id part for the tag resolution.
+	if els := strings.Split(id, "-"); len(els) == 2 {
+		id = els[1]
+	}
+
 	entityID := types.NewEntityID(types.ContainerID, id)
-	tags, _ := t.tagger.Tag(entityID.String(), types.OrchestratorCardinality)
+	tags, _ := t.tagger.Tag(entityID, types.OrchestratorCardinality)
 	return tags
 }
 
 // ResolveWithErr returns the tags for the given id
 func (t *DefaultResolver) ResolveWithErr(id string) ([]string, error) {
 	entityID := types.NewEntityID(types.ContainerID, id)
-	return t.tagger.Tag(entityID.String(), types.OrchestratorCardinality)
+	return t.tagger.Tag(entityID, types.OrchestratorCardinality)
 }
 
 // GetValue return the tag value for the given id and tag name
@@ -96,12 +103,12 @@ func (t *DefaultResolver) Stop() error {
 // NewResolver returns a new tags resolver
 func NewResolver(config *config.Config, telemetry telemetry.Component) Resolver {
 	if config.RemoteTaggerEnabled {
-		options, err := remote.NodeAgentOptionsForSecurityResolvers(rootconfig.Datadog())
+		options, err := remote.NodeAgentOptionsForSecurityResolvers(pkgconfigsetup.Datadog())
 		if err != nil {
 			log.Errorf("unable to configure the remote tagger: %s", err)
 		} else {
 			return &DefaultResolver{
-				tagger: remote.NewTagger(options, rootconfig.Datadog(), taggerTelemetry.NewStore(telemetry)),
+				tagger: remote.NewTagger(options, pkgconfigsetup.Datadog(), taggerTelemetry.NewStore(telemetry), types.NewMatchAllFilter()),
 			}
 		}
 	}

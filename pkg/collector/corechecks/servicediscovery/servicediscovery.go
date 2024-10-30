@@ -18,7 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -34,22 +36,9 @@ const (
 )
 
 type serviceInfo struct {
-	process       processInfo
 	meta          ServiceMetadata
+	service       model.Service
 	LastHeartbeat time.Time
-}
-
-type procStat struct {
-	StartTime uint64
-	RSS       uint64
-}
-
-type processInfo struct {
-	PID     int
-	CmdLine []string
-	Env     map[string]string
-	Stat    procStat
-	Ports   []uint16
 }
 
 type serviceEvents struct {
@@ -70,9 +59,7 @@ type osImpl interface {
 	DiscoverServices() (*discoveredServices, error)
 }
 
-var (
-	newOSImpl func(ignoreCfg map[string]bool) (osImpl, error)
-)
+var newOSImpl func(ignoreCfg map[string]bool, containerProvider proccontainers.ContainerProvider) (osImpl, error)
 
 type config struct {
 	IgnoreProcesses []string `yaml:"ignore_processes"`
@@ -93,6 +80,7 @@ type Check struct {
 	os                    osImpl
 	sender                *telemetrySender
 	sentRepeatedEventPIDs map[int]bool
+	containerProvider     proccontainers.ContainerProvider
 }
 
 // Factory creates a new check factory
@@ -102,22 +90,30 @@ func Factory() optional.Option[func() check.Check] {
 	if newOSImpl == nil {
 		return optional.NewNoneOption[func() check.Check]()
 	}
-	return optional.NewOption(newCheck)
+
+	sharedContainerProvider, err := proccontainers.GetSharedContainerProvider()
+
+	if err != nil {
+		return optional.NewNoneOption[func() check.Check]()
+	}
+
+	return optional.NewOption(func() check.Check {
+		return newCheck(sharedContainerProvider)
+	})
 }
 
-func newCheck() check.Check {
+// TODO: add metastore param
+func newCheck(containerProvider proccontainers.ContainerProvider) *Check {
 	return &Check{
 		CheckBase:             corechecks.NewCheckBase(CheckName),
 		cfg:                   &config{},
 		sentRepeatedEventPIDs: make(map[int]bool),
+		containerProvider:     containerProvider,
 	}
 }
 
 // Configure parses the check configuration and initializes the check
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instanceConfig, initConfig integration.Data, source string) error {
-	if !pkgconfig.SystemProbe().GetBool("discovery.enabled") {
-		return errors.New("service discovery is disabled")
-	}
 	if newOSImpl == nil {
 		return errors.New("service_discovery check not implemented on " + runtime.GOOS)
 	}
@@ -139,7 +135,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 	}
 	c.sender = newTelemetrySender(s)
 
-	c.os, err = newOSImpl(ignoreCfg)
+	c.os, err = newOSImpl(ignoreCfg, c.containerProvider)
 	if err != nil {
 		return err
 	}
@@ -149,6 +145,10 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 
 // Run executes the check.
 func (c *Check) Run() error {
+	if !pkgconfigsetup.SystemProbe().GetBool("discovery.enabled") {
+		return nil
+	}
+
 	start := time.Now()
 	defer func() {
 		diff := time.Since(start).Seconds()
@@ -177,7 +177,7 @@ func (c *Check) Run() error {
 			continue
 		}
 		for _, svc := range svcs {
-			if c.sentRepeatedEventPIDs[svc.process.PID] {
+			if c.sentRepeatedEventPIDs[svc.service.PID] {
 				continue
 			}
 			err := fmt.Errorf("found repeated service name: %s", svc.meta.Name)
@@ -187,7 +187,7 @@ func (c *Check) Run() error {
 				svc:  &svc.meta,
 			})
 			// track the PID, so we don't increase this counter in every run of the check.
-			c.sentRepeatedEventPIDs[svc.process.PID] = true
+			c.sentRepeatedEventPIDs[svc.service.PID] = true
 		}
 	}
 
@@ -211,9 +211,9 @@ func (c *Check) Run() error {
 			continue
 		}
 		eventsByName.addStop(p)
-		if c.sentRepeatedEventPIDs[p.process.PID] {
+		if c.sentRepeatedEventPIDs[p.service.PID] {
 			// delete this process from the map, so we track it if the PID gets reused
-			delete(c.sentRepeatedEventPIDs, p.process.PID)
+			delete(c.sentRepeatedEventPIDs, p.service.PID)
 		}
 	}
 

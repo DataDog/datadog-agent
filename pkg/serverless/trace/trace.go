@@ -11,19 +11,21 @@ import (
 	"os"
 	"strings"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
-	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // ServerlessTraceAgent represents a trace agent in a serverless context
@@ -44,7 +46,8 @@ type Load interface {
 
 // LoadConfig is implementing Load to retrieve the config
 type LoadConfig struct {
-	Path string
+	Path   string
+	Tagger tagger.Component
 }
 
 // httpURLMetaKey is the key of the span meta containing the HTTP URL
@@ -85,7 +88,7 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	return comptracecfg.LoadConfigFile(l.Path, c)
+	return comptracecfg.LoadConfigFile(l.Path, c, l.Tagger)
 }
 
 // Start starts the agent
@@ -96,7 +99,7 @@ func StartServerlessTraceAgent(enabled bool, loadConfig Load, lambdaSpanChan cha
 		// Set the serverless config option which will be used to determine if
 		// hostname should be resolved. Skipping hostname resolution saves >1s
 		// in load time between gRPC calls and agent commands.
-		ddConfig.Datadog().Set("serverless.enabled", true, model.SourceAgentRuntime)
+		pkgconfigsetup.Datadog().Set("serverless.enabled", true, model.SourceAgentRuntime)
 
 		tc, confErr := loadConfig.Load()
 		if confErr != nil {

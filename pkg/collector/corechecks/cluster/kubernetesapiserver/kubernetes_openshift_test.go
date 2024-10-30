@@ -17,9 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestReportClusterQuotas(t *testing.T) {
@@ -29,13 +30,15 @@ func TestReportClusterQuotas(t *testing.T) {
 	json.Unmarshal(raw, &list)
 	require.Len(t, list.Items, 1)
 
-	prevClusterName := config.Datadog().GetString("cluster_name")
-	config.Datadog().SetWithoutSource("cluster_name", "test-cluster-name")
-	defer config.Datadog().SetWithoutSource("cluster_name", prevClusterName)
+	prevClusterName := pkgconfigsetup.Datadog().GetString("cluster_name")
+	pkgconfigsetup.Datadog().SetWithoutSource("cluster_name", "test-cluster-name")
+	defer pkgconfigsetup.Datadog().SetWithoutSource("cluster_name", prevClusterName)
+
+	tagger := taggerimpl.SetupFakeTagger(t)
 
 	instanceCfg := []byte("")
 	initCfg := []byte("")
-	kubeASCheck := newCheck().(*KubeASCheck)
+	kubeASCheck := newCheck(tagger).(*KubeASCheck)
 	err = kubeASCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, instanceCfg, initCfg, "test")
 	require.NoError(t, err)
 

@@ -12,10 +12,11 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -37,32 +38,34 @@ type ServerlessDemultiplexer struct {
 
 	flushAndSerializeInParallel FlushAndSerializeInParallel
 
+	hostTagProvider *HostTagProvider
+
 	*senders
 }
 
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
-func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forwarderTimeout time.Duration) *ServerlessDemultiplexer {
-	bufferSize := config.Datadog().GetInt("aggregator_buffer_size")
+func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forwarderTimeout time.Duration, tagger tagger.Component) *ServerlessDemultiplexer {
+	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 	logger := logimpl.NewTemporaryLoggerWithoutInit()
-	forwarder := forwarder.NewSyncForwarder(config.Datadog(), logger, keysPerDomain, forwarderTimeout)
+	forwarder := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, keysPerDomain, forwarderTimeout)
 	h, _ := hostname.Get(context.Background())
-	serializer := serializer.NewSerializer(forwarder, nil, compressionimpl.NewCompressor(config.Datadog()), config.Datadog(), h)
-	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(config.Datadog()))
-	tagsStore := tags.NewStore(config.Datadog().GetBool("aggregator_use_tags_store"), "timesampler")
+	serializer := serializer.NewSerializer(forwarder, nil, compressionimpl.NewCompressor(pkgconfigsetup.Datadog()), pkgconfigsetup.Datadog(), h)
+	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(pkgconfigsetup.Datadog()))
+	tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), "timesampler")
 
-	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore, "")
-	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(config.Datadog())
+	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore, tagger, "")
+	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog())
 	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
 
 	demux := &ServerlessDemultiplexer{
-		log:              logger,
-		forwarder:        forwarder,
-		statsdSampler:    statsdSampler,
-		statsdWorker:     statsdWorker,
-		serializer:       serializer,
-		metricSamplePool: metricSamplePool,
-		flushLock:        &sync.Mutex{},
-
+		log:                         logger,
+		forwarder:                   forwarder,
+		statsdSampler:               statsdSampler,
+		statsdWorker:                statsdWorker,
+		serializer:                  serializer,
+		metricSamplePool:            metricSamplePool,
+		flushLock:                   &sync.Mutex{},
+		hostTagProvider:             NewHostTagProvider(),
 		flushAndSerializeInParallel: flushAndSerializeInParallel,
 	}
 
@@ -104,8 +107,8 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
 
-	logPayloads := config.Datadog().GetBool("log_payloads")
-	series, sketches := createIterableMetrics(d.flushAndSerializeInParallel, d.serializer, logPayloads, true)
+	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
+	series, sketches := createIterableMetrics(d.flushAndSerializeInParallel, d.serializer, logPayloads, true, d.hostTagProvider)
 
 	metrics.Serialize(
 		series,

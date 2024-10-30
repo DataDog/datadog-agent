@@ -54,12 +54,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -77,7 +78,7 @@ type DogstatsdComponents struct {
 
 const (
 	// loggerName is the name of the dogstatsd logger
-	loggerName pkgconfig.LoggerName = "DSD"
+	loggerName pkglogsetup.LoggerName = "DSD"
 )
 
 // MakeCommand returns the start subcommand for the 'dogstatsd' command.
@@ -136,36 +137,26 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		forwarder.Bundle(defaultforwarder.NewParams()),
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
-		workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
-			catalog := workloadmeta.NodeAgent
-			instantiate := config.GetBool("dogstatsd_origin_detection")
-
-			return workloadmeta.Params{
-				AgentType:  catalog,
-				InitHelper: common.GetWorkloadmetaInit(),
-				NoInstance: !instantiate,
-			}
+		workloadmetafx.Module(workloadmeta.Params{
+			AgentType:  workloadmeta.NodeAgent,
+			InitHelper: common.GetWorkloadmetaInit(),
 		}),
-
 		compressionimpl.Module(),
-		demultiplexerimpl.Module(),
+		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(
+			demultiplexerimpl.WithContinueOnMissingHostname(),
+			demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig(),
+		)),
 		secretsimpl.Module(),
-		orchestratorForwarderImpl.Module(),
-		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
+		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
 		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
 		eventplatformreceiverimpl.Module(),
 		hostnameimpl.Module(),
-		taggerimpl.OptionalModule(),
+		taggerimpl.Module(),
+		fx.Provide(tagger.NewTaggerParams),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
 			return demuxInstance.Serializer()
-		}),
-		fx.Provide(func(config config.Component) demultiplexerimpl.Params {
-			params := demultiplexerimpl.NewDefaultParams()
-			params.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
-			params.ContinueOnMissingHostname = true
-			return params
 		}),
 		fx.Supply(resourcesimpl.Disabled()),
 		metadatarunnerimpl.Module(),
@@ -193,8 +184,8 @@ func start(
 	params *Params,
 	server dogstatsdServer.Component,
 	_ defaultforwarder.Component,
-	wmeta optional.Option[workloadmeta.Component],
-	_ optional.Option[tagger.Component],
+	wmeta workloadmeta.Component,
+	_ tagger.Component,
 	demultiplexer demultiplexer.Component,
 	_ runner.Component,
 	_ resources.Component,
@@ -206,10 +197,9 @@ func start(
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 
-	w, _ := wmeta.Get()
 	components := &DogstatsdComponents{
 		DogstatsdServer: server,
-		WorkloadMeta:    w,
+		WorkloadMeta:    wmeta,
 	}
 	defer StopAgent(cancel, components)
 
@@ -246,7 +236,7 @@ func RunDogstatsd(_ context.Context, cliParams *CLIParams, config config.Compone
 	}()
 
 	// Setup logger
-	syslogURI := pkgconfig.GetSyslogURI()
+	syslogURI := pkglogsetup.GetSyslogURI(pkgconfigsetup.Datadog())
 	logFile := config.GetString("log_file")
 	if logFile == "" {
 		logFile = params.DefaultLogFile
@@ -257,7 +247,7 @@ func RunDogstatsd(_ context.Context, cliParams *CLIParams, config config.Compone
 		logFile = ""
 	}
 
-	err = pkgconfig.SetupLogger(
+	err = pkglogsetup.SetupLogger(
 		loggerName,
 		config.GetString("log_level"),
 		logFile,
@@ -265,6 +255,7 @@ func RunDogstatsd(_ context.Context, cliParams *CLIParams, config config.Compone
 		config.GetBool("syslog_rfc"),
 		config.GetBool("log_to_console"),
 		config.GetBool("log_format_json"),
+		pkgconfigsetup.Datadog(),
 	)
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)

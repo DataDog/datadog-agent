@@ -18,7 +18,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
@@ -26,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
@@ -36,10 +36,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/syscallctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -48,7 +48,7 @@ type EBPFResolvers struct {
 	manager              *manager.Manager
 	MountResolver        mount.ResolverInterface
 	ContainerResolver    *container.Resolver
-	TimeResolver         *time.Resolver
+	TimeResolver         *ktime.Resolver
 	UserGroupResolver    *usergroup.Resolver
 	TagsResolver         tags.Resolver
 	DentryResolver       *dentry.Resolver
@@ -64,13 +64,13 @@ type EBPFResolvers struct {
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
-func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts, wmeta workloadmeta.Component, telemetry telemetry.Component) (*EBPFResolvers, error) {
+func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts, telemetry telemetry.Component) (*EBPFResolvers, error) {
 	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
 	if err != nil {
 		return nil, err
 	}
 
-	timeResolver, err := time.NewResolver()
+	timeResolver, err := ktime.NewResolver()
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	var sbomResolver *sbom.Resolver
 
 	if config.RuntimeSecurity.SBOMResolverEnabled {
-		sbomResolver, err = sbom.NewSBOMResolver(config.RuntimeSecurity, statsdClient, wmeta)
+		sbomResolver, err = sbom.NewSBOMResolver(config.RuntimeSecurity, statsdClient)
 		if err != nil {
 			return nil, err
 		}
@@ -143,9 +143,17 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	if opts.TTYFallbackEnabled {
 		processOpts.WithTTYFallbackEnabled()
 	}
+	if opts.EnvVarsResolutionEnabled {
+		processOpts.WithEnvsResolutionEnabled()
+	}
+
+	var envVarsResolver *envvars.Resolver
+	if opts.EnvVarsResolutionEnabled {
+		envVarsResolver = envvars.NewEnvVarsResolver(config.Probe)
+	}
 
 	processResolver, err := process.NewEBPFResolver(manager, config.Probe, statsdClient,
-		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, processOpts)
+		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, envVarsResolver, processOpts)
 	if err != nil {
 		return nil, err
 	}

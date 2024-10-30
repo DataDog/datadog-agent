@@ -34,7 +34,6 @@ static PyMethodDef methods[] = {
     { NULL, NULL } // guards
 };
 
-#ifdef DATADOG_AGENT_THREE
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, _UTIL_MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit__util(void)
@@ -43,16 +42,6 @@ PyMODINIT_FUNC PyInit__util(void)
     addSubprocessException(m);
     return m;
 }
-#elif defined(DATADOG_AGENT_TWO)
-// in Python2 keep the object alive for the program lifetime
-static PyObject *module;
-
-void Py2_init__util()
-{
-    module = Py_InitModule(_UTIL_MODULE_NAME, methods);
-    addSubprocessException(module);
-}
-#endif
 
 void _set_get_subprocess_output_cb(cb_get_subprocess_output_t cb)
 {
@@ -254,7 +243,7 @@ PyObject *subprocess_output(PyObject *self, PyObject *args, PyObject *kw)
 
     PyObject *pyStdout = NULL;
     if (c_stdout) {
-        pyStdout = PyStringFromCString(c_stdout);
+        pyStdout = PyUnicode_FromString(c_stdout);
     } else {
         Py_INCREF(Py_None);
         pyStdout = Py_None;
@@ -262,7 +251,7 @@ PyObject *subprocess_output(PyObject *self, PyObject *args, PyObject *kw)
 
     PyObject *pyStderr = NULL;
     if (c_stderr) {
-        pyStderr = PyStringFromCString(c_stderr);
+        pyStderr = PyUnicode_FromString(c_stderr);
     } else {
         Py_INCREF(Py_None);
         pyStderr = Py_None;

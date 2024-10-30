@@ -27,13 +27,15 @@ type Provider struct {
 	filter *containers.Filter
 	store  workloadmeta.Component
 	prometheus.Provider
+	tagger tagger.Component
 }
 
 // NewProvider returns a metrics prometheus kubelet provider and an error
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Component) (*Provider, error) {
+func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Component, tagger tagger.Component) (*Provider, error) {
 	provider := &Provider{
 		filter: filter,
 		store:  store,
+		tagger: tagger,
 	}
 
 	transformers := prometheus.Transformers{
@@ -67,7 +69,7 @@ func (p *Provider) proberProbeTotal(metricFam *prom.MetricFamily, sender sender.
 			metricSuffix = "startup_probe"
 		default:
 			log.Debugf("Unsupported probe type %s", probeType)
-			return
+			continue
 		}
 
 		result := metric.Metric["result"]
@@ -80,17 +82,17 @@ func (p *Provider) proberProbeTotal(metricFam *prom.MetricFamily, sender sender.
 			metricSuffix += ".unknown.total"
 		default:
 			log.Debugf("Unsupported probe result %s", result)
-			return
+			continue
 		}
 
 		cID, _ := common.GetContainerID(p.store, metric.Metric, p.filter)
 		if cID == "" {
-			return
+			continue
 		}
 
-		tags, _ := tagger.Tag(cID, types.HighCardinality)
+		tags, _ := p.tagger.Tag(types.NewEntityID(types.ContainerID, cID), types.HighCardinality)
 		if len(tags) == 0 {
-			return
+			continue
 		}
 		tags = utils.ConcatenateTags(tags, p.Config.Tags)
 

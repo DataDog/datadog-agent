@@ -32,9 +32,14 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
-from tasks.libs.common.utils import clean_nested_paths, get_build_flags, gitlab_section
+from tasks.libs.common.utils import (
+    clean_nested_paths,
+    get_build_flags,
+    gitlab_section,
+    running_in_ci,
+)
 from tasks.libs.releasing.json import _get_release_json_value
-from tasks.modules import DEFAULT_MODULES, GoModule
+from tasks.modules import DEFAULT_MODULES, GoModule, get_module_by_path
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.testwasher import TestWasher
 from tasks.trace_agent import integration_tests as trace_integration_tests
@@ -215,7 +220,10 @@ def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_
         print(color_message("All tests passed", "green"))
         return True
 
-    if test_washer:
+    if test_washer or running_in_ci():
+        if not test_washer:
+            print("Test washer is always enabled in the CI, enforcing it")
+
         tw = TestWasher()
         should_succeed = tw.process_module_results(test_results)
         if should_succeed:
@@ -246,7 +254,6 @@ def test(
     python_home_3=None,
     cpus=None,
     major_version='7',
-    python_runtimes='3',
     timeout=180,
     cache=True,
     test_run_name="",
@@ -294,7 +301,6 @@ def test(
         python_home_2=python_home_2,
         python_home_3=python_home_3,
         major_version=major_version,
-        python_runtimes=python_runtimes,
     )
 
     # Use stdout if no profile is set
@@ -395,15 +401,15 @@ def test(
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, debug=False):
+def integration_tests(ctx, race=False, remote_docker=False, debug=False, timeout=""):
     """
     Run all the available integration tests
     """
     tests = [
-        lambda: agent_integration_tests(ctx, install_deps, race, remote_docker),
-        lambda: dsd_integration_tests(ctx, install_deps, race, remote_docker),
-        lambda: dca_integration_tests(ctx, install_deps, race, remote_docker),
-        lambda: trace_integration_tests(ctx, install_deps, race),
+        lambda: agent_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        lambda: dsd_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        lambda: dca_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        lambda: trace_integration_tests(ctx, race=race, timeout=timeout),
     ]
     for t in tests:
         try:
@@ -454,20 +460,14 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
     go_mod_modified_modules = set()
 
     for modified_file in modified_go_files:
-        match_precision = 0
-        best_module_path = None
-
-        # Since several modules can match the path we take only the most precise one
-        for module_path in DEFAULT_MODULES:
-            if module_path in modified_file and len(module_path) > match_precision:
-                match_precision = len(module_path)
-                best_module_path = module_path
+        best_module_path = Path(get_go_module(modified_file))
 
         # Check if the package is in the target list of the module we want to test
         targeted = False
 
         assert best_module_path, f"No module found for {modified_file}"
-        targets = DEFAULT_MODULES[best_module_path].lint_targets if lint else DEFAULT_MODULES[best_module_path].targets
+        module = get_module_by_path(best_module_path)
+        targets = module.lint_targets if lint else module.targets
 
         for target in targets:
             if os.path.normpath(os.path.join(best_module_path, target)) in modified_file:
@@ -482,7 +482,7 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
 
         # If we modify the go.mod or go.sum we run the tests for the whole module
         if modified_file.endswith(".mod") or modified_file.endswith(".sum"):
-            modules_to_test[best_module_path] = DEFAULT_MODULES[best_module_path]
+            modules_to_test[best_module_path] = get_module_by_path(best_module_path)
             go_mod_modified_modules.add(best_module_path)
             continue
 
@@ -748,7 +748,7 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
     modules_to_test = {}
 
     for package in packages:
-        module_path = get_go_module(package).replace("./", "")
+        module_path = get_go_module(package)
 
         # Check if the module is in the target list of the modules we want to test
         if module_path not in DEFAULT_MODULES or not DEFAULT_MODULES[module_path].condition():
@@ -821,7 +821,7 @@ def get_go_module(path):
     while path != '/':
         go_mod_path = os.path.join(path, 'go.mod')
         if os.path.isfile(go_mod_path):
-            return path
+            return os.path.relpath(path)
         path = os.path.dirname(path)
     raise Exception(f"No go.mod file found for package at {path}")
 

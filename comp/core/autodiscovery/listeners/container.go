@@ -14,15 +14,14 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -34,25 +33,27 @@ const (
 // workloadmeta store.
 type ContainerListener struct {
 	workloadmetaListener
+	tagger tagger.Component
 }
 
 // NewContainerListener returns a new ContainerListener.
-func NewContainerListener(_ Config, wmeta optional.Option[workloadmeta.Component], telemetryStore *telemetry.Store) (ServiceListener, error) {
+func NewContainerListener(options ServiceListernerDeps) (ServiceListener, error) {
 	const name = "ad-containerlistener"
 	l := &ContainerListener{}
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceAll).
 		AddKind(workloadmeta.KindContainer).Build()
 
-	wmetaInstance, ok := wmeta.Get()
+	wmetaInstance, ok := options.Wmeta.Get()
 	if !ok {
 		return nil, errors.New("workloadmeta store is not initialized")
 	}
 	var err error
-	l.workloadmetaListener, err = newWorkloadmetaListener(name, filter, l.createContainerService, wmetaInstance, telemetryStore)
+	l.workloadmetaListener, err = newWorkloadmetaListener(name, filter, l.createContainerService, wmetaInstance, options.Telemetry)
 	if err != nil {
 		return nil, err
 	}
+	l.tagger = options.Tagger
 
 	return l, nil
 }
@@ -88,7 +89,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	// stopped.
 	if !container.State.Running && !container.State.FinishedAt.IsZero() {
 		finishedAt := container.State.FinishedAt
-		excludeAge := time.Duration(config.Datadog().GetInt("container_exclude_stopped_age")) * time.Hour
+		excludeAge := time.Duration(pkgconfigsetup.Datadog().GetInt("container_exclude_stopped_age")) * time.Hour
 		if time.Since(finishedAt) > excludeAge {
 			log.Debugf("container %q not running for too long, skipping", container.ID)
 			return
@@ -113,7 +114,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 
 	svc := &service{
 		entity:   container,
-		tagsHash: tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID).String(), tagger.ChecksCardinality()),
+		tagsHash: l.tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID), l.tagger.ChecksCardinality()),
 		adIdentifiers: computeContainerServiceIDs(
 			containers.BuildEntityName(string(container.Runtime), container.ID),
 			containerImg.RawName,
@@ -122,6 +123,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		ports:    ports,
 		pid:      container.PID,
 		hostname: container.Hostname,
+		tagger:   l.tagger,
 	}
 
 	if pod != nil {
@@ -215,7 +217,7 @@ func computeContainerServiceIDs(entity string, image string, labels map[string]s
 	ids := []string{entity}
 
 	// Add Image names (long then short if different)
-	long, _, short, _, err := containers.SplitImageName(image)
+	long, _, short, _, err := pkgcontainersimage.SplitImageName(image)
 	if err != nil {
 		log.Warnf("error while spliting image name: %s", err)
 	}

@@ -40,6 +40,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.compliance_module.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.on_demand.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.on_demand.rate_limiter.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.reduced_proc_pid_cache_size", false)
 
 	cfg.SetDefault("runtime_security_config.windows_filename_cache_max", 16384)
 	cfg.SetDefault("runtime_security_config.windows_registry_cache_max", 4096)
@@ -86,7 +87,6 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.watch_dir", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.cache_size", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_count", 400)
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.remote_configuration.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dns_match_max_depth", 3)
 
 	// CWS - Auto suppression
@@ -133,4 +133,12 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.raw_syscall.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.exclude_binaries", []string{})
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.rule_source_allowed", []string{"file", "remote-config"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.container.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.container.max_allowed", 5)
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.container.period", "1m")
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.executable.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.executable.max_allowed", 5)
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.executable.period", "1m")
+
+	cfg.BindEnvAndSetDefault("runtime_security_config.network_monitoring.enabled", false)
 }

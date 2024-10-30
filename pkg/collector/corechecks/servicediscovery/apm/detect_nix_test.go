@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
@@ -54,7 +55,7 @@ func TestInjected(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := isInjected(d.envs)
+			result := isInjected(envs.NewVariables(d.envs))
 			assert.Equal(t, d.result, result)
 		})
 	}
@@ -93,7 +94,8 @@ func Test_javaDetector(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := javaDetector(0, d.args, d.envs, nil)
+			ctx := usm.NewDetectionContext(d.args, envs.NewVariables(d.envs), nil)
+			result := javaDetector(ctx)
 			if result != d.result {
 				t.Errorf("expected %s got %s", d.result, result)
 			}
@@ -130,7 +132,9 @@ func Test_nodeDetector(t *testing.T) {
 
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := nodeDetector(0, nil, nil, d.contextMap)
+			ctx := usm.NewDetectionContext(nil, envs.NewVariables(nil), nil)
+			ctx.ContextMap = d.contextMap
+			result := nodeDetector(ctx)
 			assert.Equal(t, d.result, result)
 		})
 	}
@@ -173,21 +177,105 @@ func Test_pythonDetector(t *testing.T) {
 	}
 }
 
+func TestDotNetDetector(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		envs   map[string]string
+		maps   string
+		result Instrumentation
+	}{
+		{
+			name:   "no env, no maps",
+			result: None,
+		},
+		{
+			name: "profiling disabled",
+			envs: map[string]string{
+				"CORECLR_ENABLE_PROFILING": "0",
+			},
+			result: None,
+		},
+		{
+			name: "profiling enabled",
+			envs: map[string]string{
+				"CORECLR_ENABLE_PROFILING": "1",
+			},
+			result: Provided,
+		},
+		{
+			name: "not in maps",
+			maps: `
+785c8ab24000-785c8ab2c000 r--s 00000000 fc:06 12762114                   /home/foo/hello/bin/release/net8.0/linux-x64/publish/System.Diagnostics.StackTrace.dll
+785c8ab2c000-785c8acce000 r--s 00000000 fc:06 12762148                   /home/foo/hello/bin/release/net8.0/linux-x64/publish/System.Net.Http.dll
+			`,
+			result: None,
+		},
+		{
+			name: "in maps, no env",
+			maps: `
+785c89c00000-785c8a400000 rw-p 00000000 00:00 0
+785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267                   /home/foo/hello/bin/release/net8.0/linux-x64/publish/Datadog.Trace.dll
+785c8aaec000-785c8ab0d000 rw-p 00000000 00:00 0
+785c8ab0d000-785c8ab24000 r--s 00000000 fc:06 12761829                   /home/foo/hello/bin/release/net8.0/linux-x64/publish/System.Collections.Specialized.dll
+			`,
+			result: Provided,
+		},
+		{
+			name: "in maps, env misleading",
+			envs: map[string]string{
+				"CORECLR_ENABLE_PROFILING": "0",
+			},
+			maps: `
+785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267                   /home/foo/hello/bin/release/net8.0/linux-x64/publish/Datadog.Trace.dll
+			`,
+			result: Provided,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var result Instrumentation
+			if test.maps == "" {
+				ctx := usm.NewDetectionContext(nil, envs.NewVariables(test.envs), nil)
+				result = dotNetDetector(ctx)
+			} else {
+				result = dotNetDetectorFromMapsReader(strings.NewReader(test.maps))
+			}
+			assert.Equal(t, test.result, result)
+		})
+	}
+}
+
 func TestGoDetector(t *testing.T) {
+	if os.Getenv("CI") == "" && os.Getuid() != 0 {
+		t.Skip("skipping test; requires root privileges")
+	}
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
-	serverBin, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "instrumented")
+	serverBinWithSymbols, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "instrumented")
+	require.NoError(t, err)
+	serverBinWithoutSymbols, err := usmtestutil.BuildGoBinaryWrapperWithoutSymbols(filepath.Join(curDir, "testutil"), "instrumented")
 	require.NoError(t, err)
 
-	cmd := exec.Command(serverBin)
-	require.NoError(t, cmd.Start())
+	cmdWithSymbols := exec.Command(serverBinWithSymbols)
+	require.NoError(t, cmdWithSymbols.Start())
 	t.Cleanup(func() {
-		_ = cmd.Process.Kill()
+		_ = cmdWithSymbols.Process.Kill()
 	})
 
-	result := goDetector(os.Getpid(), nil, nil, nil)
-	require.Equal(t, result, None)
+	cmdWithoutSymbols := exec.Command(serverBinWithoutSymbols)
+	require.NoError(t, cmdWithoutSymbols.Start())
+	t.Cleanup(func() {
+		_ = cmdWithoutSymbols.Process.Kill()
+	})
+	ctx := usm.NewDetectionContext(nil, envs.NewVariables(nil), nil)
+	ctx.Pid = os.Getpid()
+	result := goDetector(ctx)
+	require.Equal(t, None, result)
 
-	result = goDetector(cmd.Process.Pid, nil, nil, nil)
-	require.Equal(t, result, Provided)
+	ctx.Pid = cmdWithSymbols.Process.Pid
+	result = goDetector(ctx)
+	require.Equal(t, Provided, result)
+
+	ctx.Pid = cmdWithoutSymbols.Process.Pid
+	result = goDetector(ctx)
+	require.Equal(t, Provided, result)
 }

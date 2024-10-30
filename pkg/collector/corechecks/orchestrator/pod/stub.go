@@ -9,6 +9,9 @@
 package pod
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -19,6 +22,6 @@ const (
 )
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
+func Factory(workloadmeta.Component, config.Component, tagger.Component) optional.Option[func() check.Check] {
 	return optional.NewNoneOption[func() check.Check]()
 }

@@ -20,14 +20,6 @@
     methods . A fresh reference to the module is created here. This function is
     python3 only.
 */
-/*! \fn void Py2_init_datadog_agent()
-    \brief Initializes the datadog_agent builtin python module.
-
-    The datadog_agent python builtin is created and registered here as per the module_def
-    PyMethodDef definition in `datadog_agent.c` with the corresponding C-implemented python
-    methods . A fresh reference to the module is created here. This function is
-    python2 only.
-*/
 /*! \fn void _set_get_version_cb(cb_get_version_t)
     \brief Sets a callback to be used by rtloader to collect the agent version.
     \param object A function pointer with cb_get_version_t prototype to the callback
@@ -145,11 +137,7 @@
 extern "C" {
 #endif
 
-#ifdef DATADOG_AGENT_THREE
 PyMODINIT_FUNC PyInit_datadog_agent(void);
-#elif defined(DATADOG_AGENT_TWO)
-void Py2_init_datadog_agent();
-#endif
 
 void _set_get_clustername_cb(cb_get_clustername_t);
 void _set_get_config_cb(cb_get_config_t);
@@ -168,6 +156,7 @@ void _set_obfuscate_sql_cb(cb_obfuscate_sql_t);
 void _set_obfuscate_sql_exec_plan_cb(cb_obfuscate_sql_exec_plan_t);
 void _set_get_process_start_time_cb(cb_get_process_start_time_t);
 void _set_obfuscate_mongodb_string_cb(cb_obfuscate_mongodb_string_t);
+void _set_emit_agent_telemetry_cb(cb_emit_agent_telemetry_t);
 
 PyObject *_public_headers(PyObject *self, PyObject *args, PyObject *kwargs);
 

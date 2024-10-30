@@ -854,3 +854,94 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 	}
 	at.ProcessNodes = newProcessNodes
 }
+
+func (at *ActivityTree) visitProcessNode(processNode *ProcessNode, cb func(processNode *ProcessNode)) {
+	for _, pn := range processNode.Children {
+		at.visitProcessNode(pn, cb)
+	}
+	cb(processNode)
+}
+
+func (at *ActivityTree) visitFileNode(fileNode *FileNode, cb func(fileNode *FileNode)) {
+	if len(fileNode.Children) == 0 {
+		cb(fileNode)
+		return
+	}
+
+	for _, file := range fileNode.Children {
+		at.visitFileNode(file, cb)
+	}
+}
+
+func (at *ActivityTree) visit(cb func(processNode *ProcessNode)) {
+	for _, pn := range at.ProcessNodes {
+		at.visitProcessNode(pn, cb)
+	}
+}
+
+// ExtractPaths returns the exec / fim, exec / parent paths
+func (at *ActivityTree) ExtractPaths(_, fimEnabled, lineageEnabled bool) (map[string][]string, map[string][]string) {
+
+	fimPathsperExecPath := make(map[string][]string)
+	execAndParent := make(map[string][]string)
+	modifiedPaths := make(map[string]string)
+
+	at.visit(func(processNode *ProcessNode) {
+		var fimPaths []string
+		if fimEnabled {
+			for _, file := range processNode.Files {
+				at.visitFileNode(file, func(fileNode *FileNode) {
+					path, ok := modifiedPaths[fileNode.File.PathnameStr]
+					if !ok {
+						modifiedPaths[fileNode.File.PathnameStr] = utils.CheckForPatterns(fileNode.File.PathnameStr)
+						path = modifiedPaths[fileNode.File.PathnameStr]
+					}
+					if len(path) > 0 {
+						fimPaths = append(fimPaths, path)
+					}
+				})
+			}
+		}
+
+		execPath, ok := modifiedPaths[processNode.Process.FileEvent.PathnameStr]
+		if !ok {
+			modifiedPaths[processNode.Process.FileEvent.PathnameStr] = utils.CheckForPatterns(processNode.Process.FileEvent.PathnameStr)
+			execPath = modifiedPaths[processNode.Process.FileEvent.PathnameStr]
+		}
+
+		paths, ok := fimPathsperExecPath[execPath]
+		if ok {
+			fimPathsperExecPath[execPath] = append(paths, fimPaths...)
+		} else {
+			fimPathsperExecPath[execPath] = fimPaths
+		}
+
+		if lineageEnabled {
+			p, pp := extractExecAndParent(processNode)
+			tmp, ok := execAndParent[p]
+			if ok {
+				execAndParent[p] = append(tmp, pp)
+			} else {
+				execAndParent[p] = []string{pp}
+			}
+		}
+	})
+
+	return fimPathsperExecPath, execAndParent
+}
+
+// ExtractSyscalls return the syscalls present in an activity tree
+func (at *ActivityTree) ExtractSyscalls(arch string) []string {
+	var syscalls []string
+
+	at.visit(func(processNode *ProcessNode) {
+		for _, s := range processNode.Syscalls {
+			sycallKey := utils.SyscallKey{Arch: arch, ID: s}
+			syscall, ok := utils.Syscalls[sycallKey]
+			if ok {
+				syscalls = append(syscalls, syscall)
+			}
+		}
+	})
+	return syscalls
+}

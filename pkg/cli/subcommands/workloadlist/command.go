@@ -17,7 +17,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -112,16 +112,16 @@ func workloadList(_ log.Component, config config.Component, cliParams *cliParams
 }
 
 func workloadURL(verbose bool) (string, error) {
-	ipcAddress, err := pkgconfig.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}
 
 	var prefix string
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		prefix = fmt.Sprintf("https://%v:%v/workload-list", ipcAddress, pkgconfig.Datadog().GetInt("cluster_agent.cmd_port"))
+		prefix = fmt.Sprintf("https://%v:%v/workload-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 	} else {
-		prefix = fmt.Sprintf("https://%v:%v/agent/workload-list", ipcAddress, pkgconfig.Datadog().GetInt("cmd_port"))
+		prefix = fmt.Sprintf("https://%v:%v/agent/workload-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 	}
 
 	if verbose {

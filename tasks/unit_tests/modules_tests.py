@@ -28,8 +28,8 @@ Here is an abstract of the go.mod file format:
             "New": {"Path": "github.com/cihub/seelog", "Version": "v0.0.0-20151216151435-d2c6e5aa9fbf"},
         },
         {
-            "Old": {"Path": "github.com/DataDog/datadog-agent/cmd/agent/common/path"},
-            "New": {"Path": "./cmd/agent/common/path/"},
+            "Old": {"Path": "github.com/DataDog/datadog-agent/pkg/util/defaultpaths"},
+            "New": {"Path": "./pkg/util/defaultpaths/"},
         },
     ],
     "Retract": [{"Low": "v0.9.0", "High": "v0.9.0"}, {"Low": "v0.8.0", "High": "v0.8.0"}],

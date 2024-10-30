@@ -21,9 +21,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
@@ -39,7 +40,7 @@ func TestStartDoesNotBlock(t *testing.T) {
 	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
 		t.Skip("TestStartDoesNotBlock is known to fail on the macOS Gitlab runners because of the already running Agent")
 	}
-	config.LoadWithoutSecret()
+	pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil)
 	metricAgent := &ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
 	}
@@ -89,9 +90,9 @@ func TestStartInvalidDogStatsD(t *testing.T) {
 
 func TestStartWithProxy(t *testing.T) {
 	t.SkipNow()
-	originalValues := config.Datadog().GetStringSlice(statsDMetricBlocklistKey)
-	defer config.Datadog().SetWithoutSource(statsDMetricBlocklistKey, originalValues)
-	config.Datadog().SetWithoutSource(statsDMetricBlocklistKey, []string{})
+	originalValues := pkgconfigsetup.Datadog().GetStringSlice(statsDMetricBlocklistKey)
+	defer pkgconfigsetup.Datadog().SetWithoutSource(statsDMetricBlocklistKey, originalValues)
+	pkgconfigsetup.Datadog().SetWithoutSource(statsDMetricBlocklistKey, []string{})
 
 	t.Setenv(proxyEnabledEnvVar, "true")
 
@@ -106,7 +107,7 @@ func TestStartWithProxy(t *testing.T) {
 		ErrorsMetric,
 	}
 
-	setValues := config.Datadog().GetStringSlice(statsDMetricBlocklistKey)
+	setValues := pkgconfigsetup.Datadog().GetStringSlice(statsDMetricBlocklistKey)
 	assert.Equal(t, expected, setValues)
 }
 
@@ -116,6 +117,7 @@ func TestRaceFlushVersusAddSample(t *testing.T) {
 	}
 	metricAgent := &ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
+		Tagger:               nooptagger.NewTaggerClient(),
 	}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &ValidMetricConfigMocked{}, &MetricDogStatsD{})
@@ -208,15 +210,15 @@ func getAvailableUDPPort() (int, error) {
 func TestRaceFlushVersusParsePacket(t *testing.T) {
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
-	config.Datadog().SetDefault("dogstatsd_port", port)
+	pkgconfigsetup.Datadog().SetDefault("dogstatsd_port", port)
 
-	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000)
+	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000, nooptagger.NewTaggerClient())
 
 	s, err := dogstatsdServer.NewServerlessServer(demux)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
-	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog().GetInt("dogstatsd_port"))
+	url := fmt.Sprintf("127.0.0.1:%d", pkgconfigsetup.Datadog().GetInt("dogstatsd_port"))
 	conn, err := net.Dial("udp", url)
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()

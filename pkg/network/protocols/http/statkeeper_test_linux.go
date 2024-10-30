@@ -25,9 +25,9 @@ func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourceP
 	event.Http.Response_last_seen = event.Http.Request_started + latencyNS
 	event.Http.Response_status_code = uint16(code)
 	event.Http.Request_fragment = requestFragment([]byte(reqFragment))
-	event.Tuple.Saddr_l = uint64(binary.LittleEndian.Uint32(source.Bytes()))
+	event.Tuple.Saddr_l = uint64(binary.LittleEndian.Uint32(source.Unmap().AsSlice()))
 	event.Tuple.Sport = uint16(sourcePort)
-	event.Tuple.Daddr_l = uint64(binary.LittleEndian.Uint32(dest.Bytes()))
+	event.Tuple.Daddr_l = uint64(binary.LittleEndian.Uint32(dest.Unmap().AsSlice()))
 	event.Tuple.Dport = uint16(destPort)
 	event.Tuple.Metadata = 1
 

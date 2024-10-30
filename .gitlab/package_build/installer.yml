@@ -5,7 +5,8 @@
 .common_build_oci:
   script:
     - echo "About to build for $RELEASE_VERSION"
-    - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/$(inv agent.version -u)-1
+    - AGENT_VERSION="$(inv agent.version -u)-1" || exit $?
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/"$AGENT_VERSION"
     - !reference [.retrieve_linux_go_deps]
     - !reference [.cache_omnibus_ruby_deps, setup]
     # remove artifacts from previous pipelines that may come from the cache
@@ -20,7 +21,7 @@
     - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
     # NOTE: for now, we consider "ociru" to be a "redhat_target" in omnibus/lib/ostools.rb
     # if we ever start building on a different platform, that might need to change
-    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --host-distribution=ociru --install-directory="$INSTALL_DIR"
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --host-distribution=ociru --install-directory="$INSTALL_DIR"
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   variables:
@@ -40,7 +41,7 @@ datadog-agent-oci-x64-a7:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
     [
@@ -51,11 +52,12 @@ datadog-agent-oci-x64-a7:
     ]
   variables:
     AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: "3"
     PACKAGE_ARCH: amd64
     DESTINATION_OCI: "datadog-agent-7-remote-updater-amd64.tar.xz"
+    DD_CC: 'x86_64-unknown-linux-gnu-gcc'
+    DD_CXX: 'x86_64-unknown-linux-gnu-g++'
+    DD_CMAKE_TOOLCHAIN: '/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake'
   before_script:
-    - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 datadog-agent-oci-arm64-a7:
@@ -64,7 +66,7 @@ datadog-agent-oci-arm64-a7:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   needs:
     [
@@ -75,19 +77,50 @@ datadog-agent-oci-arm64-a7:
     ]
   variables:
     AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: "3"
     PACKAGE_ARCH: arm64
     DESTINATION_OCI: "datadog-agent-7-remote-updater-arm64.tar.xz"
+    DD_CC: 'aarch64-unknown-linux-gnu-gcc'
+    DD_CXX: 'aarch64-unknown-linux-gnu-g++'
+    DD_CMAKE_TOOLCHAIN: '/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake'
   before_script:
-    - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
+
+#
+# The bootstrapper program
+#
+bootstrapper_build:
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["go_mod_tidy_check", "go_deps"]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    KUBERNETES_CPU_REQUEST: 8
+    KUBERNETES_MEMORY_REQUEST: "16Gi"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
+    RELEASE_VERSION: "$RELEASE_VERSION_7"
+  script:
+    - !reference [.retrieve_linux_go_deps]
+    - echo "About to build for $RELEASE_VERSION"
+    - GOOS=linux GOARCH=amd64 inv -e installer.build --bootstrapper --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-linux-amd64
+    - GOOS=linux GOARCH=arm64 inv -e installer.build --bootstrapper --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-linux-arm64
+    - GOOS=windows GOARCH=amd64 inv -e installer.build --bootstrapper --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-windows-amd64.exe
+    - GOOS=darwin GOARCH=amd64 inv -e installer.build --bootstrapper --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-darwin-amd64
+    - GOOS=darwin GOARCH=arm64 inv -e installer.build --bootstrapper --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-darwin-arm64
+    - ls -la $OMNIBUS_PACKAGE_DIR
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
 
 #
 # The installer program
 #
 .installer_build_common:
   script:
-    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to build for $RELEASE_VERSION"
@@ -119,13 +152,15 @@ installer-amd64:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: amd64
     DESTINATION_FILE: "datadog-installer_7-amd64.tar.xz"
     RELEASE_VERSION: "$RELEASE_VERSION_7"
+    DD_CC: 'x86_64-unknown-linux-gnu-gcc'
+    DD_CXX: 'x86_64-unknown-linux-gnu-g++'
 
 installer-arm64:
   extends: .installer_build_common
@@ -133,21 +168,23 @@ installer-arm64:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: arm64
     DESTINATION_FILE: "datadog-installer_7-arm64.tar.xz"
     RELEASE_VERSION: "$RELEASE_VERSION_7"
+    DD_CC: 'aarch64-unknown-linux-gnu-gcc'
+    DD_CXX: 'aarch64-unknown-linux-gnu-g++'
 
 installer-amd64-oci:
   extends: installer-amd64
   variables:
     DESTINATION_FILE: "datadog-updater_7-amd64-oci.tar.xz"
   before_script:
-    - source /root/.bashrc
-    - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/$(inv agent.version -u)-1
+    - AGENT_VERSION="$(inv agent.version -u)-1" || exit $?
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/"$AGENT_VERSION"
     - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR"
 
 installer-arm64-oci:
@@ -155,8 +192,8 @@ installer-arm64-oci:
   variables:
     DESTINATION_FILE: "datadog-updater_7-arm64-oci.tar.xz"
   before_script:
-    - source /root/.bashrc
-    - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/$(inv agent.version -u)-1
+    - AGENT_VERSION="$(inv agent.version -u)-1" || exit $?
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/"$AGENT_VERSION"
     - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR"
 
 windows-installer-amd64:
@@ -188,7 +225,7 @@ windows-installer-amd64:
       -e SIGN_WINDOWS_DD_WCS=true
       -e S3_OMNIBUS_CACHE_BUCKET="$S3_OMNIBUS_CACHE_BUCKET"
       -e USE_S3_CACHING="$USE_S3_CACHING"
-      -e API_KEY_ORG2_SSM_NAME=${API_KEY_ORG2_SSM_NAME}
+      -e API_KEY_ORG2=${API_KEY_ORG2}
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\buildinstaller.bat
   after_script:

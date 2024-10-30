@@ -37,7 +37,6 @@ type RuntimeSecurityAgent struct {
 	connected               *atomic.Bool
 	eventReceived           *atomic.Uint64
 	activityDumpReceived    *atomic.Uint64
-	telemetry               *telemetry
 	profContainersTelemetry *profContainersTelemetry
 	endpoints               *config.Endpoints
 	cancel                  context.CancelFunc
@@ -48,8 +47,7 @@ type RuntimeSecurityAgent struct {
 
 // RSAOptions represents the runtime security agent options
 type RSAOptions struct {
-	LogProfiledWorkloads    bool
-	IgnoreDDAgentContainers bool
+	LogProfiledWorkloads bool
 }
 
 // Start the runtime security agent
@@ -68,11 +66,6 @@ func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *c
 		// Start activity dumps listener
 		go rsa.StartActivityDumpListener()
 		go rsa.startActivityDumpStorageTelemetry(ctx)
-	}
-
-	if rsa.telemetry != nil {
-		// Send Runtime Security Agent telemetry
-		go rsa.telemetry.run(ctx)
 	}
 
 	if rsa.profContainersTelemetry != nil {
@@ -190,7 +183,7 @@ func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStrea
 		log.Errorf("%v", err)
 		return
 	}
-	if rsa.telemetry != nil {
+	if rsa.profContainersTelemetry != nil {
 		// register for telemetry for this container
 		imageName, imageTag := dump.GetImageNameTag()
 		rsa.profContainersTelemetry.registerProfiledContainer(imageName, imageTag)

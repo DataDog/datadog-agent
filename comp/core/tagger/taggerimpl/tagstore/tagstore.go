@@ -41,7 +41,7 @@ type TagStore struct {
 	store     types.ObjectStore[EntityTags]
 	telemetry map[string]map[string]float64
 
-	subscriber *subscriber.Subscriber
+	subscriptionManager subscriber.SubscriptionManager
 
 	clock clock.Clock
 
@@ -56,12 +56,12 @@ func NewTagStore(cfg config.Component, telemetryStore *telemetry.Store) *TagStor
 
 func newTagStoreWithClock(cfg config.Component, clock clock.Clock, telemetryStore *telemetry.Store) *TagStore {
 	return &TagStore{
-		telemetry:      make(map[string]map[string]float64),
-		store:          genericstore.NewObjectStore[EntityTags](cfg),
-		subscriber:     subscriber.NewSubscriber(telemetryStore),
-		clock:          clock,
-		cfg:            cfg,
-		telemetryStore: telemetryStore,
+		telemetry:           make(map[string]map[string]float64),
+		store:               genericstore.NewObjectStore[EntityTags](),
+		subscriptionManager: subscriber.NewSubscriptionManager(telemetryStore),
+		clock:               clock,
+		cfg:                 cfg,
+		telemetryStore:      telemetryStore,
 	}
 }
 
@@ -163,7 +163,7 @@ func (s *TagStore) collectTelemetry() {
 	s.Lock()
 	defer s.Unlock()
 
-	s.store.ForEach(func(_ types.EntityID, et EntityTags) {
+	s.store.ForEach(nil, func(_ types.EntityID, et EntityTags) {
 		prefix := string(et.getEntityID().GetPrefix())
 
 		for _, source := range et.sources() {
@@ -186,29 +186,24 @@ func (s *TagStore) collectTelemetry() {
 // Subscribe returns a channel that receives a slice of events whenever an entity is
 // added, modified or deleted. It can send an initial burst of events only to the new
 // subscriber, without notifying all of the others.
-func (s *TagStore) Subscribe(cardinality types.TagCardinality) chan []types.EntityEvent {
+func (s *TagStore) Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
 	s.RLock()
 	defer s.RUnlock()
 
 	events := make([]types.EntityEvent, 0, s.store.Size())
 
-	s.store.ForEach(func(_ types.EntityID, et EntityTags) {
+	s.store.ForEach(filter, func(_ types.EntityID, et EntityTags) {
 		events = append(events, types.EntityEvent{
 			EventType: types.EventTypeAdded,
 			Entity:    et.toEntity(),
 		})
 	})
 
-	return s.subscriber.Subscribe(cardinality, events)
-}
-
-// Unsubscribe ends a subscription to entity events and closes its channel.
-func (s *TagStore) Unsubscribe(ch chan []types.EntityEvent) {
-	s.subscriber.Unsubscribe(ch)
+	return s.subscriptionManager.Subscribe(subscriptionID, filter, events)
 }
 
 func (s *TagStore) notifySubscribers(events []types.EntityEvent) {
-	s.subscriber.Notify(events)
+	s.subscriptionManager.Notify(events)
 }
 
 // Prune deletes tags for entities that have been marked as deleted. This is to
@@ -220,7 +215,7 @@ func (s *TagStore) Prune() {
 	now := s.clock.Now()
 	events := []types.EntityEvent{}
 
-	s.store.ForEach(func(eid types.EntityID, et EntityTags) {
+	s.store.ForEach(nil, func(eid types.EntityID, et EntityTags) {
 		changed := et.deleteExpired(now)
 
 		if !changed && !et.shouldRemove() {
@@ -259,6 +254,22 @@ func (s *TagStore) LookupHashed(entityID types.EntityID, cardinality types.TagCa
 	return storedTags.getHashedTags(cardinality)
 }
 
+// LookupHashedWithEntityStr is the same as LookupHashed but takes a string as input.
+// This function is needed only for performance reasons. It functions like
+// LookupHashed, but accepts a string instead of an EntityID. This reduces the
+// allocations that occur when an EntityID is passed as a parameter.
+func (s *TagStore) LookupHashedWithEntityStr(entityID types.EntityID, cardinality types.TagCardinality) tagset.HashedTags {
+	s.RLock()
+	defer s.RUnlock()
+
+	storedTags, present := s.store.Get(entityID)
+	if !present {
+		return tagset.HashedTags{}
+	}
+
+	return storedTags.getHashedTags(cardinality)
+}
+
 // Lookup gets tags from the store and returns them concatenated in a string slice.
 func (s *TagStore) Lookup(entityID types.EntityID, cardinality types.TagCardinality) []string {
 	return s.LookupHashed(entityID, cardinality).Get()
@@ -283,7 +294,7 @@ func (s *TagStore) List() types.TaggerListResponse {
 	s.RLock()
 	defer s.RUnlock()
 
-	for _, et := range s.store.ListObjects() {
+	for _, et := range s.store.ListObjects(types.NewMatchAllFilter()) {
 		r.Entities[et.getEntityID().String()] = types.TaggerListEntity{
 			Tags: et.tagsBySource(),
 		}

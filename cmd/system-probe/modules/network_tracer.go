@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"runtime"
@@ -23,8 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
@@ -48,7 +47,9 @@ const inactivityRestartDuration = 20 * time.Minute
 
 var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config"}
 
-func createNetworkTracerModule(cfg *sysconfigtypes.Config, _ workloadmeta.Component, telemetryComponent telemetryComponent.Component) (module.Module, error) {
+const maxConntrackDumpSize = 3000
+
+func createNetworkTracerModule(cfg *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 	ncfg := networkconfig.New()
 
 	// Checking whether the current OS + kernel version is supported by the tracer
@@ -63,7 +64,7 @@ func createNetworkTracerModule(cfg *sysconfigtypes.Config, _ workloadmeta.Compon
 		log.Info("enabling universal service monitoring (USM)")
 	}
 
-	t, err := tracer.NewTracer(ncfg, telemetryComponent)
+	t, err := tracer.NewTracer(ncfg, deps.Telemetry)
 
 	done := make(chan struct{})
 	if err == nil {
@@ -108,6 +109,16 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		count := runCounter.Inc()
 		logRequests(id, count, len(cs.Conns), start)
+	}))
+
+	httpMux.HandleFunc("/network_id", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+		id, err := nt.tracer.GetNetworkID(req.Context())
+		if err != nil {
+			log.Errorf("unable to retrieve network_id: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+		io.WriteString(w, id)
 	}))
 
 	httpMux.HandleFunc("/register", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
@@ -252,11 +263,11 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, table)
+		writeConntrackTable(table, w)
 	})
 
 	httpMux.HandleFunc("/debug/conntrack/host", func(w http.ResponseWriter, req *http.Request) {
-		ctx, cancelFunc := context.WithTimeout(req.Context(), 30*time.Second)
+		ctx, cancelFunc := context.WithTimeout(req.Context(), 10*time.Second)
 		defer cancelFunc()
 		table, err := nt.tracer.DebugHostConntrack(ctx)
 		if err != nil {
@@ -265,11 +276,11 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		utils.WriteAsJSON(w, table)
+		writeConntrackTable(table, w)
 	})
 
 	httpMux.HandleFunc("/debug/process_cache", func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancelFunc := context.WithTimeout(r.Context(), 30*time.Second)
+		ctx, cancelFunc := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancelFunc()
 		cache, err := nt.tracer.DebugDumpProcessCache(ctx)
 		if err != nil {
@@ -284,6 +295,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/debug/usm_telemetry", telemetry.Handler)
 	httpMux.HandleFunc("/debug/usm/traced_programs", usm.TracedProgramsEndpoint)
 	httpMux.HandleFunc("/debug/usm/blocked_processes", usm.BlockedPathIDEndpoint)
+	httpMux.HandleFunc("/debug/usm/clear_blocked", usm.ClearBlockedEndpoint)
 	httpMux.HandleFunc("/debug/usm/attach-pid", usm.AttachPIDEndpoint)
 	httpMux.HandleFunc("/debug/usm/detach-pid", usm.DetachPIDEndpoint)
 
@@ -375,4 +387,12 @@ func writeDisabledProtocolMessage(protocolName string, w http.ResponseWriter) {
 	// We are marshaling a static string, so we can ignore the error
 	buf, _ := json.Marshal(outputString)
 	w.Write(buf)
+}
+
+func writeConntrackTable(table *tracer.DebugConntrackTable, w http.ResponseWriter) {
+	err := table.WriteTo(w, maxConntrackDumpSize)
+	if err != nil {
+		log.Errorf("unable to dump conntrack: %s", err)
+		w.WriteHeader(500)
+	}
 }

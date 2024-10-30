@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
@@ -17,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -142,8 +143,6 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
 			case workloadmeta.KindContainerImageMetadata:
 				tagInfos = append(tagInfos, c.handleContainerImage(ev)...)
-			case workloadmeta.KindHost:
-				tagInfos = append(tagInfos, c.handleHostTags(ev)...)
 			case workloadmeta.KindKubernetesMetadata:
 				tagInfos = append(tagInfos, c.handleKubeMetadata(ev)...)
 			case workloadmeta.KindProcess:
@@ -230,6 +229,11 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 		tagList.AddLow(tag, value)
 	}
 
+	// gpu tags from container resource requests
+	for _, gpuVendor := range container.Resources.GPUVendorList {
+		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
+	}
+
 	low, orch, high, standard := tagList.Compute()
 	return []*types.TagInfo{
 		{
@@ -293,17 +297,6 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 	}
 }
 
-func (c *WorkloadMetaCollector) handleHostTags(ev workloadmeta.Event) []*types.TagInfo {
-	hostTags := ev.Entity.(*workloadmeta.HostTags)
-	return []*types.TagInfo{
-		{
-			Source:      hostSource,
-			EntityID:    types.NewEntityID("internal", "global-entity-id"),
-			LowCardTags: hostTags.HostTags,
-		},
-	}
-}
-
 func (c *WorkloadMetaCollector) labelsToTags(labels map[string]string, tags *taglist.TagList) {
 	// standard tags from labels
 	c.extractFromMapWithFn(labels, standardDockerLabels, tags.AddStandard)
@@ -326,10 +319,7 @@ func (c *WorkloadMetaCollector) labelsToTags(labels map[string]string, tags *tag
 	}
 }
 
-func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.TagInfo {
-	pod := ev.Entity.(*workloadmeta.KubernetesPod)
-
-	tagList := taglist.NewTagList()
+func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) *types.TagInfo {
 	tagList.AddOrchestrator(tags.KubePod, pod.Name)
 	tagList.AddLow(tags.KubeNamespace, pod.Namespace)
 	tagList.AddLow(tags.PodPhase, strings.ToLower(pod.Phase))
@@ -359,8 +349,13 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 		k8smetadata.AddMetadataAsTags(name, value, c.k8sResourcesAnnotationsAsTags["namespaces"], c.globK8sResourcesAnnotations["namespaces"], tagList)
 	}
 
+	// gpu requested vendor as tags
+	for _, gpuVendor := range pod.GPUVendorList {
+		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
+	}
+
 	kubeServiceDisabled := false
-	for _, disabledTag := range config.Datadog().GetStringSlice("kubernetes_ad_tags_disabled") {
+	for _, disabledTag := range pkgconfigsetup.Datadog().GetStringSlice("kubernetes_ad_tags_disabled") {
 		if disabledTag == "kube_service" {
 			kubeServiceDisabled = true
 			break
@@ -409,16 +404,24 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 	}
 
 	low, orch, high, standard := tagList.Compute()
-	tagInfos := []*types.TagInfo{
-		{
-			Source:               podSource,
-			EntityID:             common.BuildTaggerEntityID(pod.EntityID),
-			HighCardTags:         high,
-			OrchestratorCardTags: orch,
-			LowCardTags:          low,
-			StandardTags:         standard,
-		},
+	tagInfo := &types.TagInfo{
+		Source:               podSource,
+		EntityID:             common.BuildTaggerEntityID(pod.EntityID),
+		HighCardTags:         high,
+		OrchestratorCardTags: orch,
+		LowCardTags:          low,
+		StandardTags:         standard,
 	}
+
+	return tagInfo
+}
+
+func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.TagInfo {
+	pod := ev.Entity.(*workloadmeta.KubernetesPod)
+	tagList := taglist.NewTagList()
+	tagInfos := []*types.TagInfo{c.extractTagsFromPodEntity(pod, tagList)}
+
+	c.extractTagsFromPodLabels(pod, tagList)
 
 	for _, podContainer := range pod.GetAllContainers() {
 		cTagInfo, err := c.extractTagsFromPodContainer(pod, podContainer, tagList.Copy())
@@ -444,22 +447,27 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	taskTags.AddLow(tags.TaskName, task.Family)
 	taskTags.AddLow(tags.TaskFamily, task.Family)
 	taskTags.AddLow(tags.TaskVersion, task.Version)
+	taskTags.AddLow(tags.AwsAccount, strconv.Itoa(task.AWSAccountID))
+	taskTags.AddLow(tags.Region, task.Region)
 	taskTags.AddOrchestrator(tags.TaskARN, task.ID)
 
 	if task.ClusterName != "" {
-		if !config.Datadog().GetBool("disable_cluster_name_tag_key") {
+		if !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
 			taskTags.AddLow(tags.ClusterName, task.ClusterName)
 		}
 		taskTags.AddLow(tags.EcsClusterName, task.ClusterName)
 	}
 
 	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
-		taskTags.AddLow(tags.Region, task.Region)
 		taskTags.AddLow(tags.AvailabilityZoneDeprecated, task.AvailabilityZone) // Deprecated
 		taskTags.AddLow(tags.AvailabilityZone, task.AvailabilityZone)
 	} else if c.collectEC2ResourceTags {
 		addResourceTags(taskTags, task.ContainerInstanceTags)
 		addResourceTags(taskTags, task.Tags)
+	}
+
+	if task.ServiceName != "" {
+		taskTags.AddLow(tags.EcsServiceName, strings.ToLower(task.ServiceName))
 	}
 
 	tagInfos := make([]*types.TagInfo, 0, len(task.Containers))

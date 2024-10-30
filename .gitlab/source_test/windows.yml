@@ -25,13 +25,13 @@
       -e CI_JOB_NAME="${CI_JOB_NAME}"
       -e CI_JOB_ID="${CI_JOB_ID}"
       -e CI_PIPELINE_ID="${CI_PIPELINE_ID}"
+      -e CI_PIPELINE_SOURCE="${CI_PIPELINE_SOURCE}"
       -e CI_REPOSITORY_URL="${CI_REPOSITORY_URL}"
       -e CI_COMMIT_SHA="${CI_COMMIT_SHA}"
       -e CI_PROJECT_NAME="${CI_PROJECT_NAME}"
       -e CI_COMMIT_REF_NAME="${CI_COMMIT_REF_NAME}"
       -e AWS_NETWORKING=true
       -e SIGN_WINDOWS_DD_WCS=true
-      -e PY_RUNTIMES="${PYTHON_RUNTIMES}"
       -e GOMODCACHE="c:\modcache"
       -e JUNIT_TAR="c:\mnt\junit-${CI_JOB_NAME}.tgz"
       -e PIP_INDEX_URL="${PIP_INDEX_URL}"
@@ -39,14 +39,13 @@
       -e EXTRA_OPTS="${FAST_TESTS_FLAG}"
       -e TEST_WASHER=true
       -e GO_TEST_SKIP_FLAKE="${GO_TEST_SKIP_FLAKE}"
-      -e API_KEY_ORG2_SSM_NAME="${API_KEY_ORG2_SSM_NAME}"
-      -e CODECOV_TOKEN_SSM_NAME="${CODECOV_TOKEN_SSM_NAME}"
+      -e API_KEY_ORG2="${API_KEY_ORG2}"
+      -e CODECOV_TOKEN="${CODECOV_TOKEN}"
       -e S3_PERMANENT_ARTIFACTS_URI="${S3_PERMANENT_ARTIFACTS_URI}"
       -e COVERAGE_CACHE_FLAG="${COVERAGE_CACHE_FLAG}"
-      -e GITLAB_TOKEN_SSM_NAME="${GITLAB_READ_API_TOKEN_SSM_NAME}"
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\unittests.bat
-    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - If ($lastExitCode -ne "0") { exit "$lastExitCode" }
   variables:
     TEST_OUTPUT_FILE: test_output.json
   artifacts:
@@ -58,45 +57,10 @@
     reports:
       junit: "**/junit-out-*.xml"
 
-.lint_windows_base:
-  stage: source_test
-  needs: ["go_deps", "go_tools_deps"]
-  tags: ["runner:windows-docker", "windowsversion:1809"]
-  script:
-    - $ErrorActionPreference = "Stop"
-    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
-    # Previously this job required only 8Gb of memory but since Go 1.20 it requires more to avoid being OOM killed.
-    # Each Windows VM has 32Gb of memory and contains 3 runners that can run one job at a time each (so a maximum of 3 simultaneous jobs per VM).
-    # Windows jobs are using either 8Gb or 16Gb of memory so we can limit memory to 16Gb on this job because even if we decided to limit to 10Gb for instance,
-    # it would leave 6Gb free but we could not fit another job with these 6Gb remaining.
-    - >
-      docker run --rm
-      -m 16384M
-      --storage-opt "size=50GB"
-      -v "$(Get-Location):c:\mnt"
-      -e AWS_NETWORKING=true
-      -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
-      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
-      -e PY_RUNTIMES="$PYTHON_RUNTIMES"
-      -e GOMODCACHE="c:\modcache"
-      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\lint.bat
-    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-
 tests_windows-x64:
   extends: .tests_windows_base
   variables:
-    PYTHON_RUNTIMES: 3
     ARCH: "x64"
-
-lint_windows-x64:
-  extends: .lint_windows_base
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  variables:
-    PYTHON_RUNTIMES: 3
-    ARCH: "x64"
-  timeout: 1h30m
 
 .tests_windows_sysprobe:
   stage: source_test
@@ -113,7 +77,6 @@ lint_windows-x64:
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
       -e SIGN_WINDOWS_DD_WCS=true
-      -e PY_RUNTIMES="$PYTHON_RUNTIMES"
       -e GOMODCACHE="c:\modcache"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
@@ -139,7 +102,6 @@ lint_windows-x64:
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
       -e SIGN_WINDOWS_DD_WCS=true
-      -e PY_RUNTIMES="$PYTHON_RUNTIMES"
       -e GOMODCACHE="c:\modcache"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
@@ -148,16 +110,14 @@ lint_windows-x64:
   artifacts:
     when: always
     paths:
-      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
+      - $CI_PROJECT_DIR/test/new-e2e/tests/security-agent-functional/artifacts
 
 tests_windows_sysprobe_x64:
   extends: .tests_windows_sysprobe
   variables:
-    PYTHON_RUNTIMES: 3
     ARCH: "x64"
 
 tests_windows_secagent_x64:
   extends: .tests_windows_secagent
   variables:
-    PYTHON_RUNTIMES: 3
     ARCH: "x64"
