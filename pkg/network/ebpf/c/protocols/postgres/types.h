@@ -10,7 +10,7 @@
 #define POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES 1
 
 // Represents the maximum number of messages we process in a single tail call.
-#define POSTGRES_MAX_MESSAGES_PER_TAIL_CALL 90
+#define POSTGRES_MAX_MESSAGES_PER_TAIL_CALL 80
 
 // Postgres transaction information we store in the kernel.
 typedef struct {
