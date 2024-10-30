@@ -13,7 +13,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -25,8 +24,6 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/samber/lo"
-
-	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 )
 
 var mu sync.Mutex
@@ -35,28 +32,14 @@ type opener func() (v1.Image, error)
 
 type imageSave func(context.Context, []string) (io.ReadCloser, error)
 
-func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSave imageSave) opener {
+func imageOpener(ctx context.Context, collector, ref string, imageSave imageSave) opener {
 	return func() (v1.Image, error) {
-		// Store the tarball in local filesystem and return a new reader into the bytes each time we need to access something.
-		rc, err := imageSave(ctx, []string{ref})
-		if err != nil {
-			return nil, fmt.Errorf("unable to export the image: %w", err)
-		}
-		defer rc.Close()
-
-		written, err := io.Copy(f, rc)
-		if err != nil {
-			return nil, fmt.Errorf("failed to copy the image: %w", err)
-		}
-		defer f.Close()
-
-		telemetry.SBOMExportSize.Observe(float64(written), collector, ref)
-
-		img, err := tarball.ImageFromPath(f.Name(), nil)
+		img, err := tarball.Image(func() (io.ReadCloser, error) {
+			return imageSave(ctx, []string{ref})
+		}, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize the struct from the temporary file: %w", err)
 		}
-
 		return img, nil
 	}
 }

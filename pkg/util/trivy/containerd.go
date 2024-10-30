@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"time"
 
@@ -78,16 +77,6 @@ func convertContainerdImage(ctx context.Context, client *containerd.Client, imgM
 	ctx = namespaces.WithNamespace(ctx, imgMeta.Namespace)
 	cleanup := func() {}
 
-	f, err := os.CreateTemp("", "fanal-containerd-*")
-	if err != nil {
-		return nil, cleanup, fmt.Errorf("failed to create a temporary file: %w", err)
-	}
-
-	cleanup = func() {
-		_ = f.Close()
-		_ = os.Remove(f.Name())
-	}
-
 	insp, history, ref, err := inspect(ctx, imgMeta, img)
 	if err != nil {
 		return nil, cleanup, fmt.Errorf("inspect error: %w", err) // Note: the original code doesn't return "cleanup".
@@ -95,7 +84,7 @@ func convertContainerdImage(ctx context.Context, client *containerd.Client, imgM
 
 	return &image{
 		name:    img.Name(),
-		opener:  imageOpener(ctx, ContainerdCollector, ref.String(), f, imageWriter(client, img)),
+		opener:  imageOpener(ctx, ContainerdCollector, ref.String(), imageWriter(client, img)),
 		inspect: insp,
 		history: history,
 	}, cleanup, nil
