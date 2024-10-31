@@ -1698,7 +1698,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	}
 
 	// replay the snapshot
-	p.playSnapShotState.Store(replaySnapShotState)
+	p.playSnapShotState.CompareAndSwap(0, replaySnapShotState)
 
 	return ars, nil
 }
