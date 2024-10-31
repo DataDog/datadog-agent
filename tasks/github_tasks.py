@@ -487,9 +487,11 @@ def extract_test_qa_description(pr_body: str) -> str:
         if line.startswith('### Describe how to test'):
             index_of_test_qa_section = i
             break
-    index_of_next_section = -1
+    if index_of_test_qa_section == -1:
+        return ''
+    index_of_next_section = len(pr_body_lines)
     for i in range(index_of_test_qa_section + 1, len(pr_body_lines)):
-        if pr_body_lines[i].startswith('### Possible Drawbacks'):
+        if pr_body_lines[i].startswith('### '):
             index_of_next_section = i
             break
     if index_of_next_section == -1:

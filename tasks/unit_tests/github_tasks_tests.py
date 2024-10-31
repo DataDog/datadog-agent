@@ -230,6 +230,29 @@ Here is a test description with special characters: `~!@#$,%^&*()_-+={[]}|\\:;\"
 """,
                 expected="Here is a test description with special characters: `~!@#$,%^&*()_-+={[]}|\\:;\"'<>.?/",
             ),
+            TestExtractBodyCase(
+                name="Missing test description header",
+                body="""### What does this PR do?
+
+### Motivation
+
+### Possible Drawbacks / Trade-offs
+
+### Additional Notes
+""",
+                expected="",
+            ),
+            TestExtractBodyCase(
+                name="Missing next section header",
+                body="""### What does this PR do?
+
+### Motivation
+
+### Describe how to test/QA your changes
+Here is how to test this PR
+""",
+                expected="Here is how to test this PR",
+            ),
         ]
 
         for tc in testcases:
