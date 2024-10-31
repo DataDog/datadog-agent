@@ -33,7 +33,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt -r tasks/requirements.txt
       - name: Auto assign team label
-        run: inv -e github.assign-team-label --pr-id='${{ github.event.pull_request.number }}'
+        env:
+          PR_ID: ${{ github.event.pull_request.number }}
+        run: inv -e github.assign-team-label --pr-id="$PR_ID"
   release-note-check:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
@@ -63,10 +65,13 @@ jobs:
       LABELS: ${{ steps.pr-labels.outputs.LABELS }}
     steps:
       - name: Get PR labels
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_NUMBER: ${{ github.event.number }}
         id: pr-labels
         run: |
-          labels="$(gh pr view '${{ github.event.pull_request.number }}' --json labels --jq '[.labels[].name] | (join(" "))')"
-          echo "Fetched labels for PR ${{github.event.number}}: $labels"
+          labels="$(gh pr view "$PR_NUMBER" --json labels --jq '[.labels[].name] | (join(" "))')"
+          echo "Fetched labels for PR $EVENT_NUMBER: $labels"
           echo "LABELS=$labels" >> "$GITHUB_OUTPUT"
   team-label-check:
     needs: fetch-labels

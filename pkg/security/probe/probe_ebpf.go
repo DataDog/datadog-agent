@@ -80,7 +80,9 @@ const (
 	// MaxOnDemandEventsPerSecond represents the maximum number of on demand events per second
 	// allowed before we switch off the subsystem
 	MaxOnDemandEventsPerSecond = 1_000
+)
 
+const (
 	playSnapShotState int32 = iota + 1
 	replaySnapShotState
 )
@@ -1698,7 +1700,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	}
 
 	// replay the snapshot
-	p.playSnapShotState.Store(replaySnapShotState)
+	p.playSnapShotState.CompareAndSwap(0, replaySnapShotState)
 
 	return ars, nil
 }
@@ -1859,6 +1861,10 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 		manager.ConstantEditor{
 			Name:  "do_fork_input",
 			Value: getDoForkInput(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "do_dentry_open_without_inode",
+			Value: getDoDentryOpenWithoutInode(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "has_usernamespace_first_arg",
@@ -2076,6 +2082,13 @@ func getDoForkInput(kernelVersion *kernel.Version) uint64 {
 	return doForkListInput
 }
 
+func getDoDentryOpenWithoutInode(kernelversion *kernel.Version) uint64 {
+	if kernelversion.Code != 0 && kernelversion.Code >= kernel.Kernel6_10 {
+		return 1
+	}
+	return 0
+}
+
 func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
 	if val, err := constantfetch.GetHasUsernamespaceFirstArgWithBtf(); err == nil {
 		if val {
@@ -2191,6 +2204,16 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameMountMntID, "struct mount", "mnt_id", "")
 	if kv.Code >= kernel.Kernel5_3 {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameKernelCloneArgsExitSignal, "struct kernel_clone_args", "exit_signal", "linux/sched/task.h")
+	}
+
+	// inode time offsets
+	// no runtime compilation for those, we expect them to default to 0 if not there and use the fallback
+	// in the eBPF code itself in that case
+	if kv.Code >= kernel.Kernel6_11 {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeCtimeSec, "struct inode", "i_ctime_sec", "")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeCtimeNsec, "struct inode", "i_ctime_nsec", "")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeMtimeSec, "struct inode", "i_mtime_sec", "")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeMtimeNsec, "struct inode", "i_mtime_nsec", "")
 	}
 
 	// rename offsets

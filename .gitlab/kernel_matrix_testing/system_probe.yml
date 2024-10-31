@@ -122,7 +122,6 @@ kmt_setup_env_sysprobe_arm64:
     AMI_ID_ARG: "--arm-ami-id=$KERNEL_MATRIX_TESTING_ARM_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-arm
     TEST_COMPONENT: system-probe
-    TEST_SETS: "only_usm,no_usm"
 
 kmt_setup_env_sysprobe_x64:
   extends:
@@ -135,7 +134,6 @@ kmt_setup_env_sysprobe_x64:
     AMI_ID_ARG: "--x86-ami-id=$KERNEL_MATRIX_TESTING_X86_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-x86
     TEST_COMPONENT: system-probe
-    TEST_SETS: "only_usm,no_usm"
 
 .upload_sysprobe_tests:
   stage: kernel_matrix_testing_prepare

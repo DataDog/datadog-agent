@@ -39,10 +39,8 @@ const (
 	volumeName = "datadog-auto-instrumentation"
 	mountPath  = "/datadog-lib"
 
-	// defaultMilliCPURequest defines default milli cpu request number.
-	defaultMilliCPURequest int64 = 50 // 0.05 core
-	// defaultMemoryRequest defines default memory request size.
-	defaultMemoryRequest int64 = 100 * 1024 * 1024 // 100 MB (recommended minimum by Alpine)
+	minimumCPULimit    float64 = 50                // 0.05 core, otherwise copying + library initialization is going to take forever
+	minimumMemoryLimit float64 = 100 * 1024 * 1024 // 100 MB (recommended minimum by Alpine)
 
 	webhookName = "lib_injection"
 )
@@ -55,7 +53,7 @@ type Webhook struct {
 	resources                []string
 	operations               []admissionregistrationv1.OperationType
 	initSecurityContext      *corev1.SecurityContext
-	initResourceRequirements corev1.ResourceRequirements
+	initResourceRequirements initResourceRequirementConfiguration
 	containerRegistry        string
 	injectorImageTag         string
 	injectionFilter          mutatecommon.InjectionFilter
@@ -80,7 +78,7 @@ func NewWebhook(wmeta workloadmeta.Component, filter mutatecommon.InjectionFilte
 		return nil, err
 	}
 
-	initResourceRequirements, err := initResources()
+	initResource, err := getInitResourceConfiguration()
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +105,7 @@ func NewWebhook(wmeta workloadmeta.Component, filter mutatecommon.InjectionFilte
 		resources:                []string{"pods"},
 		operations:               []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		initSecurityContext:      initSecurityContext,
-		initResourceRequirements: initResourceRequirements,
+		initResourceRequirements: initResource,
 		injectionFilter:          filter,
 		containerRegistry:        containerRegistry,
 		injectorImageTag:         pkgconfigsetup.Datadog().GetString("apm_config.instrumentation.injector_image_tag"),
@@ -564,9 +562,9 @@ func (w *Webhook) extractLibrariesFromAnnotations(pod *corev1.Pod) []libInfo {
 	return libList
 }
 
-func (w *Webhook) initContainerMutators() containerMutators {
+func (w *Webhook) initContainerMutators(requirements corev1.ResourceRequirements) containerMutators {
 	return containerMutators{
-		containerResourceRequirements{w.initResourceRequirements},
+		containerResourceRequirements{requirements},
 		containerSecurityContext{w.initSecurityContext},
 	}
 }
@@ -590,8 +588,136 @@ func (w *Webhook) newInjector(startTime time.Time, pod *corev1.Pod, opts ...inje
 		podMutator(w.version)
 }
 
+func initContainerIsSidecar(container *corev1.Container) bool {
+	return container.RestartPolicy != nil && *container.RestartPolicy == corev1.ContainerRestartPolicyAlways
+}
+
+// podSumRessourceRequirements computes the sum of cpu/memory necessary for the whole pod.
+// This is computed as max(max(initContainer resources), sum(container resources) + sum(sidecar containers))
+// for both limit and request
+// https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/#resource-sharing-within-containers
+func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
+	ressourceRequirement := corev1.ResourceRequirements{
+		Limits:   corev1.ResourceList{},
+		Requests: corev1.ResourceList{},
+	}
+
+	for _, k := range [2]corev1.ResourceName{corev1.ResourceMemory, corev1.ResourceCPU} {
+		// Take max(initContainer ressource)
+		for i := range pod.Spec.InitContainers {
+			c := &pod.Spec.InitContainers[i]
+			if initContainerIsSidecar(c) {
+				// This is a sidecar container, since it will run alongside the main containers
+				// we need to add it's resources to the main container's resources
+				continue
+			}
+			if limit, ok := c.Resources.Limits[k]; ok {
+				existing := ressourceRequirement.Limits[k]
+				if limit.Cmp(existing) == 1 {
+					ressourceRequirement.Limits[k] = limit
+				}
+			}
+			if request, ok := c.Resources.Requests[k]; ok {
+				existing := ressourceRequirement.Requests[k]
+				if request.Cmp(existing) == 1 {
+					ressourceRequirement.Requests[k] = request
+				}
+			}
+		}
+
+		limitSum := resource.Quantity{}
+		reqSum := resource.Quantity{}
+		for i := range pod.Spec.Containers {
+			c := &pod.Spec.Containers[i]
+			if l, ok := c.Resources.Limits[k]; ok {
+				limitSum.Add(l)
+			}
+			if l, ok := c.Resources.Requests[k]; ok {
+				reqSum.Add(l)
+			}
+		}
+		for i := range pod.Spec.InitContainers {
+			c := &pod.Spec.InitContainers[i]
+			if !initContainerIsSidecar(c) {
+				continue
+			}
+			if l, ok := c.Resources.Limits[k]; ok {
+				limitSum.Add(l)
+			}
+			if l, ok := c.Resources.Requests[k]; ok {
+				reqSum.Add(l)
+			}
+		}
+
+		// Take max(sum(container resources) + sum(sidecar container resources))
+		existingLimit := ressourceRequirement.Limits[k]
+		if limitSum.Cmp(existingLimit) == 1 {
+			ressourceRequirement.Limits[k] = limitSum
+		}
+
+		existingReq := ressourceRequirement.Requests[k]
+		if reqSum.Cmp(existingReq) == 1 {
+			ressourceRequirement.Requests[k] = reqSum
+		}
+	}
+
+	return ressourceRequirement
+}
+
+// initContainerResourceRequirements computes init container cpu/memory requests and limits.
+// There are two cases:
+//
+//  1. If a resource quantity was set in config, we use it
+//
+//  2. If no quantity was set, we try to use as much of the resource as we can without impacting
+//     pod scheduling.
+//     Init containers are run one after another. This means that any single init container can use
+//     the maximum amount of the resource requested by the original pod wihtout changing how much of
+//     this resource is necessary.
+//     In particular, for the QoS Guaranteed Limits and Requests have to be equal for every container.
+//     which means that the max amount of request/limits that we compute is going to be equal to each other
+//     so our init container will also have request == limit.
+//
+//     In the 2nd case, of we wouldn't have enough memory, we bail on injection
+func initContainerResourceRequirements(pod *corev1.Pod, conf initResourceRequirementConfiguration) (requirements corev1.ResourceRequirements, skipInjection bool) {
+	requirements = corev1.ResourceRequirements{
+		Limits:   corev1.ResourceList{},
+		Requests: corev1.ResourceList{},
+	}
+	podRequirements := podSumRessourceRequirements(pod)
+
+	for _, k := range [2]corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory} {
+		if q, ok := conf[k]; ok {
+			requirements.Limits[k] = q
+			requirements.Requests[k] = q
+		} else {
+			if maxPodLim, ok := podRequirements.Limits[k]; ok {
+				if (k == corev1.ResourceMemory && maxPodLim.AsApproximateFloat64() < minimumMemoryLimit) ||
+					(k == corev1.ResourceCPU && maxPodLim.AsApproximateFloat64() < minimumCPULimit) {
+					// If the pod before adding instrumentation init containers would have had a limits smaller than
+					// a certain amount, we just don't do anything, for two reasons:
+					// 1. The init containers need quite a lot of memory/CPU in order to not OOM or initialize in reasonnable time
+					// 2. The APM libraries themselves will increase footprint of the container by a
+					//   non trivial amount, and we don't want to cause issues for constrained apps
+					return corev1.ResourceRequirements{}, true
+
+				}
+				requirements.Limits[k] = maxPodLim
+			}
+			if maxPodReq, ok := podRequirements.Requests[k]; ok {
+				requirements.Requests[k] = maxPodReq
+			}
+		}
+	}
+	return requirements, false
+}
+
 func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, config extractedPodLibInfo) error {
 	if len(config.libs) == 0 {
+		return nil
+	}
+	requirements, skipInjection := initContainerResourceRequirements(pod, w.initResourceRequirements)
+	if skipInjection {
 		return nil
 	}
 
@@ -601,7 +727,7 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, config extractedPodLib
 		injectionType  = config.source.injectionType()
 		autoDetected   = config.source.isFromLanguageDetection()
 
-		initContainerMutators = w.initContainerMutators()
+		initContainerMutators = w.initContainerMutators(requirements)
 		injector              = w.newInjector(time.Now(), pod, injectorWithLibRequirementOptions(libRequirementOptions{
 			initContainerMutators: initContainerMutators,
 		}))
@@ -650,35 +776,28 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, config extractedPodLib
 	return lastError
 }
 
-func initResources() (corev1.ResourceRequirements, error) {
+type initResourceRequirementConfiguration map[corev1.ResourceName]resource.Quantity
 
-	var resources = corev1.ResourceRequirements{Limits: corev1.ResourceList{}, Requests: corev1.ResourceList{}}
+func getInitResourceConfiguration() (initResourceRequirementConfiguration, error) {
+	conf := initResourceRequirementConfiguration{}
 
 	if pkgconfigsetup.Datadog().IsSet("admission_controller.auto_instrumentation.init_resources.cpu") {
 		quantity, err := resource.ParseQuantity(pkgconfigsetup.Datadog().GetString("admission_controller.auto_instrumentation.init_resources.cpu"))
 		if err != nil {
-			return resources, err
+			return conf, err
 		}
-		resources.Requests[corev1.ResourceCPU] = quantity
-		resources.Limits[corev1.ResourceCPU] = quantity
-	} else {
-		resources.Requests[corev1.ResourceCPU] = *resource.NewMilliQuantity(defaultMilliCPURequest, resource.DecimalSI)
-		resources.Limits[corev1.ResourceCPU] = *resource.NewMilliQuantity(defaultMilliCPURequest, resource.DecimalSI)
+		conf[corev1.ResourceCPU] = quantity
 	}
 
 	if pkgconfigsetup.Datadog().IsSet("admission_controller.auto_instrumentation.init_resources.memory") {
 		quantity, err := resource.ParseQuantity(pkgconfigsetup.Datadog().GetString("admission_controller.auto_instrumentation.init_resources.memory"))
 		if err != nil {
-			return resources, err
+			return conf, err
 		}
-		resources.Requests[corev1.ResourceMemory] = quantity
-		resources.Limits[corev1.ResourceMemory] = quantity
-	} else {
-		resources.Requests[corev1.ResourceMemory] = *resource.NewQuantity(defaultMemoryRequest, resource.DecimalSI)
-		resources.Limits[corev1.ResourceMemory] = *resource.NewQuantity(defaultMemoryRequest, resource.DecimalSI)
+		conf[corev1.ResourceMemory] = quantity
 	}
 
-	return resources, nil
+	return conf, nil
 }
 
 func parseInitSecurityContext() (*corev1.SecurityContext, error) {
