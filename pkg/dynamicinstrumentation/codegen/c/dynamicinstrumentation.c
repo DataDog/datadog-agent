@@ -71,6 +71,7 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
     __u16 param_size;
     __u16 slice_length;
     __u16 *collectionLimit;
+    __u8 stack_counter = 0;
 
     int chunk_size = 0;
     __u64 outputOffset = 0;
@@ -87,6 +88,7 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
     struct expression_context context = {
         .ctx = ctx,
         .output_offset = &outputOffset,
+        .stack_counter = &stack_counter,
         .event = event,
         .temp_storage = temp_storage,
         .zero_string = zero_string
@@ -95,6 +97,18 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
     {{ .InstrumentationInfo.BPFParametersSourceCode }}
 
     bpf_ringbuf_submit(event, 0);
+
+
+    // Drain the stack map for next invocation
+    __u8 m = 0;
+    __u64 placeholder;
+    long pop_ret = 0;
+    for (m = 0; m < stack_counter; m++) {
+        pop_ret = bpf_map_pop_elem(&param_stack, &placeholder);
+        if (pop_ret != 0) {
+            break;
+        }
+    }
 
     return 0;
 }

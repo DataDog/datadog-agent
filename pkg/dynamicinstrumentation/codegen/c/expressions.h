@@ -17,6 +17,7 @@ static __always_inline int read_register(struct expression_context context, __u6
         log_debug("error when reading data from register: %ld", err);
     }
     bpf_map_push_elem(&param_stack, &valueHolder, 0);
+    *context.stack_counter += 1;
     return err;
 }
 
@@ -31,6 +32,7 @@ static __always_inline int read_stack(struct expression_context context, size_t 
         log_debug("error when reading data from stack: %ld", err);
     }
     bpf_map_push_elem(&param_stack, &valueHolder, 0);
+    *context.stack_counter += 1;
     return err;
 }
 
@@ -69,6 +71,7 @@ static __always_inline int pop(struct expression_context context, __u64 num_elem
     int i;
     for(i = 0; i < num_elements; i++) {
         bpf_map_pop_elem(&param_stack, &valueHolder);
+        *context.stack_counter -= 1;
         log_debug("Popping to output: %llu", valueHolder);
         err = bpf_probe_read(&context.event->output[*(context.output_offset)+i], element_size, &valueHolder);
         if (err != 0) {
@@ -91,6 +94,8 @@ static __always_inline int dereference(struct expression_context context, __u32 
     err = bpf_map_pop_elem(&param_stack, &addressHolder);
     if (err != 0) {
         log_debug("Error popping: %ld", err);
+    } else {
+        *context.stack_counter -= 1;
     }
     log_debug("Going to dereference 0x%llx", addressHolder);
 
@@ -103,6 +108,7 @@ static __always_inline int dereference(struct expression_context context, __u32 
     __u64 encodedValueHolder = valueHolder & mask;
 
     bpf_map_push_elem(&param_stack, &encodedValueHolder, 0);
+    *context.stack_counter += 1;
     return err;
 }
 
@@ -116,6 +122,7 @@ static __always_inline int dereference_to_output(struct expression_context conte
     long err;
     __u64 addressHolder = 0;
     bpf_map_pop_elem(&param_stack, &addressHolder);
+    *context.stack_counter -= 1;
 
     __u64 valueHolder = 0;
 
@@ -148,6 +155,7 @@ static __always_inline int dereference_large(struct expression_context context, 
     long err;
     __u64 addressHolder = 0;
     bpf_map_pop_elem(&param_stack, &addressHolder);
+    *context.stack_counter -= 1;
 
     int i;
     __u32 chunk_size;
@@ -168,6 +176,7 @@ static __always_inline int dereference_large(struct expression_context context, 
 
     for (int i = 0; i < num_chunks; i++) {
         bpf_map_push_elem(&param_stack, &context.temp_storage[i], 0);
+        *context.stack_counter += 1;
     }
 
     // zero out shared array
@@ -187,6 +196,7 @@ static __always_inline int dereference_large_to_output(struct expression_context
     long err;
     __u64 addressHolder = 0;
     bpf_map_pop_elem(&param_stack, &addressHolder);
+    *context.stack_counter -= 1;
     err = bpf_probe_read(&context.event->output[*(context.output_offset)], element_size, (void*)(addressHolder));
     if (err != 0) {
         log_debug("error when reading data: %ld", err);
@@ -200,8 +210,11 @@ static __always_inline int apply_offset(struct expression_context context, size_
 {
     __u64 addressHolder = 0;
     bpf_map_pop_elem(&param_stack, &addressHolder);
+    *context.stack_counter -= 1;
+
     addressHolder += offset;
     bpf_map_push_elem(&param_stack, &addressHolder, 0);
+    *context.stack_counter += 1;
     return 0;
 }
 
@@ -213,9 +226,11 @@ static __always_inline int dereference_dynamic_to_output(struct expression_conte
     long err = 0;
     __u64 lengthToRead = 0;
     bpf_map_pop_elem(&param_stack, &lengthToRead);
+    *context.stack_counter -= 1;
 
     __u64 addressHolder = 0;
     bpf_map_pop_elem(&param_stack, &addressHolder);
+    *context.stack_counter -= 1;
 
     __u32 collection_size;
     collection_size = (__u16)lengthToRead;
@@ -243,6 +258,7 @@ static __always_inline int set_limit_entry(struct expression_context context, __
     // Read the 2 byte length from top of the stack, then set collectionLimit to the minimum of the two
     __u64 length;
     bpf_map_pop_elem(&param_stack, &length);
+    *context.stack_counter -= 1;
 
     __u16 lengthShort = (__u16)length;
     if (lengthShort > limit) {
@@ -265,6 +281,7 @@ static __always_inline int copy(struct expression_context context)
     __u64 holder;
     bpf_map_peek_elem(&param_stack, &holder);
     bpf_map_push_elem(&param_stack, &holder, 0);
+    *context.stack_counter += 1;
     return 0;
 }
 
@@ -281,6 +298,7 @@ static __always_inline int read_str_to_output(struct expression_context context,
         log_debug("error popping string struct addr: %ld", err);
         return err;
     }
+    *context.stack_counter -= 1;
 
     char* characterPointer = 0;
     err = bpf_probe_read(&characterPointer, sizeof(characterPointer), (void*)(stringStructAddressHolder));

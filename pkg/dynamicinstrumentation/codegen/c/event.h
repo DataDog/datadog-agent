@@ -10,6 +10,7 @@ struct event {
 
 struct expression_context {
     __u64 *output_offset;
+    __u8 *stack_counter;
     struct pt_regs *ctx;
     struct event *event;
     __u64 *temp_storage;
