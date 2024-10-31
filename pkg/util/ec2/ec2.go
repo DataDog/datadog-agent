@@ -96,7 +96,7 @@ func GetSourceName() string {
 }
 
 var instanceIDFetcher = cachedfetch.Fetcher{
-	Name: "EC2 InstanceID",
+	Name: "EC2 or DMI InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		hostname, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, GetIMDSVersion(false, false))
 		if err != nil {
