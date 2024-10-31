@@ -365,7 +365,7 @@ func getDiagnoses(isFlareLocal bool, deps diagnose.SuitesDeps) func() ([]byte, e
 			return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
 		}
 
-		diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(deps.SenderManager, deps.SecretResolver, deps.WMeta, deps.AC)
+		diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(deps.SenderManager, deps.SecretResolver, deps.WMeta, deps.AC, deps.Tagger)
 		diagnoses, err := diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
 		if err != nil && !diagCfg.RunLocal {
 			fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))

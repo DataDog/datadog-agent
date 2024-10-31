@@ -223,6 +223,7 @@ type processCacheDumpCliParams struct {
 	*command.GlobalParams
 
 	withArgs bool
+	format   string
 }
 
 //nolint:unused // TODO(SEC) Fix unused linter
@@ -246,6 +247,7 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 	processCacheDumpCmd.Flags().BoolVar(&cliParams.withArgs, "with-args", false, "add process arguments to the dump")
+	processCacheDumpCmd.Flags().StringVar(&cliParams.format, "format", "dot", "process cache dump format")
 
 	processCacheCmd := &cobra.Command{
 		Use:   "process-cache",
@@ -328,7 +330,7 @@ func dumpProcessCache(_ log.Component, _ config.Component, _ secrets.Component, 
 	}
 	defer client.Close()
 
-	filename, err := client.DumpProcessCache(processCacheDumpArgs.withArgs)
+	filename, err := client.DumpProcessCache(processCacheDumpArgs.withArgs, processCacheDumpArgs.format)
 	if err != nil {
 		return fmt.Errorf("unable to get a process cache dump: %w", err)
 	}

@@ -12,12 +12,12 @@ import (
 )
 
 func parseRule(rule string) (*Rule, error) {
-	pc := NewParsingContext()
+	pc := NewParsingContext(false)
 	return pc.ParseRule(rule)
 }
 
 func parseMacro(macro string) (*Macro, error) {
-	pc := NewParsingContext()
+	pc := NewParsingContext(false)
 	return pc.ParseMacro(macro)
 }
 

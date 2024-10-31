@@ -495,3 +495,15 @@ def extract_test_qa_description(pr_body: str) -> str:
     if index_of_next_section == -1:
         return ''
     return '\n'.join(pr_body_lines[index_of_test_qa_section + 1 : index_of_next_section]).strip()
+
+
+@task
+def assign_codereview_label(_, pr_id=-1):
+    """
+    Assigns a code review complexity label based on PR attributes (files changed, additions, deletions, comments)
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI('DataDog/datadog-agent')
+    complexity = gh.get_codereview_complexity(pr_id)
+    gh.update_review_complexity_labels(pr_id, complexity)

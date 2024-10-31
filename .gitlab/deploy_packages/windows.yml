@@ -18,6 +18,9 @@ deploy_packages_windows-x64-7:
       --include "datadog-agent-7*.msi"
       --include "datadog-agent-7*.debug.zip"
       $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/
+  artifacts:
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
 
 deploy_staging_windows_tags-7:
   rules:

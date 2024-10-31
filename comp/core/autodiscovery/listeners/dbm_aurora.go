@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
 	dbmconfig "github.com/DataDog/datadog-agent/pkg/databasemonitoring/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -68,7 +67,7 @@ type DBMAuroraService struct {
 }
 
 // NewDBMAuroraListener returns a new DBMAuroraListener
-func NewDBMAuroraListener(Config, *telemetry.Store) (ServiceListener, error) {
+func NewDBMAuroraListener(ServiceListernerDeps) (ServiceListener, error) {
 	config, err := dbmconfig.NewAuroraAutodiscoveryConfig()
 	if err != nil {
 		return nil, err

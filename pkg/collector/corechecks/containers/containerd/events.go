@@ -18,7 +18,6 @@ import (
 	containerdevents "github.com/containerd/containerd/events"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -29,7 +28,7 @@ import (
 )
 
 // computeEvents converts Containerd events into Datadog events
-func computeEvents(events []containerdEvent, sender sender.Sender, fil *containers.Filter) {
+func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.Sender, fil *containers.Filter) {
 	for _, e := range events {
 		split := strings.Split(e.Topic, "/")
 		if len(split) != 3 {
@@ -52,7 +51,7 @@ func computeEvents(events []containerdEvent, sender sender.Sender, fil *containe
 		alertType := event.AlertTypeInfo
 		if split[1] == "containers" || split[1] == "tasks" {
 			// For task events, we use the container ID in order to query the Tagger's API
-			t, err := tagger.Tag(types.NewEntityID(types.ContainerID, e.ID), types.HighCardinality)
+			t, err := c.tagger.Tag(types.NewEntityID(types.ContainerID, e.ID), types.HighCardinality)
 			if err != nil {
 				// If there is an error retrieving tags from the Tagger, we can still submit the event as is.
 				log.Errorf("Could not retrieve tags for the container %s: %v", e.ID, err)

@@ -263,6 +263,7 @@ func init() {
 
 	// Configuration defaults
 	initConfig()
+	datadog.BuildSchema()
 }
 
 // initCommonWithServerless initializes configs that are common to all agents, in particular serverless.
@@ -672,6 +673,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Autoscaling product
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
+	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
+	config.BindEnv("autoscaling.failover.metrics")
 
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
