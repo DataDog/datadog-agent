@@ -153,11 +153,13 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 		}
 	}
 
-	apiMap["key"] = coreCfg.Get("api_key")
+	if coreCfg != nil {
+		apiMap["key"] = coreCfg.Get("api_key")
 
-	apiSite, ok := apiMap["site"]
-	if ok && apiSite == "" {
-		apiMap["site"] = coreCfg.Get("site")
+		apiSite, ok := apiMap["site"]
+		if ok && apiSite == "" {
+			apiMap["site"] = coreCfg.Get("site")
+		}
 	}
 
 	*conf = *confmap.NewFromStringMap(stringMapConf)
