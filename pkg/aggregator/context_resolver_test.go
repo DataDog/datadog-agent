@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -74,7 +75,7 @@ func testTrackContext(t *testing.T, store *tags.Store) {
 		SampleRate: 1,
 	}
 
-	contextResolver := newContextResolver(store, "test")
+	contextResolver := newContextResolver(nooptagger.NewTaggerClient(), store, "test")
 
 	// Track the 2 contexts
 	contextKey1 := contextResolver.trackContext(&mSample1, 0)
@@ -138,7 +139,7 @@ func testExpireContexts(t *testing.T, store *tags.Store) {
 		Tags:       []string{"foo"},
 		SampleRate: 1,
 	}
-	contextResolver := newTimestampContextResolver(store, "test", 2, 4)
+	contextResolver := newTimestampContextResolver(nooptagger.NewTaggerClient(), store, "test", 2, 4)
 
 	// Track the 2 contexts
 	contextKey1 := contextResolver.trackContext(&mSample1, 4) // expires after 6
@@ -190,7 +191,7 @@ func testCountBasedExpireContexts(t *testing.T, store *tags.Store) {
 	mSample1 := metrics.MetricSample{Name: "my.metric.name1"}
 	mSample2 := metrics.MetricSample{Name: "my.metric.name2"}
 	mSample3 := metrics.MetricSample{Name: "my.metric.name3"}
-	contextResolver := newCountBasedContextResolver(2, store, "test")
+	contextResolver := newCountBasedContextResolver(2, store, nooptagger.NewTaggerClient(), "test")
 
 	contextKey1 := contextResolver.trackContext(&mSample1)
 	contextKey2 := contextResolver.trackContext(&mSample2)
@@ -215,7 +216,7 @@ func TestCountBasedExpireContexts(t *testing.T) {
 }
 
 func testTagDeduplication(t *testing.T, store *tags.Store) {
-	resolver := newContextResolver(store, "test")
+	resolver := newContextResolver(nooptagger.NewTaggerClient(), store, "test")
 
 	ckey := resolver.trackContext(&metrics.MetricSample{
 		Name: "foo",
@@ -253,7 +254,7 @@ func (s *mockSample) GetTags(tb, mb tagset.TagsAccumulator, _ metrics.EnrichTags
 }
 
 func TestOriginTelemetry(t *testing.T) {
-	r := newContextResolver(tags.NewStore(true, "test"), "test")
+	r := newContextResolver(nooptagger.NewTaggerClient(), tags.NewStore(true, "test"), "test")
 	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"ook"}}, 0)
 	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"eek"}}, 0)
 	r.trackContext(&mockSample{"foo", []string{"bar"}, []string{"ook"}}, 0)

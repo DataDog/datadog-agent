@@ -59,7 +59,7 @@ func TestConnTrackerCrossNamespaceAllNsDisabled(t *testing.T) {
 
 	time.Sleep(time.Second)
 	trans := ct.GetTranslationForConn(
-		&network.ConnectionStats{
+		&network.ConnectionTuple{
 			Source: util.AddressFromNetIP(laddr.IP),
 			SPort:  uint16(laddr.Port),
 			Dest:   util.AddressFromString("2.2.2.4"),

@@ -108,9 +108,9 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/api v0.56.2
+	github.com/DataDog/datadog-agent/pkg/api v0.57.1
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel
-	github.com/DataDog/datadog-agent/pkg/version v0.57.0
+	github.com/DataDog/datadog-agent/pkg/version v0.57.1
 	github.com/gorilla/mux v1.8.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.104.0
@@ -158,9 +158,9 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.123 // indirect
-	github.com/DataDog/datadog-agent/comp/core/config v0.56.2 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.56.2 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/config v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.58.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.58.0-devel // indirect
@@ -191,7 +191,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.60.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/utils v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.56.0-rc.3 // indirect

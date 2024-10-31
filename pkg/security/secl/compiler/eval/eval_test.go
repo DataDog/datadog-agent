@@ -41,7 +41,7 @@ func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]
 func parseRule(expr string, model Model, opts *Opts) (*Rule, error) {
 	rule := NewRule("id1", expr, opts)
 
-	pc := ast.NewParsingContext()
+	pc := ast.NewParsingContext(false)
 
 	if err := rule.Parse(pc); err != nil {
 		return nil, fmt.Errorf("parsing error: %v", err)
@@ -608,7 +608,7 @@ func TestConstants(t *testing.T) {
 
 func TestMacroList(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext()
+	pc := ast.NewParsingContext(false)
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
 
 	macro, err := NewMacro(
@@ -638,7 +638,7 @@ func TestMacroList(t *testing.T) {
 
 func TestMacroExpression(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext()
+	pc := ast.NewParsingContext(false)
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
 
 	macro, err := NewMacro(
@@ -677,7 +677,7 @@ func TestMacroExpression(t *testing.T) {
 
 func TestMacroPartial(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext()
+	pc := ast.NewParsingContext(false)
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
 
 	macro, err := NewMacro(
@@ -738,7 +738,7 @@ func TestNestedMacros(t *testing.T) {
 	}
 
 	model := &testModel{}
-	pc := ast.NewParsingContext()
+	pc := ast.NewParsingContext(false)
 	opts := newOptsWithParams(make(map[string]interface{}), nil)
 
 	macro1, err := NewMacro(
@@ -1559,7 +1559,7 @@ func BenchmarkPartial(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	pc := ast.NewParsingContext()
+	pc := ast.NewParsingContext(false)
 	if err := rule.GenEvaluator(model, pc); err != nil {
 		b.Fatal(err)
 	}

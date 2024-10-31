@@ -122,7 +122,11 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.processData.Register(c.serviceExtractor)
 
 	// LocalResolver is a singleton LocalResolver
-	c.localresolver = resolver.NewLocalResolver(proccontainers.GetSharedContainerProvider(c.wmeta), clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)
+	sharedContainerProvider, err := proccontainers.GetSharedContainerProvider()
+	if err != nil {
+		return err
+	}
+	c.localresolver = resolver.NewLocalResolver(sharedContainerProvider, clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)
 	c.localresolver.Run()
 
 	return nil

@@ -84,15 +84,16 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 	out := &model.Connections{
 		Conns: []*model.Connection{
 			{
-				Laddr:              &model.Addr{Ip: "10.1.1.1", Port: int32(1000)},
-				Raddr:              &model.Addr{Ip: "10.2.2.2", Port: int32(9000)},
-				LastBytesSent:      2,
-				LastBytesReceived:  101,
-				LastRetransmits:    201,
-				LastTcpEstablished: 1,
-				LastTcpClosed:      1,
-				Pid:                int32(6000),
-				NetNS:              7,
+				Laddr:                &model.Addr{Ip: "10.1.1.1", Port: int32(1000)},
+				Raddr:                &model.Addr{Ip: "10.2.2.2", Port: int32(9000)},
+				IsLocalPortEphemeral: model.EphemeralPortState_ephemeralFalse,
+				LastBytesSent:        2,
+				LastBytesReceived:    101,
+				LastRetransmits:      201,
+				LastTcpEstablished:   1,
+				LastTcpClosed:        1,
+				Pid:                  int32(6000),
+				NetNS:                7,
 				IpTranslation: &model.IPTranslation{
 					ReplSrcIP:   "20.1.1.1",
 					ReplDstIP:   "20.1.1.1",
@@ -111,8 +112,9 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				},
 			},
 			{
-				Laddr: &model.Addr{Ip: "10.1.1.1", Port: int32(1000)},
-				Raddr: &model.Addr{Ip: "8.8.8.8", Port: int32(53)},
+				Laddr:                &model.Addr{Ip: "10.1.1.1", Port: int32(1000)},
+				Raddr:                &model.Addr{Ip: "8.8.8.8", Port: int32(53)},
+				IsLocalPortEphemeral: model.EphemeralPortState_ephemeralFalse,
 
 				Type:      model.ConnectionType_udp,
 				Family:    model.ConnectionFamily_v6,
@@ -191,9 +193,16 @@ func TestSerialization(t *testing.T) {
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
-				{
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: util.AddressFromString("10.1.1.1"),
 					Dest:   util.AddressFromString("10.2.2.2"),
+					Pid:    6000,
+					NetNS:  7,
+					SPort:  1000,
+					DPort:  9000,
+					Type:   network.TCP,
+					Family: network.AFINET6,
+				},
 					Monotonic: network.StatCounters{
 						SentBytes:   1,
 						RecvBytes:   100,
@@ -207,10 +216,7 @@ func TestSerialization(t *testing.T) {
 						Retransmits:    201,
 					},
 					LastUpdateEpoch: 50,
-					Pid:             6000,
-					NetNS:           7,
-					SPort:           1000,
-					DPort:           9000,
+
 					IPTranslation: &network.IPTranslation{
 						ReplSrcIP:   util.AddressFromString("20.1.1.1"),
 						ReplDstIP:   util.AddressFromString("20.1.1.1"),
@@ -218,8 +224,6 @@ func TestSerialization(t *testing.T) {
 						ReplDstPort: 80,
 					},
 
-					Type:      network.TCP,
-					Family:    network.AFINET6,
 					Direction: network.LOCAL,
 					Via: &network.Via{
 						Subnet: network.Subnet{
@@ -228,13 +232,14 @@ func TestSerialization(t *testing.T) {
 					},
 					ProtocolStack: protocols.Stack{Application: protocols.HTTP},
 				},
-				{
-					Source:        util.AddressFromString("10.1.1.1"),
-					Dest:          util.AddressFromString("8.8.8.8"),
-					SPort:         1000,
-					DPort:         53,
-					Type:          network.UDP,
-					Family:        network.AFINET6,
+				{ConnectionTuple: network.ConnectionTuple{
+					Source: util.AddressFromString("10.1.1.1"),
+					Dest:   util.AddressFromString("8.8.8.8"),
+					SPort:  1000,
+					DPort:  53,
+					Type:   network.UDP,
+					Family: network.AFINET6,
+				},
 					Direction:     network.LOCAL,
 					StaticTags:    tagOpenSSL | tagTLS,
 					ProtocolStack: protocols.Stack{Application: protocols.HTTP2},
@@ -491,18 +496,18 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
-				{
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: localhost,
 					Dest:   localhost,
 					SPort:  clientPort,
 					DPort:  serverPort,
-				},
-				{
+				}},
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: localhost,
 					Dest:   localhost,
 					SPort:  serverPort,
 					DPort:  clientPort,
-				},
+				}},
 			},
 		},
 		HTTP: map[http.Key]*http.RequestStats{
@@ -554,18 +559,20 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 	out := &model.Connections{
 		Conns: []*model.Connection{
 			{
-				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
-				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
-				HttpAggregations: httpOutBlob,
-				RouteIdx:         -1,
-				Protocol:         marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Laddr:                &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				Raddr:                &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				IsLocalPortEphemeral: model.EphemeralPortState_ephemeralTrue,
+				HttpAggregations:     httpOutBlob,
+				RouteIdx:             -1,
+				Protocol:             marshal.FormatProtocolStack(protocols.Stack{}, 0),
 			},
 			{
-				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
-				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
-				HttpAggregations: httpOutBlob,
-				RouteIdx:         -1,
-				Protocol:         marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Laddr:                &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				Raddr:                &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				IsLocalPortEphemeral: model.EphemeralPortState_ephemeralFalse,
+				HttpAggregations:     httpOutBlob,
+				RouteIdx:             -1,
+				Protocol:             marshal.FormatProtocolStack(protocols.Stack{}, 0),
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{
@@ -651,18 +658,18 @@ func TestHTTP2SerializationWithLocalhostTraffic(t *testing.T) {
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
-				{
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: localhost,
 					Dest:   localhost,
 					SPort:  clientPort,
 					DPort:  serverPort,
-				},
-				{
+				}},
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: localhost,
 					Dest:   localhost,
 					SPort:  serverPort,
 					DPort:  clientPort,
-				},
+				}},
 			},
 		},
 		HTTP2: map[http.Key]*http.RequestStats{
@@ -714,18 +721,20 @@ func TestHTTP2SerializationWithLocalhostTraffic(t *testing.T) {
 	out := &model.Connections{
 		Conns: []*model.Connection{
 			{
-				Laddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
-				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
-				Http2Aggregations: http2OutBlob,
-				RouteIdx:          -1,
-				Protocol:          marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Laddr:                &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				Raddr:                &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				Http2Aggregations:    http2OutBlob,
+				RouteIdx:             -1,
+				Protocol:             marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				IsLocalPortEphemeral: model.EphemeralPortState_ephemeralTrue,
 			},
 			{
-				Laddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
-				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
-				Http2Aggregations: http2OutBlob,
-				RouteIdx:          -1,
-				Protocol:          marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Laddr:                &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				Raddr:                &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				Http2Aggregations:    http2OutBlob,
+				RouteIdx:             -1,
+				Protocol:             marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				IsLocalPortEphemeral: model.EphemeralPortState_ephemeralFalse,
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{
@@ -758,12 +767,12 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
-				{
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: util.AddressFromString("10.0.15.1"),
 					SPort:  uint16(60000),
 					Dest:   util.AddressFromString("172.217.10.45"),
 					DPort:  uint16(8080),
-				},
+				}},
 			},
 		},
 	}
@@ -824,12 +833,12 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
-				{
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: util.AddressFromString("10.0.15.1"),
 					SPort:  uint16(60000),
 					Dest:   util.AddressFromString("172.217.10.45"),
 					DPort:  uint16(8080),
-				},
+				}},
 			},
 		},
 	}
@@ -913,20 +922,20 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 	)
 
 	connections := []network.ConnectionStats{
-		{
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  clientPort,
 			Dest:   localhost,
 			DPort:  serverPort,
 			Pid:    1,
-		},
-		{
+		}},
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  serverPort,
 			Dest:   localhost,
 			DPort:  clientPort,
 			Pid:    2,
-		},
+		}},
 	}
 
 	const topicName = "TopicName"
@@ -975,6 +984,7 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 			{
 				Laddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				Raddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				IsLocalPortEphemeral:    model.EphemeralPortState_ephemeralTrue,
 				DataStreamsAggregations: kafkaOutBlob,
 				RouteIdx:                -1,
 				Protocol:                marshal.FormatProtocolStack(protocols.Stack{}, 0),
@@ -983,6 +993,7 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 			{
 				Laddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Raddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				IsLocalPortEphemeral:    model.EphemeralPortState_ephemeralFalse,
 				DataStreamsAggregations: kafkaOutBlob,
 				RouteIdx:                -1,
 				Protocol:                marshal.FormatProtocolStack(protocols.Stack{}, 0),

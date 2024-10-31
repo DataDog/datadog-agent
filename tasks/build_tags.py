@@ -37,6 +37,7 @@ ALL_TAGS = {
     "oracle",
     "orchestrator",
     "otlp",
+    "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
     "podman",
     "process",
     "python",
@@ -139,7 +140,7 @@ SECURITY_AGENT_TAGS = {
 SERVERLESS_TAGS = {"serverless", "otlp"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
-SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"linux_bpf", "npm", "remotewmonly"}).difference({"python", "systemd"})
+SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"linux_bpf", "npm", "pcap", "remotewmonly"}).difference({"python", "systemd"})
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
 TRACE_AGENT_TAGS = {"docker", "containerd", "datadog.no_waf", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman"}
@@ -162,7 +163,7 @@ AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 ### Tag exclusion lists
 
 # List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "podman", "trivy"}
+LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "pcap", "podman", "trivy"}
 
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDE_TAGS = {"linux_bpf"}
@@ -174,7 +175,7 @@ DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "cri"}
 UNIT_TEST_TAGS = {"test"}
 
 # List of tags to always remove when running unit tests
-UNIT_TEST_EXCLUDE_TAGS = {"datadog.no_waf"}
+UNIT_TEST_EXCLUDE_TAGS = {"datadog.no_waf", "pcap"}
 
 # Build type: maps flavor to build tags map
 build_tags = {

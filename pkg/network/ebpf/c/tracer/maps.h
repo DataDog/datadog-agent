@@ -27,7 +27,7 @@ BPF_HASH_MAP(tcp_retransmits, conn_tuple_t, __u32, 0)
 BPF_HASH_MAP(tcp_ongoing_connect_pid, skp_conn_tuple_t, pid_ts_t, 0)
 
 /* Will hold a flag to indicate that closed connections have already been flushed */
-BPF_HASH_MAP(conn_close_flushed, conn_tuple_t, __u64, 8192)
+BPF_HASH_MAP(conn_close_flushed, conn_tuple_t, __u64, 16384)
 
 /* Will hold the tcp/udp close events
  * The keys are the cpu number and the values a perf file descriptor for a perf event

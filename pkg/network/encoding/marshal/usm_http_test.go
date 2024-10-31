@@ -57,12 +57,12 @@ func TestFormatHTTPStats(t *testing.T) {
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
-				{
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: localhost,
 					Dest:   localhost,
 					SPort:  clientPort,
 					DPort:  serverPort,
-				},
+				}},
 			},
 		},
 		HTTP: map[http.Key]*http.RequestStats{
@@ -135,12 +135,12 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 	payload := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
-				{
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: util.AddressFromString("10.1.1.1"),
 					Dest:   util.AddressFromString("10.2.2.2"),
 					SPort:  60000,
 					DPort:  80,
-				},
+				}},
 			},
 		},
 		HTTP: map[http.Key]*http.RequestStats{
@@ -180,20 +180,20 @@ func TestIDCollisionRegression(t *testing.T) {
 	httpStats := http.NewRequestStats()
 	assert := assert.New(t)
 	connections := []network.ConnectionStats{
-		{
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("1.1.1.1"),
 			SPort:  60000,
 			Dest:   util.AddressFromString("2.2.2.2"),
 			DPort:  80,
 			Pid:    1,
-		},
-		{
+		}},
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("1.1.1.1"),
 			SPort:  60000,
 			Dest:   util.AddressFromString("2.2.2.2"),
 			DPort:  80,
 			Pid:    2,
-		},
+		}},
 	}
 
 	httpKey := http.NewKey(
@@ -238,20 +238,20 @@ func TestIDCollisionRegression(t *testing.T) {
 func TestLocalhostScenario(t *testing.T) {
 	assert := assert.New(t)
 	connections := []network.ConnectionStats{
-		{
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("127.0.0.1"),
 			SPort:  60000,
 			Dest:   util.AddressFromString("127.0.0.1"),
 			DPort:  80,
 			Pid:    1,
-		},
-		{
+		}},
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("127.0.0.1"),
 			SPort:  80,
 			Dest:   util.AddressFromString("127.0.0.1"),
 			DPort:  60000,
 			Pid:    2,
-		},
+		}},
 	}
 
 	httpStats := http.NewRequestStats()

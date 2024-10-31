@@ -203,7 +203,7 @@ func (e *ebpfConntracker) processEvents(ctx context.Context, done <-chan bool) e
 	}
 }
 
-func toConntrackTupleFromStats(src *netebpf.ConntrackTuple, stats *network.ConnectionStats) {
+func toConntrackTupleFromTuple(src *netebpf.ConntrackTuple, stats *network.ConnectionTuple) {
 	src.Sport = stats.SPort
 	src.Dport = stats.DPort
 	src.Saddr_l, src.Saddr_h = util.ToLowHigh(stats.Source)
@@ -228,12 +228,12 @@ func (e *ebpfConntracker) GetType() string {
 	return "ebpf"
 }
 
-func (e *ebpfConntracker) GetTranslationForConn(stats *network.ConnectionStats) *network.IPTranslation {
+func (e *ebpfConntracker) GetTranslationForConn(stats *network.ConnectionTuple) *network.IPTranslation {
 	start := time.Now()
 	src := tuplePool.Get()
 	defer tuplePool.Put(src)
 
-	toConntrackTupleFromStats(src, stats)
+	toConntrackTupleFromTuple(src, stats)
 	if log.ShouldLog(seelog.TraceLvl) {
 		log.Tracef("looking up in conntrack (stats): %s", stats)
 	}
@@ -319,11 +319,11 @@ func (e *ebpfConntracker) deleteTranslationNs(key *netebpf.ConntrackTuple, ns ui
 	return dst
 }
 
-func (e *ebpfConntracker) DeleteTranslation(stats *network.ConnectionStats) {
+func (e *ebpfConntracker) DeleteTranslation(stats *network.ConnectionTuple) {
 	key := tuplePool.Get()
 	defer tuplePool.Put(key)
 
-	toConntrackTupleFromStats(key, stats)
+	toConntrackTupleFromTuple(key, stats)
 
 	// attempt a delete from both root and connection's network namespace
 	if dst := e.deleteTranslationNs(key, e.rootNS); dst != nil {

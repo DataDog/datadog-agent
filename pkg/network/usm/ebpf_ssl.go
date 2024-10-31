@@ -592,6 +592,10 @@ func isBuildKit(procRoot string, pid uint32) bool {
 			}
 		}
 	}
+	if err != nil {
+		return false
+	}
+	defer file.Close()
 
 	buf := taskCommLenBufferPool.Get()
 	defer taskCommLenBufferPool.Put(buf)
