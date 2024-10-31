@@ -142,7 +142,7 @@ func setup(_ mode.Conf, tagger tagger.Component) (cloudservice.CloudService, *se
 
 	traceAgent := setupTraceAgent(tags)
 
-	metricAgent := setupMetricAgent(tags)
+	metricAgent := setupMetricAgent(tags, tagger)
 	metric.AddColdStartMetric(prefix, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 
 	setupOtlpAgent(metricAgent)
@@ -161,12 +161,13 @@ func setupTraceAgent(tags map[string]string) trace.ServerlessTraceAgent {
 	return traceAgent
 }
 
-func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
+func setupMetricAgent(tags map[string]string, tagger tagger.Component) *metrics.ServerlessMetricAgent {
 	pkgconfigsetup.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
 	pkgconfigsetup.Datadog().Set("dogstatsd_socket", "", model.SourceAgentRuntime)
 
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 0,
+		Tagger:               tagger,
 	}
 	// we don't want to add the container_id tag to metrics for cardinality reasons
 	tags = serverlessInitTag.WithoutContainerID(tags)
