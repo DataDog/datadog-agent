@@ -158,7 +158,7 @@ func getProviderCatalog(legacyHostnameResolution bool) []provider {
 	return providerCatalog
 }
 
-func saveHostname(cacheHostnameKey string, hostname string, providerName string) Data {
+func saveHostname(cacheHostnameKey string, hostname string, providerName string, legacyHostnameResolution bool) Data {
 	data := Data{
 		Hostname: hostname,
 		Provider: providerName,
@@ -167,7 +167,7 @@ func saveHostname(cacheHostnameKey string, hostname string, providerName string)
 	cache.Cache.Set(cacheHostnameKey, data, cache.NoExpiration)
 	// We don't have a hostname on fargate. 'fromFargate' will return an empty hostname and we don't want to show it
 	// in the status page.
-	if providerName != "" && providerName != fargateProviderName {
+	if providerName != "" && providerName != fargateProviderName && !legacyHostnameResolution {
 		hostnameProvider.Set(providerName)
 	}
 	return data
@@ -213,7 +213,7 @@ func getHostname(ctx context.Context, keyCache string, legacyHostnameResolution 
 
 		if p.stopIfSuccessful {
 			log.Debugf("hostname provider '%s' succeeded, stoping here with hostname '%s'", p.name, detectedHostname)
-			return saveHostname(cacheHostnameKey, hostname, p.name), nil
+			return saveHostname(cacheHostnameKey, hostname, p.name, legacyHostnameResolution), nil
 
 		}
 	}
@@ -221,7 +221,7 @@ func getHostname(ctx context.Context, keyCache string, legacyHostnameResolution 
 	warnAboutFQDN(ctx, hostname)
 
 	if hostname != "" {
-		return saveHostname(cacheHostnameKey, hostname, providerName), nil
+		return saveHostname(cacheHostnameKey, hostname, providerName, legacyHostnameResolution), nil
 	}
 
 	err = fmt.Errorf("unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
