@@ -30,6 +30,17 @@ const (
 	profilingV1EndpointSuffix = "v1/input"
 )
 
+var azureContainerAppTags = []string{
+	"subscription_id",
+	"resource_group",
+	"resource_id",
+	"replicate_name",
+	"aca.subscription.id",
+	"aca.resource.group",
+	"aca.resource.id",
+	"aca.replica.name",
+}
+
 // profilingEndpoints returns the profiling intake urls and their corresponding
 // api keys based on agent configuration. The main endpoint is always returned as
 // the first element in the slice.
@@ -85,17 +96,6 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 	if r.conf.LambdaFunctionName != "" {
 		tags.WriteString(fmt.Sprintf("functionname:%s", strings.ToLower(r.conf.LambdaFunctionName)))
 		tags.WriteString("_dd.origin:lambda")
-	}
-
-	azureContainerAppTags := []string{
-		"subscription_id",
-		"resource_group",
-		"resource_id",
-		"replicate_name",
-		"aca.subscription.id",
-		"aca.resource.group",
-		"aca.resource.id",
-		"aca.replica.name",
 	}
 
 	for _, azureContainerAppTag := range azureContainerAppTags {
