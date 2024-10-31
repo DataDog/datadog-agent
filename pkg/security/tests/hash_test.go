@@ -58,7 +58,11 @@ func TestHash(t *testing.T) {
 			}
 
 			cmd := exec.Command(testFile)
-			return cmd.Run()
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Logf("cmd.Run() failed with output: %s", string(out))
+				return err
+			}
+			return nil
 		}, func(event *model.Event, r *rules.Rule) {
 			assertTriggeredRule(t, r, "test_rule_hash_exec")
 		})
