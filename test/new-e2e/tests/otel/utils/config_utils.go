@@ -65,10 +65,11 @@ func TestOTelFlare(s OTelTestSuite, providedCfg string, fullCfg string, sources 
 		stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "otel-agent", []string{"curl", "http://localhost:55679/debug/tracez"})
 		require.NoError(s.T(), err, "Failed to curl zpages")
 		s.T().Logf("curl tracez page, attempt %d\n stdout\n %s\n stderr\n %s", i, stdout, stderr)
-		if stderr == "" && stdout != "" {
+		if stderr != "" && stdout != "" {
 			zpagesReady = true
 			break
 		}
+		time.Sleep(time.Minute)
 	}
 
 	s.T().Log("Starting flare")
