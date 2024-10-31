@@ -226,6 +226,6 @@ func (p *Probe) startEventConsumer() {
 		},
 	}
 	p.mgr.RingBuffers = append(p.mgr.RingBuffers, rb)
-	p.consumer = newCudaEventConsumer(handler, p.cfg, p.sysCtx)
+	p.consumer = newCudaEventConsumer(p.sysCtx, handler, p.cfg)
 	p.consumer.Start()
 }

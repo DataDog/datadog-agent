@@ -24,7 +24,7 @@ func TestConsumerCanStartAndStop(t *testing.T) {
 	cfg := config.NewConfig()
 	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
-	consumer := newCudaEventConsumer(handler, cfg, ctx)
+	consumer := newCudaEventConsumer(ctx, handler, cfg)
 
 	consumer.Start()
 	require.Eventually(t, func() bool { return consumer.running.Load() }, 100*time.Millisecond, 10*time.Millisecond)

@@ -36,7 +36,7 @@ type cudaEventConsumer struct {
 }
 
 // newCudaEventConsumer creates a new CUDA event consumer.
-func newCudaEventConsumer(eventHandler ddebpf.EventHandler, cfg *config.Config, sysCtx *systemContext) *cudaEventConsumer {
+func newCudaEventConsumer(sysCtx *systemContext, eventHandler ddebpf.EventHandler, cfg *config.Config) *cudaEventConsumer {
 	return &cudaEventConsumer{
 		eventHandler:   eventHandler,
 		closed:         make(chan struct{}),
