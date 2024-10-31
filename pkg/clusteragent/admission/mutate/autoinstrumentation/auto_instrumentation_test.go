@@ -1382,7 +1382,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			wantMem: "256Mi",
 		},
 		{
-			name: "low_limit_skip",
+			name: "low_memory_skip",
 			pod: common.FakePodWithContainer("java-pod", corev1.Container{Name: "c1", Resources: corev1.ResourceRequirements{
 				Limits: corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("499"),
@@ -1391,6 +1391,21 @@ func TestInjectLibInitContainer(t *testing.T) {
 				Requests: corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("499"),
 					corev1.ResourceMemory: resource.MustParse("50Mi"),
+				},
+			}}),
+			image:             "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:              java,
+			wantErr:           false,
+			wantSkipInjection: true,
+		},
+		{
+			name: "low_cpu_skip",
+			pod: common.FakePodWithContainer("java-pod", corev1.Container{Name: "c1", Resources: corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU: resource.MustParse("25"),
+				},
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU: resource.MustParse("25"),
 				},
 			}}),
 			image:             "gcr.io/datadoghq/dd-lib-java-init:v1",

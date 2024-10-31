@@ -39,7 +39,8 @@ const (
 	volumeName = "datadog-auto-instrumentation"
 	mountPath  = "/datadog-lib"
 
-	minimumMemoryRequest float64 = 100 * 1024 * 1024 // 100 MB (recommended minimum by Alpine)
+	minimumCpuLimit    float64 = 50                // 0.05 core, otherwise copying + library initialization is going to take forever
+	minimumMemoryLimit float64 = 100 * 1024 * 1024 // 100 MB (recommended minimum by Alpine)
 
 	webhookName = "lib_injection"
 )
@@ -691,15 +692,15 @@ func initContainerResourceRequirements(pod *corev1.Pod, conf initResourceRequire
 			requirements.Requests[k] = q
 		} else {
 			if maxPodLim, ok := podRequirements.Limits[k]; ok {
-				if k == corev1.ResourceMemory {
-					// If the pod before adding instrumentation init containers would have had a memory limit smaller than
+				if (k == corev1.ResourceMemory && maxPodLim.AsApproximateFloat64() < minimumMemoryLimit) ||
+					(k == corev1.ResourceCPU && maxPodLim.AsApproximateFloat64() < minimumCpuLimit) {
+					// If the pod before adding instrumentation init containers would have had a limits smaller than
 					// a certain amount, we just don't do anything, for two reasons:
-					// 1. The init containers need quite a lot of memory in order to not OOM
-					// 2. The APM libraries themselves will increase memory footprint of the container by a
-					//   non trivial amount, and we don't want to crash memory constrained apps
-					if maxPodLim.AsApproximateFloat64() < minimumMemoryRequest {
-						return corev1.ResourceRequirements{}, true
-					}
+					// 1. The init containers need quite a lot of memory/CPU in order to not OOM or initialize in reasonnable time
+					// 2. The APM libraries themselves will increase footprint of the container by a
+					//   non trivial amount, and we don't want to cause issues for constrained apps
+					return corev1.ResourceRequirements{}, true
+
 				}
 				requirements.Limits[k] = maxPodLim
 			}
