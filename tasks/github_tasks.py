@@ -441,20 +441,24 @@ def pr_merge_dd_event_sender(
         pr = github.get_pr(int(pr_id))
 
     if not pr.merged:
-        raise Exit(f"PR {pr.number} is not merged yet", code=1)
+        raise Exit(f"PR #{pr.number} is not merged yet", code=1)
 
-    tags = ['repo:datadog-agent', f'pr:{pr.number}', f'author:{pr.user.login}']
+    tags = [f'repo:{pr.base.repo.full_name}', f'pr_id:{pr.number}', f'author:{pr.user.login}']
     labels = set(github.get_pr_labels(pr.number))
-    if labels.isdisjoint({'qa/done', 'qa/no-code-change'}):
+    all_qa_labels = {'qa/done', 'qa/no-code-change'}
+    qa_labels = all_qa_labels.intersection(labels)
+    if len(qa_labels) == 0:
         tags.append('qa_label:missing')
+    else:
+        tags.extend([f"qa_label:{label}" for label in qa_labels])
 
     qa_description = extract_test_qa_description(pr.body)
-    if qa_description.strip() == '':
+    if qa_description == '':
         tags.append('qa_description:missing')
 
     tags.extend([f"team:{label.removeprefix('team/')}" for label in labels if label.startswith('team/')])
     title = "PR merged"
-    text = f"PR {pr.number} merged to {pr.base.ref} at {pr.base.repo.full_name}"
+    text = f"PR #{pr.number} merged to {pr.base.ref} at {pr.base.repo.full_name} by {pr.user.login} with QA description [{qa_description}]"
 
     if dry_run:
         print(f'''I would send the following event to Datadog:
@@ -465,8 +469,8 @@ tags: {tags}''')
         return
 
     send_event(
-        title="PR merged",
-        text=f"PR {pr.number} has been merged to {pr.repository.full_name}",
+        title=title,
+        text=text,
         tags=tags,
     )
 
