@@ -59,11 +59,11 @@ func TestInitContainer(t *testing.T) {
 	resources := corev1.ResourceRequirements{
 		Limits: corev1.ResourceList{
 			corev1.ResourceCPU:    resource.MustParse("1"),
-			corev1.ResourceMemory: resource.MustParse("500Mib"),
+			corev1.ResourceMemory: resource.MustParse("500Mi"),
 		},
 		Requests: corev1.ResourceList{
 			corev1.ResourceCPU:    resource.MustParse("1"),
-			corev1.ResourceMemory: resource.MustParse("500Mib"),
+			corev1.ResourceMemory: resource.MustParse("500Mi"),
 		},
 	}
 
