@@ -43,6 +43,7 @@ func TestStartDoesNotBlock(t *testing.T) {
 	pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil)
 	metricAgent := &ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
+		Tagger:               nooptagger.NewTaggerClient(),
 	}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
@@ -65,6 +66,7 @@ func (m *InvalidMetricConfigMocked) GetMultipleEndpoints() (map[string][]string,
 func TestStartInvalidConfig(t *testing.T) {
 	metricAgent := &ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
+		Tagger:               nooptagger.NewTaggerClient(),
 	}
 	defer metricAgent.Stop()
 	metricAgent.Start(1*time.Second, &InvalidMetricConfigMocked{}, &MetricDogStatsD{})
@@ -82,6 +84,7 @@ func (m *MetricDogStatsDMocked) NewServer(_ aggregator.Demultiplexer) (dogstatsd
 func TestStartInvalidDogStatsD(t *testing.T) {
 	metricAgent := &ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
+		Tagger:               nooptagger.NewTaggerClient(),
 	}
 	defer metricAgent.Stop()
 	metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{})
@@ -98,6 +101,7 @@ func TestStartWithProxy(t *testing.T) {
 
 	metricAgent := &ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
+		Tagger:               nooptagger.NewTaggerClient(),
 	}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})

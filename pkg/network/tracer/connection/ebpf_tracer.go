@@ -370,14 +370,12 @@ func (t *ebpfTracer) Stop() {
 	})
 }
 
-func (t *ebpfTracer) GetMap(name string) *ebpf.Map {
-	switch name {
-	case probes.ConnectionProtocolMap:
-	default:
-		return nil
+func (t *ebpfTracer) GetMap(name string) (*ebpf.Map, error) {
+	m, _, err := t.m.GetMap(name)
+	if err != nil {
+		return nil, fmt.Errorf("error getting map %s: %w", name, err)
 	}
-	m, _, _ := t.m.GetMap(name)
-	return m
+	return m, nil
 }
 
 func (t *ebpfTracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {
@@ -800,8 +798,8 @@ func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats, r
 
 	conn.Monotonic.Retransmits = retransmits
 	if tcpStats != nil {
-		conn.Monotonic.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
-		conn.Monotonic.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
+		conn.Monotonic.TCPEstablished = tcpStats.State_transitions >> netebpf.Established & 1
+		conn.Monotonic.TCPClosed = tcpStats.State_transitions >> netebpf.Close & 1
 		conn.RTT = tcpStats.Rtt
 		conn.RTTVar = tcpStats.Rtt_var
 	}
