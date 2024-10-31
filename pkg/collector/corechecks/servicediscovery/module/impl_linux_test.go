@@ -509,8 +509,12 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 				"CORECLR_ENABLE_PROFILING=1",
 			},
 		},
-		"java": {
+		"java - dd-java-agent.jar": {
 			commandline: []string{"java", "-javaagent:/path/to/dd-java-agent.jar", "-jar", "foo.jar"},
+			language:    language.Java,
+		},
+		"java - datadog.jar": {
+			commandline: []string{"java", "-javaagent:/path/to/datadog-java-agent.jar", "-jar", "foo.jar"},
 			language:    language.Java,
 		},
 		"node": {

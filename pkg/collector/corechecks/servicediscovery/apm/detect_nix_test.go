@@ -79,8 +79,13 @@ func Test_javaDetector(t *testing.T) {
 			result: None,
 		},
 		{
-			name:   "cmdline",
+			name:   "cmdline - dd-java-agent.jar",
 			args:   []string{"java", "-foo", "-javaagent:/path/to/data dog/dd-java-agent.jar", "-Ddd.profiling.enabled=true"},
+			result: Provided,
+		},
+		{
+			name:   "cmdline - datadog.jar",
+			args:   []string{"java", "-foo", "-javaagent:/path/to/data dog/datadog.jar", "-Ddd.profiling.enabled=true"},
 			result: Provided,
 		},
 		{
