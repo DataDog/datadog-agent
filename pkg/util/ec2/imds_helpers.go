@@ -83,7 +83,7 @@ func UseIMDSv2(force bool, disable bool) IMDSv2Usage {
 	} else if disable {
 		return useIMDSv1
 		// if ec2_prefer_imdsv2 is set, we use IMDSv2
-	} else if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || pkgconfigsetup.Datadog().GetBool("ec2_imdsv2_transition") {
+	} else if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || pkgconfigsetup.Datadog().GetBool("ec2_imdsv2_transition_payload_enabled") {
 		return useIMDSv2Andv1
 	}
 	// if nothing indicates to use IMDSv2, we default to IMDSv1
