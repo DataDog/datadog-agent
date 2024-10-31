@@ -140,7 +140,7 @@ func setup(_ mode.Conf, tagger tagger.Component) (cloudservice.CloudService, *se
 	}
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger)
 
-	traceAgent := setupTraceAgent(tags)
+	traceAgent := setupTraceAgent(tags, tagger)
 
 	metricAgent := setupMetricAgent(tags, tagger)
 	metric.AddColdStartMetric(prefix, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
@@ -150,8 +150,8 @@ func setup(_ mode.Conf, tagger tagger.Component) (cloudservice.CloudService, *se
 	go flushMetricsAgent(metricAgent)
 	return cloudService, agentLogConfig, traceAgent, metricAgent, logsAgent
 }
-func setupTraceAgent(tags map[string]string) trace.ServerlessTraceAgent {
-	traceAgent := trace.StartServerlessTraceAgent(pkgconfigsetup.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil, random.Random.Uint64())
+func setupTraceAgent(tags map[string]string, tagger tagger.Component) trace.ServerlessTraceAgent {
+	traceAgent := trace.StartServerlessTraceAgent(pkgconfigsetup.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger}, nil, random.Random.Uint64())
 	traceAgent.SetTags(tags)
 	go func() {
 		for range time.Tick(3 * time.Second) {
