@@ -37,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 )
 
-const flushFlowsToSendInterval = 10 * time.Second
+const flushFlowsToSendInterval = 30 * time.Second
 const metricPrefix = "datadog.netflow."
 
 // FlowAggregator is used for space and time aggregation of NetFlow flows
