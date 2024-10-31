@@ -31,11 +31,11 @@ func (s *testInstallerSuite) TestInstalls() {
 		s.Run("Uninstall", func() {
 			s.uninstall()
 			s.Run("Install with existing configuration file", func() {
-				s.installWithExistingConfigFile()
+				s.installWithExistingConfigFile("with-config-install.log")
 				s.Run("Repair", s.repair)
 				s.Run("Purge", s.purge)
 				s.Run("Install after purge", func() {
-					s.installWithExistingConfigFile()
+					s.installWithExistingConfigFile("after-purge-install.log")
 				})
 			})
 		})
@@ -91,12 +91,12 @@ func (s *testInstallerSuite) uninstall() {
 		FileExists(installerwindows.ConfigPath)
 }
 
-func (s *testInstallerSuite) installWithExistingConfigFile() {
+func (s *testInstallerSuite) installWithExistingConfigFile(logFilename string) {
 	// Arrange
 
 	// Act
 	s.Require().NoError(s.Installer().Install(
-		installerwindows.WithMSILogFile("with-config-install.log"),
+		installerwindows.WithMSILogFile(logFilename),
 	))
 
 	// Assert
