@@ -78,6 +78,15 @@ func getSystemContext(nvmlLib nvml.Interface, procRoot string) (*systemContext, 
 	return ctx, nil
 }
 
+func getDeviceSmVersion(device nvml.Device) (int, error) {
+	major, minor, ret := device.GetCudaComputeCapability()
+	if ret != nvml.SUCCESS {
+		return 0, fmt.Errorf("error getting SM version: %s", nvml.ErrorString(ret))
+	}
+
+	return major*10 + minor, nil
+}
+
 func (ctx *systemContext) fillDeviceInfo() error {
 	count, ret := ctx.nvmlLib.DeviceGetCount()
 	if ret != nvml.SUCCESS {
@@ -88,12 +97,11 @@ func (ctx *systemContext) fillDeviceInfo() error {
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to get device handle for index %d: %s", i, nvml.ErrorString(ret))
 		}
-
-		major, minor, ret := dev.GetCudaComputeCapability()
-		if ret != nvml.SUCCESS {
-			return fmt.Errorf("error getting SM version: %s", nvml.ErrorString(ret))
+		smVersion, err := getDeviceSmVersion(dev)
+		if err != nil {
+			return err
 		}
-		ctx.deviceSmVersions[i] = major*10 + minor
+		ctx.deviceSmVersions[i] = smVersion
 
 		maxThreads, ret := dev.GetNumGpuCores()
 		if ret != nvml.SUCCESS {
