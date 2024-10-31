@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/process/net"
+	netmocks "github.com/DataDog/datadog-agent/pkg/process/net/mocks"
 )
 
 type testProc struct {
@@ -172,6 +174,16 @@ func Test_linuxImpl(t *testing.T) {
 		time         time.Time
 	}
 
+	collectTargetPIDs := func(checkRuns []*checkRun) []int {
+		targetPIDs := make([]int, 0)
+		for _, cr := range checkRuns {
+			for _, service := range cr.servicesResp.Services {
+				targetPIDs = append(targetPIDs, service.PID)
+			}
+		}
+		return targetPIDs
+	}
+
 	tests := []struct {
 		name       string
 		checkRun   []*checkRun
@@ -232,6 +244,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
 						CPUCores:             1.5,
+						ContainerID:          dummyContainerID,
 					},
 				},
 				{
@@ -254,6 +267,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            200 * 1024 * 1024,
 						CPUCores:             1.5,
+						ContainerID:          dummyContainerID,
 					},
 				},
 				{
@@ -276,6 +290,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            200 * 1024 * 1024,
 						CPUCores:             1.5,
+						ContainerID:          dummyContainerID,
 					},
 				},
 				{
@@ -294,6 +309,7 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                  500,
 						ServiceLanguage:      "python",
 						CommandLine:          pythonCommandLine,
+						ContainerID:          dummyContainerID,
 					},
 				},
 				{
@@ -312,6 +328,7 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                  500,
 						ServiceLanguage:      "python",
 						CommandLine:          pythonCommandLine,
+						ContainerID:          dummyContainerID,
 					},
 				},
 			},
@@ -366,6 +383,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:                []uint16{5432},
 						PID:                  101,
 						CommandLine:          []string{"test-service-1"},
+						ContainerID:          dummyContainerID,
 					},
 				},
 				{
@@ -388,6 +406,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
 						CPUCores:             1.5,
+						ContainerID:          dummyContainerID,
 					},
 				},
 				{
@@ -405,6 +424,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:                []uint16{5432},
 						PID:                  101,
 						CommandLine:          []string{"test-service-1"},
+						ContainerID:          dummyContainerID,
 					},
 				},
 				{
@@ -422,6 +442,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:                []uint16{5432},
 						PID:                  101,
 						CommandLine:          []string{"test-service-1"},
+						ContainerID:          dummyContainerID,
 					},
 				},
 				{
@@ -444,6 +465,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
 						CPUCores:             1.5,
+						ContainerID:          dummyContainerID,
 					},
 				},
 			},
@@ -501,6 +523,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
 						CPUCores:             1.5,
+						ContainerID:          dummyContainerID,
 					},
 				},
 				{
@@ -521,6 +544,7 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                  102,
 						CommandLine:          []string{"test-service-1"},
 						APMInstrumentation:   "injected",
+						ContainerID:          dummyContainerID,
 					},
 				},
 			},
@@ -533,7 +557,9 @@ func Test_linuxImpl(t *testing.T) {
 			defer ctrl.Finish()
 
 			// check and mocks setup
-			check := newCheck().(*Check)
+			targetPIDs := collectTargetPIDs(tc.checkRun)
+			cpStub := newContainerProviderStub(targetPIDs)
+			check := newCheck(cpStub)
 
 			mSender := mocksender.NewMockSender(check.ID())
 			mSender.SetupAcceptAll()
@@ -549,7 +575,7 @@ func Test_linuxImpl(t *testing.T) {
 			require.NotNil(t, check.os)
 
 			for _, cr := range tc.checkRun {
-				mSysProbe := NewMocksystemProbeClient(ctrl)
+				mSysProbe := netmocks.NewSysProbeUtil(t)
 				mSysProbe.EXPECT().GetDiscoveryServices().
 					Return(cr.servicesResp, nil).
 					Times(1)
@@ -560,7 +586,7 @@ func Test_linuxImpl(t *testing.T) {
 				mTimer.EXPECT().Now().Return(cr.time).AnyTimes()
 
 				// set mocks
-				check.os.(*linuxImpl).getSysProbeClient = func() (systemProbeClient, error) {
+				check.os.(*linuxImpl).getSysProbeClient = func(_ string) (net.SysProbeUtil, error) {
 					return mSysProbe, nil
 				}
 				check.os.(*linuxImpl).time = mTimer

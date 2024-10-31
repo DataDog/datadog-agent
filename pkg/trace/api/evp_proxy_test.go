@@ -505,4 +505,30 @@ func TestE2E(t *testing.T) {
 		require.Equal(t, http.StatusBadGateway, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
 		assert.Equal(t, "http: proxy error: context deadline exceeded\n", logs)
 	})
+
+	t.Run("chunked-response", func(t *testing.T) {
+		conf := newTestReceiverConfig()
+		conf.Site = "us3.datadoghq.com"
+		conf.Endpoints[0].APIKey = "test_api_key"
+		conf.EVPProxy.ReceiverTimeout = 1 // in seconds
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Transfer-Encoding", "chunked")
+			w.Write([]byte(`Hello`))
+			w.(http.Flusher).Flush()
+			time.Sleep(200 * time.Millisecond)
+			w.Write([]byte(`World`)) // this will be discarded if the context was cancelled
+		}))
+
+		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
+		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
+		resp, logs := sendRequestThroughForwarderAgainstDummyServer(conf, req, stats, strings.TrimPrefix(server.URL, "http://"))
+
+		resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+		assert.Equal(t, "", logs)
+		body, err := io.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, "HelloWorld", string(body))
+	})
 }

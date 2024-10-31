@@ -8,6 +8,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -59,8 +60,14 @@ var logLevelReverseMap = func(src map[string]logLevel) map[logLevel]string {
 	return reverse
 }(logLevelMap)
 
+// ErrNoDDExporter indicates there is no Datadog exporter in the configs
+var ErrNoDDExporter = fmt.Errorf("no datadog exporter found")
+
 // NewConfigComponent creates a new config component from the given URIs
 func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (config.Component, error) {
+	if len(uris) == 0 {
+		return nil, errors.New("no URIs provided for configs")
+	}
 	// Load the configuration from the fileName
 	rs := confmap.ResolverSettings{
 		URIs: uris,
@@ -220,7 +227,7 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogexporter.Config, error) {
 		}
 	}
 	if len(configs) == 0 {
-		return nil, fmt.Errorf("no datadog exporter found")
+		return nil, ErrNoDDExporter
 	}
 	// Check if we have multiple datadog exporters
 	// We only support one exporter for now

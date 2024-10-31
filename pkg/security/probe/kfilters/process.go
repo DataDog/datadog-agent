@@ -62,9 +62,10 @@ func getProcessKFilters(eventType model.EventType, approvers rules.Approvers) ([
 		switch value.Type {
 		case eval.ScalarValueType:
 			kfilters = append(kfilters, &eventMaskEntry{
-				tableName: auidApproversTable,
-				tableKey:  ebpf.Uint32MapItem(value.Value.(int)),
-				eventMask: uint64(1 << (eventType - 1)),
+				approverType: AUIDApproverType,
+				tableName:    auidApproversTable,
+				tableKey:     ebpf.Uint32MapItem(value.Value.(int)),
+				eventMask:    uint64(1 << (eventType - 1)),
 			})
 		case eval.RangeValueType:
 			min, max := value.Value.(rules.RangeFilterValue).Min, value.Value.(rules.RangeFilterValue).Max

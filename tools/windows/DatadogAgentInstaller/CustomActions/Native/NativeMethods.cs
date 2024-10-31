@@ -930,7 +930,12 @@ namespace Datadog.CustomActions.Native
             var len = 512;
             var builder = new System.Text.StringBuilder(len);
 
-            MsiGetProductInfo(product, "VersionString", builder, ref len);
+            var err = (ReturnCodes)MsiGetProductInfo(product, "VersionString", builder, ref len);
+            if (err != ReturnCodes.NO_ERROR)
+            {
+                throw new Exception($"Failed to get version string for product {product}",
+                    new Win32Exception((int)err));
+            }
 
             return builder.ToString();
         }

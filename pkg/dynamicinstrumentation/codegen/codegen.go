@@ -82,15 +82,20 @@ func generateHeadersText(params []ditypes.Parameter, out io.Writer) error {
 func generateHeaderText(param ditypes.Parameter, out io.Writer) error {
 	if reflect.Kind(param.Kind) == reflect.Slice {
 		return generateSliceHeader(&param, out)
-	}
-
-	tmplt, err := resolveHeaderTemplate(&param)
-	if err != nil {
-		return err
-	}
-	err = tmplt.Execute(out, param)
-	if err != nil {
-		return err
+	} else if reflect.Kind(param.Kind) == reflect.String {
+		return generateStringHeader(&param, out)
+	} else {
+		tmplt, err := resolveHeaderTemplate(&param)
+		if err != nil {
+			return err
+		}
+		err = tmplt.Execute(out, param)
+		if err != nil {
+			return err
+		}
+		if len(param.ParameterPieces) != 0 {
+			return generateHeadersText(param.ParameterPieces, out)
+		}
 	}
 	return nil
 }
@@ -131,9 +136,6 @@ func generateParameterText(param *ditypes.Parameter, out io.Writer) error {
 }
 
 func resolveParameterTemplate(param *ditypes.Parameter) (*template.Template, error) {
-	if param.Type == "main.triggerVerifierErrorForTesting" {
-		return template.New("trigger_verifier_error_template").Parse(forcedVerifierErrorTemplate)
-	}
 	notSupported := param.NotCaptureReason == ditypes.Unsupported
 	cutForFieldLimit := param.NotCaptureReason == ditypes.FieldLimitReached
 
@@ -199,19 +201,28 @@ func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
 	if slice == nil {
 		return errors.New("nil slice parameter when generating header code")
 	}
-	if len(slice.ParameterPieces) != 1 {
+	if len(slice.ParameterPieces) != 2 {
 		return errors.New("invalid slice parameter when generating header code")
 	}
 
-	x := []byte{}
-	buf := bytes.NewBuffer(x)
-	err := generateHeaderText(slice.ParameterPieces[0], buf)
+	typeHeaderBytes := []byte{}
+	typeHeaderBuf := bytes.NewBuffer(typeHeaderBytes)
+	err := generateHeaderText(slice.ParameterPieces[0], typeHeaderBuf)
 	if err != nil {
 		return err
 	}
+
+	lengthHeaderBytes := []byte{}
+	lengthHeaderBuf := bytes.NewBuffer(lengthHeaderBytes)
+	err = generateSliceLengthHeader(slice.ParameterPieces[1], lengthHeaderBuf)
+	if err != nil {
+		return err
+	}
+
 	w := sliceHeaderWrapper{
 		Parameter:           slice,
-		SliceTypeHeaderText: buf.String(),
+		SliceTypeHeaderText: typeHeaderBuf.String(),
+		SliceLengthText:     lengthHeaderBuf.String(),
 	}
 
 	sliceTemplate, err := resolveHeaderTemplate(slice)
@@ -223,10 +234,81 @@ func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("could not execute template for generating slice header: %w", err)
 	}
+
 	return nil
+}
+
+func generateStringHeader(stringParam *ditypes.Parameter, out io.Writer) error {
+	if stringParam == nil {
+		return errors.New("nil string parameter when generating header code")
+	}
+	if len(stringParam.ParameterPieces) != 2 {
+		return fmt.Errorf("invalid string parameter when generating header code (pieces len %d)", len(stringParam.ParameterPieces))
+	}
+
+	x := []byte{}
+	buf := bytes.NewBuffer(x)
+	err := generateStringLengthHeader(stringParam.ParameterPieces[1], buf)
+	if err != nil {
+		return err
+	}
+
+	stringHeaderWrapper := stringHeaderWrapper{
+		Parameter:        stringParam,
+		StringLengthText: buf.String(),
+	}
+
+	stringTemplate, err := resolveHeaderTemplate(stringParam)
+	if err != nil {
+		return err
+	}
+
+	err = stringTemplate.Execute(out, stringHeaderWrapper)
+	if err != nil {
+		return fmt.Errorf("could not execute template for generating string header: %w", err)
+	}
+	return nil
+}
+
+func generateStringLengthHeader(stringLengthParamPiece ditypes.Parameter, buf *bytes.Buffer) error {
+	var (
+		tmplte *template.Template
+		err    error
+	)
+	if stringLengthParamPiece.Location.InReg {
+		tmplte, err = template.New("string_register_length_header").Parse(stringLengthRegisterTemplateText)
+	} else {
+		tmplte, err = template.New("string_stack_length_header").Parse(stringLengthStackTemplateText)
+	}
+	if err != nil {
+		return err
+	}
+	return tmplte.Execute(buf, stringLengthParamPiece)
+}
+
+func generateSliceLengthHeader(sliceLengthParamPiece ditypes.Parameter, buf *bytes.Buffer) error {
+	var (
+		tmplte *template.Template
+		err    error
+	)
+	if sliceLengthParamPiece.Location.InReg {
+		tmplte, err = template.New("slice_register_length_header").Parse(sliceLengthRegisterTemplateText)
+	} else {
+		tmplte, err = template.New("slice_stack_length_header").Parse(sliceLengthStackTemplateText)
+	}
+	if err != nil {
+		return err
+	}
+	return tmplte.Execute(buf, sliceLengthParamPiece)
 }
 
 type sliceHeaderWrapper struct {
 	Parameter           *ditypes.Parameter
+	SliceLengthText     string
 	SliceTypeHeaderText string
+}
+
+type stringHeaderWrapper struct {
+	Parameter        *ditypes.Parameter
+	StringLengthText string
 }

@@ -7,7 +7,6 @@ package lsof
 
 import (
 	"errors"
-	"io/fs"
 	"os"
 	"syscall"
 	"testing"
@@ -466,33 +465,6 @@ func TestMmapFD(t *testing.T) {
 			assert.Equal(t, tc.expected, res)
 		})
 	}
-}
-
-type mockFileInfo struct {
-	modTime time.Time
-	mode    fs.FileMode
-	name    string
-	size    int64
-	sys     any
-}
-
-func (m *mockFileInfo) IsDir() bool {
-	return m.mode.IsDir()
-}
-func (m *mockFileInfo) ModTime() time.Time {
-	return m.modTime
-}
-func (m *mockFileInfo) Mode() fs.FileMode {
-	return m.mode
-}
-func (m *mockFileInfo) Name() string {
-	return m.name
-}
-func (m *mockFileInfo) Size() int64 {
-	return m.size
-}
-func (m *mockFileInfo) Sys() any {
-	return m.sys
 }
 
 func TestModeTypeToString(t *testing.T) {

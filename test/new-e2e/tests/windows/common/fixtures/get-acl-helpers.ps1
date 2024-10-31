@@ -45,6 +45,8 @@ function Get-RuleRights($rule) {
         $rights = $rule.FileSystemRights
     } elseif ($rule.RegistryRights) {
         $rights = $rule.RegistryRights
+    } elseif ($rule.PipeAccessRights) {
+        $rights = $rule.PipeAccessRights
     } else {
         throw "Could not determine rights for rule: $rule"
     }
@@ -161,6 +163,49 @@ function ConvertTo-ServiceSecurityDTO {
 
         # Output modified JSON
         Write-Output $newAclJson
+    }
+}
+
+function Get-PipeSecurity($pipename) {
+    # split the pipe name to get the server name
+    # https://learn.microsoft.com/en-us/windows/win32/ipc/pipe-names
+    $parts = $pipename -split "\\"
+    if ($parts.Length -eq 1) {
+        # pipename
+        $pipename = $parts[0]
+        $server = "."
+    } elseif ($parts.Length -eq 5) {
+        # \\.\pipe\pipename
+        $server = $parts[2]
+        $pipename = $parts[4]
+    } else {
+        throw "Invalid pipe name: $pipename"
+    }
+    # have to connect to pipe to get security info
+    $pipe = New-Object System.IO.Pipes.NamedPipeClientStream($server, $pipename, [System.IO.Pipes.PipeDirection]::In)
+    $pipe.Connect()
+    try {
+        if (Get-Member -InputObject $pipe -Name "GetAccessControl" -Membertype Methods) {
+            # This method works on PS5
+            return $pipe.GetAccessControl()
+        } else {
+            # https://github.com/PowerShell/PowerShell/issues/23962
+            # PS7/.NET moved security related methods into extensions, which must be called directly
+            # in PowerShell
+            $ac = [System.IO.Pipes.PipesAclExtensions]::GetAccessControl($pipe)
+            # Unfortunately the extension doesn't have the properties, so fetch them ourselves
+            return @{
+                Owner = $ac.GetOwner([System.Security.Principal.SecurityIdentifier])
+                Group = $ac.GetGroup([System.Security.Principal.SecurityIdentifier])
+                Access = $ac.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])
+                Audit = $ac.GetAuditRules($true, $true, [System.Security.Principal.SecurityIdentifier])
+                AreAccessRulesProtected = $ac.AreAccessRulesProtected
+                AreAuditRulesProtected = $ac.AreAuditRulesProtected
+                Sddl = $ac.GetSecurityDescriptorSddlForm([System.Security.AccessControl.AccessControlSections]::All)
+            }
+        }
+    } finally {
+        $pipe.Close()
     }
 }
 

@@ -1,5 +1,6 @@
 import os
 import sys
+import tempfile
 
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
@@ -84,7 +85,6 @@ def get_omnibus_env(
     skip_sign=False,
     release_version="nightly",
     major_version='7',
-    python_runtimes='3',
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -124,7 +124,6 @@ def get_omnibus_env(
         ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
     )
     env['MAJOR_VERSION'] = major_version
-    env['PY_RUNTIMES'] = python_runtimes
 
     # Since omnibus and the invoke task won't run in the same folder
     # we need to input the absolute path of the pip config file
@@ -147,6 +146,9 @@ def get_omnibus_env(
         'DEPLOY_AGENT',
         'PACKAGE_ARCH',
         'INSTALL_DIR',
+        'DD_CC',
+        'DD_CXX',
+        'DD_CMAKE_TOOLCHAIN',
     ]
     for key in env_to_forward:
         if key in os.environ:
@@ -172,7 +174,6 @@ def build(
     skip_sign=False,
     release_version="nightly",
     major_version='7',
-    python_runtimes='3',
     omnibus_s3_cache=False,
     hardened_runtime=False,
     system_probe_bin=None,
@@ -207,7 +208,6 @@ def build(
         skip_sign=skip_sign,
         release_version=release_version,
         major_version=major_version,
-        python_runtimes=python_runtimes,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         go_mod_cache=go_mod_cache,
@@ -341,7 +341,6 @@ def manifest(
     skip_sign=False,
     release_version="nightly",
     major_version='7',
-    python_runtimes='3',
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -355,7 +354,6 @@ def manifest(
         skip_sign=skip_sign,
         release_version=release_version,
         major_version=major_version,
-        python_runtimes=python_runtimes,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         go_mod_cache=go_mod_cache,
@@ -387,6 +385,47 @@ def manifest(
     )
 
 
+def _otool_install_path_replacements(otool_output, install_path):
+    """Returns a mapping of path replacements from `otool -l` output
+    where references to `install_path` are replaced by `@rpath`."""
+    for otool_line in otool_output.splitlines():
+        if "name" not in otool_line:
+            continue
+        dylib_path = otool_line.strip().split(" ")[1]
+        if install_path not in dylib_path:
+            continue
+        new_dylib_path = dylib_path.replace(f"{install_path}/embedded/lib", "@rpath")
+        yield dylib_path, new_dylib_path
+
+
+def _replace_dylib_paths_with_rpath(ctx, otool_output, install_path, file):
+    for dylib_path, new_dylib_path in _otool_install_path_replacements(otool_output, install_path):
+        ctx.run(f"install_name_tool -change {dylib_path} {new_dylib_path} {file}")
+
+
+def _replace_dylib_id_paths_with_rpath(ctx, otool_output, install_path, file):
+    for _, new_dylib_path in _otool_install_path_replacements(otool_output, install_path):
+        ctx.run(f"install_name_tool -id {new_dylib_path} {file}")
+
+
+def _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file):
+    if platform == "linux":
+        ctx.run(f"patchelf --force-rpath --set-rpath \\$ORIGIN/{new_rpath}/embedded/lib {file}")
+    else:
+        # The macOS agent binary has 18 RPATH definition, replacing the first one should be enough
+        # but just in case we're replacing them all.
+        # We're also avoiding unnecessary `install_name_tool` call as much as possible.
+        number_of_rpaths = binary_rpath.count('\n') // 3
+        for _ in range(number_of_rpaths):
+            exit_code = ctx.run(
+                f"install_name_tool -rpath {install_path}/embedded/lib @loader_path/{new_rpath}/embedded/lib {file}",
+                warn=True,
+                hide=True,
+            ).exited
+            if exit_code != 0:
+                break
+
+
 @task
 def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
     # Collect mime types for all files inside the Agent installation
@@ -404,22 +443,24 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
         else:
             if file_type != "application/x-mach-binary":
                 continue
-            binary_rpath = ctx.run(f'otool -l {file} | grep -A 2 "RPATH"', warn=True, hide=True).stdout
+            with tempfile.TemporaryFile() as tmpfile:
+                result = ctx.run(f'otool -l {file} > {tmpfile.name}', warn=True, hide=True)
+                if result.exited:
+                    continue
+                binary_rpath = ctx.run(f'cat {tmpfile.name} | grep -A 2 "RPATH"', warn=True, hide=True).stdout
+                dylib_paths = ctx.run(f'cat {tmpfile.name} | grep -A 2 "LC_LOAD_DYLIB"', warn=True, hide=True).stdout
 
+                dylib_id_paths = ctx.run(f'cat {tmpfile.name} | grep -A 2 "LC_ID_DYLIB"', warn=True, hide=True).stdout
+
+            # if a dylib ID use our installation path we replace it with @rpath instead
+            if install_path in dylib_id_paths:
+                _replace_dylib_id_paths_with_rpath(ctx, dylib_id_paths, install_path, file)
+
+            # if a dylib use our installation path we replace it with @rpath instead
+            if install_path in dylib_paths:
+                _replace_dylib_paths_with_rpath(ctx, dylib_paths, install_path, file)
+
+        # if a binary has an rpath that use our installation path we are patching it
         if install_path in binary_rpath:
             new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
-            if platform == "linux":
-                ctx.run(f"patchelf --force-rpath --set-rpath \\$ORIGIN/{new_rpath}/embedded/lib {file}")
-            else:
-                # The macOS agent binary has 18 RPATH definition, replacing the first one should be enough
-                # but just in case we're replacing them all.
-                # We're also avoiding unnecessary `install_name_tool` call as much as possible.
-                number_of_rpaths = binary_rpath.count('\n') // 3
-                for _ in range(number_of_rpaths):
-                    exit_code = ctx.run(
-                        f"install_name_tool -rpath {install_path}/embedded/lib @loader_path/{new_rpath}/embedded/lib {file}",
-                        warn=True,
-                        hide=True,
-                    ).exited
-                    if exit_code != 0:
-                        break
+            _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file)

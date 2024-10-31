@@ -33,6 +33,13 @@ const WindowsLogsFolderPath = "C:\\logs\\e2e_test_logs"
 
 type ddtags []string
 
+const (
+	// WaitFor Time to wait for file tailing utils
+	WaitFor = 2 * time.Minute
+	// Tick how many seconds each ticket should take
+	Tick = 10 * time.Second
+)
+
 // LogsTestSuite is an interface for the log agent test suite.
 type LogsTestSuite interface {
 	T() *testing.T
@@ -92,7 +99,7 @@ func AppendLog(ls LogsTestSuite, logFileName, content string, recurrence int) {
 		if strings.Contains(output, content) {
 			t.Logf("Finished generating %s log, log file's content is now: \n '%s' \n", osStr, output)
 		}
-	}, 2*time.Minute, 10*time.Second)
+	}, WaitFor, Tick)
 }
 
 // CheckLogFilePresence verifies the presence or absence of a log file path
@@ -148,7 +155,7 @@ func FetchAndFilterLogs(fakeIntake *components.FakeIntake, service, content stri
 	return logs, nil
 }
 
-// CheckLogsExpected verifies the presence of expected logs.
+// CheckLogsExpected verifies the presence of expected logs, and verifies that there are no duplicate tags.
 func CheckLogsExpected(t *testing.T, fakeIntake *components.FakeIntake, service, content string, expectedTags ddtags) {
 	t.Helper()
 
@@ -160,12 +167,20 @@ func CheckLogsExpected(t *testing.T, fakeIntake *components.FakeIntake, service,
 			if assert.NotEmpty(c, logs, "Expected logs with content: '%s' not found. Instead, found: %s", content, intakeLog) {
 				t.Logf("Logs from service: '%s' with content: '%s' collected", service, content)
 				log := logs[0]
+				// Use a map to check for duplicate tags
+				seenTags := make(map[string]struct{})
+				for _, tag := range log.Tags {
+					if _, exists := seenTags[tag]; exists {
+						t.Errorf("Duplicate tag found: %s", tag)
+					}
+					seenTags[tag] = struct{}{} // Mark the tag as seen
+				}
 				for _, expectedTag := range expectedTags {
 					assert.Contains(t, log.Tags, expectedTag)
 				}
 			}
 		}
-	}, 2*time.Minute, 10*time.Second)
+	}, WaitFor, Tick)
 }
 
 // CheckLogsNotExpected verifies the absence of unexpected logs.
@@ -180,7 +195,7 @@ func CheckLogsNotExpected(t *testing.T, fakeIntake *components.FakeIntake, servi
 				t.Logf("No logs from service: '%s' with content: '%s' collected as expected", service, content)
 			}
 		}
-	}, 2*time.Minute, 10*time.Second)
+	}, WaitFor, Tick)
 }
 
 // CleanUp cleans up any existing log files (only useful when running dev mode/local runs).
@@ -220,7 +235,7 @@ func CleanUp(ls LogsTestSuite) {
 			if assert.NoErrorf(c, err, "Having issue cleaning up log files, retrying... %s", output) {
 				t.Log("Successfully cleaned up log files.")
 			}
-		}, 1*time.Minute, 10*time.Second)
+		}, 1*time.Minute, Tick)
 	}
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -228,7 +243,7 @@ func CleanUp(ls LogsTestSuite) {
 		if assert.NoErrorf(c, err, "Having issue flushing server and resetting aggregators, retrying...") {
 			t.Log("Successfully flushed server and reset aggregators.")
 		}
-	}, 1*time.Minute, 10*time.Second)
+	}, 1*time.Minute, Tick)
 }
 
 // prettyPrintLog pretty prints a log entry.

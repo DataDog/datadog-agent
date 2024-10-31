@@ -65,6 +65,7 @@ func Test_telemetrySender(t *testing.T) {
 			DDService:         "dd-service",
 			DDServiceInjected: true,
 			CPUCores:          1.5,
+			ContainerID:       "abcd",
 		},
 		meta: ServiceMetadata{
 			Name:               "test-service",
@@ -101,6 +102,7 @@ func Test_telemetrySender(t *testing.T) {
 				CommandLine:          []string{"test-service", "--args"},
 				RSSMemory:            500 * 1024 * 1024,
 				CPUCores:             1.5,
+				ContainerID:          "abcd",
 			},
 		},
 		{
@@ -124,6 +126,7 @@ func Test_telemetrySender(t *testing.T) {
 				CommandLine:          []string{"test-service", "--args"},
 				RSSMemory:            500 * 1024 * 1024,
 				CPUCores:             1.5,
+				ContainerID:          "abcd",
 			},
 		},
 		{
@@ -147,6 +150,7 @@ func Test_telemetrySender(t *testing.T) {
 				CommandLine:          []string{"test-service", "--args"},
 				RSSMemory:            500 * 1024 * 1024,
 				CPUCores:             1.5,
+				ContainerID:          "abcd",
 			},
 		},
 	}
@@ -182,6 +186,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 			StartTimeSecs: uint64(now.Add(-20 * time.Minute).Unix()),
 			GeneratedName: "generated-name2",
 			DDService:     "dd-service-provided",
+			ContainerID:   "abcd",
 		},
 		meta: ServiceMetadata{
 			Name:               "test-service",
@@ -215,6 +220,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 				APMInstrumentation:   "injected",
 				PID:                  55,
 				CommandLine:          []string{"foo", "--option"},
+				ContainerID:          "abcd",
 			},
 		},
 		{
@@ -235,6 +241,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 				APMInstrumentation:   "injected",
 				PID:                  55,
 				CommandLine:          []string{"foo", "--option"},
+				ContainerID:          "abcd",
 			},
 		},
 		{
@@ -255,6 +262,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 				APMInstrumentation:   "injected",
 				PID:                  55,
 				CommandLine:          []string{"foo", "--option"},
+				ContainerID:          "abcd",
 			},
 		},
 	}

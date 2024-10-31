@@ -9,7 +9,6 @@ package otlp
 
 import (
 	"context"
-	"runtime"
 	"testing"
 	"time"
 
@@ -26,7 +25,7 @@ import (
 
 func TestGetComponents(t *testing.T) {
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
+
 	_, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
 	// No duplicate component
 	require.NoError(t, err)
@@ -34,7 +33,7 @@ func TestGetComponents(t *testing.T) {
 
 func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
+
 	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -61,7 +60,7 @@ func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 
 func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
+
 	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -82,16 +81,6 @@ func TestStartPipelineFromConfig(t *testing.T) {
 	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "otlp-testhostname")
 	defer pkgconfigsetup.Datadog().SetWithoutSource("hostname", "")
 
-	// TODO (AP-1723): Disable changing the gRPC logger before re-enabling.
-	if runtime.GOOS == "windows" {
-		t.Skip("Skip on Windows, see AP-1723 for details")
-	}
-
-	// TODO (AP-1723): Update Collector to version 0.55 before re-enabling.
-	if runtime.GOOS == "darwin" {
-		t.Skip("Skip on macOS, see AP-1723 for details")
-	}
-
 	tests := []struct {
 		path string
 		err  string
@@ -110,7 +99,7 @@ func TestStartPipelineFromConfig(t *testing.T) {
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.path, func(t *testing.T) {
-			cfg, err := testutil.LoadConfig("./testdata/" + testInstance.path)
+			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
 			pcfg, err := FromAgentConfig(cfg)
 			require.NoError(t, err)

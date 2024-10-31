@@ -13,6 +13,7 @@ import (
 	dockerTypes "github.com/docker/docker/api/types"
 	dockerNetworkTypes "github.com/docker/docker/api/types/network"
 
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
@@ -139,7 +140,8 @@ func TestDockerNetworkExtension(t *testing.T) {
 		ID:    "kube-host-network",
 		State: string(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
-			NetworkMode string "json:\",omitempty\""
+			NetworkMode string            `json:",omitempty"`
+			Annotations map[string]string `json:",omitempty"`
 		}{NetworkMode: "host"},
 		NetworkSettings: &dockerTypes.SummaryNetworkSettings{
 			Networks: map[string]*dockerNetworkTypes.EndpointSettings{
@@ -169,7 +171,8 @@ func TestDockerNetworkExtension(t *testing.T) {
 		ID:    "kube-app",
 		State: string(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
-			NetworkMode string "json:\",omitempty\""
+			NetworkMode string            `json:",omitempty"`
+			Annotations map[string]string `json:",omitempty"`
 		}{NetworkMode: "container:kube-app-pause"},
 		NetworkSettings: &dockerTypes.SummaryNetworkSettings{
 			Networks: map[string]*dockerNetworkTypes.EndpointSettings{},
@@ -181,7 +184,8 @@ func TestDockerNetworkExtension(t *testing.T) {
 		ID:    "kube-app-pause",
 		State: string(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
-			NetworkMode string "json:\",omitempty\""
+			NetworkMode string            `json:",omitempty"`
+			Annotations map[string]string `json:",omitempty"`
 		}{NetworkMode: "none"},
 		NetworkSettings: &dockerTypes.SummaryNetworkSettings{
 			Networks: map[string]*dockerNetworkTypes.EndpointSettings{
@@ -217,7 +221,8 @@ func TestDockerNetworkExtension(t *testing.T) {
 		ID:    "docker-app",
 		State: string(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
-			NetworkMode string "json:\",omitempty\""
+			NetworkMode string            `json:",omitempty"`
+			Annotations map[string]string `json:",omitempty"`
 		}{NetworkMode: "ubuntu_default"},
 		NetworkSettings: &dockerTypes.SummaryNetworkSettings{
 			Networks: map[string]*dockerNetworkTypes.EndpointSettings{
@@ -240,7 +245,7 @@ func TestDockerNetworkExtension(t *testing.T) {
 	dockerNetworkExtension.Process(tags, container1, mockCollector, 0)
 	dockerNetworkExtension.Process(tags, container2, mockCollector, 0)
 	dockerNetworkExtension.Process(tags, container4, mockCollector, 0)
-	dockerNetworkExtension.PostProcess()
+	dockerNetworkExtension.PostProcess(nooptagger.NewTaggerClient())
 
 	// Running the custom part
 	dockerNetworkExtension.preRun()

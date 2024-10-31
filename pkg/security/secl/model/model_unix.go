@@ -15,6 +15,8 @@ import (
 
 	"modernc.org/mathutil"
 
+	"github.com/google/gopacket"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
@@ -58,6 +60,9 @@ type Event struct {
 	Syscalls      SyscallsEvent      `field:"-"`
 	LoginUIDWrite LoginUIDWriteEvent `field:"-"`
 
+	// network syscalls
+	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] A bind was executed
+
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
 	BPF          BPFEvent          `field:"bpf" event:"bpf"`                     // [7.33] [Kernel] A BPF command was executed
@@ -68,9 +73,9 @@ type Event struct {
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
 
 	// network events
-	DNS  DNSEvent  `field:"dns" event:"dns"`   // [7.36] [Network] A DNS request was sent
-	IMDS IMDSEvent `field:"imds" event:"imds"` // [7.55] [Network] An IMDS event was captured
-	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] A bind was executed
+	DNS       DNSEvent       `field:"dns" event:"dns"`       // [7.36] [Network] A DNS request was sent
+	IMDS      IMDSEvent      `field:"imds" event:"imds"`     // [7.55] [Network] An IMDS event was captured
+	RawPacket RawPacketEvent `field:"packet" event:"packet"` // [7.60] [Network] A raw network packet captured
 
 	// on-demand events
 	OnDemand OnDemandEvent `field:"ondemand" event:"ondemand"`
@@ -85,9 +90,6 @@ type Event struct {
 	NetDevice        NetDeviceEvent        `field:"-"`
 	VethPair         VethPairEvent         `field:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
-
-	// used for ebpfless
-	NSID uint64 `field:"-"`
 }
 
 // CGroupContext holds the cgroup context of an event
@@ -260,9 +262,11 @@ type Process struct {
 	ScrubbedArgvResolved bool           `field:"-"`
 	Variables            eval.Variables `field:"-"`
 
-	IsThread        bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
-	IsExecExec      bool `field:"-"`         // Indicates whether the process is an exec following another exec
-	IsParentMissing bool `field:"-"`         // Indicates the direct parent is missing
+	// IsThread is the negation of IsExec and should be manipulated directly
+	IsThread        bool `field:"is_thread,handler:ResolveProcessIsThread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
+	IsExec          bool `field:"is_exec"`                                  // SECLDoc[is_exec] Definition:`Indicates whether the process entry is from a new binary execution`
+	IsExecExec      bool `field:"-"`                                        // Indicates whether the process is an exec following another exec
+	IsParentMissing bool `field:"-"`                                        // Indicates the direct parent is missing
 
 	Source uint64 `field:"-"`
 
@@ -438,6 +442,8 @@ type PIDContext struct {
 	NetNS     uint32 `field:"-"`
 	IsKworker bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
 	ExecInode uint64 `field:"-"`          // used to track exec and event loss
+	// used for ebpfless
+	NSID uint64 `field:"-"`
 }
 
 // RenameEvent represents a rename event
@@ -623,7 +629,7 @@ type ActivityDumpLoadConfig struct {
 // NetworkDeviceContext represents the network device context of a network event
 type NetworkDeviceContext struct {
 	NetNS   uint32 `field:"-"`
-	IfIndex uint32 `field:"ifindex"`                                   // SECLDoc[ifindex] Definition:`Interface ifindex`
+	IfIndex uint32 `field:"-"`
 	IfName  string `field:"ifname,handler:ResolveNetworkDeviceIfName"` // SECLDoc[ifname] Definition:`Interface ifname`
 }
 
@@ -690,4 +696,13 @@ type OnDemandEvent struct {
 // LoginUIDWriteEvent is used to propagate login UID updates to user space
 type LoginUIDWriteEvent struct {
 	AUID uint32 `field:"-"`
+}
+
+// RawPacketEvent represents a packet event
+type RawPacketEvent struct {
+	NetworkContext
+	TLSContext  TLSContext           `field:"tls"`                                       // SECLDoc[tls] Definition:`TLS context`
+	Filter      string               `field:"filter" op_override:"PacketFilterMatching"` // SECLDoc[filter] Definition:`pcap filter expression`
+	CaptureInfo gopacket.CaptureInfo `field:"-"`
+	Data        []byte               `field:"-"`
 }

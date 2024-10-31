@@ -1,0 +1,54 @@
+# Agent 'all features enabled' idle experiment. Represents an agent install with
+# all sub-agents enabled in configuration and no active workload.
+# Further documentation:
+# https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4294836779/Performance+Quality+Gates#idle_all_features
+
+optimization_goal: memory
+erratic: false
+
+target:
+  name: datadog-agent
+  command: /bin/entrypoint.sh
+
+  environment:
+    DD_TELEMETRY_ENABLED: true
+    DD_API_KEY: 00000001
+    DD_HOSTNAME: smp-regression
+    DD_DD_URL: http://127.0.0.1:9092
+
+  profiling_environment:
+    # internal profiling
+    DD_INTERNAL_PROFILING_ENABLED: true
+    DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENABLED: true
+    # run all the time
+    DD_SYSTEM_PROBE_INTERNAL_PROFILING_PERIOD: 1m
+    DD_INTERNAL_PROFILING_PERIOD: 1m
+    DD_SYSTEM_PROBE_INTERNAL_PROFILING_CPU_DURATION: 1m
+    DD_INTERNAL_PROFILING_CPU_DURATION: 1m
+    # destination
+    DD_INTERNAL_PROFILING_UNIX_SOCKET: /var/run/datadog/apm.socket
+    DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_UNIX_SOCKET: /var/run/datadog/apm.socket
+    # tags
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_idle_all_features
+    DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_idle_all_features
+
+    DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
+    DD_INTERNAL_PROFILING_DELTA_PROFILES: true
+    DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES: true
+    DD_INTERNAL_PROFILING_MUTEX_PROFILE_FRACTION: 10
+
+    # ddprof options
+    DD_PROFILING_EXECUTION_TRACE_ENABLED: true
+    DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
+    DD_PROFILING_WAIT_PROFILE: true
+
+checks:
+  - name: memory_usage
+    description: "Memory usage quality gate. This puts a bound on the total agent memory usage."
+    bounds:
+      series: total_rss_bytes
+      upper_bound: "785.0 MiB"
+
+report_links:
+  - text: "bounds checks dashboard"
+    link: "https://app.datadoghq.com/dashboard/vz3-jd5-bdi?fromUser=true&refresh_mode=paused&tpl_var_experiment%5B0%5D={{ experiment }}&tpl_var_job_id%5B0%5D={{ job_id }}&tpl_var_run-id%5B0%5D={{ job_id }}&view=spans&from_ts={{ start_time_ms }}&to_ts={{ end_time_ms }}&live=false"

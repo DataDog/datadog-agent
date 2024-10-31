@@ -83,7 +83,6 @@ The payload is a JSON dict with the following fields
   - `feature_usm_kafka_enabled` - **bool**: True if Kafka monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_kafka_monitoring` config option in `system-probe.yaml`)
   - `feature_usm_postgres_enabled` - **bool**: True if Postgres monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_postgres_monitoring` config option in `system-probe.yaml`)
   - `feature_usm_redis_enabled` - **bool**: True if Redis monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_redis_monitoring` config option in `system-probe.yaml`)
-  - `feature_usm_java_tls_enabled` - **bool**: True if HTTPS monitoring through java TLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.java.enabled` config option in `system-probe.yaml`).
   - `feature_usm_go_tls_enabled` - **bool**: True if HTTPS monitoring through GoTLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.go.enabled` config option in `system-probe.yaml`).
   - `feature_discovery_enabled` - **bool**: True if discovery module is enabled (see: `discovery.enabled` config option).
   - `feature_dynamic_instrumentation_enabled` - **bool**: True if dynamic instrumentation module is enabled (see: `dynamic_instrumentation.enabled` config option).
@@ -101,7 +100,6 @@ The payload is a JSON dict with the following fields
   - `feature_cws_network_enabled` - **bool**: True if Network Monitoring is enabled for Cloud Workload Security (see: `event_monitoring_config.network.enabled` config option).
   - `feature_cws_remote_config_enabled` - **bool**: True if Remote Config is enabled for Cloud Workload Security (see: `runtime_security_config.remote_configuration.enabled` config option).
   - `feature_cws_security_profiles_enabled` - **bool**: True if Security Profiles is enabled for Cloud Workload Security (see: `runtime_security_config.activity_dump.enabled` config option).
-  - `feature_usm_http_by_status_code_enabled` - **bool**: True if HTTP Stats by Status Code is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_http_stats_by_status_code` config option).
   - `feature_usm_istio_enabled` - **bool**: True if Istio is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.istio.enabled` config option).
   - `feature_windows_crash_detection_enabled` - **bool**: True if Windows Crash Detection is enabled (see: `windows_crash_detection.enabled` config option).
   - `full_configuration` - **string**: the current Agent configuration scrubbed, including all the defaults, as a YAML

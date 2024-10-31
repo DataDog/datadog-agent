@@ -60,6 +60,8 @@ type Controller struct {
 	eventRecorder record.EventRecorder
 	store         *store
 
+	limitHeap *autoscaling.HashHeap
+
 	podWatcher           podWatcher
 	horizontalController *horizontalController
 	verticalController   *verticalController
@@ -79,6 +81,7 @@ func newController(
 	store *store,
 	podWatcher podWatcher,
 	localSender sender.Sender,
+	limitHeap *autoscaling.HashHeap,
 ) (*Controller, error) {
 	c := &Controller{
 		clusterID:     clusterID,
@@ -101,6 +104,11 @@ func newController(
 	}
 
 	c.Controller = baseController
+	c.limitHeap = limitHeap
+	store.RegisterObserver(autoscaling.Observer{
+		SetFunc:    c.limitHeap.InsertIntoHeap,
+		DeleteFunc: c.limitHeap.DeleteFromHeap,
+	})
 	c.store = store
 	c.podWatcher = podWatcher
 
@@ -193,7 +201,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		// If flagged for deletion, we just need to clear up our store (deletion complete)
 		// Also if object was not owned by remote config, we also need to delete it (deleted by user)
 		if podAutoscalerInternal.Deleted() || podAutoscalerInternal.Spec().Owner != datadoghq.DatadogPodAutoscalerRemoteOwner {
-			log.Infof("Object %s not present in Kuberntes and flagged for deletion (remote) or owner == local, clearing internal store", key)
+			log.Infof("Object %s not present in Kubernetes and flagged for deletion (remote) or owner == local, clearing internal store", key)
 			c.store.UnlockDelete(key, c.ID)
 			return autoscaling.NoRequeue, nil
 		}
@@ -233,7 +241,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 			*podAutoscalerInternal.Spec().RemoteVersion > *podAutoscaler.Spec.RemoteVersion {
 			err := c.updatePodAutoscalerSpec(ctx, podAutoscalerInternal, podAutoscaler)
 
-			// When doing an external update, we stop and reqeue the object to not have multiple changes at once.
+			// When doing an external update, we stop and requeue the object to not have multiple changes at once.
 			c.store.Unlock(key)
 			return autoscaling.Requeue, err
 		}
@@ -257,12 +265,15 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 			if localHash != remoteHash {
 				err := c.updatePodAutoscalerSpec(ctx, podAutoscalerInternal, podAutoscaler)
 
-				// When doing an external update, we stop and reqeue the object to not have multiple changes at once.
+				// When doing an external update, we stop and requeue the object to not have multiple changes at once.
 				c.store.Unlock(key)
 				return autoscaling.Requeue, err
 			}
 
 			podAutoscalerInternal.SetGeneration(podAutoscaler.Generation)
+			if podAutoscalerInternal.CreationTimestamp().IsZero() {
+				podAutoscalerInternal.UpdateCreationTimestamp(podAutoscaler.CreationTimestamp.Time)
+			}
 		}
 	}
 
@@ -277,7 +288,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	podAutoscalerInternal.SetError(nil)
 
 	// Validate autoscaler requirements
-	validationErr := c.validateAutoscaler(podAutoscaler)
+	validationErr := c.validateAutoscaler(podAutoscalerInternal)
 	if validationErr != nil {
 		podAutoscalerInternal.SetError(validationErr)
 		return autoscaling.NoRequeue, c.updateAutoscalerStatusAndUnlock(ctx, key, ns, name, validationErr, podAutoscalerInternal, podAutoscaler)
@@ -407,15 +418,22 @@ func (c *Controller) deletePodAutoscaler(ns, name string) error {
 	return nil
 }
 
-func (c *Controller) validateAutoscaler(podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
+func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscalerInternal) error {
+	// Check that we are within the limit of 100 DatadogPodAutoscalers
+	key := podAutoscalerInternal.ID()
+	if !c.limitHeap.Exists(key) {
+		return fmt.Errorf("Autoscaler disabled as maximum number per cluster reached (%d)", maxDatadogPodAutoscalerObjects)
+	}
+
 	// Check that targetRef is not set to the cluster agent
 	clusterAgentPodName, err := common.GetSelfPodName()
+	// If we cannot get cluster agent pod name, just skip the validation logic
 	if err != nil {
-		return fmt.Errorf("Unable to get the cluster agent pod name: %w", err)
+		return nil
 	}
 
 	var resourceName string
-	switch owner := podAutoscaler.Spec.TargetRef.Kind; owner {
+	switch owner := podAutoscalerInternal.Spec().TargetRef.Kind; owner {
 	case "Deployment":
 		resourceName = kubernetes.ParseDeploymentForPodName(clusterAgentPodName)
 	case "ReplicaSet":
@@ -424,7 +442,7 @@ func (c *Controller) validateAutoscaler(podAutoscaler *datadoghq.DatadogPodAutos
 
 	clusterAgentNs := common.GetMyNamespace()
 
-	if podAutoscaler.Namespace == clusterAgentNs && podAutoscaler.Spec.TargetRef.Name == resourceName {
+	if podAutoscalerInternal.Namespace() == clusterAgentNs && podAutoscalerInternal.Spec().TargetRef.Name == resourceName {
 		return fmt.Errorf("Autoscaling target cannot be set to the cluster agent")
 	}
 	return nil

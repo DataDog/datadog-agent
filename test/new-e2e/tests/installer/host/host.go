@@ -7,6 +7,7 @@
 package host
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os/user"
@@ -14,12 +15,14 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -173,8 +176,8 @@ func (h *Host) WaitForTraceAgentSocketReady() {
 	require.NoError(h.t, err, "trace agent did not become ready")
 }
 
-// BootstraperVersion returns the version of the bootstraper on the host.
-func (h *Host) BootstraperVersion() string {
+// BootstrapperVersion returns the version of the bootstrapper on the host.
+func (h *Host) BootstrapperVersion() string {
 	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-bootstrap version"))
 }
 
@@ -687,4 +690,130 @@ func (s *State) AssertUnitsDead(names ...string) {
 		assert.True(s.t, ok, "unit %v is not running", name)
 		assert.Equal(s.t, Dead, unit.SubState, "unit %v is not running", name)
 	}
+}
+
+// LocalCDN is a local CDN for testing.
+type LocalCDN struct {
+	host *Host
+	// DirPath is the path to the local CDN directory.
+	DirPath string
+	lock    sync.Mutex
+}
+
+type orderConfig struct {
+	// Order is the order of the layers.
+	Order []string `json:"order"`
+}
+
+// NewLocalCDN creates a new local CDN.
+func NewLocalCDN(host *Host) *LocalCDN {
+	localCDNPath := fmt.Sprintf("/tmp/local_cdn/%s", uuid.New().String())
+	host.remote.MustExecute(fmt.Sprintf("mkdir -p %s", localCDNPath))
+
+	// Create order file
+	orderPath := filepath.Join(localCDNPath, "configuration_order")
+	orderContent := orderConfig{
+		Order: []string{},
+	}
+	orderBytes, err := json.Marshal(orderContent)
+	require.NoError(host.t, err)
+
+	_, err = host.remote.WriteFile(orderPath, orderBytes)
+	require.NoError(host.t, err)
+
+	return &LocalCDN{
+		host:    host,
+		DirPath: localCDNPath,
+		lock:    sync.Mutex{},
+	}
+}
+
+// AddLayer adds a layer to the local CDN. It'll be last in order.
+func (c *LocalCDN) AddLayer(name string, content string) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	layerPath := filepath.Join(c.DirPath, name)
+
+	jsonContent := fmt.Sprintf(`{"name": "%s","config": {%s}}`, name, content)
+
+	_, err := c.host.remote.WriteFile(layerPath, []byte(jsonContent))
+	require.NoError(c.host.t, err)
+
+	// Add at the end of the order file
+	orderPath := filepath.Join(c.DirPath, "configuration_order")
+	orderContent := orderConfig{}
+	orderBytes, err := c.host.remote.ReadFile(orderPath)
+	require.NoError(c.host.t, err)
+	err = json.Unmarshal(orderBytes, &orderContent)
+	require.NoError(c.host.t, err)
+	orderContent.Order = append(orderContent.Order, name)
+	orderBytes, err = json.Marshal(orderContent)
+	require.NoError(c.host.t, err)
+	_, err = c.host.remote.WriteFile(orderPath, orderBytes)
+	require.NoError(c.host.t, err)
+
+	return nil
+}
+
+// UpdateLayer updates a layer in the local CDN.
+func (c *LocalCDN) UpdateLayer(name string, content string) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	layerPath := filepath.Join(c.DirPath, name)
+
+	jsonContent := fmt.Sprintf(`{"name": "%s","config": {%s}}`, name, content)
+
+	_, err := c.host.remote.WriteFile(layerPath, []byte(jsonContent))
+	require.NoError(c.host.t, err)
+
+	return nil
+}
+
+// RemoveLayer removes a layer from the local CDN.
+func (c *LocalCDN) RemoveLayer(name string) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	layerPath := filepath.Join(c.DirPath, name)
+	err := c.host.remote.Remove(layerPath)
+	require.NoError(c.host.t, err)
+
+	// Remove from order file
+	orderPath := filepath.Join(c.DirPath, "configuration_order")
+	orderContent := orderConfig{}
+	orderBytes, err := c.host.remote.ReadFile(orderPath)
+	require.NoError(c.host.t, err)
+	err = json.Unmarshal(orderBytes, &orderContent)
+	require.NoError(c.host.t, err)
+	newOrder := []string{}
+	for _, layer := range orderContent.Order {
+		if layer != name {
+			newOrder = append(newOrder, layer)
+		}
+	}
+	orderContent.Order = newOrder
+	orderBytes, err = json.Marshal(orderContent)
+	require.NoError(c.host.t, err)
+	_, err = c.host.remote.WriteFile(orderPath, orderBytes)
+	require.NoError(c.host.t, err)
+	return nil
+}
+
+// Reorder reorders the layers in the local CDN.
+func (c *LocalCDN) Reorder(orderedLayerNames []string) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	orderPath := filepath.Join(c.DirPath, "configuration_order")
+	orderContent := orderConfig{
+		Order: orderedLayerNames,
+	}
+	orderBytes, err := json.Marshal(orderContent)
+	require.NoError(c.host.t, err)
+	_, err = c.host.remote.WriteFile(orderPath, orderBytes)
+	require.NoError(c.host.t, err)
+
+	return nil
 }

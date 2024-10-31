@@ -43,6 +43,11 @@ repos:
     hooks:
       - id: end-of-file-fixer
         files: release.json
+- repo: https://github.com/rhysd/actionlint
+  rev: v1.7.3
+  hooks:
+    - id: actionlint
+      args: [ "-ignore", "shellcheck" ]
 - repo: local
   hooks:
     - id: protected-branches
@@ -65,8 +70,16 @@ repos:
       description: clang-format
       entry: 'inv pre-commit.check-winclang-format'
       language: system
-      types_or: [c, c++, c#]
+      types_or: [c, c++]
       pass_filenames: false
+    - # dotnet format is available on Linux, see https://learn.microsoft.com/en-us/dotnet/core/install/linux
+      id: dotnet-format-installer
+      name: dotnet-format-installer
+      description: Format .net file of the MSI installer
+      language: system
+      # The dotnet format tool requires a solution file to operate.
+      entry: dotnet format ./tools/windows/DatadogAgentInstaller --include 
+      types: [c#]
     - id: go-mod-tidy
       name: go-mod-tidy
       description: check that all go.mod files are tidy
@@ -111,6 +124,14 @@ repos:
       files: .*gitlab.*\.yml$
       pass_filenames: false
       stages: [pre-push]
+    - id: gitlab-lint-jobs-codeowners
+      name: gitlab-lint-jobs-codeowners
+      description: lint the gitlab configuration to verify jobs codeowners
+      entry: 'inv linter.gitlab-ci-jobs-codeowners'
+      language: system
+      require_serial: true
+      files: .*gitlab.*\.yml$
+      pass_filenames: false
     - id: update-go
       name: update-go
       description: test formatting of files will allow go update

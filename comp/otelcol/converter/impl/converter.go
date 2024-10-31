@@ -9,13 +9,15 @@ package converterimpl
 import (
 	"context"
 
+	"go.opentelemetry.io/collector/confmap"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
-	"go.opentelemetry.io/collector/confmap"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type ddConverter struct {
-	coreConfig config.Component
+	coreConfig optional.Option[config.Component]
 }
 
 var (
@@ -29,7 +31,7 @@ var (
 // with core agent config elements if any are missing from the provided
 // OTel configutation.
 type Requires struct {
-	Conf config.Component
+	Conf optional.Option[config.Component]
 }
 
 // NewConverter currently only supports a single URI in the uris slice, and this URI needs to be a file path.

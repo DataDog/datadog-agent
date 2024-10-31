@@ -128,8 +128,10 @@ func TestTagTruncatedLogs(t *testing.T) {
 	ag := NewAggregator(outputFn, 10, time.Duration(1*time.Second), true, false, status.NewInfoRegistry())
 
 	ag.Aggregate(newMessage("1234567890"), startGroup)
-	ag.Aggregate(newMessage("1"), aggregate) // Causes overflow, truncate and flush
-	ag.Aggregate(newMessage("2"), noAggregate)
+	ag.Aggregate(newMessage("12345678901"), aggregate) // Causes overflow, truncate and flush
+	ag.Aggregate(newMessage("12345"), aggregate)
+	ag.Aggregate(newMessage("6789"), aggregate)
+	ag.Aggregate(newMessage("3"), noAggregate)
 
 	msg := <-outputChan
 	assert.True(t, msg.ParsingExtra.IsTruncated)
@@ -139,12 +141,22 @@ func TestTagTruncatedLogs(t *testing.T) {
 	msg = <-outputChan
 	assert.True(t, msg.ParsingExtra.IsTruncated)
 	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("auto_multiline")})
-	assertMessageContent(t, msg, "...TRUNCATED...1")
+	assertMessageContent(t, msg, "...TRUNCATED...12345678901...TRUNCATED...")
+
+	msg = <-outputChan
+	assert.True(t, msg.ParsingExtra.IsTruncated)
+	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("auto_multiline")})
+	assertMessageContent(t, msg, "...TRUNCATED...12345...TRUNCATED...")
+
+	msg = <-outputChan
+	assert.True(t, msg.ParsingExtra.IsTruncated)
+	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("auto_multiline")})
+	assertMessageContent(t, msg, "...TRUNCATED...6789")
 
 	msg = <-outputChan
 	assert.False(t, msg.ParsingExtra.IsTruncated)
 	assert.Empty(t, msg.ParsingExtra.Tags)
-	assertMessageContent(t, msg, "2")
+	assertMessageContent(t, msg, "3")
 }
 
 func TestTagMultiLineLogs(t *testing.T) {
@@ -173,4 +185,16 @@ func TestTagMultiLineLogs(t *testing.T) {
 	assert.False(t, msg.ParsingExtra.IsTruncated)
 	assert.Empty(t, msg.ParsingExtra.Tags)
 	assertMessageContent(t, msg, "2")
+}
+
+func TestStartGruopIsNotTruncatedWithoutAggreagation(t *testing.T) {
+	outputChan, outputFn := makeHandler()
+	ag := NewAggregator(outputFn, 5, time.Duration(1*time.Second), false, true, status.NewInfoRegistry())
+
+	ag.Aggregate(newMessage("123456"), startGroup)
+	// Force a flush
+	ag.Aggregate(newMessage(""), startGroup)
+
+	msg := <-outputChan
+	assertMessageContent(t, msg, "123456")
 }

@@ -12,6 +12,7 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -37,11 +38,13 @@ type ServerlessDemultiplexer struct {
 
 	flushAndSerializeInParallel FlushAndSerializeInParallel
 
+	hostTagProvider *HostTagProvider
+
 	*senders
 }
 
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
-func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forwarderTimeout time.Duration) *ServerlessDemultiplexer {
+func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forwarderTimeout time.Duration, tagger tagger.Component) *ServerlessDemultiplexer {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 	logger := logimpl.NewTemporaryLoggerWithoutInit()
 	forwarder := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, keysPerDomain, forwarderTimeout)
@@ -50,19 +53,19 @@ func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forw
 	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(pkgconfigsetup.Datadog()))
 	tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), "timesampler")
 
-	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore, "")
+	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore, tagger, "")
 	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog())
 	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
 
 	demux := &ServerlessDemultiplexer{
-		log:              logger,
-		forwarder:        forwarder,
-		statsdSampler:    statsdSampler,
-		statsdWorker:     statsdWorker,
-		serializer:       serializer,
-		metricSamplePool: metricSamplePool,
-		flushLock:        &sync.Mutex{},
-
+		log:                         logger,
+		forwarder:                   forwarder,
+		statsdSampler:               statsdSampler,
+		statsdWorker:                statsdWorker,
+		serializer:                  serializer,
+		metricSamplePool:            metricSamplePool,
+		flushLock:                   &sync.Mutex{},
+		hostTagProvider:             NewHostTagProvider(),
 		flushAndSerializeInParallel: flushAndSerializeInParallel,
 	}
 
@@ -105,7 +108,7 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	defer d.flushLock.Unlock()
 
 	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
-	series, sketches := createIterableMetrics(d.flushAndSerializeInParallel, d.serializer, logPayloads, true)
+	series, sketches := createIterableMetrics(d.flushAndSerializeInParallel, d.serializer, logPayloads, true, d.hostTagProvider)
 
 	metrics.Serialize(
 		series,

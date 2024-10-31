@@ -65,6 +65,8 @@ else
   # creates required build directories
   dependency 'preparation'
 
+  dependency "systemd" if linux_target?
+
   # Datadog agent
   dependency 'datadog-iot-agent'
 

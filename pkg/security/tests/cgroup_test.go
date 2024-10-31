@@ -134,4 +134,42 @@ ExecStart=/usr/bin/touch %s`, testFile2)
 			test.validateOpenSchema(t, event)
 		})
 	})
+
+	t.Run("podman", func(t *testing.T) {
+		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
+			// TODO(lebauce): On the systems, systemd service creation doesn't trigger a cprocs write
+			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
+		})
+
+		test.WaitSignal(t, func() error {
+			serviceUnit := fmt.Sprintf(`[Service]
+Type=oneshot
+ExecStart=/usr/bin/touch %s`, testFile2)
+			if err := os.WriteFile("/etc/systemd/system/cws-test.service", []byte(serviceUnit), 0700); err != nil {
+				return err
+			}
+			if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
+				return err
+			}
+			if err := exec.Command("systemctl", "start", "cws-test").Run(); err != nil {
+				return err
+			}
+			if err := exec.Command("systemctl", "stop", "cws-test").Run(); err != nil {
+				return err
+			}
+			if err := os.Remove("/etc/systemd/system/cws-test.service"); err != nil {
+			}
+			if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
+				return err
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_cgroup_systemd")
+			assertFieldEqual(t, event, "open.file.path", testFile2)
+			assertFieldEqual(t, event, "cgroup.manager", "systemd")
+			assertFieldNotEqual(t, event, "cgroup.id", "")
+
+			test.validateOpenSchema(t, event)
+		})
+	})
 }

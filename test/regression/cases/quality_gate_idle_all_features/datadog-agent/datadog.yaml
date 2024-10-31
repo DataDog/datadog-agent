@@ -1,0 +1,74 @@
+auth_token_file_path: /tmp/agent-auth-token
+hostname: smp-regression
+
+dd_url: http://127.0.0.1:9092
+
+confd_path: /etc/datadog-agent/conf.d
+
+# Disable cloud detection. This stops the Agent from poking around the
+# execution environment & network. This is particularly important if the target
+# has network access.
+cloud_provider_metadata: []
+
+dogstatsd_socket: '/tmp/dsd.socket'
+
+logs_enabled: true
+
+apm_config:
+  enabled: true
+
+process_config:
+  process_collection:
+    enabled: true
+  container_collection:
+    enabled: true
+
+network_path:
+  connections_monitoring:
+    enabled: true
+
+runtime_security_config:
+  ## Set to true to enable Threat Detection
+  enabled: true
+
+cluster_checks:
+  enabled: true
+
+otlp_config:
+  metrics:
+    enabled: true
+  traces:
+    enabled: true
+  logs:
+    enabled: true
+
+system_probe_config:
+  enabled: true
+
+network_config:
+  enabled: true
+
+# Per Cloud Security Management setup documentation
+# https://docs.datadoghq.com/security/cloud_security_management/setup/agent/linux/
+remote_configuration:
+  # SMP environment does not support remote config currently.
+  enabled: false
+
+compliance_config:
+  ## Set to true to enable CIS benchmarks for Misconfigurations.
+  enabled: true
+  host_benchmarks:
+    enabled: true
+
+# Vulnerabilities are evaluated and scanned against your containers and hosts every hour.
+sbom:
+  enabled: true
+  # Set to true to enable Container Vulnerability Management
+  container_image:
+    enabled: true
+  # Set to true to enable Host Vulnerability Management
+  host:
+    enabled: true
+
+container_image:
+  enabled: true

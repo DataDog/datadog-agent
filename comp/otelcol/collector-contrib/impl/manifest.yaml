@@ -1,5 +1,5 @@
 dist:
-  module: github.com/DataDog/comp/otelcol/collector-contrib
+  module: github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib
   name: otelcol-contrib
   description: Datadog OpenTelemetry Collector
   version: 0.104.0

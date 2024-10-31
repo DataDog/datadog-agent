@@ -757,6 +757,10 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 func TestSQLQuantizer(t *testing.T) {
 	cases := []sqlTestCase{
 		{
+			`SELECT "table"."field" FROM "table" WHERE "table"."otherfield" = $? AND "table"."thirdfield" = $?;`,
+			`SELECT table . field FROM table WHERE table . otherfield = ? AND table . thirdfield = ?`,
+		},
+		{
 			"select * from users where id = 42",
 			"select * from users where id = ?",
 		},
@@ -2071,6 +2075,11 @@ func TestSQLLexerObfuscation(t *testing.T) {
 			name:     "simple query obfuscation",
 			query:    "SELECT * FROM users WHERE id = 1",
 			expected: "SELECT * FROM users WHERE id = ?",
+		},
+		{
+			name:     "dollar question paramerer",
+			query:    `SELECT "table"."field" FROM "table" WHERE "table"."otherfield" = $? AND "table"."thirdfield" = $?;`,
+			expected: `SELECT "table"."field" FROM "table" WHERE "table"."otherfield" = $? AND "table"."thirdfield" = $?;`,
 		},
 		{
 			name:          "simple query obfuscation with replace digits",
