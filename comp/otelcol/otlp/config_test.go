@@ -214,7 +214,11 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"endpoint": "0.0.0.0:9999",
+							"endpoint":         "0.0.0.0:9999",
+							"include_metadata": false,
+						},
+						"http": map[string]interface{}{
+							"include_metadata": false,
 						},
 					},
 				},
@@ -224,9 +228,16 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				LogsEnabled:    false,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
-					"enabled":                 true,
-					"tag_cardinality":         "low",
-					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"enabled": true,
+					"histograms": map[string]interface{}{
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
+					},
+					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
+					"resource_attributes_as_tags":              false,
+					"tag_cardinality":                          "low",
+					"apm_stats_receiver_addr":                  "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -241,7 +252,8 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"endpoint": "0.0.0.0:9997",
+							"endpoint":         "0.0.0.0:9997",
+							"include_metadata": false,
 						},
 						"http": map[string]interface{}{
 							"endpoint": "0.0.0.0:9998",
@@ -254,9 +266,16 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				LogsEnabled:    false,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
-					"enabled":                 true,
-					"tag_cardinality":         "low",
-					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"enabled": true,
+					"histograms": map[string]interface{}{
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
+					},
+					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
+					"resource_attributes_as_tags":              false,
+					"tag_cardinality":                          "low",
+					"apm_stats_receiver_addr":                  "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -274,10 +293,12 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"endpoint": "0.0.0.0:9995",
+							"endpoint":         "0.0.0.0:9995",
+							"include_metadata": false,
 						},
 						"http": map[string]interface{}{
-							"endpoint": "0.0.0.0:9996",
+							"endpoint":         "0.0.0.0:9996",
+							"include_metadata": false,
 						},
 					},
 				},
@@ -288,14 +309,18 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
-					"instrumentation_scope_metadata_as_tags": "true",
+					"instrumentation_scope_metadata_as_tags": true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 
 					"delta_ttl": "2400",
 					"histograms": map[string]interface{}{
-						"mode": "counters",
+						"mode":                     "counters",
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
 					},
+					"instrumentation_library_metadata_as_tags": false,
+					"resource_attributes_as_tags":              false,
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -310,7 +335,11 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"endpoint": "0.0.0.0:9999",
+							"endpoint":         "0.0.0.0:9999",
+							"include_metadata": false,
+						},
+						"http": map[string]interface{}{
+							"include_metadata": false,
 						},
 					},
 				},
@@ -320,9 +349,16 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				LogsEnabled:    false,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
-					"enabled":                 true,
-					"tag_cardinality":         "low",
-					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"enabled": true,
+					"histograms": map[string]interface{}{
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
+					},
+					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
+					"resource_attributes_as_tags":              false,
+					"tag_cardinality":                          "low",
+					"apm_stats_receiver_addr":                  "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{
 					"verbosity": "none",
@@ -339,7 +375,11 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"endpoint": "0.0.0.0:9999",
+							"endpoint":         "0.0.0.0:9999",
+							"include_metadata": false,
+						},
+						"http": map[string]interface{}{
+							"include_metadata": false,
 						},
 					},
 				},
@@ -349,9 +389,16 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				LogsEnabled:    false,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
-					"enabled":                 true,
-					"tag_cardinality":         "low",
-					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"enabled": true,
+					"histograms": map[string]interface{}{
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
+					},
+					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
+					"resource_attributes_as_tags":              false,
+					"tag_cardinality":                          "low",
+					"apm_stats_receiver_addr":                  "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{
 					"verbosity": "normal",
@@ -369,7 +416,11 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
 							"endpoint":              "0.0.0.0:9999",
+							"include_metadata":      false,
 							"max_recv_msg_size_mib": "10",
+						},
+						"http": map[string]interface{}{
+							"include_metadata": false,
 						},
 					},
 				},
@@ -379,9 +430,16 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				LogsEnabled:    false,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
-					"enabled":                 true,
-					"tag_cardinality":         "low",
-					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"enabled": true,
+					"histograms": map[string]interface{}{
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
+					},
+					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
+					"resource_attributes_as_tags":              false,
+					"tag_cardinality":                          "low",
+					"apm_stats_receiver_addr":                  "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -392,16 +450,31 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				"DD_OTLP_CONFIG_LOGS_ENABLED": "true",
 			},
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: map[string]interface{}{},
-
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"include_metadata": false,
+						},
+						"http": map[string]interface{}{
+							"include_metadata": false,
+						},
+					},
+				},
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    true,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
-					"enabled":                 true,
-					"tag_cardinality":         "low",
-					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"enabled": true,
+					"histograms": map[string]interface{}{
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
+					},
+					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
+					"resource_attributes_as_tags":              false,
+					"tag_cardinality":                          "low",
+					"apm_stats_receiver_addr":                  "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -412,16 +485,31 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				"DD_OTLP_CONFIG_LOGS_ENABLED": "false",
 			},
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: map[string]interface{}{},
-
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"include_metadata": false,
+						},
+						"http": map[string]interface{}{
+							"include_metadata": false,
+						},
+					},
+				},
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
-					"enabled":                 true,
-					"tag_cardinality":         "low",
-					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"enabled": true,
+					"histograms": map[string]interface{}{
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
+					},
+					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
+					"resource_attributes_as_tags":              false,
+					"tag_cardinality":                          "low",
+					"apm_stats_receiver_addr":                  "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -432,17 +520,31 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				"DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS": "true",
 			},
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: map[string]interface{}{},
-
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"include_metadata": false,
+						},
+						"http": map[string]interface{}{
+							"include_metadata": false,
+						},
+					},
+				},
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
-					"enabled":                     true,
-					"tag_cardinality":             "low",
-					"apm_stats_receiver_addr":     "http://localhost:8126/v0.6/stats",
-					"resource_attributes_as_tags": true,
+					"enabled": true,
+					"histograms": map[string]interface{}{
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
+					},
+					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
+					"tag_cardinality":                          "low",
+					"apm_stats_receiver_addr":                  "http://localhost:8126/v0.6/stats",
+					"resource_attributes_as_tags":              true,
 				},
 				Debug: map[string]interface{}{},
 			},
