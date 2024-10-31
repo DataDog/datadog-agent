@@ -200,7 +200,7 @@ func nodeDetector(ctx usm.DetectionContext) Instrumentation {
 	return None
 }
 
-var javaAgentRegex = regexp.MustCompile("-javaagent:.*(?:datadog|dd-java-agent)")
+var javaAgentRegex = regexp.MustCompile(`-javaagent:.*(?:datadog|dd-java-agent|dd-trace-agent)\S*\.jar`)
 
 func javaDetector(ctx usm.DetectionContext) Instrumentation {
 	ignoreArgs := map[string]bool{

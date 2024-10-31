@@ -84,9 +84,24 @@ func Test_javaDetector(t *testing.T) {
 			result: Provided,
 		},
 		{
+			name:   "cmdline - dd-trace-agent.jar",
+			args:   []string{"java", "-foo", "-javaagent:/path/to/data dog/dd-trace-agent.jar", "-Ddd.profiling.enabled=true"},
+			result: Provided,
+		},
+		{
 			name:   "cmdline - datadog.jar",
 			args:   []string{"java", "-foo", "-javaagent:/path/to/data dog/datadog.jar", "-Ddd.profiling.enabled=true"},
 			result: Provided,
+		},
+		{
+			name:   "cmdline - datadog only in does not match",
+			args:   []string{"java", "-foo", "path/to/data dog/datadog", "-Ddd.profiling.enabled=true"},
+			result: None,
+		},
+		{
+			name:   "cmdline - jar only in does not match",
+			args:   []string{"java", "-foo", "path/to/data dog/datadog.jar", "-Ddd.profiling.enabled=true"},
+			result: None,
 		},
 		{
 			name: "CATALINA_OPTS",
