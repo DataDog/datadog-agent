@@ -24,7 +24,7 @@ agent_integration_tests:
 docker_integration_tests:
   extends: .integration_tests_deb
   script:
-    # DockerHub login for build to limit rate limit when pulling base images
+    # DockerHub login to limit rate limit when pulling base images
     - DOCKER_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO token | docker login --username "$DOCKER_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     - inv -e docker.test
