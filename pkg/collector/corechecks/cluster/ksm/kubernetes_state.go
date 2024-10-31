@@ -338,8 +338,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	builder.WithKubeClient(c.InformerCl)
 
-	// builder.WithVPAClient(c.VPAInformerClient)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	k.cancel = cancel
 	builder.WithContext(ctx)
@@ -441,12 +439,12 @@ func (k *KSMCheck) discoverCustomResources(collectors []string, resources []*v1.
 
 	clientConfig, err := apiserver.GetClientConfig(time.Duration(pkgconfigsetup.Datadog().GetInt64("kubernetes_apiserver_client_timeout")) * time.Second)
 	if err != nil {
-		return customResources{}, err
+		return customResources{}, fmt.Errorf("Failed to get API server client config: %w", err)
 	}
 
 	c, err := dynamic.NewForConfig(clientConfig)
 	if err != nil {
-		return customResources{}, err
+		return customResources{}, fmt.Errorf("Failed to get dynamic client: %w", err)
 	}
 
 	// extended resource collectors always have a factory registered
