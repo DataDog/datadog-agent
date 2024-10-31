@@ -82,11 +82,6 @@ const (
 	MaxOnDemandEventsPerSecond = 1_000
 )
 
-const (
-	playSnapShotState int32 = iota + 1
-	replaySnapShotState
-)
-
 var (
 	// defaultEventTypes event types used whatever the event handlers or the rules
 	defaultEventTypes = []eval.EventType{
@@ -161,7 +156,8 @@ type EBPFProbe struct {
 	fileHasher *FileHasher
 
 	// snapshot
-	playSnapShotState *atomic.Int32
+	ruleSetVersion    uint64
+	playSnapShotState *atomic.Bool
 }
 
 // GetProfileManager returns the Profile Managers
@@ -417,6 +413,9 @@ func (p *EBPFProbe) Setup() error {
 
 // Start the probe
 func (p *EBPFProbe) Start() error {
+	// Apply rules to the snapshotted data before starting the event stream to avoid concurrency issues
+	p.playSnapshot(true)
+
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
 
@@ -642,8 +641,9 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// handle play snapshot
-	if state := p.playSnapShotState.Swap(0); state != 0 {
-		p.playSnapshot(state == playSnapShotState)
+	if p.playSnapShotState.Swap(false) {
+		// do not notify consumers as we are replaying the snapshot after a ruleset reload
+		p.playSnapshot(false)
 	}
 
 	offset := 0
@@ -1699,8 +1699,12 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 		}
 	}
 
-	// replay the snapshot
-	p.playSnapShotState.CompareAndSwap(0, replaySnapShotState)
+	// do not replay the snapshot if we are in the first rule set version, this was already done in the start method
+	if p.ruleSetVersion != 0 {
+		p.playSnapShotState.Store(true)
+	}
+
+	p.ruleSetVersion++
 
 	return ars, nil
 }
@@ -1765,7 +1769,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 		newTCNetDevices:      make(chan model.NetDevice, 16),
 		processKiller:        processKiller,
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, 1),
-		playSnapShotState:    atomic.NewInt32(playSnapShotState),
+		playSnapShotState:    atomic.NewBool(false),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
