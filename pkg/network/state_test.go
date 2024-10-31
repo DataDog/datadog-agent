@@ -2413,7 +2413,8 @@ func TestConnectionRollup(t *testing.T) {
 				ReplSrcIP:   util.AddressFromString("172.29.177.127"),
 				ReplSrcPort: 53,
 			},
-			ContainerID: struct{ Source, Dest *intern.Value }{intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f"), nil},
+			SPortIsEphemeral: EphemeralTrue,
+			ContainerID:      struct{ Source, Dest *intern.Value }{intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f"), nil},
 			Monotonic: StatCounters{
 				RecvBytes:      342,
 				SentBytes:      156,
@@ -2446,7 +2447,8 @@ func TestConnectionRollup(t *testing.T) {
 				ReplSrcIP:   util.AddressFromString("172.29.177.127"),
 				ReplSrcPort: 53,
 			},
-			ContainerID: struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			SPortIsEphemeral: EphemeralTrue,
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
 			Monotonic: StatCounters{
 				RecvBytes:      314,
 				SentBytes:      128,
@@ -2479,7 +2481,8 @@ func TestConnectionRollup(t *testing.T) {
 				ReplSrcIP:   util.AddressFromString("172.29.151.242"),
 				ReplSrcPort: 53,
 			},
-			ContainerID: struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			SPortIsEphemeral: EphemeralTrue,
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
 			Monotonic: StatCounters{
 				RecvBytes:      306,
 				SentBytes:      120,
@@ -2512,7 +2515,8 @@ func TestConnectionRollup(t *testing.T) {
 				ReplSrcIP:   util.AddressFromString("172.29.151.242"),
 				ReplSrcPort: 53,
 			},
-			ContainerID: struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			SPortIsEphemeral: EphemeralTrue,
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
 			Monotonic: StatCounters{
 				RecvBytes:      288,
 				SentBytes:      118,
@@ -2545,7 +2549,8 @@ func TestConnectionRollup(t *testing.T) {
 				ReplSrcIP:   util.AddressFromString("172.29.151.242"),
 				ReplSrcPort: 53,
 			},
-			ContainerID: struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			SPortIsEphemeral: EphemeralTrue,
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
 			Monotonic: StatCounters{
 				RecvBytes:      594,
 				SentBytes:      92,
@@ -2569,7 +2574,8 @@ func TestConnectionRollup(t *testing.T) {
 			Type:   TCP,
 			NetNS:  4026531992,
 		},
-			ContainerID: struct{ Source, Dest *intern.Value }{Source: intern.GetByString("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
+			SPortIsEphemeral: EphemeralFalse,
 			Monotonic: StatCounters{
 				SentBytes:      0,
 				RecvBytes:      306,
@@ -2596,7 +2602,8 @@ func TestConnectionRollup(t *testing.T) {
 			Type:   TCP,
 			NetNS:  4026531992,
 		},
-			ContainerID: struct{ Source, Dest *intern.Value }{Source: intern.GetByString("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
+			SPortIsEphemeral: EphemeralFalse,
 			Monotonic: StatCounters{
 				SentBytes:      0,
 				RecvBytes:      306,
@@ -2623,7 +2630,8 @@ func TestConnectionRollup(t *testing.T) {
 			Type:   TCP,
 			NetNS:  4026531992,
 		},
-			ContainerID: struct{ Source, Dest *intern.Value }{Source: intern.GetByString("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
+			SPortIsEphemeral: EphemeralFalse,
 			Monotonic: StatCounters{
 				SentBytes:      2392,
 				RecvBytes:      670,

@@ -6,7 +6,7 @@
 package protocols
 
 // ProtocolType is an enum of supported protocols
-type ProtocolType uint8
+type ProtocolType uint16
 
 const (
 	// Unknown is the default value, protocol was not detected
