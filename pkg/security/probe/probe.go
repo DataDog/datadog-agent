@@ -57,7 +57,6 @@ type PlatformProbe interface {
 	GetEventTags(_ string) []string
 	GetProfileManager() interface{}
 	EnableEnforcement(bool)
-	PlaySnapshot()
 }
 
 // EventConsumer defines a probe event consumer
@@ -441,9 +440,4 @@ func (p *Probe) IsSecurityProfileEnabled() bool {
 // EnableEnforcement sets the enforcement mode
 func (p *Probe) EnableEnforcement(state bool) {
 	p.PlatformProbe.EnableEnforcement(state)
-}
-
-// PlaySnapshot plays the snapshot
-func (p *Probe) PlaySnapshot() {
-	p.PlatformProbe.PlaySnapshot()
 }

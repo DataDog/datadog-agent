@@ -74,6 +74,12 @@ func (c *Check) Run() error {
 	path.Destination.Service = c.config.DestinationService
 	path.Tags = c.config.Tags
 
+	// Perform reverse DNS lookup
+	path.Destination.ReverseDNSHostname = traceroute.GetHostname(path.Destination.IPAddress)
+	for i := range path.Hops {
+		path.Hops[i].Hostname = traceroute.GetHostname(path.Hops[i].IPAddress)
+	}
+
 	// send to EP
 	err = c.SendNetPathMDToEP(senderInstance, path)
 	if err != nil {

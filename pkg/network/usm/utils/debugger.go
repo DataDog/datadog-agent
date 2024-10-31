@@ -60,6 +60,11 @@ func BlockedPathIDEndpoint(w http.ResponseWriter, _ *http.Request) {
 	otherutils.WriteAsJSON(w, debugger.GetAllBlockedPathIDs())
 }
 
+// ClearBlockedEndpoint clears the lists of blocked paths.
+func ClearBlockedEndpoint(_ http.ResponseWriter, _ *http.Request) {
+	debugger.ClearBlocked()
+}
+
 var debugger *tlsDebugger
 
 type tlsDebugger struct {
@@ -160,6 +165,18 @@ func (d *tlsDebugger) GetBlockedPathIDs(programType string) []PathIdentifier {
 	}
 
 	return nil
+}
+
+// ClearBlocked clears the list of blocked paths for all registries.
+func (d *tlsDebugger) ClearBlocked() {
+	d.mux.Lock()
+	defer d.mux.Unlock()
+
+	for _, registry := range d.registries {
+		registry.m.Lock()
+		registry.blocklistByID.Purge()
+		registry.m.Unlock()
+	}
 }
 
 // GetBlockedPathIDsWithSamplePath returns a list of PathIdentifiers with a matching sample path blocked in the
