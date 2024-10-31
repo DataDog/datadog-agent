@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
+	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
@@ -56,7 +56,7 @@ func (f *FakeTagger) SetTags(entityID types.EntityID, source string, low, orch, 
 
 // SetGlobalTags allows to set tags in store for the global entity
 func (f *FakeTagger) SetGlobalTags(low, orch, high, std []string) {
-	f.SetTags(common.GetGlobalEntityID(), "static", low, orch, high, std)
+	f.SetTags(taggercommon.GetGlobalEntityID(), "static", low, orch, high, std)
 }
 
 // SetTagsFromInfo allows to set tags from list of TagInfo
@@ -97,11 +97,10 @@ func (f *FakeTagger) GetTaggerTelemetryStore() *telemetry.Store {
 }
 
 // Tag fake implementation
-func (f *FakeTagger) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
-	id, _ := types.NewEntityIDFromString(entityID)
-	tags := f.store.Lookup(id, cardinality)
+func (f *FakeTagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
+	tags := f.store.Lookup(entityID, cardinality)
 
-	key := f.getKey(id, cardinality)
+	key := f.getKey(entityID, cardinality)
 	if err := f.errors[key]; err != nil {
 		return nil, err
 	}
@@ -109,14 +108,28 @@ func (f *FakeTagger) Tag(entityID string, cardinality types.TagCardinality) ([]s
 	return tags, nil
 }
 
+// LegacyTag has the same behaviour as the Tag method, but it receives the entity id as a string and parses it.
+// If possible, avoid using this function, and use the Tag method instead.
+// This function exists in order not to break backward compatibility with rtloader and python
+// integrations using the tagger
+func (f *FakeTagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
+	prefix, id, err := taggercommon.ExtractPrefixAndID(entity)
+	if err != nil {
+		return nil, err
+	}
+
+	entityID := types.NewEntityID(prefix, id)
+	return f.Tag(entityID, cardinality)
+}
+
 // GlobalTags fake implementation
 func (f *FakeTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
-	return f.Tag(common.GetGlobalEntityIDString(), cardinality)
+	return f.Tag(taggercommon.GetGlobalEntityID(), cardinality)
 }
 
 // AccumulateTagsFor fake implementation
 func (f *FakeTagger) AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
-	tags, err := f.Tag(entityID.String(), cardinality)
+	tags, err := f.Tag(entityID, cardinality)
 	if err != nil {
 		return err
 	}

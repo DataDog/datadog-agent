@@ -120,6 +120,14 @@ func ProcRootPath(pid uint32) string {
 
 // ProcRootFilePath returns the path to the input file after prepending the proc root path of the given pid
 func ProcRootFilePath(pid uint32, file string) string {
+	// if file starts with /, the result of filepath.Join will look, before cleaning, like
+	//   /proc/$PID/root//file
+	// and this will require a re-allocation in filepath.Clean
+	// to prevent this, we remove the leading / from the file if it's there. In most cases
+	// it will be enough
+	if file != "" && file[0] == os.PathSeparator {
+		file = file[1:]
+	}
 	return procPidPath2(pid, "root", file)
 }
 

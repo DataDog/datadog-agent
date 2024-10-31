@@ -19,6 +19,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -122,6 +124,7 @@ type ProviderTestSuite struct {
 	provider   *Provider
 	mockSender *mocksender.MockSender
 	store      workloadmeta.Component
+	tagger     tagger.Component
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
@@ -137,13 +140,15 @@ func (suite *ProviderTestSuite) SetupTest() {
 	suite.mockSender = mockSender
 
 	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
-	defer fakeTagger.ResetTagger()
+
 	for entity, tags := range commontesting.CommonTags {
-		entityID, _ := taggertypes.NewEntityIDFromString(entity)
+		prefix, id, _ := taggercommon.ExtractPrefixAndID(entity)
+		entityID := taggertypes.NewEntityID(prefix, id)
 		fakeTagger.SetTags(entityID, "foo", tags, nil, nil, nil)
 	}
+	suite.tagger = fakeTagger
 
-	podUtils := common.NewPodUtils()
+	podUtils := common.NewPodUtils(fakeTagger)
 
 	podsFile := "../../testdata/pods.json"
 	err = commontesting.StorePopulatedFromFile(store, podsFile, podUtils)
@@ -170,6 +175,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 		config,
 		store,
 		podUtils,
+		fakeTagger,
 	)
 	assert.NoError(suite.T(), err)
 	suite.provider = p

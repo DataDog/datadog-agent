@@ -92,7 +92,6 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts ui
 	entry.PIDContext.Pid = key.Pid
 	entry.PPid = ppid
 	entry.ForkTime = time.Unix(0, int64(ts))
-	entry.IsThread = true
 	entry.Source = model.ProcessCacheEntryFromEvent
 
 	p.Lock()
@@ -177,9 +176,9 @@ func (p *EBPFLessResolver) AddProcFSEntry(key CacheResolverKey, ppid uint32, fil
 	parentKey := CacheResolverKey{NSID: key.NSID, Pid: ppid}
 	if parent := p.entryCache[parentKey]; parent != nil {
 		if parent.Equals(entry) {
-			entry.SetParentOfForkChild(parent)
+			entry.SetForkParent(parent)
 		} else {
-			entry.SetAncestor(parent)
+			entry.SetExecParent(parent)
 		}
 	}
 	p.insertEntry(key, entry, p.entryCache[key])

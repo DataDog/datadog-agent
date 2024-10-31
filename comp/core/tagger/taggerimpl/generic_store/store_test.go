@@ -39,33 +39,6 @@ func TestObjectStore_GetSet(t *testing.T) {
 	assert.Falsef(t, found, "item should not be found in store")
 }
 
-func TestObjectStore_GetWithEntityIDStr(t *testing.T) {
-	store := NewObjectStore[any]()
-
-	id := types.NewEntityID("prefix", "id")
-	idStr := id.String()
-	// getting a non-existent item
-	obj, found := store.GetWithEntityIDStr(idStr)
-	assert.Nil(t, obj)
-	assert.Falsef(t, found, "item should not be found in store")
-
-	// set item
-	store.Set(id, struct{}{})
-
-	// getting item
-	obj, found = store.GetWithEntityIDStr(idStr)
-	assert.NotNil(t, obj)
-	assert.Truef(t, found, "item should be found in store")
-
-	// unsetting item
-	store.Unset(id)
-
-	// getting a non-existent item
-	obj, found = store.GetWithEntityIDStr(idStr)
-	assert.Nil(t, obj)
-	assert.Falsef(t, found, "item should not be found in store")
-}
-
 func TestObjectStore_Size(t *testing.T) {
 	store := NewObjectStore[any]()
 
@@ -99,15 +72,22 @@ func TestObjectStore_ListObjects(t *testing.T) {
 	assert.Equalf(t, len(list), 0, "ListObjects should return an empty list")
 
 	// add some items
-	ids := []string{"prefix1://id1", "prefix2://id2", "prefix3://id3", "prefix4://id4"}
-	for _, id := range ids {
-		entityID, _ := types.NewEntityIDFromString(id)
-		store.Set(entityID, id)
+	ids := []types.EntityID{
+		types.NewEntityID(types.EntityIDPrefix("prefix1"), "id1"),
+		types.NewEntityID(types.EntityIDPrefix("prefix2"), "id2"),
+		types.NewEntityID(types.EntityIDPrefix("prefix3"), "id3"),
+		types.NewEntityID(types.EntityIDPrefix("prefix4"), "id4"),
 	}
 
-	// list should return empty
+	for _, entityID := range ids {
+		store.Set(entityID, entityID)
+	}
+
 	list = store.ListObjects(filter)
-	expectedListing := []any{"prefix1://id1", "prefix2://id2"}
+	expectedListing := []types.EntityID{
+		types.NewEntityID(types.EntityIDPrefix("prefix1"), "id1"),
+		types.NewEntityID(types.EntityIDPrefix("prefix2"), "id2"),
+	}
 	assert.ElementsMatch(t, expectedListing, list)
 }
 
@@ -115,9 +95,14 @@ func TestObjectStore_ForEach(t *testing.T) {
 	store := NewObjectStore[any]()
 
 	// add some items
-	ids := []string{"prefix1://id1", "prefix2://id2", "prefix3://id3", "prefix4://id4"}
-	for _, id := range ids {
-		entityID, _ := types.NewEntityIDFromString(id)
+	ids := []types.EntityID{
+		types.NewEntityID(types.EntityIDPrefix("prefix1"), "id1"),
+		types.NewEntityID(types.EntityIDPrefix("prefix2"), "id2"),
+		types.NewEntityID(types.EntityIDPrefix("prefix3"), "id3"),
+		types.NewEntityID(types.EntityIDPrefix("prefix4"), "id4"),
+	}
+
+	for _, entityID := range ids {
 		store.Set(entityID, struct{}{})
 	}
 
@@ -128,8 +113,7 @@ func TestObjectStore_ForEach(t *testing.T) {
 	fb.Include(types.EntityIDPrefix("prefix1"), types.EntityIDPrefix("prefix2"))
 	filter := fb.Build(types.HighCardinality)
 
+	// only elements matching the filter should be included in the accumulator
 	store.ForEach(filter, func(id types.EntityID, _ any) { accumulator = append(accumulator, id.String()) })
-
-	// list should return empty
 	assert.ElementsMatch(t, accumulator, []string{"prefix1://id1", "prefix2://id2"})
 }

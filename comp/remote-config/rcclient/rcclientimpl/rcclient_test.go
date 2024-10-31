@@ -14,6 +14,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -66,7 +67,9 @@ func TestRCClientCreate(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
+			fx.Provide(func() config.Component { return configmock.New(t) }),
 			settingsimpl.MockModule(),
+			sysprobeconfig.NoneModule(),
 		),
 	)
 	// Missing params
@@ -76,6 +79,8 @@ func TestRCClientCreate(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
+			fx.Provide(func() config.Component { return configmock.New(t) }),
+			sysprobeconfig.NoneModule(),
 			fx.Supply(
 				rcclient.Params{
 					AgentName:    "test-agent",
@@ -92,12 +97,14 @@ func TestRCClientCreate(t *testing.T) {
 
 func TestAgentConfigCallback(t *testing.T) {
 	pkglog.SetupLogger(seelog.Default, "info")
-	config := configmock.New(t)
+	cfg := configmock.New(t)
 
 	rc := fxutil.Test[rcclient.Component](t,
 		fx.Options(
 			Module(),
 			fx.Provide(func() log.Component { return logmock.New(t) }),
+			fx.Provide(func() config.Component { return cfg }),
+			sysprobeconfig.NoneModule(),
 			fx.Supply(
 				rcclient.Params{
 					AgentName:    "test-agent",
@@ -109,7 +116,7 @@ func TestAgentConfigCallback(t *testing.T) {
 					Settings: map[string]settings.RuntimeSetting{
 						"log_level": &mockLogLevelRuntimeSettings{logLevel: "info"},
 					},
-					Config: config,
+					Config: cfg,
 				},
 			),
 			settingsimpl.Module(),
@@ -122,11 +129,11 @@ func TestAgentConfigCallback(t *testing.T) {
 
 	structRC := rc.(rcClient)
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(cfg)
 	assert.NoError(t, err)
 
 	structRC.client, _ = client.NewUnverifiedGRPCClient(
-		ipcAddress, pkgconfigsetup.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) },
+		ipcAddress, pkgconfigsetup.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(cfg) },
 		client.WithAgent("test-agent", "9.99.9"),
 		client.WithProducts(state.ProductAgentConfig),
 		client.WithPollInterval(time.Hour),
@@ -134,15 +141,15 @@ func TestAgentConfigCallback(t *testing.T) {
 
 	// -----------------
 	// Test scenario #1: Agent Flare request by RC and the log level hadn't been changed by the user before
-	assert.Equal(t, model.SourceDefault, pkgconfigsetup.Datadog().GetSource("log_level"))
+	assert.Equal(t, model.SourceDefault, cfg.GetSource("log_level"))
 
 	// Set log level to debug
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerStartFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
-	assert.Equal(t, "debug", pkgconfigsetup.Datadog().Get("log_level"))
-	assert.Equal(t, model.SourceRC, pkgconfigsetup.Datadog().GetSource("log_level"))
+	assert.Equal(t, "debug", cfg.Get("log_level"))
+	assert.Equal(t, model.SourceRC, cfg.GetSource("log_level"))
 
 	// Send an empty log level request, as RC would at the end of the Agent Flare request
 	// Should fallback to the default level
@@ -150,36 +157,36 @@ func TestAgentConfigCallback(t *testing.T) {
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerEndFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
-	assert.Equal(t, "info", pkgconfigsetup.Datadog().Get("log_level"))
-	assert.Equal(t, model.SourceDefault, pkgconfigsetup.Datadog().GetSource("log_level"))
+	assert.Equal(t, "info", cfg.Get("log_level"))
+	assert.Equal(t, model.SourceDefault, cfg.GetSource("log_level"))
 
 	// -----------------
 	// Test scenario #2: log level was changed by the user BEFORE Agent Flare request
-	pkgconfigsetup.Datadog().Set("log_level", "info", model.SourceCLI)
+	cfg.Set("log_level", "info", model.SourceCLI)
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerStartFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
 	// Log level should still be "info" because it was enforced by the user
-	assert.Equal(t, "info", pkgconfigsetup.Datadog().Get("log_level"))
+	assert.Equal(t, "info", cfg.Get("log_level"))
 	// Source should still be CLI as it has priority over RC
-	assert.Equal(t, model.SourceCLI, pkgconfigsetup.Datadog().GetSource("log_level"))
+	assert.Equal(t, model.SourceCLI, cfg.GetSource("log_level"))
 
 	// -----------------
 	// Test scenario #3: log level is changed by the user DURING the Agent Flare request
-	pkgconfigsetup.Datadog().UnsetForSource("log_level", model.SourceCLI)
+	cfg.UnsetForSource("log_level", model.SourceCLI)
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerStartFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
-	assert.Equal(t, "debug", pkgconfigsetup.Datadog().Get("log_level"))
-	assert.Equal(t, model.SourceRC, pkgconfigsetup.Datadog().GetSource("log_level"))
+	assert.Equal(t, "debug", cfg.Get("log_level"))
+	assert.Equal(t, model.SourceRC, cfg.GetSource("log_level"))
 
-	pkgconfigsetup.Datadog().Set("log_level", "debug", model.SourceCLI)
+	cfg.Set("log_level", "debug", model.SourceCLI)
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerEndFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
-	assert.Equal(t, "debug", pkgconfigsetup.Datadog().Get("log_level"))
-	assert.Equal(t, model.SourceCLI, pkgconfigsetup.Datadog().GetSource("log_level"))
+	assert.Equal(t, "debug", cfg.Get("log_level"))
+	assert.Equal(t, model.SourceCLI, cfg.GetSource("log_level"))
 }

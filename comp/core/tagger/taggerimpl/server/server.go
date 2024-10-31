@@ -139,7 +139,7 @@ func (s *Server) TaggerFetchEntity(_ context.Context, in *pb.FetchEntityRequest)
 		return nil, status.Errorf(codes.InvalidArgument, `missing "id" parameter`)
 	}
 
-	entityID := types.EntityIDPrefix(in.Id.Prefix).ToUID(in.Id.Uid)
+	entityID := types.NewEntityID(types.EntityIDPrefix(in.Id.Prefix), in.Id.Uid)
 	cardinality, err := proto.Pb2TaggerCardinality(in.GetCardinality())
 	if err != nil {
 		return nil, err

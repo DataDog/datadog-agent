@@ -120,24 +120,6 @@ def refresh_pipeline(pipeline: ProjectPipeline):
     pipeline.refresh()
 
 
-class GitlabReference(yaml.YAMLObject):
-    def __init__(self, refs):
-        self.refs = refs
-
-    def __repr__(self):
-        return f'{self.__class__.__name__}=(refs={self.refs}'
-
-
-def reference_constructor(loader, node):
-    return GitlabReference(loader.construct_sequence(node))
-
-
-def GitlabYamlLoader():
-    loader = yaml.SafeLoader
-    loader.add_constructor('!reference', reference_constructor)
-    return loader
-
-
 class GitlabCIDiff:
     def __init__(
         self,
@@ -1285,34 +1267,59 @@ def update_test_infra_def(file_path, image_tag):
                 gl.write(line)
 
 
-def update_gitlab_config(file_path, image_tag, test_version):
+def update_gitlab_config(file_path, tag, images="", test=True, update=True):
     """
-    Override variables in .gitlab-ci.yml file
+    Override variables in .gitlab-ci.yml file.
     """
     with open(file_path) as gl:
         file_content = gl.readlines()
-    gitlab_ci = yaml.load("".join(file_content), Loader=GitlabYamlLoader())
-    # TEST_INFRA_DEFINITION_BUILDIMAGE label format differs from other buildimages
-    suffixes = [
-        name
-        for name in gitlab_ci["variables"]
-        if name.endswith("SUFFIX") and not name.startswith("TEST_INFRA_DEFINITION")
-    ]
-    images = [name.replace("_SUFFIX", "") for name in suffixes]
-    with open(file_path, "w") as gl:
-        for line in file_content:
-            if any(re.search(rf"{suffix}:", line) for suffix in suffixes):
-                if test_version:
-                    gl.write(line.replace('""', '"_test_only"'))
+    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+    gitlab_ci = yaml.safe_load("".join(file_content))
+    variables = gitlab_ci['variables']
+    # Select the buildimages prefixed with CI_IMAGE matchins input images list + buildimages prefixed with DATADOG_AGENT_
+    images_to_update = list(find_buildimages(variables, images, "CI_IMAGE_")) + list(find_buildimages(variables))
+    if update:
+        output = update_image_tag(file_content, tag, images_to_update, test=test)
+        with open(file_path, "w") as gl:
+            gl.writelines(output)
+    return images_to_update
+
+
+def find_buildimages(variables, images="", prefix="DATADOG_AGENT_"):
+    """
+    Select the buildimages variables to update.
+    With default values, the former DATADOG_AGENT_ variables are updated.
+    """
+    suffix = "_SUFFIX"
+    for variable in variables:
+        if (
+            variable.startswith(prefix)
+            and variable.endswith(suffix)
+            and any(image in variable.casefold() for image in images.casefold().split(","))
+        ):
+            yield variable.removesuffix(suffix)
+
+
+def update_image_tag(lines, tag, variables, test=True):
+    """
+    Update the variables in the .gitlab-ci.yml file.
+    We update the file content (instead of the yaml.load) to keep the original order/formatting.
+    """
+    output = []
+    tag_pattern = re.compile(r"v\d+-\w+")
+    for line in lines:
+        if any(variable in line for variable in variables):
+            if "SUFFIX" in line:
+                if test:
+                    output.append(line.replace('""', '"_test_only"'))
                 else:
-                    gl.write(line.replace('"_test_only"', '""'))
-            elif any(re.search(rf"{image}:", line) for image in images):
-                current_version = re.search(r"v\d+-\w+", line)
-                if current_version:
-                    gl.write(line.replace(current_version.group(0), image_tag))
-                else:
-                    raise RuntimeError(
-                        f"Unable to find a version matching the v<pipelineId>-<commitId> pattern in line {line}"
-                    )
+                    output.append(line.replace('"_test_only"', '""'))
             else:
-                gl.write(line)
+                is_tag = tag_pattern.search(line)
+                if is_tag:
+                    output.append(line.replace(is_tag.group(), tag))
+                else:
+                    output.append(line)
+        else:
+            output.append(line)
+    return output

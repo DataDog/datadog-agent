@@ -67,7 +67,6 @@ func TestAccumulateTagsFor(t *testing.T) {
 
 func TestTag(t *testing.T) {
 	entityID := types.NewEntityID(types.ContainerID, "123")
-	entityIDStr := entityID.String()
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Supply(config.Params{}),
@@ -99,15 +98,15 @@ func TestTag(t *testing.T) {
 		},
 	})
 
-	lowCardTags, err := tagger.Tag(entityIDStr, types.LowCardinality)
+	lowCardTags, err := tagger.Tag(entityID, types.LowCardinality)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []string{"low1", "low2"}, lowCardTags)
 
-	orchestratorCardTags, err := tagger.Tag(entityIDStr, types.OrchestratorCardinality)
+	orchestratorCardTags, err := tagger.Tag(entityID, types.OrchestratorCardinality)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []string{"low1", "low2", "orchestrator1", "orchestrator2"}, orchestratorCardTags)
 
-	highCardTags, err := tagger.Tag(entityIDStr, types.HighCardinality)
+	highCardTags, err := tagger.Tag(entityID, types.HighCardinality)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []string{"low1", "low2", "orchestrator1", "orchestrator2", "high1", "high2"}, highCardTags)
 }

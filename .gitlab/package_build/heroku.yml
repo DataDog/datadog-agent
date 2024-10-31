@@ -55,4 +55,3 @@ agent_heroku_deb-x64-a7:
     DESTINATION_DBG_DEB: "datadog-heroku-agent-dbg_7_amd64.deb"
     RELEASE_VERSION: $RELEASE_VERSION_7
     AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: "3"

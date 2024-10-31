@@ -66,6 +66,8 @@ def build(
 
     if no_cgo:
         env["CGO_ENABLED"] = "0"
+    else:
+        env["CGO_ENABLED"] = "1"
 
     cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
     cmd += f"-o {installer_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags} {strip_flags}\" {REPO_PATH}/cmd/installer"

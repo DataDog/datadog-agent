@@ -47,14 +47,16 @@ type Provider struct {
 	filter   *containers.Filter
 	config   *common.KubeletConfig
 	podUtils *common.PodUtils
+	tagger   tagger.Component
 }
 
 // NewProvider returns a new Provider
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig, podUtils *common.PodUtils) *Provider {
+func NewProvider(filter *containers.Filter, config *common.KubeletConfig, podUtils *common.PodUtils, tagger tagger.Component) *Provider {
 	return &Provider{
 		filter:   filter,
 		config:   config,
 		podUtils: podUtils,
+		tagger:   tagger,
 	}
 }
 
@@ -116,7 +118,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	return nil
 }
 
-func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) {
+func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID types.EntityID) {
 	if pod.Status.Phase != "Running" && pod.Status.Phase != "Pending" {
 		return
 	}
@@ -125,7 +127,7 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 		return
 	}
 
-	tagList, _ := tagger.Tag(containerID, types.HighCardinality)
+	tagList, _ := p.tagger.Tag(containerID, types.HighCardinality)
 	// Skip recording containers without kubelet information in tagger or if there are no tags
 	if !isTagKeyPresent(kubeNamespaceTag, tagList) || len(tagList) == 0 {
 		return
@@ -140,12 +142,12 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	}
 }
 
-func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kubelet.Pod, _ *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) {
+func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kubelet.Pod, _ *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID types.EntityID) {
 	if pod.Metadata.UID == "" || pod.Metadata.Name == "" {
 		return
 	}
 
-	tagList, _ := tagger.Tag(containerID, types.OrchestratorCardinality)
+	tagList, _ := p.tagger.Tag(containerID, types.OrchestratorCardinality)
 	// Skip recording containers without kubelet information in tagger or if there are no tags
 	if !isTagKeyPresent(kubeNamespaceTag, tagList) || len(tagList) == 0 {
 		return
@@ -184,12 +186,12 @@ func newRunningAggregator() *runningAggregator {
 	}
 }
 
-func (r *runningAggregator) recordContainer(p *Provider, pod *kubelet.Pod, cStatus *kubelet.ContainerStatus, containerID string) {
+func (r *runningAggregator) recordContainer(p *Provider, pod *kubelet.Pod, cStatus *kubelet.ContainerStatus, containerID types.EntityID) {
 	if cStatus.State.Running == nil || time.Time.IsZero(cStatus.State.Running.StartedAt) {
 		return
 	}
 	r.podHasRunningContainers[pod.Metadata.UID] = true
-	tagList, _ := tagger.Tag(containerID, types.LowCardinality)
+	tagList, _ := p.tagger.Tag(containerID, types.LowCardinality)
 	// Skip recording containers without kubelet information in tagger or if there are no tags
 	if !isTagKeyPresent(kubeNamespaceTag, tagList) || len(tagList) == 0 {
 		return
@@ -210,8 +212,8 @@ func (r *runningAggregator) recordPod(p *Provider, pod *kubelet.Pod) {
 		log.Debug("skipping pod with no uid")
 		return
 	}
-	entityID := types.NewEntityID(types.KubernetesPodUID, podID).String()
-	tagList, _ := tagger.Tag(entityID, types.LowCardinality)
+	entityID := types.NewEntityID(types.KubernetesPodUID, podID)
+	tagList, _ := p.tagger.Tag(entityID, types.LowCardinality)
 	if len(tagList) == 0 {
 		return
 	}
