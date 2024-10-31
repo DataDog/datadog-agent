@@ -35,6 +35,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `chdir` | File | [Experimental] A process changed the current directory | 7.52 |
 | `chmod` | File | A file’s permissions were changed | 7.27 |
 | `chown` | File | A file’s owner was changed | 7.27 |
+| `connect` | Network | A connect was executed | 7.60 |
 | `dns` | Network | A DNS request was sent | 7.36 |
 | `exec` | Process | A process was executed or forked | 7.27 |
 | `exit` | Process | A process was terminated | 7.38 |
@@ -510,6 +511,23 @@ A file’s owner was changed
 | [`chown.syscall.gid`](#chown-syscall-gid-doc) | GID argument of the syscall |
 | [`chown.syscall.path`](#chown-syscall-path-doc) | Path argument of the syscall |
 | [`chown.syscall.uid`](#chown-syscall-uid-doc) | UID argument of the syscall |
+
+### Event `connect`
+
+A connect was executed
+
+| Property | Definition |
+| -------- | ------------- |
+| [`connect.addr.family`](#common-connectevent-addr-family-doc) | Address family |
+| [`connect.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`connect.addr.port`](#common-ipportcontext-port-doc) | Port number |
+| [`connect.protocol`](#common-connectevent-protocol-doc) | Socket Protocol |
+| [`connect.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`connect.server.addr.family`](#common-connectevent-addr-family-doc) | Address family |
+| [`connect.server.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`connect.server.addr.port`](#common-ipportcontext-port-doc) | Port number |
+| [`connect.server.protocol`](#common-connectevent-protocol-doc) | Socket Protocol |
+| [`connect.server.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `dns`
 
@@ -1741,6 +1759,15 @@ Change file access/modification times
 ## Attributes documentation
 
 
+### `*.addr.family` {#common-connectevent-addr-family-doc}
+Type: int
+
+Definition: Address family
+
+`*.addr.family` has 2 possible prefixes:
+`connect` `connect.server`
+
+
 ### `*.args` {#common-process-args-doc}
 Type: string
 
@@ -2120,8 +2147,8 @@ Type: IP/CIDR
 
 Definition: IP address
 
-`*.ip` has 5 possible prefixes:
-`bind.addr` `network.destination` `network.source` `packet.destination` `packet.source`
+`*.ip` has 7 possible prefixes:
+`bind.addr` `connect.addr` `connect.server.addr` `network.destination` `network.source` `packet.destination` `packet.source`
 
 
 ### `*.is_exec` {#common-process-is_exec-doc}
@@ -2335,8 +2362,8 @@ Type: int
 
 Definition: Port number
 
-`*.port` has 5 possible prefixes:
-`bind.addr` `network.destination` `network.source` `packet.destination` `packet.source`
+`*.port` has 7 possible prefixes:
+`bind.addr` `connect.addr` `connect.server.addr` `network.destination` `network.source` `packet.destination` `packet.source`
 
 
 ### `*.ppid` {#common-process-ppid-doc}
@@ -2348,13 +2375,22 @@ Definition: Parent process ID
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
+### `*.protocol` {#common-connectevent-protocol-doc}
+Type: int
+
+Definition: Socket Protocol
+
+`*.protocol` has 2 possible prefixes:
+`connect` `connect.server`
+
+
 ### `*.retval` {#common-syscallevent-retval-doc}
 Type: int
 
 Definition: Return value of the syscall
 
-`*.retval` has 22 possible prefixes:
-`bind` `bpf` `chdir` `chmod` `chown` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
+`*.retval` has 24 possible prefixes:
+`bind` `bpf` `chdir` `chmod` `chown` `connect` `connect.server` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
 
 Constants: [Error constants](#error-constants)
 
