@@ -154,7 +154,7 @@ func (ctx *systemContext) getProcessMemoryMaps(pid int) (*kernel.ProcMapEntries,
 		return maps, nil
 	}
 
-	maps, err := kernel.ReadProcessMemMaps(pid, "/proc")
+	maps, err := kernel.ReadProcessMemMaps(pid, ctx.procRoot)
 	if err != nil {
 		return nil, fmt.Errorf("error reading process memory maps: %w", err)
 	}

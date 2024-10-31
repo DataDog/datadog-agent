@@ -161,7 +161,7 @@ func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
 
 func (c *cudaEventConsumer) checkClosedProcesses() {
 	seenPIDs := make(map[uint32]struct{})
-	_ = kernel.WithAllProcs("/proc", func(pid int) error {
+	_ = kernel.WithAllProcs(c.cfg.ProcRoot, func(pid int) error {
 		seenPIDs[uint32(pid)] = struct{}{}
 		return nil
 	})
