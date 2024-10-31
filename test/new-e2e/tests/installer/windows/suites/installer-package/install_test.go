@@ -33,6 +33,10 @@ func (s *testInstallerSuite) TestInstalls() {
 			s.Run("Install with existing configuration file", func() {
 				s.installWithExistingConfigFile()
 				s.Run("Repair", s.repair)
+				s.Run("Purge", s.purge)
+				s.Run("Install after purge", func() {
+					s.installWithExistingConfigFile()
+				})
 			})
 		})
 	})
@@ -117,4 +121,16 @@ func (s *testInstallerSuite) repair() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasAService(installerwindows.ServiceName).
 		WithStatus("Running")
+}
+
+func (s *testInstallerSuite) purge() {
+	// Arrange
+
+	// Act
+	_, err := s.Installer().Purge()
+
+	// Assert
+	s.Assert().NoError(err)
+	s.Require().Host(s.Env().RemoteHost).
+		NoFileExists(`C:\ProgramData\Datadog Installer\packages\packages.db`)
 }

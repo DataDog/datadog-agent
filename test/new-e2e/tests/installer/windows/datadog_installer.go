@@ -77,6 +77,32 @@ func (d *DatadogInstaller) execute(cmd string, options ...client.ExecuteOption) 
 	return strings.TrimSpace(output), nil
 }
 
+// executeFromCopy executes a command using a copy of the Datadog Installer binary that is created
+// outside of the install directory. This is useful for commands that may remove the installer binary
+func (d *DatadogInstaller) executeFromCopy(cmd string, options ...client.ExecuteOption) (string, error) {
+	// Create temp file
+	tempFile, err := windowsCommon.GetTemporaryFile(d.env.RemoteHost)
+	if err != nil {
+		return "", err
+	}
+	defer d.env.RemoteHost.Remove(tempFile) //nolint:errcheck
+	// ensure it has a .exe extension
+	tempFile = tempFile + ".exe"
+	defer d.env.RemoteHost.Remove(tempFile) //nolint:errcheck
+	// must pass -Force b/c the temporary file is already created
+	copyCmd := fmt.Sprintf(`Copy-Item -Force -Path "%s" -Destination "%s"`, d.binaryPath, tempFile)
+	_, err = d.env.RemoteHost.Execute(copyCmd)
+	if err != nil {
+		return "", err
+	}
+	// Execute the command with the copied binary
+	output, err := d.env.RemoteHost.Execute(fmt.Sprintf("& \"%s\" %s", tempFile, cmd), options...)
+	if err != nil {
+		return output, err
+	}
+	return strings.TrimSpace(output), nil
+}
+
 // Version returns the version of the Datadog Installer on the host.
 func (d *DatadogInstaller) Version() (string, error) {
 	return d.execute("version")
@@ -138,6 +164,14 @@ func (d *DatadogInstaller) RemoveExperiment(packageName string) (string, error) 
 // Status returns the status provided by the running daemon
 func (d *DatadogInstaller) Status() (string, error) {
 	return d.execute("status")
+}
+
+// Purge runs the purge command, removing all packages
+func (d *DatadogInstaller) Purge() (string, error) {
+	// executeFromCopy is used here because the installer will remove itself
+	// if purge is run from the install directory it may cause an uninstall failure due
+	// to the file being in use.
+	return d.executeFromCopy("purge")
 }
 
 // Params contains the optional parameters for the Datadog Installer Install command
