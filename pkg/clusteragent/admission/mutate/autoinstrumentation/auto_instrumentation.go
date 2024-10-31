@@ -39,6 +39,9 @@ const (
 	mountPath  = "/datadog-lib"
 
 	webhookName = "lib_injection"
+
+	// apmInjectionErrorAnnotationKey this annotation is added when the apm auto-instrumentation admission controller failed to mutate the Pod.
+	apmInjectionErrorAnnotationKey = "apm.datadoghq.com/injection-error"
 )
 
 // Webhook is the auto instrumentation webhook
@@ -670,6 +673,10 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, config extractedPodLib
 	}
 	requirements, skipInjection := initContainerResourceRequirements(pod, w.config.defaultResourceRequirements)
 	if skipInjection {
+		if pod.Annotations == nil {
+			pod.Annotations = make(map[string]string)
+		}
+		pod.Annotations[apmInjectionErrorAnnotationKey] = "The overall pod's containers memory limit is too low to acceptable for the datadog library init-container"
 		return nil
 	}
 
