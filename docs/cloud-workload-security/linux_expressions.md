@@ -201,6 +201,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`process.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`process.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`process.ancestors.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`process.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`process.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`process.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
@@ -282,6 +283,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`process.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`process.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`process.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`process.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`process.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`process.parent.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
@@ -353,6 +355,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`process.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`process.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`process.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`process.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`process.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`process.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
@@ -605,6 +608,7 @@ A process was executed or forked
 | [`exec.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`exec.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`exec.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`exec.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`exec.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`exec.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`exec.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
@@ -695,6 +699,7 @@ A process was terminated
 | [`exit.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`exit.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`exit.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`exit.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`exit.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`exit.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`exit.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
@@ -942,6 +947,7 @@ A raw network packet captured
 | [`packet.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`packet.destination.port`](#common-ipportcontext-port-doc) | Port number |
 | [`packet.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
+| [`packet.filter`](#packet-filter-doc) | pcap filter expression |
 | [`packet.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
 | [`packet.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
 | [`packet.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
@@ -1026,6 +1032,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`ptrace.tracee.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`ptrace.tracee.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`ptrace.tracee.ancestors.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`ptrace.tracee.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`ptrace.tracee.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`ptrace.tracee.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
@@ -1107,6 +1114,7 @@ A ptrace command was executed
 | [`ptrace.tracee.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`ptrace.tracee.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`ptrace.tracee.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`ptrace.tracee.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`ptrace.tracee.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`ptrace.tracee.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`ptrace.tracee.parent.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
@@ -1178,6 +1186,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`ptrace.tracee.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`ptrace.tracee.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`ptrace.tracee.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`ptrace.tracee.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`ptrace.tracee.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`ptrace.tracee.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
@@ -1451,6 +1460,7 @@ A signal was sent
 | [`signal.target.ancestors.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`signal.target.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`signal.target.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`signal.target.ancestors.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`signal.target.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`signal.target.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`signal.target.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
@@ -1532,6 +1542,7 @@ A signal was sent
 | [`signal.target.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`signal.target.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`signal.target.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`signal.target.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`signal.target.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`signal.target.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`signal.target.parent.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
@@ -1603,6 +1614,7 @@ A signal was sent
 | [`signal.target.parent.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`signal.target.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`signal.target.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`signal.target.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`signal.target.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`signal.target.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`signal.target.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
@@ -2110,6 +2122,15 @@ Definition: IP address
 
 `*.ip` has 5 possible prefixes:
 `bind.addr` `network.destination` `network.source` `packet.destination` `packet.source`
+
+
+### `*.is_exec` {#common-process-is_exec-doc}
+Type: bool
+
+Definition: Indicates whether the process entry is from a new binary execution
+
+`*.is_exec` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.is_kworker` {#common-pidcontext-is_kworker-doc}
@@ -3002,6 +3023,13 @@ Definition: Mode argument of the syscall
 Type: string
 
 Definition: Path argument of the syscall
+
+
+
+### `packet.filter` {#packet-filter-doc}
+Type: string
+
+Definition: pcap filter expression
 
 
 

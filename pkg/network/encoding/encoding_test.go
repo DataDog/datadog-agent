@@ -191,9 +191,16 @@ func TestSerialization(t *testing.T) {
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
-				{
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: util.AddressFromString("10.1.1.1"),
 					Dest:   util.AddressFromString("10.2.2.2"),
+					Pid:    6000,
+					NetNS:  7,
+					SPort:  1000,
+					DPort:  9000,
+					Type:   network.TCP,
+					Family: network.AFINET6,
+				},
 					Monotonic: network.StatCounters{
 						SentBytes:   1,
 						RecvBytes:   100,
@@ -207,10 +214,7 @@ func TestSerialization(t *testing.T) {
 						Retransmits:    201,
 					},
 					LastUpdateEpoch: 50,
-					Pid:             6000,
-					NetNS:           7,
-					SPort:           1000,
-					DPort:           9000,
+
 					IPTranslation: &network.IPTranslation{
 						ReplSrcIP:   util.AddressFromString("20.1.1.1"),
 						ReplDstIP:   util.AddressFromString("20.1.1.1"),
@@ -218,8 +222,6 @@ func TestSerialization(t *testing.T) {
 						ReplDstPort: 80,
 					},
 
-					Type:      network.TCP,
-					Family:    network.AFINET6,
 					Direction: network.LOCAL,
 					Via: &network.Via{
 						Subnet: network.Subnet{
@@ -228,13 +230,14 @@ func TestSerialization(t *testing.T) {
 					},
 					ProtocolStack: protocols.Stack{Application: protocols.HTTP},
 				},
-				{
-					Source:        util.AddressFromString("10.1.1.1"),
-					Dest:          util.AddressFromString("8.8.8.8"),
-					SPort:         1000,
-					DPort:         53,
-					Type:          network.UDP,
-					Family:        network.AFINET6,
+				{ConnectionTuple: network.ConnectionTuple{
+					Source: util.AddressFromString("10.1.1.1"),
+					Dest:   util.AddressFromString("8.8.8.8"),
+					SPort:  1000,
+					DPort:  53,
+					Type:   network.UDP,
+					Family: network.AFINET6,
+				},
 					Direction:     network.LOCAL,
 					StaticTags:    tagOpenSSL | tagTLS,
 					ProtocolStack: protocols.Stack{Application: protocols.HTTP2},
@@ -491,18 +494,18 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
-				{
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: localhost,
 					Dest:   localhost,
 					SPort:  clientPort,
 					DPort:  serverPort,
-				},
-				{
+				}},
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: localhost,
 					Dest:   localhost,
 					SPort:  serverPort,
 					DPort:  clientPort,
-				},
+				}},
 			},
 		},
 		HTTP: map[http.Key]*http.RequestStats{
@@ -651,18 +654,18 @@ func TestHTTP2SerializationWithLocalhostTraffic(t *testing.T) {
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
-				{
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: localhost,
 					Dest:   localhost,
 					SPort:  clientPort,
 					DPort:  serverPort,
-				},
-				{
+				}},
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: localhost,
 					Dest:   localhost,
 					SPort:  serverPort,
 					DPort:  clientPort,
-				},
+				}},
 			},
 		},
 		HTTP2: map[http.Key]*http.RequestStats{
@@ -758,12 +761,12 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
-				{
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: util.AddressFromString("10.0.15.1"),
 					SPort:  uint16(60000),
 					Dest:   util.AddressFromString("172.217.10.45"),
 					DPort:  uint16(8080),
-				},
+				}},
 			},
 		},
 	}
@@ -824,12 +827,12 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
-				{
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: util.AddressFromString("10.0.15.1"),
 					SPort:  uint16(60000),
 					Dest:   util.AddressFromString("172.217.10.45"),
 					DPort:  uint16(8080),
-				},
+				}},
 			},
 		},
 	}
@@ -913,20 +916,20 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 	)
 
 	connections := []network.ConnectionStats{
-		{
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  clientPort,
 			Dest:   localhost,
 			DPort:  serverPort,
 			Pid:    1,
-		},
-		{
+		}},
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  serverPort,
 			Dest:   localhost,
 			DPort:  clientPort,
 			Pid:    2,
-		},
+		}},
 	}
 
 	const topicName = "TopicName"

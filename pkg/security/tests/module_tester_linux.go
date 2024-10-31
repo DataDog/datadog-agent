@@ -78,6 +78,8 @@ event_monitoring_config:
     enabled: true
     ingress:
       enabled: {{ .NetworkIngressEnabled }}
+    raw_packet:
+      enabled: {{ .NetworkRawPacketEnabled}}
   flush_discarder_window: 0
 {{if .DisableFilters}}
   enable_kernel_filters: false

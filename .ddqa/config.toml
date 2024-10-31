@@ -57,12 +57,20 @@ jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "universal-service-monitoring"
 github_labels = ["team/usm"]
 
-[teams."Network Device Monitoring"]
+[teams."Network Device Monitoring - Core"]
 jira_project = "NDMII"
 jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "network-device-monitoring"
-github_labels = ["team/network-device-monitoring"]
+github_team = "ndm-core"
+github_labels = ["team/ndm-core", "team/network-device-monitoring"]
+exclude_members = ["leeavital", "heyronhay"]
+
+[teams."Network Device Monitoring - Integrations"]
+jira_project = "NDINT"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "ndm-integrations"
+github_labels = ["team/ndm-integrations"]
 exclude_members = ["leeavital", "heyronhay"]
 
 [teams."Network Performance Monitoring"]
@@ -203,9 +211,9 @@ jira_statuses = ["💼 To Do", "💡 In Progress", "✅ Done"]
 github_team = "container-app"
 github_labels = ["team/container-app"]
 
-[teams."APM Onboarding"]
-jira_project = "APMON"
-jira_issue_type = "Story"
+[teams."APM Injection Platform"]
+jira_project = "INPLAT"
+jira_issue_type = "Task"
 jira_statuses = ["Selected For Development", "In Progress", "Done"]
 github_team = "apm-onboarding"
 github_labels = ["team/apm-onboarding"]

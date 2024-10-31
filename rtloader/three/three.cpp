@@ -855,7 +855,7 @@ void Three::setModuleAttrString(char *module, char *attr, char *value)
         return;
     }
 
-    PyObject *py_value = PyStringFromCString(value);
+    PyObject *py_value = PyUnicode_FromString(value);
     if (PyObject_SetAttrString(py_module, attr, py_value) != 0) {
         setError("error setting the '" + std::string(module) + "." + std::string(attr)
                  + "' attribute: " + _fetchPythonError());

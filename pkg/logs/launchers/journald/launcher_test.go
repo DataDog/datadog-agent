@@ -14,6 +14,7 @@ import (
 	"github.com/coreos/go-systemd/sdjournal"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -59,14 +60,18 @@ func (s *MockJournalFactory) NewJournalFromPath(path string) (tailer.Journal, er
 	return &MockJournal{}, nil
 }
 
-func newTestLauncher() *Launcher {
-	launcher := NewLauncherWithFactory(&MockJournalFactory{}, flare.NewFlareController())
+func newTestLauncher(t *testing.T) *Launcher {
+	t.Helper()
+
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+
+	launcher := NewLauncherWithFactory(&MockJournalFactory{}, flare.NewFlareController(), fakeTagger)
 	launcher.Start(launchers.NewMockSourceProvider(), pipeline.NewMockProvider(), auditor.New("", "registry.json", time.Hour, health.RegisterLiveness("fake")), tailers.NewTailerTracker())
 	return launcher
 }
 
 func TestSingeJournaldConfig(t *testing.T) {
-	launcher := newTestLauncher()
+	launcher := newTestLauncher(t)
 
 	sourceThatShouldWin := sources.NewLogSource("testSource", &config.LogsConfig{})
 	sourceThatShouldLose := sources.NewLogSource("testSource2", &config.LogsConfig{})
@@ -82,7 +87,7 @@ func TestSingeJournaldConfig(t *testing.T) {
 }
 
 func TestMultipleTailersDifferentPath(t *testing.T) {
-	launcher := newTestLauncher()
+	launcher := newTestLauncher(t)
 
 	launcher.sources <- sources.NewLogSource("testSource", &config.LogsConfig{})
 	launcher.sources <- sources.NewLogSource("testSource2", &config.LogsConfig{Path: "/foo/bar"})
@@ -93,7 +98,7 @@ func TestMultipleTailersDifferentPath(t *testing.T) {
 }
 
 func TestMultipleTailersOnSamePath(t *testing.T) {
-	launcher := newTestLauncher()
+	launcher := newTestLauncher(t)
 
 	sourceThatShouldWin := sources.NewLogSource("testSource", &config.LogsConfig{Path: "/foo/bar"})
 	sourceThatShouldLose := sources.NewLogSource("testSource2", &config.LogsConfig{Path: "/foo/bar"})
@@ -109,7 +114,7 @@ func TestMultipleTailersOnSamePath(t *testing.T) {
 }
 
 func TestMultipleTailersSamePathWithId(t *testing.T) {
-	launcher := newTestLauncher()
+	launcher := newTestLauncher(t)
 
 	launcher.sources <- sources.NewLogSource("testSource", &config.LogsConfig{Path: "/foo/bar", ConfigId: "foo"})
 	launcher.sources <- sources.NewLogSource("testSource2", &config.LogsConfig{Path: "/foo/bar", ConfigId: "bar"})
@@ -120,7 +125,7 @@ func TestMultipleTailersSamePathWithId(t *testing.T) {
 }
 
 func TestMultipleTailersWithId(t *testing.T) {
-	launcher := newTestLauncher()
+	launcher := newTestLauncher(t)
 
 	launcher.sources <- sources.NewLogSource("testSource", &config.LogsConfig{ConfigId: "foo"})
 	launcher.sources <- sources.NewLogSource("testSource2", &config.LogsConfig{ConfigId: "bar"})
@@ -131,7 +136,7 @@ func TestMultipleTailersWithId(t *testing.T) {
 }
 
 func TestStopLauncher(t *testing.T) {
-	launcher := newTestLauncher()
+	launcher := newTestLauncher(t)
 
 	launcher.sources <- sources.NewLogSource("testSource", &config.LogsConfig{})
 	launcher.sources <- sources.NewLogSource("testSource2", &config.LogsConfig{Path: "/foo/bar"})

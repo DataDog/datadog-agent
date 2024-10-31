@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -149,6 +150,13 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 					return tagger.NewTaggerParams()
 				}),
 				processComponent.Bundle(),
+				// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
+				// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
+				// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
+				// we can include the tagger as part of the workloadmeta component.
+				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
+					proccontainers.InitSharedContainerProvider(wmeta, tagger)
+				}),
 			)
 		},
 		SilenceUsage: true,

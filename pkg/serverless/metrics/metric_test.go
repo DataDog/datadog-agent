@@ -8,6 +8,7 @@ package metrics
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"math/rand"
 	"net"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -36,6 +38,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestStartDoesNotBlock(t *testing.T) {
+	flake.Mark(t)
 	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
 		t.Skip("TestStartDoesNotBlock is known to fail on the macOS Gitlab runners because of the already running Agent")
 	}
@@ -116,6 +119,7 @@ func TestRaceFlushVersusAddSample(t *testing.T) {
 	}
 	metricAgent := &ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
+		Tagger:               nooptagger.NewTaggerClient(),
 	}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &ValidMetricConfigMocked{}, &MetricDogStatsD{})
@@ -210,7 +214,7 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	require.NoError(t, err)
 	pkgconfigsetup.Datadog().SetDefault("dogstatsd_port", port)
 
-	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000)
+	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000, nooptagger.NewTaggerClient())
 
 	s, err := dogstatsdServer.NewServerlessServer(demux)
 	require.NoError(t, err, "cannot start DSD")

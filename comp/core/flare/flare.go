@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -51,7 +52,8 @@ type dependencies struct {
 	Collector             optional.Option[collector.Component]
 	WMeta                 optional.Option[workloadmeta.Component]
 	Secrets               secrets.Component
-	AC                    optional.Option[autodiscovery.Component]
+	AC                    autodiscovery.Component
+	Tagger                tagger.Component
 }
 
 type provides struct {
@@ -71,7 +73,7 @@ type flare struct {
 }
 
 func newFlare(deps dependencies) provides {
-	diagnoseDeps := diagnose.NewSuitesDeps(deps.Diagnosesendermanager, deps.Collector, deps.Secrets, deps.WMeta, deps.AC)
+	diagnoseDeps := diagnose.NewSuitesDeps(deps.Diagnosesendermanager, deps.Collector, deps.Secrets, deps.WMeta, deps.AC, deps.Tagger)
 	f := &flare{
 		log:          deps.Log,
 		config:       deps.Config,

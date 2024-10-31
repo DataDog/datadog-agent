@@ -4,6 +4,9 @@
 // Copyright 2024-present Datadog, Inc.
 
 // Package testutil contains helpers to build sample C binaries for testing.
+
+//go:build linux_bpf && test
+
 package testutil
 
 import (

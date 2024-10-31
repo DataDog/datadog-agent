@@ -1166,6 +1166,7 @@ core,github.com/google/gofuzz/bytesource,Apache-2.0,Copyright 2014 Google Inc. A
 core,github.com/google/gopacket,BSD-3-Clause,"Copyright (c) 2009-2011 Andreas Krennmair. All rights reserved. | Copyright (c) 2012 Google, Inc. All rights reserved."
 core,github.com/google/gopacket/afpacket,BSD-3-Clause,"Copyright (c) 2009-2011 Andreas Krennmair. All rights reserved. | Copyright (c) 2012 Google, Inc. All rights reserved."
 core,github.com/google/gopacket/layers,BSD-3-Clause,"Copyright (c) 2009-2011 Andreas Krennmair. All rights reserved. | Copyright (c) 2012 Google, Inc. All rights reserved."
+core,github.com/google/gopacket/pcap,BSD-3-Clause,"Copyright (c) 2009-2011 Andreas Krennmair. All rights reserved. | Copyright (c) 2012 Google, Inc. All rights reserved."
 core,github.com/google/gopacket/pcapgo,BSD-3-Clause,"Copyright (c) 2009-2011 Andreas Krennmair. All rights reserved. | Copyright (c) 2012 Google, Inc. All rights reserved."
 core,github.com/google/licenseclassifier/v2,Apache-2.0,Copyright 2017 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved.
 core,github.com/google/licenseclassifier/v2/assets,Apache-2.0,Copyright 2017 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved.
@@ -1957,6 +1958,7 @@ core,github.com/prometheus/prometheus/util/osutil,Apache-2.0,Copyright 2012-2015
 core,github.com/prometheus/prometheus/util/pool,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/util/strutil,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/util/treecache,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
+core,github.com/puzpuzpuz/xsync/v3,Apache-2.0,Copyright (c) 2021 Andrey Pechkurov
 core,github.com/rcrowley/go-metrics,BSD-2-Clause-Views,Copyright 2012 Richard Crowley. All rights reserved
 core,github.com/redis/go-redis/v9,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/internal,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors

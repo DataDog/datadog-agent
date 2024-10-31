@@ -34,20 +34,20 @@ func TestUSMLookup(t *testing.T) {
 		data[key] = val
 
 		// Assert that c1 and c2 (which are symmetrical) "link" to the same aggregation
-		c1 := network.ConnectionStats{
+		c1 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("1.1.1.1"),
 			Dest:   util.AddressFromString("2.2.2.2"),
 			SPort:  60000,
 			DPort:  80,
-		}
+		}}
 		assert.Equal(t, val, USMLookup(c1, data))
 
-		c2 := network.ConnectionStats{
+		c2 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("2.2.2.2"),
 			Dest:   util.AddressFromString("1.1.1.1"),
 			SPort:  80,
 			DPort:  60000,
-		}
+		}}
 		assert.Equal(t, val, USMLookup(c2, data))
 	})
 
@@ -64,11 +64,12 @@ func TestUSMLookup(t *testing.T) {
 		data[key] = val
 
 		// Assert that c1 and c2 (which are symmetrical) "link" to the same aggregation
-		c1 := network.ConnectionStats{
+		c1 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("1.1.1.1"),
 			Dest:   util.AddressFromString("2.2.2.2"),
 			SPort:  60000,
 			DPort:  80,
+		},
 			IPTranslation: &network.IPTranslation{
 				ReplSrcIP:   util.AddressFromString("3.3.3.3"),
 				ReplDstIP:   util.AddressFromString("4.4.4.4"),
@@ -78,11 +79,12 @@ func TestUSMLookup(t *testing.T) {
 		}
 		assert.Equal(t, val, USMLookup(c1, data))
 
-		c2 := network.ConnectionStats{
+		c2 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("2.2.2.2"),
 			Dest:   util.AddressFromString("1.1.1.1"),
 			SPort:  80,
 			DPort:  60000,
+		},
 			IPTranslation: &network.IPTranslation{
 				ReplSrcIP:   util.AddressFromString("4.4.4.4"),
 				ReplDstIP:   util.AddressFromString("3.3.3.3"),

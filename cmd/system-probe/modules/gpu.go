@@ -20,11 +20,12 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/gpu"
+	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var _ module.Module = &GPUMonitoringModule{}
-var gpuMonitoringConfigNamespaces = []string{gpu.GPUNS}
+var gpuMonitoringConfigNamespaces = []string{gpuconfig.GPUNS}
 
 // GPUMonitoring Factory
 var GPUMonitoring = module.Factory{
@@ -32,7 +33,7 @@ var GPUMonitoring = module.Factory{
 	ConfigNamespaces: gpuMonitoringConfigNamespaces,
 	Fn: func(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 
-		c := gpu.NewConfig()
+		c := gpuconfig.NewConfig()
 		probeDeps := gpu.ProbeDependencies{
 			Telemetry: deps.Telemetry,
 			//if the config parameter doesn't exist or is empty string, the default value is used as defined in go-nvml library

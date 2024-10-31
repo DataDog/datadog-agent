@@ -13,6 +13,7 @@ import (
 	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
@@ -125,8 +126,9 @@ func InitAndStartAgentDemultiplexer(
 	options AgentDemultiplexerOptions,
 	eventPlatformForwarder eventplatform.Component,
 	compressor compression.Component,
+	tagger tagger.Component,
 	hostname string) *AgentDemultiplexer {
-	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, compressor, hostname)
+	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, compressor, tagger, hostname)
 	go demux.run()
 	return demux
 }
@@ -138,6 +140,7 @@ func initAgentDemultiplexer(
 	options AgentDemultiplexerOptions,
 	eventPlatformForwarder eventplatform.Component,
 	compressor compression.Component,
+	tagger tagger.Component,
 	hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
@@ -154,7 +157,7 @@ func initAgentDemultiplexer(
 	// prepare the embedded aggregator
 	// --
 
-	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, hostname, options.FlushInterval)
+	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, tagger, hostname, options.FlushInterval)
 
 	// statsd samplers
 	// ---------------
@@ -170,7 +173,7 @@ func initAgentDemultiplexer(
 		// the sampler
 		tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
 
-		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, agg.hostname)
+		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname)
 
 		// its worker (process loop + flush/serialization mechanism)
 
@@ -187,6 +190,7 @@ func initAgentDemultiplexer(
 			metricSamplePool,
 			noAggSerializer,
 			agg.flushAndSerializeInParallel,
+			tagger,
 		)
 	}
 

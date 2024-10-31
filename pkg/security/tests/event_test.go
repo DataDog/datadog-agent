@@ -237,7 +237,7 @@ func TestEventIteratorRegister(t *testing.T) {
 		},
 		{
 			ID:         "test_register_2",
-			Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-register" && process.ancestors[A].file.path == "%s" && process.ancestors[A].pid == 1`, pid1Path),
+			Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-register-2" && process.ancestors[A].file.path == "%s" && process.ancestors[A].pid == 1`, pid1Path),
 		},
 	}
 
@@ -252,6 +252,12 @@ func TestEventIteratorRegister(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.Remove(testFile)
+
+	testFile2, _, err := test.Path("test-register-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile2)
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -268,7 +274,7 @@ func TestEventIteratorRegister(t *testing.T) {
 
 	t.Run("pid1", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			f, err := os.Create(testFile)
+			f, err := os.Create(testFile2)
 			if err != nil {
 				return err
 			}

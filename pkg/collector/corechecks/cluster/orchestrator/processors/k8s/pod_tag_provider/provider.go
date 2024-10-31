@@ -10,6 +10,7 @@ package podtagprovider
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -25,12 +26,12 @@ type PodTagProvider interface {
 // NewPodTagProvider returns a new PodTagProvider
 // In case of CLC runner, the provider will calculate tags based on the pod resource on demand each time
 // In case of Node agent or Cluster agent, the provider will get pod tags by querying the tagger
-func NewPodTagProvider(cfg config.Component, store workloadmeta.Component) PodTagProvider {
+func NewPodTagProvider(cfg config.Component, store workloadmeta.Component, tagger tagger.Component) PodTagProvider {
 	if pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()) {
 		// Running in a CLC Runner
 		return newCLCTagProvider(cfg, store)
 	}
 
 	// Running in the Node Agent or in the Cluster Agent
-	return newNodePodTagProvider()
+	return newNodePodTagProvider(tagger)
 }

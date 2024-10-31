@@ -132,12 +132,16 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 	p.probe = newProcessProbe(p.config,
 		procutil.WithPermission(syscfg.ProcessModuleEnabled),
 		procutil.WithIgnoreZombieProcesses(p.config.GetBool(configIgnoreZombies)))
-	p.containerProvider = proccontainers.GetSharedContainerProvider(p.wmeta)
+	sharedContainerProvider, err := proccontainers.GetSharedContainerProvider()
+	if err != nil {
+		return err
+	}
+	p.containerProvider = sharedContainerProvider
 
 	p.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
 
 	var tu net.SysProbeUtil
-	var err error
+
 	if syscfg.NetworkTracerModuleEnabled {
 		// Calling the remote tracer will cause it to initialize and check connectivity
 		tu, err = net.GetRemoteSystemProbeUtil(syscfg.SystemProbeAddress)

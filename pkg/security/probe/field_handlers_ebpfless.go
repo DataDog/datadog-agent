@@ -126,6 +126,11 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessEnvs(_ *model.Event, process *mod
 	return envs
 }
 
+// ResolveProcessIsThread returns true is the process is a thread
+func (fh *EBPFLessFieldHandlers) ResolveProcessIsThread(_ *model.Event, process *model.Process) bool {
+	return !process.IsExec
+}
+
 // GetProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (fh *EBPFLessFieldHandlers) GetProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
 	ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(sprocess.CacheResolverKey{

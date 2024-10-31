@@ -11,6 +11,7 @@ package ecs
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
@@ -27,7 +28,7 @@ type TaskCollector struct {
 }
 
 // NewTaskCollector creates a new collector for the ECS Task resource.
-func NewTaskCollector() *TaskCollector {
+func NewTaskCollector(tagger tagger.Component) *TaskCollector {
 	return &TaskCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsStable:           false,
@@ -36,7 +37,7 @@ func NewTaskCollector() *TaskCollector {
 			Name:               "ecstasks",
 			NodeType:           orchestrator.ECSTask,
 		},
-		processor: processors.NewProcessor(new(ecs.TaskHandlers)),
+		processor: processors.NewProcessor(ecs.NewTaskHandlers(tagger)),
 	}
 }
 
