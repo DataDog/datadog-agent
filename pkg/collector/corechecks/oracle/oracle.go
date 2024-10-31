@@ -43,9 +43,6 @@ var MAX_OPEN_CONNECTIONS = 10
 //nolint:revive // TODO(DBM) Fix revive linter
 var DEFAULT_SQL_TRACED_RUNS = 10
 
-//nolint:revive // TODO(DBM) Fix revive linter
-var DB_TIMEOUT = "20000"
-
 const (
 	// MaxSQLFullTextVSQL is SQL_FULLTEXT size in V$SQL
 	MaxSQLFullTextVSQL = 4000
@@ -327,7 +324,7 @@ func (c *Check) Run() error {
 		c.sqlTraceRunsCount++
 		if c.sqlTraceRunsCount >= c.config.AgentSQLTrace.TracedRuns {
 			c.config.AgentSQLTrace.Enabled = false
-			_, err := c.db.Exec("BEGIN dbms_monitor.session_trace_disable; END;")
+			_, err := execWrapper(c.db, "BEGIN dbms_monitor.session_trace_disable; END;", c.config.QueryTimeoutDuration())
 			if err != nil {
 				log.Errorf("%s failed to stop SQL trace: %v", c.logPrompt, err)
 			}

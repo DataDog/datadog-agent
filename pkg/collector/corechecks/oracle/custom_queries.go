@@ -93,7 +93,7 @@ func (c *Check) CustomQueries() error {
 			if pdb == "" {
 				pdb = "cdb$root"
 			}
-			_, err := c.dbCustomQueries.Exec(fmt.Sprintf("alter session set container = %s", pdb))
+			_, err := execWrapper(c.dbCustomQueries, fmt.Sprintf("alter session set container = %s", pdb), c.config.QueryTimeoutDuration())
 			if err != nil {
 				allErrors = concatenateError(allErrors, fmt.Sprintf("failed to set container %s %s", pdb, err))
 				reconnectOnConnectionError(c, &c.dbCustomQueries, err)

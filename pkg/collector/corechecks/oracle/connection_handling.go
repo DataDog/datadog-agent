@@ -8,6 +8,7 @@
 package oracle
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
@@ -17,7 +18,7 @@ import (
 )
 
 func buildGoOraURL(c *Check) string {
-	connectionOptions := map[string]string{"TIMEOUT": DB_TIMEOUT}
+	connectionOptions := map[string]string{"TIMEOUT": c.config.QueryTimeoutString()}
 	if c.config.Protocol == "TCPS" {
 		connectionOptions["SSL"] = "TRUE"
 		if c.config.Wallet != "" {
@@ -68,7 +69,9 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		_, err := handleRefusedConnection(c, db, err)
 		return nil, fmt.Errorf("failed to connect to oracle instance: %w", err)
 	}
-	err = db.Ping()
+	ctx, cancel := context.WithTimeout(context.Background(), c.config.QueryTimeoutDuration())
+	defer cancel()
+	err = db.PingContext(ctx)
 	if err != nil {
 		_, err := handleRefusedConnection(c, db, err)
 		return nil, fmt.Errorf("failed to ping oracle instance: %w", err)
@@ -78,7 +81,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 
 	if c.config.AgentSQLTrace.Enabled {
 		db.SetMaxOpenConns(1)
-		_, err := db.Exec("ALTER SESSION SET tracefile_identifier='DDAGENT'")
+		_, err := execWrapper(c.db, "ALTER SESSION SET tracefile_identifier='DDAGENT'", c.config.QueryTimeoutDuration())
 		if err != nil {
 			log.Warnf("%s failed to set tracefile_identifier: %v", c.logPrompt, err)
 		}
@@ -91,7 +94,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		waits := assertBool(c.config.AgentSQLTrace.Waits)
 		setEventsStatement := fmt.Sprintf("BEGIN dbms_monitor.session_trace_enable (binds => %t, waits => %t); END;", binds, waits)
 		log.Trace("%s trace statement: %s", c.logPrompt, setEventsStatement)
-		_, err = db.Exec(setEventsStatement)
+		_, err = execWrapper(c.db, setEventsStatement, c.config.QueryTimeoutDuration())
 		if err != nil {
 			log.Errorf("%s failed to set SQL trace: %v", c.logPrompt, err)
 		}

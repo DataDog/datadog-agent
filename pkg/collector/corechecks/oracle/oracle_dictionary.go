@@ -26,7 +26,7 @@ func getFullSQLText(c *Check, SQLStatement *string, key string, value string) er
 	switch c.driver {
 	case common.Godror:
 		sql = fmt.Sprintf("SELECT /* DD */ sql_fulltext FROM v$sql WHERE %s = :v AND rownum = 1", key)
-		err = c.db.Get(SQLStatement, sql, value)
+		err = getWrapper(c, SQLStatement, sql, value)
 		reconnectOnConnectionError(c, &c.db, err)
 		if err != nil && strings.Contains(err.Error(), "no rows") {
 			log.Infof("%s The SQL text for the statement %s = %s couldn't be fetched because the SQL was evicted from shared pool", c.logPrompt, key, value)

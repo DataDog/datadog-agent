@@ -58,7 +58,7 @@ func (c *Check) OS_Stats() error {
 
 	var cpuCount float64
 	if !numCPUsFound {
-		if err := c.db.Get(&cpuCount, "SELECT value FROM v$parameter WHERE name = 'cpu_count'"); err == nil {
+		if err := getWrapper(c, &cpuCount, "SELECT value FROM v$parameter WHERE name = 'cpu_count'"); err == nil {
 			sendMetricWithDefaultTags(c, gauge, fmt.Sprintf("%s.num_cpus", common.IntegrationName), cpuCount)
 		} else {
 			log.Errorf("%s failed to get cpu_count: %s", c.logPrompt, err)
