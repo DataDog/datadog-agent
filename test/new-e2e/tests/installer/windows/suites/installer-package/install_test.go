@@ -131,6 +131,7 @@ func (s *testInstallerSuite) purge() {
 
 	// Assert
 	s.Assert().NoError(err)
+	s.requireUninstalled()
 	s.Require().Host(s.Env().RemoteHost).
 		NoFileExists(`C:\ProgramData\Datadog Installer\packages\packages.db`)
 }
