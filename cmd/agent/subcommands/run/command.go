@@ -116,6 +116,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -257,6 +258,7 @@ func run(log log.Component,
 	settings settings.Component,
 	_ optional.Option[gui.Component],
 	_ agenttelemetry.Component,
+	rdnsquerier rdnsquerier.Component,
 ) error {
 	defer func() {
 		stopAgent()
@@ -321,6 +323,7 @@ func run(log log.Component,
 		cloudfoundrycontainer,
 		jmxlogger,
 		settings,
+		rdnsquerier,
 	); err != nil {
 		return err
 	}
@@ -492,6 +495,7 @@ func startAgent(
 	_ cloudfoundrycontainer.Component,
 	jmxLogger jmxlogger.Component,
 	settings settings.Component,
+	rdnsquerier rdnsquerier.Component,
 ) error {
 	var err error
 
@@ -575,7 +579,7 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, tagger, cfg, telemetry)
+	commonchecks.RegisterChecks(wmeta, tagger, cfg, telemetry, rdnsquerier)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
