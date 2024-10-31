@@ -19,8 +19,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -180,12 +180,12 @@ func containsVolumeMount(volumeMounts []corev1.VolumeMount, element corev1.Volum
 // ContainerRegistry gets the container registry config using the specified
 // config option, and falls back to the default container registry if no
 // webhook-specific container registry is set.
-func ContainerRegistry(specificConfigOpt string) string {
-	if pkgconfigsetup.Datadog().IsSet(specificConfigOpt) {
-		return pkgconfigsetup.Datadog().GetString(specificConfigOpt)
+func ContainerRegistry(datadogConfig config.Component, specificConfigOpt string) string {
+	if datadogConfig.IsSet(specificConfigOpt) {
+		return datadogConfig.GetString(specificConfigOpt)
 	}
 
-	return pkgconfigsetup.Datadog().GetString("admission_controller.container_registry")
+	return datadogConfig.GetString("admission_controller.container_registry")
 }
 
 // MarkVolumeAsSafeToEvictForAutoscaler adds the Kubernetes cluster-autoscaler

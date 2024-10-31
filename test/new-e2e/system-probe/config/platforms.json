@@ -246,6 +246,17 @@
       "os_version": "40",
       "image": "Fedora-Cloud-Base-40.x86_64.qcow2.xz",
       "image_version": "20241003_a9a46356"
+    },
+    "ubuntu_24.10": {
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "6.11.0-8-generic",
+      "os_version": "24.10",
+      "image": "ubuntu-24.10-x86_64.qcow2.xz",
+      "image_version": "20241028_31340374",
+      "alt_version_names": [
+        "oracular"
+      ]
     }
   },
   "arm64": {
@@ -464,6 +475,17 @@
       "os_version": "40",
       "image": "Fedora-Cloud-Base-40.arm64.qcow2.xz",
       "image_version": "20241003_a9a46356"
+    },
+    "ubuntu_24.10": {
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "6.11.0-8-generic",
+      "os_version": "24.10",
+      "image": "ubuntu-24.10-arm64.qcow2.xz",
+      "image_version": "20241028_31340374",
+      "alt_version_names": [
+        "oracular"
+      ]
     }
   }
 }

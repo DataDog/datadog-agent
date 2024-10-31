@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
@@ -129,6 +130,9 @@ func (o offsetT) String() string {
 }
 
 func TestOffsetGuess(t *testing.T) {
+	if prebuilt.IsDeprecated() {
+		t.Skip("skipping because prebuilt is deprecated on this platform")
+	}
 	ebpftest.LogLevel(t, "trace")
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", testOffsetGuess)
 }
@@ -326,6 +330,10 @@ func testOffsetGuess(t *testing.T) {
 }
 
 func TestOffsetGuessPortIPv6Overlap(t *testing.T) {
+	if prebuilt.IsDeprecated() {
+		t.Skip("skipping because prebuilt is deprecated on this platform")
+	}
+
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
 		addrs, err := offsetguess.GetIPv6LinkLocalAddress()
 		require.NoError(t, err)

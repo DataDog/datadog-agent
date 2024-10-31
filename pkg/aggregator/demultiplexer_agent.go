@@ -190,6 +190,7 @@ func initAgentDemultiplexer(
 			metricSamplePool,
 			noAggSerializer,
 			agg.flushAndSerializeInParallel,
+			tagger,
 		)
 	}
 
