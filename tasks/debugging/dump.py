@@ -17,7 +17,7 @@ from tasks.debugging.windbg import Windbg
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.utils import download_to_tempfile
 
-LINUX_PLATFORMS = ['suse', 'debian']
+LINUX_PLATFORMS = ['suse', 'redhat', 'debian', 'ubuntu']
 PLATFORM_CHOICES = ['windows'] + LINUX_PLATFORMS
 ARCH_CHOICES = ['x86_64', 'arm64']
 
@@ -305,25 +305,32 @@ def get_debug_symbols_for_version(version: str, platform: str, arch: str, output
         _windows_get_debug_symbols_for_version(version, output_dir)
     elif platform == 'suse':
         _suse_get_debug_symbols_for_version(version, arch, output_dir)
-    elif platform == 'debian':
-        _debian_get_debug_symbols_for_version(version, arch, output_dir)
+    elif platform == 'redhat':
+        _yum_get_debug_symbols_for_version(version, arch, output_dir)
+    elif platform in ['debian', 'ubuntu']:
+        _apt_get_debug_symbols_for_version(version, arch, output_dir)
     else:
         raise NotImplementedError(f"Unsupported platform {platform}")
 
 
-def _debian_get_debug_symbols_for_version(version: str, arch: str, output_dir: Path | str) -> None:
-    base = 'https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/'
-    if 'rc' in version:
-        raise NotImplementedError("No debug symbols for rc Debian")
+def is_rc_version(version: str) -> bool:
+    return 'rc' in version
+
+
+def _apt_get_debug_symbols_for_version(version: str, arch: str, output_dir: Path | str) -> None:
+    if is_rc_version(version):
+        base = 'https://s3.amazonaws.com/apt.datad0g.com/pool/d/da/'
+    else:
+        base = 'https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/'
     if arch == 'x86_64':
         arch = 'amd64'
     url = f'{base}datadog-agent-dbg_{version}-1_{arch}.deb'
     print(f"Downloading symbols for {version} from {url}")
     with download_to_tempfile(url) as deb_path:
-        _debian_extract_agent_symbols_from_deb(deb_path, output_dir)
+        _deb_extract_agent_symbols(deb_path, output_dir)
 
 
-def _debian_extract_agent_symbols_from_deb(deb_path: Path | str, output_dir: Path | str) -> None:
+def _deb_extract_agent_symbols(deb_path: Path | str, output_dir: Path | str) -> None:
     assert shutil.which('dpkg-deb'), "dpkg-deb is required to extract symbols from DEBs"
     with tempfile.TemporaryDirectory() as tmp_dir:
         os.system(f'dpkg-deb --raw-extract {deb_path} {tmp_dir}')
@@ -333,17 +340,31 @@ def _debian_extract_agent_symbols_from_deb(deb_path: Path | str, output_dir: Pat
 
 
 def _suse_get_debug_symbols_for_version(version: str, arch: str, output_dir: Path | str) -> None:
-    base = 'https://s3.amazonaws.com/yum.datadoghq.com/suse/'
-    if 'rc' in version:
-        raise NotImplementedError("No debug symbols for rc SUSE")
+    if is_rc_version(version):
+        base = 'https://s3.amazonaws.com/yum.datad0g.com/suse/beta/'
+    else:
+        base = 'https://s3.amazonaws.com/yum.datadoghq.com/suse/stable/'
+    return _yum_get_debug_symbols_for_version(version, arch, output_dir, baseurl=base)
+
+
+def _yum_get_debug_symbols_for_version(
+    version: str, arch: str, output_dir: Path | str, baseurl: str | None = None
+) -> None:
+    if baseurl is None:
+        if is_rc_version(version):
+            baseurl = 'https://s3.amazonaws.com/yum.datad0g.com/beta/'
+        else:
+            baseurl = 'https://s3.amazonaws.com/yum.datadoghq.com/stable/'
     major_version = version.split('.')[0]
-    url = f'{base}stable/{major_version}/{arch}/datadog-agent-dbg-{version}-1.{arch}.rpm'
+    if arch == 'arm64':
+        arch = 'aarch64'
+    url = f'{baseurl}{major_version}/{arch}/datadog-agent-dbg-{version}-1.{arch}.rpm'
     print(f"Downloading symbols for {version} from {url}")
     with download_to_tempfile(url) as rpm_path:
-        _suse_extract_agent_symbols_from_rpm(rpm_path, output_dir)
+        _rpm_extract_agent_symbols(rpm_path, output_dir)
 
 
-def _suse_extract_agent_symbols_from_rpm(rpm_path: Path | str, output_dir: Path | str) -> None:
+def _rpm_extract_agent_symbols(rpm_path: Path | str, output_dir: Path | str) -> None:
     assert shutil.which('rpm2cpio'), "rpm2cpio is required to extract symbols from RPMs"
     assert shutil.which('cpio'), "cpio is required to extract symbols from RPMs"
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -370,7 +391,7 @@ def _windows_extract_agent_symbols(zip_path: Path | str, output_dir: Path | str)
 
 
 def _windows_get_debug_symbols_for_version(version: str, output_dir: Path | str) -> str:
-    if 'rc' in version:
+    if is_rc_version(version):
         base = 'https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/ddagent-cli-'
     else:
         base = 'https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-'
