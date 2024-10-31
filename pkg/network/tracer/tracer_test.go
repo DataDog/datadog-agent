@@ -262,8 +262,8 @@ func (s *TracerSuite) TestTCPShortLived() {
 	assert.True(t, conn.IntraHost)
 
 	// Verify the short lived connection is accounting for both TCP_ESTABLISHED and TCP_CLOSED events
-	assert.Equal(t, uint16(1), m.TCPEstablished)
-	assert.Equal(t, uint16(1), m.TCPClosed)
+	assert.Equal(t, uint32(1), m.TCPEstablished)
+	assert.Equal(t, uint32(1), m.TCPClosed)
 
 	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
 	assert.False(t, ok)
@@ -1075,8 +1075,8 @@ func (s *TracerSuite) TestTCPEstablished() {
 	conn, ok := findConnection(laddr, raddr, connections)
 
 	require.True(t, ok)
-	assert.Equal(t, uint16(1), conn.Last.TCPEstablished)
-	assert.Equal(t, uint16(0), conn.Last.TCPClosed)
+	assert.Equal(t, uint32(1), conn.Last.TCPEstablished)
+	assert.Equal(t, uint32(0), conn.Last.TCPClosed)
 
 	c.Close()
 
@@ -1088,8 +1088,8 @@ func (s *TracerSuite) TestTCPEstablished() {
 	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
 
 	require.True(t, ok)
-	assert.Equal(t, uint16(0), conn.Last.TCPEstablished)
-	assert.Equal(t, uint16(1), conn.Last.TCPClosed)
+	assert.Equal(t, uint32(0), conn.Last.TCPEstablished)
+	assert.Equal(t, uint32(1), conn.Last.TCPClosed)
 }
 
 func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
@@ -1122,8 +1122,8 @@ func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
 	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
 
 	m := conn.Monotonic
-	assert.Equal(t, uint16(0), m.TCPEstablished)
-	assert.Equal(t, uint16(1), m.TCPClosed)
+	assert.Equal(t, uint32(0), m.TCPEstablished)
+	assert.Equal(t, uint32(1), m.TCPClosed)
 }
 
 func (s *TracerSuite) TestUnconnectedUDPSendIPv4() {

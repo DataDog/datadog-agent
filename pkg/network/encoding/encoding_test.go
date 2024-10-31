@@ -84,16 +84,15 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 	out := &model.Connections{
 		Conns: []*model.Connection{
 			{
-				Laddr:                &model.Addr{Ip: "10.1.1.1", Port: int32(1000)},
-				Raddr:                &model.Addr{Ip: "10.2.2.2", Port: int32(9000)},
-				IsLocalPortEphemeral: model.EphemeralPortState_ephemeralFalse,
-				LastBytesSent:        2,
-				LastBytesReceived:    101,
-				LastRetransmits:      201,
-				LastTcpEstablished:   1,
-				LastTcpClosed:        1,
-				Pid:                  int32(6000),
-				NetNS:                7,
+				Laddr:              &model.Addr{Ip: "10.1.1.1", Port: int32(1000)},
+				Raddr:              &model.Addr{Ip: "10.2.2.2", Port: int32(9000)},
+				LastBytesSent:      2,
+				LastBytesReceived:  101,
+				LastRetransmits:    201,
+				LastTcpEstablished: 1,
+				LastTcpClosed:      1,
+				Pid:                int32(6000),
+				NetNS:              7,
 				IpTranslation: &model.IPTranslation{
 					ReplSrcIP:   "20.1.1.1",
 					ReplDstIP:   "20.1.1.1",
@@ -112,9 +111,8 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				},
 			},
 			{
-				Laddr:                &model.Addr{Ip: "10.1.1.1", Port: int32(1000)},
-				Raddr:                &model.Addr{Ip: "8.8.8.8", Port: int32(53)},
-				IsLocalPortEphemeral: model.EphemeralPortState_ephemeralFalse,
+				Laddr: &model.Addr{Ip: "10.1.1.1", Port: int32(1000)},
+				Raddr: &model.Addr{Ip: "8.8.8.8", Port: int32(53)},
 
 				Type:      model.ConnectionType_udp,
 				Family:    model.ConnectionFamily_v6,
@@ -559,20 +557,18 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 	out := &model.Connections{
 		Conns: []*model.Connection{
 			{
-				Laddr:                &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
-				Raddr:                &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
-				IsLocalPortEphemeral: model.EphemeralPortState_ephemeralTrue,
-				HttpAggregations:     httpOutBlob,
-				RouteIdx:             -1,
-				Protocol:             marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				HttpAggregations: httpOutBlob,
+				RouteIdx:         -1,
+				Protocol:         marshal.FormatProtocolStack(protocols.Stack{}, 0),
 			},
 			{
-				Laddr:                &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
-				Raddr:                &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
-				IsLocalPortEphemeral: model.EphemeralPortState_ephemeralFalse,
-				HttpAggregations:     httpOutBlob,
-				RouteIdx:             -1,
-				Protocol:             marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				HttpAggregations: httpOutBlob,
+				RouteIdx:         -1,
+				Protocol:         marshal.FormatProtocolStack(protocols.Stack{}, 0),
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{
@@ -721,20 +717,18 @@ func TestHTTP2SerializationWithLocalhostTraffic(t *testing.T) {
 	out := &model.Connections{
 		Conns: []*model.Connection{
 			{
-				Laddr:                &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
-				Raddr:                &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
-				Http2Aggregations:    http2OutBlob,
-				RouteIdx:             -1,
-				Protocol:             marshal.FormatProtocolStack(protocols.Stack{}, 0),
-				IsLocalPortEphemeral: model.EphemeralPortState_ephemeralTrue,
+				Laddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				Http2Aggregations: http2OutBlob,
+				RouteIdx:          -1,
+				Protocol:          marshal.FormatProtocolStack(protocols.Stack{}, 0),
 			},
 			{
-				Laddr:                &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
-				Raddr:                &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
-				Http2Aggregations:    http2OutBlob,
-				RouteIdx:             -1,
-				Protocol:             marshal.FormatProtocolStack(protocols.Stack{}, 0),
-				IsLocalPortEphemeral: model.EphemeralPortState_ephemeralFalse,
+				Laddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				Http2Aggregations: http2OutBlob,
+				RouteIdx:          -1,
+				Protocol:          marshal.FormatProtocolStack(protocols.Stack{}, 0),
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{
@@ -984,7 +978,6 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 			{
 				Laddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				Raddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
-				IsLocalPortEphemeral:    model.EphemeralPortState_ephemeralTrue,
 				DataStreamsAggregations: kafkaOutBlob,
 				RouteIdx:                -1,
 				Protocol:                marshal.FormatProtocolStack(protocols.Stack{}, 0),
@@ -993,7 +986,6 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 			{
 				Laddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Raddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
-				IsLocalPortEphemeral:    model.EphemeralPortState_ephemeralFalse,
 				DataStreamsAggregations: kafkaOutBlob,
 				RouteIdx:                -1,
 				Protocol:                marshal.FormatProtocolStack(protocols.Stack{}, 0),
