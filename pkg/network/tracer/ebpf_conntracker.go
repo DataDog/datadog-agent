@@ -114,7 +114,7 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 	}
 
 	if prebuilt.IsDeprecated() {
-		log.Warnf("using deprecated prebuilt conntracker")
+		log.Warn("using deprecated prebuilt conntracker")
 	}
 
 	var isPrebuilt bool

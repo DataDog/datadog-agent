@@ -160,7 +160,7 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 	}
 
 	if prebuilt.IsDeprecated() {
-		log.Warnf("using deprecated prebuilt network tracer")
+		log.Warn("using deprecated prebuilt network tracer")
 	}
 
 	offsets, err := tracerOffsetGuesserRunner(cfg)

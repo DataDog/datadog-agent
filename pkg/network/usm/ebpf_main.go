@@ -208,7 +208,7 @@ func (e *ebpfProgram) Init() error {
 	}
 
 	if prebuilt.IsDeprecated() {
-		log.Warnf("using deprecated prebuilt USM monitor")
+		log.Warn("using deprecated prebuilt USM monitor")
 	}
 
 	e.buildMode = buildmode.Prebuilt
