@@ -128,7 +128,7 @@ func GetInstanceID(ctx context.Context) (string, error) {
 	return instanceIDFetcher.FetchString(ctx)
 }
 
-// GetLegacyResolutionInstanceID fetches the instance id for current host from the EC2 metadata API without using IMDSv2 and DMI
+// GetLegacyResolutionInstanceID fetches the instance id for current host from the EC2 metadata API without using IMDSv2 or DMI (ie: only IMDSv1)
 func GetLegacyResolutionInstanceID(ctx context.Context) (string, error) {
 	// If the user has set the ec2_prefer_imdsv2 then IMDSv2 is used by default by the user, `legacy_resolution_hostname` is not needed for the transition
 	// If the user has set the ec2_imdsv2_transition_payload_enabled then IMDSv2 is used by default by the agent, `legacy_resolution_hostname` is needed for the transition
