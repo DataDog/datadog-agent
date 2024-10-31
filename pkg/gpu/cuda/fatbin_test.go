@@ -20,7 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
 
-// The test data is a CUDA fatbin file compiled with the Makefile present in the same directory.
+// The test data is a CUDA fatbin file compiled with the Makefile present in the same directory,
+// using `make <name>` (for now, only supported samples are `sample` and `heavy-sample`).
 func getCudaSample(t testing.TB, name string) string {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
@@ -86,6 +87,9 @@ func BenchmarkParseFatbinFromPath(b *testing.B) {
 	}
 }
 
+// The heavy-sample binary is an automatically-generated CUDA fatbin file with a
+// large number of kernels, designed to stress the parser. The parser workload
+// scales with the number of variables per kernel and kernels.
 func TestParseBigFatbinFromPath(t *testing.T) {
 	path := getCudaSample(t, "heavy-sample")
 	res, err := ParseFatbinFromELFFilePath(path)
