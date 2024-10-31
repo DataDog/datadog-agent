@@ -61,8 +61,8 @@ type Event struct {
 	LoginUIDWrite LoginUIDWriteEvent `field:"-"`
 
 	// network syscalls
-	Bind    BindEvent    `field:"bind" event:"bind"`                      // [7.37] [Network] A bind was executed
-	Connect ConnectEvent `field:"connect;connect.server" event:"connect"` // [7.60] [Network] A connect was executed
+	Bind    BindEvent    `field:"bind" event:"bind"`       // [7.37] [Network] A bind was executed
+	Connect ConnectEvent `field:"connect" event:"connect"` // [7.60] [Network] A connect was executed
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -645,8 +645,8 @@ type BindEvent struct {
 // ConnectEvent represents a connect event
 type ConnectEvent struct {
 	SyscallEvent
-	Addr       IPPortContext `field:"addr"`        // Connection address
-	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
+	Addr       IPPortContext `field:"addr;server.addr"`               // Connection address
+	AddrFamily uint16        `field:"addr.family;server.addr.family"` // SECLDoc[addr.family] Definition:`Address family` SECLDoc[server.addr.family] Definition:`Server address family`
 }
 
 // NetDevice represents a network device

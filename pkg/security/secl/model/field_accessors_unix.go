@@ -954,14 +954,6 @@ func (ev *Event) GetConnectServerAddrPort() uint16 {
 	return ev.Connect.Addr.Port
 }
 
-// GetConnectServerRetval returns the value of the field, resolving if necessary
-func (ev *Event) GetConnectServerRetval() int64 {
-	if ev.GetEventType().String() != "connect" {
-		return int64(0)
-	}
-	return ev.Connect.SyscallEvent.Retval
-}
-
 // GetContainerCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerCreatedAt() int {
 	if ev.BaseEvent.ContainerContext == nil {

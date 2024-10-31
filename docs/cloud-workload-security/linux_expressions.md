@@ -518,14 +518,13 @@ A connect was executed
 
 | Property | Definition |
 | -------- | ------------- |
-| [`connect.addr.family`](#common-connectevent-addr-family-doc) | Address family |
+| [`connect.addr.family`](#connect-addr-family-doc) | Address family |
 | [`connect.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`connect.addr.port`](#common-ipportcontext-port-doc) | Port number |
 | [`connect.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
-| [`connect.server.addr.family`](#common-connectevent-addr-family-doc) | Address family |
+| [`connect.server.addr.family`](#connect-server-addr-family-doc) | Server address family |
 | [`connect.server.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`connect.server.addr.port`](#common-ipportcontext-port-doc) | Port number |
-| [`connect.server.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `dns`
 
@@ -1757,15 +1756,6 @@ Change file access/modification times
 ## Attributes documentation
 
 
-### `*.addr.family` {#common-connectevent-addr-family-doc}
-Type: int
-
-Definition: Address family
-
-`*.addr.family` has 2 possible prefixes:
-`connect` `connect.server`
-
-
 ### `*.args` {#common-process-args-doc}
 Type: string
 
@@ -2378,8 +2368,8 @@ Type: int
 
 Definition: Return value of the syscall
 
-`*.retval` has 24 possible prefixes:
-`bind` `bpf` `chdir` `chmod` `chown` `connect` `connect.server` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
+`*.retval` has 23 possible prefixes:
+`bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
 
 Constants: [Error constants](#error-constants)
 
@@ -2654,6 +2644,20 @@ Definition: Path argument of the syscall
 Type: int
 
 Definition: UID argument of the syscall
+
+
+
+### `connect.addr.family` {#connect-addr-family-doc}
+Type: int
+
+Definition: Address family
+
+
+
+### `connect.server.addr.family` {#connect-server-addr-family-doc}
+Type: int
+
+Definition: Server address family
 
 
 
