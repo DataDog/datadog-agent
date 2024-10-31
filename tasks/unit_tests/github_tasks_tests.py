@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import dataclass
 from unittest.mock import patch
 
 from invoke.context import Context
@@ -115,8 +116,17 @@ class TestAssignTeamLabelMock(unittest.TestCase):
 
 
 class TestExtractQADescriptionFromPR(unittest.TestCase):
-    def test_single_line_description(self):
-        body = """### What does this PR do?
+    def test_extract_qa_description(self):
+        @dataclass
+        class TestCase:
+            name: str
+            body: str
+            expected: str
+
+        testcases: list[TestCase] = [
+            TestCase(
+                name="Single line",
+                body="""### What does this PR do?
 
 ### Motivation
 
@@ -125,12 +135,12 @@ I added one test
 ### Possible Drawbacks / Trade-offs
 
 ### Additional Notes
-"""
-        qa_description = extract_test_qa_description(body)
-        self.assertEqual(qa_description, "I added one test")
-
-    def test_multi_line_description(self):
-        body = """### What does this PR do?
+""",
+                expected="I added one test",
+            ),
+            TestCase(
+                name="Multi line",
+                body="""### What does this PR do?
 
 ### Motivation
 
@@ -140,12 +150,13 @@ and one e2e test
 ### Possible Drawbacks / Trade-offs
 
 ### Additional Notes
-"""
-        qa_description = extract_test_qa_description(body)
-        self.assertEqual(qa_description, "I added one unit test\nand one e2e test")
-
-    def test_empty_description(self):
-        body = """### What does this PR do?
+""",
+                expected="""I added one unit test
+and one e2e test""",
+            ),
+            TestCase(
+                name="Empty description",
+                body="""### What does this PR do?
 
 ### Motivation
 
@@ -154,6 +165,51 @@ and one e2e test
 ### Possible Drawbacks / Trade-offs
 
 ### Additional Notes
-"""
-        qa_description = extract_test_qa_description(body)
-        self.assertEqual(qa_description, "")
+""",
+                expected="",
+            ),
+            TestCase(
+                name="Multiline with subheaders",
+                body="""### What does this PR do?
+
+### Motivation
+
+### Describe how to test/QA your changes
+
+Here is a test description
+
+#### Step 1
+
+I do this
+
+#### Step 2
+
+Then I do that
+
+##### Substep 2.1
+
+Pay attentions to this
+
+### Possible Drawbacks / Trade-offs
+
+### Additional Notes
+""",
+                expected="""Here is a test description
+
+#### Step 1
+
+I do this
+
+#### Step 2
+
+Then I do that
+
+##### Substep 2.1
+
+Pay attentions to this""",
+            ),
+        ]
+
+        for tc in testcases:
+            qa_description = extract_test_qa_description(tc.body)
+            self.assertEqual(qa_description, tc.expected, f"Test case: {tc.name}")

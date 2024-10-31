@@ -475,7 +475,19 @@ def extract_test_qa_description(pr_body: str) -> str:
     """
     Extract the test/QA description section from the PR body
     """
-    # capture test/QA description section content from PR body
-    # see example for this regex https://regexr.com/87mm2
-    result = re.search(r'^###\ Describe\ how\ to\ test.*\n([^#]*)\n###', pr_body, flags=re.MULTILINE)
-    return result.group(1) if result else ''
+    # Extract the test/QA description section from the PR body
+    # Based on PULL_REQUEST_TEMPLATE.md
+    pr_body_lines = pr_body.splitlines()
+    index_of_test_qa_section = -1
+    for i, line in enumerate(pr_body_lines):
+        if line.startswith('### Describe how to test'):
+            index_of_test_qa_section = i
+            break
+    index_of_next_section = -1
+    for i in range(index_of_test_qa_section + 1, len(pr_body_lines)):
+        if pr_body_lines[i].startswith('### Possible Drawbacks'):
+            index_of_next_section = i
+            break
+    if index_of_next_section == -1:
+        return ''
+    return '\n'.join(pr_body_lines[index_of_test_qa_section + 1 : index_of_next_section]).strip()
