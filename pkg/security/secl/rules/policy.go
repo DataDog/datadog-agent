@@ -90,7 +90,7 @@ func (r *PolicyRule) MergeWith(r2 *PolicyRule) error {
 	case OverridePolicy:
 		applyOverride(r, r2)
 	default:
-		if !r2.Def.Disabled {
+		if r.Def.Disabled == r2.Def.Disabled {
 			return &ErrRuleLoad{Rule: r2, Err: ErrDefinitionIDConflict}
 		}
 	}
