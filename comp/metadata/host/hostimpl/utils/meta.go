@@ -35,7 +35,7 @@ type Meta struct {
 	AgentHostname             string   `json:"agent-hostname,omitempty"`
 	ClusterName               string   `json:"cluster-name,omitempty"`
 	LegacyResolutionHostname  string   `json:"legacy-resolution-hostname,omitempty"`
-	HostnameResolutionVersion string   `json:"hostname-resolution-version,omitempty"`
+	HostnameResolutionVersion int   `json:"hostname-resolution-version,omitempty"`
 }
 
 // GetMetaFromCache returns the metadata information about the host from the cache and returns it, if the cache is
@@ -72,7 +72,7 @@ func getMeta(ctx context.Context, conf model.Reader) *Meta {
 		HostAliases:               cloudproviders.GetHostAliases(ctx),
 		InstanceID:                instanceID,
 		AgentHostname:             agentHostname,
-		HostnameResolutionVersion: "1.0",
+		HostnameResolutionVersion: 1,
 	}
 
 	legacyResolutionHostnameData, _ := hostname.GetWithProviderWithLegacyHostnameResolution(ctx)
