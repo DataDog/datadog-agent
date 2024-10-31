@@ -426,6 +426,27 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				Debug: map[string]interface{}{},
 			},
 		},
+		{
+			name: "metrics resource_attributes_as_tags",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS": "true",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{},
+
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				LogsEnabled:    false,
+				TracePort:      5003,
+				Metrics: map[string]interface{}{
+					"enabled":                     true,
+					"tag_cardinality":             "low",
+					"apm_stats_receiver_addr":     "http://localhost:8126/v0.6/stats",
+					"resource_attributes_as_tags": true,
+				},
+				Debug: map[string]interface{}{},
+			},
+		},
 	}
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
