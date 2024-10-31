@@ -551,7 +551,19 @@ func assertStat(t assert.TestingT, svc model.Service) {
 		return
 	}
 
-	assert.Equal(t, uint64(createTimeMs/1000), svc.StartTimeSecs)
+	// The value returned by proc.CreateTime() can vary between invocations
+	// since the BootTime (used internally in proc.CreateTime()) can vary when
+	// the version of BootTimeWithContext which uses /proc/uptime is active in
+	// gopsutil (either on Docker, or even outside of it due to a bug fixed in
+	// v4.24.8:
+	// https://github.com/shirou/gopsutil/commit/aa0b73dc6d5669de5bc9483c0655b1f9446317a9).
+	//
+	// This is due to an inherent race since the code in BootTimeWithContext
+	// substracts the uptime of the host from the current time, and there can be
+	// in theory an unbounded amount of time between the read of /proc/uptime
+	// and the retrieval of the current time. Allow a 10 second diff as a
+	// reasonable value.
+	assert.InDelta(t, uint64(createTimeMs/1000), svc.StartTimeSecs, 10)
 }
 
 func assertCPU(t *testing.T, url string, pid int) {
