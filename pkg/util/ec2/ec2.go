@@ -98,7 +98,7 @@ func GetSourceName() string {
 var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "EC2 or DMI InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		hostname, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, GetIMDSVersion(false, false))
+		hostname, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, getIMDSVersion(false, false))
 		if err != nil {
 			if pkgconfigsetup.Datadog().GetBool(ec2IMDSv2TransitionPayloadConfigFlag) {
 				log.Debugf("Failed to get instance ID from IMDSv2 - ec2_imdsv2_transition_payload_enabled is set, falling back on DMI: %s", err.Error())
@@ -182,7 +182,7 @@ func GetHostAliases(ctx context.Context) ([]string, error) {
 	log.Debugf("failed to get instance ID from DMI for Host Alias: %s", err)
 
 	// Try to use IMSDv2 if GetInstanceID didn't try it already
-	imdsv2Action := GetIMDSVersion(false, false)
+	imdsv2Action := getIMDSVersion(false, false)
 	if imdsv2Action == imdsV1 {
 		imsdv2InstanceID, err := GetIDMSv2InstanceID(ctx)
 		if err == nil {
@@ -198,7 +198,7 @@ func GetHostAliases(ctx context.Context) ([]string, error) {
 var hostnameFetcher = cachedfetch.Fetcher{
 	Name: "EC2 Hostname",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		return getMetadataItemWithMaxLength(ctx, imdsHostname, GetIMDSVersion(false, false))
+		return getMetadataItemWithMaxLength(ctx, imdsHostname, getIMDSVersion(false, false))
 	},
 }
 

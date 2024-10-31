@@ -18,7 +18,7 @@ import (
 var publicIPv4Fetcher = cachedfetch.Fetcher{
 	Name: "EC2 Public IPv4 Address",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		return getMetadataItem(ctx, imdsIPv4, GetIMDSVersion(false, false))
+		return getMetadataItem(ctx, imdsIPv4, getIMDSVersion(false, false))
 	},
 }
 
