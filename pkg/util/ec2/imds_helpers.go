@@ -24,11 +24,11 @@ var (
 	imdsNetworkMacs = "/network/interfaces/macs"
 )
 
-// IMDSVersion is an enum to determine how to interact with the IMDSv2 option
-type IMDSVersion int
+// imdsVersion is an enum to determine how to interact with the IMDSv2 option
+type imdsVersion int
 
 const (
-	imdsV1 IMDSVersion = iota
+	imdsV1 imdsVersion = iota
 	imdsAllVersions
 	imdsV2
 )
@@ -53,7 +53,7 @@ func getToken(ctx context.Context) (string, time.Time, error) {
 	return res, expirationDate, nil
 }
 
-func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, allowedIMDSVersions IMDSVersion) (string, error) {
+func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, allowedIMDSVersions imdsVersion) (string, error) {
 	result, err := getMetadataItem(ctx, endpoint, allowedIMDSVersions)
 	if err != nil {
 		return result, err
@@ -66,7 +66,7 @@ func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, allowedI
 	return result, err
 }
 
-func getMetadataItem(ctx context.Context, endpoint string, allowedIMDSVersions IMDSVersion) (string, error) {
+func getMetadataItem(ctx context.Context, endpoint string, allowedIMDSVersions imdsVersion) (string, error) {
 	if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
@@ -75,7 +75,7 @@ func getMetadataItem(ctx context.Context, endpoint string, allowedIMDSVersions I
 }
 
 // GetIMDSVersion returns true if the agent should use IMDSv2
-func GetIMDSVersion(force bool, disable bool) IMDSVersion {
+func GetIMDSVersion(force bool, disable bool) imdsVersion {
 	// if force is set, we use IMDSv2, highest priority
 	if force {
 		return imdsV2
@@ -90,7 +90,7 @@ func GetIMDSVersion(force bool, disable bool) IMDSVersion {
 	return imdsV1
 }
 
-func doHTTPRequest(ctx context.Context, url string, allowedIMDSVersions IMDSVersion) (string, error) {
+func doHTTPRequest(ctx context.Context, url string, allowedIMDSVersions imdsVersion) (string, error) {
 	source := metadataSourceIMDSv1
 	headers := map[string]string{}
 	if allowedIMDSVersions == imdsAllVersions || allowedIMDSVersions == imdsV2 {
