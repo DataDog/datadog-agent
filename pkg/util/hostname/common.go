@@ -25,15 +25,15 @@ import (
 
 // for testing purposes
 var (
-	isFargateInstance                            = fargate.IsFargateInstance
-	ec2GetInstanceID                             = ec2.GetInstanceID
-	ec2GetInstanceIDWithLegacyHostnameResolution = ec2.GetInstanceIDWithLegacyHostnameResolution
-	isContainerized                              = env.IsContainerized //nolint:unused
-	gceGetHostname                               = gce.GetHostname
-	azureGetHostname                             = azure.GetHostname
-	osHostname                                   = os.Hostname
-	fqdnHostname                                 = getSystemFQDN
-	osHostnameUsable                             = isOSHostnameUsable
+	isFargateInstance                = fargate.IsFargateInstance
+	ec2GetInstanceID                 = ec2.GetInstanceID
+	ec2GetLegacyResolutionInstanceID = ec2.GetLegacyResolutionInstanceID
+	isContainerized                  = env.IsContainerized //nolint:unused
+	gceGetHostname                   = gce.GetHostname
+	azureGetHostname                 = azure.GetHostname
+	osHostname                       = os.Hostname
+	fqdnHostname                     = getSystemFQDN
+	osHostnameUsable                 = isOSHostnameUsable
 )
 
 // Data contains hostname and the hostname provider
@@ -116,7 +116,7 @@ func getValidEC2Hostname(ctx context.Context, legacyHostnameResolution bool) (st
 	var instanceID string
 	var err error
 	if legacyHostnameResolution {
-		instanceID, err = ec2GetInstanceIDWithLegacyHostnameResolution(ctx)
+		instanceID, err = ec2GetLegacyResolutionInstanceID(ctx)
 	} else {
 		instanceID, err = ec2GetInstanceID(ctx)
 	}
