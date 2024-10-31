@@ -65,7 +65,7 @@ func hostnameEnrichment(metadata []devicemetadata.DeviceMetadata, rdnsquerier rd
 			hostname = ""
 		}
 
-		device.DNS_Hostname = hostname
+		device.DNSHostname = hostname
 		enrichedMetadata[i] = device
 	}
 
@@ -259,7 +259,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		OsHostname:     osHostname,
 		DeviceType:     deviceType,
 		Integration:    common.SnmpIntegrationName,
-		DNS_Hostname:   "",
+		DNSHostname:    "",
 	}
 }
 
