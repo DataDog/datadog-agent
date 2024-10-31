@@ -369,7 +369,7 @@ func TestConfigHostname(t *testing.T) {
 
 		// makeProgram creates a new binary file which returns the given response and exits to the OS
 		// given the specified code, returning the path of the program.
-		makeProgram := func(response string, code int) string {
+		makeProgram := func(t *testing.T, response string, code int) string {
 			f, err := os.CreateTemp("", "trace-test-hostname.*.go")
 			if err != nil {
 				t.Fatal(err)
@@ -401,7 +401,7 @@ func TestConfigHostname(t *testing.T) {
 		fallbackHostnameFunc = func() (string, error) { return "fallback.host", nil }
 
 		t.Run("good", func(t *testing.T) {
-			bin := makeProgram("host.name", 0)
+			bin := makeProgram(t, "host.name", 0)
 			defer os.Remove(bin)
 
 			config := buildConfigComponent(t)
@@ -415,7 +415,7 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("empty", func(t *testing.T) {
-			bin := makeProgram("", 0)
+			bin := makeProgram(t, "", 0)
 			defer os.Remove(bin)
 
 			config := buildConfigComponent(t)
@@ -428,7 +428,7 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("empty+disallowed", func(t *testing.T) {
-			bin := makeProgram("", 0)
+			bin := makeProgram(t, "", 0)
 			defer os.Remove(bin)
 
 			config := buildConfigComponent(t)
@@ -443,7 +443,7 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("fallback1", func(t *testing.T) {
-			bin := makeProgram("", 1)
+			bin := makeProgram(t, "", 1)
 			defer os.Remove(bin)
 
 			config := buildConfigComponent(t)
@@ -456,7 +456,7 @@ func TestConfigHostname(t *testing.T) {
 		})
 
 		t.Run("fallback2", func(t *testing.T) {
-			bin := makeProgram("some text", 1)
+			bin := makeProgram(t, "some text", 1)
 			defer os.Remove(bin)
 
 			config := buildConfigComponent(t)
