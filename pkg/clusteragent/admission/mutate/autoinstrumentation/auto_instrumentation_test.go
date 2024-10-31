@@ -1080,31 +1080,29 @@ func TestInjectLibConfig(t *testing.T) {
 
 func TestInjectLibInitContainer(t *testing.T) {
 	tests := []struct {
-		name     string
-		cpu      string
-		cpuLimit string
-		mem      string
-		memLimit string
-		pod      *corev1.Pod
-		image    string
-		lang     language
-		wantErr  bool
-		wantCPU  string
-		wantMem  string
-		secCtx   *corev1.SecurityContext
+		name    string
+		cpu     string
+		mem     string
+		pod     *corev1.Pod
+		image   string
+		lang    language
+		wantErr bool
+		wantCPU string
+		wantMem string
+		secCtx  *corev1.SecurityContext
 	}{
 		{
-			name:    "no resources, no security context",
+			name:    "no_resources,no_security_context",
 			pod:     common.FakePod("java-pod"),
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
-			wantCPU: "50m",
-			wantMem: "100Mi",
+			wantCPU: "0",
+			wantMem: "0",
 			secCtx:  &corev1.SecurityContext{},
 		},
 		{
-			name:    "with resources",
+			name:    "with_resources",
 			pod:     common.FakePod("java-pod"),
 			cpu:     "100m",
 			mem:     "500",
@@ -1116,58 +1114,46 @@ func TestInjectLibInitContainer(t *testing.T) {
 			secCtx:  &corev1.SecurityContext{},
 		},
 		{
-			name:    "cpu only",
+			name:    "cpu_only",
 			pod:     common.FakePod("java-pod"),
 			cpu:     "200m",
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
 			wantCPU: "200m",
-			wantMem: "100Mi",
+			wantMem: "0",
 			secCtx:  &corev1.SecurityContext{},
 		},
 		{
-			name:     "cpu and memory limits",
-			pod:      common.FakePod("java-pod"),
-			cpuLimit: "600m",
-			memLimit: "400Mi",
-			image:    "gcr.io/datadoghq/dd-lib-java-init:v1",
-			lang:     java,
-			wantErr:  false,
-			wantCPU:  "50m",
-			wantMem:  "100Mi",
-			secCtx:   &corev1.SecurityContext{},
-		},
-		{
-			name:    "memory only",
+			name:    "memory_only",
 			pod:     common.FakePod("java-pod"),
 			mem:     "512Mi",
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
-			wantCPU: "50m",
+			wantCPU: "0",
 			wantMem: "512Mi",
 			secCtx:  &corev1.SecurityContext{},
 		},
 		{
-			name:    "with invalid resources",
+			name:    "with_invalid_resources",
 			pod:     common.FakePod("java-pod"),
 			cpu:     "foo",
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: true,
-			wantCPU: "50m",
-			wantMem: "100Mi",
+			wantCPU: "0",
+			wantMem: "0",
 			secCtx:  &corev1.SecurityContext{},
 		},
 		{
-			name:    "with full security context",
+			name:    "with_full_security_context",
 			pod:     common.FakePod("java-pod"),
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
-			wantCPU: "50m",
-			wantMem: "100Mi",
+			wantCPU: "0",
+			wantMem: "0",
 			secCtx: &corev1.SecurityContext{
 				Capabilities: &corev1.Capabilities{
 					Add:  []corev1.Capability{"NET_ADMIN", "SYS_TIME"},
@@ -1199,13 +1185,13 @@ func TestInjectLibInitContainer(t *testing.T) {
 			},
 		},
 		{
-			name:    "with limited security context",
+			name:    "with_limited_security_context",
 			pod:     common.FakePod("java-pod"),
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
-			wantCPU: "50m",
-			wantMem: "100Mi",
+			wantCPU: "0",
+			wantMem: "0",
 			secCtx: &corev1.SecurityContext{
 				Capabilities: &corev1.Capabilities{
 					Drop: []corev1.Capability{"ALL"},
@@ -1217,6 +1203,83 @@ func TestInjectLibInitContainer(t *testing.T) {
 					Type: "RuntimeDefault",
 				},
 			},
+		},
+		{
+			name: "with_container_resources",
+			pod: common.FakePodWithResources("java-pod", corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("499"),
+					corev1.ResourceMemory: resource.MustParse("101Mi"),
+				},
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("499"),
+					corev1.ResourceMemory: resource.MustParse("101Mi"),
+				},
+			}),
+			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:    java,
+			wantErr: false,
+			wantCPU: "499",
+			wantMem: "101Mi",
+		},
+		{
+			name: "with_init_container_resources",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "java-pod",
+				},
+				Spec: corev1.PodSpec{
+					InitContainers: []corev1.Container{{Name: "i1", Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("499"),
+							corev1.ResourceMemory: resource.MustParse("101Mi"),
+						},
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("499"),
+							corev1.ResourceMemory: resource.MustParse("101Mi"),
+						},
+					}}},
+					Containers: []corev1.Container{{Name: "c1"}},
+				},
+			},
+			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:    java,
+			wantErr: false,
+			wantCPU: "499",
+			wantMem: "101Mi",
+		},
+		{
+			name: "with_multi_container_resources",
+			pod: common.FakePodWithContainer("java-pod", corev1.Container{
+				Name: "c1",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("499"),
+						corev1.ResourceMemory: resource.MustParse("101Mi"),
+					},
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("499"),
+						corev1.ResourceMemory: resource.MustParse("101Mi"),
+					},
+				},
+			}, corev1.Container{
+				Name: "c2",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("499"),
+						corev1.ResourceMemory: resource.MustParse("101Mi"),
+					},
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("499"),
+						corev1.ResourceMemory: resource.MustParse("101Mi"),
+					},
+				},
+			}),
+			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:    java,
+			wantErr: false,
+			wantCPU: "998",
+			wantMem: "202Mi",
 		},
 	}
 
@@ -1231,14 +1294,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 			if tt.cpu != "" {
 				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.cpu", tt.cpu)
 			}
-			if tt.cpuLimit != "" {
-				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.cpu_limit", tt.cpuLimit)
-			}
 			if tt.mem != "" {
 				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.memory", tt.mem)
-			}
-			if tt.memLimit != "" {
-				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.memory_limit", tt.memLimit)
 			}
 
 			wh, err := NewWebhook(wmeta, GetInjectionFilter())
@@ -1253,7 +1310,10 @@ func TestInjectLibInitContainer(t *testing.T) {
 			wh.initSecurityContext = tt.secCtx
 
 			c := tt.lang.libInfo("", tt.image).initContainers(wh.version)[0]
-			c.Mutators = wh.initContainerMutators()
+			requirements, skipInjection := initContainerResourceRequirements(tt.pod, wh.initResourceRequirements)
+			require.False(t, skipInjection)
+			c.Mutators = wh.initContainerMutators(requirements)
+			initalInitContainerCount := len(tt.pod.Spec.InitContainers)
 			err = c.mutatePod(tt.pod)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("injectLibInitContainer() error = %v, wantErr %v", err, tt.wantErr)
@@ -1262,31 +1322,19 @@ func TestInjectLibInitContainer(t *testing.T) {
 			if err != nil {
 				return
 			}
-			require.Len(t, tt.pod.Spec.InitContainers, 1)
+			require.Len(t, tt.pod.Spec.InitContainers, initalInitContainerCount+1)
 
 			req := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceCPU]
+			lim := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceCPU]
 			wantCPUQuantity := resource.MustParse(tt.wantCPU)
-			require.Zero(t, wantCPUQuantity.Cmp(req))
-
-			lim, ok := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceCPU]
-			if tt.cpuLimit != "" {
-				limCPU := resource.MustParse(tt.cpuLimit)
-				require.Zero(t, lim.Cmp(limCPU))
-			} else {
-				require.False(t, ok)
-			}
+			require.Zero(t, wantCPUQuantity.Cmp(req)) // Cmp returns 0 if equal
+			require.Zero(t, wantCPUQuantity.Cmp(lim))
 
 			req = tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceMemory]
+			lim = tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceMemory]
 			wantMemQuantity := resource.MustParse(tt.wantMem)
 			require.Zero(t, wantMemQuantity.Cmp(req))
-
-			lim, ok = tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceMemory]
-			if tt.memLimit != "" {
-				limMem := resource.MustParse(tt.memLimit)
-				require.Zero(t, lim.Cmp(limMem))
-			} else {
-				require.False(t, ok)
-			}
+			require.Zero(t, wantMemQuantity.Cmp(lim))
 
 			expSecCtx := tt.pod.Spec.InitContainers[0].SecurityContext
 			require.Equal(t, tt.secCtx, expSecCtx)

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func TestVolumeMount(t *testing.T) {
@@ -55,8 +56,16 @@ func TestVolumeMount(t *testing.T) {
 }
 
 func TestInitContainer(t *testing.T) {
-	resources, err := initResources()
-	require.NoError(t, err)
+	resources := corev1.ResourceRequirements{
+		Limits: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("1"),
+			corev1.ResourceMemory: resource.MustParse("500Mib"),
+		},
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("1"),
+			corev1.ResourceMemory: resource.MustParse("500Mib"),
+		},
+	}
 
 	c := initContainer{
 		Container: corev1.Container{
