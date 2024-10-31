@@ -199,8 +199,6 @@ github.com/Intevation/jsonpath v0.2.1 h1:rINNQJ0Pts5XTFEG+zamtdL7l9uuE1z0FBA+r55
 github.com/Intevation/jsonpath v0.2.1/go.mod h1:WnZ8weMmwAx/fAO3SutjYFU+v7DFreNYnibV7CiaYIw=
 github.com/L3n41c/custom-metrics-apiserver v0.0.0-20241014100211-ccded82d0da2 h1:RztcRByj9tNF0Fs3w724kZ/FER6pbZ3t9xR5QGmeRJw=
 github.com/L3n41c/custom-metrics-apiserver v0.0.0-20241014100211-ccded82d0da2/go.mod h1:XzcKqJZuJBtaQ9auqq35TBPYAZmp/eY9N48JOb7wrYw=
-github.com/L3n41c/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f h1:ibZngg8ifCo1o58In6Kvs9aDJ4Ku38KRwY8NvOUqHgc=
-github.com/L3n41c/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f/go.mod h1:sGt/NFkZkA4hqb4cVd/xG2G17dzZ72TQXqSpHn8rF/U=
 github.com/Masterminds/goutils v1.1.1 h1:5nUrii3FMTL5diU80unEVvNevw1nH4+ZV4DSLVJLSYI=
 github.com/Masterminds/goutils v1.1.1/go.mod h1:8cTjp+g8YejhMuvIA5y2vz3BpJxksy863GQaJW2MFNU=
 github.com/Masterminds/semver v1.4.2/go.mod h1:MB6lktGJrhw8PrUyiEoblNEGEQ+RzHPF078ddwwvV3Y=
@@ -2740,6 +2738,8 @@ k8s.io/kube-aggregator v0.31.1/go.mod h1:+aW4NX50uneozN+BtoCxI4g7ND922p8Wy3tWKFD
 k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7/go.mod h1:wXW5VT87nVfh/iLV8FpR2uDvrFyomxbtb1KivDbvPTE=
 k8s.io/kube-openapi v0.0.0-20240430033511-f0e62f92d13f h1:0LQagt0gDpKqvIkAMPaRGcXawNMouPECM1+F9BVxEaM=
 k8s.io/kube-openapi v0.0.0-20240430033511-f0e62f92d13f/go.mod h1:S9tOR0FxgyusSNR+MboCuiDpVWkAifZvaYI1Q2ubgro=
+k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f h1:qgFTdM3vZhsVXp3psuvXnkD4JVMcNywBqAxIAER5gDE=
+k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f/go.mod h1:sGt/NFkZkA4hqb4cVd/xG2G17dzZ72TQXqSpHn8rF/U=
 k8s.io/kubectl v0.31.1 h1:ih4JQJHxsEggFqDJEHSOdJ69ZxZftgeZvYo7M/cpp24=
 k8s.io/kubectl v0.31.1/go.mod h1:aNuQoR43W6MLAtXQ/Bu4GDmoHlbhHKuyD49lmTC8eJM=
 k8s.io/kubelet v0.31.1 h1:aAxwVxGzbbMKKk/FnSjvkN52K3LdHhjhzmYcyGBuE0c=

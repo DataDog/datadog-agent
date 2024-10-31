@@ -333,7 +333,7 @@ require (
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kube-aggregator v0.31.1
 	k8s.io/kube-openapi v0.0.0-20240430033511-f0e62f92d13f // indirect
-	k8s.io/kube-state-metrics/v2 v2.13.0
+	k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f
 	k8s.io/kubelet v0.31.1
 	k8s.io/metrics v0.31.1
 	k8s.io/utils v0.0.0-20240821151609-f90d01438635
@@ -1077,6 +1077,3 @@ replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0
 
 // Remove once https://github.com/kubernetes-sigs/custom-metrics-apiserver/pull/184 is merged
 replace sigs.k8s.io/custom-metrics-apiserver v1.30.0 => github.com/L3n41c/custom-metrics-apiserver v0.0.0-20241014100211-ccded82d0da2
-
-// Remove once https://github.com/kubernetes/kube-state-metrics/pull/2535 is merged
-replace k8s.io/kube-state-metrics/v2 v2.13.0 => github.com/L3n41c/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f
