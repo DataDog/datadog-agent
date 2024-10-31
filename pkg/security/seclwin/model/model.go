@@ -14,10 +14,11 @@ import (
 	"runtime"
 	"time"
 
+	"modernc.org/mathutil"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
-	"modernc.org/mathutil"
 )
 
 // Model describes the data model for the runtime security agent events
@@ -628,11 +629,4 @@ func (dfh *FakeFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerConte
 // TLSContext represents a tls context
 type TLSContext struct {
 	Version uint16 `field:"version"` // SECLDoc[version] Definition:`TLS version`
-}
-
-// RawPacketEvent represents a packet event
-type RawPacketEvent struct {
-	NetworkContext
-
-	TLSContext TLSContext `field:"tls"` // SECLDoc[tls] Definition:`TLS context`
 }

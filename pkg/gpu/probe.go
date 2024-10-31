@@ -22,13 +22,10 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// TODO: Set a minimum kernel version
-var minimumKernelVersion = kernel.VersionCode(5, 8, 0)
 
 const (
 	cudaEventMap      = "cuda_events"
@@ -50,24 +47,21 @@ type ProbeDependencies struct {
 // Probe represents the GPU monitoring probe
 type Probe struct {
 	mgr            *ddebpf.Manager
-	cfg            *Config
+	cfg            *config.Config
 	consumer       *cudaEventConsumer
 	attacher       *uprobes.UprobeAttacher
 	statsGenerator *statsGenerator
 	deps           ProbeDependencies
+	procMon        *monitor.ProcessMonitor
 }
 
 // NewProbe starts the GPU monitoring probe, setting up the eBPF program and the uprobes, the
 // consumers for the events generated from the uprobes, and the stats generator to aggregate the data from
 // streams into per-process GPU stats.
-func NewProbe(cfg *Config, deps ProbeDependencies) (*Probe, error) {
+func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	log.Debugf("starting GPU monitoring probe...")
-	kv, err := kernel.HostVersion()
-	if err != nil {
-		return nil, fmt.Errorf("kernel version: %s", err)
-	}
-	if kv < minimumKernelVersion {
-		return nil, fmt.Errorf("minimum kernel version %s not met, read %s", minimumKernelVersion, kv)
+	if err := config.CheckGPUSupported(); err != nil {
+		return nil, err
 	}
 
 	var probe *Probe
@@ -75,7 +69,7 @@ func NewProbe(cfg *Config, deps ProbeDependencies) (*Probe, error) {
 	if cfg.BPFDebug {
 		filename = "gpu-debug.o"
 	}
-	err = ddebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
+	err := ddebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
 		var err error
 		probe, err = startGPUProbe(buf, opts, deps, cfg)
 		if err != nil {
@@ -91,7 +85,7 @@ func NewProbe(cfg *Config, deps ProbeDependencies) (*Probe, error) {
 	return probe, nil
 }
 
-func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDependencies, cfg *Config) (*Probe, error) {
+func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDependencies, cfg *config.Config) (*Probe, error) {
 	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
 		Maps: []*manager.Map{
 			{Name: cudaAllocCacheMap},
@@ -146,7 +140,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 		return nil, fmt.Errorf("error initializing process monitor: %w", err)
 	}
 
-	attacher, err := uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{})
+	attacher, err := uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{}, procMon)
 	if err != nil {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
@@ -160,6 +154,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 		cfg:      cfg,
 		attacher: attacher,
 		deps:     deps,
+		procMon:  procMon,
 	}
 
 	sysCtx, err := getSystemContext(deps.NvmlLib)
@@ -192,6 +187,10 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 
 // Close stops the probe
 func (p *Probe) Close() {
+	if p.procMon != nil {
+		p.procMon.Stop()
+	}
+
 	if p.attacher != nil {
 		p.attacher.Stop()
 	}

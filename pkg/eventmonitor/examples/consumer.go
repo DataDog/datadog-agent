@@ -5,6 +5,7 @@
 
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/event_copy -scope "(fc *SimpleEventConsumer)" -pkg examples -output ./event_copy.go SimpleEvent .
 
+// Package examples provides an example of how to use the event monitor module using a basic consumer
 package examples
 
 import (
@@ -35,7 +36,7 @@ type SimpleEventConsumer struct {
 // NewSimpleEventConsumer returns a new simple event consumer
 func NewSimpleEventConsumer(em *eventmonitor.EventMonitor) *SimpleEventConsumer {
 	fc := &SimpleEventConsumer{}
-	_ = em.AddEventConsumer(fc)
+	_ = em.AddEventConsumerHandler(fc)
 	return fc
 }
 

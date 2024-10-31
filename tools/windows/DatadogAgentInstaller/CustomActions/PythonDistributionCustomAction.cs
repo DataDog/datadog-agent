@@ -37,7 +37,6 @@ namespace Datadog.CustomActions
             ISession session,
             string outputDirectoryName,
             string compressedDistributionFile,
-            string pythonDistributionName,
             int pythonDistributionSize)
         {
             var projectLocation = session.Property("PROJECTLOCATION");
@@ -64,7 +63,7 @@ namespace Datadog.CustomActions
                 {
                     using var actionRecord = new Record(
                         "Decompress Python distribution",
-                        $"Decompressing {pythonDistributionName} distribution",
+                        "Decompressing distribution",
                         ""
                     );
                     session.Message(InstallMessage.ActionStart, actionRecord);
@@ -133,7 +132,7 @@ namespace Datadog.CustomActions
             {
                 size = int.Parse(embedded3Size);
             }
-            return DecompressPythonDistribution(session, "embedded3", "embedded3.COMPRESSED", "Python 3", size);
+            return DecompressPythonDistribution(session, "embedded3", "embedded3.COMPRESSED", size);
         }
 
         public static ActionResult DecompressPythonDistributions(Session session)

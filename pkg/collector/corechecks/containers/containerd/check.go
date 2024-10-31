@@ -19,6 +19,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -52,6 +53,7 @@ type ContainerdCheck struct {
 	client          cutil.ContainerdItf
 	httpClient      http.Client
 	store           workloadmeta.Component
+	tagger          tagger.Component
 }
 
 // ContainerdConfig contains the custom options and configurations set by the user.
@@ -62,12 +64,13 @@ type ContainerdConfig struct {
 }
 
 // Factory is used to create register the check and initialize it.
-func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+func Factory(store workloadmeta.Component, tagger tagger.Component) optional.Option[func() check.Check] {
 	return optional.NewOption(func() check.Check {
 		return &ContainerdCheck{
 			CheckBase: corechecks.NewCheckBase(CheckName),
 			instance:  &ContainerdConfig{},
 			store:     store,
+			tagger:    tagger,
 		}
 	})
 }
@@ -99,7 +102,7 @@ func (c *ContainerdCheck) Configure(senderManager sender.SenderManager, _ uint64
 	}
 
 	c.httpClient = http.Client{Timeout: time.Duration(1) * time.Second}
-	c.processor = generic.NewProcessor(metrics.GetProvider(optional.NewOption(c.store)), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(c.containerFilter, c.store))
+	c.processor = generic.NewProcessor(metrics.GetProvider(optional.NewOption(c.store)), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(c.containerFilter, c.store), c.tagger)
 	c.processor.RegisterExtension("containerd-custom-metrics", &containerdCustomMetricsExtension{})
 	c.subscriber = createEventSubscriber("ContainerdCheck", c.client, cutil.FiltersWithNamespaces(c.instance.ContainerdFilters))
 
@@ -247,5 +250,5 @@ func (c *ContainerdCheck) collectEvents(sender sender.Sender) {
 	}
 	events := c.subscriber.Flush(time.Now().Unix())
 	// Process events
-	computeEvents(events, sender, c.containerFilter)
+	c.computeEvents(events, sender, c.containerFilter)
 }

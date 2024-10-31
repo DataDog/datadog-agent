@@ -84,7 +84,13 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	if !pkgconfigsetup.Datadog().GetBool("process_config.process_collection.enabled") {
 		collectionTicker := c.collectionClock.Ticker(10 * time.Second)
 		if c.containerProvider == nil {
-			c.containerProvider = proccontainers.GetSharedContainerProvider(store)
+			sharedContainerProvider, err := proccontainers.GetSharedContainerProvider()
+
+			if err != nil {
+				return err
+			}
+
+			c.containerProvider = sharedContainerProvider
 		}
 		go c.collect(ctx, c.containerProvider, collectionTicker)
 	}

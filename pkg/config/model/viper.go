@@ -91,9 +91,9 @@ type ValueWithSource struct {
 	Value  interface{}
 }
 
-// IsGreaterThan returns true if the current source is of higher priority than the one given as a parameter
-func (s Source) IsGreaterThan(x Source) bool {
-	return sourcesPriority[s] > sourcesPriority[x]
+// IsGreaterOrEqualThan returns true if the current source is of higher priority than the one given as a parameter
+func (s Source) IsGreaterOrEqualThan(x Source) bool {
+	return sourcesPriority[s] >= sourcesPriority[x]
 }
 
 // String casts Source into a string
@@ -265,6 +265,11 @@ func (c *safeConfig) GetKnownKeysLowercased() map[string]interface{} {
 	// GetKnownKeysLowercased returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
 	return c.Viper.GetKnownKeys()
+}
+
+// BuildSchema is a no-op for the viper based config
+func (c *safeConfig) BuildSchema() {
+	// pass
 }
 
 // ParseEnvAsStringSlice registers a transformer function to parse an an environment variables as a []string.
