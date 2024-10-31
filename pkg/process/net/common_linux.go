@@ -33,7 +33,7 @@ const (
 	telemetryURL         = "http://unix/telemetry"
 	conntrackCachedURL   = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/cached"
 	conntrackHostURL     = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/host"
-	ebpfBTFLoaderURL     = "http://unix/ebpf_btf_loader_info"
+	ebpfBTFLoaderURL     = "http://unix/debug/ebpf_btf_loader_info"
 	netType              = "unix"
 )
 
