@@ -9,6 +9,7 @@ package consumers
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -23,8 +24,14 @@ type ProcessCallback = func(uint32)
 // ProcessConsumer represents a consumer of process exec/exit events that can be subscribed to
 // via callbacks
 type ProcessConsumer struct {
-	// options holds the options that were passed to NewProcessConsumer
-	options ProcessConsumerOptions
+	// id is the ID of the consumer
+	id string
+
+	// chanSize is the size of the channel that the event monitor will use to send events to this consumer
+	chanSize int
+
+	// eventTypes is the list of event types that this consumer is interested in
+	eventTypes []ProcessConsumerEventTypes
 
 	// execCallbacks holds all subscriptors to process exec events
 	execCallbacks callbackMap
@@ -42,29 +49,34 @@ type event struct {
 	pid       uint32
 }
 
+// ProcessConsumerEventTypes represents the types of events that the ProcessConsumer can handle, a subset
+// of the model.EventType
+type ProcessConsumerEventTypes model.EventType
+
+const (
+	// ExecEventType represents process open events
+	ExecEventType ProcessConsumerEventTypes = ProcessConsumerEventTypes(model.ExecEventType)
+
+	// ExitEventType represents process exit events
+	ExitEventType ProcessConsumerEventTypes = ProcessConsumerEventTypes(model.ExitEventType)
+
+	// ForkEventType represents process fork events
+	ForkEventType ProcessConsumerEventTypes = ProcessConsumerEventTypes(model.ForkEventType)
+)
+
 // ProcessConsumer should implement the EventConsumerHandler and EventConsumer interfaces
 var _ eventmonitor.EventConsumerHandler = &ProcessConsumer{}
 var _ eventmonitor.EventConsumer = &ProcessConsumer{}
-
-// ProcessConsumerOptions holds the options that can be passed to NewProcessConsumer
-type ProcessConsumerOptions struct {
-	// ID is the ID of the consumer that will be used to identify it with the event data stream
-	ID string
-
-	// ChanSize is the size of the channel that the event monitor will use to send events to this handler
-	ChanSize int
-
-	// ListenToForkEvents indicates if this consumer should listen to and handle fork events
-	ListenToForkEvents bool
-}
 
 // NewProcessConsumer creates a new ProcessConsumer, registering itself with the
 // given event monitor. This function should be called with the EventMonitor
 // instance created in cmd/system-probe/modules/eventmonitor.go:createEventMonitorModule.
 // For tests, use consumers/testutil.NewTestProcessConsumer, which also initializes the event stream for testing accordingly
-func NewProcessConsumer(options ProcessConsumerOptions, evm *eventmonitor.EventMonitor) (*ProcessConsumer, error) {
+func NewProcessConsumer(id string, chanSize int, eventTypes []ProcessConsumerEventTypes, evm *eventmonitor.EventMonitor) (*ProcessConsumer, error) {
 	pc := &ProcessConsumer{
-		options:       options,
+		id:            id,
+		chanSize:      chanSize,
+		eventTypes:    eventTypes,
 		execCallbacks: callbackMap{callbacks: make(map[*ProcessCallback]struct{})},
 		exitCallbacks: callbackMap{callbacks: make(map[*ProcessCallback]struct{})},
 		forkCallbacks: callbackMap{callbacks: make(map[*ProcessCallback]struct{})},
@@ -77,6 +89,10 @@ func NewProcessConsumer(options ProcessConsumerOptions, evm *eventmonitor.EventM
 	evm.RegisterEventConsumer(pc)
 
 	return pc, nil
+}
+
+func (p *ProcessConsumer) isEventTypeEnabled(eventType ProcessConsumerEventTypes) bool {
+	return slices.Contains(p.eventTypes, eventType)
 }
 
 // --- eventmonitor.EventConsumer interface methods
@@ -92,21 +108,21 @@ func (p *ProcessConsumer) Stop() {
 
 // ID returns the ID of the consumer
 func (p *ProcessConsumer) ID() string {
-	return p.options.ID
+	return p.id
 }
 
 // --- eventmonitor.EventConsumerHandler interface methods
 
 // ChanSize returns the size of the channel that the event monitor will use to send events to this handler
 func (p *ProcessConsumer) ChanSize() int {
-	return p.options.ChanSize
+	return p.chanSize
 }
 
 // EventTypes returns the event types that this handler is interested in
 func (p *ProcessConsumer) EventTypes() []model.EventType {
-	types := []model.EventType{model.ExecEventType, model.ExitEventType}
-	if p.options.ListenToForkEvents {
-		types = append(types, model.ForkEventType)
+	var types []model.EventType
+	for _, et := range p.eventTypes {
+		types = append(types, model.EventType(et))
 	}
 
 	return types
