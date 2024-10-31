@@ -55,6 +55,7 @@ func TestFlareCreation(t *testing.T) {
 			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: scheduler.NewController()}),
 			fx.Provide(func(ac autodiscovery.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
 			fx.Provide(func() tagger.Mock { return fakeTagger }),
+			fx.Provide(func() tagger.Component { return fakeTagger }),
 			// provider a nil FlareCallback
 			fx.Provide(fx.Annotate(
 				func() types.FlareCallback { return nil },
@@ -94,6 +95,7 @@ func TestRunProviders(t *testing.T) {
 		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: scheduler.NewController()}),
 		fx.Provide(func(ac autodiscovery.Mock) autodiscovery.Component { return ac.(autodiscovery.Component) }),
 		fx.Provide(func() tagger.Mock { return fakeTagger }),
+		fx.Provide(func() tagger.Component { return fakeTagger }),
 		// provider a nil FlareCallback
 		fx.Provide(fx.Annotate(
 			func() types.FlareCallback { return nil },

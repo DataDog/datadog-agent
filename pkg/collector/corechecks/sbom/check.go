@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -108,6 +109,7 @@ func (c *Config) Parse(data []byte) error {
 type Check struct {
 	core.CheckBase
 	workloadmetaStore workloadmeta.Component
+	tagger            tagger.Component
 	instance          *Config
 	processor         *processor
 	sender            sender.Sender
@@ -116,11 +118,12 @@ type Check struct {
 }
 
 // Factory returns a new check factory
-func Factory(store workloadmeta.Component, cfg config.Component) optional.Option[func() check.Check] {
+func Factory(store workloadmeta.Component, cfg config.Component, tagger tagger.Component) optional.Option[func() check.Check] {
 	return optional.NewOption(func() check.Check {
 		return core.NewLongRunningCheckWrapper(&Check{
 			CheckBase:         core.NewCheckBase(CheckName),
 			workloadmetaStore: store,
+			tagger:            tagger,
 			instance:          &Config{},
 			stopCh:            make(chan struct{}),
 			cfg:               cfg,
@@ -153,6 +156,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	if c.processor, err = newProcessor(
 		c.workloadmetaStore,
 		sender,
+		c.tagger,
 		c.instance.ChunkSize,
 		time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second,
 		c.cfg.GetBool("sbom.host.enabled"),

@@ -153,7 +153,6 @@ func TestGetPayload(t *testing.T) {
 		src.Status.Error(fmt.Errorf("No such file or directory"))
 		logSources.AddSource(src)
 		fakeTagger := taggerimpl.SetupFakeTagger(t)
-		defer fakeTagger.ResetTagger()
 
 		mockLogAgent := fxutil.Test[optional.Option[logagent.Mock]](
 			t,

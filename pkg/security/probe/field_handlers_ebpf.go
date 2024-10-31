@@ -292,6 +292,11 @@ func (fh *EBPFFieldHandlers) ResolveProcessEnvs(_ *model.Event, process *model.P
 	return envs
 }
 
+// ResolveProcessIsThread returns true is the process is a thread
+func (fh *EBPFFieldHandlers) ResolveProcessIsThread(_ *model.Event, process *model.Process) bool {
+	return !process.IsExec
+}
+
 // ResolveSetuidUser resolves the user of the Setuid event
 func (fh *EBPFFieldHandlers) ResolveSetuidUser(ev *model.Event, e *model.SetuidEvent) string {
 	if len(e.User) == 0 {
