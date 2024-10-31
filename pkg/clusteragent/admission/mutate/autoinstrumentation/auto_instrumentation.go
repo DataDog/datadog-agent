@@ -651,7 +651,7 @@ func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 //     the maximum amount of the resource requested by the original pod wihtout changing how much of
 //     this resource is necessary.
 //     In particular, for the QoS Guaranteed Limits and Requests have to be equal for every container.
-//     wich means that the max amount of request/limits that we compute is going to be equal to each other
+//     which means that the max amount of request/limits that we compute is going to be equal to each other
 //     so our init container will also have request == limit.
 //
 //     In the 2nd case, of we wouldn't have enough memory, we bail on injection
