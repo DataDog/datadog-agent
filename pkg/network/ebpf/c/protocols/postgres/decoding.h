@@ -114,7 +114,8 @@ static int __always_inline skip_string(pktbuf_t pkt, int message_len) {
 // If the message is a command complete, it calls the handle_command_complete program.
 static __always_inline void postgres_handle_message(pktbuf_t pkt, conn_tuple_t *conn_tuple, struct pg_message_header *header, __u8 tags) {
     const __u32 zero = 0;
-    // If the message is a parse message, we tail call to the dedicated function to handle it.
+    // If the message is a parse message, we tail call to the dedicated function to handle it as it is too large to be
+    // inlined in the main function.
     if (header->message_tag == POSTGRES_PARSE_MAGIC_BYTE) {
         pktbuf_tail_call_option_t process_parse_tail_call_array[] = {
                 [PKTBUF_SKB] = {
@@ -201,10 +202,6 @@ static __always_inline void postgres_handle_parse_message(pktbuf_t pkt, conn_tup
 static __always_inline bool handle_command_complete_messages(pktbuf_t pkt, conn_tuple_t conn_tuple) {
     const __u32 zero = 0;
     struct pg_message_header header;
-    if (!read_message_header(pkt, &header)) {
-        return 0;
-    }
-
     // We didn't find a new query, thus we assume we're in the middle of a transaction.
     // We look up the transaction in the in-flight map, and if it doesn't exist, we ignore the message.
     postgres_transaction_t *transaction = bpf_map_lookup_elem(&postgres_in_flight, &conn_tuple);

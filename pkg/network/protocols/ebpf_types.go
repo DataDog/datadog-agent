@@ -9,12 +9,14 @@ package protocols
 
 // #cgo CFLAGS: -I ../../ebpf/c  -I ../ebpf/c
 // #include "../ebpf/c/protocols/classification/defs.h"
+// #include "../ebpf/c/protocols/postgres/types.h"
 import "C"
 
 const (
-	layerAPIBit         = C.LAYER_API_BIT
-	layerApplicationBit = C.LAYER_APPLICATION_BIT
-	layerEncryptionBit  = C.LAYER_ENCRYPTION_BIT
+	layerAPIBit                    = C.LAYER_API_BIT
+	layerApplicationBit            = C.LAYER_APPLICATION_BIT
+	layerEncryptionBit             = C.LAYER_ENCRYPTION_BIT
+	PostgresMaxMessagesPerTailCall = C.POSTGRES_MAX_MESSAGES_PER_TAIL_CALL
 )
 
 // DispatcherProgramType is a C type to represent the eBPF programs used for tail calls.
@@ -100,4 +102,5 @@ const (
 	ebpfMySQL ebpfProtocolType = C.PROTOCOL_MYSQL
 	// GRPC protocol
 	ebpfGRPC ebpfProtocolType = C.PROTOCOL_GRPC
+	// todo: fix doc
 )
