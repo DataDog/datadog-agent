@@ -98,7 +98,7 @@ func GetSourceName() string {
 var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "EC2 or DMI InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		hostname, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, getIMDSVersion(false, false))
+		hostname, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, getIMDSVersion(false, false), true)
 		if err != nil {
 			if pkgconfigsetup.Datadog().GetBool(ec2IMDSv2TransitionPayloadConfigFlag) {
 				log.Debugf("Failed to get instance ID from IMDSv2 - ec2_imdsv2_transition_payload_enabled is set, falling back on DMI: %s", err.Error())
@@ -112,14 +112,14 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 var imdsv2InstanceIDFetcher = cachedfetch.Fetcher{
 	Name: "EC2 IMDSv2 InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, imdsV2)
+		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, imdsV2, true)
 	},
 }
 
 var legacyInstanceIDFetcher = cachedfetch.Fetcher{
 	Name: "EC2 no IMDSv2 no DMI InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, imdsV1)
+		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, imdsV1, false)
 	},
 }
 
@@ -140,7 +140,7 @@ func GetIDMSv2InstanceID(ctx context.Context) (string, error) {
 
 // GetHostID returns the instanceID for the current EC2 host using IMDSv2 only.
 func GetHostID(ctx context.Context) string {
-	instanceID, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, imdsV2)
+	instanceID, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, imdsV2, true)
 	log.Debugf("instanceID from IMDSv2 '%s' (error: %v)", instanceID, err)
 
 	if err == nil {
@@ -193,7 +193,7 @@ func GetHostAliases(ctx context.Context) ([]string, error) {
 var hostnameFetcher = cachedfetch.Fetcher{
 	Name: "EC2 Hostname",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		return getMetadataItemWithMaxLength(ctx, imdsHostname, getIMDSVersion(false, false))
+		return getMetadataItemWithMaxLength(ctx, imdsHostname, getIMDSVersion(false, false), true)
 	},
 }
 

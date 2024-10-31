@@ -53,8 +53,8 @@ func getToken(ctx context.Context) (string, time.Time, error) {
 	return res, expirationDate, nil
 }
 
-func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, allowedIMDSVersions imdsVersion) (string, error) {
-	result, err := getMetadataItem(ctx, endpoint, allowedIMDSVersions)
+func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, allowedIMDSVersions imdsVersion, updateMetadataSource bool) (string, error) {
+	result, err := getMetadataItem(ctx, endpoint, allowedIMDSVersions, updateMetadataSource)
 	if err != nil {
 		return result, err
 	}
@@ -66,12 +66,12 @@ func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, allowedI
 	return result, err
 }
 
-func getMetadataItem(ctx context.Context, endpoint string, allowedIMDSVersions imdsVersion) (string, error) {
+func getMetadataItem(ctx context.Context, endpoint string, allowedIMDSVersions imdsVersion, updateMetadataSource bool) (string, error) {
 	if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	return doHTTPRequest(ctx, metadataURL+endpoint, allowedIMDSVersions)
+	return doHTTPRequest(ctx, metadataURL+endpoint, allowedIMDSVersions, updateMetadataSource)
 }
 
 // getIMDSVersion returns true if the agent should use IMDSv2
@@ -90,7 +90,7 @@ func getIMDSVersion(force bool, disable bool) imdsVersion {
 	return imdsV1
 }
 
-func doHTTPRequest(ctx context.Context, url string, allowedIMDSVersions imdsVersion) (string, error) {
+func doHTTPRequest(ctx context.Context, url string, allowedIMDSVersions imdsVersion, updateMetadataSource bool) (string, error) {
 	source := metadataSourceIMDSv1
 	headers := map[string]string{}
 	if allowedIMDSVersions == imdsAllVersions || allowedIMDSVersions == imdsV2 {
@@ -109,7 +109,7 @@ func doHTTPRequest(ctx context.Context, url string, allowedIMDSVersions imdsVers
 	}
 	res, err := httputils.Get(ctx, url, headers, time.Duration(pkgconfigsetup.Datadog().GetInt("ec2_metadata_timeout"))*time.Millisecond, pkgconfigsetup.Datadog())
 	// We don't want to register the source when we force imdsv2
-	if err == nil && allowedIMDSVersions != imdsV2 {
+	if err == nil && allowedIMDSVersions != imdsV2 && updateMetadataSource {
 		setCloudProviderSource(source)
 	}
 	return res, err
