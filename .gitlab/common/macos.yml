@@ -26,8 +26,15 @@
     VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
     if [ "$PYTHON_REPO_VERSION" != "$PYTHON_VERSION" ]; then
       echo "Warning: The current Python version $PYTHON_VERSION is different from $PYTHON_REPO_VERSION in .python-version."
-      echo "Installing Python $PYTHON_REPO_VERSION..."
+      echo "Using Python $PYTHON_VERSION"
     fi
+    echo $PYTHON_VERSION
+    echo $VENV_NAME
+    pyenv virtualenvs --bare
+    pyenv virtualenvs --bare | grep -q "^${VENV_NAME}$"
+    echo $?
+    ! pyenv virtualenvs --bare | grep -q "^${VENV_NAME}$"
+    echo $?
     if ! pyenv virtualenvs --bare | grep -q "^${VENV_NAME}$"; then
       pyenv virtualenv $PYTHON_VERSION $VENV_NAME
     fi
