@@ -110,7 +110,7 @@ func (c *cudaEventConsumer) Start() {
 				streamKey := streamKey{pid: pid, stream: header.Stream_id}
 
 				if _, ok := c.streamHandlers[streamKey]; !ok {
-					c.streamHandlers[streamKey] = newStreamHandler(streamKey, c.sysCtx)
+					c.streamHandlers[streamKey] = newStreamHandler(streamKey.pid, c.sysCtx)
 				}
 
 				switch header.Type {

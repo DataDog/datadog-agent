@@ -20,7 +20,7 @@ import (
 // StreamHandler is responsible for receiving events from a single CUDA stream and generating
 // kernel spans and memory allocations from them.
 type StreamHandler struct {
-	key            streamKey
+	pid            uint32
 	kernelLaunches []enrichedKernelLaunch
 	memAllocEvents map[uint64]gpuebpf.CudaMemEvent
 	kernelSpans    []*kernelSpan
@@ -106,10 +106,10 @@ type kernelSpan struct {
 	avgMemoryUsage map[memAllocType]uint64
 }
 
-func newStreamHandler(key streamKey, sysCtx *systemContext) *StreamHandler {
+func newStreamHandler(pid uint32, sysCtx *systemContext) *StreamHandler {
 	return &StreamHandler{
 		memAllocEvents: make(map[uint64]gpuebpf.CudaMemEvent),
-		key:            key,
+		pid:            pid,
 		sysCtx:         sysCtx,
 	}
 }
@@ -132,7 +132,7 @@ func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error 
 		return nil // No system context, kernel data attaching is disabled
 	}
 
-	maps, err := sh.sysCtx.getProcessMemoryMaps(int(sh.key.pid))
+	maps, err := sh.sysCtx.getProcessMemoryMaps(int(sh.pid))
 	if err != nil {
 		return fmt.Errorf("error reading process memory maps: %w", err)
 	}
@@ -144,7 +144,7 @@ func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error 
 
 	offsetInFile := event.Kernel_addr - entry.Start + entry.Offset
 
-	binaryPath := fmt.Sprintf("%s/%d/root/%s", sh.sysCtx.procRoot, sh.key.pid, entry.Path)
+	binaryPath := fmt.Sprintf("%s/%d/root/%s", sh.sysCtx.procRoot, sh.pid, entry.Path)
 	fileData, err := sh.sysCtx.getFileData(binaryPath)
 	if err != nil {
 		return fmt.Errorf("error getting file data: %w", err)
@@ -345,7 +345,7 @@ func (sh *StreamHandler) markEnd() error {
 		sh.allocations = append(sh.allocations, &data)
 	}
 
-	sh.sysCtx.removeProcess(int(sh.key.pid))
+	sh.sysCtx.removeProcess(int(sh.pid))
 
 	return nil
 }
