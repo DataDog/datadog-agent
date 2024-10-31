@@ -74,8 +74,8 @@ func getMetadataItem(ctx context.Context, endpoint string, allowedIMDSVersions I
 	return doHTTPRequest(ctx, metadataURL+endpoint, allowedIMDSVersions)
 }
 
-// UseIMDSv2 returns true if the agent should use IMDSv2
-func UseIMDSv2(force bool, disable bool) IMDSVersion {
+// GetIMDSVersion returns true if the agent should use IMDSv2
+func GetIMDSVersion(force bool, disable bool) IMDSVersion {
 	// if force is set, we use IMDSv2, highest priority
 	if force {
 		return imdsV2
