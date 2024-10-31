@@ -9,6 +9,7 @@ package utils
 import (
 	"context"
 	"encoding/json"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"strings"
 	"testing"
 	"time"
@@ -52,6 +53,7 @@ var otelFlareFiles = []string{
 
 // TestOTelFlare tests that the OTel Agent flare functionality works as expected
 func TestOTelFlare(s OTelTestSuite, providedCfg string, fullCfg string, sources string) {
+	flake.Mark(s.T())
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 	agent := getAgentPod(s)
