@@ -9,9 +9,6 @@
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
-    # DockerHub login for build to limit rate limit when pulling base images
-    - DOCKER_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO token | docker login --username "$DOCKER_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
 
 agent_integration_tests:
   extends: .integration_tests_deb
@@ -27,5 +24,8 @@ agent_integration_tests:
 docker_integration_tests:
   extends: .integration_tests_deb
   script:
+    # DockerHub login for build to limit rate limit when pulling base images
+    - DOCKER_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO token | docker login --username "$DOCKER_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     - inv -e docker.test
     - inv -e docker.integration-tests
