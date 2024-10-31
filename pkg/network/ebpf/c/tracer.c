@@ -275,7 +275,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
     skp_conn.tup.pid = 0;
 
-    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+    // bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
 
     if (!tcp_failed_connections_enabled()) {
         cleanup_conn(ctx, &t, sk);
@@ -321,6 +321,27 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_close_clean_protocols) {
 SEC("kretprobe/tcp_close")
 int BPF_KRETPROBE(kretprobe__tcp_close_flush) {
     flush_conn_close_if_full(ctx);
+    return 0;
+}
+
+SEC("kprobe/tcp_v4_destroy_sock")
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_v4_destroy_sock, struct sock *sk) {
+    conn_tuple_t t = {};
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    // Get network namespace id
+    log_debug("adamk kprobe/tcp_v4_destroy_sock: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    log_debug("adamk kprobe/tcp_v4_destroy_sock: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
+
+    bpf_map_delete_elem(&conn_close_flushed, &t);
+
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    skp_conn.tup.pid = 0;
+
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
     return 0;
 }
 

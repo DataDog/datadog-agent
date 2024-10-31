@@ -82,6 +82,8 @@ const (
 
 	// TCPClose traces the tcp_close() system call
 	TCPClose ProbeFuncName = "kprobe__tcp_close"
+	// TCPDestroySock does stuff
+	TCPDestroySock ProbeFuncName = "kprobe__tcp_v4_destroy_sock"
 	// TCPDone traces the tcp_done() system call
 	TCPDone ProbeFuncName = "kprobe__tcp_done"
 	// TCPDoneFlushReturn traces the return of the tcp_done() system call
