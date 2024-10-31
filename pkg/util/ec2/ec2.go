@@ -36,6 +36,8 @@ var (
 	// DMIBoardVendor contains the DMI board vendor for EC2
 	DMIBoardVendor = "Amazon EC2"
 
+	ec2IMDSv2TransitionPayloadConfigFlag = "ec2_imdsv2_transition_payload_enabled"
+
 	currentMetadataSource      = metadataSourceNone
 	currentMetadataSourceMutex sync.Mutex
 )
@@ -94,22 +96,41 @@ func GetSourceName() string {
 }
 
 var instanceIDFetcher = cachedfetch.Fetcher{
-	Name: "EC2 InstanceID",
+	Name: "EC2 or DMI InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, false)
+		hostname, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, getIMDSVersion(false, false), true)
+		if err != nil {
+			if pkgconfigsetup.Datadog().GetBool(ec2IMDSv2TransitionPayloadConfigFlag) {
+				log.Debugf("Failed to get instance ID from IMDSv2 - ec2_imdsv2_transition_payload_enabled is set, falling back on DMI: %s", err.Error())
+				return getInstanceIDFromDMI()
+			}
+		}
+		return hostname, err
 	},
 }
 
 var imdsv2InstanceIDFetcher = cachedfetch.Fetcher{
 	Name: "EC2 IMDSv2 InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, true)
+		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, imdsV2, true)
+	},
+}
+
+var legacyInstanceIDFetcher = cachedfetch.Fetcher{
+	Name: "EC2 no IMDSv2 no DMI InstanceID",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		return getMetadataItemWithMaxLength(ctx, imdsInstanceID, imdsV1, false)
 	},
 }
 
 // GetInstanceID fetches the instance id for current host from the EC2 metadata API
 func GetInstanceID(ctx context.Context) (string, error) {
 	return instanceIDFetcher.FetchString(ctx)
+}
+
+// GetLegacyResolutionInstanceID fetches the instance id for current host from the EC2 metadata API without using IMDSv2 or DMI (ie: only IMDSv1)
+func GetLegacyResolutionInstanceID(ctx context.Context) (string, error) {
+	return legacyInstanceIDFetcher.FetchString(ctx)
 }
 
 // GetIDMSv2InstanceID fetches the instance id for current host from the IMDSv2 EC2 metadata API
@@ -119,7 +140,7 @@ func GetIDMSv2InstanceID(ctx context.Context) (string, error) {
 
 // GetHostID returns the instanceID for the current EC2 host using IMDSv2 only.
 func GetHostID(ctx context.Context) string {
-	instanceID, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, true)
+	instanceID, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, imdsV2, true)
 	log.Debugf("instanceID from IMDSv2 '%s' (error: %v)", instanceID, err)
 
 	if err == nil {
@@ -156,7 +177,8 @@ func GetHostAliases(ctx context.Context) ([]string, error) {
 	log.Debugf("failed to get instance ID from DMI for Host Alias: %s", err)
 
 	// Try to use IMSDv2 if GetInstanceID didn't try it already
-	if !UseIMDSv2(false) {
+	imdsv2Action := getIMDSVersion(false, false)
+	if imdsv2Action == imdsV1 {
 		imsdv2InstanceID, err := GetIDMSv2InstanceID(ctx)
 		if err == nil {
 			return []string{imsdv2InstanceID}, nil
@@ -171,7 +193,7 @@ func GetHostAliases(ctx context.Context) ([]string, error) {
 var hostnameFetcher = cachedfetch.Fetcher{
 	Name: "EC2 Hostname",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		return getMetadataItemWithMaxLength(ctx, imdsHostname, false)
+		return getMetadataItemWithMaxLength(ctx, imdsHostname, getIMDSVersion(false, false), true)
 	},
 }
 
