@@ -39,9 +39,13 @@ type CDN interface {
 	Close() error
 }
 
-// New creates a new CDN.
+// New creates a new CDN and chooses the implementation depending
+// on the environment
 func New(env *env.Env, configDBPath string) (CDN, error) {
 	if runtime.GOOS == "windows" {
+		// There's an assumption on windows that some directories are already there
+		// but they are in fact created by the regular CDN implementation. Until
+		// there is a fix on windows we keep the previous CDN behaviour for them
 		return newRegular(env, configDBPath)
 	}
 	if !env.RemotePolicies {
