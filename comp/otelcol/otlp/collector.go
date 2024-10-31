@@ -32,6 +32,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
@@ -52,6 +53,7 @@ var pipelineError = atomic.NewError(nil)
 
 type tagEnricher struct {
 	cardinality types.TagCardinality
+	tagger      tagger.Component
 }
 
 func (t *tagEnricher) SetCardinality(cardinality string) (err error) {
@@ -69,15 +71,20 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 	enrichedTags := make([]string, 0, len(extraTags)+len(dimensions.Tags()))
 	enrichedTags = append(enrichedTags, extraTags...)
 	enrichedTags = append(enrichedTags, dimensions.Tags()...)
-
-	entityTags, err := tagger.Tag(dimensions.OriginID(), t.cardinality)
+	prefix, id, err := common.ExtractPrefixAndID(dimensions.OriginID())
 	if err != nil {
-		log.Tracef("Cannot get tags for entity %s: %s", dimensions.OriginID(), err)
+		entityID := types.NewEntityID(prefix, id)
+		entityTags, err := t.tagger.Tag(entityID, t.cardinality)
+		if err != nil {
+			log.Tracef("Cannot get tags for entity %s: %s", dimensions.OriginID(), err)
+		} else {
+			enrichedTags = append(enrichedTags, entityTags...)
+		}
 	} else {
-		enrichedTags = append(enrichedTags, entityTags...)
+		log.Tracef("Cannot get tags for entity %s: %s", dimensions.OriginID(), err)
 	}
 
-	globalTags, err := tagger.GlobalTags(t.cardinality)
+	globalTags, err := t.tagger.GlobalTags(t.cardinality)
 	if err != nil {
 		log.Trace(err.Error())
 	} else {
@@ -112,7 +119,7 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 
 	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
-		serializerexporter.NewFactory(s, &tagEnricher{cardinality: types.LowCardinality}, hostname.Get, nil, nil),
+		serializerexporter.NewFactory(s, &tagEnricher{cardinality: types.LowCardinality, tagger: tagger}, hostname.Get, nil, nil),
 		debugexporter.NewFactory(),
 	}
 

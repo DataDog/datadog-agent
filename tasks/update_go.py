@@ -7,9 +7,10 @@ from invoke.context import Context
 from invoke.tasks import task
 
 from tasks.go import tidy
+from tasks.libs.ciproviders.circleci import update_circleci_config
+from tasks.libs.ciproviders.gitlab_api import update_gitlab_config
 from tasks.libs.common.color import color_message
 from tasks.modules import DEFAULT_MODULES
-from tasks.pipeline import update_circleci_config, update_gitlab_config
 
 GO_VERSION_FILE = "./.go-version"
 
@@ -48,7 +49,7 @@ def go_version(_):
     help={
         "version": "The version of Go to use",
         "image_tag": "Tag from buildimages with format v<build_id>_<commit_id>",
-        "test_version": "Whether the image is a test image or not",
+        "test": "Whether the image is a test image or not",
         "warn": "Don't exit in case of matching error, just warn.",
         "release_note": "Whether to create a release note or not. The default behaviour is to create a release note",
         "include_otel_modules": "Whether to update the version in go.mod files used by otel.",
@@ -58,7 +59,7 @@ def update_go(
     ctx: Context,
     version: str,
     image_tag: str | None = None,
-    test_version: bool = True,
+    test: bool = True,
     warn: bool = False,
     release_note: bool = True,
     include_otel_modules: bool = False,
@@ -81,7 +82,7 @@ def update_go(
 
     if image_tag:
         try:
-            update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
+            update_gitlab_config(".gitlab-ci.yml", image_tag, test=test)
         except RuntimeError as e:
             if warn:
                 print(color_message(f"WARNING: {str(e)}", "orange"))
@@ -89,7 +90,7 @@ def update_go(
                 raise
 
         try:
-            update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
+            update_circleci_config(".circleci/config.yml", image_tag, test=test)
         except RuntimeError as e:
             if warn:
                 print(color_message(f"WARNING: {str(e)}", "orange"))

@@ -208,7 +208,6 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	otelres := rspans.Resource()
 	resourceAttributes := otelres.Attributes()
 
-	topLevelByKind := o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
 	tracesByID := make(map[uint64]pb.Trace)
 	priorityByID := make(map[uint64]sampler.SamplingPriority)
 	var spancount int64
@@ -225,7 +224,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 			if tracesByID[traceID] == nil {
 				tracesByID[traceID] = pb.Trace{}
 			}
-			ddspan := transform.OtelSpanToDDSpan(otelspan, otelres, libspans.Scope(), topLevelByKind, o.conf, nil)
+			ddspan := transform.OtelSpanToDDSpan(otelspan, otelres, libspans.Scope(), o.conf, nil)
 
 			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
 				priorityByID[traceID] = sampler.SamplingPriority(p)

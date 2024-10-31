@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"testing"
 
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -26,7 +27,7 @@ func benchmarkContextResolver(numContexts int, b *testing.B) {
 		})
 	}
 	cache := tags.NewStore(true, "test")
-	cr := newContextResolver(cache, "0")
+	cr := newContextResolver(nooptagger.NewTaggerClient(), cache, "0")
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
@@ -62,6 +63,8 @@ type AgentDemultiplexer struct {
 	dataOutputs
 
 	senders *senders
+
+	hostTagProvider *HostTagProvider
 
 	// sharded statsd time samplers
 	statsd
@@ -123,8 +126,9 @@ func InitAndStartAgentDemultiplexer(
 	options AgentDemultiplexerOptions,
 	eventPlatformForwarder eventplatform.Component,
 	compressor compression.Component,
+	tagger tagger.Component,
 	hostname string) *AgentDemultiplexer {
-	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, compressor, hostname)
+	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, compressor, tagger, hostname)
 	go demux.run()
 	return demux
 }
@@ -136,6 +140,7 @@ func initAgentDemultiplexer(
 	options AgentDemultiplexerOptions,
 	eventPlatformForwarder eventplatform.Component,
 	compressor compression.Component,
+	tagger tagger.Component,
 	hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
@@ -152,14 +157,13 @@ func initAgentDemultiplexer(
 	// prepare the embedded aggregator
 	// --
 
-	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, hostname, options.FlushInterval)
+	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, tagger, hostname, options.FlushInterval)
 
 	// statsd samplers
 	// ---------------
 
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(pkgconfigsetup.Datadog()))
-
 	_, statsdPipelinesCount := GetDogStatsDWorkerAndPipelineCount()
 	log.Debug("the Demultiplexer will use", statsdPipelinesCount, "pipelines")
 
@@ -169,7 +173,7 @@ func initAgentDemultiplexer(
 		// the sampler
 		tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
 
-		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, agg.hostname)
+		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname)
 
 		// its worker (process loop + flush/serialization mechanism)
 
@@ -186,11 +190,11 @@ func initAgentDemultiplexer(
 			metricSamplePool,
 			noAggSerializer,
 			agg.flushAndSerializeInParallel,
+			tagger,
 		)
 	}
 
 	// --
-
 	demux := &AgentDemultiplexer{
 		log:       log,
 		options:   options,
@@ -208,7 +212,8 @@ func initAgentDemultiplexer(
 			noAggSerializer:  noAggSerializer,
 		},
 
-		senders: newSenders(agg),
+		hostTagProvider: NewHostTagProvider(),
+		senders:         newSenders(agg),
 
 		// statsd time samplers
 		statsd: statsd{
@@ -400,8 +405,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	}
 
 	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
-	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, logPayloads, false)
-
+	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, logPayloads, false, d.hostTagProvider)
 	metrics.Serialize(
 		series,
 		sketches,

@@ -8,7 +8,6 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net"
@@ -1237,10 +1236,7 @@ dogstatsd_mapper_profiles:
         tags:
           foo: "$1"
 `
-	testConfig := configmock.New(t)
-	testConfig.SetConfigType("yaml")
-	err := testConfig.ReadConfig(bytes.NewBuffer([]byte(datadogYaml)))
-	require.NoError(t, err)
+	testConfig := configmock.NewFromYAML(t, datadogYaml)
 
 	profiles, err := getDogstatsdMappingProfiles(testConfig)
 	require.NoError(t, err)
@@ -1282,10 +1278,7 @@ func TestDogstatsdMappingProfilesEmpty(t *testing.T) {
 	datadogYaml := `
 dogstatsd_mapper_profiles:
 `
-	testConfig := configmock.New(t)
-	testConfig.SetConfigType("yaml")
-	err := testConfig.ReadConfig(bytes.NewBuffer([]byte(datadogYaml)))
-	require.NoError(t, err)
+	testConfig := configmock.NewFromYAML(t, datadogYaml)
 
 	profiles, err := getDogstatsdMappingProfiles(testConfig)
 
@@ -1300,10 +1293,7 @@ func TestDogstatsdMappingProfilesError(t *testing.T) {
 dogstatsd_mapper_profiles:
   - abc
 `
-	testConfig := configmock.New(t)
-	testConfig.SetConfigType("yaml")
-	err := testConfig.ReadConfig(bytes.NewBuffer([]byte(datadogYaml)))
-	require.NoError(t, err)
+	testConfig := configmock.NewFromYAML(t, datadogYaml)
 
 	profiles, err := getDogstatsdMappingProfiles(testConfig)
 

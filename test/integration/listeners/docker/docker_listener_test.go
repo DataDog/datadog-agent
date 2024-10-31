@@ -52,6 +52,7 @@ type DockerListenerTestSuite struct {
 	m              sync.RWMutex
 	wmeta          workloadmeta.Component
 	telemetryStore *acTelemetry.Store
+	tagger         tagger.Component
 }
 
 type deps struct {
@@ -95,6 +96,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 	suite.wmeta = deps.WMeta
 	suite.telemetryStore = acTelemetry.NewStore(deps.Telemetry)
 	suite.dockerutil, err = docker.GetDockerUtil()
+	suite.tagger = deps.Tagger
 	require.Nil(suite.T(), err, "can't connect to docker")
 
 	suite.compose = utils.ComposeConf{
@@ -108,7 +110,12 @@ func (suite *DockerListenerTestSuite) TearDownSuite() {
 }
 
 func (suite *DockerListenerTestSuite) SetupTest() {
-	dl, err := listeners.NewContainerListener(&pkgconfigsetup.Listeners{}, optional.NewOption(suite.wmeta), suite.telemetryStore)
+	dl, err := listeners.NewContainerListener(listeners.ServiceListernerDeps{
+		Config:    &pkgconfigsetup.Listeners{},
+		Wmeta:     optional.NewOption(suite.wmeta),
+		Telemetry: suite.telemetryStore,
+		Tagger:    suite.tagger,
+	})
 	if err != nil {
 		panic(err)
 	}

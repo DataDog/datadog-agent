@@ -27,7 +27,7 @@ docker_image_build_otel:
   stage: integration_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   needs: ["go_deps","integration_tests_otel"]
-  tags: ["runner:docker"]
+  tags: ["runner:docker"]  # Still required because the otel_agent_build_tests.py is doing a container run
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - mkdir -p /tmp/otel-ci

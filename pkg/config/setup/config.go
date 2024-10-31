@@ -263,6 +263,7 @@ func init() {
 
 	// Configuration defaults
 	initConfig()
+	datadog.BuildSchema()
 }
 
 // initCommonWithServerless initializes configs that are common to all agents, in particular serverless.
@@ -537,6 +538,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// - nodes
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resources", []string{})
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resource_annotations_exclude", []string{})
+	config.BindEnvAndSetDefault("cluster_agent.cluster_tagger.grpc_max_message_size", 4<<20) // 4 MB
 
 	// Metadata endpoints
 
@@ -671,6 +673,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Autoscaling product
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
+	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
+	config.BindEnv("autoscaling.failover.metrics")
 
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
@@ -826,13 +830,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Remote process collector
 	config.BindEnvAndSetDefault("workloadmeta.local_process_collector.collection_interval", DefaultLocalProcessCollectorInterval)
-
-	// Tagger Component
-	// This is a temporary/transient flag used to slowly migrate to a new internal implementation of the tagger.
-	// If set to true, the tagger will store all entities in a 2-layered map, the first map is indexed by prefix, and the second one is indexed by id.
-	// If set to false, the tagger will use the default implementation by storing entities in a one-layer map from plain strings to Tag Entities.
-	// TODO: remove this config option when the migration is finalised.
-	config.BindEnvAndSetDefault("tagger.tagstore_use_composite_entity_id", false)
 
 	// SBOM configuration
 	config.BindEnvAndSetDefault("sbom.enabled", false)

@@ -10,6 +10,7 @@ package rdnsquerierimpl
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -35,9 +36,18 @@ type fakeResults struct {
 type fakeResolver struct {
 	config        *rdnsQuerierConfig
 	fakeIPResults map[string]*fakeResults
+	delay         time.Duration
+	logger        log.Component
 }
 
 func (r *fakeResolver) lookup(addr string) (string, error) {
+
+	r.logger.Infof("fakeResolver.lookup(%s) with timeout %d", addr, r.delay)
+
+	if r.delay > 0 {
+		time.Sleep(r.delay)
+	}
+
 	fr, ok := r.fakeIPResults[addr]
 	if ok && len(fr.errors) > 0 {
 		err := fr.errors[0]
@@ -60,7 +70,7 @@ type testState struct {
 	logComp       log.Component
 }
 
-func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeIPResults map[string]*fakeResults) *testState {
+func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeIPResults map[string]*fakeResults, delay time.Duration) *testState {
 	lc := compdef.NewTestLifecycle(t)
 
 	config := fxutil.Test[config.Component](t, fx.Options(
@@ -95,13 +105,13 @@ func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeI
 		assert.NotNil(t, internalCache)
 		internalQuerier := internalCache.querier.(*querierImpl)
 		assert.NotNil(t, internalQuerier)
-		internalQuerier.resolver = &fakeResolver{internalRDNSQuerier.config, fakeIPResults}
+		internalQuerier.resolver = &fakeResolver{internalRDNSQuerier.config, fakeIPResults, delay, logComp}
 	} else {
 		internalCache := internalRDNSQuerier.cache.(*cacheNone)
 		assert.NotNil(t, internalCache)
 		internalQuerier := internalCache.querier.(*querierImpl)
 		assert.NotNil(t, internalQuerier)
-		internalQuerier.resolver = &fakeResolver{internalRDNSQuerier.config, fakeIPResults}
+		internalQuerier.resolver = &fakeResolver{internalRDNSQuerier.config, fakeIPResults, delay, logComp}
 	}
 
 	if start {
@@ -149,7 +159,7 @@ func (ts *testState) validateExpected(t *testing.T, expectedTelemetry map[string
 		} else {
 			assert.NoError(t, err)
 			assert.Len(t, metrics, 1)
-			assert.Equal(t, expected, metrics[0].Value())
+			assert.Equal(t, expected, metrics[0].Value(), name)
 		}
 	}
 }

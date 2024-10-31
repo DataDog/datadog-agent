@@ -9,16 +9,23 @@ package ecs
 import (
 	"fmt"
 
+	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ssm"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/aspnetsample"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/dogstatsd"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/nginx"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/prometheus"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/tracegen"
 	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/resources/aws/ecs"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -37,15 +44,13 @@ type ProvisionerParams struct {
 	name              string
 	agentOptions      []ecsagentparams.Option
 	fakeintakeOptions []fakeintake.Option
+	ecsOptions        []ecs.Option
 
 	extraConfigParams                 runner.ConfigMap
-	ecsFargate                        bool
-	ecsLinuxECSOptimizedNodeGroup     bool
-	ecsLinuxECSOptimizedARMNodeGroup  bool
-	ecsLinuxBottlerocketNodeGroup     bool
-	ecsWindowsNodeGroup               bool
 	infraShouldDeployFakeintakeWithLB bool
+	testingWorkload                   bool
 	workloadAppFuncs                  []WorkloadAppFunc
+	fargateWorkloadAppFuncs           []FargateWorkloadAppFunc
 	awsEnv                            *aws.Environment
 }
 
@@ -55,13 +60,9 @@ func newProvisionerParams() *ProvisionerParams {
 		name:              defaultECS,
 		agentOptions:      []ecsagentparams.Option{},
 		fakeintakeOptions: []fakeintake.Option{},
+		ecsOptions:        []ecs.Option{},
 
 		extraConfigParams:                 runner.ConfigMap{},
-		ecsFargate:                        false,
-		ecsLinuxECSOptimizedNodeGroup:     false,
-		ecsLinuxECSOptimizedARMNodeGroup:  false,
-		ecsLinuxBottlerocketNodeGroup:     false,
-		ecsWindowsNodeGroup:               false,
 		infraShouldDeployFakeintakeWithLB: false,
 	}
 }
@@ -103,42 +104,18 @@ func WithFakeIntakeOptions(opts ...fakeintake.Option) ProvisionerOption {
 	}
 }
 
-// WithECSFargateCapacityProvider enable Fargate ECS
-func WithECSFargateCapacityProvider() ProvisionerOption {
+// WithECSOptions sets the options for ECS cluster
+func WithECSOptions(opts ...ecs.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
-		params.ecsFargate = true
+		params.ecsOptions = append(params.ecsOptions, opts...)
 		return nil
 	}
 }
 
-// WithECSLinuxECSOptimizedNodeGroup enable aws/ecs/linuxECSOptimizedNodeGroup
-func WithECSLinuxECSOptimizedNodeGroup() ProvisionerOption {
+// WithTestingWorkload deploys testing workloads for nginx, redis, cpustress, dogstatsd, prometheus and tracegen
+func WithTestingWorkload() ProvisionerOption {
 	return func(params *ProvisionerParams) error {
-		params.ecsLinuxECSOptimizedNodeGroup = true
-		return nil
-	}
-}
-
-// WithECSLinuxECSOptimizedARMNodeGroup enable aws/ecs/linuxECSOptimizedARMNodeGroup
-func WithECSLinuxECSOptimizedARMNodeGroup() ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.ecsLinuxECSOptimizedARMNodeGroup = true
-		return nil
-	}
-}
-
-// WithECSLinuxBottlerocketNodeGroup enable aws/ecs/linuxBottlerocketNodeGroup
-func WithECSLinuxBottlerocketNodeGroup() ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.ecsLinuxBottlerocketNodeGroup = true
-		return nil
-	}
-}
-
-// WithECSWindowsNodeGroup enable aws/ecs/windowsLTSCNodeGroup
-func WithECSWindowsNodeGroup() ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.ecsWindowsNodeGroup = true
+		params.testingWorkload = true
 		return nil
 	}
 }
@@ -186,6 +163,17 @@ func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
 	}
 }
 
+// FargateWorkloadAppFunc is a function that deploys a Fargate workload app to an ECS cluster
+type FargateWorkloadAppFunc func(e aws.Environment, clusterArn pulumi.StringInput, apiKeySSMParamName pulumi.StringInput, fakeIntake *fakeintakeComp.Fakeintake) (*ecsComp.Workload, error)
+
+// WithFargateWorkloadApp adds a Fargate workload app to the environment
+func WithFargateWorkloadApp(appFunc FargateWorkloadAppFunc) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.fargateWorkloadAppFuncs = append(params.fargateWorkloadAppFuncs, appFunc)
+		return nil
+	}
+}
+
 // Run deploys a ECS environment given a pulumi.Context
 func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) error {
 	var awsEnv aws.Environment
@@ -198,70 +186,24 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 			return err
 		}
 	}
-	// Create cluster
-	ecsCluster, err := ecs.CreateEcsCluster(awsEnv, params.name)
+	clusterParams, err := ecs.NewParams(params.ecsOptions...)
 	if err != nil {
 		return err
 	}
 
-	// Export cluster’s properties
-	ctx.Export("ecs-cluster-name", ecsCluster.Name)
-	ctx.Export("ecs-cluster-arn", ecsCluster.Arn)
-
-	// Handle capacity providers
-	capacityProviders := pulumi.StringArray{}
-	if params.ecsFargate {
-		capacityProviders = append(capacityProviders, pulumi.String("FARGATE"))
+	// Create cluster
+	cluster, err := ecs.NewCluster(awsEnv, params.name, params.ecsOptions...)
+	if err != nil {
+		return err
 	}
-
-	linuxNodeGroupPresent := false
-	if params.ecsLinuxECSOptimizedNodeGroup {
-		cpName, err := ecs.NewECSOptimizedNodeGroup(awsEnv, ecsCluster.Name, false)
-		if err != nil {
-			return err
-		}
-
-		capacityProviders = append(capacityProviders, cpName)
-		linuxNodeGroupPresent = true
-	}
-
-	if params.ecsLinuxECSOptimizedARMNodeGroup {
-		cpName, err := ecs.NewECSOptimizedNodeGroup(awsEnv, ecsCluster.Name, true)
-		if err != nil {
-			return err
-		}
-
-		capacityProviders = append(capacityProviders, cpName)
-		linuxNodeGroupPresent = true
-	}
-
-	if params.ecsLinuxBottlerocketNodeGroup {
-		cpName, err := ecs.NewBottlerocketNodeGroup(awsEnv, ecsCluster.Name)
-		if err != nil {
-			return err
-		}
-
-		capacityProviders = append(capacityProviders, cpName)
-		linuxNodeGroupPresent = true
-	}
-
-	if params.ecsWindowsNodeGroup {
-		cpName, err := ecs.NewWindowsNodeGroup(awsEnv, ecsCluster.Name)
-		if err != nil {
-			return err
-		}
-
-		capacityProviders = append(capacityProviders, cpName)
-	}
-
-	// Associate capacity providers
-	_, err = ecs.NewClusterCapacityProvider(awsEnv, ctx.Stack(), ecsCluster.Name, capacityProviders)
+	err = cluster.Export(ctx, &env.ECSCluster.ClusterOutput)
 	if err != nil {
 		return err
 	}
 
 	var apiKeyParam *ssm.Parameter
 	var fakeIntake *fakeintakeComp.Fakeintake
+
 	// Create task and service
 	if params.agentOptions != nil {
 		if params.fakeintakeOptions != nil {
@@ -278,6 +220,7 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 				return err
 			}
 		}
+
 		apiKeyParam, err = ssm.NewParameter(ctx, awsEnv.Namer.ResourceName("agent-apikey"), &ssm.ParameterArgs{
 			Name:      awsEnv.CommonNamer().DisplayName(1011, pulumi.String("agent-apikey")),
 			Type:      ssm.ParameterTypeSecureString,
@@ -288,21 +231,64 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 			return err
 		}
 
-		// Deploy EC2 Agent
-		if linuxNodeGroupPresent {
-			agentDaemon, err := agent.ECSLinuxDaemonDefinition(awsEnv, "ec2-linux-dd-agent", apiKeyParam.Name, fakeIntake, ecsCluster.Arn, params.agentOptions...)
-			if err != nil {
-				return err
-			}
+		_, err := agent.ECSLinuxDaemonDefinition(awsEnv, "ec2-linux-dd-agent", apiKeyParam.Name, fakeIntake, cluster.ClusterArn, params.agentOptions...)
+		if err != nil {
+			return err
+		}
 
-			ctx.Export("agent-ec2-linux-task-arn", agentDaemon.TaskDefinition.Arn())
-			ctx.Export("agent-ec2-linux-task-family", agentDaemon.TaskDefinition.Family())
-			ctx.Export("agent-ec2-linux-task-version", agentDaemon.TaskDefinition.Revision())
+		// Deploy Fargate Apps
+		if clusterParams.FargateCapacityProvider {
+			for _, fargateAppFunc := range params.fargateWorkloadAppFuncs {
+				_, err := fargateAppFunc(awsEnv, cluster.ClusterArn, apiKeyParam.Name, fakeIntake)
+				if err != nil {
+					return err
+				}
+			}
 		}
 	}
 
+	if params.testingWorkload {
+		if _, err := nginx.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
+			return err
+		}
+
+		if _, err := redis.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
+			return err
+		}
+
+		if _, err := cpustress.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
+			return err
+		}
+
+		if _, err := dogstatsd.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
+			return err
+		}
+
+		if _, err := prometheus.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
+			return err
+		}
+
+		if _, err := tracegen.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
+			return err
+		}
+	}
+
+	if clusterParams.FargateCapacityProvider && params.testingWorkload && params.agentOptions != nil {
+
+		if _, err := redis.FargateAppDefinition(awsEnv, cluster.ClusterArn, apiKeyParam.Name, fakeIntake); err != nil {
+			return err
+		}
+
+		if _, err = nginx.FargateAppDefinition(awsEnv, cluster.ClusterArn, apiKeyParam.Name, fakeIntake); err != nil {
+			return err
+		}
+
+		if _, err = aspnetsample.FargateAppDefinition(awsEnv, cluster.ClusterArn, apiKeyParam.Name, fakeIntake); err != nil {
+			return err
+		}
+	}
 	for _, appFunc := range params.workloadAppFuncs {
-		_, err := appFunc(awsEnv, ecsCluster.Arn)
+		_, err := appFunc(awsEnv, cluster.ClusterArn)
 		if err != nil {
 			return err
 		}

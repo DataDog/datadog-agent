@@ -27,12 +27,12 @@ const (
 )
 
 var (
-	postgresDefaultConnection = network.ConnectionStats{
+	postgresDefaultConnection = network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 		Source: localhost,
 		Dest:   localhost,
 		SPort:  postgresClientPort,
 		DPort:  postgresServerPort,
-	}
+	}}
 )
 
 type PostgresSuite struct {
@@ -251,20 +251,20 @@ func (s *PostgresSuite) TestPostgresIDCollisionRegression() {
 	t := s.T()
 	assert := assert.New(t)
 	connections := []network.ConnectionStats{
-		{
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  postgresClientPort,
 			Dest:   localhost,
 			DPort:  postgresServerPort,
 			Pid:    1,
-		},
-		{
+		}},
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  postgresClientPort,
 			Dest:   localhost,
 			DPort:  postgresServerPort,
 			Pid:    2,
-		},
+		}},
 	}
 
 	postgresKey := postgres.NewKey(
@@ -311,20 +311,20 @@ func (s *PostgresSuite) TestPostgresLocalhostScenario() {
 	t := s.T()
 	assert := assert.New(t)
 	connections := []network.ConnectionStats{
-		{
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  postgresClientPort,
 			Dest:   localhost,
 			DPort:  postgresServerPort,
 			Pid:    1,
-		},
-		{
+		}},
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: localhost,
 			SPort:  postgresServerPort,
 			Dest:   localhost,
 			DPort:  postgresClientPort,
 			Pid:    2,
-		},
+		}},
 	}
 
 	postgresKey := postgres.NewKey(

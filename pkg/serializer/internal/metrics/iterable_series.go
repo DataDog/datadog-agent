@@ -138,60 +138,58 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 	return pb.payloads, nil
 }
 
-// MarshalSplitCompressMultiple uses the stream compressor to marshal and compress one series into two sets of payloads.
-// One set of payloads contains all metrics, and the other contains only those that pass the provided filter function.
+// MarshalSplitCompressMultiple uses the stream compressor to marshal and compress one series into three sets of payloads.
+// One set of payloads contains all metrics,
+// The seond contains only those that pass the provided MRF filter function.
+// The third contains only those that pass the provided autoscaling local failover filter function.
 // This function exists because we need a way to build both payloads in a single pass over the input data, which cannot be iterated over twice.
-func (series *IterableSeries) MarshalSplitCompressMultiple(config config.Component, strategy compression.Component, filterFunc func(s *metrics.Serie) bool) (transaction.BytesPayloads, transaction.BytesPayloads, error) {
-	bufferContext := marshaler.NewBufferContext()
-	pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy)
-	if err != nil {
-		return nil, nil, err
-	}
+func (series *IterableSeries) MarshalSplitCompressMultiple(config config.Component, strategy compression.Component, filterFuncForMRF func(s *metrics.Serie) bool, filterFuncForAutoscaling func(s *metrics.Serie) bool) (transaction.BytesPayloads, transaction.BytesPayloads, transaction.BytesPayloads, error) {
+	pbs := make([]*PayloadsBuilder, 3) // 0: all, 1: MRF, 2: autoscaling
+	for i := range pbs {
+		bufferContext := marshaler.NewBufferContext()
+		pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		pbs[i] = &pb
 
-	bufferContext2 := marshaler.NewBufferContext()
-	pb2, err := series.NewPayloadsBuilder(bufferContext2, config, strategy)
-	if err != nil {
-		return nil, nil, err
+		err = pbs[i].startPayload()
+		if err != nil {
+			return nil, nil, nil, err
+		}
 	}
-
-	err = pb.startPayload()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	err = pb2.startPayload()
-	if err != nil {
-		return nil, nil, err
-	}
-
 	// Use series.source.MoveNext() instead of series.MoveNext() because this function supports
 	// the serie.NoIndex field.
 	for series.source.MoveNext() {
-		err = pb.writeSerie(series.source.Current())
+		err := pbs[0].writeSerie(series.source.Current())
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
-		if filterFunc(series.source.Current()) {
-			err = pb2.writeSerie(series.source.Current())
+		if filterFuncForMRF(series.source.Current()) {
+			err = pbs[1].writeSerie(series.source.Current())
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
+			}
+		}
+
+		if filterFuncForAutoscaling(series.source.Current()) {
+			err = pbs[2].writeSerie(series.source.Current())
+			if err != nil {
+				return nil, nil, nil, err
 			}
 		}
 	}
 
 	// if the last payload has any data, flush it
-	err = pb.finishPayload()
-	if err != nil {
-		return nil, nil, err
+	for i := range pbs {
+		err := pbs[i].finishPayload()
+		if err != nil {
+			return nil, nil, nil, err
+		}
 	}
 
-	err = pb2.finishPayload()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return pb.payloads, pb2.payloads, nil
+	return pbs[0].payloads, pbs[1].payloads, pbs[2].payloads, nil
 }
 
 // NewPayloadsBuilder initializes a new PayloadsBuilder to be used for serializing series into a set of output payloads.

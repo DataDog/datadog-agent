@@ -238,6 +238,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     __u64 timestamp = bpf_ktime_get_ns();
     if (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST, -EEXIST) == 0) {
         cleanup_conn(ctx, &t, sk);
+        increment_telemetry_count(tcp_done_connection_flush);
         flush_tcp_failure(ctx, &t, err);
     } else {
         bpf_map_delete_elem(&conn_close_flushed, &t);
@@ -287,6 +288,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     __u64 timestamp = bpf_ktime_get_ns();
     if (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST, -EEXIST) == 0) {
         cleanup_conn(ctx, &t, sk);
+        increment_telemetry_count(tcp_close_connection_flush);
         int err = 0;
         bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
         if (err == TCP_CONN_FAILED_RESET || err == TCP_CONN_FAILED_TIMEOUT || err == TCP_CONN_FAILED_REFUSED) {

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -47,7 +48,7 @@ func (c *ContainersTelemetry) ReportContainers(metricName string) {
 			continue
 		}
 
-		c.TelemetrySender.Gauge(metricName, 1.0, []string{"container_id:" + container.ID})
+		c.TelemetrySender.Gauge(metricName, 1.0, []string{"container_id:" + container.ID, constants.CardinalityTagPrefix + "orch"})
 	}
 	c.TelemetrySender.Commit()
 }

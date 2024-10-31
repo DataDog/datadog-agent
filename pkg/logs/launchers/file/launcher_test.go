@@ -89,7 +89,6 @@ func (suite *LauncherTestSuite) TearDownTest() {
 	suite.testFile.Close()
 	suite.testRotatedFile.Close()
 	suite.s.cleanup()
-	suite.tagger.ResetTagger()
 }
 
 func (suite *LauncherTestSuite) TestLauncherStartsTailers() {
@@ -225,7 +224,6 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 	var path string
 	var msg *message.Message
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	IDs := []string{"", "123456789"}
 
@@ -272,7 +270,6 @@ func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 	testDir := t.TempDir()
 	path := fmt.Sprintf("%s/container.log", testDir)
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	// create launcher
 	openFilesLimit := 3
@@ -322,7 +319,6 @@ func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 func TestLauncherTailFromTheBeginning(t *testing.T) {
 	testDir := t.TempDir()
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	// create launcher
 	openFilesLimit := 3
@@ -374,7 +370,6 @@ func TestLauncherTailFromTheBeginning(t *testing.T) {
 func TestLauncherSetTail(t *testing.T) {
 	testDir := t.TempDir()
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	path1 := fmt.Sprintf("%s/test.log", testDir)
 	path2 := fmt.Sprintf("%s/test2.log", testDir)
@@ -402,7 +397,6 @@ func TestLauncherSetTail(t *testing.T) {
 func TestLauncherConfigIdentifier(t *testing.T) {
 	testDir := t.TempDir()
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	path := fmt.Sprintf("%s/test.log", testDir)
 	os.Create(path)
@@ -428,7 +422,6 @@ func TestLauncherScanWithTooManyFiles(t *testing.T) {
 
 	testDir := t.TempDir()
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	// creates files
 	path = fmt.Sprintf("%s/1.log", testDir)
@@ -472,7 +465,6 @@ func TestLauncherScanWithTooManyFiles(t *testing.T) {
 func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
 	testDir := t.TempDir()
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	path := fmt.Sprintf("%s/*.log", testDir)
 	os.Create(path)
@@ -523,7 +515,6 @@ func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
 		assert.Nil(t, err)
 	}
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	createLauncher := func() *Launcher {
 		sleepDuration := 20 * time.Millisecond
@@ -579,7 +570,6 @@ func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
 	baseTime := time.Date(2010, time.August, 10, 25, 0, 0, 0, time.UTC)
 	openFilesLimit := 2
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	path := func(name string) string {
 		return fmt.Sprintf("%s/%s", testDir, name)
@@ -645,7 +635,6 @@ func TestLauncherFileRotation(t *testing.T) {
 	testDir := t.TempDir()
 	openFilesLimit := 2
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	path := func(name string) string {
 		return fmt.Sprintf("%s/%s", testDir, name)
@@ -712,7 +701,6 @@ func TestLauncherFileDetectionSingleScan(t *testing.T) {
 	testDir := t.TempDir()
 	openFilesLimit := 2
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
 
 	path := func(name string) string {
 		return fmt.Sprintf("%s/%s", testDir, name)
