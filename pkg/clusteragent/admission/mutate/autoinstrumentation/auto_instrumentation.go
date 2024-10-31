@@ -595,8 +595,7 @@ func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 		Requests: corev1.ResourceList{},
 	}
 
-	keys := []corev1.ResourceName{corev1.ResourceMemory, corev1.ResourceCPU}
-	for _, k := range keys {
+	for _, k := range [2]corev1.ResourceName{corev1.ResourceMemory, corev1.ResourceCPU} {
 		// Take max(initContainer ressource)
 		for i := range pod.Spec.InitContainers {
 			c := &pod.Spec.InitContainers[i]
