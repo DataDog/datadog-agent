@@ -587,8 +587,14 @@ func (w *Webhook) newInjector(startTime time.Time, pod *corev1.Pod, opts ...inje
 		podMutator(w.version)
 }
 
+func initContainerIsSidecar(container *corev1.Container) bool {
+	return container.RestartPolicy != nil && *container.RestartPolicy == corev1.ContainerRestartPolicyAlways
+}
+
 // podSumRessourceRequirements computes the sum of cpu/memory necessary for the whole pod.
-// This is computed as max(max(initContainer resources), sum(container resources)) for both limit and request
+// This is computed as max(max(initContainer resources), sum(container resources) + sum(sidecar containers))
+// for both limit and request
+// https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/#resource-sharing-within-containers
 func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 	ressourceRequirement := corev1.ResourceRequirements{
 		Limits:   corev1.ResourceList{},
@@ -599,6 +605,11 @@ func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 		// Take max(initContainer ressource)
 		for i := range pod.Spec.InitContainers {
 			c := &pod.Spec.InitContainers[i]
+			if initContainerIsSidecar(c) {
+				// This is a sidecar container, since it will run alongside the main containers
+				// we need to add it's resources to the main container's resources
+				continue
+			}
 			if limit, ok := c.Resources.Limits[k]; ok {
 				existing := ressourceRequirement.Limits[k]
 				if limit.Cmp(existing) == 1 {
@@ -624,7 +635,20 @@ func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 				reqSum.Add(l)
 			}
 		}
-		// Take max(sum of container resources)
+		for i := range pod.Spec.InitContainers {
+			c := &pod.Spec.InitContainers[i]
+			if !initContainerIsSidecar(c) {
+				continue
+			}
+			if l, ok := c.Resources.Limits[k]; ok {
+				limitSum.Add(l)
+			}
+			if l, ok := c.Resources.Requests[k]; ok {
+				reqSum.Add(l)
+			}
+		}
+
+		// Take max(sum(container resources) + sum(sidecar container resources))
 		existingLimit := ressourceRequirement.Limits[k]
 		if limitSum.Cmp(existingLimit) == 1 {
 			ressourceRequirement.Limits[k] = limitSum
@@ -673,7 +697,7 @@ func initContainerResourceRequirements(pod *corev1.Pod, conf initResourceRequire
 					// 1. The init containers need quite a lot of memory in order to not OOM
 					// 2. The APM libraries themselves will increase memory footprint of the container by a
 					//   non trivial amount, and we don't want to crash memory constrained apps
-					if maxPodLim.AsApproximateFloat64() <= minimumMemoryRequest {
+					if maxPodLim.AsApproximateFloat64() < minimumMemoryRequest {
 						return corev1.ResourceRequirements{}, true
 					}
 				}
