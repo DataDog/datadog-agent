@@ -8,7 +8,9 @@
 package tests
 
 import (
+	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -39,5 +41,9 @@ func TestSnapshotReplay(t *testing.T) {
 	}
 	defer test.Close()
 
-	assert.True(t, gotEvent, "didn't get the event from snapshot")
+	if _, err := exec.Command("echo", "hello", "world").CombinedOutput(); err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Eventually(t, func() bool { return gotEvent }, 10*time.Second, 100*time.Millisecond, "didn't get the event from snapshot")
 }

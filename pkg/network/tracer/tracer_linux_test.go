@@ -2047,7 +2047,7 @@ func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *confi
 	assert.Zero(t, m.SentPackets, "sent packets should be 0")
 	assert.Zero(t, m.RecvPackets, "recv packets should be 0")
 	assert.Zero(t, m.TCPEstablished, "tcp established should be 0")
-	assert.Equal(t, uint16(1), m.TCPClosed, "tcp closed should be 1")
+	assert.Equal(t, uint32(1), m.TCPClosed, "tcp closed should be 1")
 	assert.Equal(t, network.INCOMING, conn.Direction, "connection direction should be incoming")
 }
 
