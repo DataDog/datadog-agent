@@ -36,6 +36,8 @@ var (
 	// DMIBoardVendor contains the DMI board vendor for EC2
 	DMIBoardVendor = "Amazon EC2"
 
+	ec2IMDSv2TransitionPayloadConfigFlag = "ec2_imdsv2_transition_payload_enabled"
+
 	currentMetadataSource      = metadataSourceNone
 	currentMetadataSourceMutex sync.Mutex
 )
@@ -97,9 +99,11 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "EC2 InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		hostname, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, UseIMDSv2(false, false))
-		if err != nil && pkgconfigsetup.Datadog().GetBool("ec2_imdsv2_transition_payload_enabled") {
-			log.Debugf("Failed to get instance ID from IMDSv2 - falling back on DMI: %s", err.Error())
-			return getInstanceIDFromDMI()
+		if err != nil {
+			if pkgconfigsetup.Datadog().GetBool(ec2IMDSv2TransitionPayloadConfigFlag) {
+				log.Debugf("Failed to get instance ID from IMDSv2 - ec2_imdsv2_transition_payload_enabled is set, falling back on DMI: %s", err.Error())
+				return getInstanceIDFromDMI()
+			}
 		}
 		return hostname, err
 	},
@@ -128,7 +132,7 @@ func GetInstanceID(ctx context.Context) (string, error) {
 func GetInstanceIDWithLegacyHostnameResolution(ctx context.Context) (string, error) {
 	// If the user has set the ec2_prefer_imdsv2 then IMDSv2 is used by default by the user, `legacy_resolution_hostname` is not needed for the transition
 	// If the user has set the ec2_imdsv2_transition_payload_enabled then IMDSv2 is used by default by the agent, `legacy_resolution_hostname` is needed for the transition
-	if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || !pkgconfigsetup.Datadog().GetBool("ec2_imdsv2_transition_payload_enabled") {
+	if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || !pkgconfigsetup.Datadog().GetBool(ec2IMDSv2TransitionPayloadConfigFlag) {
 		return "", nil
 	}
 	return legacyInstanceIDFetcher.FetchString(ctx)
