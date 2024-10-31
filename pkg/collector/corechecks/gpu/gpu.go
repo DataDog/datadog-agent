@@ -13,6 +13,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/hashicorp/go-multierror"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -174,11 +175,13 @@ func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
 }
 
 func (m *Check) emitNvmlMetrics(snd sender.Sender) error {
+	var err error
+
 	for _, collector := range m.collectors {
 		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())
-		metrics, err := collector.Collect()
-		if err != nil {
-			log.Warnf("failed to collect metrics from NVML collector %s: %s", collector.Name(), err)
+		metrics, collectErr := collector.Collect()
+		if collectErr != nil {
+			err = multierror.Append(err, fmt.Errorf("collector %s failed. %w", collector.Name(), collectErr))
 		}
 
 		for _, metric := range metrics {
@@ -187,5 +190,5 @@ func (m *Check) emitNvmlMetrics(snd sender.Sender) error {
 		}
 	}
 
-	return nil
+	return err
 }
