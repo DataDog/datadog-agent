@@ -7,7 +7,6 @@ package snmp
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -26,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
@@ -38,6 +36,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
+	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
@@ -51,10 +51,11 @@ import (
 type deps struct {
 	fx.In
 	Demultiplexer demultiplexer.Mock
+	RDNSQuerier   rdnsquerier.Component
 }
 
 func createDeps(t *testing.T) deps {
-	return fxutil.Test[deps](t, compressionimpl.MockModule(), demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), core.MockBundle())
+	return fxutil.Test[deps](t, compressionimpl.MockModule(), demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), core.MockBundle(), rdnsquerierfx.MockModule())
 }
 
 func Test_Run_simpleCase(t *testing.T) {
@@ -67,7 +68,11 @@ func Test_Run_simpleCase(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{
+		sessionFactory: sessionFactory,
+		rdnsquerier:    deps.RDNSQuerier,
+	}
+
 	senderManager := deps.Demultiplexer
 
 	// language=yaml
@@ -574,7 +579,10 @@ func TestProfile(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{
+		sessionFactory: sessionFactory,
+		rdnsquerier:    deps.RDNSQuerier,
+	}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -996,47 +1004,15 @@ community_string: public
 	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, "snmp connection error: can't connect")
 }
 
-type mockRDNSQuerier struct {
-	getHostnamesFunc func(ctx context.Context, ipAddrs []string) map[string]rdnsquerier.ReverseDNSResult
-}
-
-func (m *mockRDNSQuerier) GetHostnames(ctx context.Context, ipAddrs []string) map[string]rdnsquerier.ReverseDNSResult {
-	if m.getHostnamesFunc != nil {
-		return m.getHostnamesFunc(ctx, ipAddrs)
-	}
-	return nil
-}
-
-func (m *mockRDNSQuerier) GetHostname(ctx context.Context, ipAddr string) (string, error) {
-	return "mock-hostname", nil
-}
-
-func (q *mockRDNSQuerier) GetHostnameAsync(ipAddr []byte, updateHostnameSync func(string), updateHostnameAsync func(string, error)) error {
-	return nil
-}
-
 func TestCheckID(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
 
-	mockQuerier := &mockRDNSQuerier{
-		getHostnamesFunc: func(ctx context.Context, ipAddrs []string) map[string]rdnsquerier.ReverseDNSResult {
-			// Mock implementation of GetHostnames
-			results := make(map[string]rdnsquerier.ReverseDNSResult)
-			for _, ip := range ipAddrs {
-				results[ip] = rdnsquerier.ReverseDNSResult{
-					IP:       ip,
-					Hostname: "mock-hostname",
-					Err:      nil,
-				}
-			}
-			return results
-		},
-	}
+	deps := createDeps(t)
 
-	check1 := newCheck(mockQuerier)
-	check2 := newCheck(mockQuerier)
-	check3 := newCheck(mockQuerier)
-	checkSubnet := newCheck(mockQuerier)
+	check1 := newCheck(deps.RDNSQuerier)
+	check2 := newCheck(deps.RDNSQuerier)
+	check3 := newCheck(deps.RDNSQuerier)
+	checkSubnet := newCheck(deps.RDNSQuerier)
 	// language=yaml
 	rawInstanceConfig1 := []byte(`
 ip_address: 1.1.1.1
@@ -1354,7 +1330,10 @@ func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{
+		sessionFactory: sessionFactory,
+		rdnsquerier:    deps.RDNSQuerier,
+	}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -1666,7 +1645,10 @@ func TestReportDeviceMetadataWithFetchError(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{
+		sessionFactory: sessionFactory,
+		rdnsquerier:    deps.RDNSQuerier,
+	}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.5
@@ -1777,7 +1759,10 @@ func TestDiscovery(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{
+		sessionFactory: sessionFactory,
+		rdnsquerier:    deps.RDNSQuerier,
+	}
 	senderManager := deps.Demultiplexer
 
 	// language=yaml
@@ -2051,7 +2036,8 @@ metric_tags:
       "name": "foo_sys_name",
       "subnet": "10.10.0.0/30",
 	  "integration": "snmp",
-	  "device_type": "other"
+	  "device_type": "other",
+	  "dns_hostname": "hostname-%s"
     }
   ],
   "interfaces": [
@@ -2099,7 +2085,7 @@ metric_tags:
   ],
   "collect_timestamp":946684800
 }
-`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.deviceID, deviceData.ipAddress, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID))
+`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.deviceID, deviceData.ipAddress, deviceData.ipAddress, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID))
 		compactEvent := new(bytes.Buffer)
 		err = json.Compact(compactEvent, event)
 		assert.NoError(t, err)
@@ -2202,7 +2188,10 @@ func TestDeviceIDAsHostname(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{
+		sessionFactory: sessionFactory,
+		rdnsquerier:    deps.RDNSQuerier,
+	}
 	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "test-hostname")
 	pkgconfigsetup.Datadog().SetWithoutSource("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
 	senderManager := deps.Demultiplexer
@@ -2395,7 +2384,10 @@ func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{
+		sessionFactory: sessionFactory,
+		rdnsquerier:    deps.RDNSQuerier,
+	}
 
 	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "my-hostname")
 	senderManager := deps.Demultiplexer
@@ -2600,7 +2592,10 @@ func TestCheckCancel(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{
+		sessionFactory: sessionFactory,
+		rdnsquerier:    deps.RDNSQuerier,
+	}
 
 	senderManager := deps.Demultiplexer
 

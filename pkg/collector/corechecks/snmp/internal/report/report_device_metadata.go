@@ -6,6 +6,7 @@
 package report
 
 import (
+	"context"
 	json "encoding/json"
 	"net"
 	"sort"
@@ -52,7 +53,23 @@ var supportedDeviceTypes = map[string]bool{
 }
 
 func hostnameEnrichment(metadata []devicemetadata.DeviceMetadata, rdnsquerier rdnsquerier.Component) []devicemetadata.DeviceMetadata {
-	return metadata
+	enrichedMetadata := make([]devicemetadata.DeviceMetadata, len(metadata))
+
+	for i, device := range metadata {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		hostname, err := rdnsquerier.GetHostname(ctx, device.IPAddress)
+		if err != nil {
+			log.Errorf("Error getting hostname for device %s: %s", device.ID, err)
+			hostname = ""
+		}
+
+		device.DNS_Hostname = hostname
+		enrichedMetadata[i] = device
+	}
+
+	return enrichedMetadata
 }
 
 // ReportNetworkDeviceMetadata reports device metadata
@@ -61,16 +78,13 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	tags = util.SortUniqInPlace(tags)
 
 	metadataStore := buildMetadataStore(config.Metadata, store)
-
 	devices := []devicemetadata.DeviceMetadata{buildNetworkDeviceMetadata(config.DeviceID, config.DeviceIDTags, config, metadataStore, tags, deviceStatus, pingStatus)}
-
-	devices = hostnameEnrichment(devices, rdnsquerier)
-
+	enrichedDevices := hostnameEnrichment(devices, rdnsquerier)
 	interfaces := buildNetworkInterfacesMetadata(config.DeviceID, metadataStore)
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
 	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces)
 
-	metadataPayloads := devicemetadata.BatchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, topologyLinks, nil, diagnoses)
+	metadataPayloads := devicemetadata.BatchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, enrichedDevices, interfaces, ipAddresses, topologyLinks, nil, diagnoses)
 
 	for _, payload := range metadataPayloads {
 		payloadBytes, err := json.Marshal(payload)

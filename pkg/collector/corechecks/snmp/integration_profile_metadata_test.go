@@ -34,12 +34,12 @@ func TestProfileMetadata_f5(t *testing.T) {
 	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
 	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", invalidPath)
-
+	deps := createDeps(t)
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{sessionFactory: sessionFactory, rdnsquerier: deps.RDNSQuerier}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
