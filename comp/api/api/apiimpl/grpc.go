@@ -20,7 +20,8 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
-	remoteagentServer "github.com/DataDog/datadog-agent/comp/remoteagent/server"
+	remoteagent "github.com/DataDog/datadog-agent/comp/remoteagent/def"
+	raproto "github.com/DataDog/datadog-agent/comp/remoteagent/proto"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggerProto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
@@ -49,7 +50,7 @@ type serverSecure struct {
 	dogstatsdServer    dogstatsdServer.Component
 	capture            dsdReplay.Component
 	pidMap             pidmap.Component
-	remoteAgentServer  *remoteagentServer.Server
+	remoteAgent        remoteagent.Component
 }
 
 func (s *grpcServer) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -185,9 +186,16 @@ func (s *serverSecure) WorkloadmetaStreamEntities(in *pb.WorkloadmetaStreamReque
 	return s.workloadmetaServer.StreamEntities(in, out)
 }
 
-func (s *serverSecure) UpdateRemoteAgent(srv pb.AgentSecure_UpdateRemoteAgentServer) error {
-	log.Info("Remote agent connected.")
-	return s.remoteAgentServer.UpdateRemoteAgent(srv)
+func (s *serverSecure) RegisterRemoteAgent(_ context.Context, in *pb.RegisterRemoteAgentRequest) (*pb.RegisterRemoteAgentResponse, error) {
+	registration := raproto.ProtobufToRemoteAgentRegistration(in)
+	recommendedRefreshIntervalSecs, err := s.remoteAgent.RegisterRemoteAgent(registration)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.RegisterRemoteAgentResponse{
+		RecommendedRefreshIntervalSecs: recommendedRefreshIntervalSecs,
+	}, nil
 }
 
 func init() {

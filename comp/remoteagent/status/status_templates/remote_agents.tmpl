@@ -2,15 +2,14 @@
 No remote agents registered
 {{ else }}
 {{- with .agentStatusMap }}
-  {{- range $agentId, $statusDetail := . }}
-    {{ $agentId }}
-    {{ printDashes $agentId "=" }}
-
-    {{ if not $statusDetail }}
-    Timed out waiting for response.
-    {{ else }}
+  {{- range $id, $statusDetail := . }}
     {{- with $statusDetail }}
-    {{- if .MainSection }}
+    {{ .DisplayName }}
+    {{ printDashes .DisplayName "=" }}
+
+    {{ if .FailureReason }}
+    {{ .FailureReason }}
+    {{- else if .MainSection }}
     {{- range $key, $value := .MainSection }}
     {{ $key }}: {{ $value }}
     {{- end }}
@@ -24,7 +23,6 @@ No remote agents registered
       {{ $key }}: {{ $value }}
     {{- end }}
     {{ end }}
-    {{- end }}
     {{- end }}
     {{- end }}
   {{- end }}

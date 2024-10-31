@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package proto provides functions to convert between protobuf and remoteagent types.
 package proto
 
 import (
@@ -10,21 +11,32 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
-func ProtobufToFlareData(in *pb.FlareData) *remoteagent.FlareData {
-	out := &remoteagent.FlareData{
-		AgentId: in.AgentId,
-		Files:   in.Files,
+// ProtobufToRemoteAgentRegistration converts the protobuf representation of a remote agent registration to the internal type.
+func ProtobufToRemoteAgentRegistration(in *pb.RegisterRemoteAgentRequest) *remoteagent.RegistrationData {
+	return &remoteagent.RegistrationData{
+		ID:          in.Id,
+		DisplayName: in.DisplayName,
+		APIEndpoint: in.ApiEndpoint,
+		AuthToken:   in.AuthToken,
 	}
-	return out
 }
 
-func ProtobufToStatusData(in *pb.StatusData) *remoteagent.StatusData {
-	out := &remoteagent.StatusData{
-		AgentId:       in.AgentId,
-		MainSection:   protobufToStatusSection(in.MainSection),
-		NamedSections: protobufToNamedSections(in.NamedSections),
+// ProtobufToFlareData converts the protobuf representation of flare data to the internal type.
+func ProtobufToFlareData(agentID string, resp *pb.GetFlareFilesResponse) *remoteagent.FlareData {
+	return &remoteagent.FlareData{
+		AgentID: agentID,
+		Files:   resp.Files,
 	}
-	return out
+}
+
+// ProtobufToStatusData converts the protobuf representation of status data to the internal type.
+func ProtobufToStatusData(agentID string, displayName string, resp *pb.GetStatusDetailsResponse) *remoteagent.StatusData {
+	return &remoteagent.StatusData{
+		AgentID:       agentID,
+		DisplayName:   displayName,
+		MainSection:   protobufToStatusSection(resp.MainSection),
+		NamedSections: protobufToNamedSections(resp.NamedSections),
+	}
 }
 
 func protobufToStatusSection(statusSection *pb.StatusSection) remoteagent.StatusSection {

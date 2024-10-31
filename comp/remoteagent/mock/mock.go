@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a mock for remoteagent component.
-func Mock(t *testing.T) remoteagent.Component {
+func Mock(_ *testing.T) remoteagent.Component {
 	// TODO: Implement the remoteagent mock
 	return nil
 }

@@ -239,6 +239,26 @@ func (mr *MockAgentSecureClientMockRecorder) GetConfigStateHA(ctx, in interface{
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConfigStateHA", reflect.TypeOf((*MockAgentSecureClient)(nil).GetConfigStateHA), varargs...)
 }
 
+// RegisterRemoteAgent mocks base method.
+func (m *MockAgentSecureClient) RegisterRemoteAgent(ctx context.Context, in *core.RegisterRemoteAgentRequest, opts ...grpc.CallOption) (*core.RegisterRemoteAgentResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "RegisterRemoteAgent", varargs...)
+	ret0, _ := ret[0].(*core.RegisterRemoteAgentResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RegisterRemoteAgent indicates an expected call of RegisterRemoteAgent.
+func (mr *MockAgentSecureClientMockRecorder) RegisterRemoteAgent(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterRemoteAgent", reflect.TypeOf((*MockAgentSecureClient)(nil).RegisterRemoteAgent), varargs...)
+}
+
 // TaggerFetchEntity mocks base method.
 func (m *MockAgentSecureClient) TaggerFetchEntity(ctx context.Context, in *core.FetchEntityRequest, opts ...grpc.CallOption) (*core.FetchEntityResponse, error) {
 	m.ctrl.T.Helper()
@@ -277,26 +297,6 @@ func (mr *MockAgentSecureClientMockRecorder) TaggerStreamEntities(ctx, in interf
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{ctx, in}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaggerStreamEntities", reflect.TypeOf((*MockAgentSecureClient)(nil).TaggerStreamEntities), varargs...)
-}
-
-// UpdateRemoteAgent mocks base method.
-func (m *MockAgentSecureClient) UpdateRemoteAgent(ctx context.Context, opts ...grpc.CallOption) (core.AgentSecure_UpdateRemoteAgentClient, error) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx}
-	for _, a := range opts {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "UpdateRemoteAgent", varargs...)
-	ret0, _ := ret[0].(core.AgentSecure_UpdateRemoteAgentClient)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateRemoteAgent indicates an expected call of UpdateRemoteAgent.
-func (mr *MockAgentSecureClientMockRecorder) UpdateRemoteAgent(ctx interface{}, opts ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRemoteAgent", reflect.TypeOf((*MockAgentSecureClient)(nil).UpdateRemoteAgent), varargs...)
 }
 
 // WorkloadmetaStreamEntities mocks base method.
@@ -565,143 +565,6 @@ func (mr *MockAgentSecure_WorkloadmetaStreamEntitiesClientMockRecorder) Trailer(
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Trailer", reflect.TypeOf((*MockAgentSecure_WorkloadmetaStreamEntitiesClient)(nil).Trailer))
 }
 
-// MockAgentSecure_UpdateRemoteAgentClient is a mock of AgentSecure_UpdateRemoteAgentClient interface.
-type MockAgentSecure_UpdateRemoteAgentClient struct {
-	ctrl     *gomock.Controller
-	recorder *MockAgentSecure_UpdateRemoteAgentClientMockRecorder
-}
-
-// MockAgentSecure_UpdateRemoteAgentClientMockRecorder is the mock recorder for MockAgentSecure_UpdateRemoteAgentClient.
-type MockAgentSecure_UpdateRemoteAgentClientMockRecorder struct {
-	mock *MockAgentSecure_UpdateRemoteAgentClient
-}
-
-// NewMockAgentSecure_UpdateRemoteAgentClient creates a new mock instance.
-func NewMockAgentSecure_UpdateRemoteAgentClient(ctrl *gomock.Controller) *MockAgentSecure_UpdateRemoteAgentClient {
-	mock := &MockAgentSecure_UpdateRemoteAgentClient{ctrl: ctrl}
-	mock.recorder = &MockAgentSecure_UpdateRemoteAgentClientMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockAgentSecure_UpdateRemoteAgentClient) EXPECT() *MockAgentSecure_UpdateRemoteAgentClientMockRecorder {
-	return m.recorder
-}
-
-// CloseSend mocks base method.
-func (m *MockAgentSecure_UpdateRemoteAgentClient) CloseSend() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CloseSend")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CloseSend indicates an expected call of CloseSend.
-func (mr *MockAgentSecure_UpdateRemoteAgentClientMockRecorder) CloseSend() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseSend", reflect.TypeOf((*MockAgentSecure_UpdateRemoteAgentClient)(nil).CloseSend))
-}
-
-// Context mocks base method.
-func (m *MockAgentSecure_UpdateRemoteAgentClient) Context() context.Context {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Context")
-	ret0, _ := ret[0].(context.Context)
-	return ret0
-}
-
-// Context indicates an expected call of Context.
-func (mr *MockAgentSecure_UpdateRemoteAgentClientMockRecorder) Context() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockAgentSecure_UpdateRemoteAgentClient)(nil).Context))
-}
-
-// Header mocks base method.
-func (m *MockAgentSecure_UpdateRemoteAgentClient) Header() (metadata.MD, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Header")
-	ret0, _ := ret[0].(metadata.MD)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Header indicates an expected call of Header.
-func (mr *MockAgentSecure_UpdateRemoteAgentClientMockRecorder) Header() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Header", reflect.TypeOf((*MockAgentSecure_UpdateRemoteAgentClient)(nil).Header))
-}
-
-// Recv mocks base method.
-func (m *MockAgentSecure_UpdateRemoteAgentClient) Recv() (*core.UpdateRemoteAgentStreamResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Recv")
-	ret0, _ := ret[0].(*core.UpdateRemoteAgentStreamResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Recv indicates an expected call of Recv.
-func (mr *MockAgentSecure_UpdateRemoteAgentClientMockRecorder) Recv() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Recv", reflect.TypeOf((*MockAgentSecure_UpdateRemoteAgentClient)(nil).Recv))
-}
-
-// RecvMsg mocks base method.
-func (m_2 *MockAgentSecure_UpdateRemoteAgentClient) RecvMsg(m any) error {
-	m_2.ctrl.T.Helper()
-	ret := m_2.ctrl.Call(m_2, "RecvMsg", m)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// RecvMsg indicates an expected call of RecvMsg.
-func (mr *MockAgentSecure_UpdateRemoteAgentClientMockRecorder) RecvMsg(m interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecvMsg", reflect.TypeOf((*MockAgentSecure_UpdateRemoteAgentClient)(nil).RecvMsg), m)
-}
-
-// Send mocks base method.
-func (m *MockAgentSecure_UpdateRemoteAgentClient) Send(arg0 *core.UpdateRemoteAgentStreamRequest) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Send", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Send indicates an expected call of Send.
-func (mr *MockAgentSecure_UpdateRemoteAgentClientMockRecorder) Send(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockAgentSecure_UpdateRemoteAgentClient)(nil).Send), arg0)
-}
-
-// SendMsg mocks base method.
-func (m_2 *MockAgentSecure_UpdateRemoteAgentClient) SendMsg(m any) error {
-	m_2.ctrl.T.Helper()
-	ret := m_2.ctrl.Call(m_2, "SendMsg", m)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SendMsg indicates an expected call of SendMsg.
-func (mr *MockAgentSecure_UpdateRemoteAgentClientMockRecorder) SendMsg(m interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMsg", reflect.TypeOf((*MockAgentSecure_UpdateRemoteAgentClient)(nil).SendMsg), m)
-}
-
-// Trailer mocks base method.
-func (m *MockAgentSecure_UpdateRemoteAgentClient) Trailer() metadata.MD {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Trailer")
-	ret0, _ := ret[0].(metadata.MD)
-	return ret0
-}
-
-// Trailer indicates an expected call of Trailer.
-func (mr *MockAgentSecure_UpdateRemoteAgentClientMockRecorder) Trailer() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Trailer", reflect.TypeOf((*MockAgentSecure_UpdateRemoteAgentClient)(nil).Trailer))
-}
-
 // MockAgentSecureServer is a mock of AgentSecureServer interface.
 type MockAgentSecureServer struct {
 	ctrl     *gomock.Controller
@@ -815,6 +678,21 @@ func (mr *MockAgentSecureServerMockRecorder) GetConfigStateHA(arg0, arg1 interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConfigStateHA", reflect.TypeOf((*MockAgentSecureServer)(nil).GetConfigStateHA), arg0, arg1)
 }
 
+// RegisterRemoteAgent mocks base method.
+func (m *MockAgentSecureServer) RegisterRemoteAgent(arg0 context.Context, arg1 *core.RegisterRemoteAgentRequest) (*core.RegisterRemoteAgentResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RegisterRemoteAgent", arg0, arg1)
+	ret0, _ := ret[0].(*core.RegisterRemoteAgentResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RegisterRemoteAgent indicates an expected call of RegisterRemoteAgent.
+func (mr *MockAgentSecureServerMockRecorder) RegisterRemoteAgent(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterRemoteAgent", reflect.TypeOf((*MockAgentSecureServer)(nil).RegisterRemoteAgent), arg0, arg1)
+}
+
 // TaggerFetchEntity mocks base method.
 func (m *MockAgentSecureServer) TaggerFetchEntity(arg0 context.Context, arg1 *core.FetchEntityRequest) (*core.FetchEntityResponse, error) {
 	m.ctrl.T.Helper()
@@ -842,20 +720,6 @@ func (m *MockAgentSecureServer) TaggerStreamEntities(arg0 *core.StreamTagsReques
 func (mr *MockAgentSecureServerMockRecorder) TaggerStreamEntities(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaggerStreamEntities", reflect.TypeOf((*MockAgentSecureServer)(nil).TaggerStreamEntities), arg0, arg1)
-}
-
-// UpdateRemoteAgent mocks base method.
-func (m *MockAgentSecureServer) UpdateRemoteAgent(arg0 core.AgentSecure_UpdateRemoteAgentServer) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateRemoteAgent", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdateRemoteAgent indicates an expected call of UpdateRemoteAgent.
-func (mr *MockAgentSecureServerMockRecorder) UpdateRemoteAgent(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRemoteAgent", reflect.TypeOf((*MockAgentSecureServer)(nil).UpdateRemoteAgent), arg0)
 }
 
 // WorkloadmetaStreamEntities mocks base method.
@@ -1110,136 +974,118 @@ func (mr *MockAgentSecure_WorkloadmetaStreamEntitiesServerMockRecorder) SetTrail
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTrailer", reflect.TypeOf((*MockAgentSecure_WorkloadmetaStreamEntitiesServer)(nil).SetTrailer), arg0)
 }
 
-// MockAgentSecure_UpdateRemoteAgentServer is a mock of AgentSecure_UpdateRemoteAgentServer interface.
-type MockAgentSecure_UpdateRemoteAgentServer struct {
+// MockRemoteAgentClient is a mock of RemoteAgentClient interface.
+type MockRemoteAgentClient struct {
 	ctrl     *gomock.Controller
-	recorder *MockAgentSecure_UpdateRemoteAgentServerMockRecorder
+	recorder *MockRemoteAgentClientMockRecorder
 }
 
-// MockAgentSecure_UpdateRemoteAgentServerMockRecorder is the mock recorder for MockAgentSecure_UpdateRemoteAgentServer.
-type MockAgentSecure_UpdateRemoteAgentServerMockRecorder struct {
-	mock *MockAgentSecure_UpdateRemoteAgentServer
+// MockRemoteAgentClientMockRecorder is the mock recorder for MockRemoteAgentClient.
+type MockRemoteAgentClientMockRecorder struct {
+	mock *MockRemoteAgentClient
 }
 
-// NewMockAgentSecure_UpdateRemoteAgentServer creates a new mock instance.
-func NewMockAgentSecure_UpdateRemoteAgentServer(ctrl *gomock.Controller) *MockAgentSecure_UpdateRemoteAgentServer {
-	mock := &MockAgentSecure_UpdateRemoteAgentServer{ctrl: ctrl}
-	mock.recorder = &MockAgentSecure_UpdateRemoteAgentServerMockRecorder{mock}
+// NewMockRemoteAgentClient creates a new mock instance.
+func NewMockRemoteAgentClient(ctrl *gomock.Controller) *MockRemoteAgentClient {
+	mock := &MockRemoteAgentClient{ctrl: ctrl}
+	mock.recorder = &MockRemoteAgentClientMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockAgentSecure_UpdateRemoteAgentServer) EXPECT() *MockAgentSecure_UpdateRemoteAgentServerMockRecorder {
+func (m *MockRemoteAgentClient) EXPECT() *MockRemoteAgentClientMockRecorder {
 	return m.recorder
 }
 
-// Context mocks base method.
-func (m *MockAgentSecure_UpdateRemoteAgentServer) Context() context.Context {
+// GetFlareFiles mocks base method.
+func (m *MockRemoteAgentClient) GetFlareFiles(ctx context.Context, in *core.GetFlareFilesRequest, opts ...grpc.CallOption) (*core.GetFlareFilesResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Context")
-	ret0, _ := ret[0].(context.Context)
-	return ret0
-}
-
-// Context indicates an expected call of Context.
-func (mr *MockAgentSecure_UpdateRemoteAgentServerMockRecorder) Context() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockAgentSecure_UpdateRemoteAgentServer)(nil).Context))
-}
-
-// Recv mocks base method.
-func (m *MockAgentSecure_UpdateRemoteAgentServer) Recv() (*core.UpdateRemoteAgentStreamRequest, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Recv")
-	ret0, _ := ret[0].(*core.UpdateRemoteAgentStreamRequest)
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetFlareFiles", varargs...)
+	ret0, _ := ret[0].(*core.GetFlareFilesResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Recv indicates an expected call of Recv.
-func (mr *MockAgentSecure_UpdateRemoteAgentServerMockRecorder) Recv() *gomock.Call {
+// GetFlareFiles indicates an expected call of GetFlareFiles.
+func (mr *MockRemoteAgentClientMockRecorder) GetFlareFiles(ctx, in interface{}, opts ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Recv", reflect.TypeOf((*MockAgentSecure_UpdateRemoteAgentServer)(nil).Recv))
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFlareFiles", reflect.TypeOf((*MockRemoteAgentClient)(nil).GetFlareFiles), varargs...)
 }
 
-// RecvMsg mocks base method.
-func (m_2 *MockAgentSecure_UpdateRemoteAgentServer) RecvMsg(m any) error {
-	m_2.ctrl.T.Helper()
-	ret := m_2.ctrl.Call(m_2, "RecvMsg", m)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// RecvMsg indicates an expected call of RecvMsg.
-func (mr *MockAgentSecure_UpdateRemoteAgentServerMockRecorder) RecvMsg(m interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecvMsg", reflect.TypeOf((*MockAgentSecure_UpdateRemoteAgentServer)(nil).RecvMsg), m)
-}
-
-// Send mocks base method.
-func (m *MockAgentSecure_UpdateRemoteAgentServer) Send(arg0 *core.UpdateRemoteAgentStreamResponse) error {
+// GetStatusDetails mocks base method.
+func (m *MockRemoteAgentClient) GetStatusDetails(ctx context.Context, in *core.GetStatusDetailsRequest, opts ...grpc.CallOption) (*core.GetStatusDetailsResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Send", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetStatusDetails", varargs...)
+	ret0, _ := ret[0].(*core.GetStatusDetailsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// Send indicates an expected call of Send.
-func (mr *MockAgentSecure_UpdateRemoteAgentServerMockRecorder) Send(arg0 interface{}) *gomock.Call {
+// GetStatusDetails indicates an expected call of GetStatusDetails.
+func (mr *MockRemoteAgentClientMockRecorder) GetStatusDetails(ctx, in interface{}, opts ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockAgentSecure_UpdateRemoteAgentServer)(nil).Send), arg0)
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStatusDetails", reflect.TypeOf((*MockRemoteAgentClient)(nil).GetStatusDetails), varargs...)
 }
 
-// SendHeader mocks base method.
-func (m *MockAgentSecure_UpdateRemoteAgentServer) SendHeader(arg0 metadata.MD) error {
+// MockRemoteAgentServer is a mock of RemoteAgentServer interface.
+type MockRemoteAgentServer struct {
+	ctrl     *gomock.Controller
+	recorder *MockRemoteAgentServerMockRecorder
+}
+
+// MockRemoteAgentServerMockRecorder is the mock recorder for MockRemoteAgentServer.
+type MockRemoteAgentServerMockRecorder struct {
+	mock *MockRemoteAgentServer
+}
+
+// NewMockRemoteAgentServer creates a new mock instance.
+func NewMockRemoteAgentServer(ctrl *gomock.Controller) *MockRemoteAgentServer {
+	mock := &MockRemoteAgentServer{ctrl: ctrl}
+	mock.recorder = &MockRemoteAgentServerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockRemoteAgentServer) EXPECT() *MockRemoteAgentServerMockRecorder {
+	return m.recorder
+}
+
+// GetFlareFiles mocks base method.
+func (m *MockRemoteAgentServer) GetFlareFiles(arg0 context.Context, arg1 *core.GetFlareFilesRequest) (*core.GetFlareFilesResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SendHeader", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "GetFlareFiles", arg0, arg1)
+	ret0, _ := ret[0].(*core.GetFlareFilesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// SendHeader indicates an expected call of SendHeader.
-func (mr *MockAgentSecure_UpdateRemoteAgentServerMockRecorder) SendHeader(arg0 interface{}) *gomock.Call {
+// GetFlareFiles indicates an expected call of GetFlareFiles.
+func (mr *MockRemoteAgentServerMockRecorder) GetFlareFiles(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendHeader", reflect.TypeOf((*MockAgentSecure_UpdateRemoteAgentServer)(nil).SendHeader), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFlareFiles", reflect.TypeOf((*MockRemoteAgentServer)(nil).GetFlareFiles), arg0, arg1)
 }
 
-// SendMsg mocks base method.
-func (m_2 *MockAgentSecure_UpdateRemoteAgentServer) SendMsg(m any) error {
-	m_2.ctrl.T.Helper()
-	ret := m_2.ctrl.Call(m_2, "SendMsg", m)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SendMsg indicates an expected call of SendMsg.
-func (mr *MockAgentSecure_UpdateRemoteAgentServerMockRecorder) SendMsg(m interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMsg", reflect.TypeOf((*MockAgentSecure_UpdateRemoteAgentServer)(nil).SendMsg), m)
-}
-
-// SetHeader mocks base method.
-func (m *MockAgentSecure_UpdateRemoteAgentServer) SetHeader(arg0 metadata.MD) error {
+// GetStatusDetails mocks base method.
+func (m *MockRemoteAgentServer) GetStatusDetails(arg0 context.Context, arg1 *core.GetStatusDetailsRequest) (*core.GetStatusDetailsResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetHeader", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "GetStatusDetails", arg0, arg1)
+	ret0, _ := ret[0].(*core.GetStatusDetailsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// SetHeader indicates an expected call of SetHeader.
-func (mr *MockAgentSecure_UpdateRemoteAgentServerMockRecorder) SetHeader(arg0 interface{}) *gomock.Call {
+// GetStatusDetails indicates an expected call of GetStatusDetails.
+func (mr *MockRemoteAgentServerMockRecorder) GetStatusDetails(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHeader", reflect.TypeOf((*MockAgentSecure_UpdateRemoteAgentServer)(nil).SetHeader), arg0)
-}
-
-// SetTrailer mocks base method.
-func (m *MockAgentSecure_UpdateRemoteAgentServer) SetTrailer(arg0 metadata.MD) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetTrailer", arg0)
-}
-
-// SetTrailer indicates an expected call of SetTrailer.
-func (mr *MockAgentSecure_UpdateRemoteAgentServerMockRecorder) SetTrailer(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTrailer", reflect.TypeOf((*MockAgentSecure_UpdateRemoteAgentServer)(nil).SetTrailer), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStatusDetails", reflect.TypeOf((*MockRemoteAgentServer)(nil).GetStatusDetails), arg0, arg1)
 }

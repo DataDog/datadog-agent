@@ -1,40 +1,27 @@
 package remoteagent
 
-import "context"
-
-type StatusRequests <-chan *Request[*StatusData]
-type FlareRequests <-chan *Request[*FlareData]
-
-type Request[T any] struct {
-	context context.Context
-	dataOut chan<- T
-}
-
-func NewRequest[T any](context context.Context, dataOut chan<- T) *Request[T] {
-	return &Request[T]{
-		context: context,
-		dataOut: dataOut,
-	}
-}
-
-func (r *Request[T]) Context() context.Context {
-	return r.context
-}
-
-func (r *Request[T]) Fulfill(data T) {
-	r.dataOut <- data
-}
-
+// StatusSection is a map of key-value pairs that represent a section of the status data
 type StatusSection map[string]string
 
+// StatusData contains the status data for a remote agent
 type StatusData struct {
-	AgentId       string
+	AgentID       string
+	DisplayName   string
 	FailureReason string
 	MainSection   StatusSection
 	NamedSections map[string]StatusSection
 }
 
+// FlareData contains the flare data for a remote agent
 type FlareData struct {
-	AgentId string
+	AgentID string
 	Files   map[string][]byte
+}
+
+// RegistrationData contains the registration information for a remote agent
+type RegistrationData struct {
+	ID          string
+	DisplayName string
+	APIEndpoint string
+	AuthToken   string
 }

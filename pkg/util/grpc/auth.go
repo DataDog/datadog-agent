@@ -7,9 +7,11 @@ package grpc
 
 import (
 	"context"
+	"fmt"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 
 	grpccontext "github.com/DataDog/datadog-agent/pkg/util/grpc/context"
@@ -36,4 +38,25 @@ func AuthInterceptor(verifier verifierFunc) grpc_auth.AuthFunc {
 
 		return context.WithValue(ctx, grpccontext.ContextKeyTokenInfoID, tokenInfo), nil
 	}
+}
+
+type bearerTokenAuth struct {
+	token string
+}
+
+func (b bearerTokenAuth) GetRequestMetadata(_ context.Context, _ ...string) (map[string]string, error) {
+	return map[string]string{
+		"authorization": fmt.Sprintf("Bearer %s", b.token),
+	}, nil
+}
+
+func (b bearerTokenAuth) RequireTransportSecurity() bool {
+	return true
+}
+
+// NewBearerTokenAuth creates a set of per-RPC credentials that uses a bearer token for authentication/authorization.
+//
+// This credentials implementation requires the connection to be secure (i.e. using TLS).
+func NewBearerTokenAuth(token string) credentials.PerRPCCredentials {
+	return bearerTokenAuth{token: token}
 }
