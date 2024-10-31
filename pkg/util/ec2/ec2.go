@@ -98,7 +98,7 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		hostname, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, UseIMDSv2(false, false))
 		if err != nil && pkgconfigsetup.Datadog().GetBool("ec2_imdsv2_transition_payload_enabled") {
-			log.Debugf("Failed to get instance ID from IMDSv2 - falling back on DMI: %s", err)
+			log.Debugf("Failed to get instance ID from IMDSv2 - falling back on DMI: %s", err.Error())
 			return getInstanceIDFromDMI()
 		}
 		return hostname, err
