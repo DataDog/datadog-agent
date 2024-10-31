@@ -13,6 +13,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -133,8 +134,8 @@ var (
 // * Fargate
 // * GCE
 // * Azure
-// * container (kube_apiserver, Docker, kubelet)
 // * FQDN
+// * container (kube_apiserver, Docker, kubelet)
 // * OS hostname
 // * EC2
 func getProviderCatalog(legacyHostnameResolution bool) []provider {
@@ -180,6 +181,11 @@ func GetWithProvider(ctx context.Context) (Data, error) {
 
 // GetWithProviderLegacyResolution returns the hostname for the Agent and the provider that was used to retrieve it without using IMDSv2 and MDI
 func GetWithProviderLegacyResolution(ctx context.Context) (Data, error) {
+	// If the user has set the ec2_prefer_imdsv2 then IMDSv2 is used by default by the user, `legacy_resolution_hostname` is not needed for the transition
+	// If the user has set the ec2_imdsv2_transition_payload_enabled then IMDSv2 is used by default by the agent, `legacy_resolution_hostname` is needed for the transition
+	if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || !pkgconfigsetup.Datadog().GetBool("ec2_imdsv2_transition_payload_enabled") {
+		return Data{}, nil
+	}
 	return getHostname(ctx, "legacy_resolution_hostname", true)
 }
 
