@@ -39,7 +39,7 @@ const (
 	volumeName = "datadog-auto-instrumentation"
 	mountPath  = "/datadog-lib"
 
-	minimumCpuLimit    float64 = 50                // 0.05 core, otherwise copying + library initialization is going to take forever
+	minimumCPULimit    float64 = 50                // 0.05 core, otherwise copying + library initialization is going to take forever
 	minimumMemoryLimit float64 = 100 * 1024 * 1024 // 100 MB (recommended minimum by Alpine)
 
 	webhookName = "lib_injection"
@@ -693,7 +693,7 @@ func initContainerResourceRequirements(pod *corev1.Pod, conf initResourceRequire
 		} else {
 			if maxPodLim, ok := podRequirements.Limits[k]; ok {
 				if (k == corev1.ResourceMemory && maxPodLim.AsApproximateFloat64() < minimumMemoryLimit) ||
-					(k == corev1.ResourceCPU && maxPodLim.AsApproximateFloat64() < minimumCpuLimit) {
+					(k == corev1.ResourceCPU && maxPodLim.AsApproximateFloat64() < minimumCPULimit) {
 					// If the pod before adding instrumentation init containers would have had a limits smaller than
 					// a certain amount, we just don't do anything, for two reasons:
 					// 1. The init containers need quite a lot of memory/CPU in order to not OOM or initialize in reasonnable time
