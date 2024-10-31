@@ -45,6 +45,10 @@ func GetInitialRole() string {
 	return pkgconfigsetup.Datadog().GetString("ha_agent.role")
 }
 
+func GetGroup() string {
+	return pkgconfigsetup.Datadog().GetString("ha_agent.group")
+}
+
 func GetRole() string {
 	return runtimeRole.Load()
 }
