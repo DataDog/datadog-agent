@@ -30,7 +30,7 @@ const (
 	// The size of the process events queue of netlink.
 	processMonitorEventQueueSize = 2048
 	// The size of the callbacks queue for pending tasks.
-	pendingCallbacksQueueSize = 1000
+	pendingCallbacksQueueSize = 5000
 )
 
 var (
@@ -131,7 +131,7 @@ type ProcessMonitor struct {
 }
 
 // ProcessCallback is a callback function that is called on a given pid that represents a new process.
-type ProcessCallback func(pid uint32)
+type ProcessCallback = func(pid uint32)
 
 // GetProcessMonitor create a monitor (only once) that register to netlink process events.
 //
@@ -526,13 +526,13 @@ type EventConsumer struct{}
 // NewProcessMonitorEventConsumer returns a new process monitor event consumer
 func NewProcessMonitorEventConsumer(em *eventmonitor.EventMonitor) (*EventConsumer, error) {
 	consumer := &EventConsumer{}
-	err := em.AddEventConsumer(consumer)
+	err := em.AddEventConsumerHandler(consumer)
 	return consumer, err
 }
 
 // ChanSize returns the channel size used by this consumer
 func (ec *EventConsumer) ChanSize() int {
-	return 100
+	return 500
 }
 
 // ID returns the ID of this consumer

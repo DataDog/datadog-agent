@@ -23,7 +23,9 @@ import (
 	"github.com/golang/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	taggerproto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -62,17 +64,19 @@ type TrafficCaptureWriter struct {
 	oobPacketPoolManager    *packets.PoolManager[[]byte]
 
 	taggerState map[int32]string
+	tagger      tagger.Component
 
 	// Synchronizes access to ongoing, accepting and closing of Traffic
 	sync.RWMutex
 }
 
 // NewTrafficCaptureWriter creates a TrafficCaptureWriter instance.
-func NewTrafficCaptureWriter(depth int) *TrafficCaptureWriter {
+func NewTrafficCaptureWriter(depth int, tagger tagger.Component) *TrafficCaptureWriter {
 
 	return &TrafficCaptureWriter{
 		Traffic:     make(chan *replay.CaptureBuffer, depth),
 		taggerState: make(map[int32]string),
+		tagger:      tagger,
 	}
 }
 
@@ -312,14 +316,21 @@ func (tc *TrafficCaptureWriter) writeState() (int, error) {
 	}
 
 	// iterate entities
-	for _, id := range tc.taggerState {
-		entity, err := tagger.GetEntity(id)
+	for _, entityIDStr := range tc.taggerState {
+		prefix, id, err := common.ExtractPrefixAndID(entityIDStr)
+		if err != nil {
+			log.Warnf("Invalid entity id: %q", id)
+			continue
+		}
+
+		entityID := types.NewEntityID(prefix, id)
+		entity, err := tc.tagger.GetEntity(entityID)
 		if err != nil {
 			log.Warnf("There was no entity for container id: %v present in the tagger", entity)
 			continue
 		}
 
-		entityID, err := taggerproto.Tagger2PbEntityID(entity.ID)
+		pbEntityID, err := taggerproto.Tagger2PbEntityID(entity.ID)
 		if err != nil {
 			log.Warnf("unable to compute valid EntityID for %v", id)
 			continue
@@ -327,7 +338,7 @@ func (tc *TrafficCaptureWriter) writeState() (int, error) {
 
 		entry := pb.Entity{
 			// TODO: Hash:               entity.Hash,
-			Id:                          entityID,
+			Id:                          pbEntityID,
 			HighCardinalityTags:         entity.HighCardinalityTags,
 			OrchestratorCardinalityTags: entity.OrchestratorCardinalityTags,
 			LowCardinalityTags:          entity.LowCardinalityTags,

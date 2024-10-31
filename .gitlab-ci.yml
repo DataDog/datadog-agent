@@ -172,15 +172,50 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v46542806-c7a4a6be
+  DATADOG_AGENT_BUILDIMAGES: v47046711-76471b8e
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v46542806-c7a4a6be
+  DATADOG_AGENT_WINBUILDIMAGES: v47046711-76471b8e
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v46542806-c7a4a6be
+  DATADOG_AGENT_ARMBUILDIMAGES: v47046711-76471b8e
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v46542806-c7a4a6be
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v47046711-76471b8e
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v46542806-c7a4a6be
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v47046711-76471b8e
+  # New images to enable different version per image - not used yet
+  CI_IMAGE_BTF_GEN: v47046711-76471b8e
+  CI_IMAGE_BTF_GEN_SUFFIX: ""
+  CI_IMAGE_DEB_X64: v47046711-76471b8e
+  CI_IMAGE_DEB_X64_SUFFIX: ""
+  CI_IMAGE_DEB_ARM64: v47046711-76471b8e
+  CI_IMAGE_DEB_ARM64_SUFFIX: ""
+  CI_IMAGE_DEB_ARMHF: v47046711-76471b8e
+  CI_IMAGE_DEB_ARMHF_SUFFIX: ""
+  CI_IMAGE_DD_AGENT_TESTING: v47046711-76471b8e
+  CI_IMAGE_DD_AGENT_TESTING_SUFFIX: ""
+  CI_IMAGE_DOCKER_X64: v47046711-76471b8e
+  CI_IMAGE_DOCKER_X64_SUFFIX: ""
+  CI_IMAGE_DOCKER_ARM64: v47046711-76471b8e
+  CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v47046711-76471b8e
+  CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
+  CI_IMAGE_LINUX_GLIBC_2_17_X64: v47046711-76471b8e
+  CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v47046711-76471b8e
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
+  CI_IMAGE_SYSTEM_PROBE_X64: v47046711-76471b8e
+  CI_IMAGE_SYSTEM_PROBE_X64_SUFFIX: ""
+  CI_IMAGE_SYSTEM_PROBE_ARM64: v47046711-76471b8e
+  CI_IMAGE_SYSTEM_PROBE_ARM64_SUFFIX: ""
+  CI_IMAGE_RPM_X64: v47046711-76471b8e
+  CI_IMAGE_RPM_X64_SUFFIX: ""
+  CI_IMAGE_RPM_ARM64: v47046711-76471b8e
+  CI_IMAGE_RPM_ARM64_SUFFIX: ""
+  CI_IMAGE_RPM_ARMHF: v47046711-76471b8e
+  CI_IMAGE_RPM_ARMHF_SUFFIX: ""
+  CI_IMAGE_WIN_1809_X64: v47046711-76471b8e
+  CI_IMAGE_WIN_1809_X64_SUFFIX: ""
+  CI_IMAGE_WIN_LTSC2022_X64: v47046711-76471b8e
+  CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: c0962c7d
@@ -706,10 +741,6 @@ workflow:
   - pkg/ebpf/**/*
   - pkg/security/**/*
   - pkg/eventmonitor/**/*
-  - test/kitchen/site-cookbooks/dd-security-agent-check/**/*
-  - test/kitchen/test/integration/security-agent-test/**/*
-  - test/kitchen/test/integration/security-agent-stress/**/*
-  - .gitlab/functional_test/security_agent.yml
   - .gitlab/kernel_matrix_testing/security_agent.yml
   - .gitlab/kernel_matrix_testing/common.yml
   - .gitlab/source_test/ebpf.yml
@@ -1007,7 +1038,11 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - cmd/otel-agent/**/*
         - comp/otelcol/**/*
+        - pkg/trace/api/otlp.go
+        - pkg/trace/stats/otel_util.go
+        - pkg/trace/transform/transform.go
         - test/new-e2e/tests/otel/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success

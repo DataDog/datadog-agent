@@ -152,6 +152,7 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components"
+	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
@@ -184,13 +185,16 @@ var _ Suite[any] = &BaseSuite[any]{}
 type BaseSuite[Env any] struct {
 	suite.Suite
 
-	env    *Env
-	params suiteParams
+	env           *Env
+	datadogClient *datadog.Client
+	params        suiteParams
 
 	originalProvisioners ProvisionerMap
 	currentProvisioners  ProvisionerMap
 
 	firstFailTest string
+	startTime     time.Time
+	endTime       time.Time
 	initOnly      bool
 
 	testSessionOutputDir     string
@@ -227,6 +231,21 @@ func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...Provisioner) {
 // WARNING: IsDevMode should not be used. It's a recipe to get tests working locally but failing in CI.
 func (bs *BaseSuite[Env]) IsDevMode() bool {
 	return bs.params.devMode
+}
+
+// StartTime returns the time when test suite started
+func (bs *BaseSuite[Env]) StartTime() time.Time {
+	return bs.startTime
+}
+
+// EndTime returns the time when test suite ended
+func (bs *BaseSuite[Env]) EndTime() time.Time {
+	return bs.endTime
+}
+
+// DatadogClient returns a Datadog client that can be used to send telemtry info to dddev during e2e tests
+func (bs *BaseSuite[Env]) DatadogClient() *datadog.Client {
+	return bs.datadogClient
 }
 
 func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
@@ -461,6 +480,7 @@ func (bs *BaseSuite[Env]) providerContext(opTimeout time.Duration) (context.Cont
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) SetupSuite() {
+	bs.startTime = time.Now()
 	// In `SetupSuite` we cannot fail as `TearDownSuite` will not be called otherwise.
 	// Meaning that stack clean up may not be called.
 	// We do implement an explicit recover to handle this manuallay.
@@ -478,6 +498,13 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 		// once again, stop the execution of the test suite.
 		panic(fmt.Errorf("Forward panic in SetupSuite after TearDownSuite, err was: %v", err))
 	}()
+
+	// Setup Datadog Client to be used to send telemetry when writing e2e tests
+	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
+	bs.Require().NoError(err)
+	appKey, err := runner.GetProfile().SecretStore().Get(parameters.APPKey)
+	bs.Require().NoError(err)
+	bs.datadogClient = datadog.NewClient(apiKey, appKey)
 
 	if err := bs.reconcileEnv(bs.originalProvisioners); err != nil {
 		// `panic()` is required to stop the execution of the test suite. Otherwise `testify.Suite` will keep on running suite tests.
@@ -529,6 +556,8 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) TearDownSuite() {
+	bs.endTime = time.Now()
+
 	if bs.params.devMode {
 		return
 	}
@@ -548,6 +577,21 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	defer cancel()
 
 	for id, provisioner := range bs.originalProvisioners {
+		// Run provisioner Diagnose before tearing down the stack
+		if diagnosableProvisioner, ok := provisioner.(Diagnosable); ok {
+			stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
+			if err != nil {
+				bs.T().Logf("unable to get stack name for diagnose, err: %v", err)
+			} else {
+				diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
+				if diagnoseErr != nil {
+					bs.T().Logf("WARNING: Diagnose failed: %v", diagnoseErr)
+				} else if diagnoseResult != "" {
+					bs.T().Logf("Diagnose result: %s", diagnoseResult)
+				}
+			}
+		}
+
 		if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
 			bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 		}

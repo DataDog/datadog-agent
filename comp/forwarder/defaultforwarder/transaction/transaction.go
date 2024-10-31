@@ -204,6 +204,8 @@ const (
 	PrimaryOnly
 	// SecondaryOnly indicates the transaction should be sent to the secondary region during MRF
 	SecondaryOnly
+	// LocalOnly indicates the transaction should be sent to the local endpoint (cluster-agent) only
+	LocalOnly
 )
 
 func (d Destination) String() string {
@@ -214,6 +216,8 @@ func (d Destination) String() string {
 		return "PrimaryOnly"
 	case SecondaryOnly:
 		return "SecondaryOnly"
+	case LocalOnly:
+		return "LocalOnly"
 	default:
 		return "Unknown"
 	}

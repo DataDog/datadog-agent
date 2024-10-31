@@ -61,3 +61,23 @@ func TestQuantizePeerIpAddresses(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkSplitPrefix(b *testing.B) {
+	b.Run("matching", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			prefix, after := splitPrefix("dnspoll:///abc.cluster.local:50051")
+			if prefix != "dnspoll:///" || after != "abc.cluster.local:50051" {
+				b.Error("unexpected result")
+			}
+		}
+	})
+
+	b.Run("not matching", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			prefix, after := splitPrefix("2001:db8:3333:4444:CCCC:DDDD:EEEE:FFFF")
+			if prefix != "" || after != "2001:db8:3333:4444:CCCC:DDDD:EEEE:FFFF" {
+				b.Error("unexpected result")
+			}
+		}
+	})
+}

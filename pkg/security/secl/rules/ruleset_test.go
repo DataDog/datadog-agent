@@ -1067,7 +1067,7 @@ func TestGetRuleEventType(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		rule := eval.NewRule("aaa", `open.file.name == "test"`, &eval.Opts{})
 
-		pc := ast.NewParsingContext()
+		pc := ast.NewParsingContext(false)
 
 		if err := rule.GenEvaluator(&model.Model{}, pc); err != nil {
 			t.Fatal(err)
@@ -1092,7 +1092,7 @@ func TestGetRuleEventType(t *testing.T) {
 	t.Run("ko", func(t *testing.T) {
 		rule := eval.NewRule("aaa", `open.file.name == "test" && unlink.file.name == "123"`, &eval.Opts{})
 
-		pc := ast.NewParsingContext()
+		pc := ast.NewParsingContext(false)
 
 		if err := rule.GenEvaluator(&model.Model{}, pc); err == nil {
 			t.Fatalf("shouldn't get an evaluator, multiple event types: %s", err)

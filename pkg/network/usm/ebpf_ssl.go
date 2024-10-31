@@ -592,6 +592,10 @@ func isBuildKit(procRoot string, pid uint32) bool {
 			}
 		}
 	}
+	if err != nil {
+		return false
+	}
+	defer file.Close()
 
 	buf := taskCommLenBufferPool.Get()
 	defer taskCommLenBufferPool.Put(buf)
@@ -606,9 +610,9 @@ func isBuildKit(procRoot string, pid uint32) bool {
 func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelector) func(utils.FilePath) error {
 	return func(fpath utils.FilePath) error {
 		if isBuildKit(procRoot, fpath.PID) {
-			return fmt.Errorf("process %d is buildkitd, skipping", fpath.PID)
+			return fmt.Errorf("%w: process %d is buildkitd, skipping", utils.ErrEnvironment, fpath.PID)
 		} else if isContainerdTmpMount(fpath.HostPath) {
-			return fmt.Errorf("path %s from process %d is tempmount of containerd, skipping", fpath.HostPath, fpath.PID)
+			return fmt.Errorf("%w: path %s from process %d is tempmount of containerd, skipping", utils.ErrEnvironment, fpath.HostPath, fpath.PID)
 		}
 
 		uid := getUID(fpath.ID)

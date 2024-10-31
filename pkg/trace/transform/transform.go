@@ -8,16 +8,19 @@ package transform
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
-	"strconv"
-	"strings"
 )
 
 // OtelSpanToDDSpanMinimal otelSpanToDDSpan converts an OTel span to a DD span.
@@ -75,27 +78,20 @@ func OtelSpanToDDSpan(
 	otelspan ptrace.Span,
 	otelres pcommon.Resource,
 	lib pcommon.InstrumentationScope,
-	topLevelByKind bool,
 	conf *config.AgentConfig,
 	peerTagKeys []string,
 ) *pb.Span {
 	spanKind := otelspan.Kind()
-	isTopLevel := otelspan.ParentSpanID() == pcommon.NewSpanIDEmpty() || spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer
-
+	topLevelByKind := conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
+	isTopLevel := false
+	if topLevelByKind {
+		isTopLevel = otelspan.ParentSpanID() == pcommon.NewSpanIDEmpty() || spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer
+	}
 	ddspan := OtelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, peerTagKeys)
 
 	otelres.Attributes().Range(func(k string, v pcommon.Value) bool {
-		value := v.AsString()
-		if k == "analytics.event" {
-			if v, err := strconv.ParseBool(value); err == nil {
-				if v {
-					ddspan.Metrics[sampler.KeySamplingRateEventExtraction] = 1
-				} else {
-					ddspan.Metrics[sampler.KeySamplingRateEventExtraction] = 0
-				}
-			}
-		} else if k != "service.name" && k != "operation.name" && k != "resource.name" && k != "span.type" {
-			ddspan.Meta[k] = value
+		if k != "service.name" && k != "operation.name" && k != "resource.name" && k != "span.type" {
+			SetMetaOTLP(ddspan, k, v.AsString())
 		}
 		return true
 	})
@@ -105,6 +101,13 @@ func OtelSpanToDDSpan(
 	if _, ok := ddspan.Meta["version"]; !ok {
 		if serviceVersion, ok := otelres.Attributes().Get(semconv.AttributeServiceVersion); ok {
 			ddspan.Meta["version"] = serviceVersion.AsString()
+		}
+	}
+
+	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
+	if _, ok := ddspan.Meta["env"]; !ok {
+		if env := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment); env != "" {
+			ddspan.Meta["env"] = env
 		}
 	}
 
@@ -129,7 +132,7 @@ func OtelSpanToDDSpan(
 			// Exclude Datadog APM conventions.
 			// These are handled below explicitly.
 			if k != "http.method" && k != "http.status_code" {
-				ddspan.Meta[k] = value
+				SetMetaOTLP(ddspan, k, value)
 			}
 		}
 
@@ -198,9 +201,14 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 			if wrote {
 				str.WriteString(",")
 			}
-			str.WriteString(`"name":"`)
-			str.WriteString(v)
-			str.WriteString(`"`)
+			str.WriteString(`"name":`)
+			if name, err := json.Marshal(v); err == nil {
+				str.WriteString(string(name))
+			} else {
+				// still collect the event information, if possible
+				log.Errorf("Error parsing span event name %v, using name 'redacted' instead", name)
+				str.WriteString(`"redacted"`)
+			}
 			wrote = true
 		}
 		if e.Attributes().Len() > 0 {
@@ -210,14 +218,24 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 			str.WriteString(`"attributes":{`)
 			j := 0
 			e.Attributes().Range(func(k string, v pcommon.Value) bool {
-				if j > 0 {
-					str.WriteString(",")
+				// collect the attribute only if the key is json-parseable, else drop the attribute
+				if key, err := json.Marshal(k); err == nil {
+					if j > 0 {
+						str.WriteString(",")
+					}
+					str.WriteString(string(key))
+					str.WriteString(":")
+					if val, err := json.Marshal(v.AsRaw()); err == nil {
+						str.WriteString(string(val))
+					} else {
+						log.Warnf("Trouble parsing the following attribute value, dropping: %v", v.AsString())
+						str.WriteString(`"redacted"`)
+					}
+					j++
+				} else {
+					log.Errorf("Error parsing the following attribute key on span event %v, dropping attribute: %v", e.Name(), k)
+					e.SetDroppedAttributesCount(e.DroppedAttributesCount() + 1)
 				}
-				str.WriteString(`"`)
-				str.WriteString(k)
-				str.WriteString(`":"`)
-				str.WriteString(v.AsString())
-				str.WriteString(`"`)
 				j++
 				return true
 			})

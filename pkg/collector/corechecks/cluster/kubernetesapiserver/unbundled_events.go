@@ -104,10 +104,10 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 		)
 
 		var timestamp int64
-		if ev.FirstTimestamp.IsZero() {
+		if ev.LastTimestamp.IsZero() {
 			timestamp = int64(ev.EventTime.Unix())
 		} else {
-			timestamp = int64(ev.FirstTimestamp.Unix())
+			timestamp = int64(ev.LastTimestamp.Unix())
 		}
 
 		event := event.Event{
