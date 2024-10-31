@@ -50,18 +50,7 @@ type provider struct {
 	expvarName string
 }
 
-// providerCatalog holds all the various kinds of hostname providers
-//
-// The order if this list matters:
-// * Config (`hostname')
-// * Config (`hostname_file')
-// * Fargate
-// * GCE
-// * Azure
-// * container (kube_apiserver, Docker, kubelet)
-// * FQDN
-// * OS hostname
-// * EC2
+// List of hostname providers
 var (
 	configProvider = provider{
 		name:             configProviderName,
@@ -136,6 +125,18 @@ var (
 	}
 )
 
+// providerCatalog holds all the various kinds of hostname providers
+//
+// The order if this list matters:
+// * Config (`hostname')
+// * Config (`hostname_file')
+// * Fargate
+// * GCE
+// * Azure
+// * container (kube_apiserver, Docker, kubelet)
+// * FQDN
+// * OS hostname
+// * EC2
 func getProviderCatalog(legacyHostnameResolution bool) []provider {
 	providerCatalog := []provider{
 		configProvider,
