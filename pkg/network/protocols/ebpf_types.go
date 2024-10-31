@@ -102,5 +102,4 @@ const (
 	ebpfMySQL ebpfProtocolType = C.PROTOCOL_MYSQL
 	// GRPC protocol
 	ebpfGRPC ebpfProtocolType = C.PROTOCOL_GRPC
-	// todo: fix doc
 )
