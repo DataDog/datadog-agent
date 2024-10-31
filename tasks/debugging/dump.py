@@ -215,9 +215,7 @@ def get_debug_symbols(
     ca = get_crash_analyzer(platform=platform, arch=arch)
 
     if version:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            get_debug_symbols_for_version(version, ca.target_platform, ca.target_arch, tmp_dir)
-            syms = ca.symbol_store.add(version, ca.target_platform, ca.target_arch, tmp_dir)
+        syms = get_or_fetch_symbols_for_version(ca, version)
     elif job_id:
         ca.select_project(get_gitlab_repo())
         version, syms = get_symbols_for_job_id(ca, job_id)
@@ -289,6 +287,15 @@ def get_or_fetch_artifacts(artifact_store: ArtifactStore, project: Project, job_
     if not artifacts or not artifacts.get():
         artifacts = add_gitlab_job_artifacts_to_artifact_store(artifact_store, project, job_id)
     return artifacts
+
+
+def get_or_fetch_symbols_for_version(ca: CrashAnalyzer, version: str) -> Path:
+    syms = ca.symbol_store.get(version, ca.target_platform, ca.target_arch)
+    if not syms:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            get_debug_symbols_for_version(version, ca.target_platform, ca.target_arch, tmp_dir)
+            syms = ca.symbol_store.add(version, ca.target_platform, ca.target_arch, tmp_dir)
+    return syms
 
 
 def get_debug_symbols_for_version(version: str, platform: str, arch: str, output_dir: Path | str) -> None:
