@@ -66,6 +66,9 @@ type discovery struct {
 	// cache maps pids to data that should be cached between calls to the endpoint.
 	cache map[int32]*serviceInfo
 
+	// ignorePids processes to be excluded from discovery
+	ignorePids map[int32]bool
+
 	// privilegedDetector is used to detect the language of a process.
 	privilegedDetector privileged.LanguageDetector
 
@@ -85,6 +88,7 @@ func newDiscovery() *discovery {
 		config:             newConfig(),
 		mux:                &sync.RWMutex{},
 		cache:              make(map[int32]*serviceInfo),
+		ignorePids:         make(map[int32]bool, len(ignoreServices)),
 		privilegedDetector: privileged.NewLanguageDetector(),
 		scrubber:           procutil.NewDefaultDataScrubber(),
 	}
@@ -112,6 +116,7 @@ func (s *discovery) Close() {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	clear(s.cache)
+	clear(s.ignorePids)
 }
 
 // handleStatusEndpoint is the handler for the /status endpoint.
@@ -406,6 +411,9 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		return nil
 	}
 
+	if s.shouldIgnorePid(proc) {
+		return nil
+	}
 	if s.shouldIgnoreComm(proc) {
 		return nil
 	}
@@ -490,6 +498,9 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	name := info.ddServiceName
 	if name == "" {
 		name = info.generatedName
+	}
+	if s.shouldIgnoreService(name, proc) {
+		return nil
 	}
 
 	return &model.Service{
@@ -583,6 +594,7 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 	}
 
 	s.cleanCache(alivePids)
+	s.cleanIgnoredPids(alivePids)
 
 	if err = s.updateServicesCPUStats(services); err != nil {
 		return nil, err
