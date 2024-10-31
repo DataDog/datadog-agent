@@ -3108,13 +3108,13 @@ api_key:
 
       ## @param cpu - string - optional
       ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_RESOURCES_CPU - string - optional
-      ## Configures the CPU request for the init containers.
+      ## Configures the CPU request that will be applied for the init container's CPU request and limit.
       #
       # cpu:
 
       ## @param memory - string - optional
       ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_RESOURCES_MEMORY - string - optional
-      ## Configures the memory request for the init containers.
+      ## Configures the memory request that will be applied for the init container's memory request and limit.
       #
       # memory:
 
