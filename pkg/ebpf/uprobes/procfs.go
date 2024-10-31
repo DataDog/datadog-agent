@@ -17,7 +17,9 @@ import (
 	"time"
 )
 
-const procFSUpdateTimeout = 100 * time.Millisecond
+const numProcFSUpdateRetries = 10
+const procFSUpdateInterval = 1 * time.Millisecond
+const procFSUpdateTimeout = numProcFSUpdateRetries * procFSUpdateInterval
 
 // ProcInfo holds the information extracted from procfs, to avoid repeat calls to the filesystem.
 type ProcInfo struct {
@@ -50,7 +52,7 @@ func waitUntilSucceeds[T any](p *ProcInfo, procFile string, readFunc func(string
 	for err != nil && end.After(time.Now()) {
 		result, err = readFunc(filePath)
 		if err != nil {
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(procFSUpdateInterval)
 		}
 	}
 
