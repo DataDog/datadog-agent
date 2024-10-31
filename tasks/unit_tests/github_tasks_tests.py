@@ -214,6 +214,22 @@ Then I do that
 
 Pay attentions to this""",
             ),
+            TestExtractBodyCase(
+                name="Single line with special characters",
+                body="""### What does this PR do?
+
+### Motivation
+
+### Describe how to test/QA your changes
+
+Here is a test description with special characters: `~!@#$,%^&*()_-+={[]}|\\:;\"'<>.?/
+
+### Possible Drawbacks / Trade-offs
+
+### Additional Notes
+""",
+                expected="Here is a test description with special characters: `~!@#$,%^&*()_-+={[]}|\\:;\"'<>.?/",
+            ),
         ]
 
         for tc in testcases:
