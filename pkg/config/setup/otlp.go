@@ -67,28 +67,28 @@ func setupOTLPEnvironmentVariables(config pkgconfigmodel.Setup) {
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.max_concurrent_streams")
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.read_buffer_size")
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.write_buffer_size")
-	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.include_metadata")
+	config.BindEnvAndSetDefault(OTLPSection+".receiver.protocols.grpc.include_metadata", false)
 
 	// Traces settings
 	config.BindEnvAndSetDefault("otlp_config.traces.span_name_remappings", map[string]string{})
-	config.BindEnv("otlp_config.traces.span_name_as_resource_name")
+	config.BindEnvAndSetDefault("otlp_config.traces.span_name_as_resource_name", false)
 	config.BindEnvAndSetDefault("otlp_config.traces.probabilistic_sampler.sampling_percentage", 100.,
 		"DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
 
 	// HTTP settings
 	config.BindEnv(OTLPSection + ".receiver.protocols.http.endpoint")
 	config.BindEnv(OTLPSection + ".receiver.protocols.http.max_request_body_size")
-	config.BindEnv(OTLPSection + ".receiver.protocols.http.include_metadata")
+	config.BindEnvAndSetDefault(OTLPSection+".receiver.protocols.http.include_metadata", false)
 
 	// Metrics settings
 	config.BindEnv(OTLPSection + ".metrics.delta_ttl")
-	config.BindEnv(OTLPSection + ".metrics.resource_attributes_as_tags")
-	config.BindEnv(OTLPSection + ".metrics.instrumentation_library_metadata_as_tags")
-	config.BindEnv(OTLPSection + ".metrics.instrumentation_scope_metadata_as_tags")
+	config.BindEnvAndSetDefault(OTLPSection+".metrics.resource_attributes_as_tags", false)
+	config.BindEnvAndSetDefault(OTLPSection+".metrics.instrumentation_library_metadata_as_tags", false)
+	config.BindEnvAndSetDefault(OTLPSection+".metrics.instrumentation_scope_metadata_as_tags", false)
 	config.BindEnv(OTLPSection + ".metrics.tag_cardinality")
 	config.BindEnv(OTLPSection + ".metrics.histograms.mode")
-	config.BindEnv(OTLPSection + ".metrics.histograms.send_count_sum_metrics")
-	config.BindEnv(OTLPSection + ".metrics.histograms.send_aggregation_metrics")
+	config.BindEnvAndSetDefault(OTLPSection+".metrics.histograms.send_count_sum_metrics", false)
+	config.BindEnvAndSetDefault(OTLPSection+".metrics.histograms.send_aggregation_metrics", false)
 	config.BindEnv(OTLPSection + ".metrics.sums.cumulative_monotonic_mode")
 	config.BindEnv(OTLPSection + ".metrics.sums.initial_cumulative_monotonic_value")
 	config.BindEnv(OTLPSection + ".metrics.summaries.mode")
