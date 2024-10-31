@@ -80,7 +80,9 @@ const (
 	// MaxOnDemandEventsPerSecond represents the maximum number of on demand events per second
 	// allowed before we switch off the subsystem
 	MaxOnDemandEventsPerSecond = 1_000
+)
 
+const (
 	playSnapShotState int32 = iota + 1
 	replaySnapShotState
 )
@@ -1698,7 +1700,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	}
 
 	// replay the snapshot
-	p.playSnapShotState.Store(replaySnapShotState)
+	p.playSnapShotState.CompareAndSwap(0, replaySnapShotState)
 
 	return ars, nil
 }
