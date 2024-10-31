@@ -99,6 +99,7 @@ class CrashAnalyzerCli:
 
 
 def get_crash_analyzer(platform=None, arch=None):
+    # TODO: configuration file would be nice
     env = Path.home() / '.agent-crash-analyzer'
     ca = CrashAnalyzer(env=env, platform=platform, arch=arch)
     print(f"Using environment: {ca.env}")
@@ -245,6 +246,7 @@ def get_symbols_for_job_id(ca: CrashAnalyzer, job_id: str) -> tuple[str | None, 
         if syms:
             return artifact.version, syms
     # Need to get the symbols from the package build job in the pipeline
+    # TODO: Linux platforms could get symbols from the testing repos
     package_job_id = get_package_job_id(ca.active_project, job_id, ca.target_platform, ca.target_arch)
     if not package_job_id:
         raise Exception(f"Could not find package job for job {job_id}")
@@ -465,6 +467,7 @@ def get_package_job_id(project: Project, job_id: str, platform: str, arch: str) 
     else:
         raise NotImplementedError(f"Unsupported platform {platform}")
 
+    # TODO: there may be a name lookup option soon https://gitlab.com/gitlab-org/gitlab/-/issues/22027
     job = project.jobs.get(job_id)
     pipeline_id = str(job.pipeline["id"])
     pipeline = project.pipelines.get(pipeline_id)
