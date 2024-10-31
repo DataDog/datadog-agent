@@ -27,6 +27,7 @@ func (m *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("chdir"),
 		eval.EventType("chmod"),
 		eval.EventType("chown"),
+		eval.EventType("connect"),
 		eval.EventType("dns"),
 		eval.EventType("exec"),
 		eval.EventType("exit"),
@@ -939,6 +940,96 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "connect.addr.family":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Connect.AddrFamily)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "connect.addr.ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
+				ev := ctx.Event.(*Event)
+				return ev.Connect.Addr.IPNet
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "connect.addr.port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Connect.Addr.Port)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "connect.protocol":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Connect.Protocol)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "connect.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Connect.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "connect.server.addr.family":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Connect.AddrFamily)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "connect.server.addr.ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
+				ev := ctx.Event.(*Event)
+				return ev.Connect.Addr.IPNet
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "connect.server.addr.port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Connect.Addr.Port)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "connect.server.protocol":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Connect.Protocol)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "connect.server.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Connect.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 	case "container.created_at":
 		return &eval.IntEvaluator{
@@ -20391,6 +20482,16 @@ func (ev *Event) GetFields() []eval.Field {
 		"chown.syscall.gid",
 		"chown.syscall.path",
 		"chown.syscall.uid",
+		"connect.addr.family",
+		"connect.addr.ip",
+		"connect.addr.port",
+		"connect.protocol",
+		"connect.retval",
+		"connect.server.addr.family",
+		"connect.server.addr.ip",
+		"connect.server.addr.port",
+		"connect.server.protocol",
+		"connect.server.retval",
 		"container.created_at",
 		"container.id",
 		"container.runtime",
@@ -21879,6 +21980,26 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chown.SyscallContext), nil
 	case "chown.syscall.uid":
 		return int(ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chown.SyscallContext)), nil
+	case "connect.addr.family":
+		return int(ev.Connect.AddrFamily), nil
+	case "connect.addr.ip":
+		return ev.Connect.Addr.IPNet, nil
+	case "connect.addr.port":
+		return int(ev.Connect.Addr.Port), nil
+	case "connect.protocol":
+		return int(ev.Connect.Protocol), nil
+	case "connect.retval":
+		return int(ev.Connect.SyscallEvent.Retval), nil
+	case "connect.server.addr.family":
+		return int(ev.Connect.AddrFamily), nil
+	case "connect.server.addr.ip":
+		return ev.Connect.Addr.IPNet, nil
+	case "connect.server.addr.port":
+		return int(ev.Connect.Addr.Port), nil
+	case "connect.server.protocol":
+		return int(ev.Connect.Protocol), nil
+	case "connect.server.retval":
+		return int(ev.Connect.SyscallEvent.Retval), nil
 	case "container.created_at":
 		return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)), nil
 	case "container.id":
@@ -28490,6 +28611,26 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "chown", nil
 	case "chown.syscall.uid":
 		return "chown", nil
+	case "connect.addr.family":
+		return "connect", nil
+	case "connect.addr.ip":
+		return "connect", nil
+	case "connect.addr.port":
+		return "connect", nil
+	case "connect.protocol":
+		return "connect", nil
+	case "connect.retval":
+		return "connect", nil
+	case "connect.server.addr.family":
+		return "connect", nil
+	case "connect.server.addr.ip":
+		return "connect", nil
+	case "connect.server.addr.port":
+		return "connect", nil
+	case "connect.server.protocol":
+		return "connect", nil
+	case "connect.server.retval":
+		return "connect", nil
 	case "container.created_at":
 		return "", nil
 	case "container.id":
@@ -31266,6 +31407,26 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "chown.syscall.path":
 		return reflect.String, nil
 	case "chown.syscall.uid":
+		return reflect.Int, nil
+	case "connect.addr.family":
+		return reflect.Int, nil
+	case "connect.addr.ip":
+		return reflect.Struct, nil
+	case "connect.addr.port":
+		return reflect.Int, nil
+	case "connect.protocol":
+		return reflect.Int, nil
+	case "connect.retval":
+		return reflect.Int, nil
+	case "connect.server.addr.family":
+		return reflect.Int, nil
+	case "connect.server.addr.ip":
+		return reflect.Struct, nil
+	case "connect.server.addr.port":
+		return reflect.Int, nil
+	case "connect.server.protocol":
+		return reflect.Int, nil
+	case "connect.server.retval":
 		return reflect.Int, nil
 	case "container.created_at":
 		return reflect.Int, nil
@@ -34521,6 +34682,94 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.SyscallContext.IntArg2"}
 		}
 		ev.Chown.SyscallContext.IntArg2 = int64(rv)
+		return nil
+	case "connect.addr.family":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Connect.AddrFamily"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Connect.AddrFamily"}
+		}
+		ev.Connect.AddrFamily = uint16(rv)
+		return nil
+	case "connect.addr.ip":
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.IPNet"}
+		}
+		ev.Connect.Addr.IPNet = rv
+		return nil
+	case "connect.addr.port":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.Port"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Connect.Addr.Port"}
+		}
+		ev.Connect.Addr.Port = uint16(rv)
+		return nil
+	case "connect.protocol":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Connect.Protocol"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Connect.Protocol"}
+		}
+		ev.Connect.Protocol = uint16(rv)
+		return nil
+	case "connect.retval":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Connect.SyscallEvent.Retval"}
+		}
+		ev.Connect.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "connect.server.addr.family":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Connect.AddrFamily"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Connect.AddrFamily"}
+		}
+		ev.Connect.AddrFamily = uint16(rv)
+		return nil
+	case "connect.server.addr.ip":
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.IPNet"}
+		}
+		ev.Connect.Addr.IPNet = rv
+		return nil
+	case "connect.server.addr.port":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.Port"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Connect.Addr.Port"}
+		}
+		ev.Connect.Addr.Port = uint16(rv)
+		return nil
+	case "connect.server.protocol":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Connect.Protocol"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Connect.Protocol"}
+		}
+		ev.Connect.Protocol = uint16(rv)
+		return nil
+	case "connect.server.retval":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Connect.SyscallEvent.Retval"}
+		}
+		ev.Connect.SyscallEvent.Retval = int64(rv)
 		return nil
 	case "container.created_at":
 		if ev.BaseEvent.ContainerContext == nil {

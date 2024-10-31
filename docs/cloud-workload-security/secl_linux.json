@@ -1789,6 +1789,65 @@
       ]
     },
     {
+      "name": "connect",
+      "definition": "A connect was executed",
+      "type": "Network",
+      "from_agent_version": "7.60",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "connect.addr.family",
+          "definition": "Address family",
+          "property_doc_link": "common-connectevent-addr-family-doc"
+        },
+        {
+          "name": "connect.addr.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "connect.addr.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "connect.protocol",
+          "definition": "Socket Protocol",
+          "property_doc_link": "common-connectevent-protocol-doc"
+        },
+        {
+          "name": "connect.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "connect.server.addr.family",
+          "definition": "Address family",
+          "property_doc_link": "common-connectevent-addr-family-doc"
+        },
+        {
+          "name": "connect.server.addr.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "connect.server.addr.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "connect.server.protocol",
+          "definition": "Socket Protocol",
+          "property_doc_link": "common-connectevent-protocol-doc"
+        },
+        {
+          "name": "connect.server.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
       "name": "dns",
       "definition": "A DNS request was sent",
       "type": "Network",
@@ -7216,6 +7275,19 @@
   ],
   "properties_doc": [
     {
+      "name": "*.addr.family",
+      "link": "common-connectevent-addr-family-doc",
+      "type": "int",
+      "definition": "Address family",
+      "prefixes": [
+        "connect",
+        "connect.server"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.args",
       "link": "common-process-args-doc",
       "type": "string",
@@ -8220,6 +8292,8 @@
       "definition": "IP address",
       "prefixes": [
         "bind.addr",
+        "connect.addr",
+        "connect.server.addr",
         "network.destination",
         "network.source",
         "packet.destination",
@@ -8936,6 +9010,8 @@
       "definition": "Port number",
       "prefixes": [
         "bind.addr",
+        "connect.addr",
+        "connect.server.addr",
         "network.destination",
         "network.source",
         "packet.destination",
@@ -8968,6 +9044,19 @@
       "examples": []
     },
     {
+      "name": "*.protocol",
+      "link": "common-connectevent-protocol-doc",
+      "type": "int",
+      "definition": "Socket Protocol",
+      "prefixes": [
+        "connect",
+        "connect.server"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.retval",
       "link": "common-syscallevent-retval-doc",
       "type": "int",
@@ -8978,6 +9067,8 @@
         "chdir",
         "chmod",
         "chown",
+        "connect",
+        "connect.server",
         "link",
         "load_module",
         "mkdir",

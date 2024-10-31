@@ -288,6 +288,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Chown.SyscallContext)
 		}
+	case "connect":
 	case "dns":
 	case "exec":
 		if ev.Exec.Process.IsNotKworker() {
