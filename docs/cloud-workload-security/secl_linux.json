@@ -1826,11 +1826,6 @@
           "property_doc_link": "common-ipportcontext-port-doc"
         },
         {
-          "name": "connect.protocol",
-          "definition": "Socket Protocol",
-          "property_doc_link": "common-connectevent-protocol-doc"
-        },
-        {
           "name": "connect.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
@@ -1849,11 +1844,6 @@
           "name": "connect.server.addr.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
-        },
-        {
-          "name": "connect.server.protocol",
-          "definition": "Socket Protocol",
-          "property_doc_link": "common-connectevent-protocol-doc"
         },
         {
           "name": "connect.server.retval",
@@ -9120,19 +9110,6 @@
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "*.protocol",
-      "link": "common-connectevent-protocol-doc",
-      "type": "int",
-      "definition": "Socket Protocol",
-      "prefixes": [
-        "connect",
-        "connect.server"
       ],
       "constants": "",
       "constants_link": "",

@@ -202,16 +202,12 @@ CSM Threats event for Linux systems have the following JSON schema:
             "properties": {
                 "addr": {
                     "$ref": "#/$defs/IPPortFamily"
-                },
-                "protocol": {
-                    "type": "string"
                 }
             },
             "additionalProperties": false,
             "type": "object",
             "required": [
-                "addr",
-                "protocol"
+                "addr"
             ],
             "description": "ConnectEventSerializer serializes a connect event to JSON"
         },
@@ -2129,16 +2125,12 @@ CSM Threats event for Linux systems have the following JSON schema:
     "properties": {
         "addr": {
             "$ref": "#/$defs/IPPortFamily"
-        },
-        "protocol": {
-            "type": "string"
         }
     },
     "additionalProperties": false,
     "type": "object",
     "required": [
-        "addr",
-        "protocol"
+        "addr"
     ],
     "description": "ConnectEventSerializer serializes a connect event to JSON"
 }

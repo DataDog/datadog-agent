@@ -32,7 +32,6 @@ struct connect_event_t {
 
     u64 addr[2];
     u16 family;
-    u16 protocol;
     u16 port;
 };
 

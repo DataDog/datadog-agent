@@ -521,12 +521,10 @@ A connect was executed
 | [`connect.addr.family`](#common-connectevent-addr-family-doc) | Address family |
 | [`connect.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`connect.addr.port`](#common-ipportcontext-port-doc) | Port number |
-| [`connect.protocol`](#common-connectevent-protocol-doc) | Socket Protocol |
 | [`connect.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 | [`connect.server.addr.family`](#common-connectevent-addr-family-doc) | Address family |
 | [`connect.server.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`connect.server.addr.port`](#common-ipportcontext-port-doc) | Port number |
-| [`connect.server.protocol`](#common-connectevent-protocol-doc) | Socket Protocol |
 | [`connect.server.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `dns`
@@ -2373,15 +2371,6 @@ Definition: Parent process ID
 
 `*.ppid` has 11 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
-
-
-### `*.protocol` {#common-connectevent-protocol-doc}
-Type: int
-
-Definition: Socket Protocol
-
-`*.protocol` has 2 possible prefixes:
-`connect` `connect.server`
 
 
 ### `*.retval` {#common-syscallevent-retval-doc}

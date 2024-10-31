@@ -33,7 +33,6 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
         .addr[0] = syscall->connect.addr[0],
         .addr[1] = syscall->connect.addr[1],
         .family = syscall->connect.family,
-        .protocol = syscall->connect.protocol,
         .port = syscall->connect.port,
     };
 
@@ -64,7 +63,6 @@ int hook_security_socket_connect(ctx_t *ctx) {
     struct sockaddr *address = (struct sockaddr *)CTX_PARM2(ctx);
     struct pid_route_t key = {};
     u16 family = 0;
-    u16 protocol = 0;
 
 
     // Extract IP and port from the sockaddr structure
@@ -80,16 +78,12 @@ int hook_security_socket_connect(ctx_t *ctx) {
         bpf_probe_read(&key.addr, sizeof(u64) * 2, (char *)addr_in6 + offsetof(struct sockaddr_in6, sin6_addr));
     }
 
-    struct sock *sk_sock;
-    bpf_probe_read(&sk_sock, sizeof(sk_sock), &sk->sk);
-    bpf_probe_read(&protocol, sizeof(protocol), &sk_sock->sk_protocol);
     // fill syscall_cache if necessary
     struct syscall_cache_t *syscall = peek_syscall(EVENT_CONNECT);
     if (syscall) {
         syscall->connect.addr[0] = key.addr[0];
         syscall->connect.addr[1] = key.addr[1];
         syscall->connect.port = key.port;
-        syscall->connect.protocol = protocol;
         syscall->connect.family = family;
     }
 
