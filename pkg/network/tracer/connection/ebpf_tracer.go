@@ -370,14 +370,12 @@ func (t *ebpfTracer) Stop() {
 	})
 }
 
-func (t *ebpfTracer) GetMap(name string) *ebpf.Map {
-	switch name {
-	case probes.ConnectionProtocolMap:
-	default:
-		return nil
+func (t *ebpfTracer) GetMap(name string) (*ebpf.Map, error) {
+	m, _, err := t.m.GetMap(name)
+	if err != nil {
+		return nil, fmt.Errorf("error getting map %s: %w", name, err)
 	}
-	m, _, _ := t.m.GetMap(name)
-	return m
+	return m, nil
 }
 
 func (t *ebpfTracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {

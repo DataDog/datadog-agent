@@ -91,6 +91,8 @@ func (c *ntmConfig) readConfigurationContent(content []byte) error {
 		return err
 	}
 	c.warnings = append(c.warnings, loadYamlInto(c.defaults, c.file, obj, "")...)
+	// Mark the config as ready
+	c.ready.Store(true)
 	return nil
 }
 

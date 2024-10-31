@@ -23,6 +23,7 @@ import (
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
 	"gopkg.in/yaml.v3"
@@ -75,9 +76,16 @@ type EventStream interface {
 	Resume() error
 }
 
-// MaxOnDemandEventsPerSecond represents the maximum number of on demand events per second
-// allowed before we switch off the subsystem
-const MaxOnDemandEventsPerSecond = 1_000
+const (
+	// MaxOnDemandEventsPerSecond represents the maximum number of on demand events per second
+	// allowed before we switch off the subsystem
+	MaxOnDemandEventsPerSecond = 1_000
+)
+
+const (
+	playSnapShotState int32 = iota + 1
+	replaySnapShotState
+)
 
 var (
 	// defaultEventTypes event types used whatever the event handlers or the rules
@@ -151,6 +159,9 @@ type EBPFProbe struct {
 
 	// hash action
 	fileHasher *FileHasher
+
+	// snapshot
+	playSnapShotState *atomic.Int32
 }
 
 // GetProfileManager returns the Profile Managers
@@ -406,9 +417,6 @@ func (p *EBPFProbe) Setup() error {
 
 // Start the probe
 func (p *EBPFProbe) Start() error {
-	// Apply rules to the snapshotted data before starting the event stream to avoid concurrency issues
-	p.PlaySnapshot()
-
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
 
@@ -416,13 +424,13 @@ func (p *EBPFProbe) Start() error {
 }
 
 // PlaySnapshot plays a snapshot
-func (p *EBPFProbe) PlaySnapshot() {
+func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 	seclog.Debugf("playing the snapshot")
 	// Get the snapshotted data
 	var events []*model.Event
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
-		if entry.Source != model.ProcessCacheEntryFromSnapshot {
+		if entry.Source != model.ProcessCacheEntryFromSnapshot && !entry.IsExec {
 			return
 		}
 		entry.Retain()
@@ -443,7 +451,7 @@ func (p *EBPFProbe) PlaySnapshot() {
 	}
 	p.Resolvers.ProcessResolver.Walk(entryToEvent)
 	for _, event := range events {
-		p.DispatchEvent(event)
+		p.DispatchEvent(event, notifyConsumers)
 		event.ProcessCacheEntry.Release()
 	}
 }
@@ -466,7 +474,7 @@ func (p *EBPFProbe) AddActivityDumpHandler(handler dump.ActivityDumpHandler) {
 }
 
 // DispatchEvent sends an event to the probe event handler
-func (p *EBPFProbe) DispatchEvent(event *model.Event) {
+func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
 		eventJSON, err := serializers.MarshalEvent(event, nil)
 		return eventJSON, event.GetEventType(), err
@@ -489,7 +497,9 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event) {
 	p.probe.sendEventToHandlers(event)
 
 	// send event to specific event handlers, like the event monitor consumers, subsequently
-	p.probe.sendEventToConsumers(event)
+	if notifyConsumers {
+		p.probe.sendEventToConsumers(event)
+	}
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
@@ -631,6 +641,11 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 }
 
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
+	// handle play snapshot
+	if state := p.playSnapShotState.Swap(0); state != 0 {
+		p.playSnapshot(state == playSnapShotState)
+	}
+
 	offset := 0
 	event := p.zeroEvent()
 
@@ -1096,7 +1111,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// resolve the container context
 	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
-	p.DispatchEvent(event)
+	p.DispatchEvent(event, true)
 
 	if eventType == model.ExitEventType {
 		p.Resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTime())
@@ -1684,6 +1699,9 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 		}
 	}
 
+	// replay the snapshot
+	p.playSnapShotState.CompareAndSwap(0, replaySnapShotState)
+
 	return ars, nil
 }
 
@@ -1747,6 +1765,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 		newTCNetDevices:      make(chan model.NetDevice, 16),
 		processKiller:        processKiller,
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, 1),
+		playSnapShotState:    atomic.NewInt32(playSnapShotState),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
