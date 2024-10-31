@@ -1,0 +1,33 @@
+/* AUTO-GENERATED, DO NOT CHANGE */
+
+// To regenerate, run `make heavy-sample.cu` in this directory
+
+#include <stdio.h>
+
+#include <cuda_runtime.h>
+
+{{ range .Kernels }}
+__global__ void {{ .Name }}({{ .Argdef }}) {
+	__shared__ float myVar[{{ .SharedMemorySize }}];
+	{{ range .Instructions }}
+	{{- . }}
+	{{ end }}
+}
+{{ end }}
+
+int main(void) {
+	{{ range .Variables }}
+	{{ .Type }} h_{{ .Name }} = ({{ .Type }})malloc(sizeof({{ .Type }}));
+	{{ .Type }} d_{{ .Name }};
+	cudaMalloc((void **)&d_{{ .Name }}, sizeof({{ .Type }}));
+	{{ end }}
+
+    // clang-format off
+	{{ range .Kernels }}
+	{{ .Name }}<<<10, 10>>>({{ .Argcall }});
+	{{ end }}
+    // clang-format on
+
+    printf("Done\n");
+    return 0;
+}
