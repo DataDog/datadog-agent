@@ -56,6 +56,7 @@ func StartRCService(functionARN string) *remoteconfig.CoreAgentService {
 		tagsGetter := func() []string {
 			arn, parseErr := arn.Parse(functionARN)
 			if parseErr != nil {
+				log.Debugf("unable to parse function ARN: %v, not setting tags", parseErr)
 				return []string{}
 			}
 			return []string{fmt.Sprintf("aws_account_id:%s", arn.AccountID), fmt.Sprintf("region:%s", arn.Region)}
