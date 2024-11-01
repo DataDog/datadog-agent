@@ -94,7 +94,6 @@ prepare_sysprobe_ebpf_functional_tests_x64:
     - mkdir -p /opt/datadog-agent/embedded/bin
     - cp /tmp/clang-bpf /opt/datadog-agent/embedded/bin/clang-bpf
     - cp /tmp/llc-bpf /opt/datadog-agent/embedded/bin/llc-bpf
-    - invoke -e security-agent.kitchen-prepare --skip-linters
 
 prepare_secagent_ebpf_functional_tests_arm64:
   extends: .prepare_secagent_ebpf_functional_tests

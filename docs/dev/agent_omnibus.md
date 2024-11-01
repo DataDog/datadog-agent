@@ -90,7 +90,7 @@ Start a Powershell prompt and navigate to your local clone of the `datadog-agent
  Run the following command:
 
 ```powershell
-docker run -v "$(Get-Location):c:\mnt" -e OMNIBUS_TARGET=main -e RELEASE_VERSION=nightly -e MAJOR_VERSION=7 -e PY_RUNTIMES=3 -e TARGET_ARCH=x64 datadog/agent-buildimages-windows_x64:1809 c:\mnt\tasks\winbuildscripts\buildwin.bat
+docker run -v "$(Get-Location):c:\mnt" -e OMNIBUS_TARGET=main -e RELEASE_VERSION=nightly -e MAJOR_VERSION=7 -e TARGET_ARCH=x64 datadog/agent-buildimages-windows_x64:1809 c:\mnt\tasks\winbuildscripts\buildwin.bat
 ```
 
 Downloading the Docker image may take some time in the first run.
@@ -105,16 +105,11 @@ param (
    [bool]$DEBUG=$false
 )
 
-if ($MAJOR_VERSION -eq 7) {
-    $PY_RUNTIMES="3"
-} else {
-    $PY_RUNTIMES="2,3"
-}
 $cmd = "docker run"
 if ($RM_CONTAINER) {
     $cmd += " --rm "
 }
-$opts = "-e OMNIBUS_TARGET=main -e RELEASE_VERSION=$RELEASE_VERSION -e MAJOR_VERSION=$MAJOR_VERSION -e PY_RUNTIMES=$PY_RUNTIMES -e TARGET_ARCH=$TARGET_ARCH"
+$opts = "-e OMNIBUS_TARGET=main -e RELEASE_VERSION=$RELEASE_VERSION -e MAJOR_VERSION=$MAJOR_VERSION -e TARGET_ARCH=$TARGET_ARCH"
 if ($DEBUG) {
     $opts += " -e DEBUG_CUSTOMACTION=yes "
 }

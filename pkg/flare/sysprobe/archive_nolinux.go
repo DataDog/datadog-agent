@@ -9,12 +9,17 @@ package sysprobe
 
 import "errors"
 
-// GetSystemProbeConntrackCached is not supported without the process agent on linux
+// GetSystemProbeConntrackCached is a stub designed to prevent builds without the process agent from importing pkg/process/net
 func GetSystemProbeConntrackCached(_ string) ([]byte, error) {
-	return nil, errors.New("GetSystemProbeConntrackCached is not supported without the process agent on linux")
+	return nil, errors.New("GetSystemProbeConntrackCached is not supported")
 }
 
-// GetSystemProbeConntrackHost is not supported without the process agent on linux
+// GetSystemProbeConntrackHost is a stub designed to prevent builds without the process agent from importing pkg/process/net
 func GetSystemProbeConntrackHost(_ string) ([]byte, error) {
-	return nil, errors.New("GetSystemProbeConntrackHost is not supported without the process agent on linux")
+	return nil, errors.New("GetSystemProbeConntrackHost is not supported")
+}
+
+// GetSystemProbeBTFLoaderInfo is a stub designed to prevent builds without the process agent from importing pkg/process/net
+func GetSystemProbeBTFLoaderInfo(_ string) ([]byte, error) {
+	return nil, errors.New("GetSystemProbeBTFLoaderInfo is not supported")
 }

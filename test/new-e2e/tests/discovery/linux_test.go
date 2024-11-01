@@ -91,54 +91,51 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 			}
 		}
 
-		found := foundMap["json-server"]
-		if assert.NotNil(c, found) {
-			assert.Equal(c, "none", found.Payload.APMInstrumentation)
-			assert.Equal(c, "json-server", found.Payload.ServiceName)
-			assert.Equal(c, "json-server", found.Payload.GeneratedServiceName)
-			assert.Empty(c, found.Payload.DDService)
-			assert.Empty(c, found.Payload.ServiceNameSource)
-			assert.NotZero(c, found.Payload.RSSMemory)
-		}
-
-		found = foundMap["node-instrumented"]
-		if assert.NotNil(c, found) {
-			assert.Equal(c, "provided", found.Payload.APMInstrumentation)
-			assert.Equal(c, "node-instrumented", found.Payload.ServiceName)
-			assert.Equal(c, "node-instrumented", found.Payload.GeneratedServiceName)
-			assert.Empty(c, found.Payload.DDService)
-			assert.Empty(c, found.Payload.ServiceNameSource)
-			assert.NotZero(c, found.Payload.RSSMemory)
-		}
-
-		found = foundMap["python-svc-dd"]
-		if assert.NotNil(c, found) {
-			assert.Equal(c, "none", found.Payload.APMInstrumentation)
-			assert.Equal(c, "python-svc-dd", found.Payload.ServiceName)
-			assert.Equal(c, "python.server", found.Payload.GeneratedServiceName)
-			assert.Equal(c, "python-svc-dd", found.Payload.DDService)
-			assert.Equal(c, "provided", found.Payload.ServiceNameSource)
-			assert.NotZero(c, found.Payload.RSSMemory)
-		}
-
-		found = foundMap["python.instrumented"]
-		if assert.NotNil(c, found) {
-			assert.Equal(c, "provided", found.Payload.APMInstrumentation)
-			assert.Equal(c, "python.instrumented", found.Payload.ServiceName)
-			assert.Equal(c, "python.instrumented", found.Payload.GeneratedServiceName)
-			assert.Empty(c, found.Payload.DDService)
-			assert.Empty(c, found.Payload.ServiceNameSource)
-			assert.NotZero(c, found.Payload.RSSMemory)
-		}
-
-		found = foundMap["rails_hello"]
-		if assert.NotNil(c, found) {
-			assert.Equal(c, "rails_hello", found.Payload.ServiceName)
-			assert.Equal(c, "rails_hello", found.Payload.GeneratedServiceName)
-			assert.Empty(c, found.Payload.DDService)
-			assert.Empty(c, found.Payload.ServiceNameSource)
-			assert.NotZero(c, found.Payload.RSSMemory)
-		}
+		s.assertService(t, c, foundMap, serviceExpectedPayload{
+			name:                 "json-server",
+			systemdServiceName:   "node-json-server",
+			instrumentation:      "none",
+			serviceName:          "json-server",
+			generatedServiceName: "json-server",
+			ddService:            "",
+			serviceNameSource:    "",
+		})
+		s.assertService(t, c, foundMap, serviceExpectedPayload{
+			name:                 "node-instrumented",
+			systemdServiceName:   "node-instrumented",
+			instrumentation:      "provided",
+			serviceName:          "node-instrumented",
+			generatedServiceName: "node-instrumented",
+			ddService:            "",
+			serviceNameSource:    "",
+		})
+		s.assertService(t, c, foundMap, serviceExpectedPayload{
+			name:                 "python-svc-dd",
+			systemdServiceName:   "python-svc",
+			instrumentation:      "none",
+			serviceName:          "python-svc-dd",
+			generatedServiceName: "python.server",
+			ddService:            "python-svc-dd",
+			serviceNameSource:    "provided",
+		})
+		s.assertService(t, c, foundMap, serviceExpectedPayload{
+			name:                 "python.instrumented",
+			systemdServiceName:   "python-instrumented",
+			instrumentation:      "provided",
+			serviceName:          "python.instrumented",
+			generatedServiceName: "python.instrumented",
+			ddService:            "",
+			serviceNameSource:    "",
+		})
+		s.assertService(t, c, foundMap, serviceExpectedPayload{
+			name:                 "rails_hello",
+			systemdServiceName:   "rails-svc",
+			instrumentation:      "none",
+			serviceName:          "rails_hello",
+			generatedServiceName: "rails_hello",
+			ddService:            "",
+			serviceNameSource:    "",
+		})
 
 		assert.Contains(c, foundMap, "json-server")
 	}, 3*time.Minute, 10*time.Second)
@@ -186,5 +183,35 @@ func (s *linuxTestSuite) stopServices() {
 	for i := len(services) - 1; i >= 0; i-- {
 		service := services[i]
 		s.Env().RemoteHost.MustExecute("sudo systemctl stop " + service)
+	}
+}
+
+type serviceExpectedPayload struct {
+	name                 string
+	systemdServiceName   string
+	instrumentation      string
+	serviceName          string
+	generatedServiceName string
+	ddService            string
+	serviceNameSource    string
+}
+
+func (s *linuxTestSuite) assertService(t *testing.T, c *assert.CollectT, foundMap map[string]*aggregator.ServiceDiscoveryPayload, expected serviceExpectedPayload) {
+	t.Helper()
+
+	found := foundMap[expected.name]
+	if assert.NotNil(c, found, "could not find service %q", expected.name) {
+		assert.Equal(c, expected.instrumentation, found.Payload.APMInstrumentation, "service %q: APM instrumentation", expected.name)
+		assert.Equal(c, expected.serviceName, found.Payload.ServiceName, "service %q: service name", expected.name)
+		assert.Equal(c, expected.generatedServiceName, found.Payload.GeneratedServiceName, "service %q: generated service name", expected.name)
+		assert.Equal(c, expected.ddService, found.Payload.DDService, "service %q: DD service", expected.name)
+		assert.Equal(c, expected.serviceNameSource, found.Payload.ServiceNameSource, "service %q: service name source", expected.name)
+		assert.NotZero(c, found.Payload.RSSMemory, "service %q: expected non-zero memory usage", expected.name)
+	} else {
+		status := s.Env().RemoteHost.MustExecute("sudo systemctl status " + expected.systemdServiceName)
+		logs := s.Env().RemoteHost.MustExecute("sudo journalctl -u " + expected.systemdServiceName)
+
+		t.Logf("Service %q status:\n:%s", expected.systemdServiceName, status)
+		t.Logf("Service %q logs:\n:%s", expected.systemdServiceName, logs)
 	}
 }

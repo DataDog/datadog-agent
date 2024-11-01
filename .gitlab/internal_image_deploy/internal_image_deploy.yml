@@ -94,7 +94,7 @@ docker_trigger_internal-ot:
 
 docker_trigger_cluster_agent_internal:
   stage: internal_image_deploy
-  rules: !reference [.on_deploy]
+  rules: !reference [.on_deploy_internal_or_manual]
   needs:
     - job: docker_build_cluster_agent_amd64
       artifacts: false

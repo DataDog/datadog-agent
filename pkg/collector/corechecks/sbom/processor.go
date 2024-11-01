@@ -41,6 +41,7 @@ var /* const */ (
 type processor struct {
 	queue                 chan *model.SBOMEntity
 	workloadmetaStore     workloadmeta.Component
+	tagger                tagger.Component
 	imageRepoDigests      map[string]string              // Map where keys are image repo digest and values are image ID
 	imageUsers            map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
 	sbomScanner           *sbomscanner.Scanner
@@ -51,7 +52,7 @@ type processor struct {
 	hostHeartbeatValidity time.Duration
 }
 
-func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool, hostHeartbeatValidity time.Duration) (*processor, error) {
+func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender, tagger tagger.Component, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool, hostHeartbeatValidity time.Duration) (*processor, error) {
 	sbomScanner := sbomscanner.GetGlobalScanner()
 	if sbomScanner == nil {
 		return nil, errors.New("failed to get global SBOM scanner")
@@ -78,6 +79,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender
 			sender.EventPlatformEvent(encoded, eventplatform.EventTypeContainerSBOM)
 		}),
 		workloadmetaStore:     workloadmetaStore,
+		tagger:                tagger,
 		imageRepoDigests:      make(map[string]string),
 		imageUsers:            make(map[string]map[string]struct{}),
 		sbomScanner:           sbomScanner,
@@ -243,7 +245,7 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 	}
 
 	entityID := types.NewEntityID(types.ContainerImageMetadata, img.ID)
-	ddTags, err := tagger.Tag(entityID, types.HighCardinality)
+	ddTags, err := p.tagger.Tag(entityID, types.HighCardinality)
 	if err != nil {
 		log.Errorf("Could not retrieve tags for container image %s: %v", img.ID, err)
 	}

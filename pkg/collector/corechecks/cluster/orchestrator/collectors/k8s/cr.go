@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	defaultMaximumCRDQuota = 10000
+	defaultMaximumCRDQuota = 5000
 )
 
 // NewCRCollectorVersion builds the group of collector versions.

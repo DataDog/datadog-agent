@@ -31,13 +31,14 @@ import (
 )
 
 const (
-	calendarService      = "calendar-rest-go"
-	telemetrygenService  = "telemetrygen-job"
-	env                  = "e2e"
-	version              = "1.0"
-	customAttribute      = "custom.attribute"
-	customAttributeValue = "true"
-	logBody              = "random date"
+	calendarService              = "calendar-rest-go"
+	telemetrygenService          = "telemetrygen-job"
+	telemetrygenTopLevelResource = "lets-go"
+	env                          = "e2e"
+	version                      = "1.0"
+	customAttribute              = "custom.attribute"
+	customAttributeValue         = "true"
+	logBody                      = "random date"
 )
 
 // OTelTestSuite is an interface for the OTel e2e test suite.
@@ -255,7 +256,7 @@ func TestHosts(s OTelTestSuite) {
 }
 
 // TestSampling tests that APM stats are correct when using probabilistic sampling
-func TestSampling(s OTelTestSuite) {
+func TestSampling(s OTelTestSuite, computeTopLevelBySpanKind bool) {
 	ctx := context.Background()
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
@@ -264,11 +265,11 @@ func TestSampling(s OTelTestSuite) {
 	s.T().Log("Starting telemetrygen")
 	createTelemetrygenJob(ctx, s, "traces", []string{"--traces", fmt.Sprint(numTraces)})
 
-	TestAPMStats(s, numTraces)
+	TestAPMStats(s, numTraces, computeTopLevelBySpanKind)
 }
 
 // TestAPMStats checks that APM stats are received with the correct number of hits per traces given
-func TestAPMStats(s OTelTestSuite, numTraces int) {
+func TestAPMStats(s OTelTestSuite, numTraces int, computeTopLevelBySpanKind bool) {
 	s.T().Log("Waiting for APM stats")
 	var stats []*aggregator.APMStatsPayload
 	var err error
@@ -284,7 +285,9 @@ func TestAPMStats(s OTelTestSuite, numTraces int) {
 						if cgs.Service == telemetrygenService {
 							hasStatsForService = true
 							assert.EqualValues(c, cgs.Hits, numTraces)
-							assert.EqualValues(c, cgs.TopLevelHits, numTraces)
+							if computeTopLevelBySpanKind || cgs.Resource == telemetrygenTopLevelResource {
+								assert.EqualValues(c, cgs.TopLevelHits, numTraces)
+							}
 						}
 					}
 				}
