@@ -98,7 +98,7 @@ func TestContainerdCheckGenericPart(t *testing.T) {
 
 	expectedTags := []string{"runtime:containerd"}
 	mockSender.AssertNumberOfCalls(t, "Rate", 13)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 12)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 11)
 
 	mockSender.AssertMetricInRange(t, "Gauge", "containerd.uptime", 0, 600, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "containerd.cpu.total", 100, "", expectedTags)

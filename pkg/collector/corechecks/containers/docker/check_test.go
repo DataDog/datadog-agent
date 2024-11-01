@@ -72,7 +72,7 @@ func TestDockerCheckGenericPart(t *testing.T) {
 
 	expectedTags := []string{"runtime:docker"}
 	mockSender.AssertNumberOfCalls(t, "Rate", 13)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 17)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 16)
 
 	mockSender.AssertMetricInRange(t, "Gauge", "docker.uptime", 0, 600, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "docker.cpu.usage", 1e-5, "", expectedTags)
