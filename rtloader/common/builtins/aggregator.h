@@ -22,11 +22,6 @@
 
     This function is only available when python3 is enabled.
 */
-/*! \fn Py2Init_aggregator()
-    \brief A function to initialize the python aggregator module in Python2.
-
-    This function is only available when Python2 is enabled.
-*/
 /*! \fn void _set_submit_metric_cb(cb_submit_metric_t)
     \brief Sets the submit metric callback to be used by rtloader for metric submission.
     \param cb A function pointer with cb_submit_metric_t prototype to the callback

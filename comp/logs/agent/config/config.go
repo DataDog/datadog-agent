@@ -233,7 +233,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 
 	// Add in the MRF endpoint if MRF is enabled.
 	if coreConfig.GetBool("multi_region_failover.enabled") {
-		mrfURL, err := pkgconfigutils.GetMRFEndpoint(coreConfig, endpointPrefix, "multi_region_failover.dd_url")
+		mrfURL, err := pkgconfigutils.GetMRFLogsEndpoint(coreConfig, endpointPrefix)
 		if err != nil {
 			return nil, fmt.Errorf("cannot construct MRF endpoint: %s", err)
 		}

@@ -7,6 +7,7 @@ package apm
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -68,13 +69,16 @@ func testTPS(c *assert.CollectT, intake *components.FakeIntake, tps float64) {
 	}
 }
 
-func testStatsForService(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
+func testStatsForService(t *testing.T, c *assert.CollectT, service string, expectedPeerTag string, intake *components.FakeIntake) {
 	t.Helper()
 	stats, err := intake.Client().GetAPMStats()
 	assert.NoError(c, err)
 	assert.NotEmpty(c, stats)
 	t.Logf("Got %d apm stats", len(stats))
 	assert.True(c, hasStatsForService(stats, service), "got stats: %v", stats)
+	if expectedPeerTag != "" {
+		assert.True(c, hasPeerTagsStats(stats, expectedPeerTag), "got stats: %v", stats)
+	}
 }
 
 func testTracesHaveContainerTag(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
@@ -185,6 +189,21 @@ func hasStatsForService(payloads []*aggregator.APMStatsPayload, service string) 
 			for _, bucket := range s.Stats {
 				for _, ss := range bucket.Stats {
 					if ss.Service == service {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func hasPeerTagsStats(payloads []*aggregator.APMStatsPayload, fullTag string) bool {
+	for _, p := range payloads {
+		for _, s := range p.StatsPayload.Stats {
+			for _, bucket := range s.Stats {
+				for _, ss := range bucket.Stats {
+					if slices.Contains(ss.GetPeerTags(), fullTag) {
 						return true
 					}
 				}

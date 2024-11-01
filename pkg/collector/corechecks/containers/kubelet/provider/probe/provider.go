@@ -27,13 +27,15 @@ type Provider struct {
 	filter *containers.Filter
 	store  workloadmeta.Component
 	prometheus.Provider
+	tagger tagger.Component
 }
 
 // NewProvider returns a metrics prometheus kubelet provider and an error
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Component) (*Provider, error) {
+func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Component, tagger tagger.Component) (*Provider, error) {
 	provider := &Provider{
 		filter: filter,
 		store:  store,
+		tagger: tagger,
 	}
 
 	transformers := prometheus.Transformers{
@@ -88,7 +90,7 @@ func (p *Provider) proberProbeTotal(metricFam *prom.MetricFamily, sender sender.
 			continue
 		}
 
-		tags, _ := tagger.Tag(cID, types.HighCardinality)
+		tags, _ := p.tagger.Tag(types.NewEntityID(types.ContainerID, cID), types.HighCardinality)
 		if len(tags) == 0 {
 			continue
 		}

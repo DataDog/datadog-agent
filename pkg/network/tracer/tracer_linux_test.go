@@ -58,6 +58,7 @@ import (
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 var kv470 = kernel.VersionCode(4, 7, 0)
@@ -247,6 +248,10 @@ func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
 
 func (s *TracerSuite) TestTCPRTT() {
 	t := s.T()
+	// mark as flaky since the offset for RTT can be incorrectly guessed on prebuilt
+	if ebpftest.GetBuildMode() == ebpftest.Prebuilt {
+		flake.Mark(t)
+	}
 	// Enable BPF-based system probe
 	tr := setupTracer(t, testConfig())
 	// Create TCP Server that simply "drains" connection until receiving an EOF
@@ -438,7 +443,7 @@ func (s *TracerSuite) TestConntrackExpiration() {
 		if !assert.True(collect, ok, "connection not found") {
 			return
 		}
-		assert.NotNil(collect, tr.conntracker.GetTranslationForConn(conn), "connection does not have NAT translation")
+		assert.NotNil(collect, tr.conntracker.GetTranslationForConn(&conn.ConnectionTuple), "connection does not have NAT translation")
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection translation")
 
 	// This will force the connection to be expired next time we call getConnections, but
@@ -447,7 +452,7 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	tr.config.TCPConnTimeout = time.Duration(-1)
 	_ = getConnections(t, tr)
 
-	assert.NotNil(t, tr.conntracker.GetTranslationForConn(conn), "translation should not have been deleted")
+	assert.NotNil(t, tr.conntracker.GetTranslationForConn(&conn.ConnectionTuple), "translation should not have been deleted")
 
 	// delete the connection from system conntrack
 	cmd := exec.Command("conntrack", "-D", "-s", c.LocalAddr().(*net.TCPAddr).IP.String(), "-d", c.RemoteAddr().(*net.TCPAddr).IP.String(), "-p", "tcp")
@@ -455,7 +460,7 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	require.NoError(t, err, "conntrack delete failed, output: %s", out)
 	_ = getConnections(t, tr)
 
-	assert.Nil(t, tr.conntracker.GetTranslationForConn(conn), "translation should have been deleted")
+	assert.Nil(t, tr.conntracker.GetTranslationForConn(&conn.ConnectionTuple), "translation should have been deleted")
 
 	// write newline so server connections will exit
 	_, err = c.Write([]byte("\n"))
@@ -497,7 +502,7 @@ func (s *TracerSuite) TestConntrackDelays() {
 	require.Eventually(t, func() bool {
 		connections := getConnections(t, tr)
 		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		return ok && tr.conntracker.GetTranslationForConn(conn) != nil
+		return ok && tr.conntracker.GetTranslationForConn(&conn.ConnectionTuple) != nil
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection with translation")
 
 	// write newline so server connections will exit
@@ -537,16 +542,16 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	// wait for conntrack update
 	laddr := c.LocalAddr().(*net.TCPAddr)
 	raddr := c.RemoteAddr().(*net.TCPAddr)
-	cs := network.ConnectionStats{
+	cs := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 		DPort:  uint16(raddr.Port),
 		Dest:   util.AddressFromNetIP(raddr.IP),
 		Family: network.AFINET,
 		SPort:  uint16(laddr.Port),
 		Source: util.AddressFromNetIP(laddr.IP),
 		Type:   network.TCP,
-	}
+	}}
 	require.Eventually(t, func() bool {
-		return tr.conntracker.GetTranslationForConn(&cs) != nil
+		return tr.conntracker.GetTranslationForConn(&cs.ConnectionTuple) != nil
 	}, 3*time.Second, 100*time.Millisecond, "timed out waiting for conntrack update")
 
 	// Assert that the connection to 2.2.2.2 has an IPTranslation object bound to it
@@ -1348,8 +1353,7 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 
 	t.Logf("port is %d", port)
 
-	conns := map[string]network.ConnectionStats{}
-	buf := make([]byte, network.ConnectionByteKeyMaxLen)
+	conns := map[network.ConnectionTuple]network.ConnectionStats{}
 	require.Eventually(t, func() bool {
 		_conns := network.FilterConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
 			return cs.Type == network.UDP &&
@@ -1359,7 +1363,7 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 		})
 
 		for _, c := range _conns {
-			conns[string(c.ByteKey(buf))] = c
+			conns[c.ConnectionTuple] = c
 		}
 
 		t.Log(conns)
@@ -2043,7 +2047,7 @@ func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *confi
 	assert.Zero(t, m.SentPackets, "sent packets should be 0")
 	assert.Zero(t, m.RecvPackets, "recv packets should be 0")
 	assert.Zero(t, m.TCPEstablished, "tcp established should be 0")
-	assert.Equal(t, uint32(1), m.TCPClosed, "tcp closed should be 1")
+	assert.Equal(t, uint16(1), m.TCPClosed, "tcp closed should be 1")
 	assert.Equal(t, network.INCOMING, conn.Direction, "connection direction should be incoming")
 }
 
@@ -2106,13 +2110,13 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 	}
 
 	type testCase struct {
-		enableCORE               bool
-		allowRuntimeFallback     bool
-		enableRuntimeCompiler    bool
-		allowPrecompiledFallback bool
-		coreError                bool
-		rcError                  bool
-		prebuiltError            bool
+		enableCORE            bool
+		allowRuntimeFallback  bool
+		enableRuntimeCompiler bool
+		allowPrebuiltFallback bool
+		coreError             bool
+		rcError               bool
+		prebuiltError         bool
 
 		err        error
 		isPrebuilt bool
@@ -2122,18 +2126,18 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 	for _, enableCORE := range []bool{false, true} {
 		for _, allowRuntimeFallback := range []bool{false, true} {
 			for _, enableRuntimeCompiler := range []bool{false, true} {
-				for _, allowPrecompiledFallback := range []bool{false, true} {
+				for _, allowPrebuiltFallback := range []bool{false, true} {
 					for _, coreError := range coreErrorValues {
 						for _, rcError := range []bool{false, true} {
 							for _, prebuiltError := range prebuiltErrorValues {
 								tc := testCase{
-									enableCORE:               enableCORE,
-									allowRuntimeFallback:     allowRuntimeFallback,
-									enableRuntimeCompiler:    enableRuntimeCompiler,
-									allowPrecompiledFallback: allowPrecompiledFallback,
-									coreError:                coreError,
-									rcError:                  rcError,
-									prebuiltError:            prebuiltError,
+									enableCORE:            enableCORE,
+									allowRuntimeFallback:  allowRuntimeFallback,
+									enableRuntimeCompiler: enableRuntimeCompiler,
+									allowPrebuiltFallback: allowPrebuiltFallback,
+									coreError:             coreError,
+									rcError:               rcError,
+									prebuiltError:         prebuiltError,
 
 									isPrebuilt: !prebuiltError,
 								}
@@ -2154,7 +2158,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 								}
 
 								pberr := prebuiltError
-								if (enableCORE || rcEnabled) && !allowPrecompiledFallback {
+								if (enableCORE || rcEnabled) && !allowPrebuiltFallback {
 									pberr = true // not enabled, so assume always failed
 									tc.isPrebuilt = false
 								}
@@ -2193,7 +2197,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 			cfg.EnableCORE = te.enableCORE
 			cfg.AllowRuntimeCompiledFallback = te.allowRuntimeFallback
 			cfg.EnableRuntimeCompiler = te.enableRuntimeCompiler
-			cfg.AllowPrecompiledFallback = te.allowPrecompiledFallback
+			cfg.AllowPrebuiltFallback = te.allowPrebuiltFallback
 
 			ebpfConntrackerPrebuiltCreator = getPrebuiltConntracker
 			ebpfConntrackerRCCreator = getRCConntracker

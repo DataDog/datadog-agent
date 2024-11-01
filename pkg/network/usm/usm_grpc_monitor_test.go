@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -56,7 +57,12 @@ func TestGRPCScenarios(t *testing.T) {
 		t.Skipf("HTTP2 monitoring can not run on kernel before %v", http2.MinimumKernelVersion)
 	}
 
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	if !prebuilt.IsDeprecated() {
+		modes = append(modes, ebpftest.Prebuilt)
+	}
+
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 		for _, tc := range []struct {
 			name  string
 			isTLS bool
@@ -115,7 +121,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 
 	usmMonitor := setupUSMTLSMonitor(t, s.getConfig())
 	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", srv.Process.Pid, utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, srv.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
 	// c is a stream endpoint
 	// a + b are unary endpoints
@@ -443,7 +449,7 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 
 	usmMonitor := setupUSMTLSMonitor(t, s.getConfig())
 	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", srv.Process.Pid, utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, srv.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
 
 	// Random string generation is an heavy operation, and it's proportional for the length (15MB)

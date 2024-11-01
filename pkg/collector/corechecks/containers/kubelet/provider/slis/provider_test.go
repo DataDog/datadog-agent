@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -170,7 +171,9 @@ func TestProvider_Provide(t *testing.T) {
 			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
 			mockSender.SetupAcceptAll()
 
-			err = commontesting.StorePopulatedFromFile(store, tt.podsFile, common.NewPodUtils())
+			fakeTagger := taggerimpl.SetupFakeTagger(t)
+
+			err = commontesting.StorePopulatedFromFile(store, tt.podsFile, common.NewPodUtils(fakeTagger))
 			if err != nil {
 				t.Errorf("unable to populate store from file at: %s, err: %v", tt.podsFile, err)
 			}
@@ -236,7 +239,9 @@ func TestProvider_DisableProvider(t *testing.T) {
 	mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
 	mockSender.SetupAcceptAll()
 
-	err = commontesting.StorePopulatedFromFile(store, "../../testdata/pods.json", common.NewPodUtils())
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+
+	err = commontesting.StorePopulatedFromFile(store, "../../testdata/pods.json", common.NewPodUtils(fakeTagger))
 	if err != nil {
 		t.Errorf("unable to populate store from file at: %s, err: %v", "../../testdata/pods.json", err)
 	}

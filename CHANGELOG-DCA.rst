@@ -2,7 +2,90 @@
 Release Notes
 =============
 
+.. _Release Notes_7.58.1:
+
+7.58.1
+======
+
+.. _Release Notes_7.58.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-10-24
+Pinned to datadog-agent v7.58.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7581>`_.
+
+.. _Release Notes_7.58.0:
+
+7.58.0
+======
+
+.. _Release Notes_7.58.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-10-21
+Pinned to datadog-agent v7.58.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7580>`_.
+
+.. _Release Notes_7.58.0_New Features:
+
+New Features
+------------
+
+- Added capability to tag any Kubernetes resource based on labels and annotations.
+  This feature can be configured with `kubernetes_resources_annotations_as_tags` and `kubernetes_resources_labels_as_tags`.
+  These feature configurations are associate group resources with annotations-to-tags (or labels-to-tags) map
+  For example, `deployments.apps` can be associated with an annotations-to-tags map to configure annotations as tags for deployments.
+  Example:
+  {`deployments.apps`: {`annotationKey1`: `tag1`, `annotationKey2`: `tag2`}}
+
+- The Kubernetes State Metrics (KSM) check can now be configured to collect
+  pods from the Kubelet in node agents instead of collecting them from the API
+  Server in the Cluster Agent or the Cluster check runners. This is useful in
+  clusters with a large number of pods where emitting pod metrics from a
+  single check instance can cause performance issues due to the large number
+  of metrics emitted.
+
+
+.. _Release Notes_7.58.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Added a new option for the Cluster Agent
+  ("admission_controller.inject_config.type_socket_volumes") to specify that
+  injected volumes should be of type "Socket". This option is disabled by
+  default. When set to true, injected pods will not start until the Agent
+  creates the DogstatsD and trace-agent sockets. This ensures no traces or
+  DogstatsD metrics are lost, but it can cause the pod to wait if the Agent
+  has issues creating the sockets.
+
+
+.. _Release Notes_7.58.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed an issue that prevented the Kubernetes autoscaler from evicting pods
+  injected by the Admission Controller.
+  
+
+.. _Release Notes_7.57.1:
+
+7.57.1
+======
+
+.. _Release Notes_7.57.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-09-17
+Pinned to datadog-agent v7.57.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7571>`_.
+
 .. _Release Notes_7.57.0:
+
 
 7.57.0
 ======

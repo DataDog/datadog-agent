@@ -76,6 +76,7 @@ github.com/DataDog/datadog-agent/comp/core/log/impl
 github.com/DataDog/datadog-agent/comp/core/secrets
 github.com/DataDog/datadog-agent/comp/core/status
 github.com/DataDog/datadog-agent/comp/core/tagger
+github.com/DataDog/datadog-agent/comp/core/tagger/common
 github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl
 github.com/DataDog/datadog-agent/comp/core/tagger/telemetry
 github.com/DataDog/datadog-agent/comp/core/tagger/types
@@ -297,7 +298,6 @@ github.com/DataDog/datadog-agent/pkg/util/statstracker
 github.com/DataDog/datadog-agent/pkg/util/sync
 github.com/DataDog/datadog-agent/pkg/util/system
 github.com/DataDog/datadog-agent/pkg/util/system/socket
-github.com/DataDog/datadog-agent/pkg/util/tagger
 github.com/DataDog/datadog-agent/pkg/util/tmplvar
 github.com/DataDog/datadog-agent/pkg/version
 github.com/DataDog/datadog-api-client-go/v2
@@ -346,7 +346,6 @@ github.com/aws/aws-sdk-go-v2/aws
 github.com/aws/aws-sdk-go-v2/aws/arn
 github.com/aws/aws-sdk-go-v2/aws/defaults
 github.com/aws/aws-sdk-go-v2/aws/middleware
-github.com/aws/aws-sdk-go-v2/aws/middleware/private/metrics
 github.com/aws/aws-sdk-go-v2/aws/protocol/query
 github.com/aws/aws-sdk-go-v2/aws/protocol/restjson
 github.com/aws/aws-sdk-go-v2/aws/protocol/xml
@@ -433,6 +432,7 @@ github.com/coreos/go-systemd/v22/dbus
 github.com/davecgh/go-spew/spew
 github.com/docker/go-units
 github.com/dustin/go-humanize
+github.com/eapache/queue/v2
 github.com/ebitengine/purego
 github.com/ebitengine/purego/internal/cgo
 github.com/ebitengine/purego/internal/strings
@@ -461,6 +461,9 @@ github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
 github.com/hashicorp/errwrap
 github.com/hashicorp/go-multierror
+github.com/hashicorp/go-secure-stdlib/parseutil
+github.com/hashicorp/go-secure-stdlib/strutil
+github.com/hashicorp/go-sockaddr
 github.com/hashicorp/go-version
 github.com/hashicorp/golang-lru/v2
 github.com/hashicorp/golang-lru/v2/internal
@@ -531,6 +534,7 @@ github.com/richardartoul/molecule/src/protowire
 github.com/rivo/uniseg
 github.com/rs/cors
 github.com/rs/cors/internal
+github.com/ryanuber/go-glob
 github.com/secure-systems-lab/go-securesystemslib/cjson
 github.com/shirou/gopsutil/v3/common
 github.com/shirou/gopsutil/v3/cpu
@@ -933,6 +937,7 @@ google.golang.org/protobuf/types/known/fieldmaskpb
 google.golang.org/protobuf/types/known/structpb
 google.golang.org/protobuf/types/known/timestamppb
 google.golang.org/protobuf/types/known/wrapperspb
+gopkg.in/DataDog/dd-trace-go.v1/appsec/events
 gopkg.in/DataDog/dd-trace-go.v1/datastreams/options
 gopkg.in/DataDog/dd-trace-go.v1/ddtrace
 gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext
@@ -942,7 +947,27 @@ gopkg.in/DataDog/dd-trace-go.v1/internal
 gopkg.in/DataDog/dd-trace-go.v1/internal/appsec
 gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/config
 gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo
+gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/graphqlsec
+gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/grpcsec
+gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/httpsec
+gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/ossec
+gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/sqlsec
+gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/trace
+gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/usersec
+gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/waf
+gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/waf/actions
+gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/waf/addresses
+gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener
+gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/graphqlsec
+gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/grpcsec
+gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/httpsec
+gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/ossec
+gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/sqlsec
+gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/trace
+gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/usersec
+gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/waf
 gopkg.in/DataDog/dd-trace-go.v1/internal/civisibility/constants
+gopkg.in/DataDog/dd-trace-go.v1/internal/civisibility/utils
 gopkg.in/DataDog/dd-trace-go.v1/internal/datastreams
 gopkg.in/DataDog/dd-trace-go.v1/internal/globalconfig
 gopkg.in/DataDog/dd-trace-go.v1/internal/hostname
@@ -960,6 +985,7 @@ gopkg.in/DataDog/dd-trace-go.v1/internal/orchestrion
 gopkg.in/DataDog/dd-trace-go.v1/internal/osinfo
 gopkg.in/DataDog/dd-trace-go.v1/internal/remoteconfig
 gopkg.in/DataDog/dd-trace-go.v1/internal/samplernames
+gopkg.in/DataDog/dd-trace-go.v1/internal/stacktrace
 gopkg.in/DataDog/dd-trace-go.v1/internal/telemetry
 gopkg.in/DataDog/dd-trace-go.v1/internal/traceprof
 gopkg.in/DataDog/dd-trace-go.v1/internal/version

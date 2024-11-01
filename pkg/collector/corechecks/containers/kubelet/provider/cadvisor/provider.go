@@ -75,6 +75,7 @@ type processCache struct {
 type Provider struct {
 	filter         *containers.Filter
 	store          workloadmeta.Component
+	tagger         tagger.Component
 	podUtils       *common.PodUtils
 	fsUsageBytes   map[string]*processCache
 	memUsageBytes  map[string]*processCache
@@ -83,7 +84,7 @@ type Provider struct {
 }
 
 // NewProvider creates and returns a new Provider, configured based on the values passed in.
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Component, podUtils *common.PodUtils) (*Provider, error) {
+func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Component, podUtils *common.PodUtils, tagger tagger.Component) (*Provider, error) {
 	// clone instance configuration so we can set our default metrics
 	cadvisorConfig := *config
 
@@ -92,6 +93,7 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 	provider := &Provider{
 		filter:         filter,
 		store:          store,
+		tagger:         tagger,
 		podUtils:       podUtils,
 		fsUsageBytes:   map[string]*processCache{},
 		memUsageBytes:  map[string]*processCache{},
@@ -152,7 +154,7 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 		//      for static pods, see https://github.com/kubernetes/kubernetes/pull/59948
 		pod := p.getPodByMetricLabel(sample.Metric)
 		if pod != nil && p.podUtils.IsStaticPendingPod(pod.ID) {
-			podTags, _ := tagger.Tag(taggercommon.BuildTaggerEntityID(pod.GetID()).String(), types.HighCardinality)
+			podTags, _ := p.tagger.Tag(taggercommon.BuildTaggerEntityID(pod.GetID()), types.HighCardinality)
 			if len(podTags) == 0 {
 				continue
 			}
@@ -163,7 +165,7 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 			tags = podTags
 		} else {
 			cID, _ := kubelet.KubeContainerIDToTaggerEntityID(containerID)
-			tags, _ = tagger.Tag(cID, types.HighCardinality)
+			tags, _ = p.tagger.Tag(cID, types.HighCardinality)
 		}
 
 		if len(tags) == 0 {
@@ -208,7 +210,7 @@ func (p *Provider) processPodRate(metricName string, metricFam *prom.MetricFamil
 			continue
 		}
 		entityID := taggercommon.BuildTaggerEntityID(pod.GetID())
-		tags, _ := tagger.Tag(entityID.String(), types.HighCardinality)
+		tags, _ := p.tagger.Tag(entityID, types.HighCardinality)
 		if len(tags) == 0 {
 			continue
 		}
@@ -239,7 +241,7 @@ func (p *Provider) processUsageMetric(metricName string, metricFam *prom.MetricF
 		}
 
 		cID, _ := kubelet.KubeContainerIDToTaggerEntityID(containerID)
-		tags, _ := tagger.Tag(cID, types.HighCardinality)
+		tags, _ := p.tagger.Tag(cID, types.HighCardinality)
 		if len(tags) == 0 {
 			continue
 		}
@@ -250,7 +252,7 @@ func (p *Provider) processUsageMetric(metricName string, metricFam *prom.MetricF
 		pod := p.getPodByMetricLabel(sample.Metric)
 		if pod != nil && p.podUtils.IsStaticPendingPod(pod.ID) {
 			entityID := taggercommon.BuildTaggerEntityID(pod.EntityID)
-			podTags, _ := tagger.Tag(entityID.String(), types.HighCardinality)
+			podTags, _ := p.tagger.Tag(entityID, types.HighCardinality)
 			if len(podTags) == 0 {
 				continue
 			}
@@ -287,7 +289,7 @@ func (p *Provider) processLimitMetric(metricName string, metricFam *prom.MetricF
 	samples := p.latestValueByContext(metricFam, p.getEntityIDIfContainerMetric)
 	for containerID, sample := range samples {
 		cID, _ := kubelet.KubeContainerIDToTaggerEntityID(containerID)
-		tags, _ := tagger.Tag(cID, types.HighCardinality)
+		tags, _ := p.tagger.Tag(cID, types.HighCardinality)
 		if len(tags) == 0 {
 			continue
 		}
@@ -352,7 +354,7 @@ func (p *Provider) getEntityIDIfContainerMetric(labels model.Metric) string {
 			return p.getPodUID(labels)
 		}
 		cID, _ := common.GetContainerID(p.store, labels, p.filter)
-		return cID
+		return types.NewEntityID(types.ContainerID, cID).String()
 	}
 	return ""
 }

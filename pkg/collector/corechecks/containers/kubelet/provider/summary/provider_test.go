@@ -21,7 +21,9 @@ import (
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -334,9 +336,11 @@ func TestProvider_Provide(t *testing.T) {
 			mockSender.SetupAcceptAll()
 
 			fakeTagger := taggerimpl.SetupFakeTagger(t)
-			defer fakeTagger.ResetTagger()
+
 			for entity, tags := range entityTags {
-				fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
+				prefix, id, _ := taggercommon.ExtractPrefixAndID(entity)
+				entityID := taggertypes.NewEntityID(prefix, id)
+				fakeTagger.SetTags(entityID, "foo", tags, nil, nil, nil)
 			}
 			store := creatFakeStore(t)
 			kubeletMock := mock.NewKubeletMock()
@@ -361,6 +365,7 @@ func TestProvider_Provide(t *testing.T) {
 				},
 				config,
 				store,
+				fakeTagger,
 			)
 			assert.NoError(t, err)
 

@@ -1,0 +1,36 @@
+---
+name: "PR complexity label"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - "[0-9]+.[0-9]+.x"
+  pull_request_review_comment:
+    types: [created, deleted]
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+permissions: {}
+jobs:
+  codereview-complexity:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+      - name: Setup python
+        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        with:
+          python-version: 3.12
+          cache: 'pip'
+          cache-dependency-path: '**/requirements*.txt'
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r tasks/requirements.txt
+      - name: Check code review complexity
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: inv -e github.assign-codereview-label --pr-id="$PR_NUMBER"

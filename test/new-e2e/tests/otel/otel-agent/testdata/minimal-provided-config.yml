@@ -1,0 +1,195 @@
+connectors:
+  datadog/connector:
+    traces:
+      compute_stats_by_span_kind: true
+      compute_top_level_by_span_kind: true
+      ignore_resources: []
+      peer_tags: []
+      peer_tags_aggregation: true
+      resource_attributes_as_container_tags: []
+      span_name_as_resource_name: true
+      span_name_remappings: {}
+      trace_buffer: 1000
+exporters:
+  datadog:
+    api:
+      fail_on_invalid_key: false
+      key: '[REDACTED]'
+      site: datadoghq.com
+    auth: null
+    compression: ""
+    cookies: null
+    disable_keep_alives: false
+    endpoint: ""
+    headers: {}
+    host_metadata:
+      enabled: true
+      hostname_source: config_or_system
+      tags: []
+    hostname: otelcol-docker
+    http2_ping_timeout: 0s
+    http2_read_idle_timeout: 0s
+    idle_conn_timeout: null
+    logs:
+      batch_wait: 5
+      compression_level: 6
+      dialer:
+        timeout: 0s
+      dump_payloads: false
+      use_compression: true
+    max_conns_per_host: null
+    max_idle_conns: null
+    max_idle_conns_per_host: null
+    metrics:
+      apm_stats_receiver_addr: ""
+      delta_ttl: 3600
+      dialer:
+        timeout: 0s
+      enabled: false
+      histograms:
+        mode: distributions
+        send_aggregation_metrics: false
+        send_count_sum_metrics: false
+      instrumentation_library_metadata_as_tags: false
+      instrumentation_scope_metadata_as_tags: false
+      resource_attributes_as_tags: true
+      summaries:
+        mode: gauges
+      sums:
+        cumulative_monotonic_mode: to_delta
+        initial_cumulative_monotonic_value: auto
+      tag_cardinality: ""
+      tags: ""
+    only_metadata: false
+    proxy_url: ""
+    read_buffer_size: 0
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_elapsed_time: 5m0s
+      max_interval: 30s
+      multiplier: 1.5
+      randomization_factor: 0.5
+    sending_queue:
+      enabled: true
+      num_consumers: 10
+      queue_size: 1000
+      storage: null
+    timeout: 15s
+    tls:
+      ca_file: ""
+      ca_pem: '[REDACTED]'
+      cert_file: ""
+      cert_pem: '[REDACTED]'
+      cipher_suites: []
+      include_system_ca_certs_pool: false
+      insecure: false
+      insecure_skip_verify: false
+      key_file: ""
+      key_pem: '[REDACTED]'
+      max_version: ""
+      min_version: ""
+      reload_interval: 0s
+      server_name_override: ""
+    traces:
+      compute_top_level_by_span_kind: true
+      dialer:
+        timeout: 0s
+      ignore_resources: []
+      span_name_as_resource_name: true
+      span_name_remappings: {}
+      trace_buffer: 0
+    write_buffer_size: 0
+extensions: {}
+processors:
+  batch:
+    metadata_cardinality_limit: 1000
+    metadata_keys: []
+    send_batch_max_size: 0
+    send_batch_size: 8192
+    timeout: 200ms
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        auth: null
+        dialer:
+          timeout: 0s
+        endpoint: 0.0.0.0:4317
+        include_metadata: false
+        keepalive: null
+        max_concurrent_streams: 0
+        max_recv_msg_size_mib: 0
+        read_buffer_size: 524288
+        tls: null
+        transport: tcp
+        write_buffer_size: 0
+      http:
+        auth: null
+        compression_algorithms: []
+        cors: null
+        endpoint: 0.0.0.0:4318
+        include_metadata: false
+        logs_url_path: /v1/logs
+        max_request_body_size: 0
+        metrics_url_path: /v1/metrics
+        response_headers: {}
+        tls: null
+        traces_url_path: /v1/traces
+service:
+  extensions: []
+  pipelines:
+    logs:
+      exporters:
+      - datadog
+      processors:
+      - batch
+      receivers:
+      - otlp
+    metrics:
+      exporters:
+      - datadog
+      processors:
+      - batch
+      receivers:
+      - otlp
+      - datadog/connector
+    traces:
+      exporters:
+      - datadog/connector
+      processors:
+      - batch
+      receivers:
+      - otlp
+    traces/send:
+      exporters:
+      - datadog
+      processors:
+      - batch
+      receivers:
+      - otlp
+  telemetry:
+    logs:
+      development: false
+      disable_caller: false
+      disable_stacktrace: false
+      encoding: console
+      error_output_paths:
+      - stderr
+      initial_fields: {}
+      level: info
+      output_paths:
+      - stderr
+      sampling:
+        enabled: true
+        initial: 10
+        thereafter: 100
+        tick: 10s
+    metrics:
+      address: :8888
+      level: Normal
+      readers: []
+    resource: {}
+    traces:
+      processors: []
+      propagators: []

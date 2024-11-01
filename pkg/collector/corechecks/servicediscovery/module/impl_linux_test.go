@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// This doesn't need BPF but it's built with this tag to only run with
+// This doesn't need BPF, but it's built with this tag to only run with
 // system-probe tests.
-//go:build linux_bpf
+//go:build test && linux_bpf
 
 package module
 
@@ -509,8 +509,12 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 				"CORECLR_ENABLE_PROFILING=1",
 			},
 		},
-		"java": {
+		"java - dd-java-agent.jar": {
 			commandline: []string{"java", "-javaagent:/path/to/dd-java-agent.jar", "-jar", "foo.jar"},
+			language:    language.Java,
+		},
+		"java - datadog.jar": {
+			commandline: []string{"java", "-javaagent:/path/to/datadog-java-agent.jar", "-jar", "foo.jar"},
 			language:    language.Java,
 		},
 		"node": {
@@ -579,7 +583,7 @@ func assertStat(t assert.TestingT, svc model.Service) {
 	// in theory an unbounded amount of time between the read of /proc/uptime
 	// and the retrieval of the current time. Allow a 10 second diff as a
 	// reasonable value.
-	assert.InDelta(t, uint64(createTimeMs/1000), svc.StartTimeSecs, 10)
+	assert.InDelta(t, uint64(createTimeMs), svc.StartTimeMilli, 10000)
 }
 
 func assertCPU(t *testing.T, url string, pid int) {
@@ -622,41 +626,6 @@ func TestCommandLineSanitization(t *testing.T) {
 		assert.Contains(collect, svcMap, pid)
 		assert.Equal(collect, sanitizedCommandLine, svcMap[pid].CommandLine)
 	}, 30*time.Second, 100*time.Millisecond)
-}
-
-func TestIgnore(t *testing.T) {
-	serverDir := buildFakeServer(t)
-	url := setupDiscoveryModule(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
-
-	badBin := filepath.Join(serverDir, "sshd")
-	badCmd := exec.CommandContext(ctx, badBin)
-	require.NoError(t, badCmd.Start())
-
-	// Also run a non-ignored server so that we can use it in the eventually
-	// loop below so that we don't have to wait a long time to be sure that we
-	// really ignored badBin and just didn't miss it because of a race.
-	goodBin := filepath.Join(serverDir, "node")
-	goodCmd := exec.CommandContext(ctx, goodBin)
-	require.NoError(t, goodCmd.Start())
-
-	goodPid := goodCmd.Process.Pid
-	badPid := badCmd.Process.Pid
-
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		svcMap := getServicesMap(t, url)
-		assert.Contains(collect, svcMap, goodPid)
-		require.NotContains(t, svcMap, badPid)
-	}, 30*time.Second, 100*time.Millisecond)
-}
-
-func TestIgnoreCommsLengths(t *testing.T) {
-	for comm := range ignoreComms {
-		// /proc/PID/comm is limited to 16 characters.
-		assert.LessOrEqual(t, len(comm), 16, "Process name %q too big", comm)
-	}
 }
 
 func TestNodeDocker(t *testing.T) {
