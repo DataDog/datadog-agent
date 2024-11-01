@@ -10,6 +10,7 @@ package constantfetch
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"sort"
 	"text/template"
@@ -136,6 +137,9 @@ func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]u
 		}
 
 		section := f.Sections[sym.Section]
+		if section.ReaderAt == nil {
+			return nil, errors.New("section not available in random-access form")
+		}
 		buf := make([]byte, sym.Size)
 		if _, err := section.ReadAt(buf, int64(sym.Value)); err != nil {
 			return nil, fmt.Errorf("unable to read section at %d: %s", int64(sym.Value), err)

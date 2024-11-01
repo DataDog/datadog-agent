@@ -32,6 +32,9 @@ const (
 // redundant allocations. We get it as a parameter and not putting it as a global, to be thread safe among concurrent
 // and parallel calls.
 func getSymbolNameByEntry(sectionReader io.ReaderAt, startPos, minLength int, preAllocatedBuf []byte) int {
+	if sectionReader == nil {
+		return -1
+	}
 	readBytes, err := sectionReader.ReadAt(preAllocatedBuf, int64(startPos))
 	if err != nil && err != io.EOF {
 		return -1
@@ -153,6 +156,9 @@ func getSymbolsUnified(f *safeelf.File, typ safeelf.SectionType, filter symbolFi
 		// symbol index. If the current symbol index is a multiplier of symbolChunkSize, then we read a new chunk.
 		symbolIndex := (readLocation / symbolSizeUint64) - 1
 		if symbolIndex%symbolChunkSize == 0 {
+			if symbolSection.ReaderAt == nil {
+				return nil, fmt.Errorf("symbol section not available in random-access form")
+			}
 			_, err := symbolSection.ReaderAt.ReadAt(symbolsCache, int64(readLocation))
 			if err != nil && err != io.EOF {
 				log.Debugf("failed reading symbol entry %s", err)

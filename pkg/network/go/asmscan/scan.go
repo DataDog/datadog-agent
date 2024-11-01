@@ -7,6 +7,7 @@
 package asmscan
 
 import (
+	"errors"
 	"fmt"
 
 	"golang.org/x/arch/arm64/arm64asm"
@@ -39,6 +40,10 @@ import (
 //     (which describes how this approach works as a workaround)
 //   - https://github.com/golang/go/issues/22008
 func ScanFunction(textSection *safeelf.Section, sym safeelf.Symbol, functionOffset uint64, scanInstructions func(data []byte) ([]uint64, error)) ([]uint64, error) {
+	if textSection.ReaderAt == nil {
+		return nil, errors.New("text section is not available in random-access form")
+	}
+
 	// Determine the offset in the section that the function starts at
 	lowPC := sym.Value
 	highPC := lowPC + sym.Size

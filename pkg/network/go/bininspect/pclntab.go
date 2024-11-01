@@ -58,6 +58,9 @@ type sectionAccess struct {
 
 // ReadAt reads len(p) bytes from the section starting at the given offset.
 func (s *sectionAccess) ReadAt(outBuffer []byte, offset int64) (int, error) {
+	if s.section.ReaderAt == nil {
+		return 0, errors.New("section not available in random-access form")
+	}
 	return s.section.ReadAt(outBuffer, s.baseOffset+offset)
 }
 
@@ -119,6 +122,9 @@ func GetPCLNTABSymbolParser(f *safeelf.File, symbolFilter symbolFilter) (map[str
 // parsePclntab parses the pclntab, setting the version and verifying the header.
 // Based on parsePclnTab in https://github.com/golang/go/blob/6a861010be9eed02d5285509cbaf3fb26d2c5041/src/debug/gosym/pclntab.go#L194
 func (p *pclntanSymbolParser) parsePclntab() error {
+	if p.section.ReaderAt == nil {
+		return errors.New("section not available in random-access form")
+	}
 	p.cachedVersion = ver11
 
 	pclntabHeader := make([]byte, 8)
