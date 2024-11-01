@@ -264,6 +264,10 @@ type CreditCardsConfig struct {
 	// https://dev.to/shiraazm/goluhn-a-simple-library-for-generating-calculating-and-verifying-luhn-numbers-588j
 	// It reduces false positives, but increases the CPU time X3.
 	Luhn bool `mapstructure:"luhn"`
+
+	// SkipKeys specifies tag keys that are known to not ever contain credit cards
+	// and can therefore be skipped.
+	SkipKeys []string `mapstructure:"skip_keys"`
 }
 
 // NewObfuscator creates a new obfuscator
