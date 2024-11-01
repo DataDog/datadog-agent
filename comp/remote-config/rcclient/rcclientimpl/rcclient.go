@@ -334,8 +334,6 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 	wg := &sync.WaitGroup{}
 	wg.Add(len(updates))
 
-	pkglog.Debugf("[agentTaskUpdateCallback] updates: %v", updates)
-
 	// Executes all AGENT_TASK in separate routines, so we don't block if one of them deadlock
 	for originalConfigPath, originalConfig := range updates {
 		go func(configPath string, c state.RawConfig) {

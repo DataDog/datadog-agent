@@ -29,7 +29,6 @@ type configFormat struct {
 	ADIdentifiers           []string                           `yaml:"ad_identifiers"`
 	AdvancedADIdentifiers   []integration.AdvancedADIdentifier `yaml:"advanced_ad_identifiers"`
 	ClusterCheck            bool                               `yaml:"cluster_check"`
-	HAAgentCheck            bool                               `yaml:"ha_agent_check"`
 	InitConfig              interface{}                        `yaml:"init_config"`
 	MetricConfig            interface{}                        `yaml:"jmx_metrics"`
 	LogsConfig              interface{}                        `yaml:"logs"`
@@ -428,9 +427,6 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 
 	// Copy cluster_check status
 	conf.ClusterCheck = cf.ClusterCheck
-
-	// Copy ha_agent_check status
-	conf.HAAgentCheck = cf.HAAgentCheck
 
 	// Copy ignore_autodiscovery_tags parameter
 	conf.IgnoreAutodiscoveryTags = cf.IgnoreAutodiscoveryTags
