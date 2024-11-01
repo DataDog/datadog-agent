@@ -9,7 +9,7 @@ package strategy
 import (
 	"bytes"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/zstd"
 )
 

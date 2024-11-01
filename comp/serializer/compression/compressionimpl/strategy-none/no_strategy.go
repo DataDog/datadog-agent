@@ -9,7 +9,7 @@ package strategy
 import (
 	"bytes"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 )
 
 // NoopStrategy is the strategy for when serializer_compressor_kind is neither zlib nor zstd

@@ -12,8 +12,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	strategy_noop "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy-none"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -27,5 +27,5 @@ func Module() fxutil.Module {
 // NewCompressor returns a new Compressor based on serializer_compressor_kind
 // This function is called only when the zlib build tag is included
 func NewCompressor(_ config.Component) compression.Component {
-	return strategy.NewNoopStrategy()
+	return strategy_noop.NewNoopStrategy()
 }

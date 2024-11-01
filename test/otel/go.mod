@@ -26,6 +26,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ./../../comp/otelcol/otlp/components/statsprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ./../../comp/otelcol/otlp/testutil
 	github.com/DataDog/datadog-agent/comp/serializer/compression => ./../../comp/serializer/compression
+	github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy-none => ./../../compressionimpl/strategy/strategy-none
 	github.com/DataDog/datadog-agent/comp/trace/agent/def => ./../../comp/trace/agent/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/def => ./../../comp/trace/compression/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ./../../comp/trace/compression/impl-gzip
@@ -89,6 +90,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ./../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ./../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ./../../pkg/version
+
 )
 
 require (
@@ -101,6 +103,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.56.0-rc.1
+	github.com/DataDog/datadog-agent/comp/serializer/compression v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/model v0.57.1
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.1
 	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
@@ -119,7 +122,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/comp/serializer/compression v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.56.0-rc.3 // indirect

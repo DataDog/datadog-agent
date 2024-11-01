@@ -11,7 +11,7 @@ import (
 	"compress/zlib"
 	"io"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 )
 
 // ZlibStrategy is the strategy for when serializer_compressor_kind is zlib

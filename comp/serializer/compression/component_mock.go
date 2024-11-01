@@ -7,7 +7,9 @@
 
 package compression
 
+import def "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+
 // Mock implements mock-specific methods.
 type Mock interface {
-	Component
+	def.Component
 }

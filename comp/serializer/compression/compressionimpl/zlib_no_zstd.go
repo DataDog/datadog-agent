@@ -12,8 +12,9 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
+	strategy_zlib "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy-zlib"
+	strategy_noop "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy-none"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -30,15 +31,15 @@ func Module() fxutil.Module {
 func NewCompressor(cfg config.Component) compression.Component {
 	switch cfg.GetString("serializer_compressor_kind") {
 	case ZlibKind:
-		return strategy.NewZlibStrategy()
+		return strategy_zlib.NewZlibStrategy()
 	case ZstdKind:
 		log.Warn("zstd build tag not included. using zlib")
-		return strategy.NewZlibStrategy()
+		return strategy_zlib.NewZlibStrategy()
 	case NoneKind:
 		log.Warn("no serializer_compressor_kind set. use zlib or zstd")
-		return strategy.NewNoopStrategy()
+		return strategy_noop.NewNoopStrategy()
 	default:
 		log.Warn("invalid serializer_compressor_kind detected. use zlib or zstd")
-		return strategy.NewNoopStrategy()
+		return strategy_noop.NewNoopStrategy()
 	}
 }
