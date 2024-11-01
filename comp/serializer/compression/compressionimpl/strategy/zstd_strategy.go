@@ -29,7 +29,7 @@ func NewZstdStrategy(level int) *ZstdStrategy {
 
 	window, err := strconv.Atoi(os.Getenv("WAKKAS_WINDOW"))
 	if err == nil {
-		ctx.SetParameter(zstd.WindowLog, window)
+		_ = ctx.SetParameter(zstd.WindowLog, window)
 	}
 
 	return &ZstdStrategy{
