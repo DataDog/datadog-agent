@@ -3,6 +3,7 @@ import tempfile
 from datetime import datetime
 
 from tasks.libs.common.color import color_message
+from tasks.libs.common.utils import get_origin_metrics
 
 DEBIAN_OS = "debian"
 CENTOS_OS = "centos"
@@ -104,7 +105,8 @@ def compute_package_size_metrics(
                 timestamp,
                 package_compressed_size,
                 tags=common_tags,
-            )
+                origin_metrics=get_origin_metrics(17, 0, 0),
+            ),
         )
         series.append(
             create_gauge(
@@ -112,7 +114,8 @@ def compute_package_size_metrics(
                 timestamp,
                 package_uncompressed_size,
                 tags=common_tags,
-            )
+                origin_metrics=get_origin_metrics(17, 0, 0),
+            ),
         )
 
         for binary_name, binary_path in SCANNED_BINARIES[flavor].items():
@@ -123,7 +126,8 @@ def compute_package_size_metrics(
                     timestamp,
                     binary_size,
                     tags=common_tags + [f"bin:{binary_name}"],
-                )
+                    origin_metrics=get_origin_metrics(17, 0, 0),
+                ),
             )
 
     return series

@@ -730,3 +730,14 @@ def experimental(message):
         return wrapper
 
     return decorator
+
+
+def get_origin_metrics(origin_product, origin_sub_product, origin_product_detail, origin_field=False):
+    origin_metrics = {
+        "origin_product": origin_product,
+        "origin_sub_product": origin_sub_product,
+        "origin_product_detail": origin_product_detail,
+    }
+    if origin_field:
+        return {"origin": origin_metrics}
+    return origin_metrics
