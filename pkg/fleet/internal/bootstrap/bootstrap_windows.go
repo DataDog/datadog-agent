@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	iexec "github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry"
 )
 
 func install(ctx context.Context, env *env.Env, url string, experiment bool) error {
@@ -89,13 +88,10 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 		"MSIFASTINSTALL=7",
 	}
 	agentUser := os.Getenv("DDAGENTUSER_NAME")
-	if agentUser == "" {
-		agentUser, _ = winregistry.GetAgentUserName()
-		// ignore error since bootstrap can be run before the MSI creates the registry key
-		// or bootstrap may be used to fix/repair the installation
-	}
 	if agentUser != "" {
 		msiArgs = append(msiArgs, fmt.Sprintf("DDAGENTUSER_NAME=%s", agentUser))
+		// don't need to look at the registry here since the installer will read it if the command line
+		// parameter is not provided
 	}
 	err = exec.Command("msiexec", msiArgs...).Run()
 	if err != nil {
