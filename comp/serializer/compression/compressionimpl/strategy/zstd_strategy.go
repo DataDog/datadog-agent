@@ -8,6 +8,8 @@ package strategy
 
 import (
 	"bytes"
+	"os"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -17,25 +19,33 @@ import (
 // ZstdStrategy is the strategy for when serializer_compressor_kind is zstd
 type ZstdStrategy struct {
 	level int
+	ctx   zstd.Ctx
 }
 
 // NewZstdStrategy returns a new ZstdStrategy
 func NewZstdStrategy(level int) *ZstdStrategy {
 	log.Debugf("Compressing zstd at level %d", level)
+	ctx := zstd.NewCtx()
+
+	window, err := strconv.Atoi(os.Getenv("WAKKAS_WINDOW"))
+	if err == nil {
+		ctx.SetParameter(zstd.WindowLog, window)
+	}
 
 	return &ZstdStrategy{
 		level: level,
+		ctx:   ctx,
 	}
 }
 
 // Compress will compress the data with zstd
 func (s *ZstdStrategy) Compress(src []byte) ([]byte, error) {
-	return zstd.CompressLevel(nil, src, s.level)
+	return s.ctx.CompressLevel(nil, src, s.level)
 }
 
 // Decompress will decompress the data with zstd
 func (s *ZstdStrategy) Decompress(src []byte) ([]byte, error) {
-	return zstd.Decompress(nil, src)
+	return s.ctx.Decompress(nil, src)
 }
 
 // CompressBound returns the worst case size needed for a destination buffer when using zstd

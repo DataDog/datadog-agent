@@ -31,6 +31,8 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../pkg/util/system/socket
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
+
+	github.com/DataDog/zstd => github.com/StephenWakely/zstd v0.0.0-20241101132055-f91529d1f5b9
 )
 
 require (
