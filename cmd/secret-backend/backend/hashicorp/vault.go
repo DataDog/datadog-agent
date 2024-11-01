@@ -9,9 +9,9 @@ package hashicorp
 import (
 	"context"
 	"errors"
+	"github.com/DataDog/datadog-secret-backend/secret"
 	"github.com/hashicorp/vault/api"
 	"github.com/mitchellh/mapstructure"
-	"github.com/rapdev-io/datadog-secret-backend/secret"
 	"github.com/rs/zerolog/log"
 )
 

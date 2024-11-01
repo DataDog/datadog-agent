@@ -8,18 +8,18 @@ package backend
 
 import (
 	"fmt"
-	"github.com/rapdev-io/datadog-secret-backend/backend/akeyless"
-	"github.com/rapdev-io/datadog-secret-backend/backend/hashicorp"
 	"io/ioutil"
 	"strings"
 
 	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v2"
 
-	"github.com/rapdev-io/datadog-secret-backend/backend/aws"
-	"github.com/rapdev-io/datadog-secret-backend/backend/azure"
-	"github.com/rapdev-io/datadog-secret-backend/backend/file"
-	"github.com/rapdev-io/datadog-secret-backend/secret"
+	"github.com/DataDog/datadog-secret-backend/backend/akeyless"
+	"github.com/DataDog/datadog-secret-backend/backend/aws"
+	"github.com/DataDog/datadog-secret-backend/backend/azure"
+	"github.com/DataDog/datadog-secret-backend/backend/file"
+	"github.com/DataDog/datadog-secret-backend/backend/hashicorp"
+	"github.com/DataDog/datadog-secret-backend/secret"
 )
 
 type Backend interface {

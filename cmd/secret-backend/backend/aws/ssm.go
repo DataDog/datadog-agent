@@ -15,7 +15,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog/log"
 
-	"github.com/rapdev-io/datadog-secret-backend/secret"
+	"github.com/DataDog/datadog-secret-backend/secret"
 )
 
 type AwsSsmParameterStoreBackendConfig struct {

@@ -19,7 +19,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"github.com/rapdev-io/datadog-secret-backend/backend"
+	"github.com/DataDog/datadog-secret-backend/backend"
 )
 
 type InputPayload struct {

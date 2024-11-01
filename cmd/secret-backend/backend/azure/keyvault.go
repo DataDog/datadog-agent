@@ -11,8 +11,8 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/Azure/azure-sdk-for-go/services/keyvault/v7.1/keyvault"
+	"github.com/DataDog/datadog-secret-backend/secret"
 	"github.com/mitchellh/mapstructure"
-	"github.com/rapdev-io/datadog-secret-backend/secret"
 	log "github.com/sirupsen/logrus"
 )
 

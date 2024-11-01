@@ -10,8 +10,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"github.com/DataDog/datadog-secret-backend/secret"
 	"github.com/mitchellh/mapstructure"
-	"github.com/rapdev-io/datadog-secret-backend/secret"
 	"github.com/rs/zerolog/log"
 	"net/http"
 )

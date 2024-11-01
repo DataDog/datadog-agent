@@ -1,11 +1,11 @@
-module github.com/rapdev-io/datadog-secret-backend
+module github.com/DataDog/datadog-secret-backend
 
 go 1.17
 
 replace (
-	github.com/rapdev-io/datadog-secret-backend/backend => ./backend
-	github.com/rapdev-io/datadog-secret-backend/backend/aws => ./backend/aws
-	github.com/rapdev-io/datadog-secret-backend/backend/aws/secretsmanager => ./backend/aws/secretsmanager
+	github.com/DataDog/datadog-secret-backend/backend => ./backend
+	github.com/DataDog/datadog-secret-backend/backend/aws => ./backend/aws
+	github.com/DataDog/datadog-secret-backend/backend/aws/secretsmanager => ./backend/aws/secretsmanager
 )
 
 require (

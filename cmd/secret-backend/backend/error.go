@@ -6,7 +6,7 @@
 
 package backend
 
-import "github.com/rapdev-io/datadog-secret-backend/secret"
+import "github.com/DataDog/datadog-secret-backend/secret"
 
 type ErrorBackend struct {
 	BackendId string
