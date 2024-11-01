@@ -941,7 +941,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 
 			c := &ControllerV1{}
 			c.config = tt.configFunc()
-			c.webhooks = c.generateWebhooks(wmeta, nil)
+			c.webhooks = c.generateWebhooks(wmeta, nil, mockConfig)
 			c.generateTemplates()
 
 			assert.EqualValues(t, tt.want(), c.mutatingWebhookTemplates)
@@ -1171,6 +1171,7 @@ func newFixtureV1(t *testing.T) *fixtureV1 {
 func (f *fixtureV1) createController() (*ControllerV1, informers.SharedInformerFactory) {
 	factory := informers.NewSharedInformerFactory(f.client, time.Duration(0))
 	wmeta := fxutil.Test[workloadmeta.Component](f.t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	datadogConfig := fxutil.Test[configComp.Component](f.t, core.MockBundle())
 	return NewControllerV1(
 		f.client,
 		factory.Core().V1().Secrets(),
@@ -1181,6 +1182,7 @@ func (f *fixtureV1) createController() (*ControllerV1, informers.SharedInformerF
 		v1Cfg,
 		wmeta,
 		nil,
+		datadogConfig,
 	), factory
 }
 

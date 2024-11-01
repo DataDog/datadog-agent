@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -59,7 +60,7 @@ type Daemon interface {
 
 	GetPackage(pkg string, version string) (Package, error)
 	GetState() (map[string]repository.State, error)
-	GetRemoteConfigState() []*pbgo.PackageState
+	GetRemoteConfigState() *pbgo.ClientUpdater
 	GetAPMInjectionStatus() (APMInjectionStatus, error)
 }
 
@@ -97,7 +98,7 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 	}
 	env := env.FromConfig(config)
 	installer := newInstaller(env, installerBin)
-	cdn, err := cdn.New(env, "opt/datadog-packages/run/rc/daemon")
+	cdn, err := cdn.New(env, filepath.Join(paths.RunPath, "rc_daemon"))
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +129,7 @@ func (d *daemonImpl) GetState() (map[string]repository.State, error) {
 }
 
 // GetRemoteConfigState returns the remote config state.
-func (d *daemonImpl) GetRemoteConfigState() []*pbgo.PackageState {
+func (d *daemonImpl) GetRemoteConfigState() *pbgo.ClientUpdater {
 	d.m.Lock()
 	defer d.m.Unlock()
 
@@ -555,15 +556,15 @@ func setRequestDone(ctx context.Context, err error) {
 	}
 }
 
-func (d *daemonImpl) resolveAgentRemoteConfigVersion(ctx context.Context) (string, error) {
+func (d *daemonImpl) resolveRemoteConfigVersion(ctx context.Context, pkg string) (string, error) {
 	if !d.env.RemotePolicies {
 		return "", nil
 	}
-	config, err := d.cdn.Get(ctx)
+	config, err := d.cdn.Get(ctx, pkg)
 	if err != nil {
-		return "", fmt.Errorf("could not get agent cdn config: %w", err)
+		return "", fmt.Errorf("could not get cdn config: %w", err)
 	}
-	return config.Version, nil
+	return config.Version(), nil
 }
 
 func (d *daemonImpl) refreshState(ctx context.Context) {
@@ -582,9 +583,9 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		log.Errorf("could not get installer config state: %v", err)
 		return
 	}
-	configVersion, err := d.resolveAgentRemoteConfigVersion(ctx)
+	availableSpace, err := d.installer.AvailableDiskSpace()
 	if err != nil {
-		log.Errorf("could not get agent remote config version: %v", err)
+		log.Errorf("could not get available size: %v", err)
 	}
 
 	var packages []*pbgo.PackageState
@@ -599,9 +600,17 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			p.StableConfigVersion = cs.Stable
 			p.ExperimentConfigVersion = cs.Experiment
 		}
-		if pkg == "datadog-agent" {
-			p.RemoteConfigVersion = configVersion
+
+		configVersion, err := d.resolveRemoteConfigVersion(ctx, pkg)
+		if err != nil {
+			log.Errorf("could not get agent remote config version: %v", err)
 		}
+		if err == nil {
+			p.RemoteConfigVersion = configVersion
+		} else if err != cdn.ErrProductNotSupported {
+			log.Warnf("could not get remote config version: %v", err)
+		}
+
 		requestState, ok := d.requestsState[pkg]
 		if ok && pkg == requestState.Package {
 			var taskErr *pbgo.TaskError
@@ -619,5 +628,8 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		}
 		packages = append(packages, p)
 	}
-	d.rc.SetState(packages)
+	d.rc.SetState(&pbgo.ClientUpdater{
+		Packages:           packages,
+		AvailableDiskSpace: availableSpace,
+	})
 }

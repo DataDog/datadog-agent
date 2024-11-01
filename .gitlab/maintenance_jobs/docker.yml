@@ -2,26 +2,6 @@
 include:
   - .gitlab/common/container_publish_job_templates.yml
 
-#
-# Use these steps to revert the latest tags to a previous release
-# while maintaining content trust signatures
-# - Create a pipeline on main with the RELEASE_6 and/or RELEASE_7 env vars
-# - in the gitlab pipeline view, trigger the step (in the first column)
-#
-revert_latest_6:
-  extends: .docker_publish_job_definition
-  rules: !reference [.on_main_manual]
-  stage: maintenance_jobs
-  variables:
-    NEW_LATEST_RELEASE_6: "" # tag name of the non-jmx version, for example "6.21.0"
-    IMG_REGISTRIES: public
-  parallel:
-    matrix:
-      - IMG_SOURCES: datadog/agent:${NEW_LATEST_RELEASE_6}
-        IMG_DESTINATIONS: agent:6,agent:latest-py2
-      - IMG_SOURCES: datadog/agent:${NEW_LATEST_RELEASE_6}-jmx
-        IMG_DESTINATIONS: agent:6-jmx,agent:latest-py2-jmx
-
 revert_latest_7:
   extends: .docker_publish_job_definition
   rules: !reference [.on_main_manual]

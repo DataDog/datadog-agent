@@ -106,7 +106,8 @@ func GetPCLNTABSymbolParser(f *elf.File, symbolFilter symbolFilter) (map[string]
 	}
 	// Late initialization, to prevent allocation if the binary is not supported.
 	_, maxSymbolsSize := symbolFilter.getMinMaxLength()
-	parser.funcNameHelper = make([]byte, maxSymbolsSize)
+	// Adding additional byte for null terminator.
+	parser.funcNameHelper = make([]byte, maxSymbolsSize+1)
 	parser.funcTableFieldSize = getFuncTableFieldSize(parser.cachedVersion, int(parser.ptrSize))
 	// Allocate the buffer for reading the function table.
 	// TODO: Do we need 2*funcTableFieldSize?

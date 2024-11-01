@@ -32,6 +32,7 @@ from tasks.libs.common.utils import (
     environ,
     get_build_flags,
     get_common_test_args,
+    get_embedded_path,
     get_gobin,
     parse_kernel_version,
 )
@@ -55,6 +56,9 @@ TEST_PACKAGES_LIST = [
     "./pkg/collector/corechecks/servicediscovery/module/...",
     "./pkg/process/monitor/...",
     "./pkg/dynamicinstrumentation/...",
+    "./pkg/gpu/...",
+    "./cmd/system-probe/config/...",
+    "./comp/metadata/inventoryagent/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 # change `timeouts` in `test/new-e2e/system-probe/test-runner/main.go` if you change them here
@@ -67,7 +71,6 @@ TEST_TIMEOUTS = {
 }
 CWS_PREBUILT_MINIMUM_KERNEL_VERSION = (5, 8, 0)
 EMBEDDED_SHARE_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
-EMBEDDED_SHARE_JAVA_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "java")
 
 is_windows = sys.platform == "win32"
 is_macos = sys.platform == "darwin"
@@ -84,6 +87,11 @@ arch_mapping = {
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
 CLANG_VERSION_RUNTIME = "12.0.1"
 CLANG_VERSION_SYSTEM_PREFIX = "12.0"
+# system-probe doesn't depend on any particular version of libpcap so use the latest one (as of 2024-10-28)
+# this version should be kept in sync with the one in the agent omnibus build
+LIBPCAP_VERSION = "1.10.5"
+
+TEST_HELPER_CBINS = ["cudasample"]
 
 
 def get_ebpf_build_dir(arch: Arch) -> Path:
@@ -109,7 +117,12 @@ def ninja_define_windows_resources(ctx, nw: NinjaWriter, major_version):
 
 
 def ninja_define_ebpf_compiler(
-    nw: NinjaWriter, strip_object_files=False, kernel_release=None, with_unit_test=False, arch: Arch | None = None
+    nw: NinjaWriter,
+    strip_object_files=False,
+    kernel_release=None,
+    with_unit_test=False,
+    arch: Arch | None = None,
+    compiler: str = 'clang',
 ):
     if arch is not None and arch.is_cross_compiling():
         # -target ARCH is important even if we're just emitting LLVM. If we're cross-compiling, clang
@@ -122,7 +135,7 @@ def ninja_define_ebpf_compiler(
     nw.variable("kheaders", get_kernel_headers_flags(kernel_release, arch=arch))
     nw.rule(
         name="ebpfclang",
-        command="clang -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
+        command=f"{compiler} -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
         depfile="$out.d",
     )
     strip = "&& llvm-strip -g $out" if strip_object_files else ""
@@ -132,12 +145,12 @@ def ninja_define_ebpf_compiler(
     )
 
 
-def ninja_define_co_re_compiler(nw: NinjaWriter, arch: Arch | None = None):
+def ninja_define_co_re_compiler(nw: NinjaWriter, arch: Arch | None = None, compiler: str = "clang"):
     nw.variable("ebpfcoreflags", get_co_re_build_flags(arch))
 
     nw.rule(
         name="ebpfcoreclang",
-        command="clang -MD -MF $out.d -target bpf $ebpfcoreflags $flags -c $in -o $out",
+        command=f"{compiler} -MD -MF $out.d -target bpf $ebpfcoreflags $flags -c $in -o $out",
         depfile="$out.d",
     )
 
@@ -343,6 +356,19 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
         )  # All test ebpf programs are just for testing, so we always build them with debug symbols
 
 
+def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
+    gpu_programs_co_re_dir = Path("pkg/gpu/ebpf/c")
+    gpu_programs_co_re_flags = f"-I{gpu_programs_co_re_dir}"
+    gpu_programs_co_re_programs = ["gpu"]
+
+    for prog in gpu_programs_co_re_programs:
+        infile = os.path.join(gpu_programs_co_re_dir, f"{prog}.c")
+        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": gpu_programs_co_re_flags})
+        root, ext = os.path.splitext(outfile)
+        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": gpu_programs_co_re_flags + " -DDEBUG=1"})
+
+
 def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
     container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
@@ -497,6 +523,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
                 "pkg/ebpf/c/lock_contention.h",
             ],
             "pkg/dynamicinstrumentation/ditypes/ebpf.go": ["pkg/dynamicinstrumentation/codegen/c/types.h"],
+            "pkg/gpu/ebpf/kprobe_types.go": [
+                "pkg/gpu/ebpf/c/types.h",
+            ],
         }
         nw.rule(
             name="godefs",
@@ -536,6 +565,7 @@ def ninja_generate(
     strip_object_files=False,
     kernel_release: str | None = None,
     with_unit_test=False,
+    ebpf_compiler='clang',
 ):
     arch = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch)
@@ -566,16 +596,77 @@ def ninja_generate(
             nw.build(inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
             gobin = get_gobin(ctx)
-            ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test, arch=arch)
-            ninja_define_co_re_compiler(nw, arch=arch)
+            ninja_define_ebpf_compiler(
+                nw, strip_object_files, kernel_release, with_unit_test, arch=arch, compiler=ebpf_compiler
+            )
+            ninja_define_co_re_compiler(nw, arch=arch, compiler=ebpf_compiler)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_test_ebpf_programs(nw, build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
             ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
+            ninja_gpu_ebpf_programs(nw, co_re_build_dir)
 
         ninja_cgo_type_files(nw)
+
+
+@task
+def build_libpcap(ctx):
+    """Download and build libpcap as a static library in the agent dev directory.
+    The library is not rebuilt if it already exists.
+    """
+    embedded_path = get_embedded_path(ctx)
+    assert embedded_path, "Failed to find embedded path"
+    target_file = os.path.join(embedded_path, "lib", "libpcap.a")
+    if os.path.exists(target_file):
+        version = ctx.run(f"strings {target_file} | grep -E '^libpcap version' | cut -d ' ' -f 3").stdout.strip()
+        if version == LIBPCAP_VERSION:
+            ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
+            return
+    dist_dir = os.path.join(embedded_path, "dist")
+    lib_dir = os.path.join(dist_dir, f"libpcap-{LIBPCAP_VERSION}")
+    ctx.run(f"rm -rf {lib_dir}")
+    with ctx.cd(dist_dir):
+        ctx.run(f"curl -L https://www.tcpdump.org/release/libpcap-{LIBPCAP_VERSION}.tar.xz | tar xJ")
+    with ctx.cd(lib_dir):
+        config_opts = [
+            f"--prefix={embedded_path}",
+            "--disable-shared",
+            "--disable-largefile",
+            "--disable-instrument-functions",
+            "--disable-remote",
+            "--disable-usb",
+            "--disable-netmap",
+            "--disable-bluetooth",
+            "--disable-dbus",
+            "--disable-rdma",
+        ]
+        ctx.run(f"./configure {' '.join(config_opts)}")
+        ctx.run("make install")
+    ctx.run(f"rm -f {os.path.join(embedded_path, 'bin', 'pcap-config')}")
+    ctx.run(f"rm -rf {os.path.join(embedded_path, 'share')}")
+    ctx.run(f"rm -rf {os.path.join(embedded_path, 'lib', 'pkgconfig')}")
+    ctx.run(f"rm -rf {lib_dir}")
+    ctx.run(f"strip -g {target_file}")
+
+
+def get_libpcap_cgo_flags(ctx, install_path: str = None):
+    """Return a dictionary with the CGO flags needed to link against libpcap.
+    If install_path is provided, then we expect this path to contain libpcap as a shared library.
+    """
+    if install_path is not None:
+        return {
+            'CGO_CFLAGS': f"-I{os.path.join(install_path, 'embedded', 'include')}",
+            'CGO_LDFLAGS': f"-L{os.path.join(install_path, 'embedded', 'lib')}",
+        }
+    else:
+        embedded_path = get_embedded_path(ctx)
+        assert embedded_path, "Failed to find embedded path"
+        return {
+            'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'include')}",
+            'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'lib')}",
+        }
 
 
 @task
@@ -584,7 +675,6 @@ def build(
     race=False,
     incremental_build=True,
     major_version='7',
-    python_runtimes='3',
     go_mod="mod",
     arch: str = CURRENT_ARCH,
     bundle_ebpf=False,
@@ -594,6 +684,8 @@ def build(
     strip_binary=False,
     with_unit_test=False,
     bundle=True,
+    ebpf_compiler='clang',
+    static=False,
 ):
     """
     Build the system-probe
@@ -607,12 +699,12 @@ def build(
             strip_object_files=strip_object_files,
             with_unit_test=with_unit_test,
             bundle_ebpf=bundle_ebpf,
+            ebpf_compiler=ebpf_compiler,
         )
 
     build_sysprobe_binary(
         ctx,
         major_version=major_version,
-        python_runtimes=python_runtimes,
         bundle_ebpf=bundle_ebpf,
         go_mod=go_mod,
         race=race,
@@ -620,6 +712,7 @@ def build(
         strip_binary=strip_binary,
         bundle=bundle,
         arch=arch,
+        static=static,
     )
 
 
@@ -639,7 +732,6 @@ def build_sysprobe_binary(
     race=False,
     incremental_build=True,
     major_version='7',
-    python_runtimes='3',
     go_mod="mod",
     arch: str = CURRENT_ARCH,
     binary=BIN_PATH,
@@ -647,13 +739,13 @@ def build_sysprobe_binary(
     bundle_ebpf=False,
     strip_binary=False,
     bundle=True,
+    static=False,
 ) -> None:
     if bundle and not is_windows:
         return agent_build(
             ctx,
             race=race,
             major_version=major_version,
-            python_runtimes=python_runtimes,
             go_mod=go_mod,
             bundle_ebpf=bundle_ebpf,
             bundle=BUNDLED_AGENTS[AgentFlavor.base] + ["system-probe"],
@@ -662,7 +754,11 @@ def build_sysprobe_binary(
     arch_obj = Arch.from_str(arch)
 
     ldflags, gcflags, env = get_build_flags(
-        ctx, install_path=install_path, major_version=major_version, python_runtimes=python_runtimes, arch=arch_obj
+        ctx,
+        install_path=install_path,
+        major_version=major_version,
+        arch=arch_obj,
+        static=static,
     )
 
     build_tags = get_default_build_tags(build="system-probe")
@@ -670,6 +766,20 @@ def build_sysprobe_binary(
         build_tags.append(BUNDLE_TAG)
     if strip_binary:
         ldflags += ' -s -w'
+
+    if static:
+        build_tags.extend(["osusergo", "netgo"])
+        build_tags = list(set(build_tags).difference({"netcgo"}))
+
+    if not is_windows and "pcap" in build_tags:
+        build_libpcap(ctx)
+        cgo_flags = get_libpcap_cgo_flags(ctx, install_path)
+        # append libpcap cgo-related environment variables to any existing ones
+        for k, v in cgo_flags.items():
+            if k in env:
+                env[k] += f" {v}"
+            else:
+                env[k] = v
 
     if os.path.exists(binary):
         os.remove(binary)
@@ -939,9 +1049,6 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
             if os.path.isdir(extra_path):
                 shutil.copytree(extra_path, os.path.join(target_path, extra))
 
-        if pkg.endswith("java"):
-            shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
-
         for gobin in [
             "external_unix_proxy_server",
             "fmapper",
@@ -950,12 +1057,19 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
             "grpc_external_server",
             "prefetch_file",
             "fake_server",
+            "sample_service",
         ]:
             src_file_path = os.path.join(pkg, f"{gobin}.go")
             if not is_windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
                 binary_path = os.path.join(target_path, gobin)
                 with chdir(pkg):
                     ctx.run(f"go build -o {binary_path} -tags=\"test\" -ldflags=\"-extldflags '-static'\" {gobin}.go")
+
+        for cbin in TEST_HELPER_CBINS:
+            source = Path(pkg) / "testdata" / f"{cbin}.c"
+            if not is_windows and source.is_file():
+                binary = Path(target_path) / cbin
+                ctx.run(f"clang -o {binary} {source}")
 
     gopath = os.getenv("GOPATH")
     copy_files = [
@@ -1232,10 +1346,21 @@ def run_ninja(
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
+    ebpf_compiler='clang',
 ) -> None:
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(ctx, nf_path, major_version, arch, debug, strip_object_files, kernel_release, with_unit_test)
+    ninja_generate(
+        ctx,
+        nf_path,
+        major_version,
+        arch,
+        debug,
+        strip_object_files,
+        kernel_release,
+        with_unit_test,
+        ebpf_compiler=ebpf_compiler,
+    )
     explain_opt = "-d explain" if explain else ""
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
@@ -1352,6 +1477,7 @@ def build_object_files(
     strip_object_files=False,
     with_unit_test=False,
     bundle_ebpf=False,
+    ebpf_compiler='clang',
 ) -> None:
     arch_obj = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch_obj)
@@ -1379,6 +1505,7 @@ def build_object_files(
         strip_object_files=strip_object_files,
         with_unit_test=with_unit_test,
         arch=arch,
+        ebpf_compiler=ebpf_compiler,
     )
 
     if bundle_ebpf:
@@ -1389,10 +1516,6 @@ def build_object_files(
     if not is_windows:
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
-
-        java_dir = os.path.join("pkg", "network", "protocols", "tls", "java")
-        ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_JAVA_DIR}")
-        ctx.run(f"{sudo} install -m644 -oroot -groot {java_dir}/agent-usm.jar {EMBEDDED_SHARE_JAVA_DIR}/agent-usm.jar")
 
         if ctx.run("command -v rsync >/dev/null 2>&1", warn=True, hide=True).ok:
             rsync_filter = "--filter='+ */' --filter='+ *.o' --filter='+ *.c' --filter='- *'"
@@ -1449,6 +1572,7 @@ def build_cws_object_files(
     strip_object_files=False,
     with_unit_test=False,
     bundle_ebpf=False,
+    ebpf_compiler='clang',
 ):
     run_ninja(
         ctx,
@@ -1458,6 +1582,7 @@ def build_cws_object_files(
         strip_object_files=strip_object_files,
         kernel_release=kernel_release,
         with_unit_test=with_unit_test,
+        ebpf_compiler=ebpf_compiler,
     )
 
     if bundle_ebpf:
@@ -1465,8 +1590,12 @@ def build_cws_object_files(
 
 
 @task
-def object_files(ctx, kernel_release=None, with_unit_test=False, arch: str = CURRENT_ARCH):
-    build_object_files(ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, arch=arch)
+def object_files(
+    ctx, kernel_release=None, with_unit_test=False, arch: str = CURRENT_ARCH, ebpf_compiler: str = 'clang'
+):
+    build_object_files(
+        ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, arch=arch, ebpf_compiler=ebpf_compiler
+    )
 
 
 def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):
@@ -1847,8 +1976,6 @@ def _test_docker_image_list():
         for component in docker_compose["services"]:
             images.add(docker_compose["services"][component]["image"])
 
-    # Special use-case in javatls
-    images.remove("${IMAGE_VERSION}")
     # Temporary: GoTLS monitoring inside containers tests are flaky in the CI, so at the meantime, the tests are
     # disabled, so we can skip downloading a redundant image.
     images.remove("public.ecr.aws/b1o7r7e0/usm-team/go-httpbin:https")
@@ -1946,7 +2073,7 @@ def save_build_outputs(ctx, destfile):
         ctx.run(f"sha256sum {outfile} >> {absdest}.sum")
 
 
-def copy_ebpf_and_related_files(ctx: Context, target: Path | str, arch: Arch | None = None, copy_usm_jar: bool = True):
+def copy_ebpf_and_related_files(ctx: Context, target: Path | str, arch: Arch | None = None):
     if arch is None:
         arch = Arch.local()
 
@@ -1959,6 +2086,3 @@ def copy_ebpf_and_related_files(ctx: Context, target: Path | str, arch: Arch | N
     ctx.run(f"chmod 0444 {target}/*.o {target}/*.c {target}/co-re/*.o")
     ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {target}")
     ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {target}")
-
-    if copy_usm_jar:
-        ctx.run(f"cp pkg/network/protocols/tls/java/agent-usm.jar {target}")

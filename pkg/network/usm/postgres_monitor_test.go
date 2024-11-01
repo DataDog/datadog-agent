@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -103,7 +104,11 @@ type postgresProtocolParsingSuite struct {
 func TestPostgresMonitoring(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	if !prebuilt.IsDeprecated() {
+		modes = append(modes, ebpftest.Prebuilt)
+	}
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 		suite.Run(t, new(postgresProtocolParsingSuite))
 	})
 }
@@ -185,7 +190,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 
 	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
 	if isTLS {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid(), utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
 	}
 
 	tests := []postgresParsingTestAttributes{

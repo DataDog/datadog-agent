@@ -9,9 +9,10 @@ package converterimpl
 import (
 	"context"
 
+	"go.opentelemetry.io/collector/confmap"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
-	"go.opentelemetry.io/collector/confmap"
 )
 
 type ddConverter struct {

@@ -9,7 +9,7 @@
   before_script:
     - $tmpfile = [System.IO.Path]::GetTempFileName()
     - (& "$CI_PROJECT_DIR\tools\ci\fetch_secret.ps1" -parameterName "$Env:VCPKG_BLOB_SAS_URL" -tempFile "$tmpfile")
-    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - If ($lastExitCode -ne "0") { exit "$lastExitCode" }
     - $vcpkgBlobSaSUrl=$(cat "$tmpfile")
     - Remove-Item "$tmpfile"
   script:
@@ -26,7 +26,6 @@
       -e CI_PIPELINE_ID="${CI_PIPELINE_ID}"
       -e CI_PROJECT_NAME="${CI_PROJECT_NAME}"
       -e AWS_NETWORKING=true
-      -e PY_RUNTIMES="$PYTHON_RUNTIMES"
       -e GOMODCACHE="c:\modcache"
       -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl}"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
@@ -37,5 +36,4 @@
 integration_tests_windows-x64:
   extends: .integration_tests_windows_base
   variables:
-    PYTHON_RUNTIMES: 3
     ARCH: "x64"

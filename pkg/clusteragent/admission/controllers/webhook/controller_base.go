@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
@@ -52,11 +53,12 @@ func NewController(
 	config Config,
 	wmeta workloadmeta.Component,
 	pa workload.PodPatcher,
+	datadogConfig config.Component,
 ) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa)
+		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa, datadogConfig)
 	}
-	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa)
+	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa, datadogConfig)
 }
 
 // Webhook represents an admission webhook
@@ -88,11 +90,13 @@ type Webhook interface {
 // The reason is that the volume mount for the APM socket added by the configWebhook webhook
 // doesn't always work on Fargate (one of the envs where we use an agent sidecar), and
 // the agent sidecar webhook needs to remove it.
-func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher) []Webhook {
+func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component) []Webhook {
 	// Note: the auto_instrumentation pod injection filter is used across
 	// multiple mutating webhooks, so we add it as a hard dependency to each
 	// of the components that use it via the injectionFilter parameter.
-	injectionFilter := autoinstrumentation.GetInjectionFilter()
+	// TODO: for now we ignore the error returned by NewInjectionFilter, but we should not and surface it
+	//       in the admission controller section in agent status.
+	injectionFilter, _ := autoinstrumentation.NewInjectionFilter(datadogConfig)
 
 	var webhooks []Webhook
 	var validatingWebhooks []Webhook
@@ -108,22 +112,22 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	// Add Mutating webhooks.
 	if c.config.isMutationEnabled() {
 		mutatingWebhooks = []Webhook{
-			configWebhook.NewWebhook(wmeta, injectionFilter),
-			tagsfromlabels.NewWebhook(wmeta, injectionFilter),
-			agentsidecar.NewWebhook(),
+			configWebhook.NewWebhook(wmeta, injectionFilter, datadogConfig),
+			tagsfromlabels.NewWebhook(wmeta, datadogConfig, injectionFilter),
+			agentsidecar.NewWebhook(datadogConfig),
 			autoscaling.NewWebhook(pa),
 		}
 		webhooks = append(webhooks, mutatingWebhooks...)
 
 		// APM Instrumentation webhook needs to be registered after the configWebhook webhook.
-		apm, err := autoinstrumentation.NewWebhook(wmeta, injectionFilter)
+		apm, err := autoinstrumentation.NewWebhook(wmeta, datadogConfig, injectionFilter)
 		if err == nil {
 			webhooks = append(webhooks, apm)
 		} else {
 			log.Errorf("failed to register APM Instrumentation webhook: %v", err)
 		}
 
-		cws, err := cwsinstrumentation.NewCWSInstrumentation(wmeta)
+		cws, err := cwsinstrumentation.NewCWSInstrumentation(wmeta, datadogConfig)
 		if err == nil {
 			webhooks = append(webhooks, cws.WebhookForPods(), cws.WebhookForCommands())
 		} else {

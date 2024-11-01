@@ -16,6 +16,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -24,6 +25,7 @@ import (
 func TestNewController(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
 	factory := informers.NewSharedInformerFactory(client, time.Duration(0))
 
 	// V1
@@ -37,6 +39,7 @@ func TestNewController(t *testing.T) {
 		v1Cfg,
 		wmeta,
 		nil,
+		datadogConfig,
 	)
 
 	assert.IsType(t, &ControllerV1{}, controller)
@@ -52,6 +55,7 @@ func TestNewController(t *testing.T) {
 		v1beta1Cfg,
 		wmeta,
 		nil,
+		datadogConfig,
 	)
 
 	assert.IsType(t, &ControllerV1beta1{}, controller)

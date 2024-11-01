@@ -12,6 +12,8 @@
 '@datadog/agent-security': '#security-and-compliance-agent-ops'
 '@datadog/agent-apm': '#apm-agent'
 '@datadog/network-device-monitoring': '#network-device-monitoring'
+'@datadog/ndm-core': '#ndm-core'
+'@datadog/ndm-integrations': '#ndm-integrations'
 '@datadog/processes': '#process-agent-ops'
 '@datadog/agent-metrics-logs': '#agent-metrics-logs'
 '@datadog/agent-processing-and-routing': '#agent-processing-and-routing'
@@ -43,3 +45,4 @@
 '@datadog/agent-devx-loops': '#agent-devx-ops'
 '@datadog/apm-onboarding': '#apm-onboarding'
 '@datadog/apm-reliability-and-performance': '#apm-ecosystems-reliability-and-performance'
+'@DataDog/container-ecosystems': '#container-ecosystems-ops'

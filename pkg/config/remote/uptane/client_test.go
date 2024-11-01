@@ -10,7 +10,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/bbolt"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -35,8 +35,8 @@ func getTestOrgUUIDFromID(orgID int) string {
 	return fmt.Sprintf("org-%d-uuid", orgID)
 }
 
-func newTestConfig(repo testRepositories) model.Config {
-	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+func newTestConfig(t testing.TB, repo testRepositories) model.Config {
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("remote_configuration.director_root", repo.directorRoot)
 	cfg.SetWithoutSource("remote_configuration.config_root", repo.configRoot)
 	return cfg
@@ -53,7 +53,7 @@ func newTestClient(db *bbolt.DB, cfg model.Config) (*CoreAgentClient, error) {
 
 func TestClientState(t *testing.T) {
 	testRepository1 := newTestRepository(2, 1, nil, nil, nil)
-	cfg := newTestConfig(testRepository1)
+	cfg := newTestConfig(t, testRepository1)
 	db := getTestDB(t)
 	client1, err := newTestClient(db, cfg)
 	assert.NoError(t, err)
@@ -104,7 +104,7 @@ func TestClientFullState(t *testing.T) {
 		"datadog/2/APM_SAMPLING/id/1": target1,
 	}
 	testRepository := newTestRepository(2, 1, configTargets, directorTargets, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
-	cfg := newTestConfig(testRepository)
+	cfg := newTestConfig(t, testRepository)
 	db := getTestDB(t)
 
 	// Prepare
@@ -141,7 +141,7 @@ func assertMetaVersion(t *testing.T, state map[string]MetaState, metaName string
 
 func TestClientVerifyTUF(t *testing.T) {
 	testRepository1 := newTestRepository(2, 1, nil, nil, nil)
-	cfg := newTestConfig(testRepository1)
+	cfg := newTestConfig(t, testRepository1)
 	db := getTestDB(t)
 
 	previousConfigTargets := testRepository1.configTargets
@@ -179,7 +179,7 @@ func TestClientVerifyUptane(t *testing.T) {
 	testRepositoryValid := newTestRepository(2, 1, configTargets1, directorTargets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
 	testRepositoryInvalid1 := newTestRepository(2, 1, configTargets2, directorTargets2, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}, {Path: "datadog/2/APM_SAMPLING/id/2", Raw: target2content}})
 
-	cfgValid := newTestConfig(testRepositoryValid)
+	cfgValid := newTestConfig(t, testRepositoryValid)
 	db := getTestDB(t)
 
 	client1, err := newTestClient(db, cfgValid)
@@ -190,7 +190,7 @@ func TestClientVerifyUptane(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, target1content, targetFile)
 
-	cfgInvalid1 := newTestConfig(testRepositoryInvalid1)
+	cfgInvalid1 := newTestConfig(t, testRepositoryInvalid1)
 	client2, err := newTestClient(db, cfgInvalid1)
 	assert.NoError(t, err)
 	err = client2.Update(testRepositoryInvalid1.toUpdate())
@@ -221,14 +221,14 @@ func TestClientVerifyOrgID(t *testing.T) {
 	testRepositoryValid := newTestRepository(2, 1, configTargets1, directorTargets1, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
 	testRepositoryInvalid := newTestRepository(2, 1, configTargets2, directorTargets2, []*pbgo.File{{Path: "datadog/3/APM_SAMPLING/id/1", Raw: target1content}})
 
-	cfgValid := newTestConfig(testRepositoryValid)
+	cfgValid := newTestConfig(t, testRepositoryValid)
 
 	client1, err := newTestClient(db, cfgValid)
 	assert.NoError(t, err)
 	err = client1.Update(testRepositoryValid.toUpdate())
 	assert.NoError(t, err)
 
-	cfgInvalid := newTestConfig(testRepositoryInvalid)
+	cfgInvalid := newTestConfig(t, testRepositoryInvalid)
 	client2, err := newTestClient(db, cfgInvalid)
 	assert.NoError(t, err)
 	err = client2.Update(testRepositoryInvalid.toUpdate())
@@ -252,9 +252,7 @@ func TestClientVerifyOrgUUID(t *testing.T) {
 	testRepositoryValidNoUUID := newTestRepository(4, 1, configTargets, directorTargets, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
 	testRepositoryInvalid := newTestRepository(3, 1, configTargets, directorTargets, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
 
-	cfgValid := newTestConfig(testRepositoryValid)
-	cfgValidNoUUID := newTestConfig(testRepositoryValidNoUUID)
-	cfgInvalid := newTestConfig(testRepositoryInvalid)
+	cfgValid := newTestConfig(t, testRepositoryValid)
 
 	// Valid repository with an orgID and a UUID in the snapshot
 	client1, err := newTestClient(db, cfgValid)
@@ -262,6 +260,7 @@ func TestClientVerifyOrgUUID(t *testing.T) {
 	err = client1.Update(testRepositoryValid.toUpdate())
 	assert.NoError(t, err)
 
+	cfgValidNoUUID := newTestConfig(t, testRepositoryValidNoUUID)
 	// Valid repository with an orgID but no UUID in the snapshot
 	db2 := getTestDB(t)
 	client2, err := newTestClient(db2, cfgValidNoUUID)
@@ -269,6 +268,7 @@ func TestClientVerifyOrgUUID(t *testing.T) {
 	err = client2.Update(testRepositoryValidNoUUID.toUpdate())
 	assert.Error(t, err)
 
+	cfgInvalid := newTestConfig(t, testRepositoryInvalid)
 	// Invalid repository : receives snapshot with orgUUID for org 2, but is org 3
 	client3, err := newTestClient(db, cfgInvalid)
 	assert.NoError(t, err)

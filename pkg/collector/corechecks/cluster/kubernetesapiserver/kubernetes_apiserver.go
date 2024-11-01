@@ -120,6 +120,7 @@ type KubeASCheck struct {
 	eventCollection eventCollection
 	ac              *apiserver.APIClient
 	oshiftAPILevel  apiserver.OpenShiftAPILevel
+	tagger          tagger.Component
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -133,20 +134,25 @@ func (c *KubeASConfig) parse(data []byte) error {
 }
 
 // NewKubeASCheck returns a new KubeASCheck
-func NewKubeASCheck(base core.CheckBase, instance *KubeASConfig) *KubeASCheck {
+func NewKubeASCheck(base core.CheckBase, instance *KubeASConfig, tagger tagger.Component) *KubeASCheck {
 	return &KubeASCheck{
 		CheckBase: base,
 		instance:  instance,
+		tagger:    tagger,
 	}
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory(tagger tagger.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(
+		func() check.Check {
+			return newCheck(tagger)
+		},
+	)
 }
 
-func newCheck() check.Check {
-	return NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{})
+func newCheck(tagger tagger.Component) check.Check {
+	return NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{}, tagger)
 }
 
 // Configure parses the check configuration and init the check.
@@ -188,9 +194,9 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 	}
 
 	if k.instance.UnbundleEvents {
-		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes, k.instance.BundleUnspecifiedEvents, k.instance.FilteringEnabled)
+		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, k.tagger, k.instance.CollectedEventTypes, k.instance.BundleUnspecifiedEvents, k.instance.FilteringEnabled)
 	} else {
-		k.eventCollection.Transformer = newBundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes, k.instance.FilteringEnabled)
+		k.eventCollection.Transformer = newBundledTransformer(clusterName, k.tagger, k.instance.CollectedEventTypes, k.instance.FilteringEnabled)
 	}
 
 	return nil

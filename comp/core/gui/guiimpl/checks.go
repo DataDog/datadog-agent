@@ -21,7 +21,6 @@ import (
 	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -29,19 +28,20 @@ import (
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
 	configPaths = []string{
-		pkgconfigsetup.Datadog().GetString("confd_path"), // Custom checks
-		filepath.Join(path.GetDistPath(), "conf.d"),      // Default check configs
+		pkgconfigsetup.Datadog().GetString("confd_path"),    // Custom checks
+		filepath.Join(defaultpaths.GetDistPath(), "conf.d"), // Default check configs
 	}
 
 	checkPaths = []string{
-		filepath.Join(path.GetDistPath(), "checks.d"),            // Custom checks
+		filepath.Join(defaultpaths.GetDistPath(), "checks.d"),    // Custom checks
 		pkgconfigsetup.Datadog().GetString("additional_checksd"), // Custom checks
-		path.PyChecksPath, // Integrations-core checks
+		defaultpaths.PyChecksPath,                                // Integrations-core checks
 	}
 )
 
@@ -253,7 +253,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 			log.Errorf("Error: Unable to join provided \"confd_path\" setting path with checkFolder: %s", err.Error())
 			return
 		}
-		defaultCheckConfFolderPath, err = securejoin.SecureJoin(filepath.Join(path.GetDistPath(), "conf.d"), checkFolder)
+		defaultCheckConfFolderPath, err = securejoin.SecureJoin(filepath.Join(defaultpaths.GetDistPath(), "conf.d"), checkFolder)
 		if err != nil {
 			http.Error(w, "invalid checkFolder path", http.StatusBadRequest)
 			log.Errorf("Error: Unable to join conf folder path with checkFolder: %s", err.Error())
@@ -261,7 +261,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		checkConfFolderPath = pkgconfigsetup.Datadog().GetString("confd_path")
-		defaultCheckConfFolderPath = filepath.Join(path.GetDistPath(), "conf.d")
+		defaultCheckConfFolderPath = filepath.Join(defaultpaths.GetDistPath(), "conf.d")
 	}
 
 	if r.Method == "POST" {

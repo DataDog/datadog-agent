@@ -7,10 +7,8 @@
 package fx
 
 import (
-	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl-systemprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 )
 
 // Module defines the fx options for this component
@@ -19,6 +17,5 @@ func Module() fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			logimpl.NewComponent,
 		),
-		logging.NewFxEventLoggerOption[logdef.Component](),
 	)
 }

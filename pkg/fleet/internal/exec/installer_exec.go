@@ -199,6 +199,12 @@ func (i *InstallerExec) Setup(ctx context.Context) (err error) {
 	return nil
 }
 
+// AvailableDiskSpace returns the available disk space.
+func (i *InstallerExec) AvailableDiskSpace() (uint64, error) {
+	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPath)
+	return repositories.AvailableDiskSpace()
+}
+
 // State returns the state of a package.
 func (i *InstallerExec) State(pkg string) (repository.State, error) {
 	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPath)

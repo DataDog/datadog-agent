@@ -129,10 +129,10 @@ func TestUnbundledEventsTransform(t *testing.T) {
 	}
 
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
+
 	for _, ev := range incomingEvents {
 		fakeTagger.SetTags(
-			types.NewEntityID(types.ContainerID, ev.ContainerID).String(),
+			types.NewEntityID(types.ContainerID, ev.ContainerID),
 			"docker",
 			[]string{fmt.Sprintf("image_name:%s", ev.ImageName), fmt.Sprintf("container_name:%s", ev.ContainerName)},
 			[]string{},
@@ -301,12 +301,13 @@ pokemon/azurill 1 top on test-host
 		t.Run(tt.name, func(t *testing.T) {
 			var eventTransformer eventTransformer = noopEventTransformer{}
 			if tt.bundleUnspecifedEvents {
-				eventTransformer = newBundledTransformer(hostname, tt.filteredEventTypes)
+				eventTransformer = newBundledTransformer(hostname, tt.filteredEventTypes, fakeTagger)
 			}
 			transformer := newUnbundledTransformer(
 				hostname,
 				tt.collectedEventTypes,
 				eventTransformer,
+				fakeTagger,
 			)
 			evs, errs := transformer.Transform(incomingEvents)
 			require.Nil(t, errs)

@@ -673,6 +673,8 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, 15*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
 	assert.Equal(t, 5*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
 	assert.Equal(t, 10*time.Second, config.GetDuration("network_path.collector.flush_interval"))
+	assert.Equal(t, true, config.GetBool("network_path.collector.reverse_dns_enrichment.enabled"))
+	assert.Equal(t, 5000, config.GetInt("network_path.collector.reverse_dns_enrichment.timeout"))
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
@@ -929,21 +931,31 @@ func TestEnablePeerServiceStatsAggregationEnv(t *testing.T) {
 }
 
 func TestEnablePeerTagsAggregationEnv(t *testing.T) {
-	t.Setenv("DD_APM_PEER_TAGS_AGGREGATION", "true")
 	testConfig := newTestConf()
 	require.True(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
+
+	t.Setenv("DD_APM_PEER_TAGS_AGGREGATION", "true")
+	testConfig = newTestConf()
+	require.True(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
+
 	t.Setenv("DD_APM_PEER_TAGS_AGGREGATION", "false")
 	testConfig = newTestConf()
 	require.False(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
 }
 
 func TestEnableStatsComputationBySpanKindYAML(t *testing.T) {
-	datadogYaml := `
+	datadogYaml := ""
+	testConfig := confFromYAML(t, datadogYaml)
+	err := setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
+
+	datadogYaml = `
 apm_config:
   compute_stats_by_span_kind: false
 `
-	testConfig := confFromYAML(t, datadogYaml)
-	err := setupFipsEndpoints(testConfig)
+	testConfig = confFromYAML(t, datadogYaml)
+	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.False(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
 
@@ -958,9 +970,13 @@ apm_config:
 }
 
 func TestComputeStatsBySpanKindEnv(t *testing.T) {
-	t.Setenv("DD_APM_COMPUTE_STATS_BY_SPAN_KIND", "false")
 	testConfig := newTestConf()
+	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
+
+	t.Setenv("DD_APM_COMPUTE_STATS_BY_SPAN_KIND", "false")
+	testConfig = newTestConf()
 	require.False(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
+
 	t.Setenv("DD_APM_COMPUTE_STATS_BY_SPAN_KIND", "true")
 	testConfig = newTestConf()
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
@@ -1033,7 +1049,7 @@ func TestPeerTagsEnv(t *testing.T) {
 
 func TestLogDefaults(t *testing.T) {
 	// New config
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	require.Equal(t, 0, c.GetInt("log_file_max_rolls"))
 	require.Equal(t, "", c.GetString("log_file_max_size"))
 	require.Equal(t, "", c.GetString("log_file"))
@@ -1052,7 +1068,7 @@ func TestLogDefaults(t *testing.T) {
 
 	// SystemProbe config
 
-	SystemProbe := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	SystemProbe := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	InitSystemProbeConfig(SystemProbe)
 
 	require.Equal(t, 1, SystemProbe.GetInt("log_file_max_rolls"))
@@ -1393,7 +1409,7 @@ func TestServerlessConfigNumComponents(t *testing.T) {
 }
 
 func TestServerlessConfigInit(t *testing.T) {
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 
 	initCommonWithServerless(conf)
 
@@ -1419,7 +1435,7 @@ func TestAgentConfigInit(t *testing.T) {
 
 func TestENVAdditionalKeysToScrubber(t *testing.T) {
 	// Test that the scrubber is correctly configured with the expected keys
-	cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 
 	data := `scrubber.additional_keys:
 - yet_another_key

@@ -19,14 +19,6 @@
     module. A fresh reference to the module is created here. This function is python3
     only.
 */
-/*! \fn void Py2_init_kubeutil()
-    \brief Initializes the kubeutil builtin python module.
-
-    The kubeutil python builtin is created and registered here as per the methods
-    PyMethodDef array definition. The get_connection_info method is registered with the
-    module. A fresh reference to the module is created here. This function is python2
-    only.
-*/
 /*! \fn void _set_get_connection_info_cb(cb_get_connection_info_t)
     \brief Sets a callback to be used by rtloader for kubernetes connection information
     retrieval.
@@ -45,12 +37,8 @@
 extern "C" {
 #endif
 
-#ifdef DATADOG_AGENT_THREE
 // PyMODINIT_FUNC macro already specifies extern "C", nesting these is legal
 PyMODINIT_FUNC PyInit_kubeutil(void);
-#elif defined(DATADOG_AGENT_TWO)
-void Py2_init_kubeutil();
-#endif
 
 void _set_get_connection_info_cb(cb_get_connection_info_t);
 

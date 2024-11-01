@@ -35,7 +35,7 @@ upload_dependencies_sysprobe_arm64:
     - mkdir $KMT_DOCKERS
     - inv -e system-probe.save-test-dockers --use-crane --output-dir $KMT_DOCKERS --arch $ARCH
   after_script:
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - !reference [.tag_kmt_ci_job]
   artifacts:
     expire_in: 1 day
@@ -82,7 +82,7 @@ pull_test_dockers_arm64:
     - !reference [.setup_ssh_config]
     - scp $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
   after_script:
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - !reference [.tag_kmt_ci_job]
   variables:
     DEPENDENCIES: $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/btfs
@@ -122,7 +122,6 @@ kmt_setup_env_sysprobe_arm64:
     AMI_ID_ARG: "--arm-ami-id=$KERNEL_MATRIX_TESTING_ARM_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-arm
     TEST_COMPONENT: system-probe
-    TEST_SETS: "only_usm,no_usm"
 
 kmt_setup_env_sysprobe_x64:
   extends:
@@ -135,7 +134,6 @@ kmt_setup_env_sysprobe_x64:
     AMI_ID_ARG: "--x86-ami-id=$KERNEL_MATRIX_TESTING_X86_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-x86
     TEST_COMPONENT: system-probe
-    TEST_SETS: "only_usm,no_usm"
 
 .upload_sysprobe_tests:
   stage: kernel_matrix_testing_prepare
@@ -161,7 +159,7 @@ kmt_setup_env_sysprobe_x64:
     # upload connector to metal instance
     - scp $CI_PROJECT_DIR/connector-${ARCH} metal_instance:/home/ubuntu/connector
   after_script:
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - !reference [.tag_kmt_ci_job]
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
@@ -270,6 +268,7 @@ kmt_run_sysprobe_tests_arm64:
         TEST_SET: ["only_usm", "no_usm"]
   after_script:
     - !reference [.collect_outcomes_kmt]
+    - !reference [.upload_junit_kmt]
 
 .kmt_sysprobe_cleanup:
   extends:

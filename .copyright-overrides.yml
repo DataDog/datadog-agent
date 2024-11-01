@@ -213,6 +213,7 @@ github.com/gogo/protobuf: ["Copyright (c) 2013, The GoGo Authors. All rights res
 #  * Automatic "Copyright (c)"
 #  * Year is based on the year of the first commit to the repository
 #  * Author, when known only by GitHub username, is "GitHub Full Name (github-username)"
+github.com/moby/docker-image-spec/specs-go/v1: Copyright 2012-2017 Docker, Inc.
 github.com/moby/sys/mountinfo: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 github.com/moby/sys/signal: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 github.com/moby/sys/user: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
@@ -364,6 +365,7 @@ github.com/signalfx/sapm-proto/*: Copyright 2019 Splunk, Inc.
 go.mongodb.org/atlas/mongodbatlas: Copyright 2022 MongoDB Inc
 github.com/go-jose/go-jose/v4: Copyright 2014 Square Inc.
 github.com/gocolly/colly: Copyright 2018 Adam Tauber
+github.com/puzpuzpuz/xsync/v3: Copyright (c) 2021 Andrey Pechkurov
 
 github.com/vibrantbyte/go-antpath/antpath: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
 github.com/vibrantbyte/go-antpath/extend: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
@@ -372,3 +374,5 @@ github.com/vibrantbyte/go-antpath/extend: vibrantbyte <codingrun@163.com>|suchao
 github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp: Copyright 2024 gRPC authors.
 github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/grpc_gcp: Copyright 2024 gRPC authors.
 github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/multiendpoint: Copyright 2024 gRPC authors.
+
+github.com/NVIDIA/go-nvml/*: Copyright 2023 NVIDIA CORPORATION

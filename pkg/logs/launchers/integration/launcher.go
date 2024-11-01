@@ -7,11 +7,14 @@
 package integration
 
 import (
+	"errors"
 	"math"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/spf13/afero"
 
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	ddLog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,23 +46,24 @@ type Launcher struct {
 	combinedUsageSize    int64
 	// writeLogToFile is used as a function pointer, so it can be overridden in
 	// testing to make deterministic tests
-	writeLogToFileFunction func(filepath, log string) error
+	writeLogToFileFunction func(fs afero.Fs, filepath, log string) error
+	fs                     afero.Fs
 }
 
 // fileInfo stores information about each file that is needed in order to keep
 // track of the combined and overall disk usage by the logs files
 type fileInfo struct {
-	filename     string
+	fileWithPath string
 	lastModified time.Time
 	size         int64
 }
 
 // NewLauncher creates and returns an integrations launcher, and creates the
 // path for integrations files to run in
-func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.Component) *Launcher {
+func NewLauncher(fs afero.Fs, sources *sources.LogSources, integrationsLogsComp integrations.Component) *Launcher {
 	datadogConfig := pkgconfigsetup.Datadog()
 	runPath := filepath.Join(datadogConfig.GetString("logs_config.run_path"), "integrations")
-	err := os.MkdirAll(runPath, 0755)
+	err := fs.MkdirAll(runPath, 0755)
 
 	if err != nil {
 		ddLog.Error("Unable to create integrations logs directory:", err)
@@ -67,10 +71,21 @@ func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.
 
 	logsTotalUsageSetting := datadogConfig.GetInt64("logs_config.integrations_logs_total_usage") * 1024 * 1024
 	logsUsageRatio := datadogConfig.GetFloat64("logs_config.integrations_logs_disk_ratio")
-	maxDiskUsage, err := computeMaxDiskUsage(runPath, logsTotalUsageSetting, logsUsageRatio)
-	if err != nil {
-		ddLog.Warn("Unable to compute integrations logs max disk usage, using default value of 100 MB:", err)
+
+	var maxDiskUsage int64
+	if logsUsageRatio > 1 || logsUsageRatio < 0 {
+		ddLog.Warn("Logs usage ratio setting must be between 0 and 1, current value is:", logsUsageRatio, ". Falling back to integrations_logs_total_usage setting.")
 		maxDiskUsage = logsTotalUsageSetting
+	} else {
+		maxDiskUsage, err = computeMaxDiskUsage(runPath, logsTotalUsageSetting, logsUsageRatio)
+		if err != nil {
+			ddLog.Warn("Unable to compute integrations logs max disk usage, falling back to integrations_logs_total_usage setting:", err)
+			maxDiskUsage = logsTotalUsageSetting
+		}
+
+		if maxDiskUsage == 0 {
+			ddLog.Warn("No space available to store logs. Logs from integrations will be dropped. Please allocate space for logs to be stored.")
+		}
 	}
 
 	return &Launcher{
@@ -86,6 +101,7 @@ func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.
 		// Set the initial least recently modified time to the largest possible
 		// value, used for the first comparison
 		writeLogToFileFunction: writeLogToFile,
+		fs:                     fs,
 	}
 }
 
@@ -109,6 +125,9 @@ func (s *Launcher) run() {
 	for {
 		select {
 		case cfg := <-s.addedConfigs:
+			if s.combinedUsageMax == 0 {
+				continue
+			}
 
 			sources, err := ad.CreateSources(cfg.Config)
 			if err != nil {
@@ -134,12 +153,16 @@ func (s *Launcher) run() {
 						s.integrationToFile[cfg.IntegrationID] = logFile
 					}
 
-					filetypeSource := s.makeFileSource(source, logFile.filename)
+					filetypeSource := s.makeFileSource(source, logFile.fileWithPath)
 					s.sources.AddSource(filetypeSource)
 				}
 			}
 
 		case log := <-s.integrationsLogsChan:
+			if s.combinedUsageMax == 0 {
+				continue
+			}
+
 			s.receiveLogs(log)
 		case <-s.stop:
 			return
@@ -160,8 +183,17 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 	// Ensure the individual file doesn't exceed integrations_logs_files_max_size
 	// Add 1 because we write the \n at the end as well
 	logSize := int64(len(log.Log)) + 1
+
+	if logSize > s.fileSizeMax {
+		ddLog.Warnf("Individual log size (%d bytes) is larger than maximum allowable file size (%d bytes), skipping writing to log file: %s", logSize, s.fileSizeMax, log.Log)
+		return
+	} else if logSize > s.combinedUsageMax {
+		ddLog.Warnf("Individual log size (%d bytes) is larger than maximum allowable file size (%d bytes), skipping writing to log file: %s", logSize, s.combinedUsageMax, log.Log)
+		return
+	}
+
 	if fileToUpdate.size+logSize > s.fileSizeMax {
-		file, err := os.Create(fileToUpdate.filename)
+		file, err := s.fs.Create(fileToUpdate.fileWithPath)
 		if err != nil {
 			ddLog.Error("Failed to delete and remake oversize file:", err)
 			return
@@ -181,14 +213,18 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 	// deleting files until total usage falls below the set maximum
 	for s.combinedUsageSize+logSize > s.combinedUsageMax {
 		leastRecentlyModifiedFile := s.getLeastRecentlyModifiedFile()
+		if leastRecentlyModifiedFile == nil {
+			ddLog.Error("Could not determine least recently modified file, skipping writing log to file.")
+			return
+		}
 
 		err := s.deleteFile(leastRecentlyModifiedFile)
 		if err != nil {
 			ddLog.Error("Error deleting log file:", err)
-			continue
+			return
 		}
 
-		file, err := os.Create(leastRecentlyModifiedFile.filename)
+		file, err := s.fs.Create(leastRecentlyModifiedFile.fileWithPath)
 		if err != nil {
 			ddLog.Error("Error creating log file:", err)
 			continue
@@ -200,7 +236,7 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 		}
 	}
 
-	err := s.writeLogToFileFunction(filepath.Join(s.runPath, fileToUpdate.filename), log.Log)
+	err := s.writeLogToFileFunction(s.fs, fileToUpdate.fileWithPath, log.Log)
 	if err != nil {
 		ddLog.Warn("Error writing log to file:", err)
 		return
@@ -212,14 +248,12 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 	fileToUpdate.size += logSize
 }
 
-// deleteFile deletes the given file
 func (s *Launcher) deleteFile(file *fileInfo) error {
-	filename := filepath.Join(s.runPath, file.filename)
-	err := os.Remove(filename)
+	err := s.fs.Remove(file.fileWithPath)
 	if err != nil {
 		return err
 	}
-	ddLog.Info("Successfully deleted log file:", filename)
+	ddLog.Info("Successfully deleted log file:", file.fileWithPath)
 
 	s.combinedUsageSize -= file.size
 
@@ -236,7 +270,7 @@ func (s *Launcher) getLeastRecentlyModifiedFile() *fileInfo {
 	var leastRecentlyModifiedFile *fileInfo
 
 	for _, fileInfo := range s.integrationToFile {
-		if fileInfo.lastModified.Before(leastRecentlyModifiedTime) {
+		if fileInfo.lastModified.Before(leastRecentlyModifiedTime) || fileInfo.lastModified.Equal(leastRecentlyModifiedTime) {
 			leastRecentlyModifiedFile = fileInfo
 			leastRecentlyModifiedTime = fileInfo.lastModified
 		}
@@ -246,8 +280,8 @@ func (s *Launcher) getLeastRecentlyModifiedFile() *fileInfo {
 }
 
 // writeLogToFile is used as a function pointer that writes a log to a given file
-func writeLogToFile(logFilePath, log string) error {
-	file, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+func writeLogToFile(fs afero.Fs, logFilePath, log string) error {
+	file, err := fs.OpenFile(logFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		ddLog.Error("Failed to open file to write log to:", err)
 		return err
@@ -286,7 +320,7 @@ func (s *Launcher) makeFileSource(source *sources.LogSource, logFilePath string)
 func (s *Launcher) createFile(source string) (*fileInfo, error) {
 	filepath := s.integrationLogFilePath(source)
 
-	file, err := os.Create(filepath)
+	file, err := s.fs.Create(filepath)
 	if err != nil {
 		ddLog.Error("Error creating file for log source:", err)
 		return nil, err
@@ -299,7 +333,7 @@ func (s *Launcher) createFile(source string) (*fileInfo, error) {
 	}
 
 	fileInfo := &fileInfo{
-		filename:     filepath,
+		fileWithPath: filepath,
 		lastModified: time.Now(),
 		size:         0,
 	}
@@ -315,7 +349,7 @@ func (s *Launcher) integrationLogFilePath(id string) string {
 	return logFilePath
 }
 
-// computerDiskUsageMax computes the max disk space the launcher can use based
+// computeDiskUsageMax computes the max disk space the launcher can use based
 // off the integrations_logs_disk_ratio and integrations_logs_total_usage
 // settings
 func computeMaxDiskUsage(runPath string, logsTotalUsageSetting int64, usageRatio float64) (int64, error) {
@@ -327,13 +361,19 @@ func computeMaxDiskUsage(runPath string, logsTotalUsageSetting int64, usageRatio
 	diskReserved := float64(usage.Total) * (1 - usageRatio)
 	diskAvailable := int64(usage.Available) - int64(math.Ceil(diskReserved))
 
+	if diskAvailable <= 0 {
+		ddLog.Warnf("Available disk calculated as %d bytes, disk reserved is %f bytes. Check %s and make sure there is enough free space on disk", diskAvailable, diskReserved, "integrations_logs_disk_ratio")
+		diskAvailable = 0
+	}
+
 	return min(logsTotalUsageSetting, diskAvailable), nil
 }
 
 // scanInitialFiles scans the run path for initial files and then adds them to
 // be managed by the launcher
 func (s *Launcher) scanInitialFiles(dir string) error {
-	err := filepath.Walk(dir, func(_ string, info os.FileInfo, err error) error {
+
+	err := afero.Walk(s.fs, dir, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -343,12 +383,12 @@ func (s *Launcher) scanInitialFiles(dir string) error {
 		}
 
 		fileInfo := &fileInfo{
-			filename:     info.Name(),
+			fileWithPath: filepath.Join(dir, info.Name()),
 			size:         info.Size(),
 			lastModified: info.ModTime(),
 		}
 
-		integrationID := fileNameToID(fileInfo.filename)
+		integrationID := fileNameToID(fileInfo.fileWithPath)
 
 		s.integrationToFile[integrationID] = fileInfo
 		s.combinedUsageSize += info.Size()
@@ -362,6 +402,11 @@ func (s *Launcher) scanInitialFiles(dir string) error {
 
 	for s.combinedUsageSize > s.combinedUsageMax {
 		leastRecentlyModifiedFile := s.getLeastRecentlyModifiedFile()
+
+		if leastRecentlyModifiedFile == nil {
+			ddLog.Error("Could not determine least recently modified file")
+			return errors.New("getLeastRecentlyModifiedFile returned nil when trying to delete files")
+		}
 
 		err = s.deleteFile(leastRecentlyModifiedFile)
 		if err != nil {

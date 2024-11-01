@@ -11,13 +11,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
@@ -121,13 +119,7 @@ func TestNewExtension(t *testing.T) {
 }
 
 func TestExtensionHTTPHandler(t *testing.T) {
-	oldConfig := pkgconfigsetup.Datadog()
-	defer func() {
-		pkgconfigsetup.SetDatadog(oldConfig)
-	}()
-
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	pkgconfigsetup.SetDatadog(conf)
+	conf := configmock.New(t)
 	err := apiutil.CreateAndSetAuthToken(conf)
 	if err != nil {
 		t.Fatal(err)
@@ -162,13 +154,7 @@ func TestExtensionHTTPHandler(t *testing.T) {
 }
 
 func TestExtensionHTTPHandlerBadToken(t *testing.T) {
-	oldConfig := pkgconfigsetup.Datadog()
-	defer func() {
-		pkgconfigsetup.SetDatadog(oldConfig)
-	}()
-
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	pkgconfigsetup.SetDatadog(conf)
+	conf := configmock.New(t)
 	err := apiutil.CreateAndSetAuthToken(conf)
 	if err != nil {
 		t.Fatal(err)

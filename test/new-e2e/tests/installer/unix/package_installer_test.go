@@ -25,9 +25,9 @@ func (s *packageInstallerSuite) TestInstall() {
 	s.RunInstallScript("DD_NO_AGENT_INSTALL=true")
 	defer s.Purge()
 
-	bootstraperVersion := s.host.BootstraperVersion()
+	bootstrapperVersion := s.host.BootstrapperVersion()
 	installerVersion := s.host.InstallerVersion()
-	assert.Equal(s.T(), bootstraperVersion, installerVersion)
+	assert.Equal(s.T(), bootstrapperVersion, installerVersion)
 
 	state := s.host.State()
 	state.AssertGroupExists("dd-agent")

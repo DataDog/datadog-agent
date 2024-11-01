@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/intern"
 )
 
 func BenchmarkStatKeeperSameTX(b *testing.B) {
@@ -66,10 +67,10 @@ func TestStatKeeper_extractTopicName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			statKeeper := &StatKeeper{
-				topicNames: map[string]string{},
+				topicNames: intern.NewStringInterner(),
 			}
 			copy(tt.tx.Topic_name[:], strings.Repeat("*", len(tt.tx.Topic_name)))
-			if got := statKeeper.extractTopicName(tt.tx); len(got) != len(tt.want) {
+			if got := statKeeper.extractTopicName(tt.tx); len(got.Get()) != len(tt.want) {
 				t.Errorf("extractTopicName() = %v, want %v", got, tt.want)
 			}
 		})
@@ -105,7 +106,7 @@ func TestProcessKafkaTransactions(t *testing.T) {
 	assert.Equal(t, 0, len(sk.stats))
 	assert.Equal(t, numOfTopics, len(stats))
 	for key, stats := range stats {
-		assert.Equal(t, topicNamePrefix, key.TopicName[:len(topicNamePrefix)])
+		assert.Equal(t, topicNamePrefix, key.TopicName.Get()[:len(topicNamePrefix)])
 		for i := 0; i < 5; i++ {
 			s := stats.ErrorCodeToStat[int32(i)]
 			require.NotNil(t, s)

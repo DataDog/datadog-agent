@@ -27,14 +27,14 @@ func newLocal(env *env.Env) (CDN, error) {
 }
 
 // Get gets the configuration from the CDN.
-func (c *cdnLocal) Get(_ context.Context) (_ *Config, err error) {
+func (c *cdnLocal) Get(_ context.Context, pkg string) (cfg Config, err error) {
 	files, err := os.ReadDir(c.dirPath)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't read directory %s: %w", c.dirPath, err)
 	}
 
-	var configOrder *orderConfig
-	var configLayers = make(map[string]*layer)
+	var orderConfig *orderConfig
+	var layers = [][]byte{}
 	for _, file := range files {
 		if file.IsDir() {
 			continue
@@ -46,25 +46,30 @@ func (c *cdnLocal) Get(_ context.Context) (_ *Config, err error) {
 		}
 
 		if file.Name() == configOrderID {
-			err = json.Unmarshal(contents, &configOrder)
+			err = json.Unmarshal(contents, &orderConfig)
 			if err != nil {
 				return nil, fmt.Errorf("couldn't unmarshal config order %s: %w", file.Name(), err)
 			}
 		} else {
-			configLayer := &layer{}
-			err = json.Unmarshal(contents, configLayer)
-			if err != nil {
-				return nil, fmt.Errorf("couldn't unmarshal file %s: %w", file.Name(), err)
-			}
-			configLayers[file.Name()] = configLayer
+			layers = append(layers, contents)
 		}
 	}
 
-	if configOrder == nil {
+	if orderConfig == nil {
 		return nil, fmt.Errorf("no configuration_order found")
 	}
 
-	return newConfig(orderLayers(*configOrder, configLayers)...)
+	switch pkg {
+	case "datadog-agent":
+		cfg, err = newAgentConfig(orderConfig, layers...)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, ErrProductNotSupported
+	}
+
+	return cfg, nil
 }
 
 func (c *cdnLocal) Close() error {

@@ -64,6 +64,8 @@ func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {}
 
 func (n *noopTraceWriter) FlushSync() error { return nil }
 
+func (n *noopTraceWriter) UpdateAPIKey(_, _ string) {}
+
 // NewAgent creates a new unstarted traceagent using the given context. Call Start to start the traceagent.
 // The out channel will receive outoing stats payloads resulting from spans ingested using the Ingest method.
 func NewAgent(ctx context.Context, out chan *pb.StatsPayload, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {

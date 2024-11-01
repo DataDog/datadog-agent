@@ -66,8 +66,8 @@ const activityQueryOnView12 = `SELECT /* DD_ACTIVITY_SAMPLING */
 		'CPU'
 	END wait_class,
 	wait_time_micro,
-	dbms_lob.substr(sql_fulltext, :sql_substr_length, 1) sql_fulltext,
-	dbms_lob.substr(prev_sql_fulltext, :sql_substr_length, 1) prev_sql_fulltext,
+	dbms_lob.substr(sql_fulltext, :sql_substr_length_1, 1) sql_fulltext,
+	dbms_lob.substr(prev_sql_fulltext, :sql_substr_length_2, 1) prev_sql_fulltext,
 	pdb_name,
 	command_name
 FROM sys.dd_session
@@ -133,8 +133,8 @@ const activityQueryOnView11 = `SELECT /* DD_ACTIVITY_SAMPLING */
 		'CPU'
 	END wait_class,
 	wait_time_micro,
-	dbms_lob.substr(sql_fulltext, :sql_substr_length, 1) sql_fulltext,
-	dbms_lob.substr(prev_sql_fulltext, :sql_substr_length, 1) prev_sql_fulltext,
+	dbms_lob.substr(sql_fulltext, :sql_substr_length_1, 1) sql_fulltext,
+	dbms_lob.substr(prev_sql_fulltext, :sql_substr_length_2, 1) prev_sql_fulltext,
 	command_name
 FROM sys.dd_session
 WHERE
@@ -199,8 +199,8 @@ ELSE
 END wait_class,
 s.wait_time_micro,
 c.name as pdb_name,
-dbms_lob.substr(sq.sql_fulltext, :sql_substr_length, 1) sql_fulltext,
-dbms_lob.substr(sq_prev.sql_fulltext, :sql_substr_length, 1) prev_sql_fulltext,
+dbms_lob.substr(sq.sql_fulltext, :sql_substr_length_1, 1) sql_fulltext,
+dbms_lob.substr(sq_prev.sql_fulltext, :sql_substr_length_2, 1) prev_sql_fulltext,
 comm.command_name
 FROM
 v$session s,

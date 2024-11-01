@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -100,7 +101,11 @@ func TestHTTP(t *testing.T) {
 	if kv < usmconfig.MinimumKernelVersion {
 		t.Skipf("USM is not supported on %v", kv)
 	}
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	if !prebuilt.IsDeprecated() {
+		modes = append(modes, ebpftest.Prebuilt)
+	}
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 		suite.Run(t, new(HTTPTestSuite))
 	})
 }
@@ -108,54 +113,35 @@ func TestHTTP(t *testing.T) {
 func (s *HTTPTestSuite) TestHTTPStats() {
 	t := s.T()
 
-	testCases := []struct {
-		name                  string
-		aggregateByStatusCode bool
-	}{
-		{
-			name:                  "status code",
-			aggregateByStatusCode: true,
-		},
-		{
-			name:                  "status class",
-			aggregateByStatusCode: false,
-		},
-	}
-	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) {
-			// Start an HTTP server on localhost:8080
-			serverAddr := "127.0.0.1:8080"
-			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
-				EnableKeepAlive: true,
-			})
-			t.Cleanup(srvDoneFn)
+	// Start an HTTP server on localhost:8080
+	serverAddr := "127.0.0.1:8080"
+	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
+		EnableKeepAlive: true,
+	})
+	t.Cleanup(srvDoneFn)
 
-			cfg := config.New()
-			cfg.EnableHTTPStatsByStatusCode = tt.aggregateByStatusCode
-			monitor := newHTTPMonitorWithCfg(t, cfg)
+	monitor := newHTTPMonitorWithCfg(t, config.New())
 
-			resp, err := nethttp.Get(fmt.Sprintf("http://%s/%d/test", serverAddr, nethttp.StatusNoContent))
-			require.NoError(t, err)
-			_ = resp.Body.Close()
-			srvDoneFn()
+	resp, err := nethttp.Get(fmt.Sprintf("http://%s/%d/test", serverAddr, nethttp.StatusNoContent))
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	srvDoneFn()
 
-			// Iterate through active connections until we find connection created above
-			require.Eventuallyf(t, func() bool {
-				stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
+	// Iterate through active connections until we find connection created above
+	require.Eventuallyf(t, func() bool {
+		stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 
-				for key, reqStats := range stats {
-					if key.Method == http.MethodGet && strings.HasSuffix(key.Path.Content.Get(), "/test") && (key.SrcPort == 8080 || key.DstPort == 8080) {
-						currentStats := reqStats.Data[reqStats.NormalizeStatusCode(204)]
-						if currentStats != nil && currentStats.Count == 1 {
-							return true
-						}
-					}
+		for key, reqStats := range stats {
+			if key.Method == http.MethodGet && strings.HasSuffix(key.Path.Content.Get(), "/test") && (key.SrcPort == 8080 || key.DstPort == 8080) {
+				currentStats := reqStats.Data[204]
+				if currentStats != nil && currentStats.Count == 1 {
+					return true
 				}
+			}
+		}
 
-				return false
-			}, 3*time.Second, 100*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
-		})
-	}
+		return false
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
 }
 
 // TestHTTPMonitorLoadWithIncompleteBuffers sends thousands of requests without getting responses for them, in parallel
