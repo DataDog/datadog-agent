@@ -3,9 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+//nolint:revive
 package safeelf
 
-import "debug/elf"
+import "debug/elf" //nolint:depguard
 
 type Prog = elf.Prog
 type Symbol = elf.Symbol

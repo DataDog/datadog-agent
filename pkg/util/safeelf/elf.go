@@ -29,7 +29,7 @@ package safeelf
 
 import (
 	"debug/dwarf"
-	"debug/elf"
+	"debug/elf" //nolint:depguard
 	"fmt"
 	"io"
 )
