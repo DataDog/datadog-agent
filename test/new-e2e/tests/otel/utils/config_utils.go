@@ -59,36 +59,35 @@ func TestOTelFlare(s OTelTestSuite, providedCfg string, fullCfg string, sources 
 	require.NoError(s.T(), err)
 	agent := getAgentPod(s)
 
-	zpagesReady := false
+	s.T().Log("Starting flare")
+	hasZpages := false
+	var otelflares map[string]string
 	timeout := time.Now().Add(20 * time.Minute)
 	for i := 1; time.Now().Before(timeout); i++ {
-		stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "otel-agent", []string{"curl", "http://localhost:55679/debug/tracez"})
-		require.NoError(s.T(), err, "Failed to curl zpages")
-		s.T().Logf("curl tracez page, attempt %d\n stdout\n %s\n stderr\n %s", i, stdout, stderr)
-		if stderr != "" && stdout != "" {
-			zpagesReady = true
+		stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "flare", "--email", "e2e@test.com", "--send"})
+		require.NoError(s.T(), err, "Failed to execute flare")
+		require.Empty(s.T(), stderr)
+		require.NotNil(s.T(), stdout)
+
+		s.T().Logf("Getting latest flare, attempt %d", i)
+		flare, err := s.Env().FakeIntake.Client().GetLatestFlare()
+		require.NoError(s.T(), err)
+		otelflares = fetchFromFlare(s.T(), flare)
+
+		if len(otelflares) >= len(otelFlareFilesCommon)+len(otelFlareFilesZpages) {
+			hasZpages = true
 			break
 		}
+
 		time.Sleep(time.Minute)
 	}
 
-	s.T().Log("Starting flare")
-	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "flare", "--email", "e2e@test.com", "--send"})
-	require.NoError(s.T(), err, "Failed to execute flare")
-	require.Empty(s.T(), stderr)
-	require.NotNil(s.T(), stdout)
-
-	s.T().Log("Getting latest flare")
-	flare, err := s.Env().FakeIntake.Client().GetLatestFlare()
-	require.NoError(s.T(), err)
-	otelflares := fetchFromFlare(s.T(), flare)
-
 	otelFlareFiles := otelFlareFilesCommon
-	if zpagesReady {
+	if hasZpages {
 		otelFlareFiles = append(otelFlareFiles, otelFlareFilesZpages...)
 	}
 	for _, otelFlareFile := range otelFlareFiles {
-		assert.Contains(s.T(), otelflares, otelFlareFile)
+		assert.Contains(s.T(), otelflares, otelFlareFile, "missing ", otelFlareFile)
 	}
 	var resp extension.Response
 	require.NoError(s.T(), json.Unmarshal([]byte(otelflares["otel/otel-response.json"]), &resp))
