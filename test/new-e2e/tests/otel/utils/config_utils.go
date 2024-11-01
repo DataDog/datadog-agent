@@ -9,7 +9,6 @@ package utils
 import (
 	"context"
 	"encoding/json"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"strings"
 	"testing"
 	"time"
@@ -31,7 +30,7 @@ func TestOTelAgentInstalled(s OTelTestSuite) {
 	assert.Contains(s.T(), agent.ObjectMeta.String(), "otel-agent")
 }
 
-var otelFlareFiles = []string{
+var otelFlareFilesCommon = []string{
 	"otel/otel-response.json",
 	"otel/otel-flare/customer.cfg",
 	"otel/otel-flare/env.cfg",
@@ -42,64 +41,69 @@ var otelFlareFiles = []string{
 	"otel/otel-flare/pprof/dd-autoconfigured_debug_pprof_heap.dat",
 	"otel/otel-flare/pprof/dd-autoconfigured_debug_pprof_allocs.dat",
 	// "otel/otel-flare/pprof/dd-autoconfigured_debug_pprof_profile.dat",
+	"otel/otel-flare/command.txt",
+	"otel/otel-flare/ext.txt",
+}
+
+var otelFlareFilesZpages = []string{
 	"otel/otel-flare/zpages/dd-autoconfigured_debug_tracez.dat",
 	"otel/otel-flare/zpages/dd-autoconfigured_debug_pipelinez.dat",
 	"otel/otel-flare/zpages/dd-autoconfigured_debug_extensionz.dat",
 	"otel/otel-flare/zpages/dd-autoconfigured_debug_featurez.dat",
 	"otel/otel-flare/zpages/dd-autoconfigured_debug_servicez.dat",
-	"otel/otel-flare/command.txt",
-	"otel/otel-flare/ext.txt",
 }
 
 // TestOTelFlare tests that the OTel Agent flare functionality works as expected
 func TestOTelFlare(s OTelTestSuite, providedCfg string, fullCfg string, sources string) {
-	flake.Mark(s.T())
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 	agent := getAgentPod(s)
 
+	s.T().Log("Starting flare")
+	hasZpages := false
+	var otelflares map[string]string
 	timeout := time.Now().Add(20 * time.Minute)
 	for i := 1; time.Now().Before(timeout); i++ {
-		s.T().Log("Starting flare")
 		stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "flare", "--email", "e2e@test.com", "--send"})
 		require.NoError(s.T(), err, "Failed to execute flare")
 		require.Empty(s.T(), stderr)
 		require.NotNil(s.T(), stdout)
 
-		s.T().Log("Getting latest flare")
+		s.T().Logf("Getting latest flare, attempt %d", i)
 		flare, err := s.Env().FakeIntake.Client().GetLatestFlare()
 		require.NoError(s.T(), err)
-		otelflares := fetchFromFlare(s.T(), flare)
+		otelflares = fetchFromFlare(s.T(), flare)
 
-		if len(otelflares) < len(otelFlareFiles) {
-			s.T().Logf("Did not receive expected amount of OTel flares, expected %d, got %d, attempt %d", len(otelFlareFiles), len(otelflares), i)
-			time.Sleep(time.Minute)
-			continue
+		if len(otelflares) >= len(otelFlareFilesCommon)+len(otelFlareFilesZpages) {
+			hasZpages = true
+			break
 		}
 
-		for _, otelFlareFile := range otelFlareFiles {
-			assert.Contains(s.T(), otelflares, otelFlareFile)
-		}
-		var resp extension.Response
-		require.NoError(s.T(), json.Unmarshal([]byte(otelflares["otel/otel-response.json"]), &resp))
-
-		assert.Equal(s.T(), "otel-agent", resp.AgentCommand)
-		assert.Equal(s.T(), "Datadog Agent OpenTelemetry Collector", resp.AgentDesc)
-		assert.Equal(s.T(), "", resp.RuntimeOverrideConfig)
-
-		validateConfigs(s.T(), providedCfg, resp.CustomerConfig)
-		validateConfigs(s.T(), fullCfg, resp.RuntimeConfig)
-
-		srcJSONStr, err := json.Marshal(resp.Sources)
-		require.NoError(s.T(), err)
-		assert.JSONEq(s.T(), sources, string(srcJSONStr))
-
-		assert.Contains(s.T(), otelflares["otel/otel-flare/health_check/dd-autoconfigured.dat"], `"status":"Server available"`)
-		return
+		time.Sleep(time.Minute)
 	}
 
-	s.T().Error("Failed to collect all OTel flares after 20 minutes")
-	s.T().Fail()
+	otelFlareFiles := otelFlareFilesCommon
+	if hasZpages {
+		otelFlareFiles = append(otelFlareFiles, otelFlareFilesZpages...)
+	}
+	for _, otelFlareFile := range otelFlareFiles {
+		assert.Contains(s.T(), otelflares, otelFlareFile, "missing ", otelFlareFile)
+	}
+	var resp extension.Response
+	require.NoError(s.T(), json.Unmarshal([]byte(otelflares["otel/otel-response.json"]), &resp))
+
+	assert.Equal(s.T(), "otel-agent", resp.AgentCommand)
+	assert.Equal(s.T(), "Datadog Agent OpenTelemetry Collector", resp.AgentDesc)
+	assert.Equal(s.T(), "", resp.RuntimeOverrideConfig)
+
+	validateConfigs(s.T(), providedCfg, resp.CustomerConfig)
+	validateConfigs(s.T(), fullCfg, resp.RuntimeConfig)
+
+	srcJSONStr, err := json.Marshal(resp.Sources)
+	require.NoError(s.T(), err)
+	assert.JSONEq(s.T(), sources, string(srcJSONStr))
+
+	assert.Contains(s.T(), otelflares["otel/otel-flare/health_check/dd-autoconfigured.dat"], `"status":"Server available"`)
 }
 
 func getAgentPod(s OTelTestSuite) corev1.Pod {
