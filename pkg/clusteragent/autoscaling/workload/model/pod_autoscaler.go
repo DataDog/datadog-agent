@@ -38,6 +38,9 @@ type PodAutoscalerInternal struct {
 	// name is the name of the PodAutoscaler
 	name string
 
+	// annotations are the annotations of the PodAutoscaler
+	annotations map[string]string
+
 	// creationTimestamp is the time when the kubernetes object was created
 	// creationTimestamp is stored in .DatadogPodAutoscaler.CreationTimestamp
 	creationTimestamp time.Time
@@ -72,6 +75,9 @@ type PodAutoscalerInternal struct {
 	// verticalLastActionError is the last error encountered on vertical scaling
 	verticalLastActionError error
 
+	// localLastRecommendations is a record of the past local recommendations
+	localLastRecommendations []HorizontalScalingValues
+
 	// currentReplicas is the current number of PODs for the targetRef
 	currentReplicas *int32
 
@@ -100,8 +106,9 @@ type PodAutoscalerInternal struct {
 // NewPodAutoscalerInternal creates a new PodAutoscalerInternal from a Kubernetes CR
 func NewPodAutoscalerInternal(podAutoscaler *datadoghq.DatadogPodAutoscaler) PodAutoscalerInternal {
 	pai := PodAutoscalerInternal{
-		namespace: podAutoscaler.Namespace,
-		name:      podAutoscaler.Name,
+		namespace:   podAutoscaler.Namespace,
+		name:        podAutoscaler.Name,
+		annotations: podAutoscaler.Annotations,
 	}
 	pai.UpdateFromPodAutoscaler(podAutoscaler)
 	pai.UpdateFromStatus(&podAutoscaler.Status)
@@ -128,6 +135,7 @@ func NewPodAutoscalerFromSettings(ns, name string, podAutoscalerSpec *datadoghq.
 func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 	p.creationTimestamp = podAutoscaler.CreationTimestamp.Time
 	p.generation = podAutoscaler.Generation
+	p.annotations = podAutoscaler.Annotations
 	p.spec = podAutoscaler.Spec.DeepCopy()
 	// Reset the target GVK as it might have changed
 	// Resolving the target GVK is done in the controller sync to ensure proper sync and error handling
@@ -295,6 +303,11 @@ func (p *PodAutoscalerInternal) Name() string {
 	return p.name
 }
 
+// Annotation returns the annotations on the PodAutoscaler
+func (p *PodAutoscalerInternal) Annotations() map[string]string {
+	return p.annotations
+}
+
 // ID returns the functional identifier of the PodAutoscaler
 func (p *PodAutoscalerInternal) ID() string {
 	return p.namespace + "/" + p.name
@@ -343,6 +356,11 @@ func (p *PodAutoscalerInternal) VerticalLastAction() *datadoghq.DatadogPodAutosc
 // VerticalLastActionError returns the last error encountered on vertical scaling
 func (p *PodAutoscalerInternal) VerticalLastActionError() error {
 	return p.verticalLastActionError
+}
+
+// LocalLastRecommendations returns the last local recommendations
+func (p *PodAutoscalerInternal) LocalLastRecommendations() []HorizontalScalingValues {
+	return p.localLastRecommendations
 }
 
 // CurrentReplicas returns the current number of PODs for the targetRef
@@ -540,6 +558,30 @@ func addHorizontalAction(currentTime time.Time, retention time.Duration, actions
 	actions = actions[cutoffIndex:]
 	actions = append(actions, *action)
 	return actions
+}
+
+func addHorizontalRecommendation(currentTime time.Time, retention time.Duration, recommendations []HorizontalScalingValues, recommendation *HorizontalScalingValues) []HorizontalScalingValues {
+	if retention == 0 {
+		recommendations = recommendations[:0]
+		recommendations = append(recommendations, *recommendation)
+		return recommendations
+	}
+
+	// Find oldest event index to keep
+	cutoffTime := currentTime.Add(-retention)
+	cutoffIndex := 0
+	for i, recommendation := range recommendations {
+		// The first event after the cutoff time is the oldest event to keep
+		if recommendation.Timestamp.After(cutoffTime) {
+			cutoffIndex = i
+			break
+		}
+	}
+
+	// We are basically removing space from the array until we reallocate
+	recommendations = recommendations[cutoffIndex:]
+	recommendations = append(recommendations, *recommendation)
+	return recommendations
 }
 
 func newConditionFromError(trueOnError bool, currentTime metav1.Time, err error, conditionType datadoghq.DatadogPodAutoscalerConditionType, existingConditions map[datadoghq.DatadogPodAutoscalerConditionType]*datadoghq.DatadogPodAutoscalerCondition) datadoghq.DatadogPodAutoscalerCondition {
