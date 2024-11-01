@@ -82,35 +82,19 @@ func ShouldRunForCheck(check check.Check) bool {
 	log.Warnf("[ShouldRunForCheck] check InitConfig %s: `%s`", checkName, check.InitConfig())
 
 	if IsEnabled() && checkName == "snmp" {
-		mode := pkgconfigsetup.Datadog().GetString("ha_agent.mode")
-
-		if mode == "distributed" {
-			checkIDs := GetChecks()
-			log.Warnf("[ShouldRunForCheck] checkIDs: %v", checkIDs)
-			for _, validCheckId := range checkIDs {
-				if !strings.Contains(validCheckId, checkName+":") {
-					continue
-				}
-				if strings.Contains(validCheckId, ":"+checkDigest) {
-					log.Warnf("[ShouldRunForCheck] found valid checkId: %v", validCheckId)
-					return true
-				}
+		checkIDs := GetChecks()
+		log.Warnf("[ShouldRunForCheck] checkIDs: %v", checkIDs)
+		for _, validCheckId := range checkIDs {
+			if !strings.Contains(validCheckId, checkName+":") {
+				continue
 			}
-			log.Warnf("[ShouldRunForCheck] no valid checkId")
-			return false
-		} else if mode == "failover" {
-			isPrimary := IsPrimary()
-
-			// TODO: REMOVE ME
-			log.Warnf("[ShouldRunForCheck] name=%s haAgentEnabled=%v role=%s isPrimary=%v",
-				checkName, IsEnabled(), pkgconfigsetup.Datadog().GetString("ha_agent.role"), isPrimary)
-
-			if !isPrimary {
-				return false
-			} else {
+			if strings.Contains(validCheckId, ":"+checkDigest) {
+				log.Warnf("[ShouldRunForCheck] found valid checkId: %v", validCheckId)
 				return true
 			}
 		}
+		log.Warnf("[ShouldRunForCheck] no valid checkId")
+		return false
 	}
 
 	return true
