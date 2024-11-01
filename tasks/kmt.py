@@ -488,7 +488,7 @@ def start_compiler(ctx: Context):
 
 
 def filter_target_domains(vms: str, infra: dict[KMTArchNameOrLocal, HostInstance], arch: Arch | None = None):
-    vmsets = vmconfig.build_vmsets(vmconfig.build_normalized_vm_def_set(vms), [])
+    vmsets = vmconfig.build_vmsets(vmconfig.build_normalized_vm_def_by_set(vms, []))
     domains: list[LibvirtDomain] = []
     for vmset in vmsets:
         if arch is not None and Arch.from_str(vmset.arch) != arch:
@@ -874,15 +874,15 @@ def build_run_config(run: str | None, packages: list[str]):
     c: dict[str, Any] = {}
 
     if len(packages) == 0:
-        return {"*": {"exclude": False}}
+        return {"filters": {"*": {"exclude": False}}}
 
     for p in packages:
         if p[:2] == "./":
             p = p[2:]
         if run is not None:
-            c[p] = {"run-only": [run]}
+            c["filters"] = {p: {"run-only": [run]}}
         else:
-            c[p] = {"exclude": False}
+            c["filters"] = {p: {"exclude": False}}
 
     return c
 
@@ -1023,13 +1023,6 @@ def kmt_sysprobe_prepare(
                     variables=variables,
                 )
 
-            if pkg.endswith("java"):
-                nw.build(
-                    inputs=[os.path.join(pkg, "agent-usm.jar")],
-                    outputs=[os.path.join(target_path, "agent-usm.jar")],
-                    rule="copyfiles",
-                )
-
         # handle testutils and testdata separately since they are
         # shared across packages
         target_pkgs = build_target_packages([], build_tags)
@@ -1070,10 +1063,15 @@ def kmt_sysprobe_prepare(
             for cbin in TEST_HELPER_CBINS:
                 source = Path(pkg) / "testdata" / f"{cbin}.c"
                 if source.is_file():
-                    binary_path = os.path.join(target_path, "testdata", cbin)
+                    testdata_folder = os.path.join(target_path, "testdata")
+                    binary_path = os.path.join(testdata_folder, cbin)
                     nw.build(
                         inputs=[os.fspath(source)],
                         outputs=[binary_path],
+                        # Ensure that the testdata folder is created before the
+                        # binary, to avoid races between this command and the
+                        # copy command
+                        implicit=[testdata_folder],
                         rule="cbin",
                         variables={
                             "cc": "clang",

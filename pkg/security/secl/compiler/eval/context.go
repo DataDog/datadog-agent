@@ -11,6 +11,12 @@ import (
 	"time"
 )
 
+// RegisterCacheEntry used to track the value
+type RegisterCacheEntry struct {
+	Pos   int
+	Value interface{}
+}
+
 // Context describes the context used during a rule evaluation
 type Context struct {
 	Event Event
@@ -19,6 +25,12 @@ type Context struct {
 	StringCache map[string][]string
 	IntCache    map[string][]int
 	BoolCache   map[string][]bool
+
+	// iterator register cache. used to cache entry within a single rule evaluation
+	RegisterCache map[RegisterID]*RegisterCacheEntry
+
+	// rule register
+	Registers map[RegisterID]int
 
 	now time.Time
 }
@@ -41,25 +53,22 @@ func (c *Context) Reset() {
 	c.Event = nil
 	c.now = time.Time{}
 
-	// as the cache should be low in entry, prefer to delete than re-alloc
-	for key := range c.StringCache {
-		delete(c.StringCache, key)
-	}
-	for key := range c.IntCache {
-		delete(c.IntCache, key)
-	}
-	for key := range c.BoolCache {
-		delete(c.BoolCache, key)
-	}
+	clear(c.StringCache)
+	clear(c.IntCache)
+	clear(c.BoolCache)
+	clear(c.Registers)
+	clear(c.RegisterCache)
 }
 
 // NewContext return a new Context
 func NewContext(evt Event) *Context {
 	return &Context{
-		Event:       evt,
-		StringCache: make(map[string][]string),
-		IntCache:    make(map[string][]int),
-		BoolCache:   make(map[string][]bool),
+		Event:         evt,
+		StringCache:   make(map[string][]string),
+		IntCache:      make(map[string][]int),
+		BoolCache:     make(map[string][]bool),
+		Registers:     make(map[RegisterID]int),
+		RegisterCache: make(map[RegisterID]*RegisterCacheEntry),
 	}
 }
 

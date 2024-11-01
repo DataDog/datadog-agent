@@ -29,7 +29,7 @@
 
 .write_ssh_key_file:
   - touch $AWS_EC2_SSH_KEY_FILE && chmod 600 $AWS_EC2_SSH_KEY_FILE
-  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_KEY > $AWS_EC2_SSH_KEY_FILE || exit $?
+  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key > $AWS_EC2_SSH_KEY_FILE || exit $?
   # Without the newline ssh silently fails and moves on to try other auth methods
   - echo "" >> $AWS_EC2_SSH_KEY_FILE
   - chmod 600 $AWS_EC2_SSH_KEY_FILE
@@ -47,7 +47,7 @@
 
 .kmt_new_profile:
   - mkdir -p ~/.aws
-  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_PROFILE >> ~/.aws/config || exit $?
+  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E profile >> ~/.aws/config || exit $?
   - export AWS_PROFILE=agent-qa-ci
 
 .define_if_collect_complexity:
@@ -60,7 +60,7 @@
   - echo "COLLECT_COMPLEXITY=${COLLECT_COMPLEXITY}"
 
 .collect_outcomes_kmt:
-  - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+  - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
   - export MICRO_VM_IP=$(jq --exit-status --arg TAG $TAG --arg ARCH $ARCH --arg TEST_SET $TEST_SET -r '.[$ARCH].microvms | map(select(."vmset-tags"| index($TEST_SET))) | map(select(.tag==$TAG)) | .[].ip' $CI_PROJECT_DIR/stack.output)
   # Collect setup-ddvm systemd service logs
   - mkdir -p $CI_PROJECT_DIR/logs
@@ -114,7 +114,7 @@
         scp $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH.tar.gz metal_instance:/opt/kernel-version-testing
       fi
   after_script:
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - !reference [.tag_kmt_ci_job]
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
@@ -144,7 +144,7 @@
     VMCONFIG_FILE: "${CI_PROJECT_DIR}/vmconfig-${CI_PIPELINE_ID}-${ARCH}.json"
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   before_script:
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
@@ -154,12 +154,12 @@
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
       # Each VM gets 12GB of memory. We have set 8GB as base for the system, and upto 4GB can be used
       # by a ram backed filesystem holding the system-probe test packages
-    - inv -e kmt.gen-config --ci --arch=$ARCH --output-file=$VMCONFIG_FILE --sets=$TEST_SETS --vmconfig-template=$TEST_COMPONENT --memory=12288
+    - inv -e kmt.gen-config --ci --arch=$ARCH --output-file=$VMCONFIG_FILE --vmconfig-template=$TEST_COMPONENT --memory=12288
     - inv -e system-probe.start-microvms --provision-instance --provision-microvms --vmconfig=$VMCONFIG_FILE $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-${TEST_COMPONENT}-${ARCH}-${CI_PIPELINE_ID} --run-agent
     - jq "." $CI_PROJECT_DIR/stack.output
     - pulumi logout
   after_script:
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - export AWS_PROFILE=agent-qa-ci
     - !reference [.shared_filters_and_queries]
     - mkdir -p $CI_PROJECT_DIR/libvirt/log/$ARCH $CI_PROJECT_DIR/libvirt/xml $CI_PROJECT_DIR/libvirt/qemu $CI_PROJECT_DIR/libvirt/dnsmasq
@@ -200,7 +200,7 @@
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   before_script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN) || exit $?; export GITLAB_TOKEN
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
     - !reference [.kmt_new_profile]
   script:
     - !reference [.shared_filters_and_queries]
@@ -217,7 +217,7 @@
         aws ec2 terminate-instances --instance-ids "${INSTANCE_ID}"
       fi
   after_script:
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - !reference [.tag_kmt_ci_job]
 
 # Manual cleanup jobs, these will be used to cleanup the instances after the tests
@@ -247,7 +247,7 @@
     RETRY: 2
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   before_script:
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
     - echo "CI_JOB_URL=${CI_JOB_URL}" >> $DD_AGENT_TESTING_DIR/job_env.txt
@@ -335,6 +335,6 @@ notify_ebpf_complexity_changes:
     - python3 -m pip install tabulate # Required for printing the tables
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - !reference [.setup_agent_github_app]
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
   script:
     - inv -e ebpf.generate-complexity-summary-for-pr

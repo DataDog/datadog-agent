@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/check"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -37,6 +38,7 @@ func (server *apiServer) startCMDServer(
 	tlsConfig *tls.Config,
 	tlsCertPool *x509.CertPool,
 	tmf observability.TelemetryMiddlewareFactory,
+	cfg config.Component,
 ) (err error) {
 	// get the transport we're going to use under HTTP
 	server.cmdListener, err = getListener(cmdAddr)
@@ -48,18 +50,25 @@ func (server *apiServer) startCMDServer(
 
 	// gRPC server
 	authInterceptor := grpcutil.AuthInterceptor(parseToken)
+
+	maxMessageSize := cfg.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
+
 	opts := []grpc.ServerOption{
 		grpc.Creds(credentials.NewClientTLSFromCert(tlsCertPool, cmdAddr)),
 		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
 		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
+		grpc.MaxRecvMsgSize(maxMessageSize),
+		grpc.MaxSendMsgSize(maxMessageSize),
 	}
 
+	// event size should be small enough to fit within the grpc max message size
+	maxEventSize := maxMessageSize / 2
 	s := grpc.NewServer(opts...)
 	pb.RegisterAgentServer(s, &grpcServer{})
 	pb.RegisterAgentSecureServer(s, &serverSecure{
 		configService:    server.rcService,
 		configServiceMRF: server.rcServiceMRF,
-		taggerServer:     taggerserver.NewServer(server.taggerComp),
+		taggerServer:     taggerserver.NewServer(server.taggerComp, maxEventSize),
 		taggerComp:       server.taggerComp,
 		// TODO(components): decide if workloadmetaServer should be componentized itself
 		workloadmetaServer: workloadmetaServer.NewServer(server.wmeta),
@@ -111,6 +120,7 @@ func (server *apiServer) startCMDServer(
 				server.collector,
 				server.autoConfig,
 				server.endpointProviders,
+				server.taggerComp,
 			)))
 	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	cmdMux.Handle("/", gwmux)

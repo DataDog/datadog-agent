@@ -243,6 +243,9 @@ core,github.com/Microsoft/hcsshim/internal/wclayer,MIT,Copyright (c) 2015 Micros
 core,github.com/Microsoft/hcsshim/internal/winapi,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/osversion,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
 core,github.com/Microsoft/hcsshim/pkg/ociwclayer,MIT,Copyright (c) 2015 Microsoft | Copyright (c) 2018 Microsoft Corp.  All rights reserved
+core,github.com/NVIDIA/go-nvml/pkg/dl,Apache-2.0,Copyright 2023 NVIDIA CORPORATION
+core,github.com/NVIDIA/go-nvml/pkg/nvml,Apache-2.0,Copyright 2023 NVIDIA CORPORATION
+core,github.com/NVIDIA/go-nvml/pkg/nvml/mock,Apache-2.0,Copyright 2023 NVIDIA CORPORATION
 core,github.com/NYTimes/gziphandler,Apache-2.0,Copyright 2016-2017 The New York Times Company
 core,github.com/OneOfOne/xxhash,Apache-2.0,Copyright (c) 2014 Ahmed W. (OneOfOne)
 core,github.com/ProtonMail/go-crypto/bitcurves,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -511,7 +514,6 @@ core,github.com/aws/aws-sdk-go-v2/aws,Apache-2.0,"Copyright 2014-2015 Stripe, In
 core,github.com/aws/aws-sdk-go-v2/aws/arn,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/aws/defaults,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/aws/middleware,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
-core,github.com/aws/aws-sdk-go-v2/aws/middleware/private/metrics,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/aws/protocol/ec2query,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/aws/protocol/query,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/aws/protocol/restjson,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
@@ -744,6 +746,7 @@ core,github.com/containerd/containerd/contrib/seccomp/kernelversion,Apache-2.0,"
 core,github.com/containerd/containerd/defaults,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/diff,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/diff/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/errdefs,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/events,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/events/exchange,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/filters,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -919,10 +922,11 @@ core,github.com/freddierice/go-losetup,MIT,Copyright (c) 2017 Freddie Rice
 core,github.com/fsnotify/fsnotify,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved. | Copyright (c) 2012-2019 fsnotify Authors. All rights reserved.
 core,github.com/ghodss/yaml,MIT,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2014 Sam Ghods
 core,github.com/glaslos/ssdeep,MIT,"Copyright (c) 2015, Arbo von Monkiewitsch All rights reserved | Copyright (c) 2017 Lukas Rist"
+core,github.com/go-delve/delve/pkg/dwarf,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/dwarf/godwarf,MIT,Copyright (c) 2014 Derek Parker
+core,github.com/go-delve/delve/pkg/dwarf/leb128,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/dwarf/loclist,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/dwarf/op,MIT,Copyright (c) 2014 Derek Parker
-core,github.com/go-delve/delve/pkg/dwarf/util,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/goversion,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/logflags,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-git/gcfg,BSD-3-Clause,Copyright (c) 2012 Péter Surányi. Portions Copyright (c) 2009 The Go
@@ -1156,6 +1160,7 @@ core,github.com/google/gofuzz/bytesource,Apache-2.0,Copyright 2014 Google Inc. A
 core,github.com/google/gopacket,BSD-3-Clause,"Copyright (c) 2009-2011 Andreas Krennmair. All rights reserved. | Copyright (c) 2012 Google, Inc. All rights reserved."
 core,github.com/google/gopacket/afpacket,BSD-3-Clause,"Copyright (c) 2009-2011 Andreas Krennmair. All rights reserved. | Copyright (c) 2012 Google, Inc. All rights reserved."
 core,github.com/google/gopacket/layers,BSD-3-Clause,"Copyright (c) 2009-2011 Andreas Krennmair. All rights reserved. | Copyright (c) 2012 Google, Inc. All rights reserved."
+core,github.com/google/gopacket/pcap,BSD-3-Clause,"Copyright (c) 2009-2011 Andreas Krennmair. All rights reserved. | Copyright (c) 2012 Google, Inc. All rights reserved."
 core,github.com/google/gopacket/pcapgo,BSD-3-Clause,"Copyright (c) 2009-2011 Andreas Krennmair. All rights reserved. | Copyright (c) 2012 Google, Inc. All rights reserved."
 core,github.com/google/licenseclassifier/v2,Apache-2.0,Copyright 2017 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved.
 core,github.com/google/licenseclassifier/v2/assets,Apache-2.0,Copyright 2017 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved.
@@ -1935,6 +1940,7 @@ core,github.com/prometheus/prometheus/util/osutil,Apache-2.0,Copyright 2012-2015
 core,github.com/prometheus/prometheus/util/pool,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/util/strutil,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/util/treecache,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
+core,github.com/puzpuzpuz/xsync/v3,Apache-2.0,Copyright (c) 2021 Andrey Pechkurov
 core,github.com/rcrowley/go-metrics,BSD-2-Clause-Views,Copyright 2012 Richard Crowley. All rights reserved
 core,github.com/redis/go-redis/v9,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/internal,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
@@ -2838,19 +2844,27 @@ core,gopkg.in/DataDog/dd-trace-go.v1/internal,Apache-2.0,"Copyright 2016-Present
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/config,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/graphqlsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/grpcsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/httpsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/httpsec/types,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/ossec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/sharedsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/sqlsec/types,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/sqlsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/trace,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/usersec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/waf,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/waf/actions,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/waf/addresses,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/graphqlsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/grpcsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/httpsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/ossec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/sharedsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/sqlsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/trace,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/trace/httptrace,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/trace,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/usersec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/waf,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/civisibility/constants,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/civisibility/utils,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/datastreams,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/globalconfig,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/hostname,Apache-2.0,"Copyright 2016-Present Datadog, Inc."

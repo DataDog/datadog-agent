@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -315,7 +316,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) (*diagnosis.Diag
 func RunInCLIProcess(diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) (*diagnosis.DiagnoseResult, error) {
 	return RunDiagnose(diagCfg, func() []diagnosis.Suite {
 		return buildSuites(diagCfg, func() []diagnosis.Diagnosis {
-			return diagnoseChecksInCLIProcess(diagCfg, deps.senderManager, deps.logReceiver, deps.secretResolver, deps.wmeta, deps.AC)
+			return diagnoseChecksInCLIProcess(diagCfg, deps.senderManager, deps.logReceiver, deps.secretResolver, deps.wmeta, deps.AC, deps.tagger)
 		})
 	})
 }
@@ -408,7 +409,8 @@ type SuitesDeps struct {
 	Collector      optional.Option[collector.Component]
 	SecretResolver secrets.Component
 	WMeta          optional.Option[workloadmeta.Component]
-	AC             optional.Option[autodiscovery.Component]
+	AC             autodiscovery.Component
+	Tagger         tagger.Component
 }
 
 // SuitesDepsInCLIProcess stores the dependencies for the diagnose suites when running the CLI Process.
@@ -418,6 +420,7 @@ type SuitesDepsInCLIProcess struct {
 	wmeta          optional.Option[workloadmeta.Component]
 	AC             autodiscovery.Component
 	logReceiver    integrations.Component
+	tagger         tagger.Component
 }
 
 // NewSuitesDepsInCLIProcess returns a new instance of SuitesDepsInCLIProcess.
@@ -426,12 +429,14 @@ func NewSuitesDepsInCLIProcess(
 	secretResolver secrets.Component,
 	wmeta optional.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
+	tagger tagger.Component,
 ) SuitesDepsInCLIProcess {
 	return SuitesDepsInCLIProcess{
 		senderManager:  senderManager,
 		secretResolver: secretResolver,
 		wmeta:          wmeta,
 		AC:             ac,
+		tagger:         tagger,
 	}
 }
 
@@ -457,7 +462,8 @@ func NewSuitesDeps(
 	senderManager sender.DiagnoseSenderManager,
 	collector optional.Option[collector.Component],
 	secretResolver secrets.Component,
-	wmeta optional.Option[workloadmeta.Component], ac optional.Option[autodiscovery.Component],
+	wmeta optional.Option[workloadmeta.Component], ac autodiscovery.Component,
+	tagger tagger.Component,
 ) SuitesDeps {
 	return SuitesDeps{
 		SenderManager:  senderManager,
@@ -465,6 +471,7 @@ func NewSuitesDeps(
 		SecretResolver: secretResolver,
 		WMeta:          wmeta,
 		AC:             ac,
+		Tagger:         tagger,
 	}
 }
 

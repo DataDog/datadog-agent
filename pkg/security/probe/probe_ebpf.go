@@ -23,6 +23,7 @@ import (
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
 	"gopkg.in/yaml.v3"
@@ -75,9 +76,11 @@ type EventStream interface {
 	Resume() error
 }
 
-// MaxOnDemandEventsPerSecond represents the maximum number of on demand events per second
-// allowed before we switch off the subsystem
-const MaxOnDemandEventsPerSecond = 1_000
+const (
+	// MaxOnDemandEventsPerSecond represents the maximum number of on demand events per second
+	// allowed before we switch off the subsystem
+	MaxOnDemandEventsPerSecond = 1_000
+)
 
 var (
 	// defaultEventTypes event types used whatever the event handlers or the rules
@@ -151,6 +154,10 @@ type EBPFProbe struct {
 
 	// hash action
 	fileHasher *FileHasher
+
+	// snapshot
+	ruleSetVersion    uint64
+	playSnapShotState *atomic.Bool
 }
 
 // GetProfileManager returns the Profile Managers
@@ -395,7 +402,7 @@ func (p *EBPFProbe) Setup() error {
 
 	p.profileManagers.Start(p.ctx, &p.wg)
 
-	if p.config.Probe.NetworkRawPacketEnabled {
+	if p.probe.IsNetworkRawPacketEnabled() {
 		if err := p.setupRawPacketProgs(); err != nil {
 			return err
 		}
@@ -407,7 +414,7 @@ func (p *EBPFProbe) Setup() error {
 // Start the probe
 func (p *EBPFProbe) Start() error {
 	// Apply rules to the snapshotted data before starting the event stream to avoid concurrency issues
-	p.PlaySnapshot()
+	p.playSnapshot(true)
 
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
@@ -416,13 +423,13 @@ func (p *EBPFProbe) Start() error {
 }
 
 // PlaySnapshot plays a snapshot
-func (p *EBPFProbe) PlaySnapshot() {
+func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 	seclog.Debugf("playing the snapshot")
 	// Get the snapshotted data
 	var events []*model.Event
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
-		if entry.Source != model.ProcessCacheEntryFromSnapshot {
+		if entry.Source != model.ProcessCacheEntryFromSnapshot && !entry.IsExec {
 			return
 		}
 		entry.Retain()
@@ -443,7 +450,7 @@ func (p *EBPFProbe) PlaySnapshot() {
 	}
 	p.Resolvers.ProcessResolver.Walk(entryToEvent)
 	for _, event := range events {
-		p.DispatchEvent(event)
+		p.DispatchEvent(event, notifyConsumers)
 		event.ProcessCacheEntry.Release()
 	}
 }
@@ -466,7 +473,7 @@ func (p *EBPFProbe) AddActivityDumpHandler(handler dump.ActivityDumpHandler) {
 }
 
 // DispatchEvent sends an event to the probe event handler
-func (p *EBPFProbe) DispatchEvent(event *model.Event) {
+func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
 		eventJSON, err := serializers.MarshalEvent(event, nil)
 		return eventJSON, event.GetEventType(), err
@@ -489,7 +496,9 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event) {
 	p.probe.sendEventToHandlers(event)
 
 	// send event to specific event handlers, like the event monitor consumers, subsequently
-	p.probe.sendEventToConsumers(event)
+	if notifyConsumers {
+		p.probe.sendEventToConsumers(event)
+	}
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
@@ -545,7 +554,7 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 }
 
 func eventWithNoProcessContext(eventType model.EventType) bool {
-	return eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
+	return eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.RawPacketEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
 }
 
 func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
@@ -631,6 +640,12 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 }
 
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
+	// handle play snapshot
+	if p.playSnapShotState.Swap(false) {
+		// do not notify consumers as we are replaying the snapshot after a ruleset reload
+		p.playSnapshot(false)
+	}
+
 	offset := 0
 	event := p.zeroEvent()
 
@@ -1075,6 +1090,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.ConnectEventType:
+		if _, err = event.Connect.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode connect event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	case model.SyscallsEventType:
 		if _, err = event.Syscalls.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode syscalls event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1096,7 +1116,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// resolve the container context
 	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
-	p.DispatchEvent(event)
+	p.DispatchEvent(event, true)
 
 	if eventType == model.ExitEventType {
 		p.Resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTime())
@@ -1255,11 +1275,13 @@ func (p *EBPFProbe) isNeededForSecurityProfile(eventType eval.EventType) bool {
 }
 
 func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
-	if eventType == "dns" && !p.config.Probe.NetworkEnabled {
-		return false
-	}
-	if eventType == "imds" && (!p.config.Probe.NetworkEnabled || !p.config.Probe.NetworkIngressEnabled) {
-		return false
+	switch eventType {
+	case "dns":
+		return p.probe.IsNetworkEnabled()
+	case "imds":
+		return p.probe.IsNetworkEnabled() && p.config.Probe.NetworkIngressEnabled
+	case "packet":
+		return p.probe.IsNetworkRawPacketEnabled()
 	}
 	return true
 }
@@ -1682,6 +1704,13 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 		}
 	}
 
+	// do not replay the snapshot if we are in the first rule set version, this was already done in the start method
+	if p.ruleSetVersion != 0 {
+		p.playSnapShotState.Store(true)
+	}
+
+	p.ruleSetVersion++
+
 	return ars, nil
 }
 
@@ -1745,6 +1774,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 		newTCNetDevices:      make(chan model.NetDevice, 16),
 		processKiller:        processKiller,
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, 1),
+		playSnapShotState:    atomic.NewBool(false),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -1842,6 +1872,10 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 			Value: getDoForkInput(p.kernelVersion),
 		},
 		manager.ConstantEditor{
+			Name:  "do_dentry_open_without_inode",
+			Value: getDoDentryOpenWithoutInode(p.kernelVersion),
+		},
+		manager.ConstantEditor{
 			Name:  "has_usernamespace_first_arg",
 			Value: getHasUsernamespaceFirstArg(p.kernelVersion),
 		},
@@ -1875,7 +1909,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_rename_input_type",
-			Value: mount.GetVFSRenameInputType(p.kernelVersion),
+			Value: getVFSRenameRegisterArgsOrStruct(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "check_helper_call_input",
@@ -1961,10 +1995,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 	}
 
 	resolversOpts := resolvers.Opts{
-		PathResolutionEnabled: probe.Opts.PathResolutionEnabled,
-		TagsResolver:          probe.Opts.TagsResolver,
-		UseRingBuffer:         useRingBuffers,
-		TTYFallbackEnabled:    probe.Opts.TTYFallbackEnabled,
+		PathResolutionEnabled:    probe.Opts.PathResolutionEnabled,
+		EnvVarsResolutionEnabled: probe.Opts.EnvsVarResolutionEnabled,
+		TagsResolver:             probe.Opts.TagsResolver,
+		UseRingBuffer:            useRingBuffers,
+		TTYFallbackEnabled:       probe.Opts.TTYFallbackEnabled,
 	}
 
 	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts, telemetry)
@@ -2056,6 +2091,13 @@ func getDoForkInput(kernelVersion *kernel.Version) uint64 {
 	return doForkListInput
 }
 
+func getDoDentryOpenWithoutInode(kernelversion *kernel.Version) uint64 {
+	if kernelversion.Code != 0 && kernelversion.Code >= kernel.Kernel6_10 {
+		return 1
+	}
+	return 0
+}
+
 func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
 	if val, err := constantfetch.GetHasUsernamespaceFirstArgWithBtf(); err == nil {
 		if val {
@@ -2072,6 +2114,24 @@ func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
 	default:
 		return 0
 	}
+}
+
+func getVFSRenameRegisterArgsOrStruct(kernelVersion *kernel.Version) uint64 {
+	if val, err := constantfetch.GetHasVFSRenameStructArgs(); err == nil {
+		if val {
+			return 2
+		}
+		return 1
+	}
+
+	if kernelVersion.Code >= kernel.Kernel5_12 {
+		return 2
+	}
+	if kernelVersion.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) && kernelVersion.Code.Patch() >= 220 {
+		return 2
+	}
+
+	return 1
 }
 
 func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
@@ -2153,6 +2213,22 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameMountMntID, "struct mount", "mnt_id", "")
 	if kv.Code >= kernel.Kernel5_3 {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameKernelCloneArgsExitSignal, "struct kernel_clone_args", "exit_signal", "linux/sched/task.h")
+	}
+
+	// inode time offsets
+	// no runtime compilation for those, we expect them to default to 0 if not there and use the fallback
+	// in the eBPF code itself in that case
+	if kv.Code >= kernel.Kernel6_11 {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeCtimeSec, "struct inode", "i_ctime_sec", "")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeCtimeNsec, "struct inode", "i_ctime_nsec", "")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeMtimeSec, "struct inode", "i_mtime_sec", "")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameInodeMtimeNsec, "struct inode", "i_mtime_nsec", "")
+	}
+
+	// rename offsets
+	if kv.Code >= kernel.Kernel5_12 || (kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) && kv.Code.Patch() >= 220) {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameRenameStructOldDentry, "struct renamedata", "old_dentry", "linux/fs.h")
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameRenameStructNewDentry, "struct renamedata", "new_dentry", "linux/fs.h")
 	}
 
 	// bpf offsets

@@ -1,5 +1,7 @@
 # Agent 'all features enabled' idle experiment. Represents an agent install with
 # all sub-agents enabled in configuration and no active workload.
+# Further documentation:
+# https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4294836779/Performance+Quality+Gates#idle_all_features
 
 optimization_goal: memory
 erratic: false

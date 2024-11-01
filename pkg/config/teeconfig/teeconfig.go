@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/viper"
-	"github.com/spf13/afero"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -78,6 +77,12 @@ func (t *teeConfig) GetKnownKeysLowercased() map[string]interface{} {
 	return t.baseline.GetKnownKeysLowercased()
 }
 
+// BuildSchema constructs the default schema and marks the config as ready for use
+func (t *teeConfig) BuildSchema() {
+	t.baseline.BuildSchema()
+	t.compare.BuildSchema()
+}
+
 // ParseEnvAsStringSlice registers a transformer function to parse an an environment variables as a []string.
 func (t *teeConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
 	t.baseline.ParseEnvAsStringSlice(key, fn)
@@ -102,12 +107,6 @@ func (t *teeConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[s
 func (t *teeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 	t.baseline.ParseEnvAsSlice(key, fn)
 	t.compare.ParseEnvAsSlice(key, fn)
-}
-
-// SetFs wraps Viper for concurrent access
-func (t *teeConfig) SetFs(fs afero.Fs) {
-	t.baseline.SetFs(fs)
-	t.compare.SetFs(fs)
 }
 
 // IsSet wraps Viper for concurrent access

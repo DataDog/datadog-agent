@@ -462,13 +462,19 @@ func TestMarshalSplitCompressMultiplePointsLimit(t *testing.T) {
 			}
 			series := CreateIterableSeries(CreateSerieSource(rawSeries))
 
-			payloads, filteredPayloads, err := series.MarshalSplitCompressMultiple(mockConfig, compressionimpl.NewCompressor(mockConfig), func(s *metrics.Serie) bool {
-				return s.Name == "test.metrics42"
-			})
+			payloads, filteredPayloads, autoscalingFailoverPayloads, err := series.MarshalSplitCompressMultiple(mockConfig, compressionimpl.NewCompressor(mockConfig),
+				func(s *metrics.Serie) bool {
+					return s.Name == "test.metrics42"
+				},
+				func(s *metrics.Serie) bool {
+					return s.Name == "test.metrics99" || s.Name == "test.metrics98"
+				},
+			)
 			require.NoError(t, err)
 			require.Equal(t, 5, len(payloads))
 			// only one serie should be present in the filtered payload, so 5 total points, which fits in one payload
 			require.Equal(t, 1, len(filteredPayloads))
+			require.Equal(t, 1, len(autoscalingFailoverPayloads))
 		})
 	}
 }

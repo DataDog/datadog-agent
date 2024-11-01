@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"go.uber.org/atomic"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
@@ -32,6 +33,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+)
+
+const (
+	maxSelftestRetry = 3
+	selftestDelay    = 5 * time.Second
 )
 
 // CWSConsumer represents the system-probe module for the runtime security agent
@@ -52,6 +58,7 @@ type CWSConsumer struct {
 	grpcServer    *GRPCServer
 	ruleEngine    *rulesmodule.RuleEngine
 	selfTester    *selftests.SelfTester
+	selfTestRetry *atomic.Int32
 	reloader      ReloaderInterface
 	crtelemetry   *telemetry.ContainersRunningTelemetry
 }
@@ -92,6 +99,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		sendStatsChan: make(chan chan bool, 1),
 		grpcServer:    NewGRPCServer(family, address),
 		selfTester:    selfTester,
+		selfTestRetry: atomic.NewInt32(0),
 		reloader:      NewReloader(),
 		crtelemetry:   crtelemetry,
 	}
@@ -172,11 +180,22 @@ func (c *CWSConsumer) Start() error {
 
 	// we can now wait for self test events
 	cb := func(success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) {
+		seclog.Debugf("self-test results : success : %v, failed : %v, retry %d/%d", success, fails, c.selfTestRetry.Load()+1, maxSelftestRetry)
+
+		if len(fails) > 0 && c.selfTestRetry.Load() < maxSelftestRetry {
+			c.selfTestRetry.Inc()
+
+			time.Sleep(selftestDelay)
+
+			if _, err := c.RunSelfTest(false); err != nil {
+				seclog.Errorf("self-test error: %s", err)
+			}
+			return
+		}
+
 		if c.config.SelfTestSendReport {
 			c.reportSelfTest(success, fails, testEvents)
 		}
-
-		seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
 	}
 	if c.selfTester != nil {
 		go c.selfTester.WaitForResult(cb)

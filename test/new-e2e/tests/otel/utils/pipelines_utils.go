@@ -31,13 +31,14 @@ import (
 )
 
 const (
-	calendarService      = "calendar-rest-go"
-	telemetrygenService  = "telemetrygen-job"
-	env                  = "e2e"
-	version              = "1.0"
-	customAttribute      = "custom.attribute"
-	customAttributeValue = "true"
-	logBody              = "random date"
+	calendarService              = "calendar-rest-go"
+	telemetrygenService          = "telemetrygen-job"
+	telemetrygenTopLevelResource = "lets-go"
+	env                          = "e2e"
+	version                      = "1.0"
+	customAttribute              = "custom.attribute"
+	customAttributeValue         = "true"
+	logBody                      = "random date"
 )
 
 // OTelTestSuite is an interface for the OTel e2e test suite.
@@ -255,7 +256,7 @@ func TestHosts(s OTelTestSuite) {
 }
 
 // TestSampling tests that APM stats are correct when using probabilistic sampling
-func TestSampling(s OTelTestSuite) {
+func TestSampling(s OTelTestSuite, computeTopLevelBySpanKind bool) {
 	ctx := context.Background()
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
@@ -264,11 +265,11 @@ func TestSampling(s OTelTestSuite) {
 	s.T().Log("Starting telemetrygen")
 	createTelemetrygenJob(ctx, s, "traces", []string{"--traces", fmt.Sprint(numTraces)})
 
-	TestAPMStats(s, numTraces)
+	TestAPMStats(s, numTraces, computeTopLevelBySpanKind)
 }
 
 // TestAPMStats checks that APM stats are received with the correct number of hits per traces given
-func TestAPMStats(s OTelTestSuite, numTraces int) {
+func TestAPMStats(s OTelTestSuite, numTraces int, computeTopLevelBySpanKind bool) {
 	s.T().Log("Waiting for APM stats")
 	var stats []*aggregator.APMStatsPayload
 	var err error
@@ -284,7 +285,9 @@ func TestAPMStats(s OTelTestSuite, numTraces int) {
 						if cgs.Service == telemetrygenService {
 							hasStatsForService = true
 							assert.EqualValues(c, cgs.Hits, numTraces)
-							assert.EqualValues(c, cgs.TopLevelHits, numTraces)
+							if computeTopLevelBySpanKind || cgs.Resource == telemetrygenTopLevelResource {
+								assert.EqualValues(c, cgs.TopLevelHits, numTraces)
+							}
 						}
 					}
 				}
@@ -390,7 +393,7 @@ func TestCalendarApp(s OTelTestSuite) {
 		logs, err := s.Env().FakeIntake.Client().FilterLogs(calendarService, fakeintake.WithMessageContaining(logBody))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
-	}, 60*time.Minute, 10*time.Second)
+	}, 30*time.Minute, 10*time.Second)
 }
 
 func createCalendarApp(ctx context.Context, s OTelTestSuite) {
@@ -465,7 +468,7 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite) {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name:            name,
-						Image:           "datadog/opentelemetry-examples:calendar-go-rest-0.15",
+						Image:           "ghcr.io/datadog/apps-calendar-go:main",
 						ImagePullPolicy: "IfNotPresent",
 						Ports: []corev1.ContainerPort{{
 							Name:          "http",

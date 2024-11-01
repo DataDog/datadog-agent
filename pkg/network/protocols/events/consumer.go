@@ -13,6 +13,8 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/cihub/seelog"
+
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -162,7 +164,9 @@ func (c *Consumer[V]) Start() {
 				c.batchReader.ReadAll(func(_ int, b *batch) {
 					c.process(b, true)
 				})
-				log.Debugf("usm events summary: name=%q %s", c.proto, c.metricGroup.Summary())
+				if log.ShouldLog(seelog.DebugLvl) {
+					log.Debugf("usm events summary: name=%q %s", c.proto, c.metricGroup.Summary())
+				}
 				close(done)
 			}
 		}

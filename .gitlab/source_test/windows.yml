@@ -32,7 +32,6 @@
       -e CI_COMMIT_REF_NAME="${CI_COMMIT_REF_NAME}"
       -e AWS_NETWORKING=true
       -e SIGN_WINDOWS_DD_WCS=true
-      -e PY_RUNTIMES="${PYTHON_RUNTIMES}"
       -e GOMODCACHE="c:\modcache"
       -e JUNIT_TAR="c:\mnt\junit-${CI_JOB_NAME}.tgz"
       -e PIP_INDEX_URL="${PIP_INDEX_URL}"
@@ -46,7 +45,7 @@
       -e COVERAGE_CACHE_FLAG="${COVERAGE_CACHE_FLAG}"
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\unittests.bat
-    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - If ($lastExitCode -ne "0") { exit "$lastExitCode" }
   variables:
     TEST_OUTPUT_FILE: test_output.json
   artifacts:
@@ -61,7 +60,6 @@
 tests_windows-x64:
   extends: .tests_windows_base
   variables:
-    PYTHON_RUNTIMES: 3
     ARCH: "x64"
 
 .tests_windows_sysprobe:
@@ -79,7 +77,6 @@ tests_windows-x64:
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
       -e SIGN_WINDOWS_DD_WCS=true
-      -e PY_RUNTIMES="$PYTHON_RUNTIMES"
       -e GOMODCACHE="c:\modcache"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
@@ -105,7 +102,6 @@ tests_windows-x64:
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
       -e SIGN_WINDOWS_DD_WCS=true
-      -e PY_RUNTIMES="$PYTHON_RUNTIMES"
       -e GOMODCACHE="c:\modcache"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
@@ -114,16 +110,14 @@ tests_windows-x64:
   artifacts:
     when: always
     paths:
-      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
+      - $CI_PROJECT_DIR/test/new-e2e/tests/security-agent-functional/artifacts
 
 tests_windows_sysprobe_x64:
   extends: .tests_windows_sysprobe
   variables:
-    PYTHON_RUNTIMES: 3
     ARCH: "x64"
 
 tests_windows_secagent_x64:
   extends: .tests_windows_secagent
   variables:
-    PYTHON_RUNTIMES: 3
     ARCH: "x64"

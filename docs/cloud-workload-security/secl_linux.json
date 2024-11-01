@@ -249,7 +249,7 @@
         },
         {
           "name": "process.ancestors.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -274,7 +274,7 @@
         },
         {
           "name": "process.ancestors.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -379,7 +379,7 @@
         },
         {
           "name": "process.ancestors.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -404,7 +404,7 @@
         },
         {
           "name": "process.ancestors.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -423,6 +423,11 @@
           "property_doc_link": "common-filefields-user-doc"
         },
         {
+          "name": "process.ancestors.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
+        },
+        {
           "name": "process.ancestors.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
@@ -431,6 +436,11 @@
           "name": "process.ancestors.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "process.ancestors.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
         },
         {
           "name": "process.ancestors.pid",
@@ -649,7 +659,7 @@
         },
         {
           "name": "process.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -674,7 +684,7 @@
         },
         {
           "name": "process.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -779,7 +789,7 @@
         },
         {
           "name": "process.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -804,7 +814,7 @@
         },
         {
           "name": "process.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -821,6 +831,11 @@
           "name": "process.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "process.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "process.is_kworker",
@@ -1004,7 +1019,7 @@
         },
         {
           "name": "process.parent.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1029,7 +1044,7 @@
         },
         {
           "name": "process.parent.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1134,7 +1149,7 @@
         },
         {
           "name": "process.parent.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1159,7 +1174,7 @@
         },
         {
           "name": "process.parent.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1176,6 +1191,11 @@
           "name": "process.parent.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "process.parent.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "process.parent.is_kworker",
@@ -1445,7 +1465,7 @@
         },
         {
           "name": "chdir.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1470,7 +1490,7 @@
         },
         {
           "name": "chdir.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1574,7 +1594,7 @@
         },
         {
           "name": "chmod.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1599,7 +1619,7 @@
         },
         {
           "name": "chmod.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1718,7 +1738,7 @@
         },
         {
           "name": "chown.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1743,7 +1763,7 @@
         },
         {
           "name": "chown.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1784,6 +1804,50 @@
       ]
     },
     {
+      "name": "connect",
+      "definition": "A connect was executed",
+      "type": "Network",
+      "from_agent_version": "7.60",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "connect.addr.family",
+          "definition": "Address family",
+          "property_doc_link": "connect-addr-family-doc"
+        },
+        {
+          "name": "connect.addr.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "connect.addr.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "connect.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "connect.server.addr.family",
+          "definition": "Server address family",
+          "property_doc_link": "connect-server-addr-family-doc"
+        },
+        {
+          "name": "connect.server.addr.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "connect.server.addr.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        }
+      ]
+    },
+    {
       "name": "dns",
       "definition": "A DNS request was sent",
       "type": "Network",
@@ -1817,7 +1881,7 @@
         },
         {
           "name": "dns.question.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2046,7 +2110,7 @@
         },
         {
           "name": "exec.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2071,7 +2135,7 @@
         },
         {
           "name": "exec.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2176,7 +2240,7 @@
         },
         {
           "name": "exec.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2201,7 +2265,7 @@
         },
         {
           "name": "exec.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2218,6 +2282,11 @@
           "name": "exec.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "exec.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "exec.is_kworker",
@@ -2470,7 +2539,7 @@
         },
         {
           "name": "exit.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2495,7 +2564,7 @@
         },
         {
           "name": "exit.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2600,7 +2669,7 @@
         },
         {
           "name": "exit.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2625,7 +2694,7 @@
         },
         {
           "name": "exit.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2642,6 +2711,11 @@
           "name": "exit.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "exit.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "exit.is_kworker",
@@ -2858,7 +2932,7 @@
         },
         {
           "name": "link.file.destination.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2883,7 +2957,7 @@
         },
         {
           "name": "link.file.destination.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2953,7 +3027,7 @@
         },
         {
           "name": "link.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2978,7 +3052,7 @@
         },
         {
           "name": "link.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3092,7 +3166,7 @@
         },
         {
           "name": "load_module.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3117,7 +3191,7 @@
         },
         {
           "name": "load_module.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3226,7 +3300,7 @@
         },
         {
           "name": "mkdir.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3251,7 +3325,7 @@
         },
         {
           "name": "mkdir.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3340,7 +3414,7 @@
         },
         {
           "name": "mmap.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3365,7 +3439,7 @@
         },
         {
           "name": "mmap.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3542,7 +3616,7 @@
         },
         {
           "name": "open.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3567,7 +3641,7 @@
         },
         {
           "name": "open.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3633,6 +3707,11 @@
           "name": "packet.device.ifname",
           "definition": "Interface ifname",
           "property_doc_link": "common-networkdevicecontext-ifname-doc"
+        },
+        {
+          "name": "packet.filter",
+          "definition": "pcap filter expression",
+          "property_doc_link": "packet-filter-doc"
         },
         {
           "name": "packet.l3_protocol",
@@ -3855,7 +3934,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3880,7 +3959,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3985,7 +4064,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4010,7 +4089,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4029,6 +4108,11 @@
           "property_doc_link": "common-filefields-user-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
@@ -4037,6 +4121,11 @@
           "name": "ptrace.tracee.ancestors.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.pid",
@@ -4255,7 +4344,7 @@
         },
         {
           "name": "ptrace.tracee.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4280,7 +4369,7 @@
         },
         {
           "name": "ptrace.tracee.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4385,7 +4474,7 @@
         },
         {
           "name": "ptrace.tracee.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4410,7 +4499,7 @@
         },
         {
           "name": "ptrace.tracee.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4427,6 +4516,11 @@
           "name": "ptrace.tracee.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "ptrace.tracee.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "ptrace.tracee.is_kworker",
@@ -4610,7 +4704,7 @@
         },
         {
           "name": "ptrace.tracee.parent.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4635,7 +4729,7 @@
         },
         {
           "name": "ptrace.tracee.parent.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4740,7 +4834,7 @@
         },
         {
           "name": "ptrace.tracee.parent.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4765,7 +4859,7 @@
         },
         {
           "name": "ptrace.tracee.parent.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4782,6 +4876,11 @@
           "name": "ptrace.tracee.parent.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "ptrace.tracee.parent.is_kworker",
@@ -4959,7 +5058,7 @@
         },
         {
           "name": "removexattr.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4984,7 +5083,7 @@
         },
         {
           "name": "removexattr.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5078,7 +5177,7 @@
         },
         {
           "name": "rename.file.destination.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5103,7 +5202,7 @@
         },
         {
           "name": "rename.file.destination.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5173,7 +5272,7 @@
         },
         {
           "name": "rename.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5198,7 +5297,7 @@
         },
         {
           "name": "rename.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5297,7 +5396,7 @@
         },
         {
           "name": "rmdir.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5322,7 +5421,7 @@
         },
         {
           "name": "rmdir.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5528,7 +5627,7 @@
         },
         {
           "name": "setxattr.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5553,7 +5652,7 @@
         },
         {
           "name": "setxattr.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5767,7 +5866,7 @@
         },
         {
           "name": "signal.target.ancestors.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5792,7 +5891,7 @@
         },
         {
           "name": "signal.target.ancestors.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5897,7 +5996,7 @@
         },
         {
           "name": "signal.target.ancestors.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5922,7 +6021,7 @@
         },
         {
           "name": "signal.target.ancestors.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5941,6 +6040,11 @@
           "property_doc_link": "common-filefields-user-doc"
         },
         {
+          "name": "signal.target.ancestors.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
+        },
+        {
           "name": "signal.target.ancestors.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
@@ -5949,6 +6053,11 @@
           "name": "signal.target.ancestors.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "signal.target.ancestors.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
         },
         {
           "name": "signal.target.ancestors.pid",
@@ -6167,7 +6276,7 @@
         },
         {
           "name": "signal.target.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6192,7 +6301,7 @@
         },
         {
           "name": "signal.target.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6297,7 +6406,7 @@
         },
         {
           "name": "signal.target.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6322,7 +6431,7 @@
         },
         {
           "name": "signal.target.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6339,6 +6448,11 @@
           "name": "signal.target.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "signal.target.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "signal.target.is_kworker",
@@ -6522,7 +6636,7 @@
         },
         {
           "name": "signal.target.parent.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6547,7 +6661,7 @@
         },
         {
           "name": "signal.target.parent.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6652,7 +6766,7 @@
         },
         {
           "name": "signal.target.parent.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6677,7 +6791,7 @@
         },
         {
           "name": "signal.target.parent.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6694,6 +6808,11 @@
           "name": "signal.target.parent.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "signal.target.parent.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "signal.target.parent.is_kworker",
@@ -6866,7 +6985,7 @@
         },
         {
           "name": "splice.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6891,7 +7010,7 @@
         },
         {
           "name": "splice.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6990,7 +7109,7 @@
         },
         {
           "name": "unlink.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -7015,7 +7134,7 @@
         },
         {
           "name": "unlink.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -7143,7 +7262,7 @@
         },
         {
           "name": "utimes.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -7168,7 +7287,7 @@
         },
         {
           "name": "utimes.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -8205,10 +8324,34 @@
       "definition": "IP address",
       "prefixes": [
         "bind.addr",
+        "connect.addr",
+        "connect.server.addr",
         "network.destination",
         "network.source",
         "packet.destination",
         "packet.source"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.is_exec",
+      "link": "common-process-is_exec-doc",
+      "type": "bool",
+      "definition": "Indicates whether the process entry is from a new binary execution",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
       ],
       "constants": "",
       "constants_link": "",
@@ -8354,7 +8497,7 @@
       "name": "*.length",
       "link": "common-string-length-doc",
       "type": "int",
-      "definition": "Length of the corresponding string",
+      "definition": "Length of the corresponding element",
       "prefixes": [
         "chdir.file.name",
         "chdir.file.path",
@@ -8383,6 +8526,7 @@
         "mmap.file.path",
         "open.file.name",
         "open.file.path",
+        "process.ancestors",
         "process.ancestors.file.name",
         "process.ancestors.file.path",
         "process.ancestors.interpreter.file.name",
@@ -8395,6 +8539,7 @@
         "process.parent.file.path",
         "process.parent.interpreter.file.name",
         "process.parent.interpreter.file.path",
+        "ptrace.tracee.ancestors",
         "ptrace.tracee.ancestors.file.name",
         "ptrace.tracee.ancestors.file.path",
         "ptrace.tracee.ancestors.interpreter.file.name",
@@ -8417,6 +8562,7 @@
         "rmdir.file.path",
         "setxattr.file.name",
         "setxattr.file.path",
+        "signal.target.ancestors",
         "signal.target.ancestors.file.name",
         "signal.target.ancestors.file.path",
         "signal.target.ancestors.interpreter.file.name",
@@ -8918,6 +9064,8 @@
       "definition": "Port number",
       "prefixes": [
         "bind.addr",
+        "connect.addr",
+        "connect.server.addr",
         "network.destination",
         "network.source",
         "packet.destination",
@@ -8960,6 +9108,7 @@
         "chdir",
         "chmod",
         "chown",
+        "connect",
         "link",
         "load_module",
         "mkdir",
@@ -9509,6 +9658,30 @@
       "definition": "UID argument of the syscall",
       "prefixes": [
         "chown"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "connect.addr.family",
+      "link": "connect-addr-family-doc",
+      "type": "int",
+      "definition": "Address family",
+      "prefixes": [
+        "connect"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "connect.server.addr.family",
+      "link": "connect-server-addr-family-doc",
+      "type": "int",
+      "definition": "Server address family",
+      "prefixes": [
+        "connect"
       ],
       "constants": "",
       "constants_link": "",
@@ -10133,6 +10306,18 @@
       "definition": "Path argument of the syscall",
       "prefixes": [
         "open"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "packet.filter",
+      "link": "packet-filter-doc",
+      "type": "string",
+      "definition": "pcap filter expression",
+      "prefixes": [
+        "packet"
       ],
       "constants": "",
       "constants_link": "",

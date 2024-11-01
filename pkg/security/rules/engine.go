@@ -168,7 +168,6 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 			if err := e.ReloadPolicies(); err != nil {
 				seclog.Errorf("failed to reload policies: %s", err)
 			}
-			e.probe.PlaySnapshot()
 		}
 	}()
 
@@ -484,7 +483,12 @@ func (e *RuleEngine) getEventTypeEnabled() map[eval.EventType]bool {
 	if e.probe.IsNetworkEnabled() {
 		if eventTypes, exists := categories[model.NetworkCategory]; exists {
 			for _, eventType := range eventTypes {
-				enabled[eventType] = true
+				switch eventType {
+				case model.RawPacketEventType.String():
+					enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
+				default:
+					enabled[eventType] = true
+				}
 			}
 		}
 	}
