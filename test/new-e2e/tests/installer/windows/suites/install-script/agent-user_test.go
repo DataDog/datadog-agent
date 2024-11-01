@@ -39,7 +39,7 @@ func (s *testInstallScriptWithAgentUserSuite) TestInstallScriptWithAgentUser() {
 
 	// Act
 	out, err := s.Installer().RunInstallScript(map[string]string{
-		"DDAGENTUSER_NAME": s.agentUser,
+		"DD_AGENT_USER_NAME": s.agentUser,
 	})
 	s.T().Log(out)
 

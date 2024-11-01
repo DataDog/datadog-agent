@@ -32,6 +32,7 @@ const (
 	envAgentMinorVersion     = "DD_AGENT_MINOR_VERSION"
 	envApmLanguages          = "DD_APM_INSTRUMENTATION_LANGUAGES"
 	envCDNLocalDirPath       = "DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH"
+	envAgentUserName         = "DD_AGENT_USER_NAME"
 )
 
 var defaultEnv = Env{
@@ -85,6 +86,7 @@ type Env struct {
 
 	AgentMajorVersion string
 	AgentMinorVersion string
+	AgentUserName     string // windows only
 
 	InstallScript InstallScriptEnv
 
@@ -115,6 +117,7 @@ func FromEnv() *Env {
 
 		AgentMajorVersion: os.Getenv(envAgentMajorVersion),
 		AgentMinorVersion: os.Getenv(envAgentMinorVersion),
+		AgentUserName:     os.Getenv(envAgentUserName),
 
 		InstallScript: installScriptEnvFromEnv(),
 

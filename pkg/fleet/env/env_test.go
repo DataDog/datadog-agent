@@ -64,6 +64,7 @@ func TestFromEnv(t *testing.T) {
 				envDefaultPackageVersion + "_ANOTHER_PACKAGE": "4.5.6",
 				envApmLibraries:                               "java,dotnet:latest,ruby:1.2",
 				envApmInstrumentationEnabled:                  "all",
+				envAgentUserName:                              "customuser",
 			},
 			expected: &Env{
 				APIKey:               "123456",
@@ -103,6 +104,7 @@ func TestFromEnv(t *testing.T) {
 					"dotnet": "latest",
 					"ruby":   "1.2",
 				},
+				AgentUserName: "customuser",
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
 				},

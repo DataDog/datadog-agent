@@ -87,9 +87,8 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 		"/qn",
 		"MSIFASTINSTALL=7",
 	}
-	agentUser := os.Getenv("DDAGENTUSER_NAME")
-	if agentUser != "" {
-		msiArgs = append(msiArgs, fmt.Sprintf("DDAGENTUSER_NAME=%s", agentUser))
+	if env.AgentUserName != "" {
+		msiArgs = append(msiArgs, fmt.Sprintf("DDAGENTUSER_NAME=%s", env.AgentUserName))
 		// don't need to look at the registry here since the installer will read it if the command line
 		// parameter is not provided
 	}
