@@ -256,7 +256,8 @@ func TestFromEnvironmentVariables(t *testing.T) {
 							"include_metadata": false,
 						},
 						"http": map[string]interface{}{
-							"endpoint": "0.0.0.0:9998",
+							"endpoint":         "0.0.0.0:9998",
+							"include_metadata": false,
 						},
 					},
 				},
