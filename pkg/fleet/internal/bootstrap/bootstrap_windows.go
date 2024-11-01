@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	iexec "github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry"
 )
 
 func install(ctx context.Context, env *env.Env, url string, experiment bool) error {
@@ -81,7 +82,22 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	} else if len(msis) == 0 {
 		return nil, fmt.Errorf("no MSIs in package")
 	}
-	err = exec.Command("msiexec", "/i", msis[0], "/qn", "MSIFASTINSTALL=7").Run()
+	msiArgs := []string{
+		"/i",
+		msis[0],
+		"/qn",
+		"MSIFASTINSTALL=7",
+	}
+	agentUser := os.Getenv("DDAGENTUSER_NAME")
+	if agentUser == "" {
+		agentUser, _ = winregistry.GetAgentUserName()
+		// ignore error since bootstrap can be run before the MSI creates the registry key
+		// or bootstrap may be used to fix/repair the installation
+	}
+	if agentUser != "" {
+		msiArgs = append(msiArgs, fmt.Sprintf("DDAGENTUSER_NAME=%s", agentUser))
+	}
+	err = exec.Command("msiexec", msiArgs...).Run()
 	if err != nil {
 		return nil, fmt.Errorf("failed to install the Datadog Installer")
 	}
