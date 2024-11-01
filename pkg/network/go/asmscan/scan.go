@@ -7,11 +7,12 @@
 package asmscan
 
 import (
-	"debug/elf"
 	"fmt"
 
 	"golang.org/x/arch/arm64/arm64asm"
 	"golang.org/x/arch/x86/x86asm"
+
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // ScanFunction finds the program counter (PC) positions of machine code instructions
@@ -37,7 +38,7 @@ import (
 //   - https://github.com/iovisor/bcc/issues/1320#issuecomment-407927542
 //     (which describes how this approach works as a workaround)
 //   - https://github.com/golang/go/issues/22008
-func ScanFunction(textSection *elf.Section, sym elf.Symbol, functionOffset uint64, scanInstructions func(data []byte) ([]uint64, error)) ([]uint64, error) {
+func ScanFunction(textSection *safeelf.Section, sym safeelf.Symbol, functionOffset uint64, scanInstructions func(data []byte) ([]uint64, error)) ([]uint64, error) {
 	// Determine the offset in the section that the function starts at
 	lowPC := sym.Value
 	highPC := lowPC + sym.Size

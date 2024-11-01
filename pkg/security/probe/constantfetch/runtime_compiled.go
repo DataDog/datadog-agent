@@ -10,7 +10,6 @@ package constantfetch
 
 import (
 	"bytes"
-	"debug/elf"
 	"fmt"
 	"sort"
 	"text/template"
@@ -20,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 type rcSymbolPair struct {
@@ -121,7 +121,7 @@ func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]u
 		return nil, err
 	}
 
-	f, err := elf.NewFile(elfFile)
+	f, err := safeelf.NewFile(elfFile)
 	if err != nil {
 		return nil, err
 	}

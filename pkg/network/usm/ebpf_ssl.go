@@ -9,7 +9,6 @@ package usm
 
 import (
 	"bytes"
-	"debug/elf"
 	"fmt"
 	"io"
 	"os"
@@ -26,6 +25,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
@@ -617,7 +618,7 @@ func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelect
 
 		uid := getUID(fpath.ID)
 
-		elfFile, err := elf.Open(fpath.HostPath)
+		elfFile, err := safeelf.Open(fpath.HostPath)
 		if err != nil {
 			return err
 		}
@@ -697,7 +698,7 @@ func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelect
 						continue
 					}
 				}
-				manager.SanitizeUprobeAddresses(elfFile, []elf.Symbol{sym})
+				uprobes.SanitizeAddresses(elfFile, []safeelf.Symbol{sym})
 				offset, err := bininspect.SymbolToOffset(elfFile, sym)
 				if err != nil {
 					return err

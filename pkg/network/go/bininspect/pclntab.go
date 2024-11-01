@@ -9,11 +9,12 @@ package bininspect
 
 import (
 	"bytes"
-	"debug/elf"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 const (
@@ -51,7 +52,7 @@ var (
 // This is used to lazy read from the pclntab section, as the pclntab is large and we don't want to read it all at once,
 // or store it in memory.
 type sectionAccess struct {
-	section    *elf.Section
+	section    *safeelf.Section
 	baseOffset int64
 }
 
@@ -64,7 +65,7 @@ func (s *sectionAccess) ReadAt(outBuffer []byte, offset int64) (int, error) {
 // Similar to LineTable struct in https://github.com/golang/go/blob/6a861010be9eed02d5285509cbaf3fb26d2c5041/src/debug/gosym/pclntab.go#L43
 type pclntanSymbolParser struct {
 	// section is the pclntab section.
-	section *elf.Section
+	section *safeelf.Section
 	// symbolFilter is the filter for the symbols.
 	symbolFilter symbolFilter
 
@@ -93,7 +94,7 @@ type pclntanSymbolParser struct {
 }
 
 // GetPCLNTABSymbolParser returns the matching symbols from the pclntab section.
-func GetPCLNTABSymbolParser(f *elf.File, symbolFilter symbolFilter) (map[string]*elf.Symbol, error) {
+func GetPCLNTABSymbolParser(f *safeelf.File, symbolFilter symbolFilter) (map[string]*safeelf.Symbol, error) {
 	section := f.Section(pclntabSectionName)
 	if section == nil {
 		return nil, ErrMissingPCLNTABSection
@@ -219,9 +220,9 @@ func getFuncTableFieldSize(version version, ptrSize int) int {
 
 // getSymbols returns the symbols from the pclntab section that match the symbol filter.
 // based on https://github.com/golang/go/blob/6a861010be9eed02d5285509cbaf3fb26d2c5041/src/debug/gosym/pclntab.go#L300-L329
-func (p *pclntanSymbolParser) getSymbols() (map[string]*elf.Symbol, error) {
+func (p *pclntanSymbolParser) getSymbols() (map[string]*safeelf.Symbol, error) {
 	numWanted := p.symbolFilter.getNumWanted()
-	symbols := make(map[string]*elf.Symbol, numWanted)
+	symbols := make(map[string]*safeelf.Symbol, numWanted)
 	data := sectionAccess{section: p.section}
 	for currentIdx := uint32(0); currentIdx < p.funcTableSize; currentIdx++ {
 		// based on https://github.com/golang/go/blob/6a861010be9eed02d5285509cbaf3fb26d2c5041/src/debug/gosym/pclntab.go#L315
@@ -237,7 +238,7 @@ func (p *pclntanSymbolParser) getSymbols() (map[string]*elf.Symbol, error) {
 		if funcName == "" {
 			continue
 		}
-		symbols[funcName] = &elf.Symbol{
+		symbols[funcName] = &safeelf.Symbol{
 			Name: funcName,
 		}
 		if len(symbols) == numWanted {
