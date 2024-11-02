@@ -53,10 +53,6 @@ func GetRole() string {
 	return runtimeRole.Load()
 }
 
-func SetRole(role string) {
-	runtimeRole.Store(role)
-}
-
 func GetChecks() []string {
 	assignedDistributedChecksMutex.Lock()
 	defer assignedDistributedChecksMutex.Unlock()

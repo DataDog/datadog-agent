@@ -245,13 +245,9 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 	netflowExporters := []metadata.NetflowExporter{
 		{
 			// UUID to avoid being cached in backend
-			ID:            "ha-agent-" + agentHostname + "-" + uuid.NewString(),
-			IPAddress:     "1.1.1.1",
-			FlowType:      "netflow9",
-			ClusterId:     clusterId,
-			AgentHostname: agentHostname,
-			AgentRole:     role,
-			CheckIDs:      checkIDs,
+			ID:        "ha-agent-" + agentHostname + "-" + uuid.NewString(),
+			IPAddress: "1.1.1.1",
+			FlowType:  "netflow9",
 		},
 	}
 
