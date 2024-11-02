@@ -100,7 +100,7 @@ func newFlare(deps dependencies) provides {
 	return provides{
 		Comp:       f,
 		Endpoint:   api.NewAgentEndpointProvider(f.createAndReturnFlarePath, "/flare", "POST"),
-		RCListener: rcclienttypes.NewTaskListener(f.onAgentTaskEvent),
+		RCListener: rcclienttypes.NewTaskListener(f.onAgentTaskEventForHaAgent),
 	}
 }
 
@@ -108,7 +108,7 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 	if taskType != rcclienttypes.TaskFlare {
 		return false, nil
 	}
-	_, found := task.Config.TaskArgs["case_id"]
+	caseID, found := task.Config.TaskArgs["case_id"]
 	if !found {
 		return true, fmt.Errorf("Case ID was not provided in the flare agent task")
 	}
@@ -117,11 +117,25 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 		return true, fmt.Errorf("User handle was not provided in the flare agent task")
 	}
 
-	//filePath, err := f.Create(nil, 0, nil)
-	//filePath, err := f.Create(nil, nil)
-	//if err != nil {
-	//	return true, err
-	//}
+	filePath, err := f.Create(nil, 0, nil)
+	if err != nil {
+		return true, err
+	}
+
+	f.log.Infof("Flare was created by remote-config at %s", filePath)
+
+	_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
+	return true, err
+}
+
+func (f *flare) onAgentTaskEventForHaAgent(taskType rcclienttypes.TaskType, task rcclienttypes.AgentTaskConfig) (bool, error) {
+	if taskType != rcclienttypes.TaskFlare {
+		return false, nil
+	}
+	userHandle, found := task.Config.TaskArgs["user_handle"]
+	if !found {
+		return true, fmt.Errorf("User handle was not provided in the flare agent task")
+	}
 
 	f.log.Infof("[onAgentTaskEvent] userHandle=%s", userHandle)
 
@@ -141,15 +155,6 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 
 	haagent.SetChecks(payload.CheckIDs)
 
-	initialRole := haagent.GetInitialRole()
-	if initialRole == "auto" {
-		f.log.Infof("[onAgentTaskEvent] SetRole userHandle=%s, role=%s, initialRole=%s", userHandle, payload.Role, initialRole)
-		haagent.SetRole(payload.Role)
-	} else {
-		f.log.Infof("[onAgentTaskEvent] Skip userHandle=%s, role=%s, initialRole=%s", userHandle, payload.Role, initialRole)
-	}
-
-	//_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
 	return true, nil
 }
 
