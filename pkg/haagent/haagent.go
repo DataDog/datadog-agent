@@ -7,14 +7,12 @@
 package haagent
 
 import (
-	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 )
 
 // TODO: SHOULD BE A COMPONENT WITH STATE
@@ -22,7 +20,6 @@ import (
 // TODO: SHOULD BE A COMPONENT WITH STATE
 // TODO: SHOULD BE A COMPONENT WITH STATE
 
-var runtimeRole = atomic.NewString("")
 var assignedDistributedChecks []string
 var assignedDistributedChecksMutex = sync.Mutex{}
 
@@ -30,27 +27,8 @@ func IsEnabled() bool {
 	return pkgconfigsetup.Datadog().GetBool("ha_agent.enabled")
 }
 
-func IsPrimary() bool {
-	currentRole := pkgconfigsetup.Datadog().GetString("ha_agent.role")
-	runtRole := runtimeRole.Load()
-	if runtRole != "" {
-		currentRole = runtRole
-	}
-	// TODO: REMOVE ME
-	log.Infof("[IsPrimary] currentRole: %v", currentRole)
-	return currentRole == "primary"
-}
-
-func GetInitialRole() string {
-	return pkgconfigsetup.Datadog().GetString("ha_agent.role")
-}
-
 func GetGroup() string {
 	return pkgconfigsetup.Datadog().GetString("ha_agent.group")
-}
-
-func GetRole() string {
-	return runtimeRole.Load()
 }
 
 func GetChecks() []string {
@@ -67,24 +45,15 @@ func SetChecks(checks []string) {
 
 func ShouldRunForCheck(check check.Check) bool {
 	// TODO: handle check name generically
-	check.InstanceConfig()
+	checkID := check.ID()
 	checkName := check.String()
-	idSegments := strings.Split(string(check.ID()), ":")
-	checkDigest := idSegments[len(idSegments)-1]
-	log.Warnf("[ShouldRunForCheck] checkID: %s", check.ID())
-	log.Warnf("[ShouldRunForCheck] checkName: %s", checkName)
-	log.Warnf("[ShouldRunForCheck] checkDigest: %s", checkDigest)
-	log.Warnf("[ShouldRunForCheck] check inst %s: `%s`", checkName, check.InstanceConfig())
-	log.Warnf("[ShouldRunForCheck] check InitConfig %s: `%s`", checkName, check.InitConfig())
+	log.Warnf("[ShouldRunForCheck] checkID: %s", string(checkID))
 
-	if IsEnabled() && checkName == "snmp" {
+	if IsEnabled() && checkName == "snmp" { // TODO: ha_agent.integrations config
 		checkIDs := GetChecks()
 		log.Warnf("[ShouldRunForCheck] checkIDs: %v", checkIDs)
 		for _, validCheckId := range checkIDs {
-			if !strings.Contains(validCheckId, checkName+":") {
-				continue
-			}
-			if strings.Contains(validCheckId, ":"+checkDigest) {
+			if validCheckId == string(checkID) {
 				log.Warnf("[ShouldRunForCheck] found valid checkId: %v", validCheckId)
 				return true
 			}
@@ -94,12 +63,4 @@ func ShouldRunForCheck(check check.Check) bool {
 	}
 
 	return true
-}
-
-func IsDistributedCheck(checkName string) bool {
-	// TODO: handle check name generically
-	if IsEnabled() && checkName == "snmp" {
-		return true
-	}
-	return false
 }
