@@ -725,7 +725,7 @@ func (p *WindowsProbe) Start() error {
 					}
 				}
 			})
-			log.Infof("Done StartTracing %v", err)
+			log.Infof("Done StartTracing %v, lost events: %d", err, p.stats.etwChannelBlocked)
 		}()
 	}
 	if p.auditSession != nil {
