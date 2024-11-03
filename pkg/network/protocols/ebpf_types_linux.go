@@ -57,7 +57,7 @@ const (
 
 	ProgramPostgres ProgramType = 0x12
 
-	ProgramPostgresHandleCommandComplete ProgramType = 0x13
+	ProgramPostgresHandleResponse ProgramType = 0x13
 
 	ProgramPostgresParseMessage ProgramType = 0x14
 

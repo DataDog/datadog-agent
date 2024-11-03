@@ -150,17 +150,17 @@ static __always_inline void postgres_handle_message(pktbuf_t pkt, conn_tuple_t *
 
     iteration_value->iteration = 0;
     iteration_value->data_off = 0;
-    pktbuf_tail_call_option_t handle_command_complete_tail_call_array[] = {
+    pktbuf_tail_call_option_t handle_response_tail_call_array[] = {
             [PKTBUF_SKB] = {
                 .prog_array_map = &protocols_progs,
-                .index = PROG_POSTGRES_HANDLE_COMMAND_COMPLETE,
+                .index = PROG_POSTGRES_HANDLE_RESPONSE,
             },
             [PKTBUF_TLS] = {
                 .prog_array_map = &tls_process_progs,
-                .index = PROG_POSTGRES_HANDLE_COMMAND_COMPLETE,
+                .index = PROG_POSTGRES_HANDLE_RESPONSE,
             },
         };
-    pktbuf_tail_call_compact(pkt, handle_command_complete_tail_call_array);
+    pktbuf_tail_call_compact(pkt, handle_response_tail_call_array);
     return;
 }
 
@@ -199,7 +199,7 @@ static __always_inline void postgres_handle_parse_message(pktbuf_t pkt, conn_tup
 // This function handles multiple messages within a single packet, processing up to POSTGRES_MAX_MESSAGES_PER_TAIL_CALL
 // messages per call. When more messages exist beyond this limit, it uses tail call chaining (up to
 // POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES) to continue processing.
-static __always_inline bool handle_command_complete_messages(pktbuf_t pkt, conn_tuple_t conn_tuple) {
+static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tuple) {
     const __u32 zero = 0;
     struct pg_message_header header;
     // We didn't find a new query, thus we assume we're in the middle of a transaction.
@@ -239,17 +239,17 @@ static __always_inline bool handle_command_complete_messages(pktbuf_t pkt, conn_
 
     iteration_value->iteration += 1;
     iteration_value->data_off = pktbuf_data_offset(pkt);
-    pktbuf_tail_call_option_t handle_command_complete_tail_call_array[] = {
+    pktbuf_tail_call_option_t handle_response_tail_call_array[] = {
                 [PKTBUF_SKB] = {
                     .prog_array_map = &protocols_progs,
-                    .index = PROG_POSTGRES_HANDLE_COMMAND_COMPLETE,
+                    .index = PROG_POSTGRES_HANDLE_RESPONSE,
                 },
                 [PKTBUF_TLS] = {
                     .prog_array_map = &tls_process_progs,
-                    .index = PROG_POSTGRES_HANDLE_COMMAND_COMPLETE,
+                    .index = PROG_POSTGRES_HANDLE_RESPONSE,
                 },
             };
-    pktbuf_tail_call_compact(pkt, handle_command_complete_tail_call_array);
+    pktbuf_tail_call_compact(pkt, handle_response_tail_call_array);
     return 0;
 }
 
@@ -283,8 +283,8 @@ int socket__postgres_handle(struct __sk_buff* skb) {
 
 // Handles plain text command complete messages for plaintext Postgres traffic. Pulls the connection tuple and the
 // packet buffer from the map and calls the dedicated function to handle the message.
-SEC("socket/postgres_handle_command_complete")
-int socket__postgres_handle_command_complete(struct __sk_buff* skb) {
+SEC("socket/postgres_handle_response")
+int socket__postgres_handle_response(struct __sk_buff* skb) {
     skb_info_t skb_info = {};
     conn_tuple_t conn_tuple = {};
 
@@ -300,7 +300,7 @@ int socket__postgres_handle_command_complete(struct __sk_buff* skb) {
     normalize_tuple(&conn_tuple);
 
     pktbuf_t pkt = pktbuf_from_skb(skb, &skb_info);
-    handle_command_complete_messages(pkt, conn_tuple);
+    handle_response(pkt, conn_tuple);
     return 0;
 }
 
@@ -382,8 +382,8 @@ int uprobe__postgres_tls_termination(struct pt_regs *ctx) {
 }
 
 // Handles message parsing for a TLS Postgres traffic.
-SEC("uprobe/postgres_tls_handle_command_complete")
-int uprobe__postgres_tls_handle_command_complete(struct pt_regs *ctx) {
+SEC("uprobe/postgres_tls_handle_response")
+int uprobe__postgres_tls_handle_response(struct pt_regs *ctx) {
     const __u32 zero = 0;
 
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
@@ -394,7 +394,7 @@ int uprobe__postgres_tls_handle_command_complete(struct pt_regs *ctx) {
     // Copying the tuple to the stack to handle verifier issues on kernel 4.14.
     conn_tuple_t tup = args->tup;
     pktbuf_t pkt = pktbuf_from_tls(ctx, args);
-    handle_command_complete_messages(pkt, tup);
+    handle_response(pkt, tup);
     return 0;
 }
 
