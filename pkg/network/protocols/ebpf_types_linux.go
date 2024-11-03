@@ -11,7 +11,8 @@ const (
 
 const (
 	PostgresMaxMessagesPerTailCall = 0x50
-	PostgresMaxTailCalls           = 0x1
+
+	PostgresMaxTailCalls = 0x1
 )
 
 type DispatcherProgramType uint32
