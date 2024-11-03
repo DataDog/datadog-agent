@@ -13,10 +13,15 @@ package protocols
 import "C"
 
 const (
-	layerAPIBit                    = C.LAYER_API_BIT
-	layerApplicationBit            = C.LAYER_APPLICATION_BIT
-	layerEncryptionBit             = C.LAYER_ENCRYPTION_BIT
+	layerAPIBit         = C.LAYER_API_BIT
+	layerApplicationBit = C.LAYER_APPLICATION_BIT
+	layerEncryptionBit  = C.LAYER_ENCRYPTION_BIT
+)
+
+// Represents the maximum number of messages that can be processed in our Postgres decoding solution.
+const (
 	PostgresMaxMessagesPerTailCall = C.POSTGRES_MAX_MESSAGES_PER_TAIL_CALL
+	PostgresMaxTailCalls           = C.POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES
 )
 
 // DispatcherProgramType is a C type to represent the eBPF programs used for tail calls.

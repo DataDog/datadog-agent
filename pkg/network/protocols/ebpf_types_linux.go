@@ -4,10 +4,14 @@
 package protocols
 
 const (
-	layerAPIBit                    = 0x2000
-	layerApplicationBit            = 0x4000
-	layerEncryptionBit             = 0x8000
+	layerAPIBit         = 0x2000
+	layerApplicationBit = 0x4000
+	layerEncryptionBit  = 0x8000
+)
+
+const (
 	PostgresMaxMessagesPerTailCall = 0x50
+	PostgresMaxTailCalls           = 0x1
 )
 
 type DispatcherProgramType uint32
