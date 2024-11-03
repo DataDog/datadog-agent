@@ -31,6 +31,7 @@ type Launcher interface {
 //
 // The *sources.LogSources type satisfies this interface.
 type SourceProvider interface {
+	// 3.
 	// SubscribeForType returns channels containing the new added and removed sources matching the provided type.
 	//
 	// Removed sources are pointer-equal to previously-added sources.
