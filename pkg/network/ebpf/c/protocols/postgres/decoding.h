@@ -241,23 +241,24 @@ static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tupl
         pktbuf_advance(pkt, header.message_len + 1);
     }
 
-    if (!found_command_complete) {
-        // We didn't find a command complete message, so we need to continue processing the packet.
-        // We save the current data offset and increment the iteration counter.
-        iteration_value->iteration += 1;
-        iteration_value->data_off = pktbuf_data_offset(pkt);
-        pktbuf_tail_call_option_t handle_response_tail_call_array[] = {
-            [PKTBUF_SKB] = {
-                .prog_array_map = &protocols_progs,
-                .index = PROG_POSTGRES_HANDLE_RESPONSE,
-            },
-            [PKTBUF_TLS] = {
-                .prog_array_map = &tls_process_progs,
-                .index = PROG_POSTGRES_HANDLE_RESPONSE,
-            },
-        };
-        pktbuf_tail_call_compact(pkt, handle_response_tail_call_array);
+    if (found_command_complete) {
+        return 0;
     }
+    // We didn't find a command complete message, so we need to continue processing the packet.
+    // We save the current data offset and increment the iteration counter.
+    iteration_value->iteration += 1;
+    iteration_value->data_off = pktbuf_data_offset(pkt);
+    pktbuf_tail_call_option_t handle_response_tail_call_array[] = {
+        [PKTBUF_SKB] = {
+            .prog_array_map = &protocols_progs,
+            .index = PROG_POSTGRES_HANDLE_RESPONSE,
+        },
+        [PKTBUF_TLS] = {
+            .prog_array_map = &tls_process_progs,
+            .index = PROG_POSTGRES_HANDLE_RESPONSE,
+        },
+    };
+    pktbuf_tail_call_compact(pkt, handle_response_tail_call_array);
     return 0;
 }
 
