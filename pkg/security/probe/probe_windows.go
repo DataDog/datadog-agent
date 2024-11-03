@@ -1374,6 +1374,9 @@ func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field e
 
 	if field == "create.file.device_path" {
 		path := ev.CreateNewFile.File.PathnameStr
+		if path == "" {
+			return
+		}
 		seclog.Debugf("new discarder for `%s` -> `%v`", field, path)
 		p.discardedPaths.Add(path, struct{}{})
 	} else if field == "create.file.path" {
@@ -1385,6 +1388,9 @@ func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field e
 		p.discardedUserPaths.Add(path, struct{}{})
 	} else if field == "create.file.name" {
 		basename := ev.CreateNewFile.File.BasenameStr
+		if basename == "" {
+			return
+		}
 		seclog.Debugf("new discarder for `%s` -> `%v`", field, basename)
 		p.discardedBasenames.Add(basename, struct{}{})
 	}
