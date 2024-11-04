@@ -196,7 +196,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.SkipSSLValidation = core.GetBool("skip_ssl_validation")
 	}
 	if core.IsSet("apm_config.enabled") {
-		c.Enabled = core.GetBool("apm_config.enabled")
+		isAPMEnabled := core.GetBool("apm_config.enabled") && utils.IsDefaultPayloadsEnabled(core)
+		c.Enabled = isAPMEnabled
 	}
 	if pkgconfigsetup.Datadog().IsSet("apm_config.log_file") {
 		c.LogFilePath = pkgconfigsetup.Datadog().GetString("apm_config.log_file")

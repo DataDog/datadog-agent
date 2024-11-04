@@ -1020,10 +1020,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("reverse_dns_enrichment.rate_limiter.throttle_error_threshold")
 	config.SetKnown("reverse_dns_enrichment.rate_limiter.recovery_intervals")
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_interval", time.Duration(0))
-
-	// Default payloads (disabled for Error Tracking Standalone, Logs Collection Only)
-	config.BindEnvAndSetDefault("default_payloads.enabled", true)
-	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1115,6 +1111,10 @@ func agent(config pkgconfigmodel.Setup) {
 	config.SetKnown("proxy.http")
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
+
+	// Default payloads (disabled for Error Tracking Standalone, Logs Collection Only)
+	config.BindEnvAndSetDefault("default_payloads.enabled", true)
+	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 }
 
 func fips(config pkgconfigmodel.Setup) {
@@ -2578,7 +2578,7 @@ func GetRemoteConfigurationAllowedIntegrations(cfg pkgconfigmodel.Reader) map[st
 	return allowMap
 }
 
-// IsAgentTelemetryEnabled returns true if Agent Telemetry ise enabled
+// IsAgentTelemetryEnabled returns true if Agent Telemetry is enabled
 func IsAgentTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
 	// Disable Agent Telemetry for GovCloud
 	if cfg.GetBool("fips.enabled") || cfg.GetString("site") == "ddog-gov.com" {
