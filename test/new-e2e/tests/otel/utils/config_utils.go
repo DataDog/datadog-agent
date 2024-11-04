@@ -54,8 +54,8 @@ var otelFlareFilesZpages = []string{
 	"otel/otel-flare/zpages/dd-autoconfigured_debug_servicez.dat",
 }
 
-// TestOTelFlareExtensionRespsonse tests that the OTel Agent DD flare extension returns expected responses
-func TestOTelFlareExtensionRespsonse(s OTelTestSuite, providedCfg string, fullCfg string, sources string) {
+// TestOTelFlareExtensionResponse tests that the OTel Agent DD flare extension returns expected responses
+func TestOTelFlareExtensionResponse(s OTelTestSuite, providedCfg string, fullCfg string, sources string) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 	agent := getAgentPod(s)

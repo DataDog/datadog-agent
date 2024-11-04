@@ -82,7 +82,7 @@ func (s *minimalTestSuite) TestOTelAgentInstalled() {
 }
 
 func (s *minimalTestSuite) TestOTelFlareExtensionResponse() {
-	utils.TestOTelFlareExtensionRespsonse(s, minimalProvidedConfig, minimalFullConfig, minimalSources)
+	utils.TestOTelFlareExtensionResponse(s, minimalProvidedConfig, minimalFullConfig, minimalSources)
 }
 
 func (s *minimalTestSuite) TestOTelFlareFiles() {
