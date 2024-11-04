@@ -248,6 +248,12 @@ static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tupl
     // We save the current data offset and increment the iteration counter.
     iteration_value->iteration += 1;
     iteration_value->data_off = pktbuf_data_offset(pkt);
+
+    // If the maximum number of tail calls has been reached, we can skip invoking the next tail call.
+    if (iteration_value->iteration >= POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES) {
+        return 0;
+    }
+
     pktbuf_tail_call_option_t handle_response_tail_call_array[] = {
         [PKTBUF_SKB] = {
             .prog_array_map = &protocols_progs,
