@@ -15,8 +15,6 @@
 # vendor/
 
 **/.DS_Store
-*.yml
-*.yaml
 bin/**
 
 # Ignore local builds

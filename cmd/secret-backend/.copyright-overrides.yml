@@ -1,0 +1,35 @@
+# this file contains overrides for the automatic determination of copyright
+# implemented in tasks/licenses.py.  The table keys are the golang package name
+# or pattern, and the value is either a copyright owner or a list of owners.
+#
+# Package patterns may end with a `*`.  When multiple patterns match, the longer
+# is preferred.
+#
+# Copyright statements should reflect the copyright exactly as it is shown on
+# the original component.
+
+# NOTE: in general, we prefer to pull data from the repository so that it will
+# be updated automatically, so prefer to make such a change in
+# tasks/licenses.py if possible.  Line-wrapping can be difficult to handle, and
+# may be overridden here.
+
+github.com/Azure/azure-sdk-for-go: Copyright (c) Microsoft Corporation.
+github.com/Azure/go-autorest: Copyright 2015 Microsoft Corporation
+github.com/aws/aws-sdk-go-v2: ["Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.", "Copyright 2014-2015 Stripe, Inc."]
+github.com/aws/smithy-go: "Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+github.com/cenkalti/backoff/v3: "Copyright (c) 2014 Cenk Altı"
+github.com/dimchansky/utfbom: "Copyright (c) 2018-2020, Dmitrij Koniajev (dimchansky@gmail.com)"
+github.com/go-jose/go-jose/v3: "Copyright 2014 Square Inc"
+github.com/go-jose/go-jose/v3/json: ["Copyright 2014 Square Inc", "Copyright (c) 2012 The Go Authors. All rights reserved"]
+github.com/golang-jwt/jwt/v4: ["Copyright (c) 2012 Dave Grijalva", "Copyright (c) 2021 golang-jwt maintainers"]
+github.com/hashicorp/*: Copyright © 2014-2018 HashiCorp, Inc
+github.com/jmespath/go-jmespath: "Copyright 2015 James Saryerwinnie"
+github.com/mattn/go-colorable: "Copyright (c) 2016 Yasuhiro Matsumoto"
+github.com/mattn/go-isatty: "Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com>"
+github.com/mitchellh/* : "Copyright (c) 2013 Mitchell Hashimoto"
+github.com/rs/zerolog: "Copyright (c) 2017 Olivier Poitrey"
+github.com/ryanuber/go-glob: "Copyright (c) 2014 Ryan Uber"
+github.com/sirupsen/logrus: "Copyright (c) 2014 Simon Eskildsen"
+golang.org/x/*: "Copyright (c) 2009 The Go Authors. All rights reserved"
+golang/go: Copyright (c) 2009 The Go Authors. All rights reserved.
+gopkg.in/yaml.v2: "Copyright 2011-2016 Canonical Ltd"

@@ -1,0 +1,28 @@
+---
+denylist:
+  - GPL-2.0
+  - GPL-3.0
+
+allowlist:
+  - 0BSD
+  - Apache-2.0
+  - BSD-2-Clause
+  - BSD-3-Clause
+  - ISC
+  - JSON
+  - MIT
+  - MPL-2.0
+  - MPL-2.0-no-copyleft-exception
+  - NewBSD
+  - FreeBSD
+
+exceptions:
+  - "golang.org/x/mobile/..."
+  - "golang.org/x/tools/..."
+  - "golang.org/x/mod/..."
+  - "golang.org/x/xerrors/..."
+  - "github.com/stretchr/testify"
+
+additional:
+  # list here paths to additional licenses
+  golang/go: "raw.githubusercontent.com/golang/go/go1.22.8/LICENSE"
