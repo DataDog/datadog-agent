@@ -112,12 +112,11 @@ func (l language) isSupported() bool {
 //
 // If this language does not appear in supportedLanguages, it will not be injected.
 var languageVersions = map[language]string{
-	java:   "v1", // https://datadoghq.atlassian.net/browse/APMON-1064
-	dotnet: "v3", // https://datadoghq.atlassian.net/browse/APMON-1390
-	python: "v2", // https://datadoghq.atlassian.net/browse/APMON-1068
-	ruby:   "v2", // https://datadoghq.atlassian.net/browse/APMON-1066
-	js:     "v5", // https://datadoghq.atlassian.net/browse/APMON-1065
-	php:    "v2", // https://datadoghq.atlassian.net/browse/APMON-1128
+	java:   "1.41", // https://datadoghq.atlassian.net/browse/APMON-1064
+	dotnet: "3.4",  // https://datadoghq.atlassian.net/browse/APMON-1390
+	python: "2.15", // https://datadoghq.atlassian.net/browse/APMON-1068
+	ruby:   "2.4",  // https://datadoghq.atlassian.net/browse/APMON-1066
+	js:     "5.24", // https://datadoghq.atlassian.net/browse/APMON-1065
 }
 
 func (l language) defaultLibVersion() string {

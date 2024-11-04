@@ -1645,11 +1645,11 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 	installTime := strconv.FormatInt(time.Now().Unix(), 10)
 
 	defaultLibraries := map[string]string{
-		"java":   "v1",
-		"python": "v2",
-		"ruby":   "v2",
-		"dotnet": "v3",
-		"js":     "v5",
+		"java":   "1.41",
+		"python": "2.15",
+		"ruby":   "2.4",
+		"dotnet": "3.4",
+		"js":     "5.24",
 	}
 
 	defaultLibrariesFor := func(languages ...string) map[string]string {
