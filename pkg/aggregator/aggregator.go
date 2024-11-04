@@ -20,7 +20,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/haagent/haagentconfig"
+	"github.com/DataDog/datadog-agent/pkg/haagent"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -862,10 +862,8 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 			tags = append(tags, "package_version:"+version.AgentPackageVersion)
 		}
 	}
-	if haagentconfig.IsEnabled() {
-		tags = append(tags,
-			"ha_agent_group:"+haagentconfig.GetGroup(),
-		)
+	if haagent.IsEnabled() {
+		tags = append(tags, "ha_agent_group:"+haagent.GetGroup())
 	}
 	// nil to empty string
 	// This is expected by other components/tests

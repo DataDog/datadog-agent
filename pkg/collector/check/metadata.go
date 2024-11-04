@@ -8,7 +8,7 @@ package check
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/haagent/haagentconfig"
+	"github.com/DataDog/datadog-agent/pkg/haagent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -37,7 +37,7 @@ func GetMetadata(c Info, includeConfig bool) map[string]interface{} {
 		}
 	}
 
-	if haagentconfig.IsEnabled() && haagentconfig.IsHAIntegration(integrationName) {
+	if haagent.IsEnabled() && haagent.IsHAIntegration(integrationName) {
 		instance["ha_integration"] = true
 	}
 

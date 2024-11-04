@@ -8,10 +8,6 @@ package haagent
 
 import (
 	"sync"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/haagent/haagentconfig"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TODO: SHOULD BE A COMPONENT WITH STATE
@@ -19,10 +15,10 @@ import (
 var assignedIntegrations map[string]bool
 var assignedIntegrationsMutex = sync.Mutex{}
 
-func IsHAIntegrationInstance(checkID string) bool {
+func ShouldRunHAIntegrationInstance(integrationID string) bool {
 	assignedIntegrationsMutex.Lock()
 	defer assignedIntegrationsMutex.Unlock()
-	return assignedIntegrations[checkID]
+	return assignedIntegrations[integrationID]
 }
 
 func SetIntegrationInstances(integrations []Integration) {
@@ -34,17 +30,4 @@ func SetIntegrationInstances(integrations []Integration) {
 	assignedIntegrationsMutex.Lock()
 	defer assignedIntegrationsMutex.Unlock()
 	assignedIntegrations = integrationsMap
-}
-
-func ShouldRunForIntegrationInstance(check check.Check) bool {
-	// TODO: handle check name generically
-	checkID := check.ID()
-	checkName := check.String()
-	log.Warnf("[ShouldRunForIntegrationInstance] checkID: %s", string(checkID))
-
-	if haagentconfig.IsEnabled() && haagentconfig.IsHAIntegration(checkName) {
-		return IsHAIntegrationInstance(string(checkID))
-	}
-
-	return true
 }

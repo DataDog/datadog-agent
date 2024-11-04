@@ -1,4 +1,4 @@
-package haagentconfig
+package haagent
 
 import pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 

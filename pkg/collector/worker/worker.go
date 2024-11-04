@@ -140,8 +140,8 @@ func (w *Worker) Run() {
 			continue
 		}
 
-		if !haagent.ShouldRunForIntegrationInstance(check) {
-			checkLogger.Debug("HA Agent check is not run since agent is not primary")
+		if !shouldRunIntegrationInstance(check) {
+			checkLogger.Debug("HA Integration skipped")
 			// Remove the check from the running list
 			w.checksTracker.DeleteCheck(check.ID())
 			continue
@@ -258,4 +258,11 @@ func startTrackerTicker(ut *UtilizationTracker, interval time.Duration) func() {
 		cancel <- struct{}{}
 		<-done // make sure Tick will not be called after we return.
 	}
+}
+
+func shouldRunIntegrationInstance(check check.Check) bool {
+	if haagent.IsEnabled() && haagent.IsHAIntegration(check.String()) {
+		return haagent.ShouldRunHAIntegrationInstance(string(check.ID()))
+	}
+	return true
 }
