@@ -54,10 +54,19 @@ def dockerize_test(ctx, binary, skip_cleanup=False):
     with open(f"{temp_folder}/Dockerfile", 'w') as stream:
         stream.write(
             """FROM public.ecr.aws/docker/library/ubuntu:20.04
+# Install Docker
 COPY --from=public.ecr.aws/docker/library/docker:26.1-cli /usr/local/bin/docker /usr/bin/docker
-RUN wget https://github.com/docker/compose/releases/download/v2.26.1/docker-compose-linux-x86_64 -O /usr/bin/compose
+
+# Install Docker Compose
+ARG COMPOSE_VERSION=2.26.1
+ARG COMPOSE_SHA256=4e56d449e6396ae4c7356f07fc5372a28999aacb012d4343a3b8a9389123aa38
+RUN apt-get update && apt-get install -y ca-certificates curl
+RUN curl -SL "https://github.com/docker/compose/releases/download/v${COMPOSE_VERSION}/docker-compose-linux-x86_64 -o /usr/bin/compose && \
+    echo "${COMPOSE_SHA} /usr/bin/compose" | sha256sum --check && \
+    chmod +x /usr/bin/compose
+
+# Final settings
 ENV DOCKER_DD_AGENT=yes
-RUN apt-get update && apt-get install -y ca-certificates
 WORKDIR /
 CMD /test.bin
 COPY test.bin /test.bin
