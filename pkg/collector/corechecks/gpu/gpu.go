@@ -68,8 +68,10 @@ func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("invalid gpu check config: %w", err)
 	}
 
-	// Initialize NVML collectors
-	m.nvmlLib = nvml.New()
+	// Initialize NVML collectors. if the config parameter doesn't exist or is
+	// empty string, the default value is used as defined in go-nvml library
+	// https://github.com/NVIDIA/go-nvml/blob/main/pkg/nvml/lib.go#L30
+	m.nvmlLib = nvml.New(nvml.WithLibraryPath(m.config.NVMLLibraryPath))
 	ret := m.nvmlLib.Init()
 	if ret != nvml.SUCCESS {
 		return fmt.Errorf("failed to initialize NVML library: %s", nvml.ErrorString(ret))
