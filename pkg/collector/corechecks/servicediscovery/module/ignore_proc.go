@@ -16,10 +16,17 @@ var ignoreServices = map[string]struct{}{
 	"datadog-agent": {},
 }
 
-// shouldIgnorePid returns true if service should be excluded from handling.
-func (s *discovery) shouldIgnorePid(proc *process.Process) bool {
+// addIgnoredPid store excluded pid.
+func (s *discovery) addIgnoredPid(pid int32) {
 	s.mux.Lock()
-	_, found := s.ignorePids[proc.Pid]
+	s.ignorePids[pid] = true
+	s.mux.Unlock()
+}
+
+// shouldIgnorePid returns true if service should be excluded from handling.
+func (s *discovery) shouldIgnorePid(pid int32) bool {
+	s.mux.Lock()
+	_, found := s.ignorePids[pid]
 	s.mux.Unlock()
 
 	return found
@@ -41,11 +48,12 @@ func (s *discovery) shouldIgnoreService(name string, proc *process.Process) bool
 // cleanIgnoredPids removes dead PIDs from the list of ignored processes.
 func (s *discovery) cleanIgnoredPids(alivePids map[int32]struct{}) {
 	s.mux.Lock()
+	defer s.mux.Unlock()
+
 	for pid := range s.ignorePids {
 		if _, alive := alivePids[pid]; alive {
 			continue
 		}
 		delete(s.ignorePids, pid)
 	}
-	s.mux.Unlock()
 }

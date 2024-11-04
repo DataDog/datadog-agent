@@ -88,7 +88,7 @@ func newDiscovery() *discovery {
 		config:             newConfig(),
 		mux:                &sync.RWMutex{},
 		cache:              make(map[int32]*serviceInfo),
-		ignorePids:         make(map[int32]bool, len(ignoreServices)),
+		ignorePids:         make(map[int32]bool),
 		privilegedDetector: privileged.NewLanguageDetector(),
 		scrubber:           procutil.NewDefaultDataScrubber(),
 	}
@@ -411,10 +411,11 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		return nil
 	}
 
-	if s.shouldIgnorePid(proc) {
+	if s.shouldIgnorePid(proc.Pid) {
 		return nil
 	}
 	if s.shouldIgnoreComm(proc) {
+		s.addIgnoredPid(proc.Pid)
 		return nil
 	}
 

@@ -5,7 +5,7 @@
 
 // This doesn't need BPF, but it's built with this tag to only run with
 // system-probe tests, otherwise linters show an error for the core agent tests.
-//go:build test && linux_bpf
+//go:build linux_bpf
 
 package module
 
@@ -92,7 +92,7 @@ func TestShouldIgnorePid(t *testing.T) {
 			}
 
 			// check saved pid to ignore
-			ignore := discovery.shouldIgnorePid(proc)
+			ignore := discovery.shouldIgnorePid(proc.Pid)
 			require.Equal(t, test.ignore, ignore)
 		})
 	}
