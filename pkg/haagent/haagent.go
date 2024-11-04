@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/haagent/haagentconfig"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -22,14 +22,6 @@ import (
 
 var assignedDistributedChecks []string
 var assignedDistributedChecksMutex = sync.Mutex{}
-
-func IsEnabled() bool {
-	return pkgconfigsetup.Datadog().GetBool("ha_agent.enabled")
-}
-
-func GetGroup() string {
-	return pkgconfigsetup.Datadog().GetString("ha_agent.group")
-}
 
 func GetChecks() []string {
 	assignedDistributedChecksMutex.Lock()
@@ -49,7 +41,7 @@ func ShouldRunForCheck(check check.Check) bool {
 	checkName := check.String()
 	log.Warnf("[ShouldRunForCheck] checkID: %s", string(checkID))
 
-	if IsEnabled() && checkName == "snmp" { // TODO: ha_agent.integrations config
+	if haagentconfig.IsEnabled() && haagentconfig.IsHAIntegration(checkName) {
 		checkIDs := GetChecks()
 		log.Warnf("[ShouldRunForCheck] checkIDs: %v", checkIDs)
 		for _, validCheckId := range checkIDs {
