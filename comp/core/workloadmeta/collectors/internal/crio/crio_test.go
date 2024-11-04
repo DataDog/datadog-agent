@@ -89,15 +89,15 @@ func (f *fakeCRIOClient) Close() error {
 // TestPull tests Pull with valid container data.
 func TestPull(t *testing.T) {
 	client := &fakeCRIOClient{
-		mockGetAllContainers: func(ctx context.Context) ([]*v1.Container, error) {
+		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 			return []*v1.Container{
 				{Id: "container1", PodSandboxId: "pod1", Metadata: &v1.ContainerMetadata{Name: "container1"}},
 			}, nil
 		},
-		mockGetPodStatus: func(ctx context.Context, podID string) (*v1.PodSandboxStatus, error) {
+		mockGetPodStatus: func(_ context.Context, podID string) (*v1.PodSandboxStatus, error) {
 			return &v1.PodSandboxStatus{Metadata: &v1.PodSandboxMetadata{Namespace: "default"}}, nil
 		},
-		mockGetContainerStatus: func(ctx context.Context, containerID string) (*v1.ContainerStatus, error) {
+		mockGetContainerStatus: func(_ context.Context, containerID string) (*v1.ContainerStatus, error) {
 			return &v1.ContainerStatus{
 				Metadata:  &v1.ContainerMetadata{Name: "container1"},
 				State:     v1.ContainerState_CONTAINER_RUNNING,
@@ -111,7 +111,7 @@ func TestPull(t *testing.T) {
 				},
 			}, nil
 		},
-		mockGetContainerImage: func(ctx context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error) {
+		mockGetContainerImage: func(_ context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error) {
 			return &v1.Image{
 				Id:          "image123",
 				RepoTags:    []string{"myrepo/myimage:latest"},
@@ -143,12 +143,12 @@ func TestPull(t *testing.T) {
 // TestPullContainerStatusError tests Pull when retrieving container status results in an error.
 func TestPullContainerStatusError(t *testing.T) {
 	client := &fakeCRIOClient{
-		mockGetAllContainers: func(ctx context.Context) ([]*v1.Container, error) {
+		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 			return []*v1.Container{
 				{Id: "container1", PodSandboxId: "pod1"},
 			}, nil
 		},
-		mockGetContainerStatus: func(ctx context.Context, containerID string) (*v1.ContainerStatus, error) {
+		mockGetContainerStatus: func(_ context.Context, containerID string) (*v1.ContainerStatus, error) {
 			return nil, errors.New("container status error")
 		},
 	}
@@ -173,15 +173,15 @@ func TestPullContainerStatusError(t *testing.T) {
 // TestPullNoPodNamespace tests Pull with a missing pod namespace.
 func TestPullNoPodNamespace(t *testing.T) {
 	client := &fakeCRIOClient{
-		mockGetAllContainers: func(ctx context.Context) ([]*v1.Container, error) {
+		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 			return []*v1.Container{
 				{Id: "container1", PodSandboxId: "nonexistent-pod"},
 			}, nil
 		},
-		mockGetPodStatus: func(ctx context.Context, podID string) (*v1.PodSandboxStatus, error) {
+		mockGetPodStatus: func(_ context.Context, podID string) (*v1.PodSandboxStatus, error) {
 			return nil, errors.New("pod not found")
 		},
-		mockGetContainerStatus: func(ctx context.Context, containerID string) (*v1.ContainerStatus, error) {
+		mockGetContainerStatus: func(_ context.Context, containerID string) (*v1.ContainerStatus, error) {
 			return &v1.ContainerStatus{
 				Metadata:  &v1.ContainerMetadata{Name: "container1"},
 				State:     v1.ContainerState_CONTAINER_RUNNING,
@@ -204,12 +204,12 @@ func TestPullNoPodNamespace(t *testing.T) {
 // TestPullContainerImageError tests error handling when retrieving container image fails.
 func TestPullContainerImageError(t *testing.T) {
 	client := &fakeCRIOClient{
-		mockGetAllContainers: func(ctx context.Context) ([]*v1.Container, error) {
+		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 			return []*v1.Container{
 				{Id: "container1", PodSandboxId: "pod1"},
 			}, nil
 		},
-		mockGetContainerStatus: func(ctx context.Context, containerID string) (*v1.ContainerStatus, error) {
+		mockGetContainerStatus: func(_ context.Context, containerID string) (*v1.ContainerStatus, error) {
 			return &v1.ContainerStatus{
 				Metadata:  &v1.ContainerMetadata{Name: "container1"},
 				State:     v1.ContainerState_CONTAINER_RUNNING,
@@ -223,7 +223,7 @@ func TestPullContainerImageError(t *testing.T) {
 				},
 			}, nil
 		},
-		mockGetContainerImage: func(ctx context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error) {
+		mockGetContainerImage: func(_ context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error) {
 			return nil, errors.New("image retrieval error")
 		},
 	}
@@ -245,19 +245,19 @@ func TestPullContainerImageError(t *testing.T) {
 
 func TestPullContainerNoImageInfo(t *testing.T) {
 	client := &fakeCRIOClient{
-		mockGetAllContainers: func(ctx context.Context) ([]*v1.Container, error) {
+		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 			return []*v1.Container{
 				{Id: "container1", PodSandboxId: "pod1"},
 			}, nil
 		},
-		mockGetContainerStatus: func(ctx context.Context, containerID string) (*v1.ContainerStatus, error) {
+		mockGetContainerStatus: func(_ context.Context, containerID string) (*v1.ContainerStatus, error) {
 			return &v1.ContainerStatus{
 				Metadata:  &v1.ContainerMetadata{Name: "container1"},
 				State:     v1.ContainerState_CONTAINER_RUNNING,
 				CreatedAt: time.Now().Add(-10 * time.Minute).UnixNano(),
 			}, nil
 		},
-		mockGetContainerImage: func(ctx context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error) {
+		mockGetContainerImage: func(_ context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error) {
 			return nil, nil
 		},
 	}
@@ -279,7 +279,7 @@ func TestPullContainerNoImageInfo(t *testing.T) {
 
 func TestPullNoContainers(t *testing.T) {
 	client := &fakeCRIOClient{
-		mockGetAllContainers: func(ctx context.Context) ([]*v1.Container, error) {
+		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 			return []*v1.Container{}, nil
 		},
 	}
@@ -297,7 +297,7 @@ func TestPullNoContainers(t *testing.T) {
 
 func TestPullContainerRetrievalError(t *testing.T) {
 	client := &fakeCRIOClient{
-		mockGetAllContainers: func(ctx context.Context) ([]*v1.Container, error) {
+		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 			return nil, errors.New("failed to retrieve containers")
 		},
 	}
@@ -315,12 +315,12 @@ func TestPullContainerRetrievalError(t *testing.T) {
 
 func TestPullContainerMissingMetadata(t *testing.T) {
 	client := &fakeCRIOClient{
-		mockGetAllContainers: func(ctx context.Context) ([]*v1.Container, error) {
+		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 			return []*v1.Container{
 				{Id: "container1", PodSandboxId: "pod1", Metadata: nil}, // Missing metadata
 			}, nil
 		},
-		mockGetContainerStatus: func(ctx context.Context, containerID string) (*v1.ContainerStatus, error) {
+		mockGetContainerStatus: func(_ context.Context, containerID string) (*v1.ContainerStatus, error) {
 			return &v1.ContainerStatus{
 				State: v1.ContainerState_CONTAINER_RUNNING,
 			}, nil
@@ -340,12 +340,12 @@ func TestPullContainerMissingMetadata(t *testing.T) {
 
 func TestPullContainerDefaultResourceLimits(t *testing.T) {
 	client := &fakeCRIOClient{
-		mockGetAllContainers: func(ctx context.Context) ([]*v1.Container, error) {
+		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 			return []*v1.Container{
 				{Id: "container1", PodSandboxId: "pod1"},
 			}, nil
 		},
-		mockGetContainerStatus: func(ctx context.Context, containerID string) (*v1.ContainerStatus, error) {
+		mockGetContainerStatus: func(_ context.Context, containerID string) (*v1.ContainerStatus, error) {
 			return &v1.ContainerStatus{
 				Metadata: &v1.ContainerMetadata{Name: "container1"},
 				Resources: &v1.ContainerResources{
