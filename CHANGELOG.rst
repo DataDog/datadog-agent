@@ -2,6 +2,30 @@
 Release Notes
 =============
 
+.. _Release Notes_7.58.2:
+
+7.58.2
+======
+
+.. _Release Notes_7.58.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-11-04
+
+
+.. _Release Notes_7.58.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Use of cloud-provided hostname as default when running the Agent
+  in AKS introduced in `7.56.0` is reverted due to cases where the
+  hostname returned is non-unique. This feature will be fixed and
+  added again in a future release.
+
+
 .. _Release Notes_7.58.1:
 
 7.58.1
