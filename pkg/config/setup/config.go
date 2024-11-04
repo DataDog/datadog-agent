@@ -1113,7 +1113,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.SetKnown("proxy.no_proxy")
 
 	// Default payloads (disabled for Error Tracking Standalone, Logs Collection Only)
-	config.BindEnvAndSetDefault("default_payloads.enabled", true)
+	config.BindEnvAndSetDefault("core_agent.enabled", true)
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 }
 
@@ -2359,7 +2359,7 @@ func sanitizeExternalMetricsProviderChunkSize(config pkgconfigmodel.Config) {
 func toggleDefaultPayloads(config pkgconfigmodel.Config) {
 	// Disables metric data submission (including Custom Metrics) so that hosts stop showing up in Datadog.
 	// Used namely for Error Tracking Standalone where it is not needed.
-	if !config.GetBool("default_payloads.enabled") {
+	if !config.GetBool("core_agent.enabled") {
 		config.BindEnvAndSetDefault("enable_payloads.events", false)
 		config.BindEnvAndSetDefault("enable_payloads.series", false)
 		config.BindEnvAndSetDefault("enable_payloads.service_checks", false)

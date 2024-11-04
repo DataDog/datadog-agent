@@ -1413,7 +1413,7 @@ func TestDisableDefaultPayloads(t *testing.T) {
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 
 	InitConfig(conf)
-	assert.True(t, conf.GetBool("default_payloads.enabled"))
+	assert.True(t, conf.GetBool("core_agent.enabled"))
 	pkgconfigmodel.ApplyOverrideFuncs(conf)
 	// ensure events default payloads are enabled
 	assert.True(t, conf.GetBool("enable_payloads.events"))
@@ -1421,7 +1421,7 @@ func TestDisableDefaultPayloads(t *testing.T) {
 	assert.True(t, conf.GetBool("enable_payloads.service_checks"))
 	assert.True(t, conf.GetBool("enable_payloads.sketches"))
 
-	conf.BindEnvAndSetDefault("default_payloads.enabled", false)
+	conf.BindEnvAndSetDefault("core_agent.enabled", false)
 	pkgconfigmodel.ApplyOverrideFuncs(conf)
 	// ensure events default payloads are disabled
 	assert.False(t, conf.GetBool("enable_payloads.events"))

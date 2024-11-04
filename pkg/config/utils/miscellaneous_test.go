@@ -21,10 +21,10 @@ func TestIsDefaultPayloadsEnabled(t *testing.T) {
 		setConfig func(m model.Config)
 	}{
 		{
-			name:     "default_payloads.enabled false",
+			name:     "core_agent.enabled false",
 			expected: false,
 			setConfig: func(m model.Config) {
-				m.SetWithoutSource("default_payloads.enabled", false)
+				m.SetWithoutSource("core_agent.enabled", false)
 			},
 		},
 		{
@@ -59,8 +59,8 @@ func TestIsDefaultPayloadsEnabled(t *testing.T) {
 			mockConfig := configmock.New(t)
 			test.setConfig(mockConfig)
 			assert.Equal(t,
-				test.expected, IsDefaultPayloadsEnabled(mockConfig),
-				"Was expecting IsDefaultPayloadsEnabled to return", test.expected)
+				test.expected, IsCoreAgentEnabled(mockConfig),
+				"Was expecting IsCoreAgentEnabled to return", test.expected)
 		})
 	}
 }
