@@ -43,6 +43,7 @@ target:
     DD_PROFILING_WAIT_PROFILE: true
 
 checks:
+  # Note: quality gates will stop using this experiment in the future in favor of quality_gate_idle_all_features.
   - name: memory_usage
     description: "Memory usage quality gate. This puts a bound on the total agent memory usage."
     bounds:
