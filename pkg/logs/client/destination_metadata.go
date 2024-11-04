@@ -13,17 +13,17 @@ import (
 // DestinationMetadata contains metadata about a destination
 type DestinationMetadata struct {
 	componentName    string
-	instanceId       string
+	instanceID       string
 	kind             string
 	endpointId       string
 	ReportingEnabled bool
 }
 
 // NewDestinationMetadata returns a new DestinationMetadata
-func NewDestinationMetadata(componentName, instanceId, kind, endpointId string) *DestinationMetadata {
+func NewDestinationMetadata(componentName, instanceID, kind, endpointId string) *DestinationMetadata {
 	return &DestinationMetadata{
 		componentName:    componentName,
-		instanceId:       instanceId,
+		instanceID:       instanceID,
 		kind:             kind,
 		endpointId:       endpointId,
 		ReportingEnabled: true,
@@ -42,7 +42,7 @@ func (d *DestinationMetadata) TelemetryName() string {
 	if !d.ReportingEnabled {
 		return ""
 	}
-	return fmt.Sprintf("%s_%s_%s_%s", d.componentName, d.instanceId, d.kind, d.endpointId)
+	return fmt.Sprintf("%s_%s_%s_%s", d.componentName, d.instanceID, d.kind, d.endpointId)
 }
 
 // MonitorTag returns the monitor tag for the destination

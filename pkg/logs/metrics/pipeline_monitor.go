@@ -29,18 +29,26 @@ type PipelineMonitor interface {
 // Some instances of logs components do not need to report capacity metrics and
 // should use this implementation.
 type NoopPipelineMonitor struct {
-	instanceId string
+	instanceID string
 }
 
+// NewNoopPipelineMonitor creates a new no-op pipeline monitor
 func NewNoopPipelineMonitor(id string) *NoopPipelineMonitor {
 	return &NoopPipelineMonitor{}
 }
 
+// ID returns the instance id of the monitor
 func (c *NoopPipelineMonitor) ID() string {
-	return c.instanceId
+	return c.instanceID
 }
+
+// ReportComponentIngress does nothing.
 func (n *NoopPipelineMonitor) ReportComponentIngress(size MeasurablePayload, name string) {}
-func (n *NoopPipelineMonitor) ReportComponentEgress(size MeasurablePayload, name string)  {}
+
+// ReportComponentEgress does nothing.
+func (n *NoopPipelineMonitor) ReportComponentEgress(size MeasurablePayload, name string) {}
+
+// MakeUtilizationMonitor returns a no-op utilization monitor.
 func (n *NoopPipelineMonitor) MakeUtilizationMonitor(name string) UtilizationMonitor {
 	return &NoopUtilizationMonitor{}
 }
@@ -49,27 +57,27 @@ func (n *NoopPipelineMonitor) MakeUtilizationMonitor(name string) UtilizationMon
 type TelemetryPipelineMonitor struct {
 	monitors   map[string]*CapacityMonitor
 	interval   time.Duration
-	instanceId string
+	instanceID string
 	lock       sync.RWMutex
 }
 
 // NewTelemetryPipelineMonitor creates a new pipeline monitort that reports capacity and utiilization metrics as telemetry
-func NewTelemetryPipelineMonitor(interval time.Duration, instanceId string) *TelemetryPipelineMonitor {
+func NewTelemetryPipelineMonitor(interval time.Duration, instanceID string) *TelemetryPipelineMonitor {
 	return &TelemetryPipelineMonitor{
 		monitors:   make(map[string]*CapacityMonitor),
 		interval:   interval,
-		instanceId: instanceId,
+		instanceID: instanceID,
 		lock:       sync.RWMutex{},
 	}
 }
 
 func (c *TelemetryPipelineMonitor) getMonitor(name string) *CapacityMonitor {
-	key := name + c.instanceId
+	key := name + c.instanceID
 	c.lock.RLock()
 	if c.monitors[key] == nil {
 		c.lock.RUnlock()
 		c.lock.Lock()
-		c.monitors[key] = NewCapacityMonitor(name, c.instanceId, c.interval)
+		c.monitors[key] = NewCapacityMonitor(name, c.instanceID, c.interval)
 		c.lock.Unlock()
 		c.lock.RLock()
 	}
@@ -79,12 +87,12 @@ func (c *TelemetryPipelineMonitor) getMonitor(name string) *CapacityMonitor {
 
 // ID returns the instance id of the monitor
 func (c *TelemetryPipelineMonitor) ID() string {
-	return c.instanceId
+	return c.instanceID
 }
 
 // MakeUtilizationMonitor creates a new utilization monitor for a component.
 func (c *TelemetryPipelineMonitor) MakeUtilizationMonitor(name string) UtilizationMonitor {
-	return NewTelemetryUtilizationMonitor(name, c.instanceId, c.interval)
+	return NewTelemetryUtilizationMonitor(name, c.instanceID, c.interval)
 }
 
 // ReportComponentIngress reports the ingress of a payload to a component.

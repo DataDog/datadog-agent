@@ -16,8 +16,11 @@ type UtilizationMonitor interface {
 // NoopUtilizationMonitor is a no-op implementation of UtilizationMonitor.
 type NoopUtilizationMonitor struct{}
 
+// Start does nothing.
 func (n *NoopUtilizationMonitor) Start() {}
-func (n *NoopUtilizationMonitor) Stop()  {}
+
+// Stop does nothing.
+func (n *NoopUtilizationMonitor) Stop() {}
 
 // TelemetryUtilizationMonitor is a UtilizationMonitor that reports utilization metrics as telemetry.
 // Utilization is calculated as the ratio of time spent in use to the total time.

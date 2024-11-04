@@ -11,7 +11,7 @@ import (
 )
 
 // CapacityMonitor samples the average capacity of a component over a given interval.
-// Capacity is caluclated as the difference between the ingress and egress of a payload.
+// Capacity is calculated as the difference between the ingress and egress of a payload.
 // Because data moves very quickly through components, we need to sample and aggregate this value over time.
 type CapacityMonitor struct {
 	sync.Mutex
