@@ -40,7 +40,7 @@ func GetMetadata(c Info, includeConfig bool) map[string]interface{} {
 	if haagentconfig.IsEnabled() && haagentconfig.IsHAIntegration(integrationName) {
 		instance["ha_integration"] = true // TODO: use this, but might need backend changes to allow new fields
 
-		// WORKAROUND to use init_config
+		// WORKAROUND to use init_config so that backend can recognise ha_integrations
 		if initConfig, ok := instance["init_config"]; ok && initConfig != nil {
 			instance["init_config"] = instance["init_config"].(string) + "\n#ha_integration"
 		} else {
