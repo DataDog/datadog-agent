@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+deprecations:
+  - |
+    Prebuilt eBPF for the network tracer system-probe module has been
+    deprecated in favor of CO-RE and runtime compilation variants on Linux
+    kernel versions 6+ and RHEL kernel versions 5.14+. To continue to use
+    the prebuilt eBPF network tracer, set
+    `system_probe_config.allow_prebuilt_fallback` in the
+    system-probe config file, or set the environment variable
+    `DD_ALLOW_PREBUILT_FALLBACK`, to `true` on these platforms.

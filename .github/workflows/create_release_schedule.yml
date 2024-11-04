@@ -36,5 +36,7 @@ jobs:
       env:
         ATLASSIAN_USERNAME : ${{ secrets.ATLASSIAN_USERNAME }}
         ATLASSIAN_PASSWORD : ${{ secrets.ATLASSIAN_PASSWORD }}
+        INPUT_VERSION: ${{ github.event.inputs.version }}
+        FREEZE_DATE: ${{ github.event.inputs.freeze_date }}
       run: |
-        inv -e release.create-schedule --version ${{ github.event.inputs.version }} --freeze-date ${{ github.event.inputs.freeze_date }}
+        inv -e release.create-schedule --version "$INPUT_VERSION" --freeze-date "$FREEZE_DATE"

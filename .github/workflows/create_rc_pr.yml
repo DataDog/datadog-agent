@@ -82,8 +82,10 @@ jobs:
                 ATLASSIAN_USERNAME: ${{ secrets.ATLASSIAN_USERNAME }}
                 ATLASSIAN_PASSWORD: ${{ secrets.ATLASSIAN_PASSWORD }}
                 SLACK_API_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+                MATRIX: ${{ matrix.value }}
+                WARNING: ${{ needs.find_release_branches.outputs.warning }}
               run: |
-                echo "CHANGES=$(inv -e release.check-for-changes -r ${{ matrix.value }} ${{ needs.find_release_branches.outputs.warning }})" >> $GITHUB_OUTPUT
+                echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX" "$WARNING")" >> $GITHUB_OUTPUT
 
             - name: Create RC PR
               if: ${{ steps.check_for_changes.outputs.CHANGES == 'true'}}
