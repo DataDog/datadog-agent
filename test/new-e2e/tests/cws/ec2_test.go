@@ -30,6 +30,7 @@ func TestAgentSuiteEC2(t *testing.T) {
 	ddHostname := fmt.Sprintf("%s-%s", ec2HostnamePrefix, testID)
 	agentConfig := config.GenDatadogAgentConfig(ddHostname, "tag1", "tag2")
 	e2e.Run[environments.Host](t, &agentSuite{testID: testID},
+		e2e.WithStackName("cws-agentSuite-ec2"),
 		e2e.WithProvisioner(
 			awshost.ProvisionerNoFakeIntake(
 				awshost.WithAgentOptions(
