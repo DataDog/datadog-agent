@@ -15,15 +15,21 @@ import (
 // ErrNotFound is an error for when a key is not found
 var ErrNotFound = fmt.Errorf("not found")
 
-// NewNode constructs a Node from either a map, a slice, or a scalar value
-func NewNode(v interface{}, source model.Source) (Node, error) {
+// NewNodeTree will recursively create nodes from the input value to construct a tree
+func NewNodeTree(v interface{}, source model.Source) (Node, error) {
 	switch it := v.(type) {
 	case map[interface{}]interface{}:
-		return nil, fmt.Errorf("not implemented")
-		//return newInnerNodeImplWithData(mapInterfaceToMapString(it), source)
+		children, err := makeChildNodeTrees(mapInterfaceToMapString(it), source)
+		if err != nil {
+			return nil, err
+		}
+		return newInnerNode(children), nil
 	case map[string]interface{}:
-		return nil, fmt.Errorf("not implemented")
-		//return newInnerNodeImplWithData(it, source)
+		children, err := makeChildNodeTrees(it, source)
+		if err != nil {
+			return nil, err
+		}
+		return newInnerNode(children), nil
 	case []interface{}:
 		return newArrayNodeImpl(it, source)
 	}
@@ -37,6 +43,23 @@ func NewNode(v interface{}, source model.Source) (Node, error) {
 		return nil, fmt.Errorf("could not create node from: %v of type %T", v, v)
 	}
 	return node, err
+}
+
+// NewLeafTree creates a new leaf node
+func NewLeafNode(v interface{}, source model.Source) (Node, error) {
+	return newLeafNodeImpl(v, source), nil
+}
+
+func makeChildNodeTrees(input map[string]interface{}, source model.Source) (map[string]Node, error) {
+	children := make(map[string]Node)
+	for k, v := range input {
+		node, err := NewNodeTree(v, source)
+		if err != nil {
+			return nil, err
+		}
+		children[k] = node
+	}
+	return children, nil
 }
 
 // NodeType represents node types in the tree (ie: inner or leaf)

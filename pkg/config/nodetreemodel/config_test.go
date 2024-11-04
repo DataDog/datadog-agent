@@ -11,11 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The current implementation uses NewNode to build the tree, but it treats leafs with
-// map data as though those maps should also become nodes.
+// NOTE: Fix this test in this PR
 func TestBuildDefaultMakesTooManyNodes(t *testing.T) {
-	t.Skip("test fails because the tree builder is too aggressive in making nodes")
-
 	cfg := NewConfig("test", "", nil)
 	cfg.BindEnvAndSetDefault("kubernetes_node_annotations_as_tags", map[string]string{"cluster.k8s.io/machine": "kube_machine"})
 	cfg.BuildSchema()

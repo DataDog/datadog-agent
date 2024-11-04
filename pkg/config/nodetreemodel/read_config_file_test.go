@@ -48,7 +48,7 @@ func setupDefault(t *testing.T, cfg model.Config) *ntmConfig {
 			},
 		},
 	}
-	newNode, err := NewNode(obj, model.SourceDefault)
+	newNode, err := NewNodeTree(obj, model.SourceDefault)
 	require.NoError(t, err)
 	defaults, ok := newNode.(InnerNode)
 	require.True(t, ok)
@@ -174,7 +174,7 @@ c:
 			},
 		},
 	}
-	newNode, err := NewNode(obj, model.SourceDefault)
+	newNode, err := NewNodeTree(obj, model.SourceDefault)
 	require.NoError(t, err)
 	defaults, ok := newNode.(InnerNode)
 	require.True(t, ok)
@@ -218,7 +218,7 @@ c:
 			"d": true,
 		},
 	}
-	newNode, err := NewNode(obj, model.SourceDefault)
+	newNode, err := NewNodeTree(obj, model.SourceDefault)
 	require.NoError(t, err)
 	defaults, ok := newNode.(InnerNode)
 	require.True(t, ok)
@@ -261,7 +261,7 @@ c: 1234
 			"d": true,
 		},
 	}
-	newNode, err := NewNode(obj, model.SourceDefault)
+	newNode, err := NewNodeTree(obj, model.SourceDefault)
 	require.NoError(t, err)
 	defaults, ok := newNode.(InnerNode)
 	require.True(t, ok)
@@ -302,7 +302,7 @@ a:
 			"b": true,
 		},
 	}
-	newNode, err := NewNode(obj, model.SourceDefault)
+	newNode, err := NewNodeTree(obj, model.SourceDefault)
 	require.NoError(t, err)
 	defaults, ok := newNode.(InnerNode)
 	require.True(t, ok)
@@ -334,7 +334,7 @@ a:
 			},
 		},
 	}
-	newNode, err := NewNode(obj, model.SourceDefault)
+	newNode, err := NewNodeTree(obj, model.SourceDefault)
 	require.NoError(t, err)
 	defaults, ok := newNode.(InnerNode)
 	require.True(t, ok)

@@ -63,7 +63,7 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 	if rawval == nil {
 		return nil
 	}
-	source, err := nodetreemodel.NewNode(rawval, cfg.GetSource(key))
+	source, err := nodetreemodel.NewNodeTree(rawval, cfg.GetSource(key))
 	if err != nil {
 		return err
 	}

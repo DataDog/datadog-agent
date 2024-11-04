@@ -32,7 +32,8 @@ func newArrayNodeImpl(v []interface{}, source model.Source) (Node, error) {
 			nodes = append(nodes, n)
 			continue
 		}
-		n, err := NewNode(it, source)
+		// TODO: Not correct, going to delete this
+		n, err := NewNodeTree(it, source)
 		if err != nil {
 			return nil, err
 		}

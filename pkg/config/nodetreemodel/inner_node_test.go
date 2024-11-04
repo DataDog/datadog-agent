@@ -25,7 +25,7 @@ func TestMergeToEmpty(t *testing.T) {
 		},
 	}
 
-	node, err := NewNode(obj, model.SourceFile)
+	node, err := NewNodeTree(obj, model.SourceFile)
 	require.NoError(t, err)
 	src, ok := node.(InnerNode)
 	require.True(t, ok)
@@ -81,12 +81,12 @@ func TestMergeTwoTree(t *testing.T) {
 		},
 	}
 
-	node, err := NewNode(obj, model.SourceFile)
+	node, err := NewNodeTree(obj, model.SourceFile)
 	require.NoError(t, err)
 	base, ok := node.(InnerNode)
 	require.True(t, ok)
 
-	node, err = NewNode(obj2, model.SourceEnvVar)
+	node, err = NewNodeTree(obj2, model.SourceEnvVar)
 	require.NoError(t, err)
 	overwrite, ok := node.(InnerNode)
 	require.True(t, ok)
@@ -127,12 +127,12 @@ func TestMergeErrorLeafToNode(t *testing.T) {
 		"a": map[string]interface{}{},
 	}
 
-	node, err := NewNode(obj, model.SourceFile)
+	node, err := NewNodeTree(obj, model.SourceFile)
 	require.NoError(t, err)
 	base, ok := node.(InnerNode)
 	require.True(t, ok)
 
-	node, err = NewNode(obj2, model.SourceEnvVar)
+	node, err = NewNodeTree(obj2, model.SourceEnvVar)
 	require.NoError(t, err)
 	overwrite, ok := node.(InnerNode)
 	require.True(t, ok)

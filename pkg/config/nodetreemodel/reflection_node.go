@@ -33,13 +33,10 @@ func asReflectionNode(v interface{}) (Node, error) {
 	} else if rv.Kind() == reflect.Slice {
 		elems := make([]interface{}, 0, rv.Len())
 		for i := 0; i < rv.Len(); i++ {
-			node, err := NewNode(rv.Index(i).Interface(), model.SourceDefault)
-			if err != nil {
-				return nil, err
-			}
-			elems = append(elems, node)
+			item := rv.Index(i).Interface()
+			elems = append(elems, item)
 		}
-		return newArrayNodeImpl(elems, model.SourceDefault)
+		return NewLeafNode(elems, model.SourceUnknown)
 	} else if rv.Kind() == reflect.Map {
 		res := make(map[string]interface{}, rv.Len())
 		mapkeys := rv.MapKeys()
@@ -52,8 +49,7 @@ func asReflectionNode(v interface{}) (Node, error) {
 			}
 			res[kstr] = rv.MapIndex(mk).Interface()
 		}
-		// TODO: not correct, res is not being used
-		return newInnerNode(nil), nil
+		return NewLeafNode(res, model.SourceUnknown)
 	}
 	return nil, errUnknownConversion
 }
