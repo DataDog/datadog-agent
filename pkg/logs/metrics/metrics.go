@@ -81,6 +81,13 @@ var (
 
 	// TlmLogsDiscardedFromSDSBuffer how many messages were dropped when waiting for an SDS configuration because the buffer is full
 	TlmLogsDiscardedFromSDSBuffer = telemetry.NewCounter("logs", "sds__dropped_from_buffer", nil, "Count of messages dropped from the buffer while waiting for an SDS configuration")
+
+	// TlmUtilization is the utilization of a component
+	TlmUtilization = telemetry.NewGauge("logs_component", "utilization", []string{"name", "instance"}, "Gauge of the utilization of a component")
+	// TlmCapacity is the capacity of a component by number of elements
+	TlmCapacity = telemetry.NewGauge("logs_component", "capacity", []string{"name", "instance"}, "Gauge of the capacity of a component by number of elements")
+	// TlmCapacityBytes is the capacity of a component by number of bytes
+	TlmCapacityBytes = telemetry.NewGauge("logs_component", "capacity_bytes", []string{"name", "instance"}, "Gauge of the capacity of a component by number of bytes")
 )
 
 func init() {
