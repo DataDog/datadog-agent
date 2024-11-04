@@ -32,7 +32,6 @@ kmt_setup_env_secagent_arm64:
     AMI_ID_ARG: "--arm-ami-id=$KERNEL_MATRIX_TESTING_ARM_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-arm
     TEST_COMPONENT: security-agent
-    TEST_SETS: cws_host,cws_docker,cws_ad,cws_el,cws_el_ns,cws_fentry
 
 kmt_setup_env_secagent_x64:
   extends:
@@ -45,7 +44,6 @@ kmt_setup_env_secagent_x64:
     AMI_ID_ARG: "--x86-ami-id=$KERNEL_MATRIX_TESTING_X86_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-x86
     TEST_COMPONENT: security-agent
-    TEST_SETS: cws_host,cws_docker,cws_ad,cws_el,cws_el_ns,cws_fentry
 
 .upload_secagent_tests:
   stage: kernel_matrix_testing_prepare
@@ -131,6 +129,7 @@ kmt_run_secagent_tests_x64:
           - "ubuntu_22.04"
           - "ubuntu_23.10"
           - "ubuntu_24.04"
+          - "ubuntu_24.10"
           - "amazon_4.14"
           - "amazon_5.4"
           - "amazon_5.10"
@@ -232,6 +231,7 @@ kmt_run_secagent_tests_x64_docker:
           - "ubuntu_22.04"
           - "ubuntu_23.10"
           - "ubuntu_24.04"
+          - "ubuntu_24.10"
           - "amazon_4.14"
           - "amazon_5.4"
           - "amazon_5.10"
@@ -268,6 +268,7 @@ kmt_run_secagent_tests_arm64:
           - "ubuntu_22.04"
           - "ubuntu_23.10"
           - "ubuntu_24.04"
+          - "ubuntu_24.10"
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
@@ -362,6 +363,7 @@ kmt_run_secagent_tests_arm64_docker:
           - "ubuntu_22.04"
           - "ubuntu_23.10"
           - "ubuntu_24.04"
+          - "ubuntu_24.10"
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"

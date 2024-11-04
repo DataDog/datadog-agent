@@ -39,6 +39,7 @@ import (
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -125,6 +126,11 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				// Provide eventplatformimpl module
 				eventplatformreceiverimpl.Module(),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+
+				// Provide rdnsquerier module
+				rdnsquerierfx.Module(),
+
+				// Provide npcollector module
 				npcollectorimpl.Module(),
 				// Provide the corresponding workloadmeta Params to configure the catalog
 				wmcatalog.GetCatalog(),

@@ -554,7 +554,7 @@ class TestModifyContent(unittest.TestCase):
     gitlab_ci = None
 
     def setUp(self) -> None:
-        with open(".gitlab-ci.yml") as gl:
+        with open("tasks/unit_tests/testdata/variables.yml") as gl:
             self.gitlab_ci = gl.readlines()
         return super().setUp()
 

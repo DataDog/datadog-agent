@@ -492,6 +492,120 @@ int test_bind(int argc, char** argv) {
     return EXIT_FAILURE;
 }
 
+int test_connect_af_inet(int argc, char** argv) {
+
+    if (argc != 3) {
+        fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
+        fprintf(stderr, "Arg1: an option for the addr in the list: any, custom_ip\n");
+        fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
+        return EXIT_FAILURE;
+    }
+
+    char* proto = argv[2];
+    int s;
+
+    if (!strcmp(proto, "udp"))
+        s = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    else
+        s = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+    if (s < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+
+    char* ip = argv[1];
+    if (!strcmp(ip, "any")) {
+        addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    } else if (!strcmp(ip, "custom_ip")) {
+        int ip32 = 0;
+        if (inet_pton(AF_INET, "127.0.0.1", &ip32) != 1) {
+            perror("inet_pton");
+            return EXIT_FAILURE;
+        }
+        addr.sin_addr.s_addr = htonl(ip32);
+    } else {
+        fprintf(stderr, "Please specify an option in the list: any, broadcast, custom_ip\n");
+        return EXIT_FAILURE;
+    }
+
+    addr.sin_port = htons(4242);
+
+    if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        perror("Failed to connect to port");
+        return EXIT_FAILURE;
+    }
+
+    close (s);
+    return EXIT_SUCCESS;
+}
+
+int test_connect_af_inet6(int argc, char** argv) {
+
+    if (argc != 3) {
+        fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
+        fprintf(stderr, "Arg1: an option for the addr in the list: any, custom_ip\n");
+        fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
+        return EXIT_FAILURE;
+    }
+
+    char* proto = argv[2];
+    int s;
+
+    if (!strcmp(proto, "udp"))
+        s = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+    else
+        s = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
+
+    if (s < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    struct sockaddr_in6 addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin6_family = AF_INET6;
+
+    char* ip = argv[1];
+    if (!strcmp(ip, "any")) {
+        inet_pton(AF_INET6, "::", &addr.sin6_addr);
+    } else if (!strcmp(ip, "custom_ip")) {
+        inet_pton(AF_INET6, "1234:5678:90ab:cdef:0000:0000:1a1a:1337", &addr.sin6_addr);
+    } else {
+        fprintf(stderr, "Please specify an option in the list: any, broadcast, custom_ip\n");
+        return EXIT_FAILURE;
+    }
+
+    addr.sin6_port = htons(4242);
+    if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        perror("Failed to connect to port");
+        return EXIT_FAILURE;
+    }
+
+    close(s);
+    return EXIT_SUCCESS;
+}
+
+int test_connect(int argc, char** argv) {
+    if (argc <= 1) {
+        fprintf(stderr, "Please specify an addr_type\n");
+        return EXIT_FAILURE;
+    }
+
+    char* addr_family = argv[1];
+    if (!strcmp(addr_family, "AF_INET")) {
+        return test_connect_af_inet(argc - 1, argv + 1);
+    } else if  (!strcmp(addr_family, "AF_INET6")) {
+        return test_connect_af_inet6(argc - 1, argv + 1);
+    } 
+    fprintf(stderr, "Specified %s addr_type is not a valid one, try: AF_INET or AF_INET6 \n", addr_family);
+    return EXIT_FAILURE;
+}
+
 int test_forkexec(int argc, char **argv) {
     if (argc == 2) {
         char *subcmd = argv[1];
@@ -787,6 +901,8 @@ int main(int argc, char **argv) {
             exit_code = self_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "bind") == 0) {
             exit_code = test_bind(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "connect") == 0) {
+            exit_code = test_connect(sub_argc, sub_argv);
         } else if (strcmp(cmd, "fork") == 0) {
             return test_forkexec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "set-signal-handler") == 0) {
