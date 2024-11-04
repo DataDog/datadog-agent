@@ -31,7 +31,7 @@ func NewNodeTree(v interface{}, source model.Source) (Node, error) {
 		}
 		return newInnerNode(children), nil
 	case []interface{}:
-		return newArrayNodeImpl(it, source)
+		return newLeafNodeImpl(it, source), nil
 	}
 	if isScalar(v) {
 		return newLeafNodeImpl(v, source), nil
