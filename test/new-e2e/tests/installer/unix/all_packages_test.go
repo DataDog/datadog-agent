@@ -13,15 +13,16 @@ import (
 	"strings"
 	"testing"
 
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/stretchr/testify/require"
 )
 
 type packageTests func(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite
@@ -107,7 +108,8 @@ func TestPackages(t *testing.T) {
 			t.Run(suite.Name(), func(t *testing.T) {
 				t.Parallel()
 				// FIXME: Fedora currently has DNS issues
-				if flavor.Flavor == e2eos.Fedora {
+				// Redhat 9 AMI currently not available incident-32072
+				if flavor.Flavor == e2eos.Fedora || flavor == e2eos.RedHat9 {
 					flake.Mark(t)
 				}
 
