@@ -656,8 +656,18 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 		{
 			path: "metrics/allconfig.yaml",
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 5678, 1234),
-
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"endpoint":         "localhost:5678",
+							"include_metadata": false,
+						},
+						"http": map[string]interface{}{
+							"endpoint":         "localhost:1234",
+							"include_metadata": false,
+						},
+					},
+				},
 				TracePort:      5003,
 				MetricsEnabled: true,
 				TracesEnabled:  true,
@@ -728,6 +738,13 @@ func TestFromAgentConfigDebug(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"histograms": map[string]interface{}{
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
+					},
+					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
+					"resource_attributes_as_tags":              false,
 				},
 			},
 		},
@@ -755,6 +772,13 @@ func TestFromAgentConfigDebug(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"histograms": map[string]interface{}{
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
+					},
+					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
+					"resource_attributes_as_tags":              false,
 				},
 			},
 		},
@@ -782,6 +806,13 @@ func TestFromAgentConfigDebug(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"histograms": map[string]interface{}{
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
+					},
+					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
+					"resource_attributes_as_tags":              false,
 				},
 			},
 		},
@@ -809,6 +840,13 @@ func TestFromAgentConfigDebug(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"histograms": map[string]interface{}{
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
+					},
+					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
+					"resource_attributes_as_tags":              false,
 				},
 			},
 		},
