@@ -31,9 +31,11 @@ func TestAgentSuiteGCP(t *testing.T) {
 	agentConfig := config.GenDatadogAgentConfig(ddHostname, "tag1", "tag2")
 	t.Logf("Running testsuite with DD_HOSTNAME=%s", ddHostname)
 	e2e.Run[environments.Host](t, &agentSuite{testID: testID},
+		e2e.WithStackName("cws-agentSuite-gcp"),
 		e2e.WithProvisioner(
 			gcphost.ProvisionerNoFakeIntake(
 				gcphost.WithAgentOptions(
+
 					agentparams.WithAgentConfig(agentConfig),
 					agentparams.WithSecurityAgentConfig(securityAgentConfig),
 					agentparams.WithSystemProbeConfig(systemProbeConfig),
