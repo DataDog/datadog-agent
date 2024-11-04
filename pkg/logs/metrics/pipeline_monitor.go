@@ -45,13 +45,13 @@ func (n *NoopPipelineMonitor) ID() string {
 }
 
 // ReportComponentIngress does nothing.
-func (n *NoopPipelineMonitor) ReportComponentIngress(size MeasurablePayload, name string) {}
+func (n *NoopPipelineMonitor) ReportComponentIngress(_ MeasurablePayload, _ string) {}
 
 // ReportComponentEgress does nothing.
-func (n *NoopPipelineMonitor) ReportComponentEgress(size MeasurablePayload, name string) {}
+func (n *NoopPipelineMonitor) ReportComponentEgress(_ MeasurablePayload, _ string) {}
 
 // MakeUtilizationMonitor returns a no-op utilization monitor.
-func (n *NoopPipelineMonitor) MakeUtilizationMonitor(name string) UtilizationMonitor {
+func (n *NoopPipelineMonitor) MakeUtilizationMonitor(_ string) UtilizationMonitor {
 	return &NoopUtilizationMonitor{}
 }
 
