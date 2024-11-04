@@ -242,7 +242,7 @@ func TestGetTagsWithCreds(t *testing.T) {
 	tests := []struct {
 		name             string
 		instanceIdentity *EC2Identity
-		mockDescribeTags func(ctx context.Context, params *ec2.DescribeTagsInput, optFns ...func(*ec2.Options)) (*ec2.DescribeTagsOutput, error)
+		mockEC2Client    ec2ClientInterface
 		expectedTags     []string
 		expectedError    assert.ErrorAssertionFunc
 	}{
@@ -251,14 +251,11 @@ func TestGetTagsWithCreds(t *testing.T) {
 			instanceIdentity: &EC2Identity{
 				InstanceID: "i-1234567890abcdef0",
 			},
-			mockDescribeTags: func(_ context.Context, _ *ec2.DescribeTagsInput, _ ...func(*ec2.Options)) (*ec2.DescribeTagsOutput, error) {
-				return &ec2.DescribeTagsOutput{
-					Tags: []types.TagDescription{
-						{Key: aws.String("Name"), Value: aws.String("TestInstance")},
-						{Key: aws.String("Env"), Value: aws.String("Production")},
-					},
-				}, nil
-			},
+			mockEC2Client: setupMockEC2Client(&ec2.DescribeTagsOutput{
+				Tags: []types.TagDescription{
+					{Key: aws.String("Name"), Value: aws.String("TestInstance")},
+					{Key: aws.String("Env"), Value: aws.String("Production")},
+				}}, nil),
 			expectedTags:  []string{"Name:TestInstance", "Env:Production"},
 			expectedError: assert.NoError,
 		},
@@ -267,14 +264,11 @@ func TestGetTagsWithCreds(t *testing.T) {
 			instanceIdentity: &EC2Identity{
 				InstanceID: "i-1234567890abcdef0",
 			},
-			mockDescribeTags: func(_ context.Context, _ *ec2.DescribeTagsInput, _ ...func(*ec2.Options)) (*ec2.DescribeTagsOutput, error) {
-				return &ec2.DescribeTagsOutput{
-					Tags: []types.TagDescription{
-						{Key: aws.String("Name"), Value: aws.String("TestInstance")},
-						{Key: aws.String("aws:cloudformation:stack-name"), Value: aws.String("MyStack")},
-					},
-				}, nil
-			},
+			mockEC2Client: setupMockEC2Client(&ec2.DescribeTagsOutput{
+				Tags: []types.TagDescription{
+					{Key: aws.String("Name"), Value: aws.String("TestInstance")},
+					{Key: aws.String("aws:cloudformation:stack-name"), Value: aws.String("MyStack")},
+				}}, nil),
 			expectedTags:  []string{"Name:TestInstance", "aws:cloudformation:stack-name:MyStack"},
 			expectedError: assert.NoError,
 		},
@@ -283,9 +277,18 @@ func TestGetTagsWithCreds(t *testing.T) {
 			instanceIdentity: &EC2Identity{
 				InstanceID: "i-1234567890abcdef0",
 			},
-			mockDescribeTags: func(_ context.Context, _ *ec2.DescribeTagsInput, _ ...func(*ec2.Options)) (*ec2.DescribeTagsOutput, error) {
-				return nil, errors.New("DescribeTags error")
+			mockEC2Client: setupMockEC2Client(&ec2.DescribeTagsOutput{
+				Tags: nil,
+			}, errors.New("DescribeTags failed")),
+			expectedTags:  nil,
+			expectedError: assert.Error,
+		},
+		{
+			name: "ec2 config failure, connection is nil",
+			instanceIdentity: &EC2Identity{
+				InstanceID: "i-1234567890abcdef0",
 			},
+			mockEC2Client: nil,
 			expectedTags:  nil,
 			expectedError: assert.Error,
 		},
@@ -293,16 +296,11 @@ func TestGetTagsWithCreds(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Mock the EC2 client
-			mockClient := &mockEC2Client{
-				DescribeTagsFunc: tt.mockDescribeTags,
-			}
-
 			// Create a background context
 			ctx := context.Background()
 
 			// Call the function under test
-			tags, err := getTagsWithCreds(ctx, tt.instanceIdentity, mockClient)
+			tags, err := getTagsWithCreds(ctx, tt.instanceIdentity, tt.mockEC2Client)
 
 			// Validate the error
 			tt.expectedError(t, err)
@@ -312,4 +310,13 @@ func TestGetTagsWithCreds(t *testing.T) {
 			}
 		})
 	}
+}
+
+func setupMockEC2Client(mockOutput *ec2.DescribeTagsOutput, mockError error) *mockEC2Client {
+	return &mockEC2Client{
+		DescribeTagsFunc: func(_ context.Context, _ *ec2.DescribeTagsInput, _ ...func(*ec2.Options)) (*ec2.DescribeTagsOutput, error) {
+			return mockOutput, mockError
+		},
+	}
+
 }
