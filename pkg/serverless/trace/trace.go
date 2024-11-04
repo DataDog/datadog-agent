@@ -91,11 +91,13 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 	return comptracecfg.LoadConfigFile(l.Path, c, l.Tagger)
 }
 
+// StartServerlessTraceAgentArgs are the arguments for the StartServerlessTraceAgent method
 type StartServerlessTraceAgentArgs struct {
-	Enabled         bool
-	LoadConfig      Load
-	LambdaSpanChan  chan<- *pb.Span
-	ColdStartSpanId uint64
+	Enabled               bool
+	LoadConfig            Load
+	LambdaSpanChan        chan<- *pb.Span
+	ColdStartSpanId       uint64
+	AzureContainerAppTags string
 }
 
 // Start starts the agent
@@ -115,6 +117,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
+			tc.AzureContainerAppTags = args.AzureContainerAppTags
 			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
 			ta.SpanModifier = &spanModifier{
 				coldStartSpanId: args.ColdStartSpanId,
