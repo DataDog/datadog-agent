@@ -34,13 +34,13 @@ type ProcessConsumer struct {
 	eventTypes []ProcessConsumerEventTypes
 
 	// execCallbacks holds all subscriptors to process exec events
-	execCallbacks callbackMap
+	execCallbacks *callbackMap
 
 	// exitCallbacks holds all subscriptors to process exit events
-	exitCallbacks callbackMap
+	exitCallbacks *callbackMap
 
 	// forkCallbacks holds all subscriptors to process fork events
-	forkCallbacks callbackMap
+	forkCallbacks *callbackMap
 }
 
 // event represents the attributes of the generic eventmonitor type that we will copy and use in our process consumer
@@ -74,12 +74,21 @@ var _ eventmonitor.EventConsumer = &ProcessConsumer{}
 // For tests, use consumers/testutil.NewTestProcessConsumer, which also initializes the event stream for testing accordingly
 func NewProcessConsumer(id string, chanSize int, eventTypes []ProcessConsumerEventTypes, evm *eventmonitor.EventMonitor) (*ProcessConsumer, error) {
 	pc := &ProcessConsumer{
-		id:            id,
-		chanSize:      chanSize,
-		eventTypes:    eventTypes,
-		execCallbacks: callbackMap{callbacks: make(map[*ProcessCallback]struct{})},
-		exitCallbacks: callbackMap{callbacks: make(map[*ProcessCallback]struct{})},
-		forkCallbacks: callbackMap{callbacks: make(map[*ProcessCallback]struct{})},
+		id:         id,
+		chanSize:   chanSize,
+		eventTypes: eventTypes,
+	}
+
+	if pc.isEventTypeEnabled(ExecEventType) {
+		pc.execCallbacks = newCallbackMap()
+	}
+
+	if pc.isEventTypeEnabled(ExitEventType) {
+		pc.exitCallbacks = newCallbackMap()
+	}
+
+	if pc.isEventTypeEnabled(ForkEventType) {
+		pc.forkCallbacks = newCallbackMap()
 	}
 
 	if err := evm.AddEventConsumerHandler(pc); err != nil {
@@ -183,6 +192,13 @@ type callbackMap struct {
 	// hasCallbacks is a flag that indicates if there are any callbacks subscribed, used
 	// to avoid locking/unlocking the mutex if there are no callbacks
 	hasCallbacks atomic.Bool
+}
+
+func newCallbackMap() *callbackMap {
+	return &callbackMap{
+		callbacks:    make(map[*ProcessCallback]struct{}),
+		hasCallbacks: atomic.Bool{},
+	}
 }
 
 // add adds a callback to the callback map and returns a function that can be called to remove it
