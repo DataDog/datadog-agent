@@ -81,7 +81,7 @@ func (s *minimalTestSuite) TestOTelAgentInstalled() {
 	utils.TestOTelAgentInstalled(s)
 }
 
-func (s *minimalTestSuite) TestOTelFlareExtensionRespsonse() {
+func (s *minimalTestSuite) TestOTelFlareExtensionResponse() {
 	utils.TestOTelFlareExtensionRespsonse(s, minimalProvidedConfig, minimalFullConfig, minimalSources)
 }
 
