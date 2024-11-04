@@ -27,8 +27,8 @@ func NewTestProcessConsumer(t *testing.T) *consumers.ProcessConsumer {
 	var pc *consumers.ProcessConsumer
 	eventtestutil.StartEventMonitor(t, func(t *testing.T, evm *eventmonitor.EventMonitor) {
 		var err error
-		opts := consumers.ProcessConsumerOptions{ID: "test", ChanSize: defaultChanSize}
-		pc, err = consumers.NewProcessConsumer(opts, evm)
+		eventTypes := []consumers.ProcessConsumerEventTypes{consumers.ExecEventType, consumers.ExitEventType}
+		pc, err = consumers.NewProcessConsumer("test", defaultChanSize, eventTypes, evm)
 		require.NoError(t, err, "failed to create process consumer")
 	})
 
