@@ -48,14 +48,27 @@ func New(env *env.Env, configDBPath string) (CDN, error) {
 		// there is a fix on windows we keep the previous CDN behaviour for them
 		return newRegular(env, configDBPath)
 	}
+
 	if !env.RemotePolicies {
+		// Remote policies are not enabled -- we don't need the CDN
+		// and we don't want to create the directories that the CDN
+		// implementation would create. We return a no-op CDN to avoid
+		// nil pointer dereference.
 		return newNoop()
 	}
+
 	if env.CDNLocalDirPath != "" {
+		// Mock the CDN for local development or testing
 		return newLocal(env)
 	}
+
 	if !env.CDNEnabled {
+		// Remote policies are enabled but we don't want to use the CDN
+		// as it's still in development. We use standard remote config calls
+		// instead (dubbed "direct" CDN).
 		return newDirect(env, configDBPath)
 	}
+
+	// Regular CDN with the cloudfront distribution
 	return newRegular(env, configDBPath)
 }
