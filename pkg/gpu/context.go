@@ -33,11 +33,8 @@ type systemContext struct {
 	// deviceSmVersions maps each device index to its SM (Compute architecture) version
 	deviceSmVersions map[int]int
 
-	// execData maps each executable file path to its Fatbin file data
-	execData map[string]*cuda.Symbols
-
-	// excDataLastUsed keeps track of the last time each executable data was used, for cleanup purposes
-	execDataLastUsed map[string]time.Time
+	// cudaSymbols maps each executable file path to its Fatbin file data
+	cudaSymbols map[string]*symbolsEntry
 
 	// pidMaps maps each process ID to its memory maps
 	pidMaps map[int]*kernel.ProcMapEntries
@@ -46,12 +43,22 @@ type systemContext struct {
 	procRoot string
 }
 
+// symbolsEntry embeds cuda.Symbols adding a field for keeping track of the last
+// time the entry was accessed, for cleanup purposes.
+type symbolsEntry struct {
+	*cuda.Symbols
+	lastUsedTime time.Time
+}
+
+func (e *symbolsEntry) updateLastUsedTime() {
+	e.lastUsedTime = time.Now()
+}
+
 func getSystemContext(nvmlLib nvml.Interface, procRoot string) (*systemContext, error) {
 	ctx := &systemContext{
 		maxGpuThreadsPerDevice: make(map[int]int),
 		deviceSmVersions:       make(map[int]int),
-		execData:               make(map[string]*cuda.Symbols),
-		execDataLastUsed:       make(map[string]time.Time),
+		cudaSymbols:            make(map[string]*symbolsEntry),
 		pidMaps:                make(map[int]*kernel.ProcMapEntries),
 		nvmlLib:                nvmlLib,
 		procRoot:               procRoot,
@@ -105,9 +112,9 @@ func (ctx *systemContext) fillDeviceInfo() error {
 	return nil
 }
 
-func (ctx *systemContext) getFileData(path string) (*cuda.Symbols, error) {
-	if data, ok := ctx.execData[path]; ok {
-		ctx.execDataLastUsed[path] = time.Now()
+func (ctx *systemContext) getFileData(path string) (*symbolsEntry, error) {
+	if data, ok := ctx.cudaSymbols[path]; ok {
+		data.updateLastUsedTime()
 		return data, nil
 	}
 
@@ -116,10 +123,11 @@ func (ctx *systemContext) getFileData(path string) (*cuda.Symbols, error) {
 		return nil, fmt.Errorf("error getting file data: %w", err)
 	}
 
-	ctx.execData[path] = data
-	ctx.execDataLastUsed[path] = time.Now()
+	wrapper := &symbolsEntry{Symbols: data}
+	wrapper.updateLastUsedTime()
+	ctx.cudaSymbols[path] = wrapper
 
-	return data, nil
+	return wrapper, nil
 }
 
 func (ctx *systemContext) getProcessMemoryMaps(pid int) (*kernel.ProcMapEntries, error) {
@@ -147,10 +155,9 @@ func (ctx *systemContext) cleanupOldEntries() {
 	maxFatbinAge := 5 * time.Minute
 	fatbinExpirationTime := time.Now().Add(-maxFatbinAge)
 
-	for path, lastUsed := range ctx.execDataLastUsed {
-		if lastUsed.Before(fatbinExpirationTime) {
-			delete(ctx.execData, path)
-			delete(ctx.execDataLastUsed, path)
+	for path, data := range ctx.cudaSymbols {
+		if data.lastUsedTime.Before(fatbinExpirationTime) {
+			delete(ctx.cudaSymbols, path)
 		}
 	}
 }
