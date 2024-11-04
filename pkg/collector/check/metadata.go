@@ -7,6 +7,7 @@ package check
 
 import (
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/haagent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,6 +40,7 @@ func GetMetadata(c Info, includeConfig bool) map[string]interface{} {
 
 	if haagent.IsEnabled() && haagent.IsHAIntegration(integrationName) {
 		instance["ha_integration"] = true
+		instance["collection_timestamp"] = time.Now().UnixMilli()
 	}
 
 	return instance
