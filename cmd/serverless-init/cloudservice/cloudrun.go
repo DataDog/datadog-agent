@@ -75,18 +75,12 @@ func getFunctionTags(tags map[string]string) map[string]string {
 // GetOrigin returns the `origin` attribute type for the given
 // cloud service.
 func (c *CloudRun) GetOrigin() string {
-	if c.cloudRunFunctionMode {
-		return "cloudfunctions"
-	}
 	return "cloudrun"
 }
 
 // GetPrefix returns the prefix that we're prefixing all
 // metrics with.
 func (c *CloudRun) GetPrefix() string {
-	if c.cloudRunFunctionMode {
-		return "gcp.cloudfunctions"
-	}
 	return "gcp.run"
 }
 
