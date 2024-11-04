@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -55,6 +56,7 @@ func TestBundleDependencies(t *testing.T) {
 			},
 		),
 		fx.Provide(func() context.Context { return context.TODO() }),
+		rdnsquerier.MockModule(),
 		npcollectorimpl.MockModule(),
 		statsd.MockModule(),
 	)
@@ -94,6 +96,7 @@ func TestBundleOneShot(t *testing.T) {
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		eventplatformreceiverimpl.Module(),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+		rdnsquerier.MockModule(),
 		npcollectorimpl.Module(),
 		statsd.MockModule(),
 		Bundle(),

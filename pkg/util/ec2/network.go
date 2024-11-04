@@ -18,7 +18,7 @@ import (
 var publicIPv4Fetcher = cachedfetch.Fetcher{
 	Name: "EC2 Public IPv4 Address",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		return getMetadataItem(ctx, imdsIPv4, false)
+		return getMetadataItem(ctx, imdsIPv4, getIMDSVersion(false, false), true)
 	},
 }
 
@@ -30,7 +30,7 @@ func GetPublicIPv4(ctx context.Context) (string, error) {
 var networkIDFetcher = cachedfetch.Fetcher{
 	Name: "VPC IDs",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		resp, err := getMetadataItem(ctx, imdsNetworkMacs, true)
+		resp, err := getMetadataItem(ctx, imdsNetworkMacs, imdsV2, true)
 		if err != nil {
 			return "", fmt.Errorf("EC2: GetNetworkID failed to get mac addresses: %w", err)
 		}
@@ -43,7 +43,7 @@ var networkIDFetcher = cachedfetch.Fetcher{
 				continue
 			}
 			mac = strings.TrimSuffix(mac, "/")
-			id, err := getMetadataItem(ctx, fmt.Sprintf("%s/%s/vpc-id", imdsNetworkMacs, mac), true)
+			id, err := getMetadataItem(ctx, fmt.Sprintf("%s/%s/vpc-id", imdsNetworkMacs, mac), imdsV2, true)
 			if err != nil {
 				return "", fmt.Errorf("EC2: GetNetworkID failed to get vpc id for mac %s: %w", mac, err)
 			}
@@ -83,14 +83,14 @@ func GetSubnetForHardwareAddr(ctx context.Context, hwAddr net.HardwareAddr) (sub
 	}
 
 	var resp string
-	resp, err = getMetadataItem(ctx, fmt.Sprintf("%s/%s/subnet-id", imdsNetworkMacs, hwAddr), true)
+	resp, err = getMetadataItem(ctx, fmt.Sprintf("%s/%s/subnet-id", imdsNetworkMacs, hwAddr), imdsV2, true)
 	if err != nil {
 		return
 	}
 
 	subnet.ID = strings.TrimSpace(resp)
 
-	resp, err = getMetadataItem(ctx, fmt.Sprintf("%s/%s/subnet-ipv4-cidr-block", imdsNetworkMacs, hwAddr), true)
+	resp, err = getMetadataItem(ctx, fmt.Sprintf("%s/%s/subnet-ipv4-cidr-block", imdsNetworkMacs, hwAddr), imdsV2, true)
 	if err != nil {
 		return
 	}

@@ -56,7 +56,7 @@ func fetchEc2Tags(ctx context.Context) ([]string, error) {
 }
 
 func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
-	keysStr, err := getMetadataItem(ctx, imdsTags, false)
+	keysStr, err := getMetadataItem(ctx, imdsTags, getIMDSVersion(false, false), true)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
 		// > keys can only use letters (a-z, A-Z), numbers (0-9), and the
 		// > following characters: -_+=,.@:. Instance tag keys can't use spaces,
 		// > /, or the reserved names ., .., or _index.
-		val, err := getMetadataItem(ctx, imdsTags+"/"+key, false)
+		val, err := getMetadataItem(ctx, imdsTags+"/"+key, getIMDSVersion(false, false), true)
 		if err != nil {
 			return nil, err
 		}
@@ -194,7 +194,7 @@ type EC2Identity struct {
 // GetInstanceIdentity returns the instance identity document for the current instance
 func GetInstanceIdentity(ctx context.Context) (*EC2Identity, error) {
 	instanceIdentity := &EC2Identity{}
-	res, err := doHTTPRequest(ctx, instanceIdentityURL, false)
+	res, err := doHTTPRequest(ctx, instanceIdentityURL, getIMDSVersion(false, false), true)
 	if err != nil {
 		return instanceIdentity, fmt.Errorf("unable to fetch EC2 API to get identity: %s", err)
 	}
@@ -221,7 +221,7 @@ func getSecurityCreds(ctx context.Context) (*ec2SecurityCred, error) {
 		return iamParams, err
 	}
 
-	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/"+iamRole, false)
+	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/"+iamRole, getIMDSVersion(false, false), true)
 	if err != nil {
 		return iamParams, fmt.Errorf("unable to fetch EC2 API to get iam role: %s", err)
 	}
@@ -234,7 +234,7 @@ func getSecurityCreds(ctx context.Context) (*ec2SecurityCred, error) {
 }
 
 func getIAMRole(ctx context.Context) (string, error) {
-	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/", false)
+	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/", getIMDSVersion(false, false), true)
 	if err != nil {
 		return "", fmt.Errorf("unable to fetch EC2 API to get security credentials: %s", err)
 	}

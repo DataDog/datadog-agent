@@ -1804,6 +1804,50 @@
       ]
     },
     {
+      "name": "connect",
+      "definition": "A connect was executed",
+      "type": "Network",
+      "from_agent_version": "7.60",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "connect.addr.family",
+          "definition": "Address family",
+          "property_doc_link": "connect-addr-family-doc"
+        },
+        {
+          "name": "connect.addr.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "connect.addr.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "connect.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "connect.server.addr.family",
+          "definition": "Server address family",
+          "property_doc_link": "connect-server-addr-family-doc"
+        },
+        {
+          "name": "connect.server.addr.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "connect.server.addr.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        }
+      ]
+    },
+    {
       "name": "dns",
       "definition": "A DNS request was sent",
       "type": "Network",
@@ -8280,6 +8324,8 @@
       "definition": "IP address",
       "prefixes": [
         "bind.addr",
+        "connect.addr",
+        "connect.server.addr",
         "network.destination",
         "network.source",
         "packet.destination",
@@ -9018,6 +9064,8 @@
       "definition": "Port number",
       "prefixes": [
         "bind.addr",
+        "connect.addr",
+        "connect.server.addr",
         "network.destination",
         "network.source",
         "packet.destination",
@@ -9060,6 +9108,7 @@
         "chdir",
         "chmod",
         "chown",
+        "connect",
         "link",
         "load_module",
         "mkdir",
@@ -9609,6 +9658,30 @@
       "definition": "UID argument of the syscall",
       "prefixes": [
         "chown"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "connect.addr.family",
+      "link": "connect-addr-family-doc",
+      "type": "int",
+      "definition": "Address family",
+      "prefixes": [
+        "connect"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "connect.server.addr.family",
+      "link": "connect-server-addr-family-doc",
+      "type": "int",
+      "definition": "Server address family",
+      "prefixes": [
+        "connect"
       ],
       "constants": "",
       "constants_link": "",
