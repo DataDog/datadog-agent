@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package crio provides a crio client.
 package crio
 
 import (
@@ -22,6 +23,7 @@ const (
 	udsPrefix = "unix://%s"
 )
 
+// CRIOItf is the interface implementing a subset of methods that leverage the CRI-API.
 type CRIOItf interface {
 	Close() error
 	RuntimeMetadata(context.Context) (*v1.VersionResponse, error)
@@ -31,6 +33,7 @@ type CRIOItf interface {
 	GetPodStatus(context.Context, string) (*v1.PodSandboxStatus, error)
 }
 
+// CRIOClient is a client to interact with the CRI-API.
 type CRIOClient struct {
 	runtimeClient v1.RuntimeServiceClient
 	imageClient   v1.ImageServiceClient
@@ -39,11 +42,12 @@ type CRIOClient struct {
 	socketPath    string
 }
 
+// NewCRIOClient creates a new CRI-O client implementing the CRIOItf interface.
 func NewCRIOClient(socketPath string) (CRIOItf, error) {
 
 	client := &CRIOClient{socketPath: socketPath}
 
-	client.initRetry.SetupRetrier(&retry.Config{
+	client.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 		Name:              "crio-client",
 		AttemptMethod:     client.connect,
 		Strategy:          retry.Backoff,

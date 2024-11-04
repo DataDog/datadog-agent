@@ -5,7 +5,7 @@
 
 //go:build !crio
 
-// Package podman provides the docker collector for workloadmeta
+// Package crio implements the crio Workloadmeta collector.
 package crio
 
 import (
