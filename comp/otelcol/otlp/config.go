@@ -48,12 +48,12 @@ func readConfigSection(cfg config.Reader, section string) *confmap.Conf {
 	//
 	// `GetStringMap` it will fail to cast `interface{}` nil to
 	// `map[string]interface{}` nil; we use `Get` and cast manually.
-	rawVal := cfg.Get(section)
 	stringMap := map[string]interface{}{}
-	if val, ok := rawVal.(map[string]interface{}); ok {
-		// deep copy since `cfg.Get` returns a reference
-		stringMap = deepcopy.Copy(val).(map[string]interface{})
-	}
+	// NOTE: causes non-deterministic behavior in confmap.NewFromStringMap, don't do this!
+	//if val, ok := rawVal.(map[string]interface{}); ok {
+	//	// deep copy since `cfg.Get` returns a reference
+	//	stringMap = deepcopy.Copy(val).(map[string]interface{})
+	//}
 
 	// Step two works around https://github.com/spf13/viper/issues/1012
 	// we check every key manually, and if it belongs to the OTLP receiver section,

@@ -53,7 +53,16 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 		{
 			path: "receiver/noprotocols.yaml",
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: map[string]interface{}{},
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"include_metadata": false,
+						},
+						"http": map[string]interface{}{
+							"include_metadata": false,
+						},
+					},
+				},
 
 				TracePort:      5003,
 				MetricsEnabled: true,
@@ -63,6 +72,13 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"histograms": map[string]interface{}{
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
+					},
+					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
+					"resource_attributes_as_tags":              false,
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -72,8 +88,12 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
-						"grpc": nil,
-						"http": nil,
+						"grpc": map[string]interface{}{
+							"include_metadata": false,
+						},
+						"http": map[string]interface{}{
+							"include_metadata": false,
+						},
 					},
 				},
 
@@ -85,6 +105,13 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"histograms": map[string]interface{}{
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
+					},
+					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
+					"resource_attributes_as_tags":              false,
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -94,8 +121,12 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
-						"grpc": nil,
-						"http": nil,
+						"grpc": map[string]interface{}{
+							"include_metadata": false,
+						},
+						"http": map[string]interface{}{
+							"include_metadata": false,
+						},
 					},
 				},
 
@@ -107,6 +138,13 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"histograms": map[string]interface{}{
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
+					},
+					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
+					"resource_attributes_as_tags":              false,
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -118,6 +156,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
 							"endpoint":               "0.0.0.0:5678",
+							"include_metadata":       false,
 							"max_concurrent_streams": 16,
 							"transport":              "tcp",
 							"keepalive": map[string]interface{}{
@@ -128,7 +167,8 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 							"max_recv_msg_size_mib": 10,
 						},
 						"http": map[string]interface{}{
-							"endpoint": "localhost:1234",
+							"endpoint":         "localhost:1234",
+							"include_metadata": false,
 							"cors": map[string]interface{}{
 								"allowed_origins": []interface{}{"http://test.com"},
 								"allowed_headers": []interface{}{"ExampleHeader"},
@@ -144,6 +184,13 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"histograms": map[string]interface{}{
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
+					},
+					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
+					"resource_attributes_as_tags":              false,
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -151,7 +198,16 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 		{
 			path: "logs_enabled.yaml",
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: map[string]interface{}{},
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"include_metadata": false,
+						},
+						"http": map[string]interface{}{
+							"include_metadata": false,
+						},
+					},
+				},
 
 				TracePort:      5003,
 				MetricsEnabled: true,
@@ -161,6 +217,13 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"histograms": map[string]interface{}{
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
+					},
+					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
+					"resource_attributes_as_tags":              false,
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -168,7 +231,16 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 		{
 			path: "logs_disabled.yaml",
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: map[string]interface{}{},
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"include_metadata": false,
+						},
+						"http": map[string]interface{}{
+							"include_metadata": false,
+						},
+					},
+				},
 
 				TracePort:      5003,
 				MetricsEnabled: true,
@@ -178,6 +250,13 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"histograms": map[string]interface{}{
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
+					},
+					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
+					"resource_attributes_as_tags":              false,
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -630,12 +709,21 @@ func TestFromAgentConfigDebug(t *testing.T) {
 			path:      "debug/empty_but_set_debug.yaml",
 			shouldSet: true,
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: map[string]interface{}{},
-				TracePort:          5003,
-				MetricsEnabled:     true,
-				TracesEnabled:      true,
-				LogsEnabled:        false,
-				Debug:              map[string]interface{}{},
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"include_metadata": false,
+						},
+						"http": map[string]interface{}{
+							"include_metadata": false,
+						},
+					},
+				},
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				LogsEnabled:    false,
+				Debug:          map[string]interface{}{},
 				Metrics: map[string]interface{}{
 					"enabled":                 true,
 					"tag_cardinality":         "low",
@@ -647,7 +735,16 @@ func TestFromAgentConfigDebug(t *testing.T) {
 			path:      "debug/verbosity_detailed.yaml",
 			shouldSet: true,
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: map[string]interface{}{},
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"include_metadata": false,
+						},
+						"http": map[string]interface{}{
+							"include_metadata": false,
+						},
+					},
+				},
 
 				TracePort:      5003,
 				MetricsEnabled: true,
@@ -665,7 +762,16 @@ func TestFromAgentConfigDebug(t *testing.T) {
 			path:      "debug/verbosity_none.yaml",
 			shouldSet: false,
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: map[string]interface{}{},
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"include_metadata": false,
+						},
+						"http": map[string]interface{}{
+							"include_metadata": false,
+						},
+					},
+				},
 
 				TracePort:      5003,
 				MetricsEnabled: true,
@@ -683,7 +789,16 @@ func TestFromAgentConfigDebug(t *testing.T) {
 			path:      "debug/verbosity_normal.yaml",
 			shouldSet: true,
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: map[string]interface{}{},
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"include_metadata": false,
+						},
+						"http": map[string]interface{}{
+							"include_metadata": false,
+						},
+					},
+				},
 
 				TracePort:      5003,
 				MetricsEnabled: true,
