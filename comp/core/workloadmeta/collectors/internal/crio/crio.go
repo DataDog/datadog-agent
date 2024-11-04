@@ -33,7 +33,7 @@ const (
 
 type collector struct {
 	id      string
-	client  crio.CRIOItf
+	client  crio.ClientItf
 	store   workloadmeta.Component
 	catalog workloadmeta.AgentType
 	seen    map[workloadmeta.EntityID]struct{}
@@ -168,7 +168,7 @@ func getContainerName(containerMetadata *v1.ContainerMetadata) string {
 }
 
 // getPodNamespace retrieves the namespace for a given pod ID.
-func getPodNamespace(ctx context.Context, client crio.CRIOItf, podID string) string {
+func getPodNamespace(ctx context.Context, client crio.ClientItf, podID string) string {
 	pod, err := client.GetPodStatus(ctx, podID)
 	if err != nil || pod == nil || pod.Metadata == nil {
 		log.Errorf("Failed to get pod namespace for pod ID %s: %v", podID, err)
@@ -178,7 +178,7 @@ func getPodNamespace(ctx context.Context, client crio.CRIOItf, podID string) str
 }
 
 // getContainerStatus retrieves the status of a container.
-func getContainerStatus(ctx context.Context, client crio.CRIOItf, containerID string) *v1.ContainerStatus {
+func getContainerStatus(ctx context.Context, client crio.ClientItf, containerID string) *v1.ContainerStatus {
 	status, err := client.GetContainerStatus(ctx, containerID)
 	if err != nil || status == nil {
 		log.Errorf("Failed to get container status for container %s: %v", containerID, err)
@@ -210,7 +210,7 @@ func getResourceLimits(containerStatus *v1.ContainerStatus) (*float64, *uint64) 
 }
 
 // getContainerImage retrieves and converts a container image to workloadmeta format.
-func getContainerImage(ctx context.Context, client crio.CRIOItf, imageSpec *v1.ImageSpec) workloadmeta.ContainerImage {
+func getContainerImage(ctx context.Context, client crio.ClientItf, imageSpec *v1.ImageSpec) workloadmeta.ContainerImage {
 	image, err := client.GetContainerImage(ctx, imageSpec)
 	if err != nil || image == nil {
 		log.Warnf("Failed to fetch image: %v", err)

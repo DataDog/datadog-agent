@@ -258,7 +258,7 @@ func TestPullContainerNoImageInfo(t *testing.T) {
 			}, nil
 		},
 		mockGetContainerImage: func(ctx context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error) {
-			return nil, nil // Simulate no image available
+			return nil, nil
 		},
 	}
 

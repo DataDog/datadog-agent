@@ -23,8 +23,8 @@ const (
 	udsPrefix = "unix://%s"
 )
 
-// CRIOItf is the interface implementing a subset of methods that leverage the CRI-API.
-type CRIOItf interface {
+// ClientItf is the interface implementing a subset of methods that leverage the CRI-API.
+type ClientItf interface {
 	Close() error
 	RuntimeMetadata(context.Context) (*v1.VersionResponse, error)
 	GetAllContainers(context.Context) ([]*v1.Container, error)
@@ -33,8 +33,8 @@ type CRIOItf interface {
 	GetPodStatus(context.Context, string) (*v1.PodSandboxStatus, error)
 }
 
-// CRIOClient is a client to interact with the CRI-API.
-type CRIOClient struct {
+// Client is a client to interact with the CRI-API.
+type Client struct {
 	runtimeClient v1.RuntimeServiceClient
 	imageClient   v1.ImageServiceClient
 	conn          *grpc.ClientConn
@@ -43,9 +43,9 @@ type CRIOClient struct {
 }
 
 // NewCRIOClient creates a new CRI-O client implementing the CRIOItf interface.
-func NewCRIOClient(socketPath string) (CRIOItf, error) {
+func NewCRIOClient(socketPath string) (ClientItf, error) {
 
-	client := &CRIOClient{socketPath: socketPath}
+	client := &Client{socketPath: socketPath}
 
 	client.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 		Name:              "crio-client",
@@ -64,7 +64,7 @@ func NewCRIOClient(socketPath string) (CRIOItf, error) {
 }
 
 // connect establishes a gRPC connection.
-func (c *CRIOClient) connect() error {
+func (c *Client) connect() error {
 	socketURI := fmt.Sprintf(udsPrefix, c.socketPath)
 	conn, err := grpc.NewClient(socketURI, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -93,7 +93,7 @@ func (c *CRIOClient) connect() error {
 }
 
 // Close closes the CRI-O client connection.
-func (c *CRIOClient) Close() error {
+func (c *Client) Close() error {
 	if c == nil || c.conn == nil {
 		return fmt.Errorf("CRI-O client is not initialized")
 	}
@@ -101,12 +101,12 @@ func (c *CRIOClient) Close() error {
 }
 
 // RuntimeMetadata retrieves the runtime metadata including runtime name and version.
-func (c *CRIOClient) RuntimeMetadata(ctx context.Context) (*v1.VersionResponse, error) {
+func (c *Client) RuntimeMetadata(ctx context.Context) (*v1.VersionResponse, error) {
 	return c.runtimeClient.Version(ctx, &v1.VersionRequest{})
 }
 
 // GetAllContainers retrieves all containers.
-func (c *CRIOClient) GetAllContainers(ctx context.Context) ([]*v1.Container, error) {
+func (c *Client) GetAllContainers(ctx context.Context) ([]*v1.Container, error) {
 	containersResponse, err := c.runtimeClient.ListContainers(ctx, &v1.ListContainersRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list containers: %w", err)
@@ -115,7 +115,7 @@ func (c *CRIOClient) GetAllContainers(ctx context.Context) ([]*v1.Container, err
 }
 
 // GetContainerStatus retrieves the status of a specific container.
-func (c *CRIOClient) GetContainerStatus(ctx context.Context, containerID string) (*v1.ContainerStatus, error) {
+func (c *Client) GetContainerStatus(ctx context.Context, containerID string) (*v1.ContainerStatus, error) {
 	containerStatusResponse, err := c.runtimeClient.ContainerStatus(ctx, &v1.ContainerStatusRequest{ContainerId: containerID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get container status for ID %s: %w", containerID, err)
@@ -124,7 +124,7 @@ func (c *CRIOClient) GetContainerStatus(ctx context.Context, containerID string)
 }
 
 // GetContainerImage retrieves the image status of a specific imageSpec.
-func (c *CRIOClient) GetContainerImage(ctx context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error) {
+func (c *Client) GetContainerImage(ctx context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error) {
 	imageStatusResponse, err := c.imageClient.ImageStatus(ctx, &v1.ImageStatusRequest{Image: imageSpec})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch image status for spec %s: %w", imageSpec.Image, err)
@@ -136,7 +136,7 @@ func (c *CRIOClient) GetContainerImage(ctx context.Context, imageSpec *v1.ImageS
 }
 
 // GetPodStatus retrieves the status of a specific pod sandbox.
-func (c *CRIOClient) GetPodStatus(ctx context.Context, podSandboxID string) (*v1.PodSandboxStatus, error) {
+func (c *Client) GetPodStatus(ctx context.Context, podSandboxID string) (*v1.PodSandboxStatus, error) {
 	podSandboxStatusResponse, err := c.runtimeClient.PodSandboxStatus(ctx, &v1.PodSandboxStatusRequest{PodSandboxId: podSandboxID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pod status for pod ID %s: %w", podSandboxID, err)
