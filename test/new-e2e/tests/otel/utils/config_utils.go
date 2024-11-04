@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 
 	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 )
 
@@ -55,6 +56,7 @@ var otelFlareFilesZpages = []string{
 
 // TestOTelFlare tests that the OTel Agent flare functionality works as expected
 func TestOTelFlare(s OTelTestSuite, providedCfg string, fullCfg string, sources string) {
+	flake.Mark(s.T())
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 	agent := getAgentPod(s)
