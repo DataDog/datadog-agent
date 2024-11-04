@@ -19,9 +19,11 @@ var ErrNotFound = fmt.Errorf("not found")
 func NewNode(v interface{}, source model.Source) (Node, error) {
 	switch it := v.(type) {
 	case map[interface{}]interface{}:
-		return newInnerNodeImplWithData(mapInterfaceToMapString(it), source)
+		return nil, fmt.Errorf("not implemented")
+		//return newInnerNodeImplWithData(mapInterfaceToMapString(it), source)
 	case map[string]interface{}:
-		return newInnerNodeImplWithData(it, source)
+		return nil, fmt.Errorf("not implemented")
+		//return newInnerNodeImplWithData(it, source)
 	case []interface{}:
 		return newArrayNodeImpl(it, source)
 	}

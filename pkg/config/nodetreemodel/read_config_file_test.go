@@ -179,7 +179,7 @@ c:
 	defaults, ok := newNode.(InnerNode)
 	require.True(t, ok)
 
-	tree := newInnerNodeImpl()
+	tree := newInnerNode(nil)
 
 	warnings := loadYamlInto(defaults, tree, yamlData, "")
 
@@ -187,11 +187,11 @@ c:
 
 	expected := &innerNode{
 		remapCase: map[string]string{"a": "a", "c": "c"},
-		val: map[string]Node{
+		children: map[string]Node{
 			"a": &leafNodeImpl{val: "orange", source: model.SourceFile},
 			"c": &innerNode{
 				remapCase: map[string]string{"d": "d"},
-				val: map[string]Node{
+				children: map[string]Node{
 					"d": &leafNodeImpl{val: 1234, source: model.SourceFile},
 				},
 			},
@@ -223,7 +223,7 @@ c:
 	defaults, ok := newNode.(InnerNode)
 	require.True(t, ok)
 
-	tree := newInnerNodeImpl()
+	tree := newInnerNode(nil)
 
 	warnings := loadYamlInto(defaults, tree, yamlData, "")
 
@@ -232,11 +232,11 @@ c:
 
 	expected := &innerNode{
 		remapCase: map[string]string{"a": "a", "c": "c"},
-		val: map[string]Node{
+		children: map[string]Node{
 			"a": &leafNodeImpl{val: "orange", source: model.SourceFile},
 			"c": &innerNode{
 				remapCase: map[string]string{"d": "d"},
-				val: map[string]Node{
+				children: map[string]Node{
 					"d": &leafNodeImpl{val: 1234, source: model.SourceFile},
 				},
 			},
@@ -266,7 +266,7 @@ c: 1234
 	defaults, ok := newNode.(InnerNode)
 	require.True(t, ok)
 
-	tree := newInnerNodeImpl()
+	tree := newInnerNode(nil)
 
 	warnings := loadYamlInto(defaults, tree, yamlData, "")
 
@@ -275,11 +275,11 @@ c: 1234
 
 	expected := &innerNode{
 		remapCase: map[string]string{"a": "a", "c": "c"},
-		val: map[string]Node{
+		children: map[string]Node{
 			"a": &leafNodeImpl{val: "orange", source: model.SourceFile},
 			"c": &innerNode{
 				remapCase: map[string]string{},
-				val:       map[string]Node{},
+				children:  map[string]Node{},
 			},
 		},
 	}
@@ -307,7 +307,7 @@ a:
 	defaults, ok := newNode.(InnerNode)
 	require.True(t, ok)
 
-	tree := newInnerNodeImpl()
+	tree := newInnerNode(nil)
 	tree.SetAt([]string{"a", "b", "c"}, 9876, model.SourceFile)
 
 	warnings := loadYamlInto(defaults, tree, yamlData, "")
@@ -339,7 +339,7 @@ a:
 	defaults, ok := newNode.(InnerNode)
 	require.True(t, ok)
 
-	tree := newInnerNodeImpl()
+	tree := newInnerNode(nil)
 	tree.SetAt([]string{"a", "b"}, 9876, model.SourceFile)
 
 	warnings := loadYamlInto(defaults, tree, yamlData, "")

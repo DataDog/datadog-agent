@@ -17,7 +17,7 @@ import (
 )
 
 func (c *ntmConfig) mergeAllLayers() error {
-	root := newInnerNodeImpl()
+	root := newInnerNode(nil)
 
 	treeList := []InnerNode{
 		c.defaults,
@@ -165,7 +165,7 @@ func loadYamlInto(defaults InnerNode, dest InnerNode, data map[string]interface{
 		defaultNext, _ := defaultNode.(InnerNode)
 
 		if !dest.HasChild(key) {
-			destInner := newInnerNodeImpl()
+			destInner := newInnerNode(nil)
 			warnings = append(warnings, loadYamlInto(defaultNext, destInner, mapString, curPath)...)
 			dest.InsertChildNode(key, destInner)
 			continue

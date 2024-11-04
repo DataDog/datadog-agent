@@ -52,7 +52,8 @@ func asReflectionNode(v interface{}) (Node, error) {
 			}
 			res[kstr] = rv.MapIndex(mk).Interface()
 		}
-		return newInnerNodeImplWithData(res, model.SourceDefault)
+		// TODO: not correct, res is not being used
+		return newInnerNode(nil), nil
 	}
 	return nil, errUnknownConversion
 }
