@@ -140,7 +140,7 @@ func (w *Worker) Run() {
 			continue
 		}
 
-		if !haagent.ShouldRunForCheck(check) {
+		if !haagent.ShouldRunForIntegrationInstance(check) {
 			checkLogger.Debug("HA Agent check is not run since agent is not primary")
 			// Remove the check from the running list
 			w.checksTracker.DeleteCheck(check.ID())

@@ -16,34 +16,31 @@ import (
 
 // TODO: SHOULD BE A COMPONENT WITH STATE
 
-var assignedDistributedChecks []Integration
-var assignedDistributedChecksMutex = sync.Mutex{}
+var assignedIntegrations map[string]bool
+var assignedIntegrationsMutex = sync.Mutex{}
 
-func IsHACheck(checkID string) bool {
-	assignedDistributedChecksMutex.Lock()
-	defer assignedDistributedChecksMutex.Unlock()
-	for _, integration := range assignedDistributedChecks {
-		if integration.ID == checkID {
-			return true
-		}
+func IsHAIntegrationInstance(checkID string) bool {
+	assignedIntegrationsMutex.Lock()
+	defer assignedIntegrationsMutex.Unlock()
+	return assignedIntegrations[checkID]
+}
+
+func SetIntegrationInstances(checks []Integration) {
+	assignedIntegrationsMutex.Lock()
+	defer assignedIntegrationsMutex.Unlock()
+	for _, check := range checks {
+		assignedIntegrations[check.ID] = true
 	}
-	return false
 }
 
-func SetChecks(checks []Integration) {
-	assignedDistributedChecksMutex.Lock()
-	defer assignedDistributedChecksMutex.Unlock()
-	assignedDistributedChecks = checks
-}
-
-func ShouldRunForCheck(check check.Check) bool {
+func ShouldRunForIntegrationInstance(check check.Check) bool {
 	// TODO: handle check name generically
 	checkID := check.ID()
 	checkName := check.String()
-	log.Warnf("[ShouldRunForCheck] checkID: %s", string(checkID))
+	log.Warnf("[ShouldRunForIntegrationInstance] checkID: %s", string(checkID))
 
 	if haagentconfig.IsEnabled() && haagentconfig.IsHAIntegration(checkName) {
-		return IsHACheck(string(checkID))
+		return IsHAIntegrationInstance(string(checkID))
 	}
 
 	return true

@@ -153,7 +153,7 @@ func (f *flare) onAgentTaskEventForHaAgent(taskType rcclienttypes.TaskType, task
 		return true, nil
 	}
 
-	haagent.SetChecks(payload.Integrations)
+	haagent.SetIntegrationInstances(payload.Integrations)
 
 	return true, nil
 }
