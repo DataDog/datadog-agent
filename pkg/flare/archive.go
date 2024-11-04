@@ -152,6 +152,7 @@ func provideSystemProbe(fb flaretypes.FlareBuilder) error {
 		fb.AddFileFromFunc(filepath.Join("system-probe", "system_probe_telemetry.log"), getSystemProbeTelemetry) // nolint:errcheck
 		fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_cached.log"), getSystemProbeConntrackCached) // nolint:errcheck
 		fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_host.log"), getSystemProbeConntrackHost)     // nolint:errcheck
+		fb.AddFileFromFunc(filepath.Join("system-probe", "ebpf_btf_loader.log"), getSystemProbeBTFLoaderInfo)    // nolint:errcheck
 	}
 	return nil
 }
@@ -266,6 +267,9 @@ func getSystemProbeConntrackCached() ([]byte, error) {
 func getSystemProbeConntrackHost() ([]byte, error) {
 	return sysprobe.GetSystemProbeConntrackHost(getSystemProbeSocketPath())
 }
+func getSystemProbeBTFLoaderInfo() ([]byte, error) {
+	return sysprobe.GetSystemProbeBTFLoaderInfo(getSystemProbeSocketPath())
+}
 
 // getProcessAgentFullConfig fetches process-agent runtime config as YAML and returns it to be added to  process_agent_runtime_config_dump.yaml
 func getProcessAgentFullConfig() ([]byte, error) {
@@ -365,7 +369,7 @@ func getDiagnoses(isFlareLocal bool, deps diagnose.SuitesDeps) func() ([]byte, e
 			return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
 		}
 
-		diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(deps.SenderManager, deps.SecretResolver, deps.WMeta, deps.AC)
+		diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(deps.SenderManager, deps.SecretResolver, deps.WMeta, deps.AC, deps.Tagger)
 		diagnoses, err := diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
 		if err != nil && !diagCfg.RunLocal {
 			fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))

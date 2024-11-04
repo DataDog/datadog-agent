@@ -26,7 +26,7 @@ type EventMonitor struct {
 	Probe        *probe.Probe
 }
 
-// AddEventConsumer add a consumer
-func (m *EventMonitor) AddEventConsumer(_ EventConsumer) error {
+// AddEventConsumerHandler add a consumer
+func (m *EventMonitor) AddEventConsumerHandler(_ EventConsumerHandler) error {
 	return nil
 }

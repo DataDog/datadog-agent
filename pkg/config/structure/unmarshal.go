@@ -8,6 +8,7 @@ package structure
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"unicode"
@@ -38,10 +39,21 @@ var ConvertEmptyStringToNil UnmarshalKeyOption = func(fs *featureSet) {
 }
 
 // UnmarshalKey retrieves data from the config at the given key and deserializes it
-// to be stored on the target struct. It is implemented entirely using reflection, and
-// does not depend upon details of the data model of the config.
-// Target struct can use of struct tag of "yaml", "json", or "mapstructure" to rename fields
+// to be stored on the target struct.
+//
+// When DD_CONF_NODETREEMODEL is enabled we use the implementation using reflection, and do not depend upon details of
+// the data model of the config. Target struct can use of struct tag of "yaml", "json", or "mapstructure" to rename fields
+//
+// Else the viper/legacy version is used.
 func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...UnmarshalKeyOption) error {
+	nodetreemodel := os.Getenv("DD_CONF_NODETREEMODEL")
+	if nodetreemodel == "enabled" || nodetreemodel == "unmarshal" {
+		return unmarshalKeyReflection(cfg, key, target, opts...)
+	}
+	return cfg.UnmarshalKey(key, target)
+}
+
+func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, opts ...UnmarshalKeyOption) error {
 	fs := &featureSet{}
 	for _, o := range opts {
 		o(fs)
@@ -154,12 +166,12 @@ func copyMap(target reflect.Value, source nodetreemodel.Node, _ *featureSet) err
 	mtype := reflect.MapOf(ktype, vtype)
 	results := reflect.MakeMap(mtype)
 
-	mapKeys, err := source.ChildrenKeys()
-	if err != nil {
-		return err
+	inner, ok := source.(nodetreemodel.InnerNode)
+	if !ok {
+		return fmt.Errorf("can't copy a map into a leaf")
 	}
-	for _, mkey := range mapKeys {
-		child, err := source.GetChild(mkey)
+	for _, mkey := range inner.ChildrenKeys() {
+		child, err := inner.GetChild(mkey)
 		if err != nil {
 			return err
 		}

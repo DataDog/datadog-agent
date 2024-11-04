@@ -10,17 +10,23 @@ package checks
 import (
 	"testing"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/crashreport"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 func TestBundleDependencies(t *testing.T) {
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+
 	fxutil.TestBundle(t, Bundle(),
 		comptraceconfig.Module(),
 		core.MockBundle(),
+		fx.Provide(func() tagger.Component { return fakeTagger }),
 		fx.Supply(core.BundleParams{}),
 		fx.Supply(crashreport.WinCrashReporter{}),
 	)

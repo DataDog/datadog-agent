@@ -131,7 +131,7 @@ type ProcessMonitor struct {
 }
 
 // ProcessCallback is a callback function that is called on a given pid that represents a new process.
-type ProcessCallback func(pid uint32)
+type ProcessCallback = func(pid uint32)
 
 // GetProcessMonitor create a monitor (only once) that register to netlink process events.
 //
@@ -526,7 +526,7 @@ type EventConsumer struct{}
 // NewProcessMonitorEventConsumer returns a new process monitor event consumer
 func NewProcessMonitorEventConsumer(em *eventmonitor.EventMonitor) (*EventConsumer, error) {
 	consumer := &EventConsumer{}
-	err := em.AddEventConsumer(consumer)
+	err := em.AddEventConsumerHandler(consumer)
 	return consumer, err
 }
 
