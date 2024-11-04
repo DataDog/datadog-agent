@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/haagent/haagentconfig"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -20,19 +19,24 @@ import (
 // TODO: SHOULD BE A COMPONENT WITH STATE
 // TODO: SHOULD BE A COMPONENT WITH STATE
 
-var assignedDistributedChecks []string
+var assignedDistributedChecks []Integration
 var assignedDistributedChecksMutex = sync.Mutex{}
 
-func GetChecks() []string {
+func IsHACheck(checkID string) bool {
 	assignedDistributedChecksMutex.Lock()
 	defer assignedDistributedChecksMutex.Unlock()
-	return assignedDistributedChecks
+	for _, integration := range assignedDistributedChecks {
+		if integration.ID == checkID {
+			return true
+		}
+	}
+	return false
 }
 
-func SetChecks(checks []string) {
+func SetChecks(checks []Integration) {
 	assignedDistributedChecksMutex.Lock()
 	defer assignedDistributedChecksMutex.Unlock()
-	assignedDistributedChecks = utils.CopyStrings(checks)
+	assignedDistributedChecks = checks
 }
 
 func ShouldRunForCheck(check check.Check) bool {
@@ -42,15 +46,10 @@ func ShouldRunForCheck(check check.Check) bool {
 	log.Warnf("[ShouldRunForCheck] checkID: %s", string(checkID))
 
 	if haagentconfig.IsEnabled() && haagentconfig.IsHAIntegration(checkName) {
-		checkIDs := GetChecks()
-		log.Warnf("[ShouldRunForCheck] checkIDs: %v", checkIDs)
-		for _, validCheckId := range checkIDs {
-			if validCheckId == string(checkID) {
-				log.Warnf("[ShouldRunForCheck] found valid checkId: %v", validCheckId)
-				return true
-			}
+		if IsHACheck(string(checkID)) {
+			log.Warnf("[ShouldRunForCheck] found valid checkId: %v", checkID)
+			return true
 		}
-		log.Warnf("[ShouldRunForCheck] no valid checkId")
 		return false
 	}
 
