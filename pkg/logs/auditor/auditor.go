@@ -104,7 +104,7 @@ func (a *RegistryAuditor) Stop() {
 func (a *RegistryAuditor) createChannels() {
 	a.chansMutex.Lock()
 	defer a.chansMutex.Unlock()
-	a.inputChan = make(chan *message.Payload, pkgconfigsetup.Datadog().GetInt("logs_config.chan_size"))
+	a.inputChan = make(chan *message.Payload, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 	a.done = make(chan struct{})
 }
 
