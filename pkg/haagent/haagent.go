@@ -7,27 +7,17 @@
 package haagent
 
 import (
-	"sync"
+	"go.uber.org/atomic"
 )
 
 // TODO: SHOULD BE A COMPONENT WITH STATE
 
-var assignedIntegrations map[string]bool
-var assignedIntegrationsMutex = sync.Mutex{}
+var isPrimaryStore = atomic.NewBool(false)
 
-func ShouldRunHAIntegrationInstance(integrationID string) bool {
-	assignedIntegrationsMutex.Lock()
-	defer assignedIntegrationsMutex.Unlock()
-	return assignedIntegrations[integrationID]
+func ShouldRunHAIntegrationInstance() bool {
+	return isPrimaryStore.Load()
 }
 
-func SetIntegrationInstances(integrations []Integration) {
-	integrationsMap := make(map[string]bool)
-	for _, integration := range integrations {
-		integrationsMap[integration.ID] = true
-	}
-
-	assignedIntegrationsMutex.Lock()
-	defer assignedIntegrationsMutex.Unlock()
-	assignedIntegrations = integrationsMap
+func SetPrimary(isPrimary bool) {
+	isPrimaryStore.Store(isPrimary)
 }

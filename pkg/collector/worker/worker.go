@@ -262,7 +262,7 @@ func startTrackerTicker(ut *UtilizationTracker, interval time.Duration) func() {
 
 func shouldRunIntegrationInstance(check check.Check) bool {
 	if haagent.IsEnabled() && haagent.IsHAIntegration(check.String()) {
-		return haagent.ShouldRunHAIntegrationInstance(string(check.ID()))
+		return haagent.ShouldRunHAIntegrationInstance()
 	}
 	return true
 }

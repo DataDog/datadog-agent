@@ -6,6 +6,7 @@
 package flare
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/haagent"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
@@ -153,7 +155,14 @@ func (f *flare) onAgentTaskEventForHaAgent(taskType rcclienttypes.TaskType, task
 		return true, nil
 	}
 
-	haagent.SetIntegrationInstances(payload.Integrations)
+	agentHost, err := hostname.Get(context.TODO())
+	if err != nil {
+		f.log.Warnf("Error getting the hostname: %v", err)
+	} else {
+		isPrimary := payload.PrimaryAgent == agentHost
+		f.log.Infof("[onAgentTaskEvent] Set primary: %t", isPrimary)
+		haagent.SetPrimary(isPrimary)
+	}
 
 	return true, nil
 }
