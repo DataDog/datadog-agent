@@ -158,7 +158,14 @@ func (p *PodAutoscalerInternal) UpdateFromSettings(podAutoscalerSpec *datadoghq.
 
 // UpdateFromValues updates the PodAutoscalerInternal from a new scaling values
 func (p *PodAutoscalerInternal) UpdateFromValues(scalingValues ScalingValues) {
-	p.scalingValues = scalingValues
+	p.scalingValues.HorizontalError = scalingValues.HorizontalError
+	p.scalingValues.Horizontal = scalingValues.Horizontal
+	p.scalingValues.VerticalError = scalingValues.VerticalError
+	p.scalingValues.Vertical = scalingValues.Vertical
+}
+
+func (p *PodAutoscalerInternal) UpdateFromLocalValues(localScalingValues *LocalScalingValues) {
+	p.scalingValues.Local = localScalingValues
 }
 
 // RemoveValues clears autoscaling values data from the PodAutoscalerInternal as we stopped autoscaling
@@ -356,11 +363,6 @@ func (p *PodAutoscalerInternal) VerticalLastAction() *datadoghq.DatadogPodAutosc
 // VerticalLastActionError returns the last error encountered on vertical scaling
 func (p *PodAutoscalerInternal) VerticalLastActionError() error {
 	return p.verticalLastActionError
-}
-
-// LocalLastRecommendations returns the last local recommendations
-func (p *PodAutoscalerInternal) LocalLastRecommendations() []HorizontalScalingValues {
-	return p.localLastRecommendations
 }
 
 // CurrentReplicas returns the current number of PODs for the targetRef

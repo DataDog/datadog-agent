@@ -52,6 +52,10 @@ type ScalingValues struct {
 	VerticalError error
 	Vertical      *VerticalScalingValues
 
+	// LocalError refers to an error encountered locally while computing horizontal scaling values
+	LocalError error
+	Local      *LocalScalingValues
+
 	// Error refers to a general error encountered by Datadog while computing the scaling values
 	Error error
 }
@@ -81,6 +85,24 @@ type VerticalScalingValues struct {
 
 	// ContainerResources holds the resources for a container
 	ContainerResources []datadoghq.DatadogPodAutoscalerContainerResources
+}
+
+// LocalScalingValues holds the local scaling values for a target
+type LocalScalingValues struct {
+	// Source is the source of the value
+	Source datadoghq.DatadogPodAutoscalerValueSource
+
+	// Timestamp is the time at which the data was generated
+	Timestamp time.Time
+
+	// Replicas is the desired number of replicas for the target
+	Replicas int32
+
+	// LowerBoundReplicas is the number of replicas based on lowerBound input
+	LowerBoundReplicas int32
+
+	// UpperBoundReplicas is the number of replicas based on upperBound input
+	UpperBoundReplicas int32
 }
 
 // SumCPUMemoryRequests sums the CPU and memory requests of all containers
