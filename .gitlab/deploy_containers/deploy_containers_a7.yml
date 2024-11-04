@@ -106,7 +106,7 @@ deploy_containers-a7-ot_internal:
   rules:
     !reference [.on_internal_final-ot]
   before_script:
-    - if [[ "$VERSION" == "" ]]; then VERSION="$(inv agent.version --major-version 7 --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
     - export IMG_SOURCES="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta${JMX}-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta${JMX}-arm64"
     - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}-ot-beta${JMX}"
   parallel:
@@ -120,7 +120,7 @@ deploy_containers-a7-ot_internal-rc:
   rules:
     !reference [.on_internal_rc-ot]
   before_script:
-    - if [[ "$VERSION" == "" ]]; then VERSION="$(inv agent.version --major-version 7 --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
     - export IMG_SOURCES="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta${JMX}-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta${JMX}-arm64"
     - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}-ot-beta${JMX}"
   parallel:

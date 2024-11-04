@@ -1,5 +1,19 @@
 
 # Rule to make job manual when running deploy pipelines, or automatic and on success on RC pipelines
+#
+## Note on CI_COMMIT_TAGS
+#
+# The standard(vanilla) agent builds expect COMMIT TAGS that match the following
+# patterns:
+#    - RC: ^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ (eg. 7.60.0-rc.2)
+#    - FINAL: ^[0-9]+\.[0-9]+\.[0-9]$ (eg. 7.60.0)
+#
+#
+# The OTel beta agent builds expect COMMIT TAGS that match the following
+# patterns. These tags will eventually be unrequired once GA is offered:
+#    - RC: ^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ (eg. 7.60.0-v1.1.0-rc.2)
+#    - FINAL: ^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+$ (eg.
+#    7.60.0-v1.1.0)
 .manual_on_deploy_auto_on_rc:
   - if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable"
     when: manual
