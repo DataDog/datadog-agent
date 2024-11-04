@@ -48,12 +48,6 @@ include:
 .deploy_containers-a7-base-ot:
   extends: .docker_publish_job_definition
   stage: deploy_containers
-  rules:
-    - when: manual
-      allow_failure: true
-  variables:
-    AGENT_REPOSITORY: agent
-    IMG_REGISTRIES: public
   dependencies: []
 
 deploy_containers-a7:
@@ -61,12 +55,24 @@ deploy_containers-a7:
   rules:
     !reference [.manual_on_deploy_auto_on_rc]
 
+deploy_containers-a7-ot:
+  extends: .deploy_containers-a7-base-ot
+  rules:
+    !reference [.manual_on_deploy_auto_on_rc-ot]
+
 deploy_containers-a7-rc:
   extends: .deploy_containers-a7_external
   rules:
     !reference [.on_rc]
   variables:
     VERSION: 7-rc
+
+deploy_containers-a7-ot-rc:
+  extends: .deploy_containers-a7-base-ot
+  rules:
+    !reference [.on_rc-ot]
+  variables:
+    VERSION: 7-ot-beta-rc
 
 deploy_containers-dogstatsd:
   extends: .docker_publish_job_definition
@@ -95,10 +101,26 @@ deploy_containers-a7_internal-rc:
     VERSION: 7-rc
 
 
-deploy_containers-ot:
+deploy_containers-a7-ot_internal:
   extends: .deploy_containers-a7-base-ot
+  rules:
+    !reference [.on_internal_final-ot]
   before_script:
-    - if [[ "$VERSION" == "" ]]; then VERSION="$(inv agent.version --major-version 7 --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
+    - export IMG_SOURCES="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta${JMX}-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta${JMX}-arm64"
+    - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}-ot-beta${JMX}"
+  parallel:
+    matrix:
+      - JMX:
+          - ""
+          - "-jmx"
+
+deploy_containers-a7-ot_internal-rc:
+  extends: .deploy_containers-a7-base-ot
+  rules:
+    !reference [.on_internal_rc-ot]
+  before_script:
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
     - export IMG_SOURCES="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta${JMX}-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta${JMX}-arm64"
     - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}-ot-beta${JMX}"
   parallel:
@@ -155,8 +177,10 @@ deploy_containers_latest-dogstatsd:
     IMG_SOURCES: ${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
     IMG_DESTINATIONS: ${DSD_REPOSITORY}:7,${DSD_REPOSITORY}:latest
 
-deploy_containers_latest-ot:
+deploy_containers_latest-a7-ot:
   extends: .deploy_containers-a7-base-ot
+  rules:
+    !reference [.on_final-ot]
   variables:
     VERSION: 7
   parallel:
