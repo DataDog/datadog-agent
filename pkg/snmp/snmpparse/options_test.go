@@ -3,21 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package snmp
+package snmpparse
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
-	"testing"
-
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
-var opts = snmpparse.NewOptions(snmpparse.OptPairs[int]{
+var vals = OptPairs[int]{
 	{"", 1},
 	{"TWO", 2},
 	{"three", 3},
 	{"fOUr", 4},
-})
+}
 
 var testCases = []struct {
 	choice      string
@@ -34,23 +32,20 @@ var testCases = []struct {
 	{"five", "", 0, false},
 }
 
-func TestOptsFlag(t *testing.T) {
-	var s string
-	flag := Flag(&opts, &s)
+func TestOptions(t *testing.T) {
+	m := NewOptions(vals)
 
-	assert.Equal(t, flag.String(), "")
-	assert.Equal(t, flag.Type(), "option")
-
+	assert.Equal(t, "TWO|three|fOUr", m.OptsStr())
 	for _, tc := range testCases {
-		if !tc.ok {
-			old := s
-			err := flag.Set(tc.choice)
-			assert.ErrorContains(t, err, "TWO|three|fOUr")
-			assert.Equal(t, s, old)
-		} else {
-			assert.NoError(t, flag.Set(tc.choice))
-			assert.Equal(t, tc.expectedKey, s)
-			assert.Equal(t, tc.expectedKey, flag.String())
+		gotKey, ok := m.GetOpt(tc.choice)
+		assert.Equal(t, tc.ok, ok)
+		if ok {
+			assert.Equal(t, tc.expectedKey, gotKey)
+		}
+		gotVal, ok := m.GetVal(tc.choice)
+		assert.Equal(t, tc.ok, ok)
+		if ok {
+			assert.Equal(t, tc.expectedVal, gotVal)
 		}
 	}
 }

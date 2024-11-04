@@ -10,11 +10,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	yaml "gopkg.in/yaml.v2"
 	"net"
 	"net/url"
 	"reflect"
-
-	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/viper"
 
@@ -46,6 +45,10 @@ type SNMPConfig struct {
 	Context      string `yaml:"context_name"`
 	// network
 	NetAddress string `yaml:"network_address"`
+	// These are omitted from the yaml because we don't let users configure
+	// them, but there are cases where we use them (e.g. the snmpwalk command)
+	SecurityLevel           string `yaml:"-"`
+	UseUnconnectedUDPSocket bool   `yaml:"-"`
 }
 
 // SetDefault sets the standard default config values
