@@ -130,29 +130,21 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	}
 	log.Debugf("SNMP configuration: %s", c.config.ToString())
 
-	// TODO: Setting instance name has an impact on the check digest used in check ID
-	//       Hence, to avoid changing checkID we are commenting following section.
-	//       The intent of changing check name/ID was to easily identify an check instance in Agent Status
-	//       by showing the device namespace + hostname.
-	//       We need a different strategy to show namespace + hostname.
-	//       For example, we can display custom info in Agent Status or have a different "display name"
-	//       that doesn't impact checkID/digest.
-
-	//if c.config.Name == "" {
-	//	var CheckName string
-	//	// Set 'name' field of the instance if not already defined in rawInstance config.
-	//	// The name/device_id will be used by Check.BuildID for building the check id.
-	//	// Example of check id: `snmp:<DEVICE_ID>:a3ec59dfb03e4457`
-	//	if c.config.IsDiscovery() {
-	//		CheckName = fmt.Sprintf("%s:%s", c.config.Namespace, c.config.Network)
-	//	} else {
-	//		CheckName = c.config.DeviceID
-	//	}
-	//	setNameErr := rawInstance.SetNameForInstance(CheckName)
-	//	if setNameErr != nil {
-	//		log.Warnf("error setting check name (CheckName=%s): %s", CheckName, setNameErr)
-	//	}
-	//}
+	if c.config.Name == "" {
+		var CheckName string
+		// Set 'name' field of the instance if not already defined in rawInstance config.
+		// The name/device_id will be used by Check.BuildID for building the check id.
+		// Example of check id: `snmp:<DEVICE_ID>:a3ec59dfb03e4457`
+		if c.config.IsDiscovery() {
+			CheckName = fmt.Sprintf("%s:%s", c.config.Namespace, c.config.Network)
+		} else {
+			CheckName = c.config.DeviceID
+		}
+		setNameErr := rawInstance.SetNameForInstance(CheckName)
+		if setNameErr != nil {
+			log.Warnf("error setting check name (CheckName=%s): %s", CheckName, setNameErr)
+		}
+	}
 
 	// Must be called before c.CommonConfigure
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
