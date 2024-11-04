@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Modifies the initialisation of the AWS EC2 client to use the AWS configuration package.
-    This change enables support for built-in credentials such as AWS IAM Roles for Service Accounts (IRSA).
+    Modifies the initialization of the Amazon EC2 client to use the AWS configuration package.
+    This change enables support for built-in credentials, such as AWS IAM Roles for Service Accounts (IRSA).
