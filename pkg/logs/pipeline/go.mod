@@ -59,10 +59,12 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/model v0.57.0
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.0
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/sds v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.56.0-rc.3
@@ -83,11 +85,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.57.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.57.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3 // indirect
