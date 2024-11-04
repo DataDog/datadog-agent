@@ -25,7 +25,7 @@ Pinned to datadog-agent v7.58.2: `CHANGELOG <https://github.com/DataDog/datadog-
 Prelude
 -------
 
-Released on: 2024-10-24
+Released on: 2024-11-04
 Pinned to datadog-agent v7.58.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7581>`_.
 
 .. _Release Notes_7.58.0:
