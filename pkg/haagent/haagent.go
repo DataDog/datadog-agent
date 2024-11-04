@@ -46,11 +46,7 @@ func ShouldRunForCheck(check check.Check) bool {
 	log.Warnf("[ShouldRunForCheck] checkID: %s", string(checkID))
 
 	if haagentconfig.IsEnabled() && haagentconfig.IsHAIntegration(checkName) {
-		if IsHACheck(string(checkID)) {
-			log.Warnf("[ShouldRunForCheck] found valid checkId: %v", checkID)
-			return true
-		}
-		return false
+		return IsHACheck(string(checkID))
 	}
 
 	return true
