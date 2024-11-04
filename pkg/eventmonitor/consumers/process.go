@@ -33,13 +33,13 @@ type ProcessConsumer struct {
 	// eventTypes is the list of event types that this consumer is interested in
 	eventTypes []ProcessConsumerEventTypes
 
-	// execCallbacks holds all subscriptors to process exec events
+	// execCallbacks holds all subscribers to process exec events
 	execCallbacks *callbackMap
 
-	// exitCallbacks holds all subscriptors to process exit events
+	// exitCallbacks holds all subscribers to process exit events
 	exitCallbacks *callbackMap
 
-	// forkCallbacks holds all subscriptors to process fork events
+	// forkCallbacks holds all subscribers to process fork events
 	forkCallbacks *callbackMap
 }
 
