@@ -112,7 +112,7 @@ func (ctx *systemContext) fillDeviceInfo() error {
 	return nil
 }
 
-func (ctx *systemContext) getFileData(path string) (*symbolsEntry, error) {
+func (ctx *systemContext) getCudaSymbols(path string) (*symbolsEntry, error) {
 	if data, ok := ctx.cudaSymbols[path]; ok {
 		data.updateLastUsedTime()
 		return data, nil
