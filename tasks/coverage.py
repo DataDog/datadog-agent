@@ -185,6 +185,15 @@ def _get_dev_coverage_files(dev_cov_lines: str) -> set[str]:
     return browsed_dev_files
 
 
+def _is_cov_file_valid(cov_file: str) -> bool:
+    try:
+        with open(cov_file, encoding='utf-8') as main_cov:
+            lines = main_cov.readlines()
+            return len(lines) > 0
+    except FileNotFoundError:
+        return False
+
+
 def _merge_dev_in_main_coverage(main_cov_file: str, dev_cov_file: str) -> None:
     """
     Merge the dev coverage file into the main coverage file line by line. For example with the following files:
@@ -264,7 +273,7 @@ def apply_missing_coverage(ctx: Context, from_commit_sha: str, keep_temp_files: 
     # Merge the dev coverage files into the main coverage files
     for dev_cov_file in dev_cov_files:
         main_cov_file = dev_cov_file.replace(".dev", "")
-        if os.path.exists(main_cov_file):
+        if _is_cov_file_valid(main_cov_file):
             _merge_dev_in_main_coverage(main_cov_file, dev_cov_file)
             if not keep_temp_files:
                 os.remove(dev_cov_file)
