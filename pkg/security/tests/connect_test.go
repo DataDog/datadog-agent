@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"testing"
 
 	"golang.org/x/sys/unix"
@@ -48,9 +49,14 @@ func TestConnectEvent(t *testing.T) {
 	}
 
 	t.Run("connect-af-inet-any-tcp-success", func(t *testing.T) {
+		var wg sync.WaitGroup
+		wg.Add(1)
+		defer wg.Wait()
+
 		done := make(chan struct{})
 		defer close(done)
 		go func() {
+			defer wg.Done()
 			err := bindAndAcceptConnection("tcp", ":4242", done)
 			if err != nil {
 				t.Fatal(err)
@@ -70,9 +76,14 @@ func TestConnectEvent(t *testing.T) {
 	})
 
 	t.Run("connect-af-inet-any-udp-success", func(t *testing.T) {
+		var wg sync.WaitGroup
+		wg.Add(1)
+		defer wg.Wait()
+
 		done := make(chan struct{})
 		defer close(done)
 		go func() {
+			defer wg.Done()
 			err := bindAndAcceptConnection("udp", ":4242", done)
 			if err != nil {
 				t.Fatal(err)
@@ -92,9 +103,14 @@ func TestConnectEvent(t *testing.T) {
 	})
 
 	t.Run("connect-af-inet6-any-tcp-success", func(t *testing.T) {
+		var wg sync.WaitGroup
+		wg.Add(1)
+		defer wg.Wait()
+
 		done := make(chan struct{})
 		defer close(done)
 		go func() {
+			defer wg.Done()
 			err := bindAndAcceptConnection("tcp", ":4242", done)
 			if err != nil {
 				t.Fatal(err)
@@ -114,9 +130,14 @@ func TestConnectEvent(t *testing.T) {
 	})
 
 	t.Run("connect-af-inet6-any-udp-success", func(t *testing.T) {
+		var wg sync.WaitGroup
+		wg.Add(1)
+		defer wg.Wait()
+
 		done := make(chan struct{})
 		defer close(done)
 		go func() {
+			defer wg.Done()
 			err := bindAndAcceptConnection("udp", ":4242", done)
 			if err != nil {
 				t.Fatal(err)
