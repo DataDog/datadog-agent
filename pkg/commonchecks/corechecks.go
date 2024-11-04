@@ -11,6 +11,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
@@ -55,7 +56,7 @@ import (
 )
 
 // RegisterChecks registers all core checks
-func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg config.Component, telemetry telemetry.Component) {
+func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg config.Component, telemetry telemetry.Component, _ rdnsquerier.Component) {
 	// Required checks
 	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
 	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
