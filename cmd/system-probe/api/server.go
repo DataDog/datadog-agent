@@ -11,6 +11,7 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
+	"runtime"
 
 	gorilla "github.com/gorilla/mux"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -52,6 +54,10 @@ func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmet
 	mux.PathPrefix("/debug/pprof").Handler(http.DefaultServeMux)
 	mux.Handle("/debug/vars", http.DefaultServeMux)
 	mux.Handle("/telemetry", telemetry.Handler())
+
+	if runtime.GOOS == "linux" {
+		mux.HandleFunc("/debug/ebpf_btf_loader_info", ebpf.HandleBTFLoaderInfo)
+	}
 
 	go func() {
 		err = http.Serve(conn.GetListener(), mux)

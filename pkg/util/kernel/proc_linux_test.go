@@ -118,3 +118,46 @@ func TestReadProcessMemMaps(t *testing.T) {
 	// assert that the entries are the same
 	require.Equal(t, expectedEntries, entries)
 }
+
+func TestGetEnvVariableFromBuffer(t *testing.T) {
+	cases := []struct {
+		name     string
+		contents string
+		envVar   string
+		expected string
+	}{
+		{
+			name:     "NonExistent",
+			contents: "PATH=/usr/bin\x00HOME=/home/user\x00",
+			envVar:   "NONEXISTENT",
+			expected: "",
+		},
+		{
+			name:     "Exists",
+			contents: "PATH=/usr/bin\x00MY_VAR=myvar\x00HOME=/home/user\x00",
+			envVar:   "MY_VAR",
+			expected: "myvar",
+		},
+		{
+			name:     "Empty",
+			contents: "PATH=/usr/bin\x00MY_VAR=\x00HOME=/home/user\x00",
+			envVar:   "MY_VAR",
+			expected: "",
+		},
+		{
+			name:     "PrefixVarNotSelected",
+			contents: "PATH=/usr/bin\x00MY_VAR_BUT_NOT_THIS=nope\x00MY_VAR=myvar\x00HOME=/home/user\x00",
+			envVar:   "MY_VAR",
+			expected: "myvar",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := getEnvVariableFromBuffer(bytes.NewBufferString(tc.contents), tc.envVar)
+			if actual != tc.expected {
+				t.Fatalf("Expected %s, got %s", tc.expected, actual)
+			}
+		})
+	}
+}

@@ -1,6 +1,6 @@
 {
     "base_branch": "main",
-    "current_milestone": "7.60.0",
+    "current_milestone": "7.61.0",
     "last_stable": {
         "6": "6.53.0",
         "7": "7.58.1"
@@ -49,7 +49,7 @@
         "OMNIBUS_RUBY_VERSION": "7.56.0-rc.1",
         "JMXFETCH_VERSION": "0.49.5",
         "JMXFETCH_HASH": "d29f945af0353905a5c801ab6b6ac027aa0cb27535470f464ca9254f6f36ef23",
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.59.0",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.60.0",
         "MACOS_BUILD_VERSION": "6.56.0-rc.3",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "2.7.1",
@@ -64,7 +64,7 @@
         "OMNIBUS_RUBY_VERSION": "7.56.0-rc.1",
         "JMXFETCH_VERSION": "0.49.5",
         "JMXFETCH_HASH": "d29f945af0353905a5c801ab6b6ac027aa0cb27535470f464ca9254f6f36ef23",
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.59.0",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.60.0",
         "MACOS_BUILD_VERSION": "7.56.0-rc.3",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "2.7.1",

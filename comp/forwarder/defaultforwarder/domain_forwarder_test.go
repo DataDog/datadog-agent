@@ -371,7 +371,7 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 		retry.NewPointCountTelemetryMock())
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
-	forwarder := newDomainForwarder(mockConfig, log, "test", false, transactionRetryQueue, 0, 10, transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, retry.NewPointCountTelemetry("domain"))
+	forwarder := newDomainForwarder(mockConfig, log, "test", false, false, transactionRetryQueue, 0, 10, transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, retry.NewPointCountTelemetry("domain"))
 	forwarder.blockedList.close("blocked")
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
 
@@ -431,7 +431,7 @@ func newDomainForwarderForTest(config config.Component, log log.Component, conne
 		telemetry,
 		retry.NewPointCountTelemetryMock())
 
-	return newDomainForwarder(config, log, "test", ha, transactionRetryQueue, 1, connectionResetInterval, sorter, retry.NewPointCountTelemetry("domain"))
+	return newDomainForwarder(config, log, "test", ha, false, transactionRetryQueue, 1, connectionResetInterval, sorter, retry.NewPointCountTelemetry("domain"))
 }
 
 func requireLenForwarderRetryQueue(t *testing.T, forwarder *domainForwarder, expectedValue int) {

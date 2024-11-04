@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/dogstatsd"
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
@@ -38,6 +39,7 @@ type ProvisionerParams struct {
 	agentOptions      []dockeragentparams.Option
 	fakeintakeOptions []fakeintake.Option
 	extraConfigParams runner.ConfigMap
+	testingWorkload   bool
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -120,6 +122,14 @@ func WithoutAgent() ProvisionerOption {
 	}
 }
 
+// WithTestingWorkload enables testing workload
+func WithTestingWorkload() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.testingWorkload = true
+		return nil
+	}
+}
+
 // RunParams contains parameters for the run function
 type RunParams struct {
 	Environment       *aws.Environment
@@ -190,6 +200,10 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, runParams RunParams)
 
 	// Create Agent if required
 	if params.agentOptions != nil {
+		if params.testingWorkload {
+			params.agentOptions = append(params.agentOptions, dockeragentparams.WithExtraComposeManifest(dogstatsd.DockerComposeManifest.Name, dogstatsd.DockerComposeManifest.Content))
+			params.agentOptions = append(params.agentOptions, dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{"HOST_IP": host.Address}))
+		}
 		agent, err := agent.NewDockerAgent(&awsEnv, host, manager, params.agentOptions...)
 		if err != nil {
 			return err
