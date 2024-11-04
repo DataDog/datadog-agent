@@ -23,10 +23,6 @@ func GetMetadata(c Info, includeConfig bool) map[string]interface{} {
 	instance["config.provider"] = strings.Split(c.ConfigSource(), ":")[0]
 	integrationName := c.String()
 
-	if haagentconfig.IsEnabled() && haagentconfig.IsHAIntegration(integrationName) {
-		instance["ha_integration"] = true
-	}
-
 	if includeConfig {
 		if instanceScrubbed, err := scrubber.ScrubYamlString(c.InstanceConfig()); err != nil {
 			log.Errorf("Could not scrub instance configuration for check id %s: %s", instanceID, err)
@@ -40,5 +36,17 @@ func GetMetadata(c Info, includeConfig bool) map[string]interface{} {
 			instance["init_config"] = strings.TrimSpace(initScrubbed)
 		}
 	}
+
+	if haagentconfig.IsEnabled() && haagentconfig.IsHAIntegration(integrationName) {
+		instance["ha_integration"] = true // TODO: use this, but might need backend changes to allow new fields
+
+		// WORKAROUND to use init_config
+		if initConfig, ok := instance["init_config"]; ok && initConfig != nil {
+			instance["init_config"] = instance["init_config"].(string) + "\n#ha_integration"
+		} else {
+			instance["init_config"] = "#ha_integration"
+		}
+	}
+
 	return instance
 }
