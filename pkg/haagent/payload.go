@@ -1,8 +1,8 @@
 package haagent
 
 type Integration struct {
-	ID   string
-	Type string
+	ID   string `json:"id"`
+	Type string `json:"type"`
 }
 
 type Payload struct {
