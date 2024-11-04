@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/prometheus/procfs"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
@@ -127,6 +129,16 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 	sh.kernelLaunches = append(sh.kernelLaunches, *enrichedLaunch)
 }
 
+func findEntryInMaps(procMaps []*procfs.ProcMap, addr uintptr) *procfs.ProcMap {
+	for _, m := range procMaps {
+		if addr >= m.StartAddr && addr < m.EndAddr {
+			return m
+		}
+	}
+
+	return nil
+}
+
 func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error {
 	if sh.sysCtx == nil {
 		return nil // No system context, kernel data attaching is disabled
@@ -137,14 +149,14 @@ func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error 
 		return fmt.Errorf("error reading process memory maps: %w", err)
 	}
 
-	entry := maps.FindEntryForAddress(event.Kernel_addr)
+	entry := findEntryInMaps(maps, uintptr(event.Kernel_addr))
 	if entry == nil {
 		return fmt.Errorf("could not find entry for kernel address 0x%x", event.Kernel_addr)
 	}
 
-	offsetInFile := event.Kernel_addr - entry.Start + entry.Offset
+	offsetInFile := uint64(int64(event.Kernel_addr) - int64(entry.StartAddr) + entry.Offset)
 
-	binaryPath := fmt.Sprintf("%s/%d/root/%s", sh.sysCtx.procRoot, sh.pid, entry.Path)
+	binaryPath := fmt.Sprintf("%s/%d/root/%s", sh.sysCtx.procRoot, sh.pid, entry.Pathname)
 	fileData, err := sh.sysCtx.getCudaSymbols(binaryPath)
 	if err != nil {
 		return fmt.Errorf("error getting file data: %w", err)

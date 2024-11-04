@@ -9,10 +9,12 @@ package gpu
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
+	"github.com/prometheus/procfs"
+
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
@@ -37,10 +39,13 @@ type systemContext struct {
 	cudaSymbols map[string]*symbolsEntry
 
 	// pidMaps maps each process ID to its memory maps
-	pidMaps map[int]*kernel.ProcMapEntries
+	pidMaps map[int][]*procfs.ProcMap
 
 	// procRoot is the root directory for process information
 	procRoot string
+
+	// procfsObj is the procfs filesystem object to retrieve process maps
+	procfsObj procfs.FS
 }
 
 // symbolsEntry embeds cuda.Symbols adding a field for keeping track of the last
@@ -59,7 +64,7 @@ func getSystemContext(nvmlLib nvml.Interface, procRoot string) (*systemContext, 
 		maxGpuThreadsPerDevice: make(map[int]int),
 		deviceSmVersions:       make(map[int]int),
 		cudaSymbols:            make(map[string]*symbolsEntry),
-		pidMaps:                make(map[int]*kernel.ProcMapEntries),
+		pidMaps:                make(map[int][]*procfs.ProcMap),
 		nvmlLib:                nvmlLib,
 		procRoot:               procRoot,
 	}
@@ -72,6 +77,11 @@ func getSystemContext(nvmlLib nvml.Interface, procRoot string) (*systemContext, 
 	ctx.timeResolver, err = ktime.NewResolver()
 	if err != nil {
 		return nil, fmt.Errorf("error creating time resolver: %w", err)
+	}
+
+	ctx.procfsObj, err = procfs.NewFS(procRoot)
+	if err != nil {
+		return nil, fmt.Errorf("error creating procfs filesystem: %w", err)
 	}
 
 	return ctx, nil
@@ -130,18 +140,35 @@ func (ctx *systemContext) getCudaSymbols(path string) (*symbolsEntry, error) {
 	return wrapper, nil
 }
 
-func (ctx *systemContext) getProcessMemoryMaps(pid int) (*kernel.ProcMapEntries, error) {
+func (ctx *systemContext) getProcessMemoryMaps(pid int) ([]*procfs.ProcMap, error) {
 	if maps, ok := ctx.pidMaps[pid]; ok {
 		return maps, nil
 	}
 
-	maps, err := kernel.ReadProcessMemMaps(pid, ctx.procRoot)
+	proc, err := ctx.procfsObj.Proc(pid)
+	if err != nil {
+		return nil, fmt.Errorf("error opening process %d: %w", pid, err)
+	}
+
+	maps, err := proc.ProcMaps()
+	if err != nil {
+		return nil, fmt.Errorf("error reading process %d memory maps: %w", pid, err)
+	}
+
+	// Remove any maps that don't have a pathname, we only want to keep the ones that are backed by a file
+	// to read from there the CUDA symbols.
+	maps = slices.DeleteFunc(maps, func(m *procfs.ProcMap) bool {
+		return m.Pathname == ""
+	})
+	slices.SortStableFunc(maps, func(a, b *procfs.ProcMap) int {
+		return int(a.StartAddr) - int(b.StartAddr)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("error reading process memory maps: %w", err)
 	}
 
-	ctx.pidMaps[pid] = &maps
-	return &maps, nil
+	ctx.pidMaps[pid] = maps
+	return maps, nil
 }
 
 // removeProcess removes any data associated with a process from the system context.
