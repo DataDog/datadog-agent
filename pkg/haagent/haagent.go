@@ -15,9 +15,6 @@ import (
 )
 
 // TODO: SHOULD BE A COMPONENT WITH STATE
-// TODO: SHOULD BE A COMPONENT WITH STATE
-// TODO: SHOULD BE A COMPONENT WITH STATE
-// TODO: SHOULD BE A COMPONENT WITH STATE
 
 var assignedDistributedChecks []Integration
 var assignedDistributedChecksMutex = sync.Mutex{}
