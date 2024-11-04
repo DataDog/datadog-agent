@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// MeasurablePayload representes a payload that can be measured in bytes and count
+// MeasurablePayload represents a payload that can be measured in bytes and count
 type MeasurablePayload interface {
 	Size() int64
 	Count() int64
@@ -34,12 +34,14 @@ type NoopPipelineMonitor struct {
 
 // NewNoopPipelineMonitor creates a new no-op pipeline monitor
 func NewNoopPipelineMonitor(id string) *NoopPipelineMonitor {
-	return &NoopPipelineMonitor{}
+	return &NoopPipelineMonitor{
+		instanceID: id,
+	}
 }
 
 // ID returns the instance id of the monitor
-func (c *NoopPipelineMonitor) ID() string {
-	return c.instanceID
+func (n *NoopPipelineMonitor) ID() string {
+	return n.instanceID
 }
 
 // ReportComponentIngress does nothing.
