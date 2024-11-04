@@ -25,12 +25,15 @@ func IsHAIntegrationInstance(checkID string) bool {
 	return assignedIntegrations[checkID]
 }
 
-func SetIntegrationInstances(checks []Integration) {
+func SetIntegrationInstances(integrations []Integration) {
+	integrationsMap := make(map[string]bool)
+	for _, integration := range integrations {
+		integrationsMap[integration.ID] = true
+	}
+
 	assignedIntegrationsMutex.Lock()
 	defer assignedIntegrationsMutex.Unlock()
-	for _, check := range checks {
-		assignedIntegrations[check.ID] = true
-	}
+	assignedIntegrations = integrationsMap
 }
 
 func ShouldRunForIntegrationInstance(check check.Check) bool {
