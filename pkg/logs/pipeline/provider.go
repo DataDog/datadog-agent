@@ -11,16 +11,13 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -67,7 +64,7 @@ type processorOnlyProvider struct {
 	processingRules           []*config.ProcessingRule
 	pipelines                 []*Pipeline
 	currentPipelineIndex      *atomic.Uint32
-	processor                 *processor.Processor // Processor-only version of pipelines
+	hostname                  hostnameinterface.Component
 	currentProcessorIndex     *atomic.Uint32
 	cfg                       pkgconfigmodel.Reader
 	outputChan                chan *message.Payload
@@ -83,19 +80,15 @@ func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, diagn
 	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, true, status, hostname, cfg)
 }
 
-func NewProcessorOnlyProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, cfg pkgconfigmodel.Reader) Provider {
-	encoder := processor.RawEncoder
-	processor := processor.New(pkgconfigsetup.Datadog(), inputChan, output, processingRules,
-		encoder, nil, hostnameimpl.NewHostnameService(), 0)
-	processor.Start()
-
+func NewProcessorOnlyProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, cfg pkgconfigmodel.Reader, endpoints *config.Endpoints, hostname hostnameinterface.Component) Provider {
 	return &processorOnlyProvider{
+		numberOfPipelines:         numberOfPipelines,
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 		auditor:                   auditor,
+		hostname:                  hostname,
 		processingRules:           processingRules,
 		pipelines:                 []*Pipeline{},
 		currentPipelineIndex:      atomic.NewUint32(0),
-		processor:                 processor,
 		currentProcessorIndex:     atomic.NewUint32(0),
 		cfg:                       cfg,
 	}
@@ -152,7 +145,7 @@ func (p *processorOnlyProvider) Start() {
 	p.outputChan = p.auditor.Channel()
 
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.diagnosticMessageReceiver, p.serverless, i, p.status, p.hostname, p.cfg)
+		pipeline := NewProcessorOnlyPipeline(p.processingRules, p.diagnosticMessageReceiver, i, p.hostname, p.cfg)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}

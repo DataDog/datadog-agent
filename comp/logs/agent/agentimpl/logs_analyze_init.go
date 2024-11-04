@@ -33,7 +33,7 @@ func (a *logAgent) SetUpLaunchers(processingRules []*config.ProcessingRule) {
 	destinationsCtx := client.NewDestinationsContext()
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, a.hostname)
 
-	pipelineProvider := pipeline.NewProcessorOnlyProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config)
+	pipelineProvider := pipeline.NewProcessorOnlyProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, a.config, a.endpoints, a.hostname)
 
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, auditor, a.tracker)
