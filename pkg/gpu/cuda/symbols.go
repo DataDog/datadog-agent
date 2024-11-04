@@ -10,15 +10,17 @@ import (
 	"fmt"
 )
 
-// ExecutableData holds all necessary data from a CUDA executable for
-// getting necessary CUDA kernel data
-type ExecutableData struct {
+// Symbols holds all necessary data from a CUDA executable for
+// getting necessary CUDA kernel data. That is, the symbol table
+// which maps addresses to symbol names and the fatbin data with all
+// the CUDA kernels available in the binary and their metadata.
+type Symbols struct {
 	SymbolTable map[uint64]string
 	Fatbin      *Fatbin
 }
 
-// GetFileData reads an ELF file from the given path and return the parsed CUDA data
-func GetFileData(path string) (*ExecutableData, error) {
+// GetSymbols reads an ELF file from the given path and return the parsed CUDA data
+func GetSymbols(path string) (*Symbols, error) {
 	elfFile, err := elf.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("error opening ELF file %s: %w", path, err)
@@ -30,7 +32,7 @@ func GetFileData(path string) (*ExecutableData, error) {
 		return nil, fmt.Errorf("error parsing fatbin on %s: %w", path, err)
 	}
 
-	data := &ExecutableData{
+	data := &Symbols{
 		SymbolTable: make(map[uint64]string),
 		Fatbin:      fatbin,
 	}

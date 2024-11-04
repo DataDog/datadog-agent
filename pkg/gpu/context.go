@@ -34,7 +34,7 @@ type systemContext struct {
 	deviceSmVersions map[int]int
 
 	// execData maps each executable file path to its Fatbin file data
-	execData map[string]*cuda.ExecutableData
+	execData map[string]*cuda.Symbols
 
 	// excDataLastUsed keeps track of the last time each executable data was used, for cleanup purposes
 	execDataLastUsed map[string]time.Time
@@ -50,7 +50,7 @@ func getSystemContext(nvmlLib nvml.Interface, procRoot string) (*systemContext, 
 	ctx := &systemContext{
 		maxGpuThreadsPerDevice: make(map[int]int),
 		deviceSmVersions:       make(map[int]int),
-		execData:               make(map[string]*cuda.ExecutableData),
+		execData:               make(map[string]*cuda.Symbols),
 		execDataLastUsed:       make(map[string]time.Time),
 		pidMaps:                make(map[int]*kernel.ProcMapEntries),
 		nvmlLib:                nvmlLib,
@@ -105,13 +105,13 @@ func (ctx *systemContext) fillDeviceInfo() error {
 	return nil
 }
 
-func (ctx *systemContext) getFileData(path string) (*cuda.ExecutableData, error) {
+func (ctx *systemContext) getFileData(path string) (*cuda.Symbols, error) {
 	if data, ok := ctx.execData[path]; ok {
 		ctx.execDataLastUsed[path] = time.Now()
 		return data, nil
 	}
 
-	data, err := cuda.GetFileData(path)
+	data, err := cuda.GetSymbols(path)
 	if err != nil {
 		return nil, fmt.Errorf("error getting file data: %w", err)
 	}
