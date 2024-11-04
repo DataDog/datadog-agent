@@ -10,10 +10,13 @@
   =============
   {{- range $subnet := .autodiscoverySubnets }}
   {{- if eq $subnet.IpsCount $subnet.DevicesScanned }}
-  {{- if eq $subnet.DevicesFound "" }}
-  Subnet {{$subnet.Subnet}} scanned. Found no IPs in the subnet.
+  {{- if $subnet.DevicesFound }}
+  Subnet {{$subnet.Subnet}} scanned. Found the following IP(s) :
+    {{- range $device := $subnet.DevicesFound }}
+    - {{$device}}
+    {{- end }}
   {{- else }}
-  Subnet {{$subnet.Subnet}} scanned. Found the following IP(s) : {{$subnet.DevicesFound}}
+  Subnet {{$subnet.Subnet}} scanned. Found no IPs in the subnet.
   {{- end }}
   {{- else if eq $subnet.DeviceScanning "" }}
   Subnet {{$subnet.Subnet}} is queued for scanning.
@@ -21,12 +24,15 @@
   Scanning subnet {{$subnet.Subnet}}... Currently scanning IP {{$subnet.DeviceScanning}}, {{$subnet.DevicesScanned}} IPs out of {{$subnet.IpsCount}} scanned.
   {{- end }}
   {{- end }}
-  {{- range $key, $subnet := .discoverySubnets}}
+  {{- range $subnet := .discoverySubnets }}
   {{- if eq $subnet.IpsCount $subnet.DevicesScanned }}
-  {{- if eq $subnet.DevicesFound "" }}
-  Subnet {{$subnet.Subnet}} scanned. Found no IPs in the subnet.
+  {{- if $subnet.DevicesFound }}
+  Subnet {{$subnet.Subnet}} scanned. Found the following IP(s) :
+    {{- range $device := $subnet.DevicesFound }}
+    - {{$device}}
+    {{- end }}
   {{- else }}
-  Subnet {{$subnet.Subnet}} scanned. Found the following IP(s) : {{$subnet.DevicesFound}}
+  Subnet {{$subnet.Subnet}} scanned. Found no IPs in the subnet.
   {{- end }}
   {{- else if eq $subnet.DeviceScanning "" }}
   Subnet {{$subnet.Subnet}} is queued for scanning.

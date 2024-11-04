@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/stretchr/testify/assert"
@@ -139,24 +140,10 @@ func TestStatusAutodiscovery(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
 
-	autodiscoveryExpVar := expvar.NewMap("snmpAutodiscovery")
-	devicesScannedInSubnetVar := expvar.NewMap("devicesScannedInSubnet")
-	autodiscoveryExpVar.Set("devicesScannedInSubnet", devicesScannedInSubnetVar)
-	devicesScannedInSubnetVar.Set("127.0.0.1/24|hashconfig", expvar.Func(func() interface{} {
-		return 0
-	}))
+	autodiscoveryExpVar := expvar.Get("snmpAutodiscovery").(*expvar.Map)
 
-	devicesFoundInSubnetVar := expvar.NewMap("devicesFoundInSubnet")
-	autodiscoveryExpVar.Set("devicesFoundInSubnet", devicesFoundInSubnetVar)
-	devicesFoundInSubnetVar.Set("127.0.0.1/24|hashconfig", expvar.Func(func() interface{} {
-		return ""
-	}))
-
-	deviceScanningInSubnetVar := expvar.NewMap("deviceScanningInSubnet")
-	autodiscoveryExpVar.Set("deviceScanningInSubnet", deviceScanningInSubnetVar)
-	deviceScanningInSubnetVar.Set("127.0.0.1/24|hashconfig", expvar.Func(func() interface{} {
-		return ""
-	}))
+	autodiscoveryStatus := listeners.AutodiscoveryStatus{DevicesFoundList: []string{}, CurrentDevice: "", DevicesScannedCount: 0}
+	autodiscoveryExpVar.Set(listeners.GetSubnetVarKey("127.0.0.1/24", "hashconfig"), &autodiscoveryStatus)
 
 	provider := Provider{}
 	tests := []struct {

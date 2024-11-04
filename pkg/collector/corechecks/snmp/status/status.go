@@ -14,6 +14,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
@@ -56,6 +57,7 @@ func (Provider) populateStatus(stats map[string]interface{}) {
 	autodiscoveryVar := expvar.Get("snmpAutodiscovery")
 
 	if autodiscoveryVar != nil {
+
 		var autodiscoveryConfig snmp.ListenerConfig
 		if pkgconfigsetup.Datadog().IsSet("network_devices.autodiscovery") {
 			err := pkgconfigsetup.Datadog().UnmarshalKey("network_devices.autodiscovery", &autodiscoveryConfig)
@@ -94,44 +96,26 @@ func (Provider) populateStatus(stats map[string]interface{}) {
 
 type subnetStatus struct {
 	Subnet         string
-	ConfigHash     string
 	DeviceScanning string
 	DevicesScanned int
 	IpsCount       int
-	DevicesFound   string
+	DevicesFound   []string
 }
 
 func getSubnetsStatus(discoveryVar expvar.Var) map[string]subnetStatus {
-	discoverySubnets := make(map[string]map[string]interface{})
+	discoverySubnets := make(map[string]listeners.AutodiscoveryStatus)
 	discoveryJSON := []byte(discoveryVar.String())
 	json.Unmarshal(discoveryJSON, &discoverySubnets) //nolint:errcheck
 
-	devicesScannedInSubnet := discoverySubnets["devicesScannedInSubnet"]
-	devicesFoundInSubnet := discoverySubnets["devicesFoundInSubnet"]
-	deviceScanningInSubnet := discoverySubnets["deviceScanningInSubnet"]
-
 	discoverySubnetsStatus := make(map[string]subnetStatus)
 
-	for subnetKey, devicesScanned := range devicesScannedInSubnet {
-		subnet, configHash := strings.Split(subnetKey, "|")[0], strings.Split(subnetKey, "|")[1]
+	for subnetKey, autodiscoveryStatus := range discoverySubnets {
+		subnet, _ := strings.Split(subnetKey, "|")[0], strings.Split(subnetKey, "|")[1]
 		_, ipNet, _ := net.ParseCIDR(subnet)
 
 		ones, bits := ipNet.Mask.Size()
-		ipsCount := 1 << (bits - ones)
-		devicesScannedCount := int(devicesScanned.(float64))
-
-		discoverySubnetsStatus[subnetKey] = subnetStatus{subnet, configHash, deviceScanningInSubnet[subnetKey].(string), devicesScannedCount, ipsCount, ""}
-	}
-
-	for subnetKey, devicesFound := range devicesFoundInSubnet {
-		devices := devicesFound.(string)
-		devicesList := strings.Split(devices, "|")
-
-		status, statusFound := discoverySubnetsStatus[subnetKey]
-		if statusFound {
-			status.DevicesFound = strings.Join(devicesList, ", ")
-			discoverySubnetsStatus[subnetKey] = status
-		}
+		ipsTotalCount := 1 << (bits - ones)
+		discoverySubnetsStatus[subnetKey] = subnetStatus{subnet, autodiscoveryStatus.CurrentDevice, autodiscoveryStatus.DevicesScannedCount, ipsTotalCount, autodiscoveryStatus.DevicesFoundList}
 	}
 
 	return discoverySubnetsStatus

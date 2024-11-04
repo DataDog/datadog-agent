@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
@@ -26,11 +28,23 @@ import (
 const cacheKeyPrefix = "snmp"
 
 var (
-	autodiscoveryVar          = expvar.NewMap("snmpAutodiscovery")
-	devicesScannedInSubnetVar = expvar.Map{}
-	devicesFoundInSubnetVar   = expvar.Map{}
-	deviceScanningInSubnetVar = expvar.Map{}
+	autodiscoveryStatusBySubnetVar = expvar.NewMap("snmpAutodiscovery")
 )
+
+// AutodiscoveryStatus represents the status of the autodiscovery of a subnet we want to expose in the snmp status
+type AutodiscoveryStatus struct {
+	DevicesFoundList    []string
+	CurrentDevice       string
+	DevicesScannedCount int
+}
+
+func (s *AutodiscoveryStatus) String() string {
+	jsonData, err := json.Marshal(s)
+	if err != nil {
+		return ""
+	}
+	return string(jsonData)
+}
 
 const (
 	defaultWorkers           = 2
@@ -61,27 +75,19 @@ type SNMPService struct {
 var _ Service = &SNMPService{}
 
 type snmpSubnet struct {
-	adIdentifier   string
-	config         snmp.Config
-	startingIP     net.IP
-	network        net.IPNet
-	cacheKey       string
-	devices        map[string]string
-	deviceFailures map[string]int
+	adIdentifier          string
+	config                snmp.Config
+	startingIP            net.IP
+	network               net.IPNet
+	cacheKey              string
+	devices               map[string]string
+	deviceFailures        map[string]int
+	devicesScannedCounter atomic.Uint32
 }
 
 type snmpJob struct {
 	subnet    *snmpSubnet
 	currentIP net.IP
-}
-
-func init() {
-	devicesScannedInSubnetVar.Init()
-	devicesFoundInSubnetVar.Init()
-	deviceScanningInSubnetVar.Init()
-	autodiscoveryVar.Set("devicesScannedInSubnet", &devicesScannedInSubnetVar)
-	autodiscoveryVar.Set("devicesFoundInSubnet", &devicesFoundInSubnetVar)
-	autodiscoveryVar.Set("deviceScanningInSubnet", &deviceScanningInSubnetVar)
 }
 
 // NewSNMPListener creates a SNMPListener
@@ -159,14 +165,6 @@ var worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 }
 
 func (l *SNMPListener) checkDevice(job snmpJob) {
-	devicesScannedCounter := devicesScannedInSubnetVar.Get(GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey))
-	if devicesScannedCounter != nil {
-		devicesScannedCounter.(*expvar.Int).Add(1)
-	}
-	deviceScanningInSubnet := deviceScanningInSubnetVar.Get(GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey))
-	if deviceScanningInSubnet != nil {
-		deviceScanningInSubnet.(*expvar.String).Set(job.currentIP.String())
-	}
 
 	deviceIP := job.currentIP.String()
 	params, err := job.subnet.config.BuildSNMPParams(deviceIP)
@@ -193,19 +191,24 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 		} else {
 			log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
 
-			devicesFoundList := devicesFoundInSubnetVar.Get(GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey))
-			if devicesFoundList != nil {
-				devicesFoundListString := devicesFoundList.(*expvar.String)
-				currentValue := devicesFoundListString.Value()
-				if currentValue == "" {
-					devicesFoundListString.Set(deviceIP)
-				} else {
-					devicesFoundListString.Set(fmt.Sprintf("%s|%s", currentValue, deviceIP))
-				}
-			}
 			l.createService(entityID, job.subnet, deviceIP, true)
 		}
 	}
+
+	l.Lock()
+	ipsFound := []string{}
+	for _, svc := range l.services {
+		snmpSvc, ok := svc.(*SNMPService)
+		if !ok {
+			log.Errorf("Service is not of type SNMPService")
+			continue
+		}
+		ipsFound = append(ipsFound, snmpSvc.deviceIP)
+	}
+	l.Unlock()
+
+	autodiscoveryStatus := AutodiscoveryStatus{DevicesFoundList: ipsFound, CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
+	autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey), &autodiscoveryStatus)
 }
 
 func (l *SNMPListener) checkDevices() {
@@ -227,13 +230,14 @@ func (l *SNMPListener) checkDevices() {
 		}
 
 		subnet := snmpSubnet{
-			adIdentifier:   adIdentifier,
-			config:         config,
-			startingIP:     startingIP,
-			network:        *ipNet,
-			cacheKey:       cacheKey,
-			devices:        map[string]string{},
-			deviceFailures: map[string]int{},
+			adIdentifier:          adIdentifier,
+			config:                config,
+			startingIP:            startingIP,
+			network:               *ipNet,
+			cacheKey:              cacheKey,
+			devices:               map[string]string{},
+			deviceFailures:        map[string]int{},
+			devicesScannedCounter: *atomic.NewUint32(0),
 		}
 		subnets = append(subnets, subnet)
 
@@ -261,15 +265,14 @@ func (l *SNMPListener) checkDevices() {
 	defer discoveryTicker.Stop()
 	for {
 		for _, subnet := range subnets {
-			devicesScannedInSubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.cacheKey), &expvar.Int{})
-			devicesFoundInSubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.cacheKey), &expvar.String{})
-			deviceScanningInSubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.cacheKey), &expvar.String{})
+			autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.cacheKey), &expvar.String{})
 		}
 
 		var subnet *snmpSubnet
 		for i := range subnets {
 			// Use `&subnets[i]` to pass the correct pointer address to snmpJob{}
 			subnet = &subnets[i]
+			subnet.devicesScannedCounter.Store(0)
 			startingIP := make(net.IP, len(subnet.startingIP))
 			copy(startingIP, subnet.startingIP)
 			for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {

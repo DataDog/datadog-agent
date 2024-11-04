@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
@@ -27,10 +28,7 @@ const cacheKeyPrefix = "snmp"
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
 
 var (
-	discoveryVar              = expvar.NewMap("snmpDiscovery")
-	devicesScannedInSubnetVar = expvar.Map{}
-	devicesFoundInSubnetVar   = expvar.Map{}
-	deviceScanningInSubnetVar = expvar.Map{}
+	discoveryVar = expvar.NewMap("snmpDiscovery")
 )
 
 // Discovery handles snmp discovery states
@@ -66,21 +64,13 @@ type snmpSubnet struct {
 
 	// discoveredDevices contains device failures count with device deviceDigest as map key
 	// see also CheckConfig.DeviceDigest()
-	deviceFailures map[checkconfig.DeviceDigest]int
+	deviceFailures        map[checkconfig.DeviceDigest]int
+	devicesScannedCounter atomic.Uint32
 }
 
 type checkDeviceJob struct {
 	subnet    *snmpSubnet
 	currentIP net.IP
-}
-
-func init() {
-	devicesScannedInSubnetVar.Init()
-	devicesFoundInSubnetVar.Init()
-	deviceScanningInSubnetVar.Init()
-	discoveryVar.Set("devicesScannedInSubnet", &devicesScannedInSubnetVar)
-	discoveryVar.Set("devicesFoundInSubnet", &devicesFoundInSubnetVar)
-	discoveryVar.Set("deviceScanningInSubnet", &deviceScanningInSubnetVar)
 }
 
 // Start discovery
@@ -146,8 +136,9 @@ func (d *Discovery) discoverDevices() {
 
 		// Since subnet devices fields (`devices` and `deviceFailures`) are changed at the same time
 		// as Discovery.discoveredDevices, we rely on Discovery.discDevMu mutex to protect against concurrent changes.
-		devices:        map[checkconfig.DeviceDigest]string{},
-		deviceFailures: map[checkconfig.DeviceDigest]int{},
+		devices:               map[checkconfig.DeviceDigest]string{},
+		deviceFailures:        map[checkconfig.DeviceDigest]int{},
+		devicesScannedCounter: *atomic.NewUint32(0),
 	}
 
 	d.loadCache(&subnet)
@@ -160,10 +151,8 @@ func (d *Discovery) discoverDevices() {
 	discoveryTicker := time.NewTicker(time.Duration(d.config.DiscoveryInterval) * time.Second)
 	defer discoveryTicker.Stop()
 	for {
-		devicesScannedInSubnetVar.Set(listeners.GetSubnetVarKey(subnet.config.Network, subnet.cacheKey), &expvar.Int{})
-		devicesFoundInSubnetVar.Set(listeners.GetSubnetVarKey(subnet.config.Network, subnet.cacheKey), &expvar.String{})
-		deviceScanningInSubnetVar.Set(listeners.GetSubnetVarKey(subnet.config.Network, subnet.cacheKey), &expvar.String{})
-
+		discoveryVar.Set(listeners.GetSubnetVarKey(d.config.Network, subnet.cacheKey), &expvar.String{})
+		subnet.devicesScannedCounter.Store(0)
 		log.Debugf("subnet %s: Run discovery", d.config.Network)
 		startingIP := make(net.IP, len(subnet.startingIP))
 		copy(startingIP, subnet.startingIP)
@@ -199,16 +188,6 @@ func (d *Discovery) discoverDevices() {
 }
 
 func (d *Discovery) checkDevice(job checkDeviceJob) error {
-	devicesScannedCounter := devicesScannedInSubnetVar.Get(listeners.GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey))
-	if devicesScannedCounter != nil {
-		devicesScannedCounter.(*expvar.Int).Add(1)
-	}
-
-	deviceScanningInSubnet := deviceScanningInSubnetVar.Get(listeners.GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey))
-	if deviceScanningInSubnet != nil {
-		deviceScanningInSubnet.(*expvar.String).Set(job.currentIP.String())
-	}
-
 	deviceIP := job.currentIP.String()
 	config := *job.subnet.config // shallow copy
 	config.IPAddress = deviceIP
@@ -236,20 +215,20 @@ func (d *Discovery) checkDevice(job checkDeviceJob) error {
 			d.deleteDevice(deviceDigest, job.subnet)
 		} else {
 			log.Debugf("subnet %s: SNMP get to %s success: %v", d.config.Network, deviceIP, value.Variables[0].Value)
-
-			devicesFoundList := devicesFoundInSubnetVar.Get(listeners.GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey))
-			if devicesFoundList != nil {
-				devicesFoundListString := devicesFoundList.(*expvar.String)
-				currentValue := devicesFoundListString.Value()
-				if currentValue == "" {
-					devicesFoundListString.Set(deviceIP)
-				} else {
-					devicesFoundListString.Set(fmt.Sprintf("%s|%s", currentValue, deviceIP))
-				}
-			}
 			d.createDevice(deviceDigest, job.subnet, deviceIP, true)
 		}
 	}
+
+	ipsFound := []string{}
+	d.discDevMu.Lock()
+	for _, device := range d.discoveredDevices {
+		ipsFound = append(ipsFound, device.deviceIP)
+	}
+	d.discDevMu.Unlock()
+
+	discoveryStatus := listeners.AutodiscoveryStatus{DevicesFoundList: ipsFound, CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
+	discoveryVar.Set(listeners.GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey), &discoveryStatus)
+
 	return nil
 }
 
