@@ -341,7 +341,7 @@ func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStart
 		Enabled:         pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
 		LoadConfig:      &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
 		LambdaSpanChan:  lambdaSpanChan,
-		ColdStartSpanId: coldStartSpanId,
+		ColdStartSpanID: coldStartSpanId,
 	})
 	serverlessDaemon.SetTraceAgent(traceAgent)
 }

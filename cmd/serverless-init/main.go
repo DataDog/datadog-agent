@@ -174,7 +174,7 @@ func setupTraceAgent(tags map[string]string, tagger tagger.Component) trace.Serv
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:               pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
 		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
-		ColdStartSpanId:       random.Random.Uint64(),
+		ColdStartSpanID:       random.Random.Uint64(),
 		AzureContainerAppTags: azureTags.String(),
 	})
 	go func() {

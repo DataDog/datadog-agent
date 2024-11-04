@@ -444,7 +444,7 @@ func startAgents() *Daemon {
 	ta := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:         true,
 		LoadConfig:      &trace.LoadConfig{Path: "/some/path/datadog.yml"},
-		ColdStartSpanId: 123,
+		ColdStartSpanID: 123,
 	})
 	d.SetTraceAgent(ta)
 

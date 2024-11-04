@@ -37,7 +37,7 @@ func TestStartEnabledFalse(t *testing.T) {
 	lambdaSpanChan := make(chan *pb.Span)
 	agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
 		LambdaSpanChan:  lambdaSpanChan,
-		ColdStartSpanId: random.Random.Uint64(),
+		ColdStartSpanID: random.Random.Uint64(),
 	})
 	defer agent.Stop()
 	assert.NotNil(t, agent)
@@ -60,7 +60,7 @@ func TestStartEnabledTrueInvalidConfig(t *testing.T) {
 		Enabled:         true,
 		LoadConfig:      &LoadConfigMocked{},
 		LambdaSpanChan:  lambdaSpanChan,
-		ColdStartSpanId: random.Random.Uint64(),
+		ColdStartSpanID: random.Random.Uint64(),
 	})
 	defer agent.Stop()
 	assert.NotNil(t, agent)
@@ -77,7 +77,7 @@ func TestStartEnabledTrueValidConfigInvalidPath(t *testing.T) {
 		Enabled:         true,
 		LoadConfig:      &LoadConfig{Path: "invalid.yml"},
 		LambdaSpanChan:  lambdaSpanChan,
-		ColdStartSpanId: random.Random.Uint64(),
+		ColdStartSpanID: random.Random.Uint64(),
 	})
 	defer agent.Stop()
 	assert.NotNil(t, agent)
@@ -93,7 +93,7 @@ func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 		Enabled:         true,
 		LoadConfig:      &LoadConfig{Path: "./testdata/valid.yml"},
 		LambdaSpanChan:  lambdaSpanChan,
-		ColdStartSpanId: random.Random.Uint64(),
+		ColdStartSpanID: random.Random.Uint64(),
 	})
 	defer agent.Stop()
 	assert.NotNil(t, agent)
@@ -111,7 +111,7 @@ func TestLoadConfigShouldBeFast(t *testing.T) {
 		Enabled:         true,
 		LoadConfig:      &LoadConfig{Path: "./testdata/valid.yml"},
 		LambdaSpanChan:  lambdaSpanChan,
-		ColdStartSpanId: random.Random.Uint64(),
+		ColdStartSpanID: random.Random.Uint64(),
 	})
 	defer agent.Stop()
 	assert.True(t, time.Since(startTime) < time.Second)

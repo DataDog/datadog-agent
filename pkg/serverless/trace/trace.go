@@ -96,7 +96,7 @@ type StartServerlessTraceAgentArgs struct {
 	Enabled               bool
 	LoadConfig            Load
 	LambdaSpanChan        chan<- *pb.Span
-	ColdStartSpanId       uint64
+	ColdStartSpanID       uint64
 	AzureContainerAppTags string
 }
 
@@ -120,7 +120,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			tc.AzureContainerAppTags = args.AzureContainerAppTags
 			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
 			ta.SpanModifier = &spanModifier{
-				coldStartSpanId: args.ColdStartSpanId,
+				coldStartSpanId: args.ColdStartSpanID,
 				lambdaSpanChan:  args.LambdaSpanChan,
 				ddOrigin:        getDDOrigin(),
 			}

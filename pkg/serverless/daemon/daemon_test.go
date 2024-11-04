@@ -175,7 +175,7 @@ func TestSetTraceTagOk(t *testing.T) {
 		Enabled:         true,
 		LoadConfig:      &trace.LoadConfig{Path: "/does-not-exist.yml"},
 		LambdaSpanChan:  make(chan *pb.Span),
-		ColdStartSpanId: random.Random.Uint64(),
+		ColdStartSpanID: random.Random.Uint64(),
 	})
 	defer agent.Stop()
 	d := Daemon{
