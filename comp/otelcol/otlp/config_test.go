@@ -56,10 +56,15 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"max_recv_msg_size_mib":  4,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
 						},
 						"http": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 						},
 					},
 				},
@@ -72,6 +77,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"delta_ttl":               3600,
 					"histograms": map[string]interface{}{
 						"send_aggregation_metrics": false,
 						"send_count_sum_metrics":   false,
@@ -89,10 +95,15 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"max_recv_msg_size_mib":  4,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
 						},
 						"http": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 						},
 					},
 				},
@@ -105,6 +116,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"delta_ttl":               3600,
 					"histograms": map[string]interface{}{
 						"send_aggregation_metrics": false,
 						"send_count_sum_metrics":   false,
@@ -122,10 +134,15 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"max_recv_msg_size_mib":  4,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
 						},
 						"http": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 						},
 					},
 				},
@@ -138,6 +155,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"delta_ttl":               3600,
 					"histograms": map[string]interface{}{
 						"send_aggregation_metrics": false,
 						"send_count_sum_metrics":   false,
@@ -157,6 +175,8 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 						"grpc": map[string]interface{}{
 							"endpoint":               "0.0.0.0:5678",
 							"include_metadata":       false,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
 							"max_concurrent_streams": 16,
 							"transport":              "tcp",
 							"keepalive": map[string]interface{}{
@@ -167,8 +187,9 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 							"max_recv_msg_size_mib": 10,
 						},
 						"http": map[string]interface{}{
-							"endpoint":         "localhost:1234",
-							"include_metadata": false,
+							"endpoint":              "localhost:1234",
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 							"cors": map[string]interface{}{
 								"allowed_origins": []interface{}{"http://test.com"},
 								"allowed_headers": []interface{}{"ExampleHeader"},
@@ -184,6 +205,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"delta_ttl":               3600,
 					"histograms": map[string]interface{}{
 						"send_aggregation_metrics": false,
 						"send_count_sum_metrics":   false,
@@ -201,10 +223,15 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"max_recv_msg_size_mib":  4,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
 						},
 						"http": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 						},
 					},
 				},
@@ -217,6 +244,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"delta_ttl":               3600,
 					"histograms": map[string]interface{}{
 						"send_aggregation_metrics": false,
 						"send_count_sum_metrics":   false,
@@ -234,10 +262,15 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"max_recv_msg_size_mib":  4,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
 						},
 						"http": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 						},
 					},
 				},
@@ -250,6 +283,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"delta_ttl":               3600,
 					"histograms": map[string]interface{}{
 						"send_aggregation_metrics": false,
 						"send_count_sum_metrics":   false,
@@ -293,11 +327,16 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"endpoint":         "0.0.0.0:9999",
-							"include_metadata": false,
+							"endpoint":               "0.0.0.0:9999",
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"max_recv_msg_size_mib":  4,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
 						},
 						"http": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 						},
 					},
 				},
@@ -316,6 +355,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"instrumentation_scope_metadata_as_tags":   false,
 					"resource_attributes_as_tags":              false,
 					"tag_cardinality":                          "low",
+					"delta_ttl":                                3600,
 					"apm_stats_receiver_addr":                  "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{},
@@ -331,12 +371,17 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"endpoint":         "0.0.0.0:9997",
-							"include_metadata": false,
+							"endpoint":               "0.0.0.0:9997",
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"max_recv_msg_size_mib":  4,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
 						},
 						"http": map[string]interface{}{
-							"endpoint":         "0.0.0.0:9998",
-							"include_metadata": false,
+							"endpoint":              "0.0.0.0:9998",
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 						},
 					},
 				},
@@ -355,6 +400,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"instrumentation_scope_metadata_as_tags":   false,
 					"resource_attributes_as_tags":              false,
 					"tag_cardinality":                          "low",
+					"delta_ttl":                                3600,
 					"apm_stats_receiver_addr":                  "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{},
@@ -373,12 +419,17 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"endpoint":         "0.0.0.0:9995",
-							"include_metadata": false,
+							"endpoint":               "0.0.0.0:9995",
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"max_recv_msg_size_mib":  4,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
 						},
 						"http": map[string]interface{}{
-							"endpoint":         "0.0.0.0:9996",
-							"include_metadata": false,
+							"endpoint":              "0.0.0.0:9996",
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 						},
 					},
 				},
@@ -393,7 +444,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 
-					"delta_ttl": "2400",
+					"delta_ttl": 2400,
 					"histograms": map[string]interface{}{
 						"mode":                     "counters",
 						"send_aggregation_metrics": false,
@@ -415,11 +466,16 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"endpoint":         "0.0.0.0:9999",
-							"include_metadata": false,
+							"endpoint":               "0.0.0.0:9999",
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"max_recv_msg_size_mib":  4,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
 						},
 						"http": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 						},
 					},
 				},
@@ -439,6 +495,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"resource_attributes_as_tags":              false,
 					"tag_cardinality":                          "low",
 					"apm_stats_receiver_addr":                  "http://localhost:8126/v0.6/stats",
+					"delta_ttl":                                3600,
 				},
 				Debug: map[string]interface{}{
 					"verbosity": "none",
@@ -455,11 +512,16 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"endpoint":         "0.0.0.0:9999",
-							"include_metadata": false,
+							"endpoint":               "0.0.0.0:9999",
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"max_recv_msg_size_mib":  4,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
 						},
 						"http": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 						},
 					},
 				},
@@ -479,6 +541,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"resource_attributes_as_tags":              false,
 					"tag_cardinality":                          "low",
 					"apm_stats_receiver_addr":                  "http://localhost:8126/v0.6/stats",
+					"delta_ttl":                                3600,
 				},
 				Debug: map[string]interface{}{
 					"verbosity": "normal",
@@ -495,12 +558,16 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"endpoint":              "0.0.0.0:9999",
-							"include_metadata":      false,
-							"max_recv_msg_size_mib": "10",
+							"endpoint":               "0.0.0.0:9999",
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
+							"max_recv_msg_size_mib":  10,
 						},
 						"http": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 						},
 					},
 				},
@@ -520,6 +587,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"resource_attributes_as_tags":              false,
 					"tag_cardinality":                          "low",
 					"apm_stats_receiver_addr":                  "http://localhost:8126/v0.6/stats",
+					"delta_ttl":                                3600,
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -533,10 +601,15 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"max_recv_msg_size_mib":  4,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
 						},
 						"http": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 						},
 					},
 				},
@@ -555,6 +628,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"resource_attributes_as_tags":              false,
 					"tag_cardinality":                          "low",
 					"apm_stats_receiver_addr":                  "http://localhost:8126/v0.6/stats",
+					"delta_ttl":                                3600,
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -568,10 +642,15 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"max_recv_msg_size_mib":  4,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
 						},
 						"http": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 						},
 					},
 				},
@@ -590,6 +669,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"resource_attributes_as_tags":              false,
 					"tag_cardinality":                          "low",
 					"apm_stats_receiver_addr":                  "http://localhost:8126/v0.6/stats",
+					"delta_ttl":                                3600,
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -603,10 +683,15 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"max_recv_msg_size_mib":  4,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
 						},
 						"http": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 						},
 					},
 				},
@@ -625,6 +710,48 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"tag_cardinality":                          "low",
 					"apm_stats_receiver_addr":                  "http://localhost:8126/v0.6/stats",
 					"resource_attributes_as_tags":              true,
+					"delta_ttl":                                3600,
+				},
+				Debug: map[string]interface{}{},
+			},
+		},
+		{
+			name: "metrics delta_ttl",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_METRICS_DELTA_TTL": "1000",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"max_recv_msg_size_mib":  4,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
+						},
+						"http": map[string]interface{}{
+							"include_metadata":      false,
+							"max_request_body_size": 0,
+						},
+					},
+				},
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				LogsEnabled:    false,
+				TracePort:      5003,
+				Metrics: map[string]interface{}{
+					"enabled": true,
+					"histograms": map[string]interface{}{
+						"send_aggregation_metrics": false,
+						"send_count_sum_metrics":   false,
+					},
+					"instrumentation_library_metadata_as_tags": false,
+					"instrumentation_scope_metadata_as_tags":   false,
+					"tag_cardinality":                          "low",
+					"apm_stats_receiver_addr":                  "http://localhost:8126/v0.6/stats",
+					"resource_attributes_as_tags":              false,
+					"delta_ttl":                                1000,
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -659,12 +786,17 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"endpoint":         "localhost:5678",
-							"include_metadata": false,
+							"endpoint":               "localhost:5678",
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"max_recv_msg_size_mib":  4,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
 						},
 						"http": map[string]interface{}{
-							"endpoint":         "localhost:1234",
-							"include_metadata": false,
+							"endpoint":              "localhost:1234",
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 						},
 					},
 				},
@@ -722,10 +854,15 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"max_recv_msg_size_mib":  4,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
 						},
 						"http": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 						},
 					},
 				},
@@ -738,6 +875,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"delta_ttl":               3600,
 					"histograms": map[string]interface{}{
 						"send_aggregation_metrics": false,
 						"send_count_sum_metrics":   false,
@@ -755,10 +893,15 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"max_recv_msg_size_mib":  4,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
 						},
 						"http": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 						},
 					},
 				},
@@ -772,6 +915,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"delta_ttl":               3600,
 					"histograms": map[string]interface{}{
 						"send_aggregation_metrics": false,
 						"send_count_sum_metrics":   false,
@@ -789,10 +933,15 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"max_recv_msg_size_mib":  4,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
 						},
 						"http": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 						},
 					},
 				},
@@ -806,6 +955,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"delta_ttl":               3600,
 					"histograms": map[string]interface{}{
 						"send_aggregation_metrics": false,
 						"send_count_sum_metrics":   false,
@@ -823,10 +973,15 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				OTLPReceiverConfig: map[string]interface{}{
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":       false,
+							"max_concurrent_streams": 0,
+							"max_recv_msg_size_mib":  4,
+							"read_buffer_size":       0,
+							"write_buffer_size":      0,
 						},
 						"http": map[string]interface{}{
-							"include_metadata": false,
+							"include_metadata":      false,
+							"max_request_body_size": 0,
 						},
 					},
 				},
@@ -840,6 +995,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 					"enabled":                 true,
 					"tag_cardinality":         "low",
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
+					"delta_ttl":               3600,
 					"histograms": map[string]interface{}{
 						"send_aggregation_metrics": false,
 						"send_count_sum_metrics":   false,

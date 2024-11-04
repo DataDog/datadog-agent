@@ -75,10 +75,10 @@ func setupOTLPEnvironmentVariables(config pkgconfigmodel.Setup) {
 	// gRPC settings
 	config.BindEnv(OTLPReceiverGRPCEndpoint)
 	config.BindEnv(OTLPReceiverGRPCTransport)
-	config.BindEnv(OTLPReceiverGRPCMaxRecvMsgSize)
-	config.BindEnv(OTLPReceiverGRPCMaxConcurrentStreams)
-	config.BindEnv(OTLPReceiverGRPCReadBufferSize)
-	config.BindEnv(OTLPReceiverGRPCWriteBufferSize)
+	config.BindEnvAndSetDefault(OTLPReceiverGRPCMaxRecvMsgSize, 4)
+	config.BindEnvAndSetDefault(OTLPReceiverGRPCMaxConcurrentStreams, 0)
+	config.BindEnvAndSetDefault(OTLPReceiverGRPCReadBufferSize, 0)
+	config.BindEnvAndSetDefault(OTLPReceiverGRPCWriteBufferSize, 0)
 	config.BindEnvAndSetDefault(OTLPReceiverGRPCIncludeMetadata, false)
 
 	// Traces settings
@@ -89,11 +89,11 @@ func setupOTLPEnvironmentVariables(config pkgconfigmodel.Setup) {
 
 	// HTTP settings
 	config.BindEnv(OTLPReceiverHTTPEndpoint)
-	config.BindEnv(OTLPReceiverHTTPMaxRequestBodySize)
+	config.BindEnvAndSetDefault(OTLPReceiverHTTPMaxRequestBodySize, 0)
 	config.BindEnvAndSetDefault(OTLPReceiverHTTPIncludeMetadata, false)
 
 	// Metrics settings
-	config.BindEnv(OTLPSection + ".metrics.delta_ttl")
+	config.BindEnvAndSetDefault(OTLPSection+".metrics.delta_ttl", 3600)
 	config.BindEnvAndSetDefault(OTLPSection+".metrics.resource_attributes_as_tags", false)
 	config.BindEnvAndSetDefault(OTLPSection+".metrics.instrumentation_library_metadata_as_tags", false)
 	config.BindEnvAndSetDefault(OTLPSection+".metrics.instrumentation_scope_metadata_as_tags", false)
