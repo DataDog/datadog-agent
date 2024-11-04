@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
-	loadstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/loadstore"
+	loadstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
