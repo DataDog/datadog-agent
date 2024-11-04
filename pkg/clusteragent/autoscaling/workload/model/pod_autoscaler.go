@@ -75,8 +75,8 @@ type PodAutoscalerInternal struct {
 	// verticalLastActionError is the last error encountered on vertical scaling
 	verticalLastActionError error
 
-	// localLastRecommendations is a record of the past local recommendations
-	localLastRecommendations []HorizontalScalingValues
+	// horizontalLastRecommendations is a record of the past horizontal recommendations
+	horizontalLastRecommendations []HorizontalScalingValues
 
 	// currentReplicas is the current number of PODs for the targetRef
 	currentReplicas *int32
