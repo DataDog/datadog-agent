@@ -342,15 +342,17 @@ func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 
 	procBinPath := path.Join(proc, fmt.Sprintf("%d/root/%s", pid, binPath))
 	kernKey := cuda.CubinKernelKey{Name: kernName, SmVersion: smVersion}
-	sysCtx.fileData[procBinPath] = &fileData{
-		symbolTable: map[uint64]string{kernAddress: kernName},
-		fatbin: &cuda.Fatbin{
-			Kernels: map[cuda.CubinKernelKey]*cuda.CubinKernel{
-				kernKey: {
-					Name:        kernName,
-					KernelSize:  kernSize,
-					SharedMem:   sharedMem,
-					ConstantMem: constantMem,
+	sysCtx.cudaSymbols[procBinPath] = &symbolsEntry{
+		Symbols: &cuda.Symbols{
+			SymbolTable: map[uint64]string{kernAddress: kernName},
+			Fatbin: &cuda.Fatbin{
+				Kernels: map[cuda.CubinKernelKey]*cuda.CubinKernel{
+					kernKey: {
+						Name:        kernName,
+						KernelSize:  kernSize,
+						SharedMem:   sharedMem,
+						ConstantMem: constantMem,
+					},
 				},
 			},
 		},

@@ -150,12 +150,12 @@ func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error 
 		return fmt.Errorf("error getting file data: %w", err)
 	}
 
-	symbol, ok := fileData.symbolTable[offsetInFile]
+	symbol, ok := fileData.SymbolTable[offsetInFile]
 	if !ok {
 		return fmt.Errorf("could not find symbol for address 0x%x", event.Kernel_addr)
 	}
 
-	kern := fileData.fatbin.GetKernel(symbol, uint32(sh.sysCtx.deviceSmVersions[0]))
+	kern := fileData.Fatbin.GetKernel(symbol, uint32(sh.sysCtx.deviceSmVersions[0]))
 	if kern == nil {
 		return fmt.Errorf("could not find kernel for symbol %s", symbol)
 	}
