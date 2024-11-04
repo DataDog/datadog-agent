@@ -28,6 +28,7 @@ import (
 
 // EBPFFieldHandlers defines a field handlers
 type EBPFFieldHandlers struct {
+	BaseFieldHandlers
 	config    *config.Config
 	resolvers *resolvers.EBPFResolvers
 	hostname  string

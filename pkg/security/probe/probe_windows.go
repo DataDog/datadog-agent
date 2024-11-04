@@ -1235,6 +1235,16 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts, telemetry t
 	}
 
 	p.fieldHandlers = &FieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname}
+	for _, cidr := range config.Probe.NetworkPrivateIPRanges {
+		if err := p.fieldHandlers.privateCIDRs.AppendIP(cidr); err != nil {
+			return nil, fmt.Errorf("error adding private IP range %s: %w", cidr, err)
+		}
+	}
+	for _, cidr := range config.Probe.NetworkExtraPrivateIPRanges {
+		if err := p.fieldHandlers.privateCIDRs.AppendIP(cidr); err != nil {
+			return nil, fmt.Errorf("error adding extra private IP range %s: %w", cidr, err)
+		}
+	}
 
 	p.event = p.NewEvent()
 

@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -95,4 +96,18 @@ func resolveService(cfg *config.Config, fh pceResolver, ev *model.Event, e *mode
 	}
 
 	return service
+}
+
+// BaseFieldHandlers holds the base field handlers
+type BaseFieldHandlers struct {
+	privateCIDRs eval.CIDRValues
+}
+
+// ResolveIsIPPublic resolves if the IP is public
+func (bfh *BaseFieldHandlers) ResolveIsIPPublic(_ *model.Event, ipCtx *model.IPPortContext) bool {
+	if !ipCtx.IsPublicResolved {
+		ipCtx.IsPublic = !bfh.privateCIDRs.Contains(&ipCtx.IPNet)
+		ipCtx.IsPublicResolved = true
+	}
+	return ipCtx.IsPublic
 }

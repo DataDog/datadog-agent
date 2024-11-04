@@ -16,6 +16,7 @@ import (
 
 // FieldHandlers defines a field handlers
 type FieldHandlers struct {
+	BaseFieldHandlers
 	config    *config.Config
 	resolvers *resolvers.Resolvers
 	hostname  string
