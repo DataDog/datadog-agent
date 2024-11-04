@@ -116,10 +116,9 @@ jobs:
         id: check_pr
         env:
           GH_TOKEN: ${{ github.token }}
-          BASE_BRANCH: ${{ github.ref }}
+          BASE_BRANCH: ${{ github.ref_name }}
           INPUT_BRANCH: ${{ inputs.branch }}
         run: |
-          base_branch=${base_branch#refs/heads/} # Remove 'refs/heads/' from the ref
           # prs variable contains the number of PRs already created that match head and base branches
           prs=$(gh pr list \
               --repo "$GITHUB_REPOSITORY" \
