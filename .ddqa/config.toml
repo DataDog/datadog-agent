@@ -227,6 +227,7 @@ github_labels = ["team/agent-release-management"]
 
 [teams."Dynamic Instrumentation"]
 jira_project = "DEBUG"
+jira_component = "datadog-agent"
 jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "debugger-go"
