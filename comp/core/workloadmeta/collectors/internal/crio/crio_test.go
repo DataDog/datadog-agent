@@ -94,10 +94,10 @@ func TestPull(t *testing.T) {
 				{Id: "container1", PodSandboxId: "pod1", Metadata: &v1.ContainerMetadata{Name: "container1"}},
 			}, nil
 		},
-		mockGetPodStatus: func(_ context.Context, podID string) (*v1.PodSandboxStatus, error) {
+		mockGetPodStatus: func(_ context.Context, _ string) (*v1.PodSandboxStatus, error) {
 			return &v1.PodSandboxStatus{Metadata: &v1.PodSandboxMetadata{Namespace: "default"}}, nil
 		},
-		mockGetContainerStatus: func(_ context.Context, containerID string) (*v1.ContainerStatus, error) {
+		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatus, error) {
 			return &v1.ContainerStatus{
 				Metadata:  &v1.ContainerMetadata{Name: "container1"},
 				State:     v1.ContainerState_CONTAINER_RUNNING,
@@ -111,7 +111,7 @@ func TestPull(t *testing.T) {
 				},
 			}, nil
 		},
-		mockGetContainerImage: func(_ context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error) {
+		mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec) (*v1.Image, error) {
 			return &v1.Image{
 				Id:          "image123",
 				RepoTags:    []string{"myrepo/myimage:latest"},
@@ -148,7 +148,7 @@ func TestPullContainerStatusError(t *testing.T) {
 				{Id: "container1", PodSandboxId: "pod1"},
 			}, nil
 		},
-		mockGetContainerStatus: func(_ context.Context, containerID string) (*v1.ContainerStatus, error) {
+		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatus, error) {
 			return nil, errors.New("container status error")
 		},
 	}
@@ -178,10 +178,10 @@ func TestPullNoPodNamespace(t *testing.T) {
 				{Id: "container1", PodSandboxId: "nonexistent-pod"},
 			}, nil
 		},
-		mockGetPodStatus: func(_ context.Context, podID string) (*v1.PodSandboxStatus, error) {
+		mockGetPodStatus: func(_ context.Context, _ string) (*v1.PodSandboxStatus, error) {
 			return nil, errors.New("pod not found")
 		},
-		mockGetContainerStatus: func(_ context.Context, containerID string) (*v1.ContainerStatus, error) {
+		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatus, error) {
 			return &v1.ContainerStatus{
 				Metadata:  &v1.ContainerMetadata{Name: "container1"},
 				State:     v1.ContainerState_CONTAINER_RUNNING,
@@ -209,7 +209,7 @@ func TestPullContainerImageError(t *testing.T) {
 				{Id: "container1", PodSandboxId: "pod1"},
 			}, nil
 		},
-		mockGetContainerStatus: func(_ context.Context, containerID string) (*v1.ContainerStatus, error) {
+		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatus, error) {
 			return &v1.ContainerStatus{
 				Metadata:  &v1.ContainerMetadata{Name: "container1"},
 				State:     v1.ContainerState_CONTAINER_RUNNING,
@@ -223,7 +223,7 @@ func TestPullContainerImageError(t *testing.T) {
 				},
 			}, nil
 		},
-		mockGetContainerImage: func(_ context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error) {
+		mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec) (*v1.Image, error) {
 			return nil, errors.New("image retrieval error")
 		},
 	}
@@ -250,14 +250,14 @@ func TestPullContainerNoImageInfo(t *testing.T) {
 				{Id: "container1", PodSandboxId: "pod1"},
 			}, nil
 		},
-		mockGetContainerStatus: func(_ context.Context, containerID string) (*v1.ContainerStatus, error) {
+		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatus, error) {
 			return &v1.ContainerStatus{
 				Metadata:  &v1.ContainerMetadata{Name: "container1"},
 				State:     v1.ContainerState_CONTAINER_RUNNING,
 				CreatedAt: time.Now().Add(-10 * time.Minute).UnixNano(),
 			}, nil
 		},
-		mockGetContainerImage: func(_ context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error) {
+		mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec) (*v1.Image, error) {
 			return nil, nil
 		},
 	}
@@ -320,7 +320,7 @@ func TestPullContainerMissingMetadata(t *testing.T) {
 				{Id: "container1", PodSandboxId: "pod1", Metadata: nil}, // Missing metadata
 			}, nil
 		},
-		mockGetContainerStatus: func(_ context.Context, containerID string) (*v1.ContainerStatus, error) {
+		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatus, error) {
 			return &v1.ContainerStatus{
 				State: v1.ContainerState_CONTAINER_RUNNING,
 			}, nil
@@ -345,7 +345,7 @@ func TestPullContainerDefaultResourceLimits(t *testing.T) {
 				{Id: "container1", PodSandboxId: "pod1"},
 			}, nil
 		},
-		mockGetContainerStatus: func(_ context.Context, containerID string) (*v1.ContainerStatus, error) {
+		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatus, error) {
 			return &v1.ContainerStatus{
 				Metadata: &v1.ContainerMetadata{Name: "container1"},
 				Resources: &v1.ContainerResources{
