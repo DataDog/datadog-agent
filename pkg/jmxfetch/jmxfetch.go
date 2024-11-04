@@ -516,7 +516,7 @@ func (j *JMXFetch) setupFIPS(subprocessArgs *[]string, classpath *string) {
 		if strings.HasSuffix(ent.Name(), ".jar") {
 			jar := path.Join(embeddedFIPSPath, ent.Name())
 			log.Debugf("adding %q to classpath", jar)
-			*classpath = fmt.Sprintf("%s%s%s", *classpath, os.PathListSeparator, jar)
+			*classpath = fmt.Sprintf("%s%c%s", *classpath, os.PathListSeparator, jar)
 		}
 	}
 
