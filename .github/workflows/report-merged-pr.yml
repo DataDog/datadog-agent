@@ -1,0 +1,31 @@
+# Report PR merged event to Datadog
+
+name: Report Merged PR
+
+on:
+  pull_request:
+    types: closed
+
+permissions: {}
+
+jobs:
+  if_merged:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+
+      - name: Setup Python3
+        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        with:
+          python-version: "3.12.6"
+          cache: "pip"
+          cache-dependency-path: '**/requirements*.txt'
+
+      - name: Install python dependencies
+        run: pip3 install -r requirements.txt
+
+      - name: Send merge event to Datadog
+        run: |
+          invoke -e github.pr-merge-dd-event-sender -p ${{ github.event.pull_request.number }}

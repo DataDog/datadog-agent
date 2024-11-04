@@ -15,14 +15,16 @@ import (
 
 var lookupAddrFn = net.DefaultResolver.LookupAddr
 
-func getReverseDNSForIP(destIP net.IP) string {
+// GetReverseDNSForIP returns the reverse DNS for the given IP address as a net.IP.
+func GetReverseDNSForIP(destIP net.IP) string {
 	if destIP == nil {
 		return ""
 	}
-	return getHostname(destIP.String())
+	return GetHostname(destIP.String())
 }
 
-func getHostname(ipAddr string) string {
+// GetHostname returns the hostname for the given IP address as a string.
+func GetHostname(ipAddr string) string {
 	currHost := ""
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

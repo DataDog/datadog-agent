@@ -898,6 +898,62 @@ func (ev *Event) GetChownSyscallUid() int {
 	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chown.SyscallContext)
 }
 
+// GetConnectAddrFamily returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectAddrFamily() uint16 {
+	if ev.GetEventType().String() != "connect" {
+		return uint16(0)
+	}
+	return ev.Connect.AddrFamily
+}
+
+// GetConnectAddrIp returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectAddrIp() net.IPNet {
+	if ev.GetEventType().String() != "connect" {
+		return net.IPNet{}
+	}
+	return ev.Connect.Addr.IPNet
+}
+
+// GetConnectAddrPort returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectAddrPort() uint16 {
+	if ev.GetEventType().String() != "connect" {
+		return uint16(0)
+	}
+	return ev.Connect.Addr.Port
+}
+
+// GetConnectRetval returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectRetval() int64 {
+	if ev.GetEventType().String() != "connect" {
+		return int64(0)
+	}
+	return ev.Connect.SyscallEvent.Retval
+}
+
+// GetConnectServerAddrFamily returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectServerAddrFamily() uint16 {
+	if ev.GetEventType().String() != "connect" {
+		return uint16(0)
+	}
+	return ev.Connect.AddrFamily
+}
+
+// GetConnectServerAddrIp returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectServerAddrIp() net.IPNet {
+	if ev.GetEventType().String() != "connect" {
+		return net.IPNet{}
+	}
+	return ev.Connect.Addr.IPNet
+}
+
+// GetConnectServerAddrPort returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectServerAddrPort() uint16 {
+	if ev.GetEventType().String() != "connect" {
+		return uint16(0)
+	}
+	return ev.Connect.Addr.Port
+}
+
 // GetContainerCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerCreatedAt() int {
 	if ev.BaseEvent.ContainerContext == nil {
