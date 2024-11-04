@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build crio
+
 package crio
 
 import (
@@ -133,7 +135,7 @@ func TestPull(t *testing.T) {
 	assert.Equal(t, "container1", container.EntityMeta.Name)
 	assert.Equal(t, "default", container.EntityMeta.Namespace)
 	assert.Equal(t, "container1", container.EntityID.ID)
-	assert.Equal(t, floatPtr(0.5), container.Resources.CPULimit) // 50,000/100,000 = 0.5 cores
+	assert.Equal(t, floatPtr(0.5), container.Resources.CPULimit)
 	assert.Equal(t, uintPtr(104857600), container.Resources.MemoryLimit)
 	assert.Equal(t, "myrepo/myimage:latest", container.Image.RawName)
 }
@@ -278,7 +280,7 @@ func TestPullContainerNoImageInfo(t *testing.T) {
 func TestPullNoContainers(t *testing.T) {
 	client := &fakeCRIOClient{
 		mockGetAllContainers: func(ctx context.Context) ([]*v1.Container, error) {
-			return []*v1.Container{}, nil // Empty list
+			return []*v1.Container{}, nil
 		},
 	}
 

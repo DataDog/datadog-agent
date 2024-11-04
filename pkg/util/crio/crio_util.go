@@ -43,7 +43,6 @@ func NewCRIOClient(socketPath string) (CRIOItf, error) {
 
 	client := &CRIOClient{socketPath: socketPath}
 
-	// Setup retry logic with exponential backoff
 	client.initRetry.SetupRetrier(&retry.Config{
 		Name:              "crio-client",
 		AttemptMethod:     client.connect,
@@ -72,16 +71,16 @@ func (c *CRIOClient) connect() error {
 	c.runtimeClient = v1.NewRuntimeServiceClient(conn)
 	c.imageClient = v1.NewImageServiceClient(conn)
 
-	// Dummy RPC to ensure connection readiness
 	rpcCtx, rpcCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer rpcCancel()
 
+	// Make an initial request to ensure the connection is working and transition it to a ready state
 	if _, err := c.RuntimeMetadata(rpcCtx); err != nil {
 		conn.Close()
 		return fmt.Errorf("initial RPC failed: %w", err)
 	}
 
-	// Ensure connection is READY
+	// Ensure connection is ready
 	if conn.GetState() != connectivity.Ready {
 		return fmt.Errorf("connection not in READY state")
 	}
