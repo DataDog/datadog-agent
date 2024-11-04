@@ -21,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 
 	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 )
 
@@ -56,15 +55,14 @@ var otelFlareFilesZpages = []string{
 
 // TestOTelFlare tests that the OTel Agent flare functionality works as expected
 func TestOTelFlare(s OTelTestSuite, providedCfg string, fullCfg string, sources string) {
-	flake.Mark(s.T())
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 	agent := getAgentPod(s)
 
 	s.T().Log("Starting flare")
 	hasZpages := false
-	var otelflares map[string]string
-	timeout := time.Now().Add(20 * time.Minute)
+	otelflares := make(map[string]string)
+	timeout := time.Now().Add(10 * time.Minute)
 	for i := 1; time.Now().Before(timeout); i++ {
 		stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "flare", "--email", "e2e@test.com", "--send"})
 		require.NoError(s.T(), err, "Failed to execute flare")
@@ -74,14 +72,17 @@ func TestOTelFlare(s OTelTestSuite, providedCfg string, fullCfg string, sources 
 		s.T().Logf("Getting latest flare, attempt %d", i)
 		flare, err := s.Env().FakeIntake.Client().GetLatestFlare()
 		require.NoError(s.T(), err)
-		otelflares = fetchFromFlare(s.T(), flare)
+		otelflaresResp := fetchFromFlare(s.T(), flare)
+		for k, v := range otelflaresResp {
+			otelflares[k] = v
+		}
 
 		if len(otelflares) >= len(otelFlareFilesCommon)+len(otelFlareFilesZpages) {
 			hasZpages = true
 			break
 		}
 
-		time.Sleep(time.Minute)
+		time.Sleep(30 * time.Second)
 	}
 
 	otelFlareFiles := otelFlareFilesCommon
