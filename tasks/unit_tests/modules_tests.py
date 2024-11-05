@@ -199,6 +199,29 @@ class TestGoModuleSerialization(unittest.TestCase):
         self.assertEqual(module2.condition, module.condition)
         self.assertEqual(module2.used_by_otel, module.used_by_otel)
 
+    def test_get_default_modules(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            paths = ['pkg/my/module', 'utils/a', 'utils/b']
+            conditions = ['always', 'never', 'always']
+            used_by_otel = [True, False, False]
+
+            # Create modules
+            modules = {
+                path: GoModule(
+                    path=path, targets=['.'], lint_targets=['.'], condition=condition, used_by_otel=used_by_otel
+                )
+                for (path, condition, used_by_otel) in zip(paths, conditions, used_by_otel, strict=True)
+            }
+            for module in modules.values():
+                (tmpdir / module.path).mkdir(parents=True, exist_ok=True)
+                module.to_file(base_dir=tmpdir)
+
+            # Load modules
+            modules_loaded = get_default_modules(base_dir=Path(tmpdir))
+
+            self.assertDictEqual(modules, modules_loaded)
+
 
 class TestGoModulePath(unittest.TestCase):
     def assert_path_equal(self, path1: Path | str, path2: Path | str):
