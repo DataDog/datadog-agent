@@ -536,6 +536,7 @@ int test_connect_af_inet(int argc, char** argv) {
     addr.sin_port = htons(4242);
 
     if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        close(s);
         perror("Failed to connect to port");
         return EXIT_FAILURE;
     }
@@ -582,6 +583,7 @@ int test_connect_af_inet6(int argc, char** argv) {
 
     addr.sin6_port = htons(4242);
     if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        close(s);
         perror("Failed to connect to port");
         return EXIT_FAILURE;
     }
@@ -601,7 +603,7 @@ int test_connect(int argc, char** argv) {
         return test_connect_af_inet(argc - 1, argv + 1);
     } else if  (!strcmp(addr_family, "AF_INET6")) {
         return test_connect_af_inet6(argc - 1, argv + 1);
-    } 
+    }
     fprintf(stderr, "Specified %s addr_type is not a valid one, try: AF_INET or AF_INET6 \n", addr_family);
     return EXIT_FAILURE;
 }

@@ -1,5 +1,19 @@
 
 # Rule to make job manual when running deploy pipelines, or automatic and on success on RC pipelines
+#
+## Note on CI_COMMIT_TAGS
+#
+# The standard(vanilla) agent builds expect COMMIT TAGS that match the following
+# patterns:
+#    - RC: ^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ (eg. 7.60.0-rc.2)
+#    - FINAL: ^[0-9]+\.[0-9]+\.[0-9]$ (eg. 7.60.0)
+#
+#
+# The OTel beta agent builds expect COMMIT TAGS that match the following
+# patterns. These tags will eventually be unrequired once GA is offered:
+#    - RC: ^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ (eg. 7.60.0-v1.1.0-rc.2)
+#    - FINAL: ^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+$ (eg.
+#    7.60.0-v1.1.0)
 .manual_on_deploy_auto_on_rc:
   - if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable"
     when: manual
@@ -28,6 +42,30 @@
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
+.manual_on_deploy_auto_on_rc-ot:
+  - if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable"
+    when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent-dev
+      IMG_REGISTRIES: dev
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/ && $FORCE_MANUAL != "true"
+    when: on_success
+    variables:
+      AGENT_REPOSITORY: agent
+      IMG_REGISTRIES: public
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/ && $FORCE_MANUAL == "true"
+    when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent
+      IMG_REGISTRIES: public
+  - when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent
+      IMG_REGISTRIES: public
+
 # Rule for job that are triggered on_success on RC pipelines
 .on_rc:
   - if: $FORCE_MANUAL == "true" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
@@ -42,6 +80,20 @@
     variables:
       AGENT_REPOSITORY: agent
       DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
+
+# Rule for job that are triggered on_success on RC pipelines for OTel Beta
+.on_rc-ot:
+  - if: $FORCE_MANUAL == "true" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+    when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent
+      IMG_REGISTRIES: public
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+    when: on_success
+    variables:
+      AGENT_REPOSITORY: agent
       IMG_REGISTRIES: public
 
 # Rule for job that can be triggered manually on final build, deploy to prod repository on stable branch deploy, else to dev repository
@@ -62,19 +114,51 @@
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
+# Rule for job that can be triggered manually on final build, deploy to prod repository on stable branch deploy, else to dev repository
+# For OTel Beta builds
+.on_final-ot:
+  - if: $BUCKET_BRANCH == "beta"
+    when: never
+  - if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+$/
+    when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent-dev
+      IMG_REGISTRIES: dev
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+$/
+    when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent
+      IMG_REGISTRIES: public
+
 # Rule to deploy to our internal repository, on stable branch deploy
 .on_internal_final:
   - if: $BUCKET_BRANCH == "beta"
     when: never
   - if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable"
     when: never
-  - when: manual
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+$/
+    when: manual
     allow_failure: true
     variables:
       AGENT_REPOSITORY: ci/datadog-agent/agent-release
       CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
+      IMG_REGISTRIES: internal-aws-ddbuild
+
+# Rule to deploy to our internal repository, on stable branch deploy
+.on_internal_final-ot:
+  - if: $BUCKET_BRANCH == "beta"
+    when: never
+  - if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable"
+    when: never
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+$/
+    when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
       IMG_REGISTRIES: internal-aws-ddbuild
 
 # Rule to deploy to our internal repository on RC
@@ -95,4 +179,18 @@
       CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
+      IMG_REGISTRIES: internal-aws-ddbuild
+
+# Rule to deploy to our internal repository on RC for OTel Agent Beta
+.on_internal_rc-ot:
+  - if: $FORCE_MANUAL == "true" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+    when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      IMG_REGISTRIES: internal-aws-ddbuild
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+    when: on_success
+    variables:
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
       IMG_REGISTRIES: internal-aws-ddbuild

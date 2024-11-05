@@ -26,6 +26,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/types"
+	"go.uber.org/multierr"
 	"golang.org/x/net/http2"
 	httptrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
 
@@ -62,6 +63,19 @@ const (
 const (
 	layerMaxSize        = 3 << 30 // 3GiB
 	extractLayerRetries = 3
+)
+
+var (
+	defaultRegistriesStaging = []string{
+		"install.datad0g.com",
+		"docker.io/datadog",
+	}
+	defaultRegistriesProd = []string{
+		"install.datadoghq.com",
+		"gcr.io/datadoghq",
+		"public.ecr.aws/datadog",
+		"docker.io/datadog",
+	}
 )
 
 // DownloadedPackage is the downloaded package.
@@ -158,6 +172,32 @@ type urlWithKeychain struct {
 	keychain authn.Keychain
 }
 
+// getRefAndKeychains returns the references and their keychains to try in order to download an OCI at the given URL
+func getRefAndKeychains(mainEnv *env.Env, url string) []urlWithKeychain {
+	refAndKeychains := []urlWithKeychain{getRefAndKeychain(mainEnv, url)}
+	defaultRegistries := defaultRegistriesProd
+	if mainEnv.Site == "datad0g.com" {
+		defaultRegistries = defaultRegistriesStaging
+	}
+
+	for _, additionalDefaultRegistry := range defaultRegistries {
+		refAndKeychain := getRefAndKeychain(&env.Env{RegistryOverride: additionalDefaultRegistry}, url)
+		// Deduplicate
+		found := false
+		for _, rk := range refAndKeychains {
+			if rk.ref == refAndKeychain.ref && rk.keychain == refAndKeychain.keychain {
+				found = true
+				break
+			}
+		}
+		if !found {
+			refAndKeychains = append(refAndKeychains, refAndKeychain)
+		}
+	}
+
+	return refAndKeychains
+}
+
 // getRefAndKeychain returns the reference and keychain for the given URL.
 // This function applies potential registry and authentication overrides set either globally or per image.
 func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
@@ -189,17 +229,33 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 	}
 }
 
+// downloadRegistry downloads the image from a remote registry.
+// If they are specified, the registry and authentication overrides are applied first.
+// Then we try each registry in the list of default registries in order and return the first successful download.
 func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Image, error) {
-	refAndKeychain := getRefAndKeychain(d.env, url)
-	ref, err := name.ParseReference(refAndKeychain.ref)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse reference: %w", err)
+	var multiErr error
+	for _, refAndKeychain := range getRefAndKeychains(d.env, url) {
+		log.Debugf("Downloading index from %s", refAndKeychain.ref)
+		ref, err := name.ParseReference(refAndKeychain.ref)
+		if err != nil {
+			multiErr = multierr.Append(multiErr, fmt.Errorf("could not parse reference: %w", err))
+			log.Warnf("could not parse reference: %s", err.Error())
+			continue
+		}
+		index, err := remote.Index(
+			ref,
+			remote.WithContext(ctx),
+			remote.WithAuthFromKeychain(refAndKeychain.keychain),
+			remote.WithTransport(httptrace.WrapRoundTripper(d.client.Transport)),
+		)
+		if err != nil {
+			multiErr = multierr.Append(multiErr, fmt.Errorf("could not download image using %s: %w", url, err))
+			log.Warnf("could not download image using %s: %s", url, err.Error())
+			continue
+		}
+		return d.downloadIndex(index)
 	}
-	index, err := remote.Index(ref, remote.WithContext(ctx), remote.WithAuthFromKeychain(refAndKeychain.keychain), remote.WithTransport(httptrace.WrapRoundTripper(d.client.Transport)))
-	if err != nil {
-		return nil, fmt.Errorf("could not download image: %w", err)
-	}
-	return d.downloadIndex(index)
+	return nil, fmt.Errorf("could not download image from any registry: %w", multiErr)
 }
 
 func (d *Downloader) downloadFile(path string) (oci.Image, error) {
@@ -295,9 +351,9 @@ func (d *DownloadedPackage) WriteOCILayout(dir string) error {
 func PackageURL(env *env.Env, pkg string, version string) string {
 	switch env.Site {
 	case "datad0g.com":
-		return fmt.Sprintf("oci://docker.io/datadog/%s-package-dev:%s", strings.TrimPrefix(pkg, "datadog-"), version)
+		return fmt.Sprintf("oci://install.datad0g.com/%s-package-dev:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 	default:
-		return fmt.Sprintf("oci://gcr.io/datadoghq/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
+		return fmt.Sprintf("oci://install.datadoghq.com/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 	}
 }
 

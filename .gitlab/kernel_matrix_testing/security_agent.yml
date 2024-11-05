@@ -85,7 +85,7 @@ upload_secagent_tests_x64:
   extends:
     - .upload_secagent_tests
   needs: ["go_deps", "prepare_secagent_ebpf_functional_tests_x64"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     ARCH: x86_64
@@ -95,7 +95,7 @@ upload_secagent_tests_arm64:
   extends:
     - .upload_secagent_tests
   needs: ["go_deps", "prepare_secagent_ebpf_functional_tests_arm64"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
     ARCH: arm64
@@ -113,7 +113,7 @@ upload_secagent_tests_arm64:
 kmt_run_secagent_tests_x64:
   extends:
     - .kmt_run_secagent_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
     - kmt_setup_env_secagent_x64
@@ -127,7 +127,6 @@ kmt_run_secagent_tests_x64:
           - "ubuntu_18.04"
           - "ubuntu_20.04"
           - "ubuntu_22.04"
-          - "ubuntu_23.10"
           - "ubuntu_24.04"
           - "ubuntu_24.10"
           - "amazon_4.14"
@@ -155,7 +154,7 @@ kmt_run_secagent_tests_x64:
 kmt_run_secagent_tests_x64_ad:
   extends:
     - .kmt_run_secagent_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
     - kmt_setup_env_secagent_x64
@@ -175,7 +174,7 @@ kmt_run_secagent_tests_x64_ad:
 kmt_run_secagent_tests_x64_ebpfless:
   extends:
     - .kmt_run_secagent_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
     - kmt_setup_env_secagent_x64
@@ -195,7 +194,7 @@ kmt_run_secagent_tests_x64_ebpfless:
 kmt_run_secagent_tests_x64_fentry:
   extends:
     - .kmt_run_secagent_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
     - kmt_setup_env_secagent_x64
@@ -215,7 +214,7 @@ kmt_run_secagent_tests_x64_fentry:
 kmt_run_secagent_tests_x64_docker:
   extends:
     - .kmt_run_secagent_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
     - kmt_setup_env_secagent_x64
@@ -229,7 +228,6 @@ kmt_run_secagent_tests_x64_docker:
           - "ubuntu_18.04"
           - "ubuntu_20.04"
           - "ubuntu_22.04"
-          - "ubuntu_23.10"
           - "ubuntu_24.04"
           - "ubuntu_24.10"
           - "amazon_4.14"
@@ -254,7 +252,7 @@ kmt_run_secagent_tests_x64_docker:
 kmt_run_secagent_tests_arm64:
   extends:
     - .kmt_run_secagent_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
   needs:
     - kmt_setup_env_secagent_arm64
@@ -266,7 +264,6 @@ kmt_run_secagent_tests_arm64:
     matrix:
       - TAG:
           - "ubuntu_22.04"
-          - "ubuntu_23.10"
           - "ubuntu_24.04"
           - "ubuntu_24.10"
           - "amazon_5.4"
@@ -289,7 +286,7 @@ kmt_run_secagent_tests_arm64:
 kmt_run_secagent_tests_arm64_ad:
   extends:
     - .kmt_run_secagent_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
   needs:
     - kmt_setup_env_secagent_arm64
@@ -309,7 +306,7 @@ kmt_run_secagent_tests_arm64_ad:
 kmt_run_secagent_tests_arm64_ebpfless:
   extends:
     - .kmt_run_secagent_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
   needs:
     - kmt_setup_env_secagent_arm64
@@ -329,7 +326,7 @@ kmt_run_secagent_tests_arm64_ebpfless:
 kmt_run_secagent_tests_arm64_fentry:
   extends:
     - .kmt_run_secagent_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
   needs:
     - kmt_setup_env_secagent_arm64
@@ -349,7 +346,7 @@ kmt_run_secagent_tests_arm64_fentry:
 kmt_run_secagent_tests_arm64_docker:
   extends:
     - .kmt_run_secagent_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
   needs:
     - kmt_setup_env_secagent_arm64
@@ -361,7 +358,6 @@ kmt_run_secagent_tests_arm64_docker:
     matrix:
       - TAG:
           - "ubuntu_22.04"
-          - "ubuntu_23.10"
           - "ubuntu_24.04"
           - "ubuntu_24.10"
           - "amazon_5.4"
