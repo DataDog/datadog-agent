@@ -454,11 +454,17 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	}
 
 	var iter uint32
+
+	// this loop inserts the lock_ranges we have previously collected
+	// into the per-cpu map `ranges`. We perform the update in batches
+	// of size `batchSize`.
 	for iter = 0; iter < (ranges/batchSize)+1; iter++ {
 		keys := make([]uint32, batchSize)
 		values := make([]LockRange, cpus*batchSize)
 
 		var i, j uint32
+
+		// this loop builds the `values` and `keys` slices for this batch
 		for i = 0; i < batchSize; i++ {
 			key := (iter * batchSize) + i
 			if key >= ranges {
@@ -466,6 +472,9 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 			}
 
 			keys[i] = key
+
+			// Since `ranges` is a per-cpu map we need to duplicate each entry
+			// for the number of CPUs on this system
 			for j = 0; j < cpus; j++ {
 				values[(j*batchSize)+i] = lockRanges[key]
 			}
