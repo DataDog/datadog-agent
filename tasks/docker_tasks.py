@@ -62,7 +62,7 @@ ARG COMPOSE_VERSION=2.26.1
 ARG COMPOSE_SHA256=2f61856d1b8c9de29ffdaedaa1c6d0a5fc5c79da45068f1f4310feed8d3a3f61
 RUN apt-get update && apt-get install -y ca-certificates curl
 RUN curl -SL "https://github.com/docker/compose/releases/download/v${COMPOSE_VERSION}/docker-compose-linux-x86_64" -o /usr/bin/compose
-RUN echo "${COMPOSE_SHA} /usr/bin/compose" | sha256sum --check
+RUN echo "${COMPOSE_SHA256} /usr/bin/compose" | sha256sum --check
 RUN chmod +x /usr/bin/compose
 
 # Final settings
