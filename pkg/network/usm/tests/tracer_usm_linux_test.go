@@ -693,7 +693,6 @@ func TestFullMonitorWithTracer(t *testing.T) {
 
 	tr, err := tracer.NewTracer(cfg, nil)
 	require.NoError(t, err)
-
 	t.Cleanup(tr.Stop)
 
 	require.NoError(t, tr.RegisterClient(clientID))
