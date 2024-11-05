@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 
 	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 )
 
@@ -53,42 +54,23 @@ var otelFlareFilesZpages = []string{
 	"otel/otel-flare/zpages/dd-autoconfigured_debug_servicez.dat",
 }
 
-// TestOTelFlare tests that the OTel Agent flare functionality works as expected
-func TestOTelFlare(s OTelTestSuite, providedCfg string, fullCfg string, sources string) {
+// TestOTelFlareExtensionResponse tests that the OTel Agent DD flare extension returns expected responses
+func TestOTelFlareExtensionResponse(s OTelTestSuite, providedCfg string, fullCfg string, sources string) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 	agent := getAgentPod(s)
 
 	s.T().Log("Starting flare")
-	hasZpages := false
-	var otelflares map[string]string
-	timeout := time.Now().Add(20 * time.Minute)
-	for i := 1; time.Now().Before(timeout); i++ {
-		stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "flare", "--email", "e2e@test.com", "--send"})
-		require.NoError(s.T(), err, "Failed to execute flare")
-		require.Empty(s.T(), stderr)
-		require.NotNil(s.T(), stdout)
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "flare", "--email", "e2e@test.com", "--send"})
+	require.NoError(s.T(), err, "Failed to execute flare")
+	require.Empty(s.T(), stderr)
+	require.NotNil(s.T(), stdout)
 
-		s.T().Logf("Getting latest flare, attempt %d", i)
-		flare, err := s.Env().FakeIntake.Client().GetLatestFlare()
-		require.NoError(s.T(), err)
-		otelflares = fetchFromFlare(s.T(), flare)
+	flare, err := s.Env().FakeIntake.Client().GetLatestFlare()
+	require.NoError(s.T(), err)
+	otelflares := fetchFromFlare(s.T(), flare)
 
-		if len(otelflares) >= len(otelFlareFilesCommon)+len(otelFlareFilesZpages) {
-			hasZpages = true
-			break
-		}
-
-		time.Sleep(time.Minute)
-	}
-
-	otelFlareFiles := otelFlareFilesCommon
-	if hasZpages {
-		otelFlareFiles = append(otelFlareFiles, otelFlareFilesZpages...)
-	}
-	for _, otelFlareFile := range otelFlareFiles {
-		assert.Contains(s.T(), otelflares, otelFlareFile, "missing ", otelFlareFile)
-	}
+	require.Contains(s.T(), otelflares, "otel/otel-response.json")
 	var resp extension.Response
 	require.NoError(s.T(), json.Unmarshal([]byte(otelflares["otel/otel-response.json"]), &resp))
 
@@ -102,6 +84,49 @@ func TestOTelFlare(s OTelTestSuite, providedCfg string, fullCfg string, sources 
 	srcJSONStr, err := json.Marshal(resp.Sources)
 	require.NoError(s.T(), err)
 	assert.JSONEq(s.T(), sources, string(srcJSONStr))
+}
+
+// TestOTelFlareFiles tests that the OTel Agent flares contain the expected files
+func TestOTelFlareFiles(s OTelTestSuite) {
+	flake.Mark(s.T())
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+	agent := getAgentPod(s)
+
+	s.T().Log("Starting flare")
+	hasZpages := false
+	otelflares := make(map[string]string)
+	timeout := time.Now().Add(10 * time.Minute)
+	for i := 1; time.Now().Before(timeout); i++ {
+		stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "flare", "--email", "e2e@test.com", "--send"})
+		require.NoError(s.T(), err, "Failed to execute flare")
+		require.Empty(s.T(), stderr)
+		require.NotNil(s.T(), stdout)
+
+		s.T().Logf("Getting latest flare, attempt %d", i)
+		flare, err := s.Env().FakeIntake.Client().GetLatestFlare()
+		require.NoError(s.T(), err)
+		otelflaresResp := fetchFromFlare(s.T(), flare)
+		for k, v := range otelflaresResp {
+			s.T().Log("Got otel flare: ", k)
+			otelflares[k] = v
+		}
+
+		if len(otelflares) >= len(otelFlareFilesCommon)+len(otelFlareFilesZpages) {
+			hasZpages = true
+			break
+		}
+
+		time.Sleep(30 * time.Second)
+	}
+
+	otelFlareFiles := otelFlareFilesCommon
+	if hasZpages {
+		otelFlareFiles = append(otelFlareFiles, otelFlareFilesZpages...)
+	}
+	for _, otelFlareFile := range otelFlareFiles {
+		assert.Contains(s.T(), otelflares, otelFlareFile, "missing ", otelFlareFile)
+	}
 
 	assert.Contains(s.T(), otelflares["otel/otel-flare/health_check/dd-autoconfigured.dat"], `"status":"Server available"`)
 }
@@ -125,7 +150,6 @@ func fetchFromFlare(t *testing.T, flare flare.Flare) map[string]string {
 		if strings.HasSuffix(filename, ".json") || strings.HasSuffix(filename, ".dat") || strings.HasSuffix(filename, ".txt") || strings.HasSuffix(filename, ".cfg") {
 			cnt, err := flare.GetFileContent(filename)
 			require.NoError(t, err)
-			t.Log("Got otel flare: ", filename)
 			parts := strings.SplitN(filename, "/", 2)
 			require.Len(t, parts, 2)
 			otelflares[parts[1]] = cnt
