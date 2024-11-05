@@ -53,6 +53,7 @@ type k8sSuite struct {
 
 func (suite *k8sSuite) SetupSuite() {
 	suite.baseSuite.SetupSuite()
+	suite.clusterName = suite.Env().KubernetesCluster.ClusterName
 }
 
 func (suite *k8sSuite) TearDownSuite() {
