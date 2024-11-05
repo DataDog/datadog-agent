@@ -9,3 +9,16 @@ func IsEnabled() bool {
 func GetGroup() string {
 	return pkgconfigsetup.Datadog().GetString("ha_agent.group")
 }
+
+func getHAIntegrations() []string {
+	return pkgconfigsetup.Datadog().GetStringSlice("ha_agent.integrations")
+}
+
+func IsHAIntegration(integrationName string) bool {
+	for _, name := range getHAIntegrations() {
+		if name == integrationName {
+			return true
+		}
+	}
+	return false
+}
