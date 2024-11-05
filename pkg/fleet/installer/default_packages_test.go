@@ -279,3 +279,64 @@ func TestDefaultPackages(t *testing.T) {
 		})
 	}
 }
+
+func TestAgentVersion(t *testing.T) {
+	type testCase struct {
+		name           string
+		majorVersion   string
+		minorVersions  string
+		expectedResult string
+	}
+
+	tests := []testCase{
+		{
+			name:           "No version",
+			majorVersion:   "",
+			minorVersions:  "",
+			expectedResult: "latest",
+		},
+		{
+			name:           "Major version only",
+			majorVersion:   "7",
+			minorVersions:  "",
+			expectedResult: "latest",
+		},
+		{
+			name:           "Major, minor+patch version",
+			majorVersion:   "7",
+			minorVersions:  "42.0",
+			expectedResult: "7.42.0-1",
+		},
+		{
+			name:           "Major, minor version",
+			majorVersion:   "7",
+			minorVersions:  "42",
+			expectedResult: "7.42",
+		},
+		{
+			name:           "minor+patch",
+			minorVersions:  "42.0",
+			expectedResult: "7.42.0-1",
+		},
+		{
+			name:           "minor+patch-1",
+			minorVersions:  "42.0-1",
+			expectedResult: "7.42.0-1",
+		},
+		{
+			name:           "minor only",
+			minorVersions:  "42",
+			expectedResult: "7.42",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := &env.Env{
+				AgentMajorVersion: tt.majorVersion,
+				AgentMinorVersion: tt.minorVersions,
+			}
+			res := agentVersion(Package{}, e)
+			assert.Equal(t, tt.expectedResult, res)
+		})
+	}
+}

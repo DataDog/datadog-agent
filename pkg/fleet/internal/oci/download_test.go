@@ -122,12 +122,12 @@ func TestGetRefAndKeychain(t *testing.T) {
 	}
 
 	tests := []test{
-		{url: "docker.io/datadog/agent-package-dev:latest", expectedRef: "docker.io/datadog/agent-package-dev:latest", expectedKeychain: authn.DefaultKeychain},
+		{url: "install.datad0g.com/agent-package-dev:latest", expectedRef: "install.datad0g.com/agent-package-dev:latest", expectedKeychain: authn.DefaultKeychain},
 		{url: "gcr.io/datadoghq/agent-package@sha256:1234", expectedRef: "gcr.io/datadoghq/agent-package@sha256:1234", expectedKeychain: authn.DefaultKeychain},
-		{url: "docker.io/datadog/agent-package-dev:latest", registryOverride: "fake.io", expectedRef: "fake.io/agent-package-dev:latest", expectedKeychain: authn.DefaultKeychain},
+		{url: "install.datad0g.com/agent-package-dev:latest", registryOverride: "fake.io", expectedRef: "fake.io/agent-package-dev:latest", expectedKeychain: authn.DefaultKeychain},
 		{url: "gcr.io/datadoghq/agent-package@sha256:1234", registryOverride: "fake.io", expectedRef: "fake.io/agent-package@sha256:1234", expectedKeychain: authn.DefaultKeychain},
 		{
-			url:                "docker.io/datadog/agent-package-dev:latest",
+			url:                "install.datad0g.com/agent-package-dev:latest",
 			regOverrideByImage: map[string]string{"agent-package-dev": "fake.io"},
 			expectedRef:        "fake.io/agent-package-dev:latest",
 			expectedKeychain:   authn.DefaultKeychain,
