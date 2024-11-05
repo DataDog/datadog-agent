@@ -26,8 +26,8 @@ class GoModuleDumper(yaml.SafeDumper):
 class GoModule:
     """A Go module abstraction.
 
-    Documentation:
-        TODO: https://path/to/documentation
+    See:
+        Documentation can be found in <docs/dev/modules.md>.
 
     Args:
         independent: specifies whether this modules is supposed to exist independently of the datadog-agent module. If True, a check will run to ensure this is true.
