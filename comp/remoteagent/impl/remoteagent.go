@@ -64,7 +64,7 @@ func newRemoteAgent(deps dependencies) remoteagent.Component {
 
 	deps.Lifecycle.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			go comp.Start()
+			go comp.start()
 			return nil
 		},
 		OnStop: func(context.Context) error {
@@ -99,8 +99,8 @@ func (ra *RemoteAgent) RegisterRemoteAgent(registration *remoteagent.Registratio
 	//
 	// If either of them are different, then we remove the old remote agent and add the new one. If they're the same,
 	// then we just update the last seen time and move on.
-	id := util.SanitizeAgentID(registration.ID)
-	entry, ok := ra.agentMap[id]
+	agentID := util.SanitizeAgentID(registration.AgentID)
+	entry, ok := ra.agentMap[agentID]
 	if !ok {
 		// We've got a brand new remote agent, so do a sanity check by trying to connect to their gRPC endpoint and if
 		// that works, add them to the registry.
@@ -109,8 +109,8 @@ func (ra *RemoteAgent) RegisterRemoteAgent(registration *remoteagent.Registratio
 			return 0, err
 		}
 
-		log.Infof("Remote agent '%s' registered.", id)
-		ra.agentMap[id] = details
+		log.Infof("Remote agent '%s' registered.", agentID)
+		ra.agentMap[agentID] = details
 		return remoteAgentRecommendedRefreshIntervalSecond, nil
 	}
 
@@ -133,7 +133,7 @@ func (ra *RemoteAgent) RegisterRemoteAgent(registration *remoteagent.Registratio
 }
 
 // Start starts the remote agent registry, which periodically checks for idle remote agents and deregisters them.
-func (ra *RemoteAgent) Start() {
+func (ra *RemoteAgent) start() {
 	go func() {
 		log.Info("Remote Agent registry started.")
 
@@ -147,7 +147,6 @@ func (ra *RemoteAgent) Start() {
 				return
 			case <-ticker.C:
 				ra.agentMapMu.Lock()
-				defer ra.agentMapMu.Unlock()
 
 				agentsToRemove := make([]string, 0)
 				for id, details := range ra.agentMap {
@@ -160,30 +159,50 @@ func (ra *RemoteAgent) Start() {
 					delete(ra.agentMap, id)
 					log.Infof("Remote agent '%s' deregistered after being idle for %s.", id, remoteAgentIdleTimeout)
 				}
+
+				ra.agentMapMu.Unlock()
 			}
 		}
 	}()
 }
 
-// GetAgentStatusMap returns the status of all registered remote agents.
-func (ra *RemoteAgent) GetAgentStatusMap() map[string]*remoteagent.StatusData {
+// GetRegisteredAgents returns the list of registered remote agents.
+func (ra *RemoteAgent) GetRegisteredAgents() []*remoteagent.RegisteredAgent {
+	ra.agentMapMu.Lock()
+	defer ra.agentMapMu.Unlock()
+
+	agents := make([]*remoteagent.RegisteredAgent, 0, len(ra.agentMap))
+	for _, details := range ra.agentMap {
+		agents = append(agents, &remoteagent.RegisteredAgent{
+			DisplayName:  details.displayName,
+			LastSeenUnix: details.lastSeen.Unix(),
+		})
+	}
+
+	return agents
+}
+
+// GetRegisteredAgentStatuses returns the status of all registered remote agents.
+func (ra *RemoteAgent) GetRegisteredAgentStatuses() []*remoteagent.StatusData {
 	ra.agentMapMu.Lock()
 
 	agentsLen := len(ra.agentMap)
 	statusMap := make(map[string]*remoteagent.StatusData, agentsLen)
+	agentStatuses := make([]*remoteagent.StatusData, 0, agentsLen)
 
 	// Return early if we have no registered remote agents.
 	if agentsLen == 0 {
-		return statusMap
+		ra.agentMapMu.Unlock()
+		return agentStatuses
 	}
 
 	// We preload the status map with a response that indicates timeout, since we want to ensure there's an entry for
 	// every registered remote agent even if we don't get a response back (whether good or bad) from them.
-	for id, details := range ra.agentMap {
-		statusMap[id] = &remoteagent.StatusData{
-			AgentID:       id,
+	for agentID, details := range ra.agentMap {
+		statusMap[agentID] = &remoteagent.StatusData{
+			AgentID:       agentID,
 			DisplayName:   details.displayName,
-			FailureReason: fmt.Sprintf("Timed out waiting for status response for %s.", remoteAgentQueryTimeout),
+			FailureReason: fmt.Sprintf("Timed out after waiting %s for response.", remoteAgentQueryTimeout),
 		}
 	}
 
@@ -192,7 +211,7 @@ func (ra *RemoteAgent) GetAgentStatusMap() map[string]*remoteagent.StatusData {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	for id, details := range ra.agentMap {
+	for agentID, details := range ra.agentMap {
 		displayName := details.displayName
 
 		go func() {
@@ -200,36 +219,43 @@ func (ra *RemoteAgent) GetAgentStatusMap() map[string]*remoteagent.StatusData {
 			resp, err := details.client.GetStatusDetails(ctx, &pb.GetStatusDetailsRequest{}, grpc.WaitForReady(true))
 			if err != nil {
 				data <- &remoteagent.StatusData{
-					AgentID:       id,
+					AgentID:       agentID,
 					DisplayName:   displayName,
 					FailureReason: fmt.Sprintf("Failed to query for status: %v", err),
 				}
 				return
 			}
 
-			data <- raproto.ProtobufToStatusData(id, displayName, resp)
+			data <- raproto.ProtobufToStatusData(agentID, displayName, resp)
 		}()
 	}
 
 	ra.agentMapMu.Unlock()
 
 	timeout := time.After(remoteAgentQueryTimeout)
+	responsesRemaining := agentsLen
 
 collect:
 	for {
 		select {
 		case statusData := <-data:
 			statusMap[statusData.AgentID] = statusData
+			responsesRemaining--
 		case <-timeout:
 			break collect
 		default:
-			if len(statusMap) == agentsLen {
+			if responsesRemaining == 0 {
 				break collect
 			}
 		}
 	}
 
-	return statusMap
+	// Migrate the final status data from the map into our slice, for easier consumption.
+	for _, statusData := range statusMap {
+		agentStatuses = append(agentStatuses, statusData)
+	}
+
+	return agentStatuses
 }
 
 func (ra *RemoteAgent) fillFlare(builder flarebuilder.FlareBuilder) error {
@@ -240,6 +266,7 @@ func (ra *RemoteAgent) fillFlare(builder flarebuilder.FlareBuilder) error {
 
 	// Return early if we have no registered remote agents.
 	if agentsLen == 0 {
+		ra.agentMapMu.Unlock()
 		return nil
 	}
 
@@ -248,48 +275,50 @@ func (ra *RemoteAgent) fillFlare(builder flarebuilder.FlareBuilder) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	for id, details := range ra.agentMap {
+	for agentID, details := range ra.agentMap {
 		go func() {
 			// We push any errors into "failure reason" which ends up getting shown in the status details.
 			resp, err := details.client.GetFlareFiles(ctx, &pb.GetFlareFilesRequest{}, grpc.WaitForReady(true))
 			if err != nil {
-				log.Warnf("Failed to query remote agent '%s' for flare data: %v", id, err)
+				log.Warnf("Failed to query remote agent '%s' for flare data: %v", agentID, err)
 				data <- nil
 				return
 			}
 
-			data <- raproto.ProtobufToFlareData(id, resp)
+			data <- raproto.ProtobufToFlareData(agentID, resp)
 		}()
 	}
 
 	ra.agentMapMu.Unlock()
 
 	timeout := time.After(remoteAgentQueryTimeout)
+	responsesRemaining := agentsLen
 
 collect:
 	for {
 		select {
 		case flareData := <-data:
 			flareMap[flareData.AgentID] = flareData
+			responsesRemaining--
 		case <-timeout:
 			break collect
 		default:
-			if len(flareMap) == agentsLen {
+			if responsesRemaining == 0 {
 				break collect
 			}
 		}
 	}
 
 	// We've collected all the flare data we can, so now we add it to the flare builder.
-	for id, flareData := range flareMap {
+	for agentID, flareData := range flareMap {
 		if flareData == nil {
 			continue
 		}
 
 		for fileName, fileData := range flareData.Files {
-			err := builder.AddFile(fmt.Sprintf("remote-agent/%s/%s", id, util.SanitizeFileName(fileName)), fileData)
+			err := builder.AddFile(fmt.Sprintf("%s/%s", agentID, util.SanitizeFileName(fileName)), fileData)
 			if err != nil {
-				return fmt.Errorf("failed to add file '%s' from remote agent '%s' to flare: %w", fileName, id, err)
+				return fmt.Errorf("failed to add file '%s' from remote agent '%s' to flare: %w", fileName, agentID, err)
 			}
 		}
 	}

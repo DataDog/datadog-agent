@@ -7,6 +7,7 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
@@ -38,6 +39,18 @@ func AuthInterceptor(verifier verifierFunc) grpc_auth.AuthFunc {
 
 		return context.WithValue(ctx, grpccontext.ContextKeyTokenInfoID, tokenInfo), nil
 	}
+}
+
+// StaticAuthInterceptor is a gRPC interceptor that extracts an auth token from the request headers, and validates it
+// using the given token.
+func StaticAuthInterceptor(token string) grpc_auth.AuthFunc {
+	return AuthInterceptor(func(reqToken string) (interface{}, error) {
+		if reqToken != token {
+			return struct{}{}, errors.New("invalid session token")
+		}
+
+		return struct{}{}, nil
+	})
 }
 
 type bearerTokenAuth struct {

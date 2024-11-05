@@ -14,7 +14,7 @@ import (
 // ProtobufToRemoteAgentRegistration converts the protobuf representation of a remote agent registration to the internal type.
 func ProtobufToRemoteAgentRegistration(in *pb.RegisterRemoteAgentRequest) *remoteagent.RegistrationData {
 	return &remoteagent.RegistrationData{
-		ID:          in.Id,
+		AgentID:     in.Id,
 		DisplayName: in.DisplayName,
 		APIEndpoint: in.ApiEndpoint,
 		AuthToken:   in.AuthToken,

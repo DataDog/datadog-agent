@@ -16,7 +16,8 @@ import (
 
 // populateStatus populates the status stats
 func populateStatus(ac remoteagent.Component, stats map[string]interface{}) {
-	stats["agentStatusMap"] = ac.GetAgentStatusMap()
+	stats["registeredAgents"] = ac.GetRegisteredAgents()
+	stats["registeredAgentStatuses"] = ac.GetRegisteredAgentStatuses()
 }
 
 //go:embed status_templates

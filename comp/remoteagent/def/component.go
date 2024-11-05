@@ -12,5 +12,6 @@ package remoteagent
 // Component is the component type.
 type Component interface {
 	RegisterRemoteAgent(req *RegistrationData) (uint32, error)
-	GetAgentStatusMap() map[string]*StatusData
+	GetRegisteredAgents() []*RegisteredAgent
+	GetRegisteredAgentStatuses() []*StatusData
 }

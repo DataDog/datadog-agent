@@ -1,4 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
 package remoteagent
+
+// RegisteredAgent contains the information about a registered remote agent
+type RegisteredAgent struct {
+	DisplayName  string
+	LastSeenUnix int64
+}
 
 // StatusSection is a map of key-value pairs that represent a section of the status data
 type StatusSection map[string]string
@@ -20,7 +31,7 @@ type FlareData struct {
 
 // RegistrationData contains the registration information for a remote agent
 type RegistrationData struct {
-	ID          string
+	AgentID     string
 	DisplayName string
 	APIEndpoint string
 	AuthToken   string
