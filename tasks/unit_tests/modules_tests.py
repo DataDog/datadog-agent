@@ -219,6 +219,12 @@ class TestGoModuleSerialization(unittest.TestCase):
         self.assertEqual(module2.used_by_otel, module.used_by_otel)
 
     def test_get_default_modules(self):
+        # Ensure modules are loaded
+        modules = get_default_modules()
+
+        self.assertGreater(len(modules), 0)
+
+    def test_get_default_modules_base(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = Path(tmpdir)
             paths = ['pkg/my/module', 'utils/a', 'utils/b']
