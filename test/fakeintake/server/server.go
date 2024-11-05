@@ -381,7 +381,7 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 func (fi *Server) forwardRequestToDDDev(req *http.Request, payload []byte) error {
 	forwardEndpoint := fi.forwardEndpoint
 
-	if req.URL.Path == "/api/v2/logs" {
+	if req.URL.Path == "/api/v2/logs" || req.URL.Path == "/v1/input" {
 		forwardEndpoint = fi.logForwardEndpoint
 	}
 
