@@ -9,8 +9,9 @@ from collections.abc import Iterable
 from tasks.flavor import AgentFlavor
 from tasks.libs.civisibility import get_test_link_to_test_on_main
 from tasks.libs.common.color import color_message
+from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.utils import running_in_ci
-from tasks.modules import DEFAULT_MODULES, GoModule
+from tasks.modules import GoModule
 
 
 class ModuleResult(abc.ABC):
@@ -182,13 +183,13 @@ def process_input_args(
         if isinstance(input_targets, str):
             modules = [GoModule(input_module, targets=input_targets.split(','))]
         else:
-            modules = [m for m in DEFAULT_MODULES.values() if m.path == input_module]
+            modules = [m for m in get_default_modules().values() if m.path == input_module]
     elif isinstance(input_targets, str):
         modules = [GoModule(".", targets=input_targets.split(','))]
     else:
         if not headless_mode:
             print("Using default modules and targets")
-        modules = DEFAULT_MODULES.values()
+        modules = get_default_modules().values()
 
     flavor = AgentFlavor.base
     if input_flavor:

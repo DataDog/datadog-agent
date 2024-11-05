@@ -24,10 +24,11 @@ from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
 from tasks.libs.common.go import download_go_dependencies
+from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
 from tasks.licenses import get_licenses_list
-from tasks.modules import DEFAULT_MODULES, generate_dummy_package
+from tasks.modules import generate_dummy_package
 
 GOOS_MAPPING = {
     "win32": "windows",
@@ -102,7 +103,7 @@ def internal_deps_checker(ctx, formatFile=False):
     """
     repo_path = os.getcwd()
     extra_params = "--formatFile true" if formatFile else ""
-    for mod in DEFAULT_MODULES.values():
+    for mod in get_default_modules().values():
         ctx.run(
             f"go run ./internal/tools/modformatter/modformatter.go --path={mod.full_path()} --repoPath={repo_path} {extra_params}"
         )
@@ -113,7 +114,7 @@ def deps(ctx, verbose=False):
     """
     Setup Go dependencies
     """
-    paths = [mod.full_path() for mod in DEFAULT_MODULES.values()]
+    paths = [mod.full_path() for mod in get_default_modules().values()]
     download_go_dependencies(ctx, paths, verbose=verbose)
 
 
@@ -360,7 +361,7 @@ def reset(ctx):
 @task
 def check_go_mod_replaces(_):
     errors_found = set()
-    for mod in DEFAULT_MODULES.values():
+    for mod in get_default_modules().values():
         go_sum = os.path.join(mod.full_path(), "go.sum")
         if not os.path.exists(go_sum):
             continue
@@ -385,7 +386,7 @@ def check_go_mod_replaces(_):
 def check_mod_tidy(ctx, test_folder="testmodule"):
     with generate_dummy_package(ctx, test_folder) as dummy_folder:
         errors_found = []
-        for mod in DEFAULT_MODULES.values():
+        for mod in get_default_modules().values():
             with ctx.cd(mod.full_path()):
                 ctx.run("go mod tidy")
 
@@ -398,7 +399,7 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
                 if res.exited is None or res.exited > 0:
                     errors_found.append(f"go.mod or go.sum for {mod.import_path} module is out of sync")
 
-        for mod in DEFAULT_MODULES.values():
+        for mod in get_default_modules().values():
             # Ensure that none of these modules import the datadog-agent main module.
             if mod.independent:
                 ctx.run(f"go run ./internal/tools/independent-lint/independent.go --path={mod.full_path()}")
@@ -438,7 +439,7 @@ def tidy(ctx):
 
     # Note: It's currently faster to tidy everything than looking for exactly what we should tidy
     promises = []
-    for mod in DEFAULT_MODULES.values():
+    for mod in get_default_modules().values():
         with ctx.cd(mod.full_path()):
             # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
             promises.append(ctx.run("go mod tidy", asynchronous=True))
@@ -469,7 +470,7 @@ def go_fix(ctx, fix=None):
         fixarg = f" -fix {fix}"
     oslist = ["linux", "windows", "darwin"]
 
-    for mod in DEFAULT_MODULES.values():
+    for mod in get_default_modules().values():
         with ctx.cd(mod.full_path()):
             for osname in oslist:
                 tags = set(ALL_TAGS).union({osname, "ebpf_bindata"})
@@ -510,15 +511,15 @@ def add_go_module(path):
     """
     Add go module to modules.py
     """
-    print(color_message("Updating DEFAULT_MODULES within modules.py", "blue"))
+    print(color_message("Updating get_default_modules() within modules.py", "blue"))
     modules_path = tasks.modules.__file__
     with open(modules_path) as f:
         modulespy = f.read()
 
-    modulespy_regex = re.compile(r"DEFAULT_MODULES = {\n(.+?)\n}", re.DOTALL | re.MULTILINE)
+    modulespy_regex = re.compile(r"get_default_modules() = {\n(.+?)\n}", re.DOTALL | re.MULTILINE)
 
     all_modules_match = modulespy_regex.search(modulespy)
-    assert all_modules_match, "Could not find DEFAULT_MODULES in modules.py"
+    assert all_modules_match, "Could not find get_default_modules() in modules.py"
     all_modules = all_modules_match.group(1)
     all_modules = all_modules.split('\n')
     indent = ' ' * 4
@@ -670,7 +671,7 @@ def mod_diffs(_, targets):
     """
     # Find all go.mod files in the repo
     all_go_mod_files = []
-    for module in DEFAULT_MODULES:
+    for module in get_default_modules():
         all_go_mod_files.append(os.path.join(module, 'go.mod'))
 
     # Validate the provided targets

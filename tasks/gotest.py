@@ -31,6 +31,7 @@ from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
+from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import (
     clean_nested_paths,
@@ -39,7 +40,7 @@ from tasks.libs.common.utils import (
     running_in_ci,
 )
 from tasks.libs.releasing.json import _get_release_json_value
-from tasks.modules import DEFAULT_MODULES, GoModule, get_module_by_path
+from tasks.modules import GoModule, get_module_by_path
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.testwasher import TestWasher
 from tasks.trace_agent import integration_tests as trace_integration_tests
@@ -514,7 +515,7 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
         if (
             len(modules_to_test[module].targets) >= WINDOWS_MAX_PACKAGES_NUMBER
         ):  # With more packages we can reach the limit of the command line length on Windows
-            modules_to_test[module].targets = DEFAULT_MODULES[module].targets
+            modules_to_test[module].targets = get_default_modules()[module].targets
 
     print("Running tests for the following modules:")
     for module in modules_to_test:
@@ -666,7 +667,7 @@ def get_impacted_packages(ctx, build_tags=None):
     # Some files like tasks/gotest.py should trigger all tests
     if should_run_all_tests(ctx, TRIGGER_ALL_TESTS_PATHS):
         print(f"Triggering all tests because a file matching one of the {TRIGGER_ALL_TESTS_PATHS} was modified")
-        return DEFAULT_MODULES.values()
+        return get_default_modules().values()
 
     modified_packages = {f"github.com/DataDog/datadog-agent/{os.path.dirname(file)}" for file in files}
 
@@ -698,7 +699,7 @@ def create_dependencies(ctx, build_tags=None):
     if build_tags is None:
         build_tags = []
     modules_deps = defaultdict(set)
-    for modules in DEFAULT_MODULES:
+    for modules in get_default_modules():
         with ctx.cd(modules):
             res = ctx.run(
                 'go list '
@@ -751,12 +752,12 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
         module_path = get_go_module(package)
 
         # Check if the module is in the target list of the modules we want to test
-        if module_path not in DEFAULT_MODULES or not DEFAULT_MODULES[module_path].condition():
+        if module_path not in get_default_modules() or not get_default_modules()[module_path].condition():
             continue
 
         # Check if the package is in the target list of the module we want to test
         targeted = False
-        for target in DEFAULT_MODULES[module_path].targets:
+        for target in get_default_modules()[module_path].targets:
             if normpath(os.path.join(module_path, target)) in package:
                 targeted = True
                 break
@@ -781,7 +782,7 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
         if (
             len(modules_to_test[module].targets) >= WINDOWS_MAX_PACKAGES_NUMBER
         ):  # With more packages we can reach the limit of the command line length on Windows
-            modules_to_test[module].targets = DEFAULT_MODULES[module].targets
+            modules_to_test[module].targets = get_default_modules()[module].targets
 
     module_to_remove = []
     # Clean up to avoid running tests on package with no Go files matching build tags
@@ -903,7 +904,7 @@ def check_otel_module_versions(ctx):
         raise Exit(f"Error parsing upstream go.mod version: {OTEL_UPSTREAM_GO_MOD_PATH}")
     upstream_version = matches[0]
 
-    for path, module in DEFAULT_MODULES.items():
+    for path, module in get_default_modules().items():
         if module.used_by_otel:
             mod_file = f"./{path}/go.mod"
             with open(mod_file, newline='', encoding='utf-8') as reader:

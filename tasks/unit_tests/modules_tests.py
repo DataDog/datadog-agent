@@ -6,7 +6,7 @@ import subprocess
 import unittest
 from typing import Any
 
-from tasks.modules import AGENT_MODULE_PATH_PREFIX, DEFAULT_MODULES
+from tasks.libs.common.gomodules import AGENT_MODULE_PATH_PREFIX, get_default_modules
 
 """
 Here is an abstract of the go.mod file format:
@@ -94,7 +94,7 @@ class TestModules(unittest.TestCase):
 
     def test_modules_replace_agent(self):
         """Ensure that all required datadog-agent modules are replaced"""
-        for module_path in DEFAULT_MODULES.keys():
+        for module_path in get_default_modules().keys():
             with self.subTest(module_path=module_path):
                 module = self.load_go_mod(module_path)
                 self.assertIsInstance(module, dict)
