@@ -75,10 +75,6 @@ type PodAutoscalerInternal struct {
 	// verticalLastActionError is the last error encountered on vertical scaling
 	verticalLastActionError error
 
-	// horizontalLastRecommendations is a record of the past horizontal recommendations
-	// nolint: unused
-	horizontalLastRecommendations []HorizontalScalingValues
-
 	// currentReplicas is the current number of PODs for the targetRef
 	currentReplicas *int32
 
@@ -562,31 +558,6 @@ func addHorizontalAction(currentTime time.Time, retention time.Duration, actions
 	actions = actions[cutoffIndex:]
 	actions = append(actions, *action)
 	return actions
-}
-
-// nolint: unused
-func addHorizontalRecommendation(currentTime time.Time, retention time.Duration, recommendations []HorizontalScalingValues, recommendation *HorizontalScalingValues) []HorizontalScalingValues {
-	if retention == 0 {
-		recommendations = recommendations[:0]
-		recommendations = append(recommendations, *recommendation)
-		return recommendations
-	}
-
-	// Find oldest event index to keep
-	cutoffTime := currentTime.Add(-retention)
-	cutoffIndex := 0
-	for i, recommendation := range recommendations {
-		// The first event after the cutoff time is the oldest event to keep
-		if recommendation.Timestamp.After(cutoffTime) {
-			cutoffIndex = i
-			break
-		}
-	}
-
-	// We are basically removing space from the array until we reallocate
-	recommendations = recommendations[cutoffIndex:]
-	recommendations = append(recommendations, *recommendation)
-	return recommendations
 }
 
 func newConditionFromError(trueOnError bool, currentTime metav1.Time, err error, conditionType datadoghq.DatadogPodAutoscalerConditionType, existingConditions map[datadoghq.DatadogPodAutoscalerConditionType]*datadoghq.DatadogPodAutoscalerCondition) datadoghq.DatadogPodAutoscalerCondition {
