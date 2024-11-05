@@ -282,8 +282,8 @@ def get_default_modules(base_dir: Path | None = None) -> dict[str, GoModule]:
 
     modules = {}
 
-    for module_data_path in glob("./**/module.yml", recursive=True, root_dir=base_dir):
-        module_data_dir = module_data_path.removesuffix("/module.yml")
+    for module_data_path in glob("**/module.yml", recursive=True, root_dir=base_dir):
+        module_data_dir = Path(module_data_path).parent
 
         module = GoModule.from_file(module_data_dir, base_dir)
         modules[module.path] = module
