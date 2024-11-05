@@ -106,6 +106,20 @@ class TestModules(unittest.TestCase):
                 self.assertEqual(required_not_replaced, set(), f"in module {module_path}")
 
 
+class TestGoModuleCondition(unittest.TestCase):
+    def test_always(self):
+        mod = GoModule(path='pkg/my/module', targets=['.'], lint_targets=['.'], condition='always')
+        self.assertTrue(mod.verify_condition())
+
+    def test_never(self):
+        mod = GoModule(path='pkg/my/module', targets=['.'], lint_targets=['.'], condition='never')
+        self.assertFalse(mod.verify_condition())
+
+    def test_error(self):
+        mod = GoModule(path='pkg/my/module', targets=['.'], lint_targets=['.'], condition='???')
+        self.assertRaises(KeyError, mod.verify_condition)
+
+
 class TestGoModuleSerialization(unittest.TestCase):
     def test_to_dict(self):
         module = GoModule(
