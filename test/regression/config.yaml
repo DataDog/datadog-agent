@@ -1,5 +1,5 @@
 lading:
-  version: 0.23.3
+  version: 0.23.5
 
 target:
   cpu_allotment: 8
