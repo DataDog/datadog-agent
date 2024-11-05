@@ -1,9 +1,21 @@
 """Provides functions to import / export go modules from / to yaml files."""
 
+from __future__ import annotations
+
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
+
+import yaml
+
+
+class GoModuleDumper(yaml.SafeDumper):
+    """SafeDumper that ignores aliases. (no references for readability)"""
+
+    def ignore_aliases(self, _):  # noqa
+        return True
 
 
 class GoModule:
@@ -13,20 +25,50 @@ class GoModule:
     If True, a check will run to ensure this is true.
     """
 
+    CONDITIONS: dict[str, Callable] = {
+        # TODO
+        'always': lambda: True,
+    }
+
+    @staticmethod
+    def from_dict(path: str, data: dict[str, object]) -> GoModule:
+        return GoModule(
+            path=path,
+            targets=data["targets"],
+            lint_targets=data["lint_targets"],
+            condition=data["condition"],
+            should_tag=data["should_tag"],
+            importable=data["importable"],
+            independent=data["independent"],
+            used_by_otel=data["used_by_otel"],
+        )
+
+    @staticmethod
+    def from_file(dir_path: str | Path) -> GoModule:
+        dir_path = dir_path if isinstance(dir_path, Path) else Path(dir_path)
+
+        assert dir_path.is_dir(), f"Directory {dir_path} does not exist"
+
+        with open(dir_path / 'module.yml') as file:
+            data = yaml.safe_load(file)
+
+            return GoModule.from_dict(dir_path.as_posix(), data)
+
     def __init__(
         self,
-        path,
-        targets=None,
-        condition=lambda: True,
-        should_tag=True,
-        importable=True,
-        independent=False,
-        lint_targets=None,
+        path: str,
+        targets: list[str] = None,
+        condition: str = 'always',
+        should_tag: bool = True,
+        importable: bool = True,
+        independent: bool = False,
+        lint_targets: list[str] = None,
         used_by_otel=False,
     ):
+        # Posix path of the module's directory
         self.path = path
-        self.targets = targets if targets else ["."]
-        self.lint_targets = lint_targets if lint_targets else self.targets
+        self.targets = targets or ["."]
+        self.lint_targets = lint_targets or self.targets
         self.condition = condition
         self.should_tag = should_tag
         # HACK: Workaround for modules that can be tested, but not imported (eg. gohai), because
@@ -38,6 +80,35 @@ class GoModule:
         self.used_by_otel = used_by_otel
 
         self._dependencies = None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "path": self.path,
+            "targets": self.targets,
+            "lint_targets": self.lint_targets,
+            "condition": self.condition,
+            "should_tag": self.should_tag,
+            "importable": self.importable,
+            "independent": self.independent,
+            "used_by_otel": self.used_by_otel,
+        }
+
+    def to_file(self):
+        dir_path = Path(self.path)
+
+        assert dir_path.is_dir(), f"Directory {dir_path} does not exist"
+
+        with open(dir_path / 'module.yml', "w") as file:
+            data = self.to_dict()
+            del data['path']
+
+            yaml.dump(data, file, Dumper=GoModuleDumper)
+
+    def verify_condition(self) -> bool:
+        """Verify that the module condition is met."""
+        function = GoModule.CONDITIONS[self.condition]
+
+        return function()
 
     def __version(self, agent_version):
         """Return the module version for a given Agent version.
