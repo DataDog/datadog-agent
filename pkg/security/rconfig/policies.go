@@ -131,8 +131,11 @@ func (r *RCPolicyProvider) rcCustomsUpdateCallback(configs map[string]state.RawC
 	r.debouncer.Call()
 }
 
+// RCConfig holds a remote config policy and its name
 type RCConfig struct {
-	Name   string
+	// Name is the name of the policy (the key from the config map)
+	Name string
+	// Config is the raw config itself
 	Config state.RawConfig
 }
 
