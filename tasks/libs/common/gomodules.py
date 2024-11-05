@@ -24,10 +24,25 @@ class GoModuleDumper(yaml.SafeDumper):
 
 @dataclass
 class GoModule:
-    """
-    A Go module abstraction.
-    independent specifies whether this modules is supposed to exist independently of the datadog-agent module.
-    If True, a check will run to ensure this is true.
+    """A Go module abstraction.
+
+    Documentation:
+        TODO: https://path/to/documentation
+
+    Args:
+        independent: specifies whether this modules is supposed to exist independently of the datadog-agent module. If True, a check will run to ensure this is true.
+
+    Usage:
+        A module is defined within a module.yml next to the go.mod file containing the following fields by default (these can be omitted if the default value is used):
+        > condition: always
+        > importable: true
+        > independent: false
+        > lint_targets:
+        > - .
+        > should_tag: true
+        > targets:
+        > - .
+        > used_by_otel: false
     """
 
     # Possible conditions for GoModule.condition
@@ -53,15 +68,17 @@ class GoModule:
 
     @staticmethod
     def from_dict(path: str, data: dict[str, object]) -> GoModule:
+        default = GoModule.get_default_attributes()
+
         return GoModule(
             path=path,
-            targets=data["targets"],
-            lint_targets=data["lint_targets"],
-            condition=data["condition"],
-            should_tag=data["should_tag"],
-            importable=data["importable"],
-            independent=data["independent"],
-            used_by_otel=data["used_by_otel"],
+            targets=data.get("targets", default["targets"]),
+            lint_targets=data.get("lint_targets", default["lint_targets"]),
+            condition=data.get("condition", default["condition"]),
+            should_tag=data.get("should_tag", default["should_tag"]),
+            importable=data.get("importable", default["importable"]),
+            independent=data.get("independent", default["independent"]),
+            used_by_otel=data.get("used_by_otel", default["used_by_otel"]),
         )
 
     @staticmethod
@@ -97,14 +114,27 @@ class GoModule:
 
             return GoModule.from_dict(module_path, data)
 
+    @staticmethod
+    def get_default_attributes() -> dict[str, object]:
+        attrs = GoModule('.').to_dict(remove_defaults=False)
+        attrs.pop('path')
+
+        return attrs
+
     def __post_init__(self):
         self.targets = self.targets or ["."]
         self.lint_targets = self.lint_targets or self.targets
 
         self._dependencies = None
 
-    def to_dict(self) -> dict[str, object]:
-        return {
+    def to_dict(self, remove_defaults=True) -> dict[str, object]:
+        """Convert to dictionary.
+
+        Args:
+            remove_defaults: Remove default values from the dictionary.
+        """
+
+        attrs = {
             "path": self.path,
             "targets": self.targets,
             "lint_targets": self.lint_targets,
@@ -114,6 +144,15 @@ class GoModule:
             "independent": self.independent,
             "used_by_otel": self.used_by_otel,
         }
+
+        if remove_defaults:
+            default_attrs = GoModule.get_default_attributes()
+
+            for key, value in default_attrs.items():
+                if key in attrs and attrs[key] == value:
+                    del attrs[key]
+
+        return attrs
 
     def to_file(self, base_dir: Path | None = None):
         """Save the module to a module.yml file.

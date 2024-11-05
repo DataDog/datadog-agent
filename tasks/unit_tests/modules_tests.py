@@ -132,10 +132,20 @@ class TestGoModuleSerialization(unittest.TestCase):
             independent=True,
             used_by_otel=True,
         )
-        d = module.to_dict()
+        d = module.to_dict(remove_defaults=False)
         self.assertEqual(d['path'], module.path)
         self.assertEqual(d['condition'], module.condition)
         self.assertEqual(d['used_by_otel'], module.used_by_otel)
+
+    def test_to_dict_defaults(self):
+        module = GoModule(
+            path='pkg/my/module',
+            condition='never',
+        )
+        d = module.to_dict()
+
+        # Default values are not present
+        self.assertDictEqual(d, {'path': module.path, 'condition': module.condition})
 
     def test_from_dict(self):
         d = {
@@ -154,6 +164,15 @@ class TestGoModuleSerialization(unittest.TestCase):
         self.assertEqual(d['condition'], module.condition)
         self.assertEqual(d['used_by_otel'], module.used_by_otel)
 
+    def test_from_dict_defaults(self):
+        mod = GoModule.from_dict('pkg/my/module', {})
+        mod2 = GoModule.from_dict('pkg/my/module', {'should_tag': True})
+        mod3 = GoModule.from_dict('pkg/my/module', {'should_tag': False})
+
+        self.assertEqual(mod.should_tag, True)
+        self.assertEqual(mod2.should_tag, True)
+        self.assertEqual(mod3.should_tag, False)
+
     def test_from_to(self):
         d = {
             'path': 'pkg/my/module',
@@ -166,7 +185,7 @@ class TestGoModuleSerialization(unittest.TestCase):
             'used_by_otel': True,
         }
         module = GoModule.from_dict(d['path'], d)
-        d2 = module.to_dict()
+        d2 = module.to_dict(remove_defaults=False)
         self.assertDictEqual(d, d2)
 
         module2 = GoModule.from_dict(d2['path'], d2)
