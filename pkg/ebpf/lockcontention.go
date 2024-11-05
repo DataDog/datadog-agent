@@ -41,6 +41,9 @@ const (
 
 	// maximum lock ranges to track
 	maxTrackedRanges = 16384
+
+	// batch size when update per cpu map storing lock ranges
+	updateBatchSize = 100
 )
 
 // always use maxTrackedRanges
@@ -332,6 +335,8 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		l.cpus = cpus
 
 		ranges = constrainMaxRanges(estimateNumOfLockRanges(maps, cpus))
+		log.Debugf("[lock-contention] tracking %d ranges", ranges)
+
 		l.ranges = ranges
 		collectionSpec.Maps["map_addr_fd"].MaxEntries = ranges
 		collectionSpec.Maps["lock_stat"].MaxEntries = ranges
@@ -437,18 +442,32 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		return int(int64(a.Start) - int64(b.Start))
 	})
 
-	keys := make([]uint32, ranges)
-	values := make([]LockRange, cpus*ranges)
-	var i, j uint32
-	for i = 0; i < ranges; i++ {
-		keys[i] = i
-		for j = 0; j < cpus; j++ {
-			values[(j*ranges)+i] = lockRanges[i]
-		}
+	batchSz := uint32(updateBatchSize)
+	if batchSz > ranges {
+		batchSz = ranges
 	}
 
-	if _, err := l.objects.Ranges.BatchUpdate(keys, values, nil); err != nil {
-		return fmt.Errorf("unable to perform batch update on per cpu array map: %w", err)
+	var iter uint32
+	for iter = 0; iter < (ranges/batchSz)+1; iter++ {
+		keys := make([]uint32, batchSz)
+		values := make([]LockRange, cpus*batchSz)
+
+		var i, j uint32
+		for i = 0; i < batchSz; i++ {
+			key := (iter * batchSz) + i
+			if key >= ranges {
+				break
+			}
+
+			keys[i] = key
+			for j = 0; j < cpus; j++ {
+				values[(j*batchSz)+i] = lockRanges[key]
+			}
+		}
+
+		if _, err := l.objects.Ranges.BatchUpdate(keys, values, nil); err != nil {
+			return fmt.Errorf("unable to perform batch update on per cpu array map: %w", err)
+		}
 	}
 
 	// initialize buffers used in Collect

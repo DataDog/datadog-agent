@@ -38,6 +38,7 @@ import (
 	"golang.org/x/net/http2/hpack"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -691,8 +692,15 @@ func TestFullMonitorWithTracer(t *testing.T) {
 	cfg.EnableIstioMonitoring = true
 	cfg.EnableGoTLSSupport = true
 
+	l := ebpf.NewLockContentionCollector()
+	require.NotNil(t, l)
+
 	tr, err := tracer.NewTracer(cfg, nil)
 	require.NoError(t, err)
+
+	err = ebpf.ContentionCollector.Initialize(ebpf.TrackAllEBPFResources)
+	require.NoError(t, err)
+
 	t.Cleanup(tr.Stop)
 
 	require.NoError(t, tr.RegisterClient(clientID))
