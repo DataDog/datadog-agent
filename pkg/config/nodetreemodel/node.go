@@ -31,10 +31,10 @@ func NewNodeTree(v interface{}, source model.Source) (Node, error) {
 		}
 		return newInnerNode(children), nil
 	case []interface{}:
-		return newLeafNodeImpl(it, source), nil
+		return newLeafNode(it, source), nil
 	}
 	if isScalar(v) {
-		return newLeafNodeImpl(v, source), nil
+		return newLeafNode(v, source), nil
 	}
 	// Finally, try determining node type using reflection, should only be needed for unit tests that
 	// supply data that isn't one of the "plain" types produced by parsing json, yaml, etc
@@ -43,11 +43,6 @@ func NewNodeTree(v interface{}, source model.Source) (Node, error) {
 		return nil, fmt.Errorf("could not create node from: %v of type %T", v, v)
 	}
 	return node, err
-}
-
-// NewLeafTree creates a new leaf node
-func NewLeafNode(v interface{}, source model.Source) (Node, error) {
-	return newLeafNodeImpl(v, source), nil
 }
 
 func makeChildNodeTrees(input map[string]interface{}, source model.Source) (map[string]Node, error) {

@@ -127,13 +127,13 @@ func (n *innerNode) SetAt(key []string, value interface{}, source model.Source) 
 	if keyLen == 1 {
 		node, ok := n.children[part]
 		if !ok {
-			n.children[part] = newLeafNodeImpl(value, source)
+			n.children[part] = newLeafNode(value, source)
 			return true, nil
 		}
 
 		if leaf, ok := node.(LeafNode); ok {
 			if leaf.Source().IsGreaterOrEqualThan(source) {
-				n.children[part] = newLeafNodeImpl(value, source)
+				n.children[part] = newLeafNode(value, source)
 				return true, nil
 			}
 			return false, nil

@@ -36,7 +36,7 @@ func asReflectionNode(v interface{}) (Node, error) {
 			item := rv.Index(i).Interface()
 			elems = append(elems, item)
 		}
-		return NewLeafNode(elems, model.SourceUnknown)
+		return newLeafNode(elems, model.SourceUnknown), nil
 	} else if rv.Kind() == reflect.Map {
 		res := make(map[string]interface{}, rv.Len())
 		mapkeys := rv.MapKeys()
@@ -49,7 +49,7 @@ func asReflectionNode(v interface{}) (Node, error) {
 			}
 			res[kstr] = rv.MapIndex(mk).Interface()
 		}
-		return NewLeafNode(res, model.SourceUnknown)
+		return newLeafNode(res, model.SourceUnknown), nil
 	}
 	return nil, errUnknownConversion
 }

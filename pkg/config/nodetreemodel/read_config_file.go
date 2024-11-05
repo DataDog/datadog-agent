@@ -151,7 +151,7 @@ func loadYamlInto(defaults InnerNode, dest InnerNode, data map[string]interface{
 				// Both default and dest have a child but they conflict in type. This should never happen.
 				warnings = append(warnings, "invalid tree: default and dest tree don't have the same layout")
 			} else {
-				dest.InsertChildNode(key, newLeafNodeImpl(value, model.SourceFile))
+				dest.InsertChildNode(key, newLeafNode(value, model.SourceFile))
 			}
 			continue
 		}
