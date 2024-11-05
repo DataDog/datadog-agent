@@ -25,7 +25,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -698,7 +697,7 @@ func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelect
 						continue
 					}
 				}
-				uprobes.SanitizeAddresses(elfFile, []safeelf.Symbol{sym})
+				manager.SanitizeUprobeAddresses(elfFile.File, []safeelf.Symbol{sym})
 				offset, err := bininspect.SymbolToOffset(elfFile, sym)
 				if err != nil {
 					return err
