@@ -28,8 +28,15 @@
       echo "Warning: The current Python version $PYTHON_VERSION is different from $PYTHON_REPO_VERSION in .python-version."
       echo "Installing Python $PYTHON_REPO_VERSION..."
     fi
+    ## START TEMPORARY DEBUG see ACIX-500
+    echo $PYTHON_VERSION
+    echo $VENV_NAME
+    pyenv virtualenvs --bare
+    ## END TEMPORARY DEBUG see ACIX-500
     if ! pyenv virtualenvs --bare | grep -q "^${VENV_NAME}$"; then
-      pyenv virtualenv $PYTHON_VERSION $VENV_NAME
+      # The || true is a quickfix avoiding the command to fail if the virtualenv already exists
+      # This should be removed once ACIX-500 is done
+      pyenv virtualenv $PYTHON_VERSION $VENV_NAME || true
     fi
     pyenv activate $VENV_NAME
 
