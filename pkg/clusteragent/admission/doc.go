@@ -44,8 +44,7 @@
 // minimize the number of requests that the webhook receives. The label
 // selectors help with that. There are some default label selectors defined
 // in the "common" package.
-// - MatchConditions: allow us to filter the requests that the webhook receives using
-// a more fine-grained approach than label selectors. This uses the CEL language.
+// - MatchConditions: Enables you to filter the requests received by the webhook with a more fine-grained approach than label selectors, using the CEL language.
 // - WebhookFunc: The function that runs the logic of the webhook and returns the admission response.
 //
 // As with any other feature, webhooks can be configured using the Datadog
