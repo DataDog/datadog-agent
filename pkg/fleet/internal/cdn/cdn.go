@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"regexp"
-	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 )
@@ -42,13 +41,6 @@ type CDN interface {
 // New creates a new CDN and chooses the implementation depending
 // on the environment
 func New(env *env.Env, configDBPath string) (CDN, error) {
-	if runtime.GOOS == "windows" {
-		// There's an assumption on windows that some directories are already there
-		// but they are in fact created by the regular CDN implementation. Until
-		// there is a fix on windows we keep the previous CDN behaviour for them
-		return newCDNHTTP(env, configDBPath)
-	}
-
 	if !env.RemotePolicies {
 		// Remote policies are not enabled -- we don't need the CDN
 		// and we don't want to create the directories that the CDN

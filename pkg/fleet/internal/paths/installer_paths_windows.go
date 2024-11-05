@@ -78,7 +78,17 @@ func CreateInstallerDataDir() error {
 	//  - SeTakeOwnershipPrivilege - Required to set the owner
 	privilegesRequired := []string{"SeTakeOwnershipPrivilege"}
 	return winio.RunWithPrivileges(privilegesRequired, func() error {
-		return secureCreateDirectory(targetDir, sddl)
+		err := secureCreateDirectory(targetDir, sddl)
+		if err != nil {
+			return err
+		}
+		for _, path := range []string{PackagesPath, ConfigsPath, LocksPath, RootTmpDir, RunPath} {
+			err := secureCreateDirectory(path, sddl)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
