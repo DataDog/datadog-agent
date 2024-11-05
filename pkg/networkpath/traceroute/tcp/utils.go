@@ -67,27 +67,30 @@ type (
 	}
 )
 
-func localAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, error) {
+// localAddrForHost returns the local address and connection for the host
+// the connection should be closed by the caller
+func localAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, net.Conn, error) {
 	// this is a quick way to get the local address for connecting to the host
 	// using UDP as the network type to avoid actually creating a connection to
 	// the host, just get the OS to give us a local IP and local ephemeral port
 	conn, err := net.Dial("udp4", net.JoinHostPort(destIP.String(), strconv.Itoa(int(destPort))))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	defer conn.Close()
 	localAddr := conn.LocalAddr()
 
 	localUDPAddr, ok := localAddr.(*net.UDPAddr)
 	if !ok {
-		return nil, fmt.Errorf("invalid address type for %s: want %T, got %T", localAddr, localUDPAddr, localAddr)
+		return nil, conn, fmt.Errorf("invalid address type for %s: want %T, got %T", localAddr, localUDPAddr, localAddr)
 	}
 
-	return localUDPAddr, nil
+	return localUDPAddr, conn, nil
 }
 
-// createRawTCPSyn creates a TCP packet with the specified parameters
-func createRawTCPSyn(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, seqNum uint32, ttl int) (*ipv4.Header, []byte, error) {
+// createRawTCPPkt creates a TCP packet with the specified parameters
+// if rst == true, the packet will have the RST flag set
+// if rst == false, the packet will have the SYN flag set
+func createRawTCPPkt(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, seqNum uint32, ttl int, rst bool) (*ipv4.Header, []byte, error) {
 	ipLayer := &layers.IPv4{
 		Version:  4,
 		Length:   20,
@@ -103,8 +106,12 @@ func createRawTCPSyn(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort
 		DstPort: layers.TCPPort(destPort),
 		Seq:     seqNum,
 		Ack:     0,
-		SYN:     true,
 		Window:  1024,
+	}
+	if rst {
+		tcpLayer.RST = true
+	} else {
+		tcpLayer.SYN = true
 	}
 
 	err := tcpLayer.SetNetworkLayerForChecksum(ipLayer)

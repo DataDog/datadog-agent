@@ -62,10 +62,14 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	//
 	// TODO: do this once for the probe and hang on to the
 	// listener until we decide to close the probe
-	addr, err := localAddrForHost(t.Target, t.DestPort)
+	addr, conn, err := localAddrForHost(t.Target, t.DestPort)
 	if err != nil {
+		if conn != nil {
+			conn.Close()
+		}
 		return nil, fmt.Errorf("failed to get local address for target: %w", err)
 	}
+	defer conn.Close()
 	t.srcIP = addr.IP
 	t.srcPort = addr.AddrPort().Port()
 
@@ -117,6 +121,13 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 			break
 		}
 	}
+	// TODO: should we use maxTTL always, or if we know the exact TTL
+	// should we use that instead? I think we should use the max in case
+	// the packet takes a different route. Perhaps even higher than the max?
+	err = t.sendTCPReset(rawTCPConn, int(t.MaxTTL), rand.Uint32())
+	if err != nil {
+		log.Errorf("failed to send TCP RST: %s", err.Error())
+	}
 
 	return &Results{
 		Source:     t.srcIP,
@@ -128,7 +139,7 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 }
 
 func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawConn, ttl int, seqNum uint32, timeout time.Duration) (*Hop, error) {
-	tcpHeader, tcpPacket, err := createRawTCPSyn(t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, ttl)
+	tcpHeader, tcpPacket, err := createRawTCPPkt(t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, ttl, false)
 	if err != nil {
 		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
 		return nil, err
@@ -159,6 +170,22 @@ func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawCo
 		RTT:      rtt,
 		IsDest:   hopIP.Equal(t.Target),
 	}, nil
+}
+
+func (t *TCPv4) sendTCPReset(rawTCPConn *ipv4.RawConn, ttl int, seqNum uint32) error {
+	tcpHeader, tcpPacket, err := createRawTCPPkt(t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, ttl, true)
+	if err != nil {
+		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
+		return err
+	}
+
+	err = sendPacket(rawTCPConn, tcpHeader, tcpPacket)
+	if err != nil {
+		log.Errorf("failed to send TCP RST: %s", err.Error())
+		return err
+	}
+
+	return nil
 }
 
 // Close doesn't to anything yet, but we should
