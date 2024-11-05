@@ -30,12 +30,12 @@ func TestDefaultPackagesAPMInjectEnabled(t *testing.T) {
 	packages := DefaultPackages(env)
 
 	assert.Equal(t, []string{
-		"oci://gcr.io/datadoghq/apm-inject-package:latest",
-		"oci://gcr.io/datadoghq/apm-library-java-package:1",
-		"oci://gcr.io/datadoghq/apm-library-ruby-package:2",
-		"oci://gcr.io/datadoghq/apm-library-js-package:5",
-		"oci://gcr.io/datadoghq/apm-library-dotnet-package:3",
-		"oci://gcr.io/datadoghq/apm-library-python-package:2",
+		"oci://install.datadoghq.com/apm-inject-package:latest",
+		"oci://install.datadoghq.com/apm-library-java-package:1",
+		"oci://install.datadoghq.com/apm-library-ruby-package:2",
+		"oci://install.datadoghq.com/apm-library-js-package:5",
+		"oci://install.datadoghq.com/apm-library-dotnet-package:3",
+		"oci://install.datadoghq.com/apm-library-python-package:2",
 	}, packages)
 }
 
@@ -49,7 +49,7 @@ func TestDefaultPackagesAgentVersion(t *testing.T) {
 	}
 	packages := DefaultPackages(env)
 
-	assert.Equal(t, []string{"oci://gcr.io/datadoghq/agent-package:7.42.0-1"}, packages)
+	assert.Equal(t, []string{"oci://install.datadoghq.com/agent-package:7.42.0-1"}, packages)
 }
 
 func TestDefaultPackagesAgentMinorVersion(t *testing.T) {
@@ -61,7 +61,7 @@ func TestDefaultPackagesAgentMinorVersion(t *testing.T) {
 	}
 	packages := DefaultPackages(env)
 
-	assert.Equal(t, []string{"oci://gcr.io/datadoghq/agent-package:7.42.0-1"}, packages)
+	assert.Equal(t, []string{"oci://install.datadoghq.com/agent-package:7.42.0-1"}, packages)
 }
 
 func TestDefaultPackages(t *testing.T) {

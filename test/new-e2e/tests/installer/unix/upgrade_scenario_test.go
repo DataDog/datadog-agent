@@ -59,22 +59,22 @@ var testCatalog = catalog{
 		{
 			Package: string(datadogAgent),
 			Version: latestAgentImageVersion,
-			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", latestAgentImageVersion),
+			URL:     fmt.Sprintf("oci://install.datadoghq.com/agent-package:%s", latestAgentImageVersion),
 		},
 		{
 			Package: string(datadogAgent),
 			Version: previousAgentImageVersion,
-			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", previousAgentImageVersion),
+			URL:     fmt.Sprintf("oci://install.datadoghq.com/agent-package:%s", previousAgentImageVersion),
 		},
 		{
 			Package: string(datadogInstaller),
 			Version: latestInstallerImageVersion,
-			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/installer-package:%s", latestInstallerImageVersion),
+			URL:     fmt.Sprintf("oci://install.datadoghq.com/installer-package:%s", latestInstallerImageVersion),
 		},
 		{
 			Package: string(datadogInstaller),
 			Version: previousInstallerImageVersion,
-			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/installer-package:%s", previousInstallerImageVersion),
+			URL:     fmt.Sprintf("oci://install.datadoghq.com/installer-package:%s", previousInstallerImageVersion),
 		},
 	},
 }
@@ -209,7 +209,7 @@ func (s *upgradeScenarioSuite) TestExperimentCurrentVersion() {
 			{
 				Package: "datadog-agent",
 				Version: currentVersion,
-				URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", currentVersion),
+				URL:     fmt.Sprintf("oci://install.datadoghq.com/agent-package:%s", currentVersion),
 			},
 		},
 	}

@@ -67,9 +67,11 @@ const (
 
 var (
 	defaultRegistriesStaging = []string{
+		"install.datad0g.com",
 		"docker.io/datadog",
 	}
 	defaultRegistriesProd = []string{
+		"install.datadoghq.com",
 		"gcr.io/datadoghq",
 		"public.ecr.aws/datadog",
 		"docker.io/datadog",
@@ -351,7 +353,7 @@ func PackageURL(env *env.Env, pkg string, version string) string {
 	case "datad0g.com":
 		return fmt.Sprintf("oci://install.datad0g.com/%s-package-dev:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 	default:
-		return fmt.Sprintf("oci://gcr.io/datadoghq/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
+		return fmt.Sprintf("oci://install.datadoghq.com/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 	}
 }
 
