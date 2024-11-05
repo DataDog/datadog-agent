@@ -8,7 +8,6 @@ package ports
 
 import (
 	"fmt"
-	"path"
 	"runtime"
 	"strings"
 
@@ -58,7 +57,6 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 		}
 
 		port, ok := portMap[uint16(value)]
-		// if the port is used for several protocols, add a diagnose for each
 		if !ok {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
 				Name:      key,
@@ -68,8 +66,7 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 			continue
 		}
 
-		// TODO: check process user/group
-		if processName, ok := isAgentProcess(port.Process); ok {
+		if processName, ok := isAgentProcess(port.Pid, port.Process); ok {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
 				Name:      key,
 				Result:    diagnosis.DiagnosisSuccess,
@@ -78,22 +75,11 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 			continue
 		}
 
-		// if the port is used by a process that is not run by the same user as the agent, we cannot retrieve the proc id
 		if port.Pid == 0 {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
 				Name:      key,
 				Result:    diagnosis.DiagnosisWarning,
 				Diagnosis: fmt.Sprintf("Required port %d is already used by an another process. Verify the process that is using this port is an Agent process.", value),
-			})
-			continue
-		}
-
-		// on windows, if the port is used by a process that is not 'agent.exe', we cannot retrieve the proc name
-		if port.Process == "" {
-			diagnoses = append(diagnoses, diagnosis.Diagnosis{
-				Name:      key,
-				Result:    diagnosis.DiagnosisWarning,
-				Diagnosis: fmt.Sprintf("Required port %d is already used by an another process (PID=%d). Verify that the process that is using this port is an Agent process.", value, port.Pid),
 			})
 			continue
 		}
@@ -108,10 +94,11 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 	return diagnoses
 }
 
-func isAgentProcess(processName string) (string, bool) {
-	processName = path.Base(processName)
-	if runtime.GOOS == "windows" {
-		processName = strings.TrimSuffix(processName, ".exe")
+// isAgentProcess checks if the given pid corresponds to an agent process
+func isAgentProcess(pid int, processName string) (string, bool) {
+	processName, err := RetrieveProcessName(pid, processName)
+	if err != nil {
+		return "", false
 	}
 	_, ok := agentNames[processName]
 	return processName, ok
