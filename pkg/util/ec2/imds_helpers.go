@@ -75,15 +75,8 @@ func getMetadataItem(ctx context.Context, endpoint string, allowedIMDSVersions i
 }
 
 // getIMDSVersion returns true if the agent should use IMDSv2
-func getIMDSVersion(force bool, disable bool) imdsVersion {
-	// if force is set, we use IMDSv2, highest priority
-	if force {
-		return imdsV2
-		// if disable is set, we disable IMDSv2
-	} else if disable {
-		return imdsV1
-		// if ec2_prefer_imdsv2 is set, we use IMDSv2
-	} else if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || pkgconfigsetup.Datadog().GetBool("ec2_imdsv2_transition_payload_enabled") {
+func getIMDSVersion() imdsVersion {
+	if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || pkgconfigsetup.Datadog().GetBool("ec2_imdsv2_transition_payload_enabled") {
 		return imdsAllVersions
 	}
 	// if nothing indicates to use IMDSv2, we default to IMDSv1
