@@ -58,6 +58,7 @@ func (suite *ecsSuite) SetupSuite() {
 	suite.baseSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.ecsClusterName = suite.Env().ECSCluster.ClusterName
+	suite.clusterName = suite.Env().ECSCluster.ClusterName
 }
 
 func (suite *ecsSuite) TearDownSuite() {
