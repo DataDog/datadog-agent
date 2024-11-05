@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 from typing import Any
 
-from tasks.libs.common.gomodules import AGENT_MODULE_PATH_PREFIX, get_default_modules
+from tasks.libs.common.gomodules import AGENT_MODULE_PATH_PREFIX, GoModule, get_default_modules
 
 """
 Here is an abstract of the go.mod file format:
@@ -102,3 +104,105 @@ class TestModules(unittest.TestCase):
                 replaced = self.get_agent_replaced(module)
                 required_not_replaced = required - replaced
                 self.assertEqual(required_not_replaced, set(), f"in module {module_path}")
+
+
+class TestGoModuleSerialization(unittest.TestCase):
+    def test_to_dict(self):
+        module = GoModule(
+            path='pkg/my/module',
+            targets=['.'],
+            lint_targets=['.'],
+            condition='always',
+            should_tag=True,
+            importable=True,
+            independent=True,
+            used_by_otel=True,
+        )
+        d = module.to_dict()
+        self.assertEqual(d['path'], module.path)
+        self.assertEqual(d['condition'], module.condition)
+        self.assertEqual(d['used_by_otel'], module.used_by_otel)
+
+    def test_from_dict(self):
+        d = {
+            'path': 'pkg/my/module',
+            'targets': ['.'],
+            'lint_targets': ['.'],
+            'condition': 'always',
+            'should_tag': True,
+            'importable': True,
+            'independent': True,
+            'used_by_otel': True,
+        }
+        module = GoModule.from_dict(d['path'], d)
+
+        self.assertEqual(d['path'], module.path)
+        self.assertEqual(d['condition'], module.condition)
+        self.assertEqual(d['used_by_otel'], module.used_by_otel)
+
+    def test_from_to(self):
+        d = {
+            'path': 'pkg/my/module',
+            'targets': ['.'],
+            'lint_targets': ['.'],
+            'condition': 'always',
+            'should_tag': True,
+            'importable': True,
+            'independent': True,
+            'used_by_otel': True,
+        }
+        module = GoModule.from_dict(d['path'], d)
+        d2 = module.to_dict()
+        self.assertDictEqual(d, d2)
+
+        module2 = GoModule.from_dict(d2['path'], d2)
+
+        self.assertEqual(module2.path, module.path)
+        self.assertEqual(module2.condition, module.condition)
+        self.assertEqual(module2.used_by_otel, module.used_by_otel)
+
+    def test_from_to_file(self):
+        path = 'pkg/my/module'
+        module = GoModule(
+            path=path,
+            targets=['.'],
+            lint_targets=['.'],
+            condition='always',
+            should_tag=True,
+            importable=True,
+            independent=True,
+            used_by_otel=True,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / path).mkdir(parents=True, exist_ok=True)
+
+            module.to_file(base_dir=Path(tmpdir))
+            module2 = GoModule.from_file(path, base_dir=Path(tmpdir))
+
+        # Remove temp file prefix
+        self.assertEqual(module2.path, module.path)
+        self.assertEqual(module2.condition, module.condition)
+        self.assertEqual(module2.used_by_otel, module.used_by_otel)
+
+
+class TestGoModulePath(unittest.TestCase):
+    def assert_path_equal(self, path1: Path | str, path2: Path | str):
+        path1 = path1 if isinstance(path1, Path) else Path(path1)
+        path2 = path2 if isinstance(path2, Path) else Path(path2)
+
+        self.assertEqual(path1.absolute().as_posix(), path2.absolute().as_posix())
+
+    def test_parse_path_default(self):
+        module_path, base_dir, dir_path, full_path = GoModule.parse_path(dir_path='pkg/my/module')
+        self.assert_path_equal(module_path, 'pkg/my/module')
+        self.assert_path_equal(base_dir, '.')
+        self.assert_path_equal(dir_path, Path('pkg/my/module'))
+        self.assert_path_equal(full_path, Path('./pkg/my/module'))
+
+    def test_parse_path_base(self):
+        module_path, base_dir, dir_path, full_path = GoModule.parse_path(dir_path='pkg/my/module', base_dir='../agent6')
+        self.assert_path_equal(module_path, 'pkg/my/module')
+        self.assert_path_equal(base_dir, '../agent6')
+        self.assert_path_equal(dir_path, Path('pkg/my/module'))
+        self.assert_path_equal(full_path, Path('../agent6/pkg/my/module'))

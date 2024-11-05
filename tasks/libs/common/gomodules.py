@@ -64,15 +64,37 @@ class GoModule:
         )
 
     @staticmethod
-    def from_file(dir_path: str | Path) -> GoModule:
-        dir_path = dir_path if isinstance(dir_path, Path) else Path(dir_path)
+    def parse_path(dir_path: str | Path, base_dir: Path | None = None) -> tuple[str, Path, Path, Path]:
+        """Returns path components for a module.
 
-        assert dir_path.is_dir(), f"Directory {dir_path} does not exist"
+        Here is the path:
+            <base_dir>/<dir_path>/module.yml
+            ---------------------            -> full_path
+                       ----------            -> module_path (contains only '/')
+        """
 
-        with open(dir_path / 'module.yml') as file:
+        base_dir = base_dir or Path.cwd()
+        dir_path = Path(dir_path) if isinstance(dir_path, str) else dir_path
+        module_path = dir_path.as_posix()
+        full_path = base_dir / (dir_path if isinstance(dir_path, Path) else Path(dir_path))
+
+        return module_path, base_dir, dir_path, full_path
+
+    @staticmethod
+    def from_file(dir_path: str | Path, base_dir: Path | None = None) -> GoModule:
+        """Load from a module.yml file.
+
+        The absolute full path is '<base_dir>/<dir_path>/module.yml'.
+        """
+
+        module_path, base_dir, dir_path, full_path = GoModule.parse_path(dir_path, base_dir)
+
+        assert full_path.is_dir(), f"Directory {full_path} does not exist"
+
+        with open(full_path / 'module.yml') as file:
             data = yaml.safe_load(file)
 
-            return GoModule.from_dict(dir_path.as_posix(), data)
+            return GoModule.from_dict(module_path, data)
 
     def __post_init__(self):
         self.targets = self.targets or ["."]
@@ -92,12 +114,18 @@ class GoModule:
             "used_by_otel": self.used_by_otel,
         }
 
-    def to_file(self):
-        dir_path = Path(self.path)
+    def to_file(self, base_dir: Path | None = None):
+        """Save the module to a module.yml file.
 
-        assert dir_path.is_dir(), f"Directory {dir_path} does not exist"
+        Args:
+            base_dir: Root directory of the agent repository.
+        """
 
-        with open(dir_path / 'module.yml', "w") as file:
+        _, base_dir, dir_path, full_path = GoModule.parse_path(self.path, base_dir)
+
+        assert full_path.is_dir(), f"Directory {dir_path} does not exist"
+
+        with open(full_path / 'module.yml', "w") as file:
             data = self.to_dict()
             del data['path']
 
