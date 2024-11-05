@@ -3,5 +3,5 @@
 # Contains jobs to trigger a pipeline in our k8s-datadog-agent-ops repo
 
 include:
-  - /.gitlab/internal_kubernetes_deploy/internal_kubernetes_deploy.yml
-  - /.gitlab/internal_kubernetes_deploy/rc_kubernetes_deploy.yml
+  - .gitlab/internal_kubernetes_deploy/internal_kubernetes_deploy.yml
+  - .gitlab/internal_kubernetes_deploy/rc_kubernetes_deploy.yml
