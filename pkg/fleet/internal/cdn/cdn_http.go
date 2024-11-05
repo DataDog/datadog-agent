@@ -20,12 +20,12 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
-type cdnRegular struct {
+type cdnHTTP struct {
 	client              *remoteconfig.HTTPClient
 	currentRootsVersion uint64
 }
 
-func newRegular(env *env.Env, configDBPath string) (CDN, error) {
+func newCDNHTTP(env *env.Env, configDBPath string) (CDN, error) {
 	client, err := remoteconfig.NewHTTPClient(
 		configDBPath,
 		env.Site,
@@ -35,14 +35,14 @@ func newRegular(env *env.Env, configDBPath string) (CDN, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &cdnRegular{
+	return &cdnHTTP{
 		client:              client,
 		currentRootsVersion: 1,
 	}, nil
 }
 
 // Get gets the configuration from the CDN.
-func (c *cdnRegular) Get(ctx context.Context, pkg string) (cfg Config, err error) {
+func (c *cdnHTTP) Get(ctx context.Context, pkg string) (cfg Config, err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "cdn.Get")
 	span.SetTag("cdn_type", "cdn")
 	defer func() { span.Finish(tracer.WithError(err)) }()
@@ -65,12 +65,12 @@ func (c *cdnRegular) Get(ctx context.Context, pkg string) (cfg Config, err error
 }
 
 // Close cleans up the CDN's resources
-func (c *cdnRegular) Close() error {
+func (c *cdnHTTP) Close() error {
 	return c.client.Close()
 }
 
 // get calls the Remote Config service to get the ordered layers.
-func (c *cdnRegular) get(ctx context.Context) (*orderConfig, [][]byte, error) {
+func (c *cdnHTTP) get(ctx context.Context) (*orderConfig, [][]byte, error) {
 	agentConfigUpdate, err := c.client.GetCDNConfigUpdate(
 		ctx,
 		[]string{"AGENT_CONFIG"},

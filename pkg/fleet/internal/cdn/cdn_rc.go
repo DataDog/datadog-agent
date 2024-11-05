@@ -25,7 +25,7 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
-type cdnDirect struct {
+type cdnRC struct {
 	rcService           *remoteconfig.CoreAgentService
 	currentRootsVersion uint64
 	clientUUID          string
@@ -33,9 +33,9 @@ type cdnDirect struct {
 	firstRequest        bool
 }
 
-// newDirect creates a new direct CDN: it fetches the configuration from the remote config service instead of cloudfront
+// newCDNRC creates a new CDN with RC: it fetches the configuration from the remote config service instead of cloudfront
 // note: naming is a bit misleading, it's not really a cdn, but we're following the convention
-func newDirect(env *env.Env, configDBPath string) (CDN, error) {
+func newCDNRC(env *env.Env, configDBPath string) (CDN, error) {
 	ctx := context.Background()
 	ctx, cc := context.WithTimeout(ctx, 10*time.Second)
 	defer cc()
@@ -78,7 +78,7 @@ func newDirect(env *env.Env, configDBPath string) (CDN, error) {
 	if err != nil {
 		return nil, err
 	}
-	cdn := &cdnDirect{
+	cdn := &cdnRC{
 		rcService:           service,
 		currentRootsVersion: 1,
 		clientUUID:          uuid.New().String(),
@@ -89,7 +89,7 @@ func newDirect(env *env.Env, configDBPath string) (CDN, error) {
 	return cdn, nil
 }
 
-func (c *cdnDirect) Get(ctx context.Context, pkg string) (cfg Config, err error) {
+func (c *cdnRC) Get(ctx context.Context, pkg string) (cfg Config, err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "cdn.Get")
 	span.SetTag("cdn_type", "remote_config")
 	defer func() { span.Finish(tracer.WithError(err)) }()
@@ -112,7 +112,7 @@ func (c *cdnDirect) Get(ctx context.Context, pkg string) (cfg Config, err error)
 }
 
 // get calls the Remote Config service to get the ordered layers.
-func (c *cdnDirect) get(ctx context.Context) (*orderConfig, [][]byte, error) {
+func (c *cdnRC) get(ctx context.Context) (*orderConfig, [][]byte, error) {
 	if c.firstRequest {
 		// A first request is made to the remote config service at service startup,
 		// so if we do another request too close to the first one (in the same second)
@@ -191,7 +191,7 @@ func (c *cdnDirect) get(ctx context.Context) (*orderConfig, [][]byte, error) {
 	return configOrder, configLayers, nil
 }
 
-func (c *cdnDirect) Close() error {
+func (c *cdnRC) Close() error {
 	err := c.rcService.Stop()
 	if err != nil {
 		return err

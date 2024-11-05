@@ -7,6 +7,8 @@ package cdn
 
 import (
 	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type cdnNoop struct {
@@ -14,24 +16,28 @@ type cdnNoop struct {
 
 type configNoop struct{}
 
-// newNoop creates a new noop CDN.
-func newNoop() (CDN, error) {
+// newCDNNoop creates a new noop CDN.
+func newCDNNoop() (CDN, error) {
 	return &cdnNoop{}, nil
 }
 
 // Get gets the configuration from the CDN.
 func (c *cdnNoop) Get(_ context.Context, _ string) (Config, error) {
+	log.Debug("Noop CDN get")
 	return &configNoop{}, nil
 }
 
 func (c *cdnNoop) Close() error {
+	log.Debug("Noop CDN close")
 	return nil
 }
 
 func (c *configNoop) Version() string {
+	log.Debug("Noop CDN version")
 	return ""
 }
 
 func (c *configNoop) Write(_ string) error {
+	log.Debug("Noop CDN write")
 	return nil
 }
