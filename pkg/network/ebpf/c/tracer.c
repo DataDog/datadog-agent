@@ -324,17 +324,17 @@ int BPF_KRETPROBE(kretprobe__tcp_close_flush) {
     return 0;
 }
 
-SEC("kprobe/tcp_v4_destroy_sock")
-int BPF_BYPASSABLE_KPROBE(kprobe__tcp_v4_destroy_sock, struct sock *sk) {
+SEC("kprobe/inet_sock_destruct")
+int BPF_BYPASSABLE_KPROBE(kprobe__inet_sock_destruct, struct sock *sk) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // Get network namespace id
-    log_debug("adamk kprobe/tcp_v4_destroy_sock: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("adamk kprobe/inet_sock_destruct: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
-    log_debug("adamk kprobe/tcp_v4_destroy_sock: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
+    log_debug("adamk kprobe/inet_sock_destruct: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
     bpf_map_delete_elem(&conn_close_flushed, &t);
 
