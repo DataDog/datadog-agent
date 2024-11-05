@@ -304,7 +304,7 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 
 	tt.Run("removes embedded extraction artifacts", func(tt *testing.T) {
 		paths := []string{
-			filepath.Join(t.expectedInstallPath, "embedded3"),
+			filepath.Join(t.expectedInstallPath, "embedded3.COMPRESSED"),
 			filepath.Join(t.expectedInstallPath, "bin", "7zr.exe"),
 		}
 		for _, path := range paths {
