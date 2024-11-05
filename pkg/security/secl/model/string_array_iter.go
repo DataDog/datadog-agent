@@ -12,12 +12,7 @@ func newAncestorsIterator[T any](iter *ProcessAncestorsIterator, ctx *eval.Conte
 	var results []T
 
 	for pce := iter.Front(ctx); pce != nil; pce = iter.Next() {
-		if !pce.ProcessContext.Process.IsNotKworker() {
-			var defaultValue T
-			results = append(results, defaultValue)
-		} else {
-			results = append(results, perIter(ev, pce))
-		}
+		results = append(results, perIter(ev, pce))
 	}
 
 	return results
