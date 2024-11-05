@@ -23,10 +23,25 @@ import (
 
 // EBPFLessFieldHandlers defines a field handlers
 type EBPFLessFieldHandlers struct {
-	BaseFieldHandlers
+	*BaseFieldHandlers
 	config    *config.Config
 	resolvers *resolvers.EBPFLessResolvers
 	hostname  string
+}
+
+// NewEBPFLessFieldHandlers returns a new EBPFLessFieldHandlers
+func NewEBPFLessFieldHandlers(config *config.Config, resolvers *resolvers.EBPFLessResolvers, hostname string) (*EBPFLessFieldHandlers, error) {
+	bfh, err := NewBaseFieldHandlers(config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &EBPFLessFieldHandlers{
+		BaseFieldHandlers: bfh,
+		config:            config,
+		resolvers:         resolvers,
+		hostname:          hostname,
+	}, nil
 }
 
 // ResolveService returns the service tag based on the process context

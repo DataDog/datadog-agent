@@ -16,10 +16,25 @@ import (
 
 // FieldHandlers defines a field handlers
 type FieldHandlers struct {
-	BaseFieldHandlers
+	*BaseFieldHandlers
 	config    *config.Config
 	resolvers *resolvers.Resolvers
 	hostname  string
+}
+
+// NewFieldHandlers returns a new FieldHandlers
+func NewFieldHandlers(config *config.Config, resolvers *resolvers.Resolvers, hostname string) (*FieldHandlers, error) {
+	bfh, err := NewBaseFieldHandlers(config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &FieldHandlers{
+		BaseFieldHandlers: bfh,
+		config:            config,
+		resolvers:         resolvers,
+		hostname:          hostname,
+	}, nil
 }
 
 // ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time

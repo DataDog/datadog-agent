@@ -28,11 +28,27 @@ import (
 
 // EBPFFieldHandlers defines a field handlers
 type EBPFFieldHandlers struct {
-	BaseFieldHandlers
+	*BaseFieldHandlers
 	config    *config.Config
 	resolvers *resolvers.EBPFResolvers
 	hostname  string
 	onDemand  *OnDemandProbesManager
+}
+
+// NewEBPFFieldHandlers returns a new EBPFFieldHandlers
+func NewEBPFFieldHandlers(config *config.Config, resolvers *resolvers.EBPFResolvers, hostname string, onDemand *OnDemandProbesManager) (*EBPFFieldHandlers, error) {
+	bfh, err := NewBaseFieldHandlers(config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &EBPFFieldHandlers{
+		BaseFieldHandlers: bfh,
+		config:            config,
+		resolvers:         resolvers,
+		hostname:          hostname,
+		onDemand:          onDemand,
+	}, nil
 }
 
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event

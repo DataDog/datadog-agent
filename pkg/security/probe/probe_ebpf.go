@@ -2021,17 +2021,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 		}
 	}
 
-	p.fieldHandlers = &EBPFFieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname, onDemand: p.onDemandManager}
-	for _, cidr := range config.Probe.NetworkPrivateIPRanges {
-		if err := p.fieldHandlers.privateCIDRs.AppendIP(cidr); err != nil {
-			return nil, fmt.Errorf("error adding private IP range %s: %w", cidr, err)
-		}
+	fh, err := NewEBPFFieldHandlers(config, p.Resolvers, hostname, p.onDemandManager)
+	if err != nil {
+		return nil, err
 	}
-	for _, cidr := range config.Probe.NetworkExtraPrivateIPRanges {
-		if err := p.fieldHandlers.privateCIDRs.AppendIP(cidr); err != nil {
-			return nil, fmt.Errorf("error adding extra private IP range %s: %w", cidr, err)
-		}
-	}
+	p.fieldHandlers = fh
 
 	if useRingBuffers {
 		p.eventStream = ringbuffer.New(p.handleEvent)

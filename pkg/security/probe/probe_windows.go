@@ -1234,17 +1234,11 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts, telemetry t
 		hostname = "unknown"
 	}
 
-	p.fieldHandlers = &FieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname}
-	for _, cidr := range config.Probe.NetworkPrivateIPRanges {
-		if err := p.fieldHandlers.privateCIDRs.AppendIP(cidr); err != nil {
-			return nil, fmt.Errorf("error adding private IP range %s: %w", cidr, err)
-		}
+	fh, err := NewFieldHandlers(config, p.Resolvers, hostname)
+	if err != nil {
+		return nil, err
 	}
-	for _, cidr := range config.Probe.NetworkExtraPrivateIPRanges {
-		if err := p.fieldHandlers.privateCIDRs.AppendIP(cidr); err != nil {
-			return nil, fmt.Errorf("error adding extra private IP range %s: %w", cidr, err)
-		}
-	}
+	p.fieldHandlers = fh
 
 	p.event = p.NewEvent()
 

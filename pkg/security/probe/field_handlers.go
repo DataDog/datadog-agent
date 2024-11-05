@@ -10,6 +10,7 @@ package probe
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -101,6 +102,24 @@ func resolveService(cfg *config.Config, fh pceResolver, ev *model.Event, e *mode
 // BaseFieldHandlers holds the base field handlers
 type BaseFieldHandlers struct {
 	privateCIDRs eval.CIDRValues
+}
+
+// NewBaseFieldHandlers creates a new BaseFieldHandlers
+func NewBaseFieldHandlers(cfg *config.Config) (*BaseFieldHandlers, error) {
+	bfh := &BaseFieldHandlers{}
+
+	for _, cidr := range cfg.Probe.NetworkPrivateIPRanges {
+		if err := bfh.privateCIDRs.AppendIP(cidr); err != nil {
+			return nil, fmt.Errorf("error adding private IP range %s: %w", cidr, err)
+		}
+	}
+	for _, cidr := range cfg.Probe.NetworkExtraPrivateIPRanges {
+		if err := bfh.privateCIDRs.AppendIP(cidr); err != nil {
+			return nil, fmt.Errorf("error adding extra private IP range %s: %w", cidr, err)
+		}
+	}
+
+	return bfh, nil
 }
 
 // ResolveIsIPPublic resolves if the IP is public
