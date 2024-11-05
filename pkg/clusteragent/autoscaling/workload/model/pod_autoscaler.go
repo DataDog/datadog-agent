@@ -246,10 +246,13 @@ func (p *PodAutoscalerInternal) SetDeleted() {
 // UpdateFromStatus updates the PodAutoscalerInternal from an existing status.
 // It assumes the PodAutoscalerInternal is empty so it's not emptying existing data.
 func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghq.DatadogPodAutoscalerStatus) {
-	activeScalingValues := p.getActiveScalingValues()
-
+	activeScalingValues := &p.scalingValues
 	if status.Horizontal != nil {
 		if status.Horizontal.Target != nil {
+			if status.Horizontal.Target.Source == "Local" {
+				activeScalingValues = &p.localScalingValues
+			}
+
 			horizontalScalingValues := &HorizontalScalingValues{
 				Source:    status.Horizontal.Target.Source,
 				Timestamp: status.Horizontal.Target.GeneratedAt.Time,
