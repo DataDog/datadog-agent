@@ -333,6 +333,45 @@ type parsingContext struct {
 	netNsInfo map[uint32]*namespaceInfo
 }
 
+// addIgnoredPid store excluded pid.
+func (s *discovery) addIgnoredPid(pid int32) {
+	s.mux.Lock()
+	s.ignorePids[pid] = true
+	s.mux.Unlock()
+}
+
+// shouldIgnorePid returns true if process should be excluded from handling.
+func (s *discovery) shouldIgnorePid(pid int32) bool {
+	s.mux.Lock()
+	_, found := s.ignorePids[pid]
+	s.mux.Unlock()
+
+	return found
+}
+
+// shouldIgnoredService returns true if the service should be excluded from handling.
+func (s *discovery) shouldIgnoredService(name string) bool {
+	if len(s.config.ignoreServices) == 0 {
+		return false
+	}
+	_, found := s.config.ignoreServices[name]
+
+	return found
+}
+
+// cleanIgnoredPids removes dead PIDs from the list of ignored processes.
+func (s *discovery) cleanIgnoredPids(alivePids map[int32]struct{}) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	for pid := range s.ignorePids {
+		if _, alive := alivePids[pid]; alive {
+			continue
+		}
+		delete(s.ignorePids, pid)
+	}
+}
+
 // getServiceInfo gets the service information for a process using the
 // servicedetector module.
 func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) {
@@ -500,7 +539,8 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	if name == "" {
 		name = info.generatedName
 	}
-	if s.shouldIgnoreService(name, proc) {
+	if s.shouldIgnoredService(name) {
+		s.addIgnoredPid(proc.Pid)
 		return nil
 	}
 

@@ -59,9 +59,9 @@ func TestShouldIgnorePid(t *testing.T) {
 			makeAlias(t, test.comm, serverBin)
 			bin := filepath.Join(serverDir, test.comm)
 			cmd := exec.CommandContext(ctx, bin)
-			cmd.Env = append(os.Environ(), test.envs)
-			err := cmd.Start()
-			require.NoError(t, err)
+			cmd.Env = append(cmd.Environ(), test.envs)
+
+			require.NoError(t, cmd.Start())
 			t.Cleanup(func() {
 				_ = cmd.Process.Kill()
 			})
