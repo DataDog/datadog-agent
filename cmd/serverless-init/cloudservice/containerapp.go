@@ -34,6 +34,12 @@ const (
 	AzureSubscriptionIdEnvVar = "DD_AZURE_SUBSCRIPTION_ID"
 	//nolint:revive // TODO(SERV) Fix revive linter
 	AzureResourceGroupEnvVar = "DD_AZURE_RESOURCE_GROUP"
+
+	// updated tag namespace for new billing
+	acaReplicaName    = "aca.replica.name"
+	acaResourceID     = "aca.resource.id"
+	acaResourceGroup  = "aca.resource.group"
+	acaSubscriptionID = "aca.subscription.id"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -47,25 +53,34 @@ func (c *ContainerApp) GetTags() map[string]string {
 	revision := os.Getenv(ContainerAppRevision)
 	replica := os.Getenv(ContainerAppReplicaName)
 
+	// There are some duplicate tags here because we are updating billing and adding
+	// an abbreviated namespace per Azure environment. We must maintain backwards
+	// compatibility. An example is "replica_name" and "aca.replica.name"
 	tags := map[string]string{
 		"app_name":     appName,
 		"region":       region,
 		"revision":     revision,
 		"replica_name": replica,
+		acaReplicaName: replica,
 		"origin":       c.GetOrigin(),
 		"_dd.origin":   c.GetOrigin(),
 	}
 
 	if c.SubscriptionId != "" {
 		tags["subscription_id"] = c.SubscriptionId
+		tags[acaSubscriptionID] = c.SubscriptionId
 	}
 
 	if c.ResourceGroup != "" {
 		tags["resource_group"] = c.ResourceGroup
+		tags[acaResourceGroup] = c.ResourceGroup
 	}
 
 	if c.SubscriptionId != "" && c.ResourceGroup != "" {
-		tags["resource_id"] = fmt.Sprintf("/subscriptions/%v/resourcegroups/%v/providers/microsoft.app/containerapps/%v", c.SubscriptionId, c.ResourceGroup, strings.ToLower(appName))
+		resourceId := fmt.Sprintf("/subscriptions/%v/resourcegroups/%v/providers/microsoft.app/containerapps/%v", c.SubscriptionId, c.ResourceGroup, strings.ToLower(appName))
+		tags["resource_id"] = resourceId
+		tags[acaResourceID] = resourceId
+
 	}
 
 	return tags
