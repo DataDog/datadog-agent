@@ -275,7 +275,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
     skp_conn.tup.pid = 0;
 
-    // bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
 
     if (!tcp_failed_connections_enabled()) {
         cleanup_conn(ctx, &t, sk);
@@ -332,16 +332,23 @@ int BPF_BYPASSABLE_KPROBE(kprobe__inet_sock_destruct, struct sock *sk) {
     // Get network namespace id
     log_debug("adamk kprobe/inet_sock_destruct: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        log_debug("adamk kprobe/inet_sock_destruct: FAILED TO READ conn tuple");
         return 0;
     }
     log_debug("adamk kprobe/inet_sock_destruct: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
-    bpf_map_delete_elem(&conn_close_flushed, &t);
+    int code = bpf_map_delete_elem(&conn_close_flushed, &t);
+    if (code != 0) {
+        log_debug("adamk kprobe/inet_sock_destruct: FAILED TO DELETE conn_close_flushed");
+    }
 
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
     skp_conn.tup.pid = 0;
 
-    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+    int ret = bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+    if (ret != 0) {
+        log_debug("adamk kprobe/inet_sock_destruct: FAILED TO DELETE tcp_ongoing_connect_pid");
+    }
     return 0;
 }
 
