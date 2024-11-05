@@ -26,12 +26,11 @@ type EBPFLessFieldHandlers struct {
 	*BaseFieldHandlers
 	config    *config.Config
 	resolvers *resolvers.EBPFLessResolvers
-	hostname  string
 }
 
 // NewEBPFLessFieldHandlers returns a new EBPFLessFieldHandlers
 func NewEBPFLessFieldHandlers(config *config.Config, resolvers *resolvers.EBPFLessResolvers, hostname string) (*EBPFLessFieldHandlers, error) {
-	bfh, err := NewBaseFieldHandlers(config)
+	bfh, err := NewBaseFieldHandlers(config, hostname)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +39,6 @@ func NewEBPFLessFieldHandlers(config *config.Config, resolvers *resolvers.EBPFLe
 		BaseFieldHandlers: bfh,
 		config:            config,
 		resolvers:         resolvers,
-		hostname:          hostname,
 	}, nil
 }
 
@@ -427,11 +425,6 @@ func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsInt2(_ *model.Event, e *mo
 // ResolveSyscallCtxArgsInt3 resolve syscall ctx
 func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsInt3(_ *model.Event, e *model.SyscallContext) int {
 	return int(e.IntArg3)
-}
-
-// ResolveHostname resolve the hostname
-func (fh *EBPFLessFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
-	return fh.hostname
 }
 
 // ResolveOnDemandName resolves the on-demand event name

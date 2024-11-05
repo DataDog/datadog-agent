@@ -19,12 +19,11 @@ type FieldHandlers struct {
 	*BaseFieldHandlers
 	config    *config.Config
 	resolvers *resolvers.Resolvers
-	hostname  string
 }
 
 // NewFieldHandlers returns a new FieldHandlers
 func NewFieldHandlers(config *config.Config, resolvers *resolvers.Resolvers, hostname string) (*FieldHandlers, error) {
-	bfh, err := NewBaseFieldHandlers(config)
+	bfh, err := NewBaseFieldHandlers(config, hostname)
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +32,6 @@ func NewFieldHandlers(config *config.Config, resolvers *resolvers.Resolvers, hos
 		BaseFieldHandlers: bfh,
 		config:            config,
 		resolvers:         resolvers,
-		hostname:          hostname,
 	}, nil
 }
 
@@ -165,9 +163,4 @@ func (fh *FieldHandlers) ResolveNewSecurityDescriptor(_ *model.Event, cp *model.
 		return cp.NewSd
 	}
 	return hrsd
-}
-
-// ResolveHostname resolve the hostname
-func (fh *FieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
-	return fh.hostname
 }

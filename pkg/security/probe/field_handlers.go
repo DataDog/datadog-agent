@@ -102,11 +102,14 @@ func resolveService(cfg *config.Config, fh pceResolver, ev *model.Event, e *mode
 // BaseFieldHandlers holds the base field handlers
 type BaseFieldHandlers struct {
 	privateCIDRs eval.CIDRValues
+	hostname     string
 }
 
 // NewBaseFieldHandlers creates a new BaseFieldHandlers
-func NewBaseFieldHandlers(cfg *config.Config) (*BaseFieldHandlers, error) {
-	bfh := &BaseFieldHandlers{}
+func NewBaseFieldHandlers(cfg *config.Config, hostname string) (*BaseFieldHandlers, error) {
+	bfh := &BaseFieldHandlers{
+		hostname: hostname,
+	}
 
 	for _, cidr := range cfg.Probe.NetworkPrivateIPRanges {
 		if err := bfh.privateCIDRs.AppendIP(cidr); err != nil {
@@ -129,4 +132,9 @@ func (bfh *BaseFieldHandlers) ResolveIsIPPublic(_ *model.Event, ipCtx *model.IPP
 		ipCtx.IsPublicResolved = true
 	}
 	return ipCtx.IsPublic
+}
+
+// ResolveHostname resolve the hostname
+func (bfh *BaseFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
+	return bfh.hostname
 }
