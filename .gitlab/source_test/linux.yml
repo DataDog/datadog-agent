@@ -5,7 +5,7 @@
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
     - !reference [.retrieve_linux_go_deps]
-    - inv -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev --python-runtimes "$PYTHON_RUNTIMES"
+    - inv -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
     - inv -e rtloader.install
     - inv -e rtloader.format --raise-if-changed
     - inv -e rtloader.test
@@ -33,7 +33,7 @@
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
     - inv -e sds.build-library
     - inv -e agent.build
-    - inv -e test $FLAVORS --include-sds --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG --test-washer
+    - inv -e test $FLAVORS --include-sds --race --profile --rerun-fails=2 --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG --test-washer
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -66,7 +66,6 @@ tests_deb-x64-py3:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
   variables:
-    PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
 
 tests_flavor_iot_deb-x64:
@@ -77,7 +76,6 @@ tests_flavor_iot_deb-x64:
   after_script:
     - !reference [.upload_junit_source]
   variables:
-    PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
     FLAVORS: '--flavor iot'
 
@@ -89,7 +87,6 @@ tests_flavor_dogstatsd_deb-x64:
   after_script:
     - !reference [.upload_junit_source]
   variables:
-    PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
     FLAVORS: '--flavor dogstatsd'
 
@@ -101,7 +98,6 @@ tests_flavor_heroku_deb-x64:
   after_script:
     - !reference [.upload_junit_source]
   variables:
-    PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
     FLAVORS: '--flavor heroku'
 
@@ -115,7 +111,6 @@ tests_rpm-x64-py3:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
-    PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
     EXTRA_OPTS: '--build-exclude=systemd'
 
@@ -124,11 +119,11 @@ tests_deb-arm64-py3:
     - .rtloader_tests
     - .linux_tests
   after_script:
+    - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
-    PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
 
 tests_rpm-arm64-py3:
@@ -136,11 +131,11 @@ tests_rpm-arm64-py3:
     - .rtloader_tests
     - .linux_tests
   after_script:
+    - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
-    PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
 
 # Check consistency of go.mod file with project imports
@@ -172,7 +167,7 @@ new-e2e-unit-tests:
     - !reference [.retrieve_linux_go_e2e_deps]
     # Setup AWS Credentials
     - mkdir -p ~/.aws
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_PROFILE >> ~/.aws/config || exit $?
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E profile >> ~/.aws/config || exit $?
     - export AWS_PROFILE=agent-qa-ci
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"

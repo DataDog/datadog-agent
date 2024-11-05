@@ -19,5 +19,15 @@ func (fc *SimpleEventConsumer) Copy(event *smodel.Event) any {
 
 	valueType := uint32(event.GetEventType())
 	result.Type = valueType
+
+	if event.GetEventType() == smodel.ExecEventType {
+		valueExecFilePath := event.GetExecFilePath()
+		result.ExecFilePath = valueExecFilePath
+	}
+
+	if event.GetEventType() == smodel.ExecEventType {
+		valueEnvp := event.GetProcessEnvp()
+		result.Envp = valueEnvp
+	}
 	return &result
 }

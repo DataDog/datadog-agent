@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -67,7 +66,7 @@ type snmpJob struct {
 }
 
 // NewSNMPListener creates a SNMPListener
-func NewSNMPListener(Config, *telemetry.Store) (ServiceListener, error) {
+func NewSNMPListener(ServiceListernerDeps) (ServiceListener, error) {
 	snmpConfig, err := snmp.NewListenerConfig()
 	if err != nil {
 		return nil, err
@@ -355,6 +354,11 @@ func (s *SNMPService) GetPorts(context.Context) ([]ContainerPort, error) {
 // GetTags returns the list of container tags - currently always empty
 func (s *SNMPService) GetTags() ([]string, error) {
 	return []string{}, nil
+}
+
+// GetTagsWithCardinality returns the tags with given cardinality.
+func (s *SNMPService) GetTagsWithCardinality(_ string) ([]string, error) {
+	return s.GetTags()
 }
 
 // GetPid returns nil and an error because pids are currently not supported

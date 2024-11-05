@@ -19,9 +19,10 @@ from tasks.libs.ciproviders.github_actions_tools import (
     trigger_macos_workflow,
 )
 from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH
-from tasks.libs.common.datadog_api import create_gauge, send_metrics
+from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
 from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
 from tasks.libs.common.utils import get_git_pretty_ref
+from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 from tasks.release import _get_release_json_value
@@ -69,7 +70,6 @@ def trigger_macos(
     datadog_agent_ref=DEFAULT_BRANCH,
     release_version="nightly-a7",
     major_version="7",
-    python_runtimes="3",
     destination=".",
     version_cache=None,
     retry_download=3,
@@ -91,7 +91,6 @@ def trigger_macos(
             # ... And provide the release version as a workflow input when needed
             release_version=release_version,
             major_version=major_version,
-            python_runtimes=python_runtimes,
             # Send pipeline id and bucket branch so that the package version
             # can be constructed properly for nightlies.
             gitlab_pipeline_id=os.environ.get("CI_PIPELINE_ID", None),
@@ -107,7 +106,6 @@ def trigger_macos(
             retry_interval,
             workflow_name="test.yaml",
             datadog_agent_ref=datadog_agent_ref,
-            python_runtimes=python_runtimes,
             version_cache_file_content=version_cache,
             fast_tests=fast_tests,
             test_washer=test_washer,
@@ -118,7 +116,6 @@ def trigger_macos(
             release_version,
             workflow_name="lint.yaml",
             datadog_agent_ref=datadog_agent_ref,
-            python_runtimes=python_runtimes,
             version_cache_file_content=version_cache,
         )
     if conclusion != "success":
@@ -126,48 +123,29 @@ def trigger_macos(
 
 
 @task
-def lint_codeowner(_):
+def lint_codeowner(_, owners_file=".github/CODEOWNERS"):
     """
-    Check every package in `pkg` has an owner
+    Run multiple checks on the provided CODEOWNERS file
     """
 
     base = os.path.dirname(os.path.abspath(__file__))
     root_folder = os.path.join(base, "..")
     os.chdir(root_folder)
 
-    owners = _get_code_owners(root_folder)
+    exit_code = 0
 
-    # make sure each root package has an owner
-    pkgs_without_owner = _find_packages_without_owner(owners, "pkg")
-    if len(pkgs_without_owner) > 0:
-        raise Exit(
-            f'The following packages  in `pkg` directory don\'t have an owner in CODEOWNERS: {pkgs_without_owner}',
-            code=1,
-        )
+    # Getting GitHub CODEOWNER file content
+    owners = read_owners(owners_file)
 
+    # Define linters
+    linters = [directory_has_packages_without_owner, codeowner_has_orphans]
 
-def _find_packages_without_owner(owners, folder):
-    pkg_without_owners = []
-    for x in os.listdir(folder):
-        path = os.path.join("/" + folder, x)
-        if path not in owners:
-            pkg_without_owners.append(path)
-    return pkg_without_owners
+    # Execute linters
+    for linter in linters:
+        if linter(owners):
+            exit_code = 1
 
-
-def _get_code_owners(root_folder):
-    code_owner_path = os.path.join(root_folder, ".github", "CODEOWNERS")
-    owners = {}
-    with open(code_owner_path) as f:
-        for line in f:
-            line = line.strip()
-            line = line.split("#")[0]  # remove comment
-            if len(line) > 0:
-                parts = line.split()
-                path = os.path.normpath(parts[0])
-                # example /tools/retry_file_dump ['@DataDog/agent-metrics-logs']
-                owners[path] = parts[1:]
-    return owners
+    raise Exit(code=exit_code)
 
 
 @task
@@ -431,3 +409,103 @@ def pr_commenter(
 
     if verbose:
         print(f"{action} comment on PR #{pr.number} - {pr.title}")
+
+
+@task
+def pr_merge_dd_event_sender(
+    _,
+    pr_id: int | None = None,
+    dry_run: bool = False,
+):
+    """
+    Sends a PR merged event to Datadog with the following tags:
+    - repo:datadog-agent
+    - pr:<pr_number>
+    - author:<pr_author>
+    - qa_label:missing if the PR doesn't have the qa/done or qa/no-code-change label
+    - qa_description:missing if the PR doesn't have a test/QA description section
+
+    - pr_id: If None, will use $CI_COMMIT_BRANCH to identify which PR
+    """
+
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    github = GithubAPI()
+
+    if pr_id is None:
+        branch = os.environ["CI_COMMIT_BRANCH"]
+        prs = list(github.get_pr_for_branch(branch))
+        assert len(prs) == 1, f"Expected 1 PR for branch {branch}, found {len(prs)} PRs"
+        pr = prs[0]
+    else:
+        pr = github.get_pr(int(pr_id))
+
+    if not pr.merged:
+        raise Exit(f"PR #{pr.number} is not merged yet", code=1)
+
+    tags = [f'repo:{pr.base.repo.full_name}', f'pr_id:{pr.number}', f'author:{pr.user.login}']
+    labels = set(github.get_pr_labels(pr.number))
+    all_qa_labels = {'qa/done', 'qa/no-code-change'}
+    qa_labels = all_qa_labels.intersection(labels)
+    if len(qa_labels) == 0:
+        tags.append('qa_label:missing')
+    else:
+        tags.extend([f"qa_label:{label}" for label in qa_labels])
+
+    qa_description = extract_test_qa_description(pr.body)
+    if qa_description == '':
+        tags.append('qa_description:missing')
+
+    tags.extend([f"team:{label.removeprefix('team/')}" for label in labels if label.startswith('team/')])
+    title = "PR merged"
+    text = f"PR #{pr.number} merged to {pr.base.ref} at {pr.base.repo.full_name} by {pr.user.login} with QA description [{qa_description}]"
+
+    if dry_run:
+        print(f'''I would send the following event to Datadog:
+
+title: {title}
+text: {text}
+tags: {tags}''')
+        return
+
+    send_event(
+        title=title,
+        text=text,
+        tags=tags,
+    )
+
+
+def extract_test_qa_description(pr_body: str) -> str:
+    """
+    Extract the test/QA description section from the PR body
+    """
+    # Extract the test/QA description section from the PR body
+    # Based on PULL_REQUEST_TEMPLATE.md
+    pr_body_lines = pr_body.splitlines()
+    index_of_test_qa_section = -1
+    for i, line in enumerate(pr_body_lines):
+        if line.startswith('### Describe how to test'):
+            index_of_test_qa_section = i
+            break
+    if index_of_test_qa_section == -1:
+        return ''
+    index_of_next_section = len(pr_body_lines)
+    for i in range(index_of_test_qa_section + 1, len(pr_body_lines)):
+        if pr_body_lines[i].startswith('### '):
+            index_of_next_section = i
+            break
+    if index_of_next_section == -1:
+        return ''
+    return '\n'.join(pr_body_lines[index_of_test_qa_section + 1 : index_of_next_section]).strip()
+
+
+@task
+def assign_codereview_label(_, pr_id=-1):
+    """
+    Assigns a code review complexity label based on PR attributes (files changed, additions, deletions, comments)
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI('DataDog/datadog-agent')
+    complexity = gh.get_codereview_complexity(pr_id)
+    gh.update_review_complexity_labels(pr_id, complexity)

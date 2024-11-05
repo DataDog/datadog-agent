@@ -25,7 +25,7 @@ type hostTagsGetter struct {
 
 func newHostTagsGetter() hostTagsGetter {
 	config := pkgconfigsetup.Datadog()
-	detectenv.DetectFeatures(config) // For host tags to work)
+	detectenv.DetectFeatures(config) // For host tags to work
 	err := populateTags(config)
 	if err != nil {
 		log.Warnf("Failed to populate tags from datadog.yaml: %v", err)

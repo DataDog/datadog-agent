@@ -292,6 +292,11 @@ func (fh *EBPFFieldHandlers) ResolveProcessEnvs(_ *model.Event, process *model.P
 	return envs
 }
 
+// ResolveProcessIsThread returns true is the process is a thread
+func (fh *EBPFFieldHandlers) ResolveProcessIsThread(_ *model.Event, process *model.Process) bool {
+	return !process.IsExec
+}
+
 // ResolveSetuidUser resolves the user of the Setuid event
 func (fh *EBPFFieldHandlers) ResolveSetuidUser(ev *model.Event, e *model.SetuidEvent) string {
 	if len(e.User) == 0 {
@@ -423,21 +428,27 @@ func (fh *EBPFFieldHandlers) ResolveAsync(ev *model.Event) bool {
 	return ev.Async
 }
 
+func (fh *EBPFFieldHandlers) resolveSBOMFields(ev *model.Event, f *model.FileEvent) {
+	// Force the resolution of file path to be able to map to a package provided file
+	if fh.ResolveFilePath(ev, f) == "" {
+		return
+	}
+
+	if fh.resolvers.SBOMResolver == nil {
+		return
+	}
+
+	if pkg := fh.resolvers.SBOMResolver.ResolvePackage(string(ev.ContainerContext.ContainerID), f); pkg != nil {
+		f.PkgName = pkg.Name
+		f.PkgVersion = pkg.Version
+		f.PkgSrcVersion = pkg.SrcVersion
+	}
+}
+
 // ResolvePackageName resolves the name of the package providing this file
 func (fh *EBPFFieldHandlers) ResolvePackageName(ev *model.Event, f *model.FileEvent) string {
 	if f.PkgName == "" {
-		// Force the resolution of file path to be able to map to a package provided file
-		if fh.ResolveFilePath(ev, f) == "" {
-			return ""
-		}
-
-		if fh.resolvers.SBOMResolver == nil {
-			return ""
-		}
-
-		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(string(ev.ContainerContext.ContainerID), f); pkg != nil {
-			f.PkgName = pkg.Name
-		}
+		fh.resolveSBOMFields(ev, f)
 	}
 	return f.PkgName
 }
@@ -445,18 +456,7 @@ func (fh *EBPFFieldHandlers) ResolvePackageName(ev *model.Event, f *model.FileEv
 // ResolvePackageVersion resolves the version of the package providing this file
 func (fh *EBPFFieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.FileEvent) string {
 	if f.PkgVersion == "" {
-		// Force the resolution of file path to be able to map to a package provided file
-		if fh.ResolveFilePath(ev, f) == "" {
-			return ""
-		}
-
-		if fh.resolvers.SBOMResolver == nil {
-			return ""
-		}
-
-		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(string(ev.ContainerContext.ContainerID), f); pkg != nil {
-			f.PkgVersion = pkg.Version
-		}
+		fh.resolveSBOMFields(ev, f)
 	}
 	return f.PkgVersion
 }
@@ -464,18 +464,7 @@ func (fh *EBPFFieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.Fil
 // ResolvePackageSourceVersion resolves the version of the source package of the package providing this file
 func (fh *EBPFFieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *model.FileEvent) string {
 	if f.PkgSrcVersion == "" {
-		// Force the resolution of file path to be able to map to a package provided file
-		if fh.ResolveFilePath(ev, f) == "" {
-			return ""
-		}
-
-		if fh.resolvers.SBOMResolver == nil {
-			return ""
-		}
-
-		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(string(ev.ContainerContext.ContainerID), f); pkg != nil {
-			f.PkgSrcVersion = pkg.SrcVersion
-		}
+		fh.resolveSBOMFields(ev, f)
 	}
 	return f.PkgSrcVersion
 }

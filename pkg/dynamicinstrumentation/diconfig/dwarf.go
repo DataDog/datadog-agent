@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && arm64
+//go:build linux_bpf
 
 package diconfig
 
@@ -243,7 +243,7 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data) (*ditypes.Parame
 			return nil, fmt.Errorf("could not collect fields of slice type: %w", err)
 		}
 		typeHeader = sliceElements[0]
-	} else if typeEntry.Tag == dwarf.TagStructType && typeName != "string" {
+	} else if typeEntry.Tag == dwarf.TagStructType {
 		structFields, err := getStructFields(typeEntry.Offset, dwarfData)
 		if err != nil {
 			return nil, fmt.Errorf("could not collect fields of struct type of ditypes.Parameter: %w", err)

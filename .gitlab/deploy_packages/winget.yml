@@ -12,7 +12,7 @@ publish_winget_7_x64:
   before_script:
     - $tmpfile = [System.IO.Path]::GetTempFileName()
     - (& "$CI_PROJECT_DIR\tools\ci\fetch_secret.ps1" -parameterName "$Env:WINGET_PAT" -tempFile "$tmpfile")
-    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - If ($lastExitCode -ne "0") { exit "$lastExitCode" }
     - $wingetPat=$(cat "$tmpfile")
     - Remove-Item "$tmpfile"
   script:

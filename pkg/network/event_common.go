@@ -218,8 +218,8 @@ type StatCounters struct {
 	// * Value 1 represents a connection that was established after system-probe started;
 	// * Values greater than 1 should be rare, but can occur when multiple connections
 	//   are established with the same tuple between two agent checks;
-	TCPEstablished uint32
-	TCPClosed      uint32
+	TCPEstablished uint16
+	TCPClosed      uint16
 }
 
 // IsZero returns whether all the stat counter values are zeroes
@@ -232,53 +232,64 @@ func (s StatCounters) IsZero() bool {
 // reduce collisions; see PR #17197 for more info.
 type StatCookie = uint64
 
-// ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
-type ConnectionStats struct {
+// ConnectionTuple represents the unique network key for a connection
+type ConnectionTuple struct {
 	Source util.Address
 	Dest   util.Address
+	Pid    uint32
+	NetNS  uint32
+	SPort  uint16
+	DPort  uint16
+	Type   ConnectionType
+	Family ConnectionFamily
+}
 
+func (c ConnectionTuple) String() string {
+	return fmt.Sprintf(
+		"[%s%s] [PID: %d] [ns: %d] [%s:%d ⇄ %s:%d] ",
+		c.Type,
+		c.Family,
+		c.Pid,
+		c.NetNS,
+		c.Source,
+		c.SPort,
+		c.Dest,
+		c.DPort,
+	)
+}
+
+// ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
+type ConnectionStats struct {
+	// move pointer fields first to reduce number of bytes GC has to scan
 	IPTranslation *IPTranslation
 	Via           *Via
-
-	Monotonic StatCounters
-
-	Last StatCounters
-
-	Cookie StatCookie
-
-	// Last time the stats for this connection were updated
-	LastUpdateEpoch uint64
-	Duration        time.Duration
-
-	RTT    uint32 // Stored in µs
-	RTTVar uint32
-
-	Pid   uint32
-	NetNS uint32
-
-	SPort            uint16
-	DPort            uint16
-	Type             ConnectionType
-	Family           ConnectionFamily
-	Direction        ConnectionDirection
-	SPortIsEphemeral EphemeralPortType
-	StaticTags       uint64
-	Tags             []*intern.Value
-
-	IntraHost bool
-	IsAssured bool
-	IsClosed  bool
-
-	ContainerID struct {
+	Tags          []*intern.Value
+	ContainerID   struct {
 		Source, Dest *intern.Value
 	}
-
-	ProtocolStack protocols.Stack
-
 	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
-
 	// TCPFailures stores the number of failures for a POSIX error code
 	TCPFailures map[uint32]uint32
+
+	ConnectionTuple
+
+	Monotonic StatCounters
+	Last      StatCounters
+	Cookie    StatCookie
+	// LastUpdateEpoch is the last time the stats for this connection were updated
+	LastUpdateEpoch uint64
+	Duration        time.Duration
+	RTT             uint32 // Stored in µs
+	RTTVar          uint32
+	StaticTags      uint64
+	ProtocolStack   protocols.Stack
+
+	// keep these fields last because they are 1 byte each and otherwise inflate the struct size due to alignment
+	Direction        ConnectionDirection
+	SPortIsEphemeral EphemeralPortType
+	IntraHost        bool
+	IsAssured        bool
+	IsClosed         bool
 }
 
 // Via has info about the routing decision for a flow

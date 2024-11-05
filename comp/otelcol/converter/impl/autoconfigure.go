@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"go.opentelemetry.io/collector/confmap"
 )
 
@@ -115,7 +115,7 @@ func addComponentToPipeline(conf *confmap.Conf, comp component, pipelineName str
 	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
 
-func addCoreAgentConfig(conf *confmap.Conf, coreCfg coreconfig.Component) {
+func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 	stringMapConf := conf.ToStringMap()
 	exporters, ok := stringMapConf["exporters"]
 	if !ok {

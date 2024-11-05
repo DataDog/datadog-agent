@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newUnbundledTransformer(hostname string, types []string, bundledTransformer eventTransformer) eventTransformer {
+func newUnbundledTransformer(hostname string, types []string, bundledTransformer eventTransformer, tagger tagger.Component) eventTransformer {
 	collectedEventTypes := make(map[string]struct{}, len(types))
 	for _, t := range types {
 		collectedEventTypes[t] = struct{}{}
@@ -27,6 +27,7 @@ func newUnbundledTransformer(hostname string, types []string, bundledTransformer
 		hostname:            hostname,
 		collectedEventTypes: collectedEventTypes,
 		bundledTransformer:  bundledTransformer,
+		tagger:              tagger,
 	}
 }
 
@@ -34,6 +35,7 @@ type unbundledTransformer struct {
 	hostname            string
 	collectedEventTypes map[string]struct{}
 	bundledTransformer  eventTransformer
+	tagger              tagger.Component
 }
 
 func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]event.Event, []error) {
@@ -56,8 +58,8 @@ func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]eve
 
 		emittedEvents.Inc(string(alertType))
 
-		tags, err := tagger.Tag(
-			types.NewEntityID(types.ContainerID, ev.ContainerID).String(),
+		tags, err := t.tagger.Tag(
+			types.NewEntityID(types.ContainerID, ev.ContainerID),
 			types.HighCardinality,
 		)
 		if err != nil {

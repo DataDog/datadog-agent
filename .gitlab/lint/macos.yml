@@ -9,7 +9,7 @@ include:
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
-    - inv -e linter.go --cpus 12 --timeout 60
+    - inv -e linter.go --cpus 12 --debug --timeout 60
 
 lint_macos_gitlab_amd64:
   extends: .lint_macos_gitlab

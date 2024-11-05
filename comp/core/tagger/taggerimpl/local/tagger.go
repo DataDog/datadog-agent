@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
@@ -51,6 +52,8 @@ func NewTagger(cfg config.Component, workloadStore workloadmeta.Component, telem
 	}
 }
 
+var _ tagger.Component = NewTagger(nil, nil, nil)
+
 // Start starts the workloadmeta collector and then it is ready for requests.
 func (t *Tagger) Start(ctx context.Context) error {
 	t.ctx, t.cancel = context.WithCancel(ctx)
@@ -75,8 +78,8 @@ func (t *Tagger) Stop() error {
 }
 
 // getTags returns a read only list of tags for a given entity.
-func (t *Tagger) getTags(entityID string, cardinality types.TagCardinality) (tagset.HashedTags, error) {
-	if entityID == "" {
+func (t *Tagger) getTags(entityID types.EntityID, cardinality types.TagCardinality) (tagset.HashedTags, error) {
+	if entityID.Empty() {
 		t.telemetryStore.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
 		return tagset.HashedTags{}, fmt.Errorf("empty entity ID")
 	}
@@ -88,14 +91,14 @@ func (t *Tagger) getTags(entityID string, cardinality types.TagCardinality) (tag
 }
 
 // AccumulateTagsFor appends tags for a given entity from the tagger to the TagsAccumulator
-func (t *Tagger) AccumulateTagsFor(entityID string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
+func (t *Tagger) AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
 	tags, err := t.getTags(entityID, cardinality)
 	tb.AppendHashed(tags)
 	return err
 }
 
 // Tag returns a copy of the tags for a given entity
-func (t *Tagger) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
+func (t *Tagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
 	tags, err := t.getTags(entityID, cardinality)
 	if err != nil {
 		return nil, err
@@ -103,21 +106,33 @@ func (t *Tagger) Tag(entityID string, cardinality types.TagCardinality) ([]strin
 	return tags.Copy(), nil
 }
 
+// LegacyTag has the same behaviour as the Tag method, but it receives the entity id as a string and parses it.
+// If possible, avoid using this function, and use the Tag method instead.
+// This function exists in order not to break backward compatibility with rtloader and python
+// integrations using the tagger
+func (t *Tagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
+	prefix, id, err := taggercommon.ExtractPrefixAndID(entity)
+	if err != nil {
+		return nil, err
+	}
+
+	entityID := types.NewEntityID(prefix, id)
+	return t.Tag(entityID, cardinality)
+}
+
 // Standard returns standard tags for a given entity
 // It triggers a tagger fetch if the no tags are found
-func (t *Tagger) Standard(entityID string) ([]string, error) {
-	if entityID == "" {
+func (t *Tagger) Standard(entityID types.EntityID) ([]string, error) {
+	if entityID.Empty() {
 		return nil, fmt.Errorf("empty entity ID")
 	}
 
-	id, _ := types.NewEntityIDFromString(entityID)
-	return t.tagStore.LookupStandard(id)
+	return t.tagStore.LookupStandard(entityID)
 }
 
 // GetEntity returns the entity corresponding to the specified id and an error
-func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
-	id, _ := types.NewEntityIDFromString(entityID)
-	return t.tagStore.GetEntity(id)
+func (t *Tagger) GetEntity(entityID types.EntityID) (*types.Entity, error) {
+	return t.tagStore.GetEntity(entityID)
 }
 
 // List the content of the tagger

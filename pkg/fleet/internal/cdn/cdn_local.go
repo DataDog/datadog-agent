@@ -16,15 +16,13 @@ import (
 )
 
 type cdnLocal struct {
-	dirPath  string
-	hostTags hostTagsGetter
+	dirPath string
 }
 
-// newLocal creates a new local CDN.
-func newLocal(env *env.Env, hostTags hostTagsGetter) (CDN, error) {
+// newCDNLocal creates a new local CDN.
+func newCDNLocal(env *env.Env) (CDN, error) {
 	return &cdnLocal{
-		dirPath:  env.CDNLocalDirPath,
-		hostTags: hostTags,
+		dirPath: env.CDNLocalDirPath,
 	}, nil
 }
 
@@ -68,7 +66,7 @@ func (c *cdnLocal) Get(_ context.Context, pkg string) (cfg Config, err error) {
 			return nil, err
 		}
 	case "datadog-apm-inject":
-		cfg, err = newAPMConfig(c.hostTags.get(), orderConfig, layers...)
+		cfg, err = newAPMConfig([]string{}, orderConfig, layers...)
 		if err != nil {
 			return nil, err
 		}

@@ -40,7 +40,6 @@ func (fr *FakeResolver) Stop() error {
 func (fr *FakeResolver) Resolve(containerID string) []string {
 	fakeTags := []string{
 		"image_tag:latest",
-		"container_id:" + containerID,
 	}
 	fr.Lock()
 	defer fr.Unlock()

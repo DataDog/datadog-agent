@@ -141,7 +141,7 @@ func TestProcessContext(t *testing.T) {
 		},
 		{
 			ID:         "test_rule_ancestors",
-			Expression: `open.file.path == "{{.Root}}/test-process-ancestors" && process.ancestors[_].file.name in ["sh", "dash", "bash"]`,
+			Expression: `open.file.path == "{{.Root}}/test-process-ancestors" && process.ancestors[A].file.name in ["sh", "dash", "bash"]`,
 		},
 		{
 			ID:         "test_rule_parent",
@@ -149,7 +149,7 @@ func TestProcessContext(t *testing.T) {
 		},
 		{
 			ID:         "test_rule_pid1",
-			Expression: `open.file.path == "{{.Root}}/test-process-pid1" && process.ancestors[_].pid == 1`,
+			Expression: `open.file.path == "{{.Root}}/test-process-pid1" && process.ancestors[A].pid == 1`,
 		},
 		{
 			ID:         "test_rule_args_envs",
@@ -1727,7 +1727,7 @@ func TestProcessIsThread(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("fork-isthread", func(t *testing.T) {
+	t.Run("fork-is-not-exec", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			args := []string{"fork"}
 			cmd := exec.Command(syscallTester, args...)
@@ -1738,11 +1738,11 @@ func TestProcessIsThread(t *testing.T) {
 			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "wrong process file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Parent.FileEvent.BasenameStr, "wrong parent process file basename")
-			assert.True(t, event.ProcessContext.IsThread, "process should be marked as being a thread")
+			assert.False(t, event.ProcessContext.IsExec, "process shouldn't be marked as being an exec")
 		})
 	})
 
-	t.Run("exec-isnotthread", func(t *testing.T) {
+	t.Run("exec-is-exec", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			args := []string{"fork", "exec"}
 			cmd := exec.Command(syscallTester, args...)
@@ -1752,7 +1752,7 @@ func TestProcessIsThread(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_process_exec_is_not_thread")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Parent.FileEvent.BasenameStr, "wrong parent process file basename")
-			assert.False(t, event.ProcessContext.IsThread, "process should be marked as not being a thread")
+			assert.True(t, event.ProcessContext.IsExec, "process should be marked as being an exec")
 		})
 	})
 }

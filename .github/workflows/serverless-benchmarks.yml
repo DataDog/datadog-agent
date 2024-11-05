@@ -40,9 +40,11 @@ jobs:
           go get ./...
 
       - name: Run benchmark
+        env:
+          TEMP_RUNNER: ${{runner.temp}}
         run: |
           go test -tags=test -run='^$' -bench=StartEndInvocation -count=10 -benchtime=500ms -timeout=60m \
-              ./pkg/serverless/... | tee ${{runner.temp}}/benchmark.log
+              ./pkg/serverless/... | tee "$TEMP_RUNNER"/benchmark.log
 
       - name: Upload result artifact
         uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a # v4.3.6
@@ -76,9 +78,11 @@ jobs:
           go get ./...
 
       - name: Run benchmark
+        env:
+          TEMP_RUNNER: ${{runner.temp}}
         run: |
           go test -tags=test -run='^$' -bench=StartEndInvocation -count=10 -benchtime=500ms -timeout=60m \
-              ./pkg/serverless/... | tee ${{runner.temp}}/benchmark.log
+              ./pkg/serverless/... | tee "$TEMP_RUNNER"/benchmark.log
 
       - name: Upload result artifact
         uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a # v4.3.6

@@ -54,7 +54,7 @@ jobs:
           ref: ${{ inputs.branch }}
 
       - name: Setup Python and pip
-        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           # use Python < 3.12 so that distutil is still available by default
           python-version: 3.11
@@ -78,16 +78,16 @@ jobs:
       - name: Get current buildimage tag
         id: current_buildimage_tag
         run: |
-            echo "BUILDIMAGE_TAG=$(inv pipeline.get-gitlab-config-image-tag)" >> $GITHUB_OUTPUT
+            echo "BUILDIMAGE_TAG=$(inv buildimages.get-tag)" >> $GITHUB_OUTPUT
 
       - name: Update buildimages IDs and Go version
         id: update_build_images
         env:
-          TEST_VERSION_FLAG: ${{ inputs.test_version && '--test-version' || '--no-test-version' }}
+          TEST_VERSION_FLAG: ${{ inputs.test_version && '--test' || '--no-test' }}
           INCLUDE_OTEL_MODULES: ${{ inputs.include_otel_modules && '--include-otel-modules' || '' }}
         run: |
           if [ "${{ steps.current_go_version.outputs.GO_VERSION }}" = "${{ inputs.go_version }}" ]; then
-            inv -e buildimages.update --image-tag ${{ inputs.images_id }} $TEST_VERSION_FLAG
+            inv -e buildimages.update --tag ${{ inputs.images_id }} $TEST_VERSION_FLAG
             echo 'MESSAGE=Update buildimages ID to ${{ inputs.images_id }}' >> $GITHUB_OUTPUT
           else
             inv -e update-go --image-tag ${{ inputs.images_id }} $TEST_VERSION_FLAG $INCLUDE_OTEL_MODULES -v "${{ inputs.go_version }}"
@@ -140,7 +140,7 @@ jobs:
           ${{ inputs.images_id }} \
           ${{ steps.current_go_version.outputs.GO_VERSION }} \
           ${{ inputs.go_version }} \
-          ${{ inputs.test_version && '--test-version' || '' }} > $TMP_PR_BODY_PATH
+          ${{ inputs.test_version && '--test' || '' }} > $TMP_PR_BODY_PATH
 
           # Create the PR
           gh pr create \

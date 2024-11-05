@@ -6,3 +6,4 @@ include:
   - .gitlab/integration_test/dogstatsd.yml
   - .gitlab/integration_test/otel.yml
   - .gitlab/integration_test/windows.yml
+  - .gitlab/integration_test/linux.yml

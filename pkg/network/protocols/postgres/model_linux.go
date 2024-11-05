@@ -10,7 +10,6 @@ package postgres
 import (
 	"bytes"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/DataDog/go-sqllexer"
@@ -24,6 +23,10 @@ import (
 const (
 	// EmptyParameters represents the case where the non-empty query has no parameters
 	EmptyParameters = "EMPTY_PARAMETERS"
+)
+
+var (
+	postgresDBMS = sqllexer.WithDBMS(sqllexer.DBMSPostgres)
 )
 
 // EventWrapper wraps an ebpf event and provides additional methods to extract information from it.
@@ -72,7 +75,8 @@ func getFragment(e *ebpf.EbpfTx) []byte {
 // Operation returns the operation of the query (SELECT, INSERT, UPDATE, DROP, etc.)
 func (e *EventWrapper) Operation() Operation {
 	if !e.operationSet {
-		e.operation = FromString(string(bytes.SplitN(getFragment(&e.Tx), []byte(" "), 2)[0]))
+		op, _, _ := bytes.Cut(getFragment(&e.Tx), []byte(" "))
+		e.operation = FromString(string(op))
 		e.operationSet = true
 	}
 	return e.operation
@@ -97,17 +101,10 @@ func (e *EventWrapper) extractParameters() string {
 	return string(b[idxParam:])
 }
 
-var re = regexp.MustCompile(`(?i)if\s+exists`)
-
 // extractTableName extracts the table name from the query.
 func (e *EventWrapper) extractTableName() string {
-	fragment := string(getFragment(&e.Tx))
-	// Temp solution for the fact that ObfuscateSQLString does not support "IF EXISTS" or "if exists", so we remove
-	// it from the fragment if found.
-	fragment = re.ReplaceAllString(fragment, "")
-
 	// Normalize the query without obfuscating it.
-	_, statementMetadata, err := e.normalizer.Normalize(fragment, sqllexer.WithDBMS(sqllexer.DBMSPostgres))
+	_, statementMetadata, err := e.normalizer.Normalize(string(getFragment(&e.Tx)), postgresDBMS)
 	if err != nil {
 		log.Debugf("unable to normalize due to: %s", err)
 		return "UNKNOWN"

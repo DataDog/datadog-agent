@@ -131,7 +131,10 @@ remove_sysprobe_secagent_files()
     if [ -d "$INSTALL_DIR/run" ]; then
         rmdir "$INSTALL_DIR/run" 2>/dev/null || true
     fi
+}
 
+remove_sysprobe_core_files()
+{
     # Remove any unpacked BTF files
     find "$INSTALL_DIR/embedded/share/system-probe/ebpf/co-re/btf" -name "*.btf*" -type f -delete || true
     # And remove empty directories
@@ -186,6 +189,7 @@ stop_agent
 deregister_agent
 remove_custom_integrations
 remove_py_compiled_files
+remove_sysprobe_core_files
 
 case "$1" in
     remove)

@@ -482,7 +482,7 @@ enum bpf_enum_value_kind {
 	__r;								    \
 })
 
-#ifdef COMPILE_RUNTIME
+#ifndef COMPILE_CORE
 
 #undef BPF_CORE_READ
 #define BPF_CORE_READ BPF_PROBE_READ

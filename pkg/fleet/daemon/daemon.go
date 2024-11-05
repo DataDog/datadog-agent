@@ -41,7 +41,7 @@ const (
 	// gcInterval is the interval at which the GC will run
 	gcInterval = 1 * time.Hour
 	// refreshStateInterval is the interval at which the state will be refreshed
-	refreshStateInterval = 1 * time.Minute
+	refreshStateInterval = 30 * time.Second
 )
 
 // Daemon is the fleet daemon in charge of remote install, updates and configuration.
@@ -60,7 +60,7 @@ type Daemon interface {
 
 	GetPackage(pkg string, version string) (Package, error)
 	GetState() (map[string]repository.State, error)
-	GetRemoteConfigState() []*pbgo.PackageState
+	GetRemoteConfigState() *pbgo.ClientUpdater
 	GetAPMInjectionStatus() (APMInjectionStatus, error)
 }
 
@@ -129,7 +129,7 @@ func (d *daemonImpl) GetState() (map[string]repository.State, error) {
 }
 
 // GetRemoteConfigState returns the remote config state.
-func (d *daemonImpl) GetRemoteConfigState() []*pbgo.PackageState {
+func (d *daemonImpl) GetRemoteConfigState() *pbgo.ClientUpdater {
 	d.m.Lock()
 	defer d.m.Unlock()
 
@@ -583,6 +583,10 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		log.Errorf("could not get installer config state: %v", err)
 		return
 	}
+	availableSpace, err := d.installer.AvailableDiskSpace()
+	if err != nil {
+		log.Errorf("could not get available size: %v", err)
+	}
 
 	var packages []*pbgo.PackageState
 	for pkg, s := range state {
@@ -600,8 +604,8 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		configVersion, err := d.resolveRemoteConfigVersion(ctx, pkg)
 		if err == nil {
 			p.RemoteConfigVersion = configVersion
-		} else if !errors.Is(err, cdn.ErrProductNotSupported) {
-			log.Errorf("could not get %s remote config version: %v", pkg, err)
+		} else if err != cdn.ErrProductNotSupported {
+			log.Warnf("could not get remote config version: %v", err)
 		}
 
 		requestState, ok := d.requestsState[pkg]
@@ -621,5 +625,8 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		}
 		packages = append(packages, p)
 	}
-	d.rc.SetState(packages)
+	d.rc.SetState(&pbgo.ClientUpdater{
+		Packages:           packages,
+		AvailableDiskSpace: availableSpace,
+	})
 }

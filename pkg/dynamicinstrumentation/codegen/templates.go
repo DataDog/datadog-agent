@@ -3,13 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && arm64
+//go:build linux_bpf
 
 package codegen
-
-var forcedVerifierErrorTemplate = `
-int illegalDereference = *(*(*ctx->regs[0]));
-`
 
 var headerTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
@@ -21,15 +17,16 @@ bpf_probe_read(&event->output[outputOffset+1], sizeof(param_size), &param_size);
 outputOffset += 3;
 `
 
-// The length of slices aren't known until parsing, so they require
+// The length and type of slices aren't known until parsing, so they require
 // special headers to read in the length dynamically
 var sliceRegisterHeaderTemplateText = `
 // Name={{.Parameter.Name}} ID={{.Parameter.ID}} TotalSize={{.Parameter.TotalSize}} Kind={{.Parameter.Kind}}
 // Write the slice kind to output buffer
 param_type = {{.Parameter.Kind}};
 bpf_probe_read(&event->output[outputOffset], sizeof(param_type), &param_type);
-// Read slice length and write it to output buffer
-bpf_probe_read(&param_size, sizeof(param_size), &ctx->regs[{{.Parameter.Location.Register}}+1]);
+
+{{.SliceLengthText}}
+
 bpf_probe_read(&event->output[outputOffset+1], sizeof(param_size), &param_size);
 outputOffset += 3;
 
@@ -47,15 +44,20 @@ for (indexSlice{{.Parameter.ID}} = 0; indexSlice{{.Parameter.ID}} < MAX_SLICE_LE
 }
 `
 
-// The length of slices aren't known until parsing, so they require
+var sliceLengthRegisterTemplateText = `
+bpf_probe_read(&param_size, sizeof(param_size), &ctx->DWARF_REGISTER({{.Location.Register}}));
+`
+
+// The length and type of slices aren't known until parsing, so they require
 // special headers to read in the length dynamically
 var sliceStackHeaderTemplateText = `
 // Name={{.Parameter.Name}} ID={{.Parameter.ID}} TotalSize={{.Parameter.TotalSize}} Kind={{.Parameter.Kind}}
 // Write the slice kind to output buffer
 param_type = {{.Parameter.Kind}};
 bpf_probe_read(&event->output[outputOffset], sizeof(param_type), &param_type);
-// Read slice length and write it to output buffer
-bpf_probe_read(&param_size, sizeof(param_size), &ctx->regs[29]+{{.Parameter.Location.StackOffset}}+8]);
+
+{{.SliceLengthText}}
+
 bpf_probe_read(&event->output[outputOffset+1], sizeof(param_size), &param_size);
 outputOffset += 3;
 
@@ -73,92 +75,108 @@ for (indexSlice{{.Parameter.ID}} = 0; indexSlice{{.Parameter.ID}} < MAX_SLICE_LE
 }
 `
 
+var sliceLengthStackTemplateText = `
+bpf_probe_read(&param_size, sizeof(param_size), &ctx->DWARF_STACK_REGISTER+{{.Parameter.Location.StackOffset}}]);
+`
+
 // The length of strings aren't known until parsing, so they require
 // special headers to read in the length dynamically
 var stringRegisterHeaderTemplateText = `
-// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// Name={{.Parameter.Name}} ID={{.Parameter.ID}} TotalSize={{.Parameter.TotalSize}} Kind={{.Parameter.Kind}}
 // Write the string kind to output buffer
-param_type = {{.Kind}};
+param_type = {{.Parameter.Kind}};
 bpf_probe_read(&event->output[outputOffset], sizeof(param_type), &param_type);
 
 // Read string length and write it to output buffer
-bpf_probe_read(&param_size, sizeof(param_size), &ctx->regs[{{.Location.Register}}+1]);
+
+{{.StringLengthText}}
 
 // Limit string length
-__u16 string_size_{{.ID}} = param_size;
-if (string_size_{{.ID}} > MAX_STRING_SIZE) {
-    string_size_{{.ID}} = MAX_STRING_SIZE;
+__u16 string_size_{{.Parameter.ID}} = param_size;
+if (string_size_{{.Parameter.ID}} > MAX_STRING_SIZE) {
+    string_size_{{.Parameter.ID}} = MAX_STRING_SIZE;
 }
-bpf_probe_read(&event->output[outputOffset+1], sizeof(string_size_{{.ID}}), &string_size_{{.ID}});
+bpf_probe_read(&event->output[outputOffset+1], sizeof(string_size_{{.Parameter.ID}}), &string_size_{{.Parameter.ID}});
 outputOffset += 3;
+`
+
+var stringLengthRegisterTemplateText = `
+bpf_probe_read(&param_size, sizeof(param_size), &ctx->DWARF_REGISTER({{.Location.Register}}));
 `
 
 // The length of strings aren't known until parsing, so they require
 // special headers to read in the length dynamically
 var stringStackHeaderTemplateText = `
-// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// Name={{.Parameter.Name}} ID={{.Parameter.ID}} TotalSize={{.Parameter.TotalSize}} Kind={{.Parameter.Kind}}
 // Write the string kind to output buffer
-param_type = {{.Kind}};
+param_type = {{.Parameter.Kind}};
 bpf_probe_read(&event->output[outputOffset], sizeof(param_type), &param_type);
+
 // Read string length and write it to output buffer
-bpf_probe_read(&param_size, sizeof(param_size), (char*)((ctx->regs[29])+{{.Location.StackOffset}}+8));
+{{.StringLengthText}}
+
 // Limit string length
-__u16 string_size_{{.ID}} = param_size;
-if (string_size_{{.ID}} > MAX_STRING_SIZE) {
-    string_size_{{.ID}} = MAX_STRING_SIZE;
+__u16 string_size_{{.Parameter.ID}} = param_size;
+if (string_size_{{.Parameter.ID}} > MAX_STRING_SIZE) {
+    string_size_{{.Parameter.ID}} = MAX_STRING_SIZE;
 }
-bpf_probe_read(&event->output[outputOffset+1], sizeof(string_size_{{.ID}}), &string_size_{{.ID}});
+bpf_probe_read(&event->output[outputOffset+1], sizeof(string_size_{{.Parameter.ID}}), &string_size_{{.Parameter.ID}});
 outputOffset += 3;
+`
+
+var stringLengthStackTemplateText = `
+bpf_probe_read(&param_size, sizeof(param_size), (char*)((ctx->DWARF_STACK_REGISTER)+{{.Location.StackOffset}}));
 `
 
 var sliceRegisterTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
 // Read contents of slice
-bpf_probe_read(&event->output[outputOffset], MAX_SLICE_SIZE, (void*)ctx->regs[{{.Location.Register}}]);
+bpf_probe_read(&event->output[outputOffset], MAX_SLICE_SIZE, (void*)ctx->DWARF_REGISTER({{.Location.Register}}));
 outputOffset += MAX_SLICE_SIZE;
 `
 
 var sliceStackTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
 // Read contents of slice
-bpf_probe_read(&event->output[outputOffset], MAX_SLICE_SIZE, (void*)(ctx->regs[29]+{{.Location.StackOffset}});
+bpf_probe_read(&event->output[outputOffset], MAX_SLICE_SIZE, (void*)(ctx->DWARF_STACK_REGISTER+{{.Location.StackOffset}});
 outputOffset += MAX_SLICE_SIZE;`
 
 var stringRegisterTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
 // Read string length and write it to output buffer
-bpf_probe_read(&param_size, sizeof(param_size), &ctx->regs[{{.Location.Register}}+1]);
 
-__u16 string_size_read_{{.ID}} = param_size;
-if (string_size_read_{{.ID}} > MAX_STRING_SIZE) {
-    string_size_read_{{.ID}} = MAX_STRING_SIZE;
+// We limit string length variable again in case the verifier forgot about it (which often happens)
+__u16 string_size_{{.ID}}_new;
+string_size_{{.ID}}_new = string_size_{{.ID}};
+if (string_size_{{.ID}}_new > MAX_STRING_SIZE) {
+    string_size_{{.ID}}_new = MAX_STRING_SIZE;
 }
 
 // Read contents of string
-bpf_probe_read(&event->output[outputOffset], string_size_read_{{.ID}}, (void*)ctx->regs[{{.Location.Register}}]);
-outputOffset += string_size_read_{{.ID}};
+bpf_probe_read(&event->output[outputOffset], string_size_{{.ID}}_new, (void*)ctx->DWARF_REGISTER({{.Location.Register}}));
+outputOffset += string_size_{{.ID}}_new;
 `
 
 var stringStackTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
-// Read string length and write it to output buffer
-bpf_probe_read(&param_size, sizeof(param_size), (char*)((ctx->regs[29])+{{.Location.StackOffset}}+8));
-// Limit string length
-__u16 string_size_read_{{.ID}} = param_size;
-if (string_size_read_{{.ID}} > MAX_STRING_SIZE) {
-    string_size_read_{{.ID}} = MAX_STRING_SIZE;
+
+// We limit string length variable again in case the verifier forgot about it (which often happens)
+__u16 string_size_{{.ID}}_new;
+string_size_{{.ID}}_new = string_size_{{.ID}};
+if (string_size_{{.ID}}_new > MAX_STRING_SIZE) {
+    string_size_{{.ID}}_new = MAX_STRING_SIZE;
 }
 // Read contents of string
-bpf_probe_read(&ret_addr, sizeof(__u64), (void*)(ctx->regs[29]+{{.Location.StackOffset}}));
-bpf_probe_read(&event->output[outputOffset], string_size_read_{{.ID}}, (void*)(ret_addr));
-outputOffset += string_size_read_{{.ID}};
+bpf_probe_read(&ret_addr, sizeof(__u64), (void*)(ctx->DWARF_STACK_REGISTER+{{.Location.StackOffset}}));
+bpf_probe_read(&event->output[outputOffset], string_size_{{.ID}}_new, (void*)(ret_addr));
+outputOffset += string_size_{{.ID}}_new;
 `
 
 var pointerRegisterTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
 // Read the pointer value (address of underlying value)
 void *ptrTo{{.ID}};
-bpf_probe_read(&ptrTo{{.ID}}, sizeof(ptrTo{{.ID}}), &ctx->regs[{{.Location.Register}}]);
+bpf_probe_read(&ptrTo{{.ID}}, sizeof(ptrTo{{.ID}}), &ctx->DWARF_REGISTER({{.Location.Register}}));
 
 // Write the underlying value to output
 bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, ptrTo{{.ID}}+{{.Location.PointerOffset}});
@@ -173,7 +191,7 @@ var pointerStackTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
 // Read the pointer value (address of underlying value)
 void *ptrTo{{.ID}};
-bpf_probe_read(&ptrTo{{.ID}}, sizeof(ptrTo{{.ID}}), (char*)((ctx->regs[29])+{{.Location.StackOffset}}+8));
+bpf_probe_read(&ptrTo{{.ID}}, sizeof(ptrTo{{.ID}}), (char*)((ctx->DWARF_STACK_REGISTER)+{{.Location.StackOffset}}+8));
 
 // Write the underlying value to output
 bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, ptrTo{{.ID}}+{{.Location.PointerOffset}});
@@ -186,14 +204,14 @@ bpf_probe_read(&event->output[outputOffset], sizeof(ptrTo{{.ID}}), &ptrTo{{.ID}}
 
 var normalValueRegisterTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
-bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, &ctx->regs[{{.Location.Register}}]);
+bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, &ctx->DWARF_REGISTER({{.Location.Register}}));
 outputOffset += {{.TotalSize}};
 `
 
 var normalValueStackTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
 // Read value for {{.Name}}
-bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, (char*)((ctx->regs[29])+{{.Location.StackOffset}}));
+bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, (char*)((ctx->DWARF_STACK_REGISTER)+{{.Location.StackOffset}}));
 outputOffset += {{.TotalSize}};
 `
 

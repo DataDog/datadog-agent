@@ -85,6 +85,8 @@ const (
 	VethPairEventType
 	// BindEventType Bind event
 	BindEventType
+	// ConnectEventType Connect event
+	ConnectEventType
 	// UnshareMountNsEventType is sent when a new mount is created from a mount namespace copy
 	UnshareMountNsEventType
 	// SyscallsEventType Syscalls event
@@ -97,6 +99,8 @@ const (
 	LoginUIDWriteEventType
 	// CgroupWriteEventType is sent when a new cgroup was created
 	CgroupWriteEventType
+	// RawPacketEventType raw packet event
+	RawPacketEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -227,6 +231,8 @@ func (t EventType) String() string {
 		return "veth_pair"
 	case BindEventType:
 		return "bind"
+	case ConnectEventType:
+		return "connect"
 	case UnshareMountNsEventType:
 		return "unshare_mntns"
 	case SyscallsEventType:
@@ -235,7 +241,8 @@ func (t EventType) String() string {
 		return "imds"
 	case OnDemandEventType:
 		return "ondemand"
-
+	case RawPacketEventType:
+		return "packet"
 	case CustomLostReadEventType:
 		return "lost_events_read"
 	case CustomLostWriteEventType:
@@ -266,6 +273,8 @@ func (t EventType) String() string {
 		return "change_permission"
 	case LoginUIDWriteEventType:
 		return "login_uid_write"
+	case CgroupWriteEventType:
+		return "cgroup_write"
 	default:
 		return "unknown"
 	}

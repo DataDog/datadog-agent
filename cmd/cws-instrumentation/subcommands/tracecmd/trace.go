@@ -204,7 +204,12 @@ func Command() []*cobra.Command {
 
 				return nil
 			}
-			return ptracer.Wrap(args, os.Environ(), params.ProbeAddr, opts)
+			exitCode, err := ptracer.Wrap(args, os.Environ(), params.ProbeAddr, opts)
+			if err != nil {
+				return err
+			}
+			os.Exit(exitCode)
+			return err // fake return
 		},
 	}
 

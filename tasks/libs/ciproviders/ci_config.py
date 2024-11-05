@@ -1,3 +1,5 @@
+"""Classes related to the CI configuration files."""
+
 from pathlib import Path
 
 import yaml
@@ -12,12 +14,12 @@ class CILintersConfig:
     def __init__(
         self, path: str | Path = CONFIG_CI_LINTERS, lint=False, all_jobs: set[str] = None, all_stages: set[str] = None
     ) -> None:
-        """
-        Parses the ci linters configuration file and lints it.
+        """Parses the ci linters configuration file and lints it.
 
-        - lint: If True, will lint the file to verify that each job / stage is present in the configuration
-        - all_jobs: All the jobs in the configuration used to verify that the specified jobs are present within the full configuration
-        - all_stages: All the stages in the configuration used to verify that the specified stages are present within the full configuration
+        Args:
+            lint: If True, will lint the file to verify that each job / stage is present in the configuration
+            all_jobs: All the jobs in the configuration used to verify that the specified jobs are present within the full configuration
+            all_stages: All the stages in the configuration used to verify that the specified stages are present within the full configuration
         """
 
         self.path = path
@@ -26,6 +28,7 @@ class CILintersConfig:
 
         self.needs_rules_stages: set[str] = set(config['needs-rules']['allowed-stages'])
         self.needs_rules_jobs: set[str] = set(config['needs-rules']['allowed-jobs'])
+        self.job_owners_jobs: set[str] = set(config['job-owners']['allowed-jobs'])
 
         if lint:
             self.lint_all(all_jobs, all_stages)
@@ -34,7 +37,14 @@ class CILintersConfig:
         """
         Asserts that multiple items belong to a super set.
 
-        - kind: "job" or "stage"
+        Args:
+            kind: "job" or "stage"
+
+        Side effects:
+            errors will be appended with a message if the items are not a subset of all_items.
+
+        Raises:
+            AssertionError: Invalid kind argument
         """
 
         assert kind in ("job", "stage"), f"Invalid kind: {kind}"
@@ -52,6 +62,7 @@ class CILintersConfig:
 
         self.lint_assert_subset(errors, self.needs_rules_jobs, all_jobs, "job")
         self.lint_assert_subset(errors, self.needs_rules_stages, all_stages, "stage")
+        self.lint_assert_subset(errors, self.job_owners_jobs, all_jobs, "job")
 
         if errors:
             errors = '\n'.join(f"{color_message('Error', Color.RED)}: {error}" for error in errors)

@@ -2,7 +2,6 @@
 .docker_build_job_definition:
   stage: container_build
   script:
-    - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI $BUILD_CONTEXT
     - TAG_SUFFIX=${TAG_SUFFIX:-}
     - BUILD_ARG=${BUILD_ARG:-}
     - |
@@ -24,6 +23,18 @@
   retry: 2
   timeout: 30m
 
+# Base template for jobs that don't rely on the packaging job artifacts but
+# rather from binaries stored in the 'dd-ci-artefacts-build-stable' bucket
+.docker_build_s3:
+  before_script:
+    - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI $BUILD_CONTEXT
+
+# Base template to move the packaged artifact from gitlab into the build
+# context
+.docker_build_artifact:
+  before_script:
+    - mv $OMNIBUS_PACKAGE_DIR/*.deb $BUILD_CONTEXT
+
 .docker_build_job_definition_amd64:
   extends: .docker_build_job_definition
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -40,13 +51,12 @@
 
 # build agent7 image
 docker_build_agent7:
-  extends: .docker_build_job_definition_amd64
+  extends: [.docker_build_job_definition_amd64, .docker_build_artifact]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
     - job: agent_deb-x64-a7
-      artifacts: false
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -67,13 +77,12 @@ single_machine_performance-amd64-a7:
     IMG_DESTINATIONS: 08450328-agent:${CI_COMMIT_SHA}-7-amd64
 
 docker_build_agent7_arm64:
-  extends: .docker_build_job_definition_arm64
+  extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
     - job: agent_deb-arm64-a7
-      artifacts: false
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -82,13 +91,12 @@ docker_build_agent7_arm64:
 
 # build agent7 jmx image
 docker_build_agent7_jmx:
-  extends: .docker_build_job_definition_amd64
+  extends: [.docker_build_job_definition_amd64, .docker_build_artifact]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
     - job: agent_deb-x64-a7
-      artifacts: false
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -96,13 +104,12 @@ docker_build_agent7_jmx:
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
 
 docker_build_agent7_jmx_arm64:
-  extends: .docker_build_job_definition_arm64
+  extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
     - job: agent_deb-arm64-a7
-      artifacts: false
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -111,13 +118,12 @@ docker_build_agent7_jmx_arm64:
 
 # build agent7 UA image
 docker_build_ot_agent7:
-  extends: .docker_build_job_definition_amd64
+  extends: [.docker_build_job_definition_amd64, .docker_build_artifact]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
     - job: ot_agent_deb-x64-a7
-      artifacts: false
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -125,13 +131,12 @@ docker_build_ot_agent7:
     BUILD_ARG: --target test --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-ot-agent_7*_amd64.deb
 
 docker_build_ot_agent7_arm64:
-  extends: .docker_build_job_definition_arm64
+  extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
     - job: ot_agent_deb-arm64-a7
-      artifacts: false
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -140,13 +145,12 @@ docker_build_ot_agent7_arm64:
 
 # build agent7 jmx image
 docker_build_ot_agent7_jmx:
-  extends: .docker_build_job_definition_amd64
+  extends: [.docker_build_job_definition_amd64, .docker_build_artifact]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
     - job: ot_agent_deb-x64-a7
-      artifacts: false
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -154,13 +158,12 @@ docker_build_ot_agent7_jmx:
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-ot-agent_7*_amd64.deb
 
 docker_build_ot_agent7_jmx_arm64:
-  extends: .docker_build_job_definition_arm64
+  extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
     - job: ot_agent_deb-arm64-a7
-      artifacts: false
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -169,7 +172,7 @@ docker_build_ot_agent7_jmx_arm64:
 
 # build the cluster-agent image
 docker_build_cluster_agent_amd64:
-  extends: .docker_build_job_definition_amd64
+  extends: [.docker_build_job_definition_amd64, .docker_build_s3]
   rules: !reference [.on_tag_or_a7]
   needs:
     - job: cluster_agent-build_amd64
@@ -182,10 +185,11 @@ docker_build_cluster_agent_amd64:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
   before_script:
+    - !reference [.docker_build_s3, before_script]
     - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
 
 docker_build_cluster_agent_arm64:
-  extends: .docker_build_job_definition_arm64
+  extends: [.docker_build_job_definition_arm64, .docker_build_s3]
   rules: !reference [.on_tag_or_a7]
   needs:
     - job: cluster_agent-build_arm64
@@ -198,11 +202,12 @@ docker_build_cluster_agent_arm64:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
   before_script:
+    - !reference [.docker_build_s3, before_script]
     - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
 
 # build the cws-instrumentation image
 docker_build_cws_instrumentation_amd64:
-  extends: .docker_build_job_definition_amd64
+  extends: [.docker_build_job_definition_amd64, .docker_build_s3]
   rules: !reference [.on_tag_or_a7]
   needs:
     - job: cws_instrumentation-build_amd64
@@ -212,7 +217,7 @@ docker_build_cws_instrumentation_amd64:
     BUILD_CONTEXT: Dockerfiles/cws-instrumentation
 
 docker_build_cws_instrumentation_arm64:
-  extends: .docker_build_job_definition_arm64
+  extends: [.docker_build_job_definition_arm64, .docker_build_s3]
   rules: !reference [.on_tag_or_a7]
   needs:
     - job: cws_instrumentation-build_arm64
@@ -223,7 +228,7 @@ docker_build_cws_instrumentation_arm64:
 
 # build the dogstatsd image
 docker_build_dogstatsd_amd64:
-  extends: .docker_build_job_definition_amd64
+  extends: [.docker_build_job_definition_amd64, .docker_build_s3]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -237,7 +242,7 @@ docker_build_dogstatsd_amd64:
 
 # build the dogstatsd image
 docker_build_dogstatsd_arm64:
-  extends: .docker_build_job_definition_arm64
+  extends: [.docker_build_job_definition_arm64, .docker_build_s3]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
