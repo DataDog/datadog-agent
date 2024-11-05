@@ -17,6 +17,7 @@ type ConnTuple struct {
 type TCPStats struct {
 	Rtt               uint32
 	Rtt_var           uint32
+	Retransmits       uint32
 	State_transitions uint16
 	Pad_cgo_0         [2]byte
 }
@@ -34,10 +35,9 @@ type ConnStats struct {
 	Pad_cgo_0      [6]byte
 }
 type Conn struct {
-	Tup             ConnTuple
-	Conn_stats      ConnStats
-	Tcp_stats       TCPStats
-	Tcp_retransmits uint32
+	Tup        ConnTuple
+	Tcp_stats  TCPStats
+	Conn_stats ConnStats
 }
 type FailedConn struct {
 	Tup       ConnTuple

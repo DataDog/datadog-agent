@@ -64,7 +64,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         conn.tup.pid = 0;
         retrans = bpf_map_lookup_elem(&tcp_retransmits, &(conn.tup));
         if (retrans) {
-            conn.tcp_retransmits = *retrans;
+            conn.tcp_stats.retransmits = *retrans;
             bpf_map_delete_elem(&tcp_retransmits, &(conn.tup));
         }
         conn.tup.pid = tup->pid;

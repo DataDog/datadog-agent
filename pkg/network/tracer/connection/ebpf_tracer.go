@@ -427,10 +427,10 @@ func (t *ebpfTracer) GetConnections(buffer *network.ConnectionBuffer, filter fun
 		}
 
 		if t.getTCPStats(tcp, key) {
-			updateTCPStats(conn, tcp, 0)
+			updateTCPStats(conn, tcp)
 		}
-		if retrans, ok := t.getTCPRetransmits(key, seen); ok {
-			updateTCPStats(conn, nil, retrans)
+		if retrans, ok := t.getTCPRetransmits(key, seen); ok && conn.Type == network.TCP {
+			conn.Monotonic.Retransmits = retrans
 		}
 
 		*buffer.Next() = *conn
@@ -791,13 +791,13 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 	}
 }
 
-func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats, retransmits uint32) {
+func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats) {
 	if conn.Type != network.TCP {
 		return
 	}
 
-	conn.Monotonic.Retransmits = retransmits
 	if tcpStats != nil {
+		conn.Monotonic.Retransmits = tcpStats.Retransmits
 		conn.Monotonic.TCPEstablished = tcpStats.State_transitions >> netebpf.Established & 1
 		conn.Monotonic.TCPClosed = tcpStats.State_transitions >> netebpf.Close & 1
 		conn.RTT = tcpStats.Rtt

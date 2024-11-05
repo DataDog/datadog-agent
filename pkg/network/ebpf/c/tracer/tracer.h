@@ -66,6 +66,7 @@ typedef enum {
 typedef struct {
     __u32 rtt;
     __u32 rtt_var;
+    __u32 retransmits;
 
     // Bit mask containing all TCP state transitions tracked by our tracer
     __u16 state_transitions;
@@ -74,9 +75,9 @@ typedef struct {
 // Full data for a tcp connection
 typedef struct {
     conn_tuple_t tup;
-    conn_stats_ts_t conn_stats;
+    // move tcp_stats here to align conn_stats on a cacheline boundary
     tcp_stats_t tcp_stats;
-    __u32 tcp_retransmits;
+    conn_stats_ts_t conn_stats;
 } conn_t;
 
 typedef struct {
