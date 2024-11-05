@@ -15,14 +15,13 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	collectormock "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type fakeCIDProvider struct {
@@ -39,12 +38,15 @@ func (f *fakeCIDProvider) ContainerIDForPodUIDAndContName(podUID, contName strin
 }
 
 // Sets up the fake metrics provider and returns a function to reset the original metrics provider
-func setupFakeMetricsProvider(mockMetricsProvider metrics.Provider) func() {
-	originalMetricsProvider := metrics.GetProvider
-	metrics.GetProvider = func(_ optional.Option[workloadmeta.Component]) metrics.Provider {
-		return mockMetricsProvider
+func setupFakeMetaCollector(mockMetaCollector provider.MetaCollector) {
+	metrics.GetMetaCollector = func() provider.MetaCollector {
+		return mockMetaCollector
 	}
-	return func() { metrics.GetProvider = originalMetricsProvider }
+}
+
+func resetFakeMetaCollector() func() {
+	originalGetMetaCollector := metrics.GetMetaCollector
+	return func() { metrics.GetMetaCollector = originalGetMetaCollector }
 }
 
 func TestEnrichTags(t *testing.T) {
@@ -103,12 +105,11 @@ func TestEnrichTags(t *testing.T) {
 
 	// External data tests
 
-	// Overriding the GetProvider function to use the mock metrics provider
-	mockMetricsProvider := collectormock.NewMetricsProvider()
+	// Overriding the GetMetaCollector function to use the mock metaCollector
+
 	initContainerMetaCollector := collectormock.MetaCollector{ContainerID: initContainerID, CIDFromPodUIDContName: map[string]string{fmt.Sprint("i-", podUID, "/", initContainerName): initContainerID}}
 	containerMetaCollector := collectormock.MetaCollector{ContainerID: containerID, CIDFromPodUIDContName: map[string]string{fmt.Sprint(podUID, "/", containerName): containerID}}
-	cleanUp := setupFakeMetricsProvider(mockMetricsProvider)
-	defer cleanUp()
+	defer resetFakeMetaCollector()()
 
 	for _, tt := range []struct {
 		name         string
@@ -120,31 +121,31 @@ func TestEnrichTags(t *testing.T) {
 			name:         "with external data (containerName) and high cardinality",
 			originInfo:   taggertypes.OriginInfo{ProductOrigin: taggertypes.ProductOriginAPM, ExternalData: fmt.Sprintf("cn-%s,it-false", containerName), Cardinality: "high"},
 			expectedTags: []string{},
-			setup:        func() { mockMetricsProvider.RegisterMetaCollector(&containerMetaCollector) },
+			setup:        func() { setupFakeMetaCollector(&containerMetaCollector) },
 		},
 		{
 			name:         "with external data (containerName, podUID) and low cardinality",
 			originInfo:   taggertypes.OriginInfo{ProductOrigin: taggertypes.ProductOriginAPM, ExternalData: fmt.Sprintf("it-invalid,cn-%s,pu-%s", containerName, podUID), Cardinality: "low"},
 			expectedTags: []string{"pod-low", "container-low"},
-			setup:        func() { mockMetricsProvider.RegisterMetaCollector(&containerMetaCollector) },
+			setup:        func() { setupFakeMetaCollector(&containerMetaCollector) },
 		},
 		{
 			name:         "with external data (podUID) and high cardinality",
 			originInfo:   taggertypes.OriginInfo{ProductOrigin: taggertypes.ProductOriginAPM, ExternalData: fmt.Sprintf("pu-%s,it-false", podUID), Cardinality: "high"},
 			expectedTags: []string{"pod-low", "pod-orch", "pod-high"},
-			setup:        func() { mockMetricsProvider.RegisterMetaCollector(&containerMetaCollector) },
+			setup:        func() { setupFakeMetaCollector(&containerMetaCollector) },
 		},
 		{
 			name:         "with external data (containerName, podUID) and high cardinality",
 			originInfo:   taggertypes.OriginInfo{ProductOrigin: taggertypes.ProductOriginAPM, ExternalData: fmt.Sprintf("pu-%s,it-false,cn-%s", podUID, containerName), Cardinality: "high"},
 			expectedTags: []string{"pod-low", "pod-orch", "pod-high", "container-low", "container-orch", "container-high"},
-			setup:        func() { mockMetricsProvider.RegisterMetaCollector(&containerMetaCollector) },
+			setup:        func() { setupFakeMetaCollector(&containerMetaCollector) },
 		},
 		{
 			name:         "with external data (containerName, podUID, initContainer) and low cardinality",
 			originInfo:   taggertypes.OriginInfo{ProductOrigin: taggertypes.ProductOriginAPM, ExternalData: fmt.Sprintf("pu-%s,cn-%s,it-true", podUID, initContainerName), Cardinality: "low"},
 			expectedTags: []string{"pod-low", "init-container-low"},
-			setup:        func() { mockMetricsProvider.RegisterMetaCollector(&initContainerMetaCollector) },
+			setup:        func() { setupFakeMetaCollector(&initContainerMetaCollector) },
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -249,23 +250,21 @@ func TestAgentTags(t *testing.T) {
 	fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
 
 	agentContainerID, podUID := "agentContainerID", "podUID"
-	mockMetricsProvider := collectormock.NewMetricsProvider()
-	cleanUp := setupFakeMetricsProvider(mockMetricsProvider)
-	defer cleanUp()
+	defer resetFakeMetaCollector()()
 
 	fakeTagger.SetTags(types.NewEntityID(types.KubernetesPodUID, podUID), "fooSource", []string{"pod-low"}, []string{"pod-orch"}, nil, nil)
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, agentContainerID), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
 
 	// Expect metrics provider to return an empty container ID so no tags can be found
 	containerMetaCollector := collectormock.MetaCollector{ContainerID: ""}
-	mockMetricsProvider.RegisterMetaCollector(&containerMetaCollector)
+	setupFakeMetaCollector(&containerMetaCollector)
 	tagList, err := fakeTagger.AgentTags(types.OrchestratorCardinality)
 	assert.Nil(t, err)
 	assert.Nil(t, tagList)
 
 	// Expect metrics provider to return the agent container ID so tags can be found
 	containerMetaCollector = collectormock.MetaCollector{ContainerID: agentContainerID}
-	mockMetricsProvider.RegisterMetaCollector(&containerMetaCollector)
+	setupFakeMetaCollector(&containerMetaCollector)
 	tagList, err = fakeTagger.AgentTags(types.OrchestratorCardinality)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"container-low", "container-orch"}, tagList)

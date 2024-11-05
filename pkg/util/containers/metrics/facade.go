@@ -57,3 +57,6 @@ type ContainerStats = provider.ContainerStats
 
 // GetProvider returns the metrics provider singleton
 var GetProvider = provider.GetProvider
+
+// GetMetaCollector returns the meta collector singleton
+var GetMetaCollector = provider.GetMetaCollector

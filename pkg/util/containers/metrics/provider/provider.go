@@ -106,15 +106,17 @@ type Provider interface {
 }
 
 var (
-	metricsProvider     *GenericProvider
-	initMetricsProvider sync.Once
+	metricsProvider        *GenericProvider
+	initMetricsProvider    sync.Once
+	initMetaCollector      sync.Once
+	metaCollectorSingleton *metaCollector
 )
 
 // GenericProvider offers an interface to retrieve a metrics collector
 type GenericProvider struct {
 	collectors    map[RuntimeMetadata]*collectorImpl
 	cache         *Cache
-	metaCollector *metaCollector
+	metaCollector MetaCollector
 }
 
 // GetProvider returns the metrics provider singleton
@@ -126,10 +128,19 @@ func GetProvider(wmeta optional.Option[workloadmeta.Component]) Provider {
 	return metricsProvider
 }
 
+// GetMetaCollector returns the MetaCollector singleton
+func GetMetaCollector() MetaCollector {
+	initMetaCollector.Do(func() {
+		metaCollectorSingleton = newMetaCollector()
+	})
+
+	return metaCollectorSingleton
+}
+
 func newProvider(wmeta optional.Option[workloadmeta.Component]) *GenericProvider {
 	provider := &GenericProvider{
 		cache:         NewCache(cacheGCInterval),
-		metaCollector: newMetaCollector(),
+		metaCollector: GetMetaCollector(),
 	}
 	registry.run(context.TODO(), provider.cache, wmeta, provider.collectorsUpdatedCallback)
 
@@ -163,5 +174,5 @@ func (mp *GenericProvider) collectorsUpdatedCallback(collectorsCatalog Collector
 	mp.collectors = newCollectors
 
 	// Update metacollectors
-	mp.metaCollector.collectorsUpdatedCallback(collectorsCatalog)
+	mp.metaCollector.(*metaCollector).collectorsUpdatedCallback(collectorsCatalog)
 }

@@ -37,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"go.uber.org/fx"
 )
@@ -333,7 +332,7 @@ func (t *TaggerClient) Standard(entityID types.EntityID) ([]string, error) {
 // AgentTags returns the agent tags
 // It relies on the container provider utils to get the Agent container ID
 func (t *TaggerClient) AgentTags(cardinality types.TagCardinality) ([]string, error) {
-	ctrID, err := metrics.GetProvider(optional.NewOption(t.wmeta)).GetMetaCollector().GetSelfContainerID()
+	ctrID, err := metrics.GetMetaCollector().GetSelfContainerID()
 	if err != nil {
 		return nil, err
 	}
@@ -528,7 +527,7 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggerty
 			}
 
 			// Generate container ID from External Data
-			generatedContainerID, err := t.generateContainerIDFromExternalData(parsedExternalData, metrics.GetProvider(optional.NewOption(t.wmeta)).GetMetaCollector())
+			generatedContainerID, err := t.generateContainerIDFromExternalData(parsedExternalData, metrics.GetMetaCollector())
 			if err != nil {
 				t.log.Tracef("Failed to generate container ID from %s: %s", originInfo.ExternalData, err)
 			}
