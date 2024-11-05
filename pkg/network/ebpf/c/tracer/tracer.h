@@ -70,6 +70,7 @@ typedef struct {
 
     // Bit mask containing all TCP state transitions tracked by our tracer
     __u16 state_transitions;
+    __u16 failure_reason;
 } tcp_stats_t;
 
 // Full data for a tcp connection
@@ -79,11 +80,6 @@ typedef struct {
     tcp_stats_t tcp_stats;
     conn_stats_ts_t conn_stats;
 } conn_t;
-
-typedef struct {
-    conn_tuple_t tup;
-    __u32 failure_reason;
-} conn_failed_t;
 
 // Must match the number of conn_t objects embedded in the batch_t struct
 #ifndef CONN_CLOSED_BATCH_SIZE

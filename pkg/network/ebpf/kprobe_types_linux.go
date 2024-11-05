@@ -19,7 +19,7 @@ type TCPStats struct {
 	Rtt_var           uint32
 	Retransmits       uint32
 	State_transitions uint16
-	Pad_cgo_0         [2]byte
+	Failure_reason    uint16
 }
 type ConnStats struct {
 	Sent_bytes     uint64
@@ -38,11 +38,6 @@ type Conn struct {
 	Tup        ConnTuple
 	Tcp_stats  TCPStats
 	Conn_stats ConnStats
-}
-type FailedConn struct {
-	Tup       ConnTuple
-	Reason    uint32
-	Pad_cgo_0 [4]byte
 }
 type SkpConn struct {
 	Sk  uint64
@@ -136,7 +131,6 @@ const TCPFailureConnTimeout = 0x6e
 const TCPFailureConnRefused = 0x6f
 
 const SizeofConn = 0x78
-const SizeofFailedConn = 0x38
 
 type ClassificationProgram = uint32
 

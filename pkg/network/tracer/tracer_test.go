@@ -1378,7 +1378,7 @@ func (s *TracerSuite) TestTCPFailureConnectionResetNoData() {
 }
 
 // findFailedConnection is a utility function to find a failed connection based on specific TCP error codes
-func findFailedConnection(t *testing.T, local, remote string, conns *network.Connections, errorCode uint32) *network.ConnectionStats { // nolint:unused
+func findFailedConnection(t *testing.T, local, remote string, conns *network.Connections, errorCode uint16) *network.ConnectionStats { // nolint:unused
 	// Extract the address and port from the net.Addr types
 	localAddrPort, err := netip.ParseAddrPort(local)
 	if err != nil {
@@ -1401,7 +1401,7 @@ func findFailedConnection(t *testing.T, local, remote string, conns *network.Con
 }
 
 // for some failed connections we don't know the local addr/port so we need to search by remote addr only
-func findFailedConnectionByRemoteAddr(remoteAddr string, conns *network.Connections, errorCode uint32) *network.ConnectionStats {
+func findFailedConnectionByRemoteAddr(remoteAddr string, conns *network.Connections, errorCode uint16) *network.ConnectionStats {
 	failureFilter := func(cs network.ConnectionStats) bool {
 		return netip.MustParseAddrPort(remoteAddr) == netip.AddrPortFrom(cs.Dest.Addr, cs.DPort) && cs.TCPFailures[errorCode] > 0
 	}
