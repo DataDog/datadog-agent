@@ -73,7 +73,7 @@ func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []flaretypes.FlareCal
 		provideInstallInfo,
 		provideAuthTokenPerm,
 		provideDiagnoses(diagnoseDeps),
-		provideContainers(diagnoseDeps),
+		provideContainers(),
 	}
 
 	pprofURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
@@ -95,13 +95,13 @@ func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []flaretypes.FlareCal
 	return providers
 }
 
-func provideContainers(diagnoseDeps diagnose.SuitesDeps) func(fb flaretypes.FlareBuilder) error {
+func provideContainers() func(fb flaretypes.FlareBuilder) error {
 	return func(fb flaretypes.FlareBuilder) error {
-		fb.AddFileFromFunc("docker_ps.log", getDockerPs)                                                                          //nolint:errcheck
-		fb.AddFileFromFunc("k8s/kubelet_config.yaml", getKubeletConfig)                                                           //nolint:errcheck
-		fb.AddFileFromFunc("k8s/kubelet_pods.yaml", getKubeletPods)                                                               //nolint:errcheck
-		fb.AddFileFromFunc("ecs_metadata.json", getECSMeta)                                                                       //nolint:errcheck
-		fb.AddFileFromFunc("docker_inspect.log", func() ([]byte, error) { return getDockerSelfInspect(diagnoseDeps.GetWMeta()) }) //nolint:errcheck
+		fb.AddFileFromFunc("docker_ps.log", getDockerPs)                                                   //nolint:errcheck
+		fb.AddFileFromFunc("k8s/kubelet_config.yaml", getKubeletConfig)                                    //nolint:errcheck
+		fb.AddFileFromFunc("k8s/kubelet_pods.yaml", getKubeletPods)                                        //nolint:errcheck
+		fb.AddFileFromFunc("ecs_metadata.json", getECSMeta)                                                //nolint:errcheck
+		fb.AddFileFromFunc("docker_inspect.log", func() ([]byte, error) { return getDockerSelfInspect() }) //nolint:errcheck
 
 		return nil
 	}

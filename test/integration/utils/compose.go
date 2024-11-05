@@ -16,10 +16,8 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type ComposeConf struct {
@@ -139,7 +137,7 @@ func getNetworkMode() (string, error) {
 	}
 
 	// Get container id if containerized
-	selfContainerID, err := metrics.GetProvider(optional.NewNoneOption[workloadmeta.Component]()).GetMetaCollector().GetSelfContainerID()
+	selfContainerID, err := metrics.GetMetaCollector().GetSelfContainerID()
 	if err != nil {
 		return "host", nil
 	}
