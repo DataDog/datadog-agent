@@ -188,11 +188,20 @@ func GetTagsFromALBTargetGroupRequest(event events.ALBTargetGroupRequest) map[st
 	httpTags := make(map[string]string)
 	httpTags["http.url_details.path"] = event.Path
 	httpTags["http.method"] = event.HTTPMethod
-	if event.Headers != nil {
-		if event.Headers["Referer"] != "" {
-			httpTags["http.referer"] = event.Headers["Referer"]
+
+	headers := event.Headers
+	if headers == nil && event.MultiValueHeaders != nil {
+		headers = make(map[string]string)
+		for k, v := range event.MultiValueHeaders {
+			headers[k] = v[0]
 		}
-		if ua := event.Headers["User-Agent"]; ua != "" {
+	}
+
+	if headers != nil {
+		if headers["Referer"] != "" {
+			httpTags["http.referer"] = headers["Referer"]
+		}
+		if ua := headers["User-Agent"]; ua != "" {
 			httpTags["http.useragent"] = ua
 		}
 	}

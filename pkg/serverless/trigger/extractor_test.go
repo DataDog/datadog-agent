@@ -353,6 +353,25 @@ func TestGetTagsFromALBTargetGroupRequest(t *testing.T) {
 	}, httpTags)
 }
 
+func TestGetTagsFromALBTargetGroupRequestMultiValueHeaders(t *testing.T) {
+	event := events.ALBTargetGroupRequest{
+		MultiValueHeaders: map[string][]string{
+			"key":     {"val"},
+			"Referer": {"referer"},
+		},
+		Path:       "path",
+		HTTPMethod: "http-method",
+	}
+
+	httpTags := GetTagsFromALBTargetGroupRequest(event)
+
+	assert.Equal(t, map[string]string{
+		"http.url_details.path": "path",
+		"http.method":           "http-method",
+		"http.referer":          "referer",
+	}, httpTags)
+}
+
 func TestGetTagsFromFunctionURLRequest(t *testing.T) {
 	event := events.LambdaFunctionURLRequest{
 		Headers: map[string]string{
