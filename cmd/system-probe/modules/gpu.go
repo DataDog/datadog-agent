@@ -48,10 +48,6 @@ var GPUMonitoring = module.Factory{
 
 		p, err := gpu.NewProbe(c, probeDeps)
 		if err != nil {
-			return nil, fmt.Errorf("unable to create %s: %w", config.GPUMonitoringModule, err)
-		}
-
-		if err := p.Start(); err != nil {
 			return nil, fmt.Errorf("unable to start %s: %w", config.GPUMonitoringModule, err)
 		}
 

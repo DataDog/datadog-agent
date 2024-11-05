@@ -29,7 +29,6 @@ func TestProbeCanLoad(t *testing.T) {
 	nvmlMock := testutil.GetBasicNvmlMock()
 	probe, err := NewProbe(cfg, ProbeDependencies{NvmlLib: nvmlMock})
 	require.NoError(t, err)
-	require.NoError(t, probe.Start())
 	t.Cleanup(probe.Close)
 
 	data, err := probe.GetAndFlush()
@@ -55,7 +54,6 @@ func TestProbeCanReceiveEvents(t *testing.T) {
 
 	probe, err := NewProbe(cfg, ProbeDependencies{NvmlLib: nvmlMock})
 	require.NoError(t, err)
-	require.NoError(t, probe.Start())
 	t.Cleanup(probe.Close)
 
 	cmd, err := testutil.RunSample(t, testutil.CudaSample)
@@ -109,7 +107,6 @@ func TestProbeCanGenerateStats(t *testing.T) {
 
 	probe, err := NewProbe(cfg, ProbeDependencies{NvmlLib: nvmlMock})
 	require.NoError(t, err)
-	require.NoError(t, probe.Start())
 	t.Cleanup(probe.Close)
 
 	cmd, err := testutil.RunSample(t, testutil.CudaSample)

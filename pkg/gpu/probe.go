@@ -142,12 +142,16 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	p.consumer = newCudaEventConsumer(eventHandler, p.cfg)
 	//TODO: decouple this to avoid sharing streamHandlers between consumer and statsGenerator
 	p.statsGenerator = newStatsGenerator(sysCtx, p.consumer.streamHandlers)
-	log.Tracef("GPU monitoring probe successfully created")
+
+	if err = p.start(); err != nil {
+		return nil, err
+	}
+	log.Tracef("GPU monitoring probe successfully started")
 	return p, nil
 }
 
 // Start loads the ebpf programs using the ebpf manager and starts the process monitor and event consumer
-func (p *Probe) Start() error {
+func (p *Probe) start() error {
 	log.Tracef("starting GPU monitoring probe...")
 	p.consumer.Start()
 
@@ -158,8 +162,6 @@ func (p *Probe) Start() error {
 	if err := p.attacher.Start(); err != nil {
 		return fmt.Errorf("error starting uprobes attacher: %w", err)
 	}
-
-	log.Tracef("GPU monitoring probe sucessfully started")
 	return nil
 }
 
