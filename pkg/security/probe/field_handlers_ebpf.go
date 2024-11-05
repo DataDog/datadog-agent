@@ -401,12 +401,8 @@ func (fh *EBPFFieldHandlers) ResolveEventTimestamp(ev *model.Event, e *model.Bas
 }
 
 // ResolveService returns the service tag based on the process context
-func (fh *EBPFFieldHandlers) ResolveService(ev *model.Event, _ *model.BaseEvent) string {
-	entry, _ := fh.ResolveProcessCacheEntry(ev)
-	if entry == nil {
-		return ""
-	}
-	return getProcessService(fh.config, entry)
+func (fh *EBPFFieldHandlers) ResolveService(ev *model.Event, e *model.BaseEvent) string {
+	return resolveService(fh.config, fh, ev, e)
 }
 
 // ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time
