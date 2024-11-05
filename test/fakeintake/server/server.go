@@ -98,8 +98,8 @@ func NewServer(options ...Option) *Server {
 		server: http.Server{
 			Addr: "0.0.0.0:0",
 		},
-		storeDriver:        "memory",
-		forwardEndpoint:    "https://app.datadoghq.com",
+		storeDriver:     "memory",
+		forwardEndpoint: "https://app.datadoghq.com",
 		// Source: https://docs.datadoghq.com/api/latest/logs/
 		logForwardEndpoint: "https://agent-http-intake.logs.datadoghq.com",
 	}
