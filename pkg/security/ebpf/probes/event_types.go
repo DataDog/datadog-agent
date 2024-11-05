@@ -41,6 +41,7 @@ func NetworkSelectors() []manager.ProbesSelector {
 		// flow classification probes
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
 			kprobeOrFentry("security_socket_bind"),
+			kprobeOrFentry("security_socket_connect"),
 			kprobeOrFentry("security_sk_classify_flow"),
 			kprobeOrFentry("path_get"),
 			kprobeOrFentry("proc_fd_link"),
@@ -447,6 +448,13 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				kprobeOrFentry("security_socket_bind"),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "bind", fentry, EntryAndExit)},
+		},
+		// List of probes required to capture connect events
+		"connect": {
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("security_socket_connect"),
+			}},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "connect", fentry, EntryAndExit)},
 		},
 
 		// List of probes required to capture chdir events

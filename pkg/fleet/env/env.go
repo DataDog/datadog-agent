@@ -32,9 +32,10 @@ const (
 	envAgentMinorVersion     = "DD_AGENT_MINOR_VERSION"
 	envApmLanguages          = "DD_APM_INSTRUMENTATION_LANGUAGES"
 	envCDNLocalDirPath       = "DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH"
+  envCDNEnabled            = "DD_INSTALLER_CDN_ENABLED"
 	envAgentUserName         = "DD_AGENT_USER_NAME"
 	// envAgentUserNameCompat provides compatibility with the original MSI parameter name
-	envAgentUserNameCompat = "DDAGENTUSER_NAME"
+	envAgentUserNameCompat   = "DDAGENTUSER_NAME"
 )
 
 var defaultEnv = Env{
@@ -92,6 +93,7 @@ type Env struct {
 
 	InstallScript InstallScriptEnv
 
+	CDNEnabled      bool
 	CDNLocalDirPath string
 }
 
@@ -123,6 +125,7 @@ func FromEnv() *Env {
 
 		InstallScript: installScriptEnvFromEnv(),
 
+		CDNEnabled:      strings.ToLower(os.Getenv(envCDNEnabled)) == "true",
 		CDNLocalDirPath: getEnvOrDefault(envCDNLocalDirPath, ""),
 	}
 }
