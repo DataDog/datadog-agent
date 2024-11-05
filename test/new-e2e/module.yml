@@ -1,11 +1,7 @@
-condition: always
-importable: true
 independent: true
 lint_targets:
 - .
 - ./examples
-should_tag: true
 targets:
 - ./pkg/runner
 - ./pkg/utils/e2e/client
-used_by_otel: false

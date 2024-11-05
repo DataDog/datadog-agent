@@ -1,9 +1,2 @@
-condition: always
 importable: false
 independent: true
-lint_targets:
-- .
-should_tag: true
-targets:
-- .
-used_by_otel: false
