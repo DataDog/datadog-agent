@@ -112,6 +112,15 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 	// Deploy the agent
 	if params.agentOptions != nil {
 		params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(cluster)), kubernetesagentparams.WithFakeintake(fakeIntake))
+
+		eksParams, err := eks.NewParams(params.eksOptions...)
+		if err != nil {
+			return err
+		}
+		if eksParams.WindowsNodeGroup {
+			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithDeployWindows())
+		}
+
 		kubernetesAgent, err := helm.NewKubernetesAgent(&awsEnv, "eks", cluster.KubeProvider, params.agentOptions...)
 		if err != nil {
 			return err
@@ -126,7 +135,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 	}
 	// Deploy standalone dogstatsd
 	if params.deployDogstatsd {
-		if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "dogstatsd-standalone", fakeIntake, true, ""); err != nil {
+		if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "dogstatsd-standalone", fakeIntake, true, "", utils.PulumiDependsOn(cluster)); err != nil {
 			return err
 		}
 	}
