@@ -25,7 +25,7 @@ After you have refactored, if needed, and listed the packages that you want to e
  	    github.com/DataDog/datadog-agent/path/to/module => ./path/to/module
     )
     ```
-1. Create a `module.yml` file next to `go.mod` (even if empty). See the GoModule documentation [here](tasks/libs/common/gomodule.py) for attributes that can be defined. The dependencies are computed automatically. Here are two example configuration:
+1. Create a `module.yml` file next to `go.mod` (even if empty). See the GoModule documentation [here](tasks/libs/common/gomodule.py) for attributes that can be defined. The dependencies are computed automatically. Here are two example configurations:
 
     ```yaml
     condition: is_linux
