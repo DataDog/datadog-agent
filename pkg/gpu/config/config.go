@@ -50,6 +50,8 @@ func CheckGPUSupported() error {
 // Config holds the configuration for the GPU monitoring probe.
 type Config struct {
 	ebpf.Config
+	// Enabled indicates whether the GPU monitoring probe is enabled.
+	Enabled bool
 	// ScanTerminatedProcessesInterval is the interval at which the probe scans for terminated processes.
 	ScanTerminatedProcessesInterval time.Duration
 	// InitialProcessSync indicates whether the probe should sync the process list on startup.
@@ -66,5 +68,6 @@ func New() *Config {
 		ScanTerminatedProcessesInterval: time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(GPUNS, "process_scan_interval_seconds"))) * time.Second,
 		InitialProcessSync:              spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "initial_process_sync")),
 		NVMLLibraryPath:                 spCfg.GetString(sysconfig.FullKeyPath(GPUNS, "nvml_lib_path")),
+		Enabled:                         spCfg.GetBool(sysconfig.FullKeyPath(GPUNS, "enabled")),
 	}
 }
