@@ -341,8 +341,6 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		l.cpus = cpus
 
 		ranges = constrainMaxRanges(estimateNumOfLockRanges(maps, cpus))
-		log.Debugf("[lock-contention] tracking %d ranges", ranges)
-
 		l.ranges = ranges
 		collectionSpec.Maps["map_addr_fd"].MaxEntries = ranges
 		collectionSpec.Maps["lock_stat"].MaxEntries = ranges
