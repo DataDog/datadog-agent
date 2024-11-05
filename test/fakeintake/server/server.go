@@ -100,6 +100,7 @@ func NewServer(options ...Option) *Server {
 		},
 		storeDriver:        "memory",
 		forwardEndpoint:    "https://app.datadoghq.com",
+		// Source: https://docs.datadoghq.com/api/latest/logs/
 		logForwardEndpoint: "https://agent-http-intake.logs.datadoghq.com",
 	}
 
