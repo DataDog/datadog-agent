@@ -85,9 +85,9 @@ func (c *ContainerApp) GetTags() map[string]string {
 	}
 
 	if c.SubscriptionId != "" && c.ResourceGroup != "" {
-		resourceId := fmt.Sprintf("/subscriptions/%v/resourcegroups/%v/providers/microsoft.app/containerapps/%v", c.SubscriptionId, c.ResourceGroup, strings.ToLower(appName))
-		tags["resource_id"] = resourceId
-		tags[acaResourceID] = resourceId
+		resourceID := fmt.Sprintf("/subscriptions/%v/resourcegroups/%v/providers/microsoft.app/containerapps/%v", c.SubscriptionId, c.ResourceGroup, strings.ToLower(appName))
+		tags["resource_id"] = resourceID
+		tags[acaResourceID] = resourceID
 
 	}
 
