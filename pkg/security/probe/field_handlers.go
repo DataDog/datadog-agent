@@ -92,12 +92,12 @@ func NewBaseFieldHandlers(cfg *config.Config, hostname string) (*BaseFieldHandle
 	}
 
 	for _, cidr := range cfg.Probe.NetworkPrivateIPRanges {
-		if err := bfh.privateCIDRs.AppendIP(cidr); err != nil {
+		if err := bfh.privateCIDRs.AppendCIDR(cidr); err != nil {
 			return nil, fmt.Errorf("error adding private IP range %s: %w", cidr, err)
 		}
 	}
 	for _, cidr := range cfg.Probe.NetworkExtraPrivateIPRanges {
-		if err := bfh.privateCIDRs.AppendIP(cidr); err != nil {
+		if err := bfh.privateCIDRs.AppendCIDR(cidr); err != nil {
 			return nil, fmt.Errorf("error adding extra private IP range %s: %w", cidr, err)
 		}
 	}
