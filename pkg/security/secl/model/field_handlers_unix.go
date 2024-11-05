@@ -33,7 +33,9 @@ func (ev *Event) resolveFields(forADs bool) {
 	}
 	_ = ev.FieldHandlers.ResolveAsync(ev)
 	_ = ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
-	_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
+	if !forADs {
+		_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
+	}
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
 	if !forADs {
