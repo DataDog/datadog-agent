@@ -7,8 +7,8 @@
 package fx
 
 import (
-	remoteagent "github.com/DataDog/datadog-agent/comp/remoteagent/def"
-	remoteagentimpl "github.com/DataDog/datadog-agent/comp/remoteagent/impl"
+	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
+	remoteagentimpl "github.com/DataDog/datadog-agent/comp/core/remoteagent/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

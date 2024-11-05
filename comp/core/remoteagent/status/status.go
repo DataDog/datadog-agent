@@ -10,8 +10,8 @@ import (
 	"embed"
 	"io"
 
+	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	remoteagent "github.com/DataDog/datadog-agent/comp/remoteagent/def"
 )
 
 // populateStatus populates the status stats

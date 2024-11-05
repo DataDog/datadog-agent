@@ -11,7 +11,7 @@ package mock
 import (
 	"testing"
 
-	remoteagent "github.com/DataDog/datadog-agent/comp/remoteagent/def"
+	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 )
 
 // Mock returns a mock for remoteagent component.

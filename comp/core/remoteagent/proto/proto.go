@@ -7,7 +7,7 @@
 package proto
 
 import (
-	remoteagent "github.com/DataDog/datadog-agent/comp/remoteagent/def"
+	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
