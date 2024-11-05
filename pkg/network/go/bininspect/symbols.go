@@ -132,6 +132,9 @@ func getSymbolsUnified(f *safeelf.File, typ safeelf.SectionType, filter symbolFi
 	if symbolSection.Link <= 0 || symbolSection.Link >= uint32(len(f.Sections)) {
 		return nil, errors.New("section has invalid string table link")
 	}
+	if symbolSection.ReaderAt == nil {
+		return nil, fmt.Errorf("symbol section not available in random-access form")
+	}
 
 	numWanted := filter.getNumWanted()
 
@@ -156,9 +159,6 @@ func getSymbolsUnified(f *safeelf.File, typ safeelf.SectionType, filter symbolFi
 		// symbol index. If the current symbol index is a multiplier of symbolChunkSize, then we read a new chunk.
 		symbolIndex := (readLocation / symbolSizeUint64) - 1
 		if symbolIndex%symbolChunkSize == 0 {
-			if symbolSection.ReaderAt == nil {
-				return nil, fmt.Errorf("symbol section not available in random-access form")
-			}
 			_, err := symbolSection.ReaderAt.ReadAt(symbolsCache, int64(readLocation))
 			if err != nil && err != io.EOF {
 				log.Debugf("failed reading symbol entry %s", err)
