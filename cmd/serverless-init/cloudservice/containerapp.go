@@ -39,6 +39,9 @@ const (
 	acaReplicaName    = "aca.replica.name"
 	acaResourceID     = "aca.resource.id"
 	acaResourceGroup  = "aca.resource.group"
+	acaAppName        = "aca.app.name"
+	acaRegion         = "aca.app.region"
+	acaRevision       = "aca.app.revision"
 	acaSubscriptionID = "aca.subscription.id"
 )
 
@@ -61,9 +64,14 @@ func (c *ContainerApp) GetTags() map[string]string {
 		"region":       region,
 		"revision":     revision,
 		"replica_name": replica,
+		// new tags
+		acaAppName:     appName,
+		acaRegion:      region,
+		acaRevision:    revision,
 		acaReplicaName: replica,
-		"origin":       c.GetOrigin(),
-		"_dd.origin":   c.GetOrigin(),
+
+		"origin":     c.GetOrigin(),
+		"_dd.origin": c.GetOrigin(),
 	}
 
 	if c.SubscriptionId != "" {
