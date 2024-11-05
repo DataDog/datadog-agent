@@ -63,15 +63,16 @@ type Option func(*Server)
 
 // Server is a struct implementing a fakeintake server
 type Server struct {
-	uuid            uuid.UUID
-	server          http.Server
-	ready           chan bool
-	clock           clock.Clock
-	retention       time.Duration
-	shutdown        chan struct{}
-	dddevForward    bool
-	forwardEndpoint string
-	apiKey          string
+	uuid               uuid.UUID
+	server             http.Server
+	ready              chan bool
+	clock              clock.Clock
+	retention          time.Duration
+	shutdown           chan struct{}
+	dddevForward       bool
+	forwardEndpoint    string
+	logForwardEndpoint string
+	apiKey             string
 
 	urlMutex sync.RWMutex
 	url      string
@@ -99,6 +100,8 @@ func NewServer(options ...Option) *Server {
 		},
 		storeDriver:     "memory",
 		forwardEndpoint: "https://app.datadoghq.com",
+		// Source: https://docs.datadoghq.com/api/latest/logs/
+		logForwardEndpoint: "https://agent-http-intake.logs.datadoghq.com",
 	}
 
 	for _, opt := range options {
@@ -246,6 +249,15 @@ func withForwardEndpoint(endpoint string) Option {
 	}
 }
 
+// withLogForwardEndpoint sets the endpoint to forward the log payload to, useful for testing
+//
+//nolint:unused // this function is used in the tests
+func withLogForwardEndpoint(endpoint string) Option {
+	return func(fi *Server) {
+		fi.logForwardEndpoint = endpoint
+	}
+}
+
 // Start Starts a fake intake server in a separate go-routine
 // Notifies when ready to the ready channel
 func (fi *Server) Start() {
@@ -368,7 +380,13 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 }
 
 func (fi *Server) forwardRequestToDDDev(req *http.Request, payload []byte) error {
-	url := fi.forwardEndpoint + req.URL.Path
+	forwardEndpoint := fi.forwardEndpoint
+
+	if req.URL.Path == "/api/v2/logs" || req.URL.Path == "/v1/input" {
+		forwardEndpoint = fi.logForwardEndpoint
+	}
+
+	url := forwardEndpoint + req.URL.Path
 
 	proxyReq, err := http.NewRequest(req.Method, url, bytes.NewReader(payload))
 	if err != nil {
@@ -413,7 +431,7 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 	if fi.dddevForward {
 		err := fi.forwardRequestToDDDev(req, payload)
 		if err != nil {
-			log.Printf("Error forwarding request to DDDev: %v", err)
+			log.Printf("Error forwarding request on endpoint %v to DDDev: %v", req.URL.Path, err)
 		}
 	}
 	encoding := req.Header.Get("Content-Encoding")

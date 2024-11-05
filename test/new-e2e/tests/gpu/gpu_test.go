@@ -151,3 +151,18 @@ func (v *gpuSuite) TestVectorAddProgramDetected() {
 		}
 	}, 5*time.Minute, 10*time.Second)
 }
+
+func (v *gpuSuite) TestNvmlMetricsPresent() {
+	// Nvml metrics are always being collected
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		// Not all NVML metrics are supported in all devices. We check for some basic ones
+		metricNames := []string{"gpu.temperature", "gpu.pci.throughput.tx", "gpu.power.usage"}
+		for _, metricName := range metricNames {
+			// We don't care about values, as long as the metrics are there. Values come from NVML
+			// so we cannot control that.
+			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName)
+			assert.NoError(c, err)
+			assert.Greater(c, len(metrics), 0, "no metric '%s' found")
+		}
+	}, 5*time.Minute, 10*time.Second)
+}

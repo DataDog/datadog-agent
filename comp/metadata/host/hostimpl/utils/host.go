@@ -175,7 +175,7 @@ func GetPayload(ctx context.Context, conf model.Reader) *Payload {
 		hostnameData = hostname.Data{Hostname: "unknown", Provider: "unknown"}
 	}
 
-	meta := GetMeta(ctx, conf)
+	meta := getMeta(ctx, conf)
 	meta.Hostname = hostnameData.Hostname
 
 	p := &Payload{

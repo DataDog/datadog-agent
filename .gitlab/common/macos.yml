@@ -1,27 +1,57 @@
 ---
 # This is the scripts to be executed on the Gitlab macOS runners before every job.
 # We don't have virtualization now so we need to clean the environment and install the proper dependencies before every job.
+.list_go_versions_commands:
+  - |
+    echo "Don't forget to regularly delete Go unused versions. Here are the installed Go versions and their disk space on the runner:"
+    echo "Go:"
+    du -sh $HOME/.gimme/versions/*
+    echo "To remove a Go version please run:"
+    echo "gimme uninstall <version>"
+
+.list_python_versions_commands:
+  - |
+    echo "Don't forget to regularly delete Python unused versions. Here are the installed Python versions and their disk space on the runner:"
+    echo "Python:"
+    du -sh $(pyenv root)/versions/*
+    echo "To remove a Python version please run:"
+    echo "pyenv uninstall -f <version>"
+
+.select_python_env_commands:
+  # Print a warning if the current Python version is different from the one in .python-version
+  # Select the virtualenv using the current Python version. Create it if it doesn't exist.
+  - |
+    PYTHON_REPO_VERSION=$(cat .python-version)
+    PYTHON_VERSION=$(python3 --version | awk '{print $2}' | sed 's/\.[0-9]*$//')
+    VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
+    if [ "$PYTHON_REPO_VERSION" != "$PYTHON_VERSION" ]; then
+      echo "Warning: The current Python version $PYTHON_VERSION is different from $PYTHON_REPO_VERSION in .python-version."
+      echo "Installing Python $PYTHON_REPO_VERSION..."
+    fi
+    ## START TEMPORARY DEBUG see ACIX-500
+    echo $PYTHON_VERSION
+    echo $VENV_NAME
+    pyenv virtualenvs --bare
+    ls $(pyenv root)/versions/
+    ## END TEMPORARY DEBUG see ACIX-500
+    if ! pyenv virtualenvs --bare | grep -q "^${VENV_NAME}$"; then
+      # The || true is a quickfix avoiding the command to fail if the virtualenv already exists
+      # This should be removed once ACIX-500 is done
+      pyenv virtualenv $PYTHON_VERSION $VENV_NAME || true
+    fi
+    pyenv activate $VENV_NAME
+
 .macos_gitlab:
   before_script:
     # Selecting the current Go version
     - |
       eval $(gimme $(cat .go-version))
       export GOPATH=$GOROOT
-      echo "Don't forget to regularly delete unused versions. Here are the installed versions and their memory usage on the runner:"
-      du -sh $HOME/.gimme/versions/*
-    # Remove the Python cache and env if the Python version changed
-    - |
-      PYTHON_REPO_VERSION=$(cat .python-version)
-      PYTHON_VERSION=$(python3 --version | awk '{print $2}' | sed 's/\.[0-9]*$//')
-      if [ "$PYTHON_REPO_VERSION" != "$PYTHON_VERSION" ]; then
-        echo "Python version $PYTHON_VERSION is different from $PYTHON_REPO_VERSION in .python-version. Cleaning the environment."
-        pyenv uninstall -f datadog-agent
-        echo "Installing Python $PYTHON_REPO_VERSION..."
-        pyenv virtualenv 3.11.8 datadog-agent
-        pyenv activate datadog-agent
-      else
-        echo "Python current version $PYTHON_VERSION is the same as .python-version. Keeping the existing environment."
-      fi
+    # Selecting the current Python version
+    - !reference [.select_python_env_commands]
+    # List Python and Go existing environments and their disk space
+    - !reference [.list_go_versions_commands]
+    - !reference [.list_python_versions_commands]
     # Installing the job dependencies
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt
     - pyenv rehash

@@ -56,3 +56,32 @@ def send_metrics(series):
             raise Exit(code=1)
 
         return response
+
+
+def send_event(title: str, text: str, tags: list[str] = None):
+    """
+    Post an event returns "OK" response
+    """
+
+    from datadog_api_client import ApiClient, Configuration
+    from datadog_api_client.v1.api.events_api import EventsApi
+    from datadog_api_client.v1.model.event_create_request import EventCreateRequest
+
+    body = EventCreateRequest(
+        title=title,
+        text=text,
+        tags=tags or [],
+    )
+
+    configuration = Configuration()
+    with ApiClient(configuration) as api_client:
+        api_instance = EventsApi(api_client)
+        response = api_instance.create_event(body=body)
+
+        if response["errors"]:
+            print(
+                f"Error(s) while sending pipeline event to the Datadog backend: {response['errors']}", file=sys.stderr
+            )
+            raise Exit(code=1)
+
+        return response
