@@ -76,6 +76,7 @@ type PodAutoscalerInternal struct {
 	verticalLastActionError error
 
 	// horizontalLastRecommendations is a record of the past horizontal recommendations
+	// nolint: unused
 	horizontalLastRecommendations []HorizontalScalingValues
 
 	// currentReplicas is the current number of PODs for the targetRef
@@ -164,6 +165,7 @@ func (p *PodAutoscalerInternal) UpdateFromValues(scalingValues ScalingValues) {
 	p.scalingValues.Vertical = scalingValues.Vertical
 }
 
+// UpdateFromLocalValues updates the PodAutoscalerInternal from new local scaling values
 func (p *PodAutoscalerInternal) UpdateFromLocalValues(localScalingValues *LocalScalingValues) {
 	p.scalingValues.Local = localScalingValues
 }
@@ -310,7 +312,7 @@ func (p *PodAutoscalerInternal) Name() string {
 	return p.name
 }
 
-// Annotation returns the annotations on the PodAutoscaler
+// Annotations returns the annotations on the PodAutoscaler
 func (p *PodAutoscalerInternal) Annotations() map[string]string {
 	return p.annotations
 }
@@ -562,6 +564,7 @@ func addHorizontalAction(currentTime time.Time, retention time.Duration, actions
 	return actions
 }
 
+// nolint: unused
 func addHorizontalRecommendation(currentTime time.Time, retention time.Duration, recommendations []HorizontalScalingValues, recommendation *HorizontalScalingValues) []HorizontalScalingValues {
 	if retention == 0 {
 		recommendations = recommendations[:0]
