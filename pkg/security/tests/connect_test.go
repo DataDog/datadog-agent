@@ -15,6 +15,7 @@ import (
 	"sync"
 	"testing"
 
+	"golang.org/x/net/nettest"
 	"golang.org/x/sys/unix"
 
 	"github.com/stretchr/testify/assert"
@@ -103,6 +104,10 @@ func TestConnectEvent(t *testing.T) {
 	})
 
 	t.Run("connect-af-inet6-any-tcp-success", func(t *testing.T) {
+		if !nettest.SupportsIPv6() {
+			t.Skip("IPv6 is not supported")
+		}
+
 		var wg sync.WaitGroup
 		wg.Add(1)
 		defer wg.Wait()
@@ -130,6 +135,10 @@ func TestConnectEvent(t *testing.T) {
 	})
 
 	t.Run("connect-af-inet6-any-udp-success", func(t *testing.T) {
+		if !nettest.SupportsIPv6() {
+			t.Skip("IPv6 is not supported")
+		}
+
 		var wg sync.WaitGroup
 		wg.Add(1)
 		defer wg.Wait()
