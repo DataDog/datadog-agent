@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
@@ -28,12 +29,9 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-const remoteAgentIdleTimeout = 30 * time.Second
-const remoteAgentQueryTimeout = 5 * time.Second
-const remoteAgentRecommendedRefreshIntervalSecond = uint32(10)
-
 // Requires defines the dependencies for the remoteagent component
 type dependencies struct {
+	Config    config.Component
 	Lifecycle fx.Lifecycle
 }
 
@@ -58,6 +56,7 @@ func NewComponent(deps dependencies) Provides {
 func newRemoteAgent(deps dependencies) remoteagent.Component {
 	shutdownChan := make(chan struct{})
 	comp := &RemoteAgent{
+		conf:         deps.Config,
 		agentMap:     make(map[string]*remoteAgentDetails),
 		shutdownChan: shutdownChan,
 	}
@@ -78,6 +77,7 @@ func newRemoteAgent(deps dependencies) remoteagent.Component {
 // RemoteAgent is the main registry for remote agents. It tracks which remote agents are currently registered, when
 // they were last seen, and handles collecting status and flare data from them on request.
 type RemoteAgent struct {
+	conf         config.Component
 	agentMap     map[string]*remoteAgentDetails
 	agentMapMu   sync.Mutex
 	shutdownChan chan struct{}
@@ -89,6 +89,8 @@ type RemoteAgent struct {
 // present, the API endpoint and display name are checked: if they are the same, then the "last seen" time of the remote
 // agent is updated, otherwise the remote agent is removed and replaced with the incoming one.
 func (ra *RemoteAgent) RegisterRemoteAgent(registration *remoteagent.RegistrationData) (uint32, error) {
+	recommendedRefreshInterval := uint32(ra.conf.GetDuration("remote_agent.recommended_refresh_interval"))
+
 	ra.agentMapMu.Lock()
 	defer ra.agentMapMu.Unlock()
 
@@ -111,7 +113,7 @@ func (ra *RemoteAgent) RegisterRemoteAgent(registration *remoteagent.Registratio
 
 		log.Infof("Remote agent '%s' registered.", agentID)
 		ra.agentMap[agentID] = details
-		return remoteAgentRecommendedRefreshIntervalSecond, nil
+		return recommendedRefreshInterval, nil
 	}
 
 	// We already have an entry for this remote agent, so check if we need to update the gRPC client, and then update
@@ -129,11 +131,13 @@ func (ra *RemoteAgent) RegisterRemoteAgent(registration *remoteagent.Registratio
 	entry.displayName = registration.DisplayName
 	entry.lastSeen = time.Now()
 
-	return remoteAgentRecommendedRefreshIntervalSecond, nil
+	return recommendedRefreshInterval, nil
 }
 
 // Start starts the remote agent registry, which periodically checks for idle remote agents and deregisters them.
 func (ra *RemoteAgent) start() {
+	remoteAgentIdleTimeout := ra.conf.GetDuration("remote_agent.idle_timeout")
+
 	go func() {
 		log.Info("Remote Agent registry started.")
 
@@ -166,6 +170,10 @@ func (ra *RemoteAgent) start() {
 	}()
 }
 
+func (ra *RemoteAgent) getQueryTimeout() time.Duration {
+	return ra.conf.GetDuration("remote_agent.query_timeout")
+}
+
 // GetRegisteredAgents returns the list of registered remote agents.
 func (ra *RemoteAgent) GetRegisteredAgents() []*remoteagent.RegisteredAgent {
 	ra.agentMapMu.Lock()
@@ -184,6 +192,8 @@ func (ra *RemoteAgent) GetRegisteredAgents() []*remoteagent.RegisteredAgent {
 
 // GetRegisteredAgentStatuses returns the status of all registered remote agents.
 func (ra *RemoteAgent) GetRegisteredAgentStatuses() []*remoteagent.StatusData {
+	queryTimeout := ra.getQueryTimeout()
+
 	ra.agentMapMu.Lock()
 
 	agentsLen := len(ra.agentMap)
@@ -202,7 +212,7 @@ func (ra *RemoteAgent) GetRegisteredAgentStatuses() []*remoteagent.StatusData {
 		statusMap[agentID] = &remoteagent.StatusData{
 			AgentID:       agentID,
 			DisplayName:   details.displayName,
-			FailureReason: fmt.Sprintf("Timed out after waiting %s for response.", remoteAgentQueryTimeout),
+			FailureReason: fmt.Sprintf("Timed out after waiting %s for response.", queryTimeout),
 		}
 	}
 
@@ -232,7 +242,7 @@ func (ra *RemoteAgent) GetRegisteredAgentStatuses() []*remoteagent.StatusData {
 
 	ra.agentMapMu.Unlock()
 
-	timeout := time.After(remoteAgentQueryTimeout)
+	timeout := time.After(queryTimeout)
 	responsesRemaining := agentsLen
 
 collect:
@@ -259,6 +269,8 @@ collect:
 }
 
 func (ra *RemoteAgent) fillFlare(builder flarebuilder.FlareBuilder) error {
+	queryTimeout := ra.getQueryTimeout()
+
 	ra.agentMapMu.Lock()
 
 	agentsLen := len(ra.agentMap)
@@ -291,7 +303,7 @@ func (ra *RemoteAgent) fillFlare(builder flarebuilder.FlareBuilder) error {
 
 	ra.agentMapMu.Unlock()
 
-	timeout := time.After(remoteAgentQueryTimeout)
+	timeout := time.After(queryTimeout)
 	responsesRemaining := agentsLen
 
 collect:
