@@ -14,14 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/ecs"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
-	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
 	tifEcs "github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
-
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 type myECSSuite struct {
@@ -29,20 +23,13 @@ type myECSSuite struct {
 }
 
 func TestMyECSSuite(t *testing.T) {
-	e2e.Run(t, &myECSSuite{}, e2e.WithProvisioner(ecs.Provisioner(ecs.WithECSOptions(tifEcs.WithLinuxNodeGroup()), ecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
-		return redis.EcsAppDefinition(e, clusterArn)
-	}))))
+	e2e.Run(t, &myECSSuite{}, e2e.WithProvisioner(ecs.Provisioner(ecs.WithECSOptions(tifEcs.WithLinuxNodeGroup()))))
 }
 
 func (v *myECSSuite) TestECS() {
 	ctx := context.Background()
-	cfg, err := awsconfig.LoadDefaultConfig(ctx)
+	services, err := v.Env().ECSCluster.ECSClient.ListServices(ctx, &awsecs.ListServicesInput{})
 	v.Require().NoError(err)
-
-	client := awsecs.NewFromConfig(cfg)
-	services, err := client.ListServices(ctx, &awsecs.ListServicesInput{})
-	v.Require().NoError(err)
-
 	for _, service := range services.ServiceArns {
 		fmt.Println("Service:", service)
 	}
