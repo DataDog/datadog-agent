@@ -148,7 +148,7 @@ func sortPolicyConfigs(configs map[string]state.RawConfig) []RCConfig {
 		})
 	}
 
-	slices.SortStableFunc(res, func(a, b RCConfig) int {
+	slices.SortFunc(res, func(a, b RCConfig) int {
 		return strings.Compare(a.Name, b.Name)
 	})
 
