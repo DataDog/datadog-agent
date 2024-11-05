@@ -10,6 +10,7 @@ package otlp
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/mohae/deepcopy"
@@ -17,6 +18,7 @@ import (
 	"go.uber.org/multierr"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
@@ -30,7 +32,7 @@ func portToUint(v int) (port uint, err error) {
 }
 
 // readConfigSection from a config.Component object.
-func readConfigSection(cfg config.Reader, section string) *confmap.Conf {
+func readConfigSection(cfg config.Reader, section string, typeMap map[string]string) *confmap.Conf {
 	// Viper doesn't work well when getting subsections, since it
 	// ignores environment variables and nil-but-present sections.
 	// To work around this, we do the following two steps:
@@ -62,29 +64,63 @@ func readConfigSection(cfg config.Reader, section string) *confmap.Conf {
 	for _, key := range cfg.AllKeysLowercased() {
 		if strings.HasPrefix(key, prefix) && cfg.IsSet(key) {
 			mapKey := strings.ReplaceAll(key[len(prefix):], ".", confmap.KeyDelimiter)
-			// deep copy since `cfg.Get` returns a reference
 
-			fmt.Printf("key: %s, mapKey: %s \n", key, mapKey)
-			if key == "otlp_config.metrics.resource_attributes_as_tags" {
-				fmt.Printf("value: %s\n", cfg.Get(key))
-				v := (cfg.Get(key))
-				if v == "true" {
-					stringMap[mapKey] = true
-				} else {
-					stringMap[mapKey] = false
+			if v, ok := typeMap[mapKey]; ok {
+				if v == "bool" {
+					stringMap[mapKey] = cfg.GetBool(key)
+					continue
 				}
-				continue
+				if v == "int" {
+					stringMap[mapKey] = cfg.GetInt(key)
+					continue
+				}
 			}
+
+			// deep copy since `cfg.Get` returns a reference
 			stringMap[mapKey] = deepcopy.Copy(cfg.Get(key))
 		}
 	}
 	return confmap.NewFromStringMap(stringMap)
 }
 
+// typeTagMap takes a struct and returns a map with mapstructure tag as key and field type as value.
+func typeTagMap(input interface{}, lead string, result map[string]string) map[string]string {
+	v := reflect.ValueOf(input)
+	t := v.Type()
+
+	// Check if the input is a struct
+	if t.Kind() != reflect.Struct {
+		return result
+	}
+
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+
+		// Get the mapstructure tag, skip if no tag is set
+		tag := field.Tag.Get("mapstructure")
+		if tag == "" || tag == "-" {
+			continue
+		}
+		if tag == "omitempty" || tag == ",squash" {
+			tag = ""
+		}
+		if field.Type.Kind() == reflect.Struct {
+			typeTagMap(v.Field(i).Interface(), lead+tag, result)
+			continue
+		}
+
+		// Get the type of the field as a string
+		fieldType := field.Type.String()
+		result[tag] = fieldType
+	}
+
+	return result
+}
+
 // FromAgentConfig builds a pipeline configuration from an Agent configuration.
 func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	var errs []error
-	otlpConfig := readConfigSection(cfg, coreconfig.OTLPReceiverSection)
+	otlpConfig := readConfigSection(cfg, coreconfig.OTLPReceiverSection, map[string]string{})
 	tracePort, err := portToUint(cfg.GetInt(coreconfig.OTLPTracePort))
 	if err != nil {
 		errs = append(errs, fmt.Errorf("internal trace port is invalid: %w", err))
@@ -95,7 +131,9 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	if !metricsEnabled && !tracesEnabled && !logsEnabled {
 		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
 	}
-	metricsConfig := readConfigSection(cfg, coreconfig.OTLPMetrics)
+	v := serializerexporter.MetricsConfig{}
+	mp := typeTagMap(v, "", map[string]string{})
+	metricsConfig := readConfigSection(cfg, coreconfig.OTLPMetrics, mp)
 	metricsConfigMap := metricsConfig.ToStringMap()
 
 	if _, ok := metricsConfigMap["apm_stats_receiver_addr"]; !ok {
@@ -107,7 +145,7 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 		metricsConfigMap["tags"] = tags
 	}
 
-	debugConfig := readConfigSection(cfg, coreconfig.OTLPDebug)
+	debugConfig := readConfigSection(cfg, coreconfig.OTLPDebug, map[string]string{})
 
 	return PipelineConfig{
 		OTLPReceiverConfig: otlpConfig.ToStringMap(),
@@ -136,7 +174,7 @@ func hasSection(cfg config.Reader, section string) bool {
 	//
 	// IsSet won't work here: it will return false if the section is present but empty.
 	// To work around this, we check if the receiver key is present in the string map, which does the 'correct' thing.
-	_, ok := readConfigSection(cfg, coreconfig.OTLPSection).ToStringMap()[section]
+	_, ok := readConfigSection(cfg, coreconfig.OTLPSection, map[string]string{}).ToStringMap()[section]
 	return ok
 }
 
