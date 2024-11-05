@@ -153,6 +153,7 @@ type Schedule struct {
 //
 // Default agent telemetry profiles config if not specified in the agent config file.
 // Note: If "aggregate_tags" are not specified, metric will be aggregated without any tags.
+
 var defaultProfiles = `
   profiles:
   - name: core-metrics
