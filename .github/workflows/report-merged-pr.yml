@@ -10,6 +10,7 @@ permissions: {}
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  DD_API_KEY: ${{ secrets.REPORT_MERGED_PR_DD_API_KEY }}
 
 jobs:
   if_merged:
