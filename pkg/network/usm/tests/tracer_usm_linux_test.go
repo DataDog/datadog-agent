@@ -692,13 +692,7 @@ func TestFullMonitorWithTracer(t *testing.T) {
 	cfg.EnableIstioMonitoring = true
 	cfg.EnableGoTLSSupport = true
 
-	l := ebpf.NewLockContentionCollector()
-	require.NotNil(t, l)
-
 	tr, err := tracer.NewTracer(cfg, nil)
-	require.NoError(t, err)
-
-	err = ebpf.ContentionCollector.Initialize(ebpf.TrackAllEBPFResources)
 	require.NoError(t, err)
 
 	t.Cleanup(tr.Stop)
