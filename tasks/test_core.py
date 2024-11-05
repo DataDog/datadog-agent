@@ -146,9 +146,9 @@ def test_core(
         if not skip_module_class:
             module_result = module_class(path=module.full_path())
         if not headless_mode:
-            skipped_header = "[Skipped]" if not module.condition() else ""
+            skipped_header = "[Skipped]" if not module.verify_condition() else ""
             print(f"----- {skipped_header} Module '{module.full_path()}'")
-        if not module.condition():
+        if not module.verify_condition():
             continue
 
         command(modules_results, module, module_result)

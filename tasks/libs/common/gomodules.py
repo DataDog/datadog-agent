@@ -6,7 +6,10 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
+from typing import ClassVar
 
 import yaml
 
@@ -18,6 +21,7 @@ class GoModuleDumper(yaml.SafeDumper):
         return True
 
 
+@dataclass
 class GoModule:
     """
     A Go module abstraction.
@@ -25,10 +29,26 @@ class GoModule:
     If True, a check will run to ensure this is true.
     """
 
-    CONDITIONS: dict[str, Callable] = {
-        # TODO
+    # Possible conditions for GoModule.condition
+    CONDITIONS: ClassVar[dict[str, Callable]] = {
         'always': lambda: True,
+        'never': lambda: False,
+        'is_linux': lambda: sys.platform == "linux",
     }
+
+    # Posix path of the module's directory
+    path: str
+    targets: list[str] | None = None
+    condition: str = 'always'
+    should_tag: bool = True
+    # HACK: Workaround for modules that can be tested, but not imported (eg. gohai), because
+    # they define a main package
+    # A better solution would be to automatically detect if a module contains a main package,
+    # at the cost of spending some time parsing the module.
+    importable: bool = True
+    independent: bool = False
+    lint_targets: list[str] | None = None
+    used_by_otel: bool = False
 
     @staticmethod
     def from_dict(path: str, data: dict[str, object]) -> GoModule:
@@ -54,30 +74,9 @@ class GoModule:
 
             return GoModule.from_dict(dir_path.as_posix(), data)
 
-    def __init__(
-        self,
-        path: str,
-        targets: list[str] = None,
-        condition: str = 'always',
-        should_tag: bool = True,
-        importable: bool = True,
-        independent: bool = False,
-        lint_targets: list[str] = None,
-        used_by_otel=False,
-    ):
-        # Posix path of the module's directory
-        self.path = path
-        self.targets = targets or ["."]
-        self.lint_targets = lint_targets or self.targets
-        self.condition = condition
-        self.should_tag = should_tag
-        # HACK: Workaround for modules that can be tested, but not imported (eg. gohai), because
-        # they define a main package
-        # A better solution would be to automatically detect if a module contains a main package,
-        # at the cost of spending some time parsing the module.
-        self.importable = importable
-        self.independent = independent
-        self.used_by_otel = used_by_otel
+    def __post_init__(self):
+        self.targets = self.targets or ["."]
+        self.lint_targets = self.lint_targets or self.targets
 
         self._dependencies = None
 
@@ -269,13 +268,11 @@ DEFAULT_MODULES = {
     "comp/trace/compression/impl-zstd": GoModule(
         "comp/trace/compression/impl-zstd", independent=True, used_by_otel=True
     ),
-    "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
-    "internal/tools/independent-lint": GoModule(
-        "internal/tools/independent-lint", condition=lambda: False, should_tag=False
-    ),
-    "internal/tools/modformatter": GoModule("internal/tools/modformatter", condition=lambda: False, should_tag=False),
-    "internal/tools/modparser": GoModule("internal/tools/modparser", condition=lambda: False, should_tag=False),
-    "internal/tools/proto": GoModule("internal/tools/proto", condition=lambda: False, should_tag=False),
+    "internal/tools": GoModule("internal/tools", condition='never', should_tag=False),
+    "internal/tools/independent-lint": GoModule("internal/tools/independent-lint", condition='never', should_tag=False),
+    "internal/tools/modformatter": GoModule("internal/tools/modformatter", condition='never', should_tag=False),
+    "internal/tools/modparser": GoModule("internal/tools/modparser", condition='never', should_tag=False),
+    "internal/tools/proto": GoModule("internal/tools/proto", condition='never', should_tag=False),
     "pkg/aggregator/ckey": GoModule("pkg/aggregator/ckey", independent=True, used_by_otel=True),
     "pkg/api": GoModule("pkg/api", independent=True, used_by_otel=True),
     "pkg/collector/check/defaults": GoModule("pkg/collector/check/defaults", independent=True, used_by_otel=True),
@@ -312,7 +309,7 @@ DEFAULT_MODULES = {
     "pkg/proto": GoModule("pkg/proto", independent=True, used_by_otel=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True, used_by_otel=True),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
-    "pkg/security/seclwin": GoModule("pkg/security/seclwin", independent=True, condition=lambda: False),
+    "pkg/security/seclwin": GoModule("pkg/security/seclwin", independent=True, condition='never'),
     "pkg/serializer": GoModule("pkg/serializer", independent=True, used_by_otel=True),
     "pkg/status/health": GoModule("pkg/status/health", independent=True, used_by_otel=True),
     "pkg/tagger/types": GoModule("pkg/tagger/types", independent=True, used_by_otel=True),
@@ -323,9 +320,7 @@ DEFAULT_MODULES = {
     "pkg/util/backoff": GoModule("pkg/util/backoff", independent=True, used_by_otel=True),
     "pkg/util/buf": GoModule("pkg/util/buf", independent=True, used_by_otel=True),
     "pkg/util/cache": GoModule("pkg/util/cache", independent=True),
-    "pkg/util/cgroups": GoModule(
-        "pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux", used_by_otel=True
-    ),
+    "pkg/util/cgroups": GoModule("pkg/util/cgroups", independent=True, condition='is_linux', used_by_otel=True),
     "pkg/util/common": GoModule("pkg/util/common", independent=True, used_by_otel=True),
     "pkg/util/containers/image": GoModule("pkg/util/containers/image", independent=True, used_by_otel=True),
     "pkg/util/executable": GoModule("pkg/util/executable", independent=True, used_by_otel=True),
@@ -358,7 +353,7 @@ DEFAULT_MODULES = {
         lint_targets=[".", "./examples"],  # need to explicitly list "examples", otherwise it is skipped
     ),
     "test/otel": GoModule("test/otel", independent=True, used_by_otel=True),
-    "tools/retry_file_dump": GoModule("tools/retry_file_dump", condition=lambda: False, should_tag=False),
+    "tools/retry_file_dump": GoModule("tools/retry_file_dump", condition='never', should_tag=False),
 }
 
 # Folder containing a `go.mod` file but that should not be added to the default modules list
@@ -378,5 +373,6 @@ IGNORED_MODULE_PATHS = [
 ]
 
 
+@lru_cache
 def get_default_modules():
     return DEFAULT_MODULES

@@ -752,7 +752,7 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
         module_path = get_go_module(package)
 
         # Check if the module is in the target list of the modules we want to test
-        if module_path not in get_default_modules() or not get_default_modules()[module_path].condition():
+        if module_path not in get_default_modules() or not get_default_modules()[module_path].verify_condition():
             continue
 
         # Check if the package is in the target list of the module we want to test
