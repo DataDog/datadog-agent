@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-func TestIsDefaultPayloadsEnabled(t *testing.T) {
+func TestIsCoreAgentEnabled(t *testing.T) {
 
 	tests := []struct {
 		name      string
