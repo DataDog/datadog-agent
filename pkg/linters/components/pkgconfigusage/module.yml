@@ -1,0 +1,9 @@
+condition: always
+importable: true
+independent: false
+lint_targets:
+- .
+should_tag: false
+targets:
+- .
+used_by_otel: false

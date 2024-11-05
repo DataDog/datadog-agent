@@ -1,0 +1,13 @@
+condition: always
+importable: true
+independent: false
+lint_targets:
+- ./pkg
+- ./cmd
+- ./comp
+should_tag: true
+targets:
+- ./pkg
+- ./cmd
+- ./comp
+used_by_otel: false

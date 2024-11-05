@@ -1,0 +1,9 @@
+condition: is_linux
+importable: true
+independent: true
+lint_targets:
+- .
+should_tag: true
+targets:
+- .
+used_by_otel: true
