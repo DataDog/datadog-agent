@@ -209,7 +209,6 @@ func TestPurge(t *testing.T) {
 	s := fixtures.NewServer(t)
 	rootPath := t.TempDir()
 	installer := newTestPackageManager(t, s, rootPath, t.TempDir())
-	defer installer.db.Close()
 
 	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
@@ -222,4 +221,6 @@ func TestPurge(t *testing.T) {
 	installer.Purge(testCtx)
 	assert.NoFileExists(t, filepath.Join(rootPath, "packages.db"), "purge should remove the packages database")
 	assert.NoDirExists(t, rootPath, "purge should remove the packages directory")
+	assert.Nil(t, installer.db, "purge should close the packages database")
+	assert.Nil(t, installer.cdn, "purge should close the CDN client")
 }

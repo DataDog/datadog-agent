@@ -89,8 +89,7 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
 	}
-	packagesDir := paths.PackagesPath
-	db, err := db.New(filepath.Join(packagesDir, "packages.db"), db.WithTimeout(10*time.Second))
+	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
@@ -103,11 +102,11 @@ func NewInstaller(env *env.Env) (Installer, error) {
 		cdn:        cdn,
 		db:         db,
 		downloader: oci.NewDownloader(env, http.DefaultClient),
-		packages:   repository.NewRepositories(packagesDir, paths.LocksPath),
+		packages:   repository.NewRepositories(paths.PackagesPath, paths.LocksPath),
 		configs:    repository.NewRepositories(paths.ConfigsPath, paths.LocksPath),
 
 		userConfigsDir: paths.DefaultUserConfigsDir,
-		packagesDir:    packagesDir,
+		packagesDir:    paths.PackagesPath,
 	}, nil
 }
 
