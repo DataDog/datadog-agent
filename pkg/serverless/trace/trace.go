@@ -91,27 +91,37 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 	return comptracecfg.LoadConfigFile(l.Path, c, l.Tagger)
 }
 
+// StartServerlessTraceAgentArgs are the arguments for the StartServerlessTraceAgent method
+type StartServerlessTraceAgentArgs struct {
+	Enabled               bool
+	LoadConfig            Load
+	LambdaSpanChan        chan<- *pb.Span
+	ColdStartSpanID       uint64
+	AzureContainerAppTags string
+}
+
 // Start starts the agent
 //
 //nolint:revive // TODO(SERV) Fix revive linter
-func StartServerlessTraceAgent(enabled bool, loadConfig Load, lambdaSpanChan chan<- *pb.Span, coldStartSpanId uint64) ServerlessTraceAgent {
-	if enabled {
+func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTraceAgent {
+	if args.Enabled {
 		// Set the serverless config option which will be used to determine if
 		// hostname should be resolved. Skipping hostname resolution saves >1s
 		// in load time between gRPC calls and agent commands.
 		pkgconfigsetup.Datadog().Set("serverless.enabled", true, model.SourceAgentRuntime)
 
-		tc, confErr := loadConfig.Load()
+		tc, confErr := args.LoadConfig.Load()
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)
 		} else {
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
+			tc.AzureContainerAppTags = args.AzureContainerAppTags
 			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
 			ta.SpanModifier = &spanModifier{
-				coldStartSpanId: coldStartSpanId,
-				lambdaSpanChan:  lambdaSpanChan,
+				coldStartSpanId: args.ColdStartSpanID,
+				lambdaSpanChan:  args.LambdaSpanChan,
 				ddOrigin:        getDDOrigin(),
 			}
 
