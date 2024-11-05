@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -158,7 +157,7 @@ func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient
 	return &client{cl: pbgo.NewProcessEntityStreamClient(cc), parentCollector: s}
 }
 
-func (s *streamHandler) HandleResponse(store workloadmeta.Component, resp interface{}) ([]workloadmeta.CollectorEvent, error) {
+func (s *streamHandler) HandleResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
 	log.Trace("handling response")
 	response, ok := resp.(*pbgo.ProcessStreamResponse)
 	if !ok {
@@ -168,7 +167,7 @@ func (s *streamHandler) HandleResponse(store workloadmeta.Component, resp interf
 	collectorEvents := make([]workloadmeta.CollectorEvent, 0, len(response.SetEvents)+len(response.UnsetEvents))
 	collectorEvents = handleEvents(collectorEvents, response.UnsetEvents, workloadmetaEventFromProcessEventUnset)
 	collectorEvents = handleEvents(collectorEvents, response.SetEvents, workloadmetaEventFromProcessEventSet)
-	s.populateMissingContainerID(collectorEvents, store)
+	s.populateMissingContainerID(collectorEvents)
 	log.Tracef("collected [%d] events", len(collectorEvents))
 	return collectorEvents, nil
 }
@@ -209,7 +208,7 @@ func (s *streamHandler) HandleResync(store workloadmeta.Component, events []work
 
 // populateMissingContainerID populates any missing containerID field in the entities of Set events if it is possible to get the
 // container id from the shared container provider
-func (s *streamHandler) populateMissingContainerID(collectorEvents []workloadmeta.CollectorEvent, store workloadmeta.Component) {
+func (s *streamHandler) populateMissingContainerID(collectorEvents []workloadmeta.CollectorEvent) {
 	for idx, event := range collectorEvents {
 		if event.Type != workloadmeta.EventTypeSet {
 			continue
@@ -221,8 +220,7 @@ func (s *streamHandler) populateMissingContainerID(collectorEvents []workloadmet
 
 		if ctrID == "" {
 			pidAsInt, _ := strconv.Atoi(pid)
-			containerProvider := metrics.GetProvider(optional.NewOption(store))
-			ctrIDFromProvider, err := containerProvider.GetMetaCollector().GetContainerIDForPID(pidAsInt, cacheValidityNoRT)
+			ctrIDFromProvider, err := metrics.GetMetaCollector().GetContainerIDForPID(pidAsInt, cacheValidityNoRT)
 			if err != nil {
 				log.Debugf("failed to get container id for process %s: %v", pid, err)
 				continue
