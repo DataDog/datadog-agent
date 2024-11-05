@@ -242,7 +242,7 @@ require (
 	github.com/netsampler/goflow2 v1.3.3
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
-	github.com/open-policy-agent/opa v0.69.0
+	github.com/open-policy-agent/opa v0.70.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.104.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.0
@@ -251,7 +251,7 @@ require (
 	github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.20.4
+	github.com/prometheus/client_golang v1.20.5
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/procfs v0.15.1
 	github.com/redis/go-redis/v9 v9.1.0
@@ -316,7 +316,7 @@ require (
 	google.golang.org/grpc v1.67.1
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.35.1
-	gopkg.in/DataDog/dd-trace-go.v1 v1.69.0
+	gopkg.in/DataDog/dd-trace-go.v1 v1.69.1
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
@@ -381,7 +381,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.22 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ebs v1.27.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.186.1
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.187.0
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.24.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.3 // indirect
@@ -603,7 +603,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.0.0-00010101000000-000000000000
 	github.com/NVIDIA/go-nvml v0.12.4-0
 	github.com/containerd/containerd/api v1.7.19
-	github.com/containerd/errdefs v0.3.0
+	github.com/containerd/errdefs v1.0.0
 	github.com/distribution/reference v0.6.0
 	github.com/jellydator/ttlcache/v3 v3.3.0
 	github.com/kouhin/envflag v0.0.0-20150818174321-0e9a86061649
@@ -613,7 +613,7 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.134
+	github.com/DataDog/agent-payload/v5 v5.0.135
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/config v0.57.1
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.57.1
@@ -703,7 +703,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.57.1
 	github.com/DataDog/datadog-agent/pkg/version v0.57.1
-	github.com/DataDog/go-libddwaf/v3 v3.4.0
+	github.com/DataDog/go-libddwaf/v3 v3.5.1
 	github.com/DataDog/go-sqllexer v0.0.16
 	github.com/Datadog/dublin-traceroute v0.0.2
 	github.com/aquasecurity/trivy v0.49.2-0.20240227072422-e1ea02c7b80d

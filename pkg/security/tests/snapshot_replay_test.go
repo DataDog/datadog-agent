@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -26,13 +27,13 @@ func TestSnapshotReplay(t *testing.T) {
 		Expression: "exec.comm in [\"testsuite\"]",
 	}
 
-	var gotEvent bool
+	gotEvent := atomic.NewBool(false)
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, withStaticOpts(testOpts{
 		snapshotRuleMatchHandler: func(testMod *testModule, e *model.Event, r *rules.Rule) {
 			assertTriggeredRule(t, r, "test_rule_snapshot_replay")
 			testMod.validateExecSchema(t, e)
-			gotEvent = true
+			gotEvent.Store(true)
 		},
 	}))
 
@@ -45,5 +46,5 @@ func TestSnapshotReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert.Eventually(t, func() bool { return gotEvent }, 10*time.Second, 100*time.Millisecond, "didn't get the event from snapshot")
+	assert.Eventually(t, func() bool { return gotEvent.Load() }, 10*time.Second, 100*time.Millisecond, "didn't get the event from snapshot")
 }

@@ -7,7 +7,11 @@
 
 package config
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+)
 
 const (
 	defaultConfigDir          = ""
@@ -22,4 +26,7 @@ func ValidateSocketAddress(sockPath string) error {
 // ProcessEventDataStreamSupported returns true if process event data stream is supported
 func ProcessEventDataStreamSupported() bool {
 	return false
+}
+
+func allowPrebuiltEbpfFallback(_ model.Config) {
 }

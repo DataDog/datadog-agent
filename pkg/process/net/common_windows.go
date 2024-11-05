@@ -9,6 +9,7 @@ package net
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -102,4 +103,9 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 			},
 		},
 	}
+}
+
+// GetBTFLoaderInfo is not implemented on windows
+func (r *RemoteSysProbeUtil) GetBTFLoaderInfo() ([]byte, error) {
+	return nil, errors.New("GetBTFLoaderInfo is not supported on windows")
 }
