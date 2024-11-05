@@ -9,8 +9,6 @@ package gpu
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
-	"github.com/DataDog/datadog-agent/pkg/errors"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // statsGenerator connects to the active stream handlers and generates stats for the GPU monitoring, by distributing
@@ -38,7 +36,14 @@ func newStatsGenerator(sysCtx *systemContext, currKTime int64, streamHandlers ma
 func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	g.currGenerationKTime = nowKtime
 
+	pidToMetadata := make(map[uint32]model.ProcessMetadata)
+
 	for key, handler := range g.streamHandlers {
+		// Ensure we have the metadata for the process
+		if _, ok := pidToMetadata[key.pid]; !ok {
+			pidToMetadata[key.pid] = handler.metadata
+		}
+
 		aggr := g.getOrCreateAggregator(key.pid)
 		currData := handler.getCurrentData(uint64(nowKtime))
 		pastData := handler.getPastData(true)
@@ -64,7 +69,7 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 
 	for pid, aggr := range g.aggregators {
 		procStats := aggr.getStats(normFactor)
-		procStats.Metadata = g.getMetadataForProcess(pid)
+		procStats.Metadata = pidToMetadata[pid]
 		stats.ProcessStats[pid] = procStats
 	}
 
@@ -103,17 +108,4 @@ func (g *statsGenerator) cleanupFinishedAggregators() {
 			delete(g.aggregators, pid)
 		}
 	}
-}
-
-func (g *statsGenerator) getMetadataForProcess(pid uint32) model.ProcessMetadata {
-	var metadata model.ProcessMetadata
-
-	proc, err := g.sysCtx.workloadmeta.GetProcess(int32(pid))
-	if err == nil {
-		metadata.ContainerID = proc.ContainerID
-	} else if !errors.IsNotFound(err) { // If the process is not found, we don't want to return an error
-		log.Warnf("error retrieving metadata for process PID=%d: %v", pid, err)
-	}
-
-	return metadata
 }

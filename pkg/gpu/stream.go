@@ -15,6 +15,7 @@ import (
 
 	"github.com/prometheus/procfs"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
@@ -31,6 +32,7 @@ type StreamHandler struct {
 	allocations    []*memoryAllocation
 	processEnded   bool // A marker to indicate that the process has ended, and this handler should be flushed
 	sysCtx         *systemContext
+	metadata       model.ProcessMetadata // metadata about the process that initiated this stream
 }
 
 // enrichedKernelLaunch is a kernel launch event with the kernel data attached.
@@ -110,11 +112,12 @@ type kernelSpan struct {
 	avgMemoryUsage map[memAllocType]uint64
 }
 
-func newStreamHandler(pid uint32, sysCtx *systemContext) *StreamHandler {
+func newStreamHandler(pid uint32, sysCtx *systemContext, metadata model.ProcessMetadata) *StreamHandler {
 	return &StreamHandler{
 		memAllocEvents: make(map[uint64]gpuebpf.CudaMemEvent),
 		pid:            pid,
 		sysCtx:         sysCtx,
+		metadata:       metadata,
 	}
 }
 

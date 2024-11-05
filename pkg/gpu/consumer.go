@@ -13,11 +13,15 @@ import (
 	"time"
 	"unsafe"
 
+	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -110,7 +114,13 @@ func (c *cudaEventConsumer) Start() {
 				key := streamKey{pid: pid, stream: header.Stream_id}
 
 				if _, ok := c.streamHandlers[key]; !ok {
-					c.streamHandlers[key] = newStreamHandler(key.pid, c.sysCtx)
+					cgroup := unix.ByteSliceToString(header.Cgroup[:])
+					containerID, err := cgroups.ContainerFilter("", cgroup)
+					if err != nil {
+						log.Errorf("error getting container ID for cgroup %s: %s", cgroup, err)
+					}
+					metadata := model.ProcessMetadata{ContainerID: containerID}
+					c.streamHandlers[key] = newStreamHandler(key.pid, c.sysCtx, metadata)
 				}
 
 				switch header.Type {

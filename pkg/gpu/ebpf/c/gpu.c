@@ -10,6 +10,7 @@
 #include "map-defs.h"
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
+#include "cgroup.h"
 
 #include "types.h"
 
@@ -27,6 +28,14 @@ static inline void load_dim3(__u64 xy, __u64 z, dim3 *dst) {
     dst->x = xy & mask;
     dst->y = xy >> 32;
     dst->z = z;
+}
+
+static inline void fill_header(cuda_event_header_t *header, __u64 stream_id, cuda_event_type_t type) {
+    header->pid_tgid = bpf_get_current_pid_tgid();
+    header->ktime_ns = bpf_ktime_get_ns();
+    header->stream_id = stream_id;
+    header->type = type;
+    get_cgroup_name(header->cgroup, sizeof(header->cgroup));
 }
 
 SEC("uprobe/cudaLaunchKernel")
@@ -50,10 +59,7 @@ int BPF_UPROBE(uprobe__cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 
 
     load_dim3(grid_xy, grid_z, &launch_data.grid_size);
     load_dim3(block_xy, block_z, &launch_data.block_size);
-    launch_data.header.pid_tgid = bpf_get_current_pid_tgid();
-    launch_data.header.ktime_ns = bpf_ktime_get_ns();
-    launch_data.header.stream_id = (uint64_t)stream;
-    launch_data.header.type = cuda_kernel_launch;
+    fill_header(&launch_data.header, stream, cuda_kernel_launch);
     launch_data.kernel_addr = (uint64_t)func;
     launch_data.shared_mem_size = shared_mem;
 
@@ -90,10 +96,7 @@ int BPF_URETPROBE(uretprobe__cudaMalloc) {
         return 0;
     }
 
-    mem_data.header.pid_tgid = bpf_get_current_pid_tgid();
-    mem_data.header.stream_id = (uint64_t)0;
-    mem_data.header.type = cuda_memory_event;
-    mem_data.header.ktime_ns = bpf_ktime_get_ns();
+    fill_header(&mem_data.header, 0, cuda_memory_event);
     mem_data.type = cudaMalloc;
     mem_data.size = args->size;
 
@@ -115,10 +118,7 @@ SEC("uprobe/cudaFree")
 int BPF_UPROBE(uprobe__cudaFree, void *mem) {
     cuda_memory_event_t mem_data = { 0 };
 
-    mem_data.header.pid_tgid = bpf_get_current_pid_tgid();
-    mem_data.header.stream_id = (uint64_t)0;
-    mem_data.header.type = cuda_memory_event;
-    mem_data.header.ktime_ns = bpf_ktime_get_ns();
+    fill_header(&mem_data.header, 0, cuda_memory_event);
     mem_data.size = 0;
     mem_data.addr = (uint64_t)mem;
     mem_data.type = cudaFree;
@@ -152,10 +152,7 @@ int BPF_URETPROBE(uretprobe__cudaStreamSynchronize) {
         return 0;
     }
 
-    event.header.pid_tgid = bpf_get_current_pid_tgid();
-    event.header.stream_id = *stream;
-    event.header.type = cuda_sync;
-    event.header.ktime_ns = bpf_ktime_get_ns();
+    fill_header(&event.header, *stream, cuda_sync);
 
     log_debug("cudaStreamSynchronize[ret]: EMIT cudaSync pid_tgid=%llu, stream_id=%llu", event.header.pid_tgid, event.header.stream_id);
 
