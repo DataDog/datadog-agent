@@ -4,8 +4,8 @@ single-machine-performance-regression_detector:
   rules:
     - !reference [.except_main_or_release_branch]
     - when: on_success
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:docker"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
   needs:
     - job: single_machine_performance-amd64-a7
       artifacts: false
@@ -76,7 +76,7 @@ single-machine-performance-regression_detector:
     - echo "Commit ${BASELINE_SHA} is recent enough"
     - echo "Checking if image exists for commit ${BASELINE_SHA}..."
     - |
-      while [[ ! $(aws ecr describe-images --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-amd64") ]]
+      while [[ ! $(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-amd64") ]]
       do
           echo "No image exists for ${BASELINE_SHA} - checking predecessor of ${BASELINE_SHA} next"
           BASELINE_SHA=$(git rev-parse ${BASELINE_SHA}^)

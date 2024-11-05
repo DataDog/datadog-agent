@@ -350,21 +350,33 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	} else if useV1API && !s.enableJSONStream {
 		seriesBytesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
 	} else {
-		failoverActive, allowlist := s.getFailoverAllowlist()
-
-		if failoverActive && len(allowlist) > 0 {
+		failoverActiveForMRF, allowlistForMRF := s.getFailoverAllowlist()
+		failoverActiveForAutoscaling, allowlistForAutoscaling := s.getAutoscalingFailoverMetrics()
+		failoverActive := (failoverActiveForMRF && len(allowlistForMRF) > 0) || (failoverActiveForAutoscaling && len(allowlistForAutoscaling) > 0)
+		if failoverActive {
 			var filtered transaction.BytesPayloads
-			seriesBytesPayloads, filtered, err = seriesSerializer.MarshalSplitCompressMultiple(s.config, s.Strategy, func(s *metrics.Serie) bool {
-				_, allowed := allowlist[s.Name]
-				return allowed
-			})
+			var localAutoscalingFaioverPayloads transaction.BytesPayloads
+			seriesBytesPayloads, filtered, localAutoscalingFaioverPayloads, err = seriesSerializer.MarshalSplitCompressMultiple(s.config, s.Strategy,
+				func(s *metrics.Serie) bool { // Filter for MRF
+					_, allowed := allowlistForMRF[s.Name]
+					return allowed
+				},
+				func(s *metrics.Serie) bool { // Filter for Autoscaling
+					_, allowed := allowlistForAutoscaling[s.Name]
+					return allowed
+				})
+
 			for _, seriesBytesPayload := range seriesBytesPayloads {
 				seriesBytesPayload.Destination = transaction.PrimaryOnly
 			}
 			for _, seriesBytesPayload := range filtered {
 				seriesBytesPayload.Destination = transaction.SecondaryOnly
 			}
+			for _, seriesBytesPayload := range localAutoscalingFaioverPayloads {
+				seriesBytesPayload.Destination = transaction.LocalOnly
+			}
 			seriesBytesPayloads = append(seriesBytesPayloads, filtered...)
+			seriesBytesPayloads = append(seriesBytesPayloads, localAutoscalingFaioverPayloads...)
 		} else {
 			seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config, s.Strategy)
 			for _, seriesBytesPayload := range seriesBytesPayloads {
@@ -397,6 +409,19 @@ func (s *Serializer) getFailoverAllowlist() (bool, map[string]struct{}) {
 	return failoverActive, allowlist
 }
 
+func (s *Serializer) getAutoscalingFailoverMetrics() (bool, map[string]struct{}) {
+	autoscalingFailoverEnabled := s.config.GetBool("autoscaling.failover.enabled") && s.config.GetBool("cluster_agent.enabled")
+	var allowlist map[string]struct{}
+	if autoscalingFailoverEnabled && s.config.IsSet("autoscaling.failover.metrics") {
+		rawList := s.config.GetStringSlice("autoscaling.failover.metrics")
+		allowlist = make(map[string]struct{}, len(rawList))
+		for _, allowed := range rawList {
+			allowlist[allowed] = struct{}{}
+		}
+	}
+	return autoscalingFailoverEnabled, allowlist
+}
+
 // AreSketchesEnabled returns whether sketches are enabled for serialization
 func (s *Serializer) AreSketchesEnabled() bool {
 	return s.enableSketches
@@ -411,7 +436,6 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	sketchesSerializer := metricsserializer.SketchSeriesList{SketchesSource: sketches}
 	if s.enableSketchProtobufStream {
 		failoverActive, allowlist := s.getFailoverAllowlist()
-
 		if failoverActive && len(allowlist) > 0 {
 			payloads, filteredPayloads, err := sketchesSerializer.MarshalSplitCompressMultiple(s.config, s.Strategy, func(ss *metrics.SketchSeries) bool {
 				_, allowed := allowlist[ss.Name]

@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shirou/gopsutil/v3/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -57,8 +58,12 @@ func TestIgnoreComm(t *testing.T) {
 
 // TestIgnoreCommsLengths checks that the map contains names no longer than 15 bytes.
 func TestIgnoreCommsLengths(t *testing.T) {
-	for comm := range ignoreComms {
-		assert.LessOrEqual(t, len(comm), 15, "Process name %q too big", comm)
+	discovery := newDiscovery()
+	require.NotEmpty(t, discovery)
+	require.Equal(t, len(discovery.config.ignoreComms), 10)
+
+	for comm := range discovery.config.ignoreComms {
+		assert.LessOrEqual(t, len(comm), maxCommLen, "Process name %q too big", comm)
 	}
 }
 
@@ -109,6 +114,10 @@ func TestShouldIgnoreComm(t *testing.T) {
 
 	serverBin := buildTestBin(t)
 	serverDir := filepath.Dir(serverBin)
+	discovery := newDiscovery()
+	require.NotEmpty(t, discovery)
+	require.NotEmpty(t, discovery.config.ignoreComms)
+	require.Equal(t, len(discovery.config.ignoreComms), 10)
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
@@ -116,17 +125,27 @@ func TestShouldIgnoreComm(t *testing.T) {
 			t.Cleanup(func() { cancel() })
 
 			makeAlias(t, test.comm, serverBin)
+			t.Cleanup(func() {
+				os.Remove(test.comm)
+			})
 			bin := filepath.Join(serverDir, test.comm)
 			cmd := exec.CommandContext(ctx, bin)
 			err := cmd.Start()
 			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = cmd.Process.Kill()
+			})
+
+			var proc *process.Process
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				proc, err = customNewProcess(int32(cmd.Process.Pid))
+				assert.NoError(collect, err)
+			}, 2*time.Second, 100*time.Millisecond)
 
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				proc, err := customNewProcess(int32(cmd.Process.Pid))
-				require.NoError(t, err)
-				ignore := shouldIgnoreComm(proc)
-				require.Equal(t, test.ignore, ignore)
-			}, 30*time.Second, 100*time.Millisecond)
+				ignore := discovery.shouldIgnoreComm(proc)
+				assert.Equal(collect, test.ignore, ignore)
+			}, 500*time.Millisecond, 100*time.Millisecond)
 		})
 	}
 }
@@ -189,6 +208,7 @@ func BenchmarkProcName(b *testing.B) {
 
 // BenchmarkShouldIgnoreComm benchmarks reading of command name from /proc/<pid>/comm.
 func BenchmarkShouldIgnoreComm(b *testing.B) {
+	discovery := newDiscovery()
 	cmd := startProcessLongComm(b)
 
 	b.ResetTimer()
@@ -199,9 +219,43 @@ func BenchmarkShouldIgnoreComm(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		ok := shouldIgnoreComm(proc)
+		ok := discovery.shouldIgnoreComm(proc)
 		if ok {
 			b.Fatalf("process should not have been ignored")
 		}
+	}
+}
+
+// BenchmarkProcCommReadFile reads content of /proc/<pid>/comm with default buffer allocation.
+func BenchmarkProcCommReadFile(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		_, err := os.ReadFile("/proc/1/comm")
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkProcCommReadFile reads content of /proc/<pid>/comm using pre-allocated pool of buffers.
+func BenchmarkProcCommReadLen(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		file, err := os.Open("/proc/1/comm")
+		if err != nil {
+			b.Fatal(err)
+		}
+		buf := procCommBufferPool.Get()
+
+		_, err = file.Read(*buf)
+		if err != nil {
+			b.Fatal(err)
+		}
+		file.Close()
+		procCommBufferPool.Put(buf)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -36,9 +37,39 @@ func (a *APIServer) DumpProcessCache(_ context.Context, params *api.DumpProcessC
 		return nil, fmt.Errorf("not supported")
 	}
 
-	filename, err := p.Resolvers.ProcessResolver.ToDot(params.WithArgs)
-	if err != nil {
-		return nil, err
+	var (
+		filename string
+		err      error
+	)
+
+	switch params.Format {
+	case "json":
+		jsonContent, err := p.Resolvers.ProcessResolver.ToJSON(true)
+		if err != nil {
+			return nil, err
+		}
+
+		dump, err := os.CreateTemp("/tmp", "process-cache-dump-*.json")
+		if err != nil {
+			return nil, err
+		}
+
+		defer dump.Close()
+
+		filename = dump.Name()
+		if err := os.Chmod(dump.Name(), 0400); err != nil {
+			return nil, err
+		}
+
+		if _, err := dump.Write(jsonContent); err != nil {
+			return nil, err
+		}
+
+	case "dot", "":
+		filename, err = p.Resolvers.ProcessResolver.ToDot(params.WithArgs)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &api.SecurityDumpProcessCacheMessage{

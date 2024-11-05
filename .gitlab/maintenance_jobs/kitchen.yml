@@ -3,7 +3,7 @@
 # This can happen when a kitchen test fails and is never retried, since that pipeline's cleanup job won't run
 periodic_kitchen_cleanup_s3:
   stage: maintenance_jobs
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules: !reference [.on_testing_cleanup]
   script:
@@ -19,7 +19,7 @@ periodic_kitchen_cleanup_s3:
 # for Gitlab jobs (2 hours), so this should never remove a live kitchen test.
 periodic_kitchen_cleanup_azure:
   stage: maintenance_jobs
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules: !reference [.on_main_or_testing_cleanup]
   # Note: We're not sure if the cleanup script is safe if run multiple times concurrently, so we limit
@@ -37,7 +37,7 @@ periodic_kitchen_cleanup_azure:
 
 periodic_kitchen_cleanup_ec2:
   stage: maintenance_jobs
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules: !reference [.on_main_or_testing_cleanup]
   script:

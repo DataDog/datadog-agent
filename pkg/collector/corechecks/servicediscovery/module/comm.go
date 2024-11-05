@@ -16,23 +16,19 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
-// ignoreComms is a list of process names that should not be reported as a service.
-var ignoreComms = map[string]struct{}{
-	"systemd":         {}, // manages system and service components
-	"dhclient":        {}, // utility that uses the DHCP to configure network interfaces
-	"local-volume-pr": {}, // 'local-volume-provisioner' manages the lifecycle of Persistent Volumes
-	"sshd":            {}, // a daemon that handles secure communication
-	"cilium-agent":    {}, // accepts configuration for networking, load balancing etc. (like cilium-agent)
-	"kubelet":         {}, // Kubernetes agent
-	"chronyd":         {}, // a daemon that implements the Network Time Protocol (NTP)
-	"containerd":      {}, // engine to run containers
-	"dockerd":         {}, // engine to run containers and 'docker-proxy'
-	"livenessprobe":   {}, // Kubernetes tool that monitors a container's health
-}
+const (
+	// maxCommLen is maximum command name length to process when checking for non-reportable commands,
+	// is one byte less (excludes end of line) than the maximum of /proc/<pid>/comm
+	// defined in https://man7.org/linux/man-pages/man5/proc.5.html.
+	maxCommLen   = 15
+	poolCapacity = 100
+)
 
-// ignoreFamily list of commands that should not be reported as a service.
+// ignoreFamily list of processes with hyphens in their names,
+// matching up to the hyphen excludes process from reporting.
 var ignoreFamily = map[string]struct{}{
 	"systemd":    {}, // 'systemd-networkd', 'systemd-resolved' etc
 	"datadog":    {}, // datadog processes
@@ -40,24 +36,39 @@ var ignoreFamily = map[string]struct{}{
 	"docker":     {}, // 'docker-proxy'
 }
 
+var (
+	procCommBufferPool = ddsync.NewSlicePool[byte](maxCommLen, poolCapacity)
+)
+
 // shouldIgnoreComm returns true if process should be ignored
-func shouldIgnoreComm(proc *process.Process) bool {
+func (s *discovery) shouldIgnoreComm(proc *process.Process) bool {
+	if s.config.ignoreComms == nil {
+		return false
+	}
 	commPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "comm")
-	contents, err := os.ReadFile(commPath)
+	file, err := os.Open(commPath)
 	if err != nil {
 		return true
 	}
+	defer file.Close()
 
-	dash := bytes.IndexByte(contents, '-')
+	buf := procCommBufferPool.Get()
+	defer procCommBufferPool.Put(buf)
+
+	n, err := file.Read(*buf)
+	if err != nil {
+		return true
+	}
+	dash := bytes.IndexByte((*buf)[:n], '-')
 	if dash > 0 {
-		_, found := ignoreFamily[string(contents[:dash])]
+		_, found := ignoreFamily[string((*buf)[:dash])]
 		if found {
 			return true
 		}
 	}
 
-	comm := strings.TrimSuffix(string(contents), "\n")
-	_, found := ignoreComms[comm]
+	comm := strings.TrimSuffix(string((*buf)[:n]), "\n")
+	_, found := s.config.ignoreComms[comm]
 
 	return found
 }

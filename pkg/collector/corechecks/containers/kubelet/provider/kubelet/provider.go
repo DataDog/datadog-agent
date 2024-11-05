@@ -94,11 +94,12 @@ type Provider struct {
 	filter   *containers.Filter
 	store    workloadmeta.Component
 	podUtils *common.PodUtils
+	tagger   tagger.Component
 	prometheus.Provider
 }
 
 // NewProvider creates and returns a new Provider, configured based on the values passed in.
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Component, podUtils *common.PodUtils) (*Provider, error) {
+func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Component, podUtils *common.PodUtils, tagger tagger.Component) (*Provider, error) {
 	// clone instance configuration so we can set our default metrics
 	kubeletConfig := *config
 
@@ -115,6 +116,7 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 		filter:   filter,
 		store:    store,
 		podUtils: podUtils,
+		tagger:   tagger,
 	}
 
 	transformers := prometheus.Transformers{
@@ -185,7 +187,7 @@ func (p *Provider) kubeletContainerLogFilesystemUsedBytes(metricFam *prom.Metric
 			continue
 		}
 
-		tags, _ := tagger.Tag(types.NewEntityID(types.ContainerID, cID), types.HighCardinality)
+		tags, _ := p.tagger.Tag(types.NewEntityID(types.ContainerID, cID), types.HighCardinality)
 		if len(tags) == 0 {
 			log.Debugf("Tags not found for container: %s/%s/%s:%s", metric.Metric["namespace"], metric.Metric["pod"], metric.Metric["container"], cID)
 		}

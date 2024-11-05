@@ -82,7 +82,7 @@ func TestCOREEbpfConntrackerSkipsLoadOnOlderKernels(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableRuntimeCompiler = false
 	cfg.EnableCORE = true
-	cfg.AllowPrecompiledFallback = false
+	cfg.AllowPrebuiltFallback = false
 	conntracker, err := NewEBPFConntracker(cfg, nil)
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, errCOREConntrackerUnsupported)
@@ -114,7 +114,7 @@ func TestEbpfConntrackerEnsureMapType(t *testing.T) {
 		cfg := testConfig()
 		cfg.EnableRuntimeCompiler = true
 		cfg.EnableCORE = false
-		cfg.AllowPrecompiledFallback = false
+		cfg.AllowPrebuiltFallback = false
 		checkMap(t, cfg)
 	})
 
@@ -129,7 +129,7 @@ func TestEbpfConntrackerEnsureMapType(t *testing.T) {
 		cfg := testConfig()
 		cfg.EnableRuntimeCompiler = false
 		cfg.EnableCORE = true
-		cfg.AllowPrecompiledFallback = false
+		cfg.AllowPrebuiltFallback = false
 		checkMap(t, cfg)
 	})
 }

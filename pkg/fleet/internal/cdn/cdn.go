@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 )
@@ -38,10 +39,36 @@ type CDN interface {
 	Close() error
 }
 
-// New creates a new CDN.
+// New creates a new CDN and chooses the implementation depending
+// on the environment
 func New(env *env.Env, configDBPath string) (CDN, error) {
-	if env.CDNLocalDirPath != "" {
-		return newLocal(env)
+	if runtime.GOOS == "windows" {
+		// There's an assumption on windows that some directories are already there
+		// but they are in fact created by the regular CDN implementation. Until
+		// there is a fix on windows we keep the previous CDN behaviour for them
+		return newCDNHTTP(env, configDBPath)
 	}
-	return newRemote(env, configDBPath)
+
+	if !env.RemotePolicies {
+		// Remote policies are not enabled -- we don't need the CDN
+		// and we don't want to create the directories that the CDN
+		// implementation would create. We return a no-op CDN to avoid
+		// nil pointer dereference.
+		return newCDNNoop()
+	}
+
+	if env.CDNLocalDirPath != "" {
+		// Mock the CDN for local development or testing
+		return newCDNLocal(env)
+	}
+
+	if !env.CDNEnabled {
+		// Remote policies are enabled but we don't want to use the CDN
+		// as it's still in development. We use standard remote config calls
+		// instead (dubbed "direct" CDN).
+		return newCDNRC(env, configDBPath)
+	}
+
+	// Regular CDN with the cloudfront distribution
+	return newCDNHTTP(env, configDBPath)
 }

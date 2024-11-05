@@ -45,13 +45,15 @@ type podMetadata struct {
 type PodUtils struct {
 	podTagsByPVC map[string][]string
 	podMetadata  map[string]*podMetadata
+	tagger       tagger.Component
 }
 
 // NewPodUtils creates a new instance of PodUtils
-func NewPodUtils() *PodUtils {
+func NewPodUtils(tagger tagger.Component) *PodUtils {
 	return &PodUtils{
 		podTagsByPVC: map[string][]string{},
 		podMetadata:  map[string]*podMetadata{},
+		tagger:       tagger,
 	}
 }
 
@@ -86,7 +88,7 @@ func (p *PodUtils) PopulateForPod(pod *kubelet.Pod) {
 // volume name.
 func (p *PodUtils) computePodTagsByPVC(pod *kubelet.Pod) {
 	podUID := types.NewEntityID(types.KubernetesPodUID, pod.Metadata.UID)
-	tags, _ := tagger.Tag(podUID, types.OrchestratorCardinality)
+	tags, _ := p.tagger.Tag(podUID, types.OrchestratorCardinality)
 	if len(tags) == 0 {
 		return
 	}
