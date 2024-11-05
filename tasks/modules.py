@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import os
 import sys
@@ -5,10 +7,11 @@ from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
 
+import yaml
 from invoke import Context, Exit, task
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.gomodules import IGNORED_MODULE_PATHS, GoModule, get_default_modules
+from tasks.libs.common.gomodules import IGNORED_MODULE_PATHS, GoModule, GoModuleDumper, get_default_modules
 
 AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
 
@@ -216,3 +219,45 @@ def get_module_by_path(path: Path) -> GoModule | None:
             return module
 
     return None
+
+
+def _print_modules(modules: dict[str, GoModule], details: bool, remove_defaults: bool):
+    """Print the module mapping to stdout.
+
+    Args:
+        details: If True, will show also the contents of each module (will list only the names otherwise).
+        remove_defaults: If True, will remove default values from the output.
+    """
+
+    if not details:
+        print("\n".join(sorted(modules.keys())))
+        return
+
+    modules_data = {path: module.to_dict(remove_defaults=remove_defaults) for path, module in modules.items()}
+    for module in modules_data.values():
+        del module["path"]
+
+    yaml.dump(modules_data, sys.stdout, Dumper=GoModuleDumper)
+
+
+@task
+def show(_, path: str, remove_defaults: bool = False):
+    """Show the module information for the given path."""
+
+    module = get_default_modules().get(path)
+
+    assert module, f'Module {path} not found'
+
+    _print_modules({path: module}, details=True, remove_defaults=remove_defaults)
+
+
+@task
+def show_all(_, details: bool = False, remove_defaults: bool = True):
+    """Show the list of modules.
+
+    Args:
+        details: If True, will show also the contents of each module (will list only the names otherwise).
+        remove_defaults: If True, will remove default values from the output.
+    """
+
+    _print_modules(get_default_modules(), details=details, remove_defaults=remove_defaults)
