@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -38,8 +39,8 @@ type RCPolicyProvider struct {
 
 	client               *client.Client
 	onNewPoliciesReadyCb func()
-	lastDefaults         map[string]state.RawConfig
-	lastCustoms          map[string]state.RawConfig
+	lastDefaults         []RCConfig
+	lastCustoms          []RCConfig
 	debouncer            *debouncer.Debouncer
 	dumpPolicies         bool
 	setEnforcementCb     func(bool)
@@ -108,7 +109,7 @@ func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.Raw
 		r.Unlock()
 		return
 	}
-	r.lastDefaults = configs
+	r.lastDefaults = sortPolicyConfigs(configs)
 	r.Unlock()
 
 	log.Info("new policies from remote-config policy provider")
@@ -122,12 +123,33 @@ func (r *RCPolicyProvider) rcCustomsUpdateCallback(configs map[string]state.RawC
 		r.Unlock()
 		return
 	}
-	r.lastCustoms = configs
+	r.lastCustoms = sortPolicyConfigs(configs)
 	r.Unlock()
 
 	log.Info("new policies from remote-config policy provider")
 
 	r.debouncer.Call()
+}
+
+type RCConfig struct {
+	Name   string
+	Config state.RawConfig
+}
+
+func sortPolicyConfigs(configs map[string]state.RawConfig) []RCConfig {
+	res := make([]RCConfig, 0, len(configs))
+	for name, cfg := range configs {
+		res = append(res, RCConfig{
+			Name:   name,
+			Config: cfg,
+		})
+	}
+
+	slices.SortStableFunc(res, func(a, b RCConfig) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+
+	return res
 }
 
 func normalize(policy *rules.Policy) {
@@ -174,21 +196,21 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 		return err
 	}
 
-	for cfgPath, c := range r.lastDefaults {
-		if err := load(c.Metadata.ID, c.Config); err != nil {
-			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+	for _, cfg := range r.lastDefaults {
+		if err := load(cfg.Config.Metadata.ID, cfg.Config.Config); err != nil {
+			r.client.UpdateApplyStatus(cfg.Name, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			errs = multierror.Append(errs, err)
 		} else {
-			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+			r.client.UpdateApplyStatus(cfg.Name, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		}
 	}
 
-	for cfgPath, c := range r.lastCustoms {
-		if err := load(c.Metadata.ID, c.Config); err != nil {
-			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+	for _, cfg := range r.lastCustoms {
+		if err := load(cfg.Config.Metadata.ID, cfg.Config.Config); err != nil {
+			r.client.UpdateApplyStatus(cfg.Name, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			errs = multierror.Append(errs, err)
 		} else {
-			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+			r.client.UpdateApplyStatus(cfg.Name, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		}
 	}
 
