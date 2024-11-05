@@ -1733,7 +1733,16 @@ func testOTLPConvertSpan(enableReceiveResourceSpansV2 bool, t *testing.T) {
 			lib.SetVersion(tt.libver)
 			assert := assert.New(t)
 			want := tt.out
-			got := o.convertSpan(tt.rattr, lib, tt.in)
+			res := pcommon.NewResource()
+			for k, v := range tt.rattr {
+				res.Attributes().PutStr(k, v)
+			}
+			var got *pb.Span
+			if enableReceiveResourceSpansV2 {
+				got = transform.OtelSpanToDDSpan(tt.in, res, lib, o.conf, nil)
+			} else {
+				got = o.convertSpan(tt.rattr, lib, tt.in)
+			}
 			if len(want.Meta) != len(got.Meta) {
 				t.Fatalf("(%d) Meta count mismatch:\n%#v", i, got.Meta)
 			}
@@ -1779,7 +1788,11 @@ func testOTLPConvertSpan(enableReceiveResourceSpansV2 bool, t *testing.T) {
 
 			// test new top-level identification feature flag
 			o.conf.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
-			got = o.convertSpan(tt.rattr, lib, tt.in)
+			if enableReceiveResourceSpansV2 {
+				got = transform.OtelSpanToDDSpan(tt.in, res, lib, o.conf, nil)
+			} else {
+				got = o.convertSpan(tt.rattr, lib, tt.in)
+			}
 			wantMetrics := tt.topLevelOutMetrics
 			if len(wantMetrics) != len(got.Metrics) {
 				t.Fatalf("(%d) Metrics count mismatch:\n\n%v\n\n%v", i, wantMetrics, got.Metrics)
@@ -2156,7 +2169,17 @@ func testOTLPConvertSpanSetPeerService(enableReceiveResourceSpansV2 bool, t *tes
 			lib.SetName(tt.libname)
 			lib.SetVersion(tt.libver)
 			assert := assert.New(t)
-			assert.Equal(tt.out, o.convertSpan(tt.rattr, lib, tt.in), i)
+			res := pcommon.NewResource()
+			for k, v := range tt.rattr {
+				res.Attributes().PutStr(k, v)
+			}
+			var got *pb.Span
+			if enableReceiveResourceSpansV2 {
+				got = transform.OtelSpanToDDSpan(tt.in, res, lib, o.conf, nil)
+			} else {
+				got = o.convertSpan(tt.rattr, lib, tt.in)
+			}
+			assert.Equal(tt.out, got, i)
 		})
 	}
 }

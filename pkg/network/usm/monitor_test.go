@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -100,7 +101,11 @@ func TestHTTP(t *testing.T) {
 	if kv < usmconfig.MinimumKernelVersion {
 		t.Skipf("USM is not supported on %v", kv)
 	}
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	if !prebuilt.IsDeprecated() {
+		modes = append(modes, ebpftest.Prebuilt)
+	}
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 		suite.Run(t, new(HTTPTestSuite))
 	})
 }

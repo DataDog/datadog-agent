@@ -6,6 +6,9 @@ rc_kubernetes_deploy:
   stage: internal_kubernetes_deploy
   rules:
     - if: $RC_K8S_DEPLOYMENTS == "true"
+      when: on_success
+    - if: $RC_BUILD == "true"
+      when: manual
   needs:
     - job: docker_trigger_internal
       artifacts: false

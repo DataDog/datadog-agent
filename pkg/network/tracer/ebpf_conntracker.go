@@ -26,6 +26,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -92,9 +93,9 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		if err != nil {
 			if cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback {
 				log.Warnf("error loading CO-RE conntracker, falling back to runtime compiled: %s", err)
-			} else if cfg.AllowPrecompiledFallback {
+			} else if cfg.AllowPrebuiltFallback {
 				allowRC = false
-				log.Warnf("error loading CO-RE conntracker, falling back to pre-compiled: %s", err)
+				log.Warnf("error loading CO-RE conntracker, falling back to prebuilt: %s", err)
 			} else {
 				return nil, fmt.Errorf("error loading CO-RE conntracker: %w", err)
 			}
@@ -104,12 +105,16 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 	if m == nil && allowRC {
 		m, err = ebpfConntrackerRCCreator(cfg)
 		if err != nil {
-			if !cfg.AllowPrecompiledFallback {
+			if !cfg.AllowPrebuiltFallback {
 				return nil, fmt.Errorf("unable to compile ebpf conntracker: %w", err)
 			}
 
 			log.Warnf("unable to compile ebpf conntracker, falling back to prebuilt ebpf conntracker: %s", err)
 		}
+	}
+
+	if prebuilt.IsDeprecated() {
+		log.Warn("using deprecated prebuilt conntracker")
 	}
 
 	var isPrebuilt bool
@@ -203,7 +208,7 @@ func (e *ebpfConntracker) processEvents(ctx context.Context, done <-chan bool) e
 	}
 }
 
-func toConntrackTupleFromStats(src *netebpf.ConntrackTuple, stats *network.ConnectionStats) {
+func toConntrackTupleFromTuple(src *netebpf.ConntrackTuple, stats *network.ConnectionTuple) {
 	src.Sport = stats.SPort
 	src.Dport = stats.DPort
 	src.Saddr_l, src.Saddr_h = util.ToLowHigh(stats.Source)
@@ -228,12 +233,12 @@ func (e *ebpfConntracker) GetType() string {
 	return "ebpf"
 }
 
-func (e *ebpfConntracker) GetTranslationForConn(stats *network.ConnectionStats) *network.IPTranslation {
+func (e *ebpfConntracker) GetTranslationForConn(stats *network.ConnectionTuple) *network.IPTranslation {
 	start := time.Now()
 	src := tuplePool.Get()
 	defer tuplePool.Put(src)
 
-	toConntrackTupleFromStats(src, stats)
+	toConntrackTupleFromTuple(src, stats)
 	if log.ShouldLog(seelog.TraceLvl) {
 		log.Tracef("looking up in conntrack (stats): %s", stats)
 	}
@@ -319,11 +324,11 @@ func (e *ebpfConntracker) deleteTranslationNs(key *netebpf.ConntrackTuple, ns ui
 	return dst
 }
 
-func (e *ebpfConntracker) DeleteTranslation(stats *network.ConnectionStats) {
+func (e *ebpfConntracker) DeleteTranslation(stats *network.ConnectionTuple) {
 	key := tuplePool.Get()
 	defer tuplePool.Put(key)
 
-	toConntrackTupleFromStats(key, stats)
+	toConntrackTupleFromTuple(key, stats)
 
 	// attempt a delete from both root and connection's network namespace
 	if dst := e.deleteTranslationNs(key, e.rootNS); dst != nil {

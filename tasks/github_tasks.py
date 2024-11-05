@@ -19,7 +19,7 @@ from tasks.libs.ciproviders.github_actions_tools import (
     trigger_macos_workflow,
 )
 from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH
-from tasks.libs.common.datadog_api import create_gauge, send_metrics
+from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
 from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
 from tasks.libs.common.utils import get_git_pretty_ref
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
@@ -409,3 +409,103 @@ def pr_commenter(
 
     if verbose:
         print(f"{action} comment on PR #{pr.number} - {pr.title}")
+
+
+@task
+def pr_merge_dd_event_sender(
+    _,
+    pr_id: int | None = None,
+    dry_run: bool = False,
+):
+    """
+    Sends a PR merged event to Datadog with the following tags:
+    - repo:datadog-agent
+    - pr:<pr_number>
+    - author:<pr_author>
+    - qa_label:missing if the PR doesn't have the qa/done or qa/no-code-change label
+    - qa_description:missing if the PR doesn't have a test/QA description section
+
+    - pr_id: If None, will use $CI_COMMIT_BRANCH to identify which PR
+    """
+
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    github = GithubAPI()
+
+    if pr_id is None:
+        branch = os.environ["CI_COMMIT_BRANCH"]
+        prs = list(github.get_pr_for_branch(branch))
+        assert len(prs) == 1, f"Expected 1 PR for branch {branch}, found {len(prs)} PRs"
+        pr = prs[0]
+    else:
+        pr = github.get_pr(int(pr_id))
+
+    if not pr.merged:
+        raise Exit(f"PR #{pr.number} is not merged yet", code=1)
+
+    tags = [f'repo:{pr.base.repo.full_name}', f'pr_id:{pr.number}', f'author:{pr.user.login}']
+    labels = set(github.get_pr_labels(pr.number))
+    all_qa_labels = {'qa/done', 'qa/no-code-change'}
+    qa_labels = all_qa_labels.intersection(labels)
+    if len(qa_labels) == 0:
+        tags.append('qa_label:missing')
+    else:
+        tags.extend([f"qa_label:{label}" for label in qa_labels])
+
+    qa_description = extract_test_qa_description(pr.body)
+    if qa_description == '':
+        tags.append('qa_description:missing')
+
+    tags.extend([f"team:{label.removeprefix('team/')}" for label in labels if label.startswith('team/')])
+    title = "PR merged"
+    text = f"PR #{pr.number} merged to {pr.base.ref} at {pr.base.repo.full_name} by {pr.user.login} with QA description [{qa_description}]"
+
+    if dry_run:
+        print(f'''I would send the following event to Datadog:
+
+title: {title}
+text: {text}
+tags: {tags}''')
+        return
+
+    send_event(
+        title=title,
+        text=text,
+        tags=tags,
+    )
+
+
+def extract_test_qa_description(pr_body: str) -> str:
+    """
+    Extract the test/QA description section from the PR body
+    """
+    # Extract the test/QA description section from the PR body
+    # Based on PULL_REQUEST_TEMPLATE.md
+    pr_body_lines = pr_body.splitlines()
+    index_of_test_qa_section = -1
+    for i, line in enumerate(pr_body_lines):
+        if line.startswith('### Describe how to test'):
+            index_of_test_qa_section = i
+            break
+    if index_of_test_qa_section == -1:
+        return ''
+    index_of_next_section = len(pr_body_lines)
+    for i in range(index_of_test_qa_section + 1, len(pr_body_lines)):
+        if pr_body_lines[i].startswith('### '):
+            index_of_next_section = i
+            break
+    if index_of_next_section == -1:
+        return ''
+    return '\n'.join(pr_body_lines[index_of_test_qa_section + 1 : index_of_next_section]).strip()
+
+
+@task
+def assign_codereview_label(_, pr_id=-1):
+    """
+    Assigns a code review complexity label based on PR attributes (files changed, additions, deletions, comments)
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI('DataDog/datadog-agent')
+    complexity = gh.get_codereview_complexity(pr_id)
+    gh.update_review_complexity_labels(pr_id, complexity)

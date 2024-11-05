@@ -47,14 +47,16 @@ type Provider struct {
 	filter   *containers.Filter
 	config   *common.KubeletConfig
 	podUtils *common.PodUtils
+	tagger   tagger.Component
 }
 
 // NewProvider returns a new Provider
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig, podUtils *common.PodUtils) *Provider {
+func NewProvider(filter *containers.Filter, config *common.KubeletConfig, podUtils *common.PodUtils, tagger tagger.Component) *Provider {
 	return &Provider{
 		filter:   filter,
 		config:   config,
 		podUtils: podUtils,
+		tagger:   tagger,
 	}
 }
 
@@ -125,7 +127,7 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 		return
 	}
 
-	tagList, _ := tagger.Tag(containerID, types.HighCardinality)
+	tagList, _ := p.tagger.Tag(containerID, types.HighCardinality)
 	// Skip recording containers without kubelet information in tagger or if there are no tags
 	if !isTagKeyPresent(kubeNamespaceTag, tagList) || len(tagList) == 0 {
 		return
@@ -145,7 +147,7 @@ func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kub
 		return
 	}
 
-	tagList, _ := tagger.Tag(containerID, types.OrchestratorCardinality)
+	tagList, _ := p.tagger.Tag(containerID, types.OrchestratorCardinality)
 	// Skip recording containers without kubelet information in tagger or if there are no tags
 	if !isTagKeyPresent(kubeNamespaceTag, tagList) || len(tagList) == 0 {
 		return
@@ -189,7 +191,7 @@ func (r *runningAggregator) recordContainer(p *Provider, pod *kubelet.Pod, cStat
 		return
 	}
 	r.podHasRunningContainers[pod.Metadata.UID] = true
-	tagList, _ := tagger.Tag(containerID, types.LowCardinality)
+	tagList, _ := p.tagger.Tag(containerID, types.LowCardinality)
 	// Skip recording containers without kubelet information in tagger or if there are no tags
 	if !isTagKeyPresent(kubeNamespaceTag, tagList) || len(tagList) == 0 {
 		return
@@ -211,7 +213,7 @@ func (r *runningAggregator) recordPod(p *Provider, pod *kubelet.Pod) {
 		return
 	}
 	entityID := types.NewEntityID(types.KubernetesPodUID, podID)
-	tagList, _ := tagger.Tag(entityID, types.LowCardinality)
+	tagList, _ := p.tagger.Tag(entityID, types.LowCardinality)
 	if len(tagList) == 0 {
 		return
 	}

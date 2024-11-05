@@ -21,6 +21,7 @@ import (
 type testOpts struct {
 	disableFilters                             bool
 	disableApprovers                           bool
+	disableEnvVarsResolution                   bool
 	enableActivityDump                         bool
 	activityDumpRateLimiter                    int
 	activityDumpTagRules                       bool
@@ -60,6 +61,7 @@ type testOpts struct {
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
 	enableFIM                                  bool // only valid on windows
 	networkIngressEnabled                      bool
+	networkRawPacketEnabled                    bool
 	disableOnDemandRateLimiter                 bool
 	ebpfLessEnabled                            bool
 	dontWaitEBPFLessClient                     bool
@@ -108,6 +110,7 @@ func withForceReload() optFunc {
 
 func (to testOpts) Equal(opts testOpts) bool {
 	return to.disableApprovers == opts.disableApprovers &&
+		to.disableEnvVarsResolution == opts.disableEnvVarsResolution &&
 		to.enableActivityDump == opts.enableActivityDump &&
 		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
 		to.activityDumpTagRules == opts.activityDumpTagRules &&
@@ -145,6 +148,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil &&
 		to.preStartCallback == nil && opts.preStartCallback == nil &&
 		to.networkIngressEnabled == opts.networkIngressEnabled &&
+		to.networkRawPacketEnabled == opts.networkRawPacketEnabled &&
 		to.disableOnDemandRateLimiter == opts.disableOnDemandRateLimiter &&
 		to.ebpfLessEnabled == opts.ebpfLessEnabled &&
 		to.enforcementExcludeBinary == opts.enforcementExcludeBinary &&

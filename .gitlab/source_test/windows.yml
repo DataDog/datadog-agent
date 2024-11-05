@@ -110,7 +110,7 @@ tests_windows-x64:
   artifacts:
     when: always
     paths:
-      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
+      - $CI_PROJECT_DIR/test/new-e2e/tests/security-agent-functional/artifacts
 
 tests_windows_sysprobe_x64:
   extends: .tests_windows_sysprobe

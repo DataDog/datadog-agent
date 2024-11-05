@@ -1444,8 +1444,3 @@ func (p *WindowsProbe) setApprovers(_ eval.EventType, approvers rules.Approvers)
 
 	return nil
 }
-
-// PlaySnapshot plays a snapshot
-func (p *WindowsProbe) PlaySnapshot() {
-	// TODO: Implement this method if needed.
-}
