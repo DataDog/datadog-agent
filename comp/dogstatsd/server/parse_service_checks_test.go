@@ -15,7 +15,7 @@ import (
 func parseServiceCheck(t *testing.T, rawServiceCheck []byte) (dogstatsdServiceCheck, error) {
 	deps := newServerDeps(t)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, stringInternerTelemetry)
 	return parser.parseServiceCheck(rawServiceCheck)
 }
 

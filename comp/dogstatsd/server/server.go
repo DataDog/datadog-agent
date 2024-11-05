@@ -21,7 +21,6 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -39,7 +38,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var (
@@ -76,7 +74,6 @@ type dependencies struct {
 	Replay    replay.Component
 	PidMap    pidmap.Component
 	Params    Params
-	WMeta     optional.Option[workloadmeta.Component]
 	Telemetry telemetry.Component
 }
 
@@ -158,8 +155,6 @@ type server struct {
 
 	enrichConfig enrichConfig
 
-	wmeta optional.Option[workloadmeta.Component]
-
 	// telemetry
 	telemetry               telemetry.Component
 	tlmProcessed            telemetry.Counter
@@ -183,7 +178,7 @@ func initTelemetry() {
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) provides {
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.PidMap, deps.Telemetry)
 
 	if deps.Config.GetBool("use_dogstatsd") {
 		deps.Lc.Append(fx.Hook{
@@ -198,7 +193,7 @@ func newServer(deps dependencies) provides {
 	}
 }
 
-func newServerCompat(cfg model.Reader, log log.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
+func newServerCompat(cfg model.Reader, log log.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry() })
 	var stats *util.Stats
@@ -301,7 +296,6 @@ func newServerCompat(cfg model.Reader, log log.Component, capture replay.Compone
 			defaultHostname:           defaultHostname,
 			serverlessMode:            serverless,
 		},
-		wmeta:                   wmeta,
 		telemetry:               telemetrycomp,
 		tlmProcessed:            dogstatsdTelemetryCount,
 		tlmProcessedOk:          dogstatsdTelemetryCount.WithValues("metrics", "ok", ""),
@@ -372,7 +366,7 @@ func (s *server) start(context.Context) error {
 	}
 
 	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
+		unixListener, err := listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
 		if err != nil {
 			s.log.Errorf("Can't init UDS listener on path %s: %s", socketPath, err.Error())
 		} else {
@@ -383,7 +377,7 @@ func (s *server) start(context.Context) error {
 
 	if len(socketStreamPath) > 0 {
 		s.log.Warnf("dogstatsd_stream_socket is not yet supported, run it at your own risk")
-		unixListener, err := listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
+		unixListener, err := listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
 		if err != nil {
 			s.log.Errorf("Can't init listener: %s", err.Error())
 		} else {
@@ -524,7 +518,7 @@ func (s *server) handleMessages() {
 	s.log.Debug("DogStatsD will run", workersCount, "workers")
 
 	for i := 0; i < workersCount; i++ {
-		worker := newWorker(s, i, s.wmeta, s.packetsTelemetry, s.stringInternerTelemetry)
+		worker := newWorker(s, i, s.packetsTelemetry, s.stringInternerTelemetry)
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}

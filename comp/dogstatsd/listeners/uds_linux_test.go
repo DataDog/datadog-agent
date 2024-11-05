@@ -21,9 +21,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func TestUDSPassCred(t *testing.T) {
@@ -39,7 +37,7 @@ func TestUDSPassCred(t *testing.T) {
 	listernersTelemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	pool := packets.NewPool(512, packetsTelemetryStore)
 	poolManager := packets.NewPoolManager(pool)
-	s, err := NewUDSDatagramListener(nil, poolManager, nil, deps.Config, nil, optional.NewNoneOption[workloadmeta.Component](), deps.PidMap, listernersTelemetryStore, packetsTelemetryStore, deps.Telemetry)
+	s, err := NewUDSDatagramListener(nil, poolManager, nil, deps.Config, nil, deps.PidMap, listernersTelemetryStore, packetsTelemetryStore, deps.Telemetry)
 	defer s.Stop()
 
 	assert.Nil(t, err)

@@ -48,7 +48,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // This is a copy of the serverDeps struct, but without the server field.
@@ -62,7 +61,6 @@ type depsWithoutServer struct {
 	Replay        replay.Component
 	PidMap        pidmap.Component
 	Debug         serverdebug.Component
-	WMeta         optional.Option[workloadmeta.Component]
 	Telemetry     telemetry.Component
 }
 
@@ -75,7 +73,6 @@ type serverDeps struct {
 	Replay        replay.Component
 	PidMap        pidmap.Component
 	Debug         serverdebug.Component
-	WMeta         optional.Option[workloadmeta.Component]
 	Telemetry     telemetry.Component
 	Server        Component
 }
@@ -148,7 +145,7 @@ func TestStopServer(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.PidMap, deps.Telemetry)
 	s.start(context.TODO())
 	requireStart(t, s)
 
@@ -195,7 +192,7 @@ func TestNoRaceOriginTagMaps(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.PidMap, deps.Telemetry)
 
 	sync := make(chan struct{})
 	done := make(chan struct{}, N)
@@ -751,7 +748,7 @@ func TestNoMappingsConfig(t *testing.T) {
 
 	assert.Nil(t, s.mapper)
 
-	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, s.stringInternerTelemetry)
 	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", "", false)
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
@@ -776,13 +773,13 @@ func TestParseMetricMessageTelemetry(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.PidMap, deps.Telemetry)
 
 	assert.Nil(t, s.mapper)
 
 	var samples []metrics.MetricSample
 
-	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, s.stringInternerTelemetry)
 
 	assert.Equal(t, float64(0), s.tlmProcessedOk.Get())
 	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", "", false)
@@ -903,7 +900,7 @@ dogstatsd_mapper_profiles:
 
 			var actualSamples []MetricSample
 			for _, p := range scenario.packets {
-				parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+				parser := newParser(deps.Config, s.sharedFloat64List, 1, s.stringInternerTelemetry)
 				samples, err := s.parseMetricMessage(samples, parser, []byte(p), "", "", false)
 				assert.NoError(t, err, "Case `%s` failed. parseMetricMessage should not return error %v", err)
 				for _, sample := range samples {
@@ -940,9 +937,9 @@ func TestParseEventMessageTelemetry(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.PidMap, deps.Telemetry)
 
-	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, s.stringInternerTelemetry)
 
 	telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
 	assert.True(t, ok)
@@ -990,9 +987,9 @@ func TestParseServiceCheckMessageTelemetry(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.PidMap, deps.Telemetry)
 
-	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, s.stringInternerTelemetry)
 
 	telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
 	assert.True(t, ok)
@@ -1064,7 +1061,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
 		assert.Len(s.cachedOrder, 0, "this cache list must be empty")
 
-		parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+		parser := newParser(deps.Config, s.sharedFloat64List, 1, s.stringInternerTelemetry)
 		samples := []metrics.MetricSample{}
 		samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "test_container", "1", false)
 		assert.NoError(err)
@@ -1139,7 +1136,7 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	assert := assert.New(t)
 	requireStart(t, s)
 
-	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, s.stringInternerTelemetry)
 	parser.dsdOriginEnabled = true
 
 	// Metric
@@ -1183,7 +1180,7 @@ func TestOrigin(t *testing.T) {
 
 		requireStart(t, s)
 
-		parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+		parser := newParser(deps.Config, s.sharedFloat64List, 1, s.stringInternerTelemetry)
 		parser.dsdOriginEnabled = true
 
 		// Metric

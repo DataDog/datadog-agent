@@ -19,14 +19,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners/ratelimit"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
@@ -57,8 +55,6 @@ type UDSListener struct {
 	pidMap                  pidmap.Component
 	OriginDetection         bool
 	config                  model.Reader
-
-	wmeta optional.Option[workloadmeta.Component]
 
 	transport string
 
@@ -133,7 +129,7 @@ func NewUDSOobPoolManager() *packets.PoolManager[[]byte] {
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, transport string, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (*UDSListener, error) {
+func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, transport string, pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (*UDSListener, error) {
 	originDetection := cfg.GetBool("dogstatsd_origin_detection")
 
 	listener := &UDSListener{
@@ -149,7 +145,6 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		packetBufferFlushTimeout:     cfg.GetDuration("dogstatsd_packet_buffer_flush_timeout"),
 		telemetryWithListenerID:      cfg.GetBool("dogstatsd_telemetry_enabled_listener_id"),
 		listenWg:                     &sync.WaitGroup{},
-		wmeta:                        wmeta,
 		telemetryStore:               telemetryStore,
 		packetsTelemetryStore:        packetsTelemetryStore,
 		telemetry:                    telemetry,
@@ -304,7 +299,7 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 
 		if oob != nil {
 			// Extract container id from credentials
-			pid, container, taggingErr := processUDSOrigin(oobS[:oobn], l.wmeta, l.pidMap)
+			pid, container, taggingErr := processUDSOrigin(oobS[:oobn], l.pidMap)
 			if taggingErr != nil {
 				log.Warnf("dogstatsd-uds: error processing origin, data will not be tagged : %v", taggingErr)
 				udsOriginDetectionErrors.Add(1)

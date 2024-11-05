@@ -6,11 +6,9 @@
 package server
 
 import (
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var (
@@ -36,7 +34,7 @@ type worker struct {
 	packetsTelemetry *packets.TelemetryStore
 }
 
-func newWorker(s *server, workerNum int, wmeta optional.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry) *worker {
+func newWorker(s *server, workerNum int, packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry) *worker {
 	var batcher *batcher
 	if s.ServerlessMode {
 		batcher = newServerlessBatcher(s.demultiplexer, s.tlmChannel)
@@ -47,7 +45,7 @@ func newWorker(s *server, workerNum int, wmeta optional.Option[workloadmeta.Comp
 	return &worker{
 		server:           s,
 		batcher:          batcher,
-		parser:           newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
+		parser:           newParser(s.config, s.sharedFloat64List, workerNum, stringInternerTelemetry),
 		samples:          make(metrics.MetricSampleBatch, 0, defaultSampleSize),
 		packetsTelemetry: packetsTelemetry,
 	}

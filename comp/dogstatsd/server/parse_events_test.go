@@ -15,7 +15,7 @@ import (
 func parseEvent(t *testing.T, rawEvent []byte) (dogstatsdEvent, error) {
 	deps := newServerDeps(t)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, stringInternerTelemetry)
 	return parser.parseEvent(rawEvent)
 }
 

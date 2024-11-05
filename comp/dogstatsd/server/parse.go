@@ -12,11 +12,9 @@ import (
 	"time"
 	"unsafe"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type messageType int
@@ -68,11 +66,11 @@ type parser struct {
 	// readTimestamps is true if the parser has to read timestamps from messages.
 	readTimestamps bool
 
-	// Generic Metric Provider
-	provider provider.Provider
+	// MetaCollector singleton
+	provider provider.MetaCollector
 }
 
-func newParser(cfg model.Reader, float64List *float64ListPool, workerNum int, wmeta optional.Option[workloadmeta.Component], stringInternerTelemetry *stringInternerTelemetry) *parser {
+func newParser(cfg model.Reader, float64List *float64ListPool, workerNum int, stringInternerTelemetry *stringInternerTelemetry) *parser {
 	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 
@@ -81,7 +79,7 @@ func newParser(cfg model.Reader, float64List *float64ListPool, workerNum int, wm
 		readTimestamps:   readTimestamps,
 		float64List:      float64List,
 		dsdOriginEnabled: cfg.GetBool("dogstatsd_origin_detection_client"),
-		provider:         provider.GetProvider(wmeta),
+		provider:         provider.GetMetaCollector(),
 	}
 }
 
@@ -319,7 +317,7 @@ func (p *parser) resolveContainerIDFromInode(inode []byte) []byte {
 		return nil
 	}
 
-	containerID, err := p.provider.GetMetaCollector().GetContainerIDForInode(inodeField, cacheValidity)
+	containerID, err := p.provider.GetContainerIDForInode(inodeField, cacheValidity)
 	if err != nil {
 		log.Debugf("Failed to get container ID, got %v", err)
 		return nil

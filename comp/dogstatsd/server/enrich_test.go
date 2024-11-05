@@ -33,7 +33,7 @@ var (
 func parseAndEnrichSingleMetricMessage(t *testing.T, message []byte, conf enrichConfig) (metrics.MetricSample, error) {
 	deps := newServerDeps(t)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, stringInternerTelemetry)
 	parsed, err := parser.parseMetricSample(message)
 	if err != nil {
 		return metrics.MetricSample{}, err
@@ -50,7 +50,7 @@ func parseAndEnrichSingleMetricMessage(t *testing.T, message []byte, conf enrich
 func parseAndEnrichMultipleMetricMessage(t *testing.T, message []byte, conf enrichConfig) ([]metrics.MetricSample, error) {
 	deps := newServerDeps(t)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, stringInternerTelemetry)
 	parsed, err := parser.parseMetricSample(message)
 	if err != nil {
 		return []metrics.MetricSample{}, err
@@ -63,7 +63,7 @@ func parseAndEnrichMultipleMetricMessage(t *testing.T, message []byte, conf enri
 func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrichConfig) (*servicecheck.ServiceCheck, error) {
 	deps := newServerDeps(t)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, stringInternerTelemetry)
 	parsed, err := parser.parseServiceCheck(message)
 	if err != nil {
 		return nil, err
@@ -74,7 +74,7 @@ func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrich
 func parseAndEnrichEventMessage(t *testing.T, message []byte, conf enrichConfig) (*event.Event, error) {
 	deps := newServerDeps(t)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, stringInternerTelemetry)
 	parsed, err := parser.parseEvent(message)
 	if err != nil {
 		return nil, err
@@ -1000,7 +1000,7 @@ func TestMetricBlocklistShouldBlock(t *testing.T) {
 
 	deps := newServerDeps(t)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, stringInternerTelemetry)
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
@@ -1018,7 +1018,7 @@ func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 	message := []byte("custom.metric.a:21|ms")
 	deps := newServerDeps(t)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, stringInternerTelemetry)
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
@@ -1039,7 +1039,7 @@ func TestMetricBlocklistShouldNotBlock(t *testing.T) {
 	}
 	deps := newServerDeps(t)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, stringInternerTelemetry)
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}

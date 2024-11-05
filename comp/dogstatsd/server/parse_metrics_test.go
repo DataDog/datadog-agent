@@ -20,7 +20,7 @@ import (
 func parseMetricSample(t *testing.T, overrides map[string]any, rawSample []byte) (dogstatsdMetricSample, error) {
 	deps := newServerDeps(t, fx.Replace(config.MockParams{Overrides: overrides}))
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	p := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	p := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, stringInternerTelemetry)
 	_, found := overrides["parser"]
 	if found {
 		p = overrides["parser"].(*parser)
@@ -578,14 +578,13 @@ func TestParseContainerID(t *testing.T) {
 	// Testing with an Inode
 	deps := newServerDeps(t, fx.Replace(config.MockParams{Overrides: cfg}))
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	p := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
-	mockProvider := mock.NewMetricsProvider()
-	mockProvider.RegisterMetaCollector(&mock.MetaCollector{
+	p := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, stringInternerTelemetry)
+
+	p.provider = &mock.MetaCollector{
 		CIDFromInode: map[uint64]string{
 			1234567890: "1234567890abcdef",
 		},
-	})
-	p.provider = mockProvider
+	}
 	cfg["parser"] = p
 
 	sample, err = parseMetricSample(t, cfg, []byte("metric:1234|g|c:in-1234567890"))

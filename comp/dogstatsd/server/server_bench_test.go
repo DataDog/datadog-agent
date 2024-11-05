@@ -57,7 +57,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		batcher := newBatcher(demux, histogram)
-		parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+		parser := newParser(deps.Config, s.sharedFloat64List, 1, s.stringInternerTelemetry)
 		packet := packets.Packet{
 			Contents: rawPacket,
 			Origin:   packets.NoOrigin,
@@ -102,7 +102,7 @@ func BenchmarkPbarseMetricMessage(b *testing.B) {
 	defer close(done)
 
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, stringInternerTelemetry)
 	message := []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2")
 
 	b.RunParallel(func(pb *testing.PB) {
@@ -161,7 +161,7 @@ func benchmarkMapperControl(b *testing.B, yaml string) {
 
 	batcher := newBatcher(demux, histogram)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, stringInternerTelemetry)
 
 	samples := make([]metrics.MetricSample, 0, 512)
 	for n := 0; n < b.N; n++ {
