@@ -77,6 +77,7 @@ def build(
 @task
 def build_linux_script(
     ctx,
+    signing_key_id=None,
 ):
     '''
     Builds the linux script that is used to install the agent on linux.
@@ -100,6 +101,26 @@ def build_linux_script(
         setup_content = f.read()
     setup_content = setup_content.replace('INSTALLER_BIN_LINUX_AMD64', amd64_b64)
     setup_content = setup_content.replace('INSTALLER_BIN_LINUX_ARM64', arm64_b64)
+
+    amd64_sig_path = os.path.join(BIN_PATH, 'bootstrapper-linux-amd64.asc')
+    arm64_sig_path = os.path.join(BIN_PATH, 'bootstrapper-linux-arm64.asc')
+    amd64_sig_b64 = ''
+    arm64_sig_b64 = ''
+    if signing_key_id:
+        ctx.run(
+            f'gpg --armor --output {amd64_sig_path} --detach-sig {amd64_path} --default-key {signing_key_id}',
+            env={'GPG_TTY': 'no-tty'},
+        )
+        ctx.run(
+            f'gpg --armor --output {arm64_sig_path} --detach-sig {arm64_path} --default-key {signing_key_id}',
+            env={'GPG_TTY': 'no-tty'},
+        )
+        with open(amd64_sig_path, 'rb') as f:
+            amd64_sig_b64 = base64.b64encode(f.read()).decode('utf-8').replace('\n', '')
+        with open(arm64_sig_path, 'rb') as f:
+            arm64_sig_b64 = base64.b64encode(f.read()).decode('utf-8').replace('\n', '')
+    setup_content = setup_content.replace('INSTALLER_SIG_LINUX_AMD64', amd64_sig_b64)
+    setup_content = setup_content.replace('INSTALLER_SIG_LINUX_ARM64', arm64_sig_b64)
 
     with open(os.path.join(BIN_PATH, 'setup.sh'), 'w') as f:
         f.write(setup_content)
