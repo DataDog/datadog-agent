@@ -87,16 +87,16 @@ func (d *DatadogInstaller) executeFromCopy(cmd string, options ...client.Execute
 	}
 	defer d.env.RemoteHost.Remove(tempFile) //nolint:errcheck
 	// ensure it has a .exe extension
-	tempFile = tempFile + ".exe"
-	defer d.env.RemoteHost.Remove(tempFile) //nolint:errcheck
+	exeTempFile := tempFile + ".exe"
+	defer d.env.RemoteHost.Remove(exeTempFile) //nolint:errcheck
 	// must pass -Force b/c the temporary file is already created
-	copyCmd := fmt.Sprintf(`Copy-Item -Force -Path "%s" -Destination "%s"`, d.binaryPath, tempFile)
+	copyCmd := fmt.Sprintf(`Copy-Item -Force -Path "%s" -Destination "%s"`, d.binaryPath, exeTempFile)
 	_, err = d.env.RemoteHost.Execute(copyCmd)
 	if err != nil {
 		return "", err
 	}
 	// Execute the command with the copied binary
-	output, err := d.env.RemoteHost.Execute(fmt.Sprintf("& \"%s\" %s", tempFile, cmd), options...)
+	output, err := d.env.RemoteHost.Execute(fmt.Sprintf("& \"%s\" %s", exeTempFile, cmd), options...)
 	if err != nil {
 		return output, err
 	}
