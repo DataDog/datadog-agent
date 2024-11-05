@@ -24,7 +24,6 @@ import (
 // EBPFLessFieldHandlers defines a field handlers
 type EBPFLessFieldHandlers struct {
 	*BaseFieldHandlers
-	config    *config.Config
 	resolvers *resolvers.EBPFLessResolvers
 }
 
@@ -37,7 +36,6 @@ func NewEBPFLessFieldHandlers(config *config.Config, resolvers *resolvers.EBPFLe
 
 	return &EBPFLessFieldHandlers{
 		BaseFieldHandlers: bfh,
-		config:            config,
 		resolvers:         resolvers,
 	}, nil
 }
