@@ -40,7 +40,6 @@ import (
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 // team: agent-apm
@@ -2222,7 +2221,7 @@ func TestDisableReceiverConfig(t *testing.T) {
 func TestOnUpdateAPIKeyCallback(t *testing.T) {
 	// APMSP-1494
 	if runtime.GOOS == "darwin" {
-		flake.Mark(t)
+		t.Skip("skipping flaky test on darwin")
 	}
 	var n int
 	callback := func(_, _ string) {
