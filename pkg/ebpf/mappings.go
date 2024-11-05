@@ -78,6 +78,32 @@ func AddNameMappingsCollection(coll *ebpf.Collection, module string) {
 	})
 }
 
+// AddNameMappingsForMap adds the full name mappings for the provided ebpf map
+func AddNameMappingsForMap(m *ebpf.Map, module string) {
+	mappingLock.Lock()
+	defer mappingLock.Unlock()
+
+	if info, err := m.Info(); err == nil {
+		if mapid, ok := info.ID(); ok {
+			mapNameMapping[uint32(mapid)] = info.Name
+			mapModuleMapping[uint32(mapid)] = module
+		}
+	}
+}
+
+// AddNameMappingsForProgram adds the full name mappings for the provided ebpf program
+func AddNameMappingsForProgram(p *ebpf.Program, module string) {
+	mappingLock.Lock()
+	defer mappingLock.Unlock()
+
+	if info, err := p.Info(); err == nil {
+		if progid, ok := info.ID(); ok {
+			progNameMapping[uint32(progid)] = info.Name
+			progModuleMapping[uint32(progid)] = module
+		}
+	}
+}
+
 func getMappingFromID(id uint32, m map[uint32]string) (string, error) {
 	mappingLock.RLock()
 	defer mappingLock.RUnlock()

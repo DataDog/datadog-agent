@@ -455,6 +455,13 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	l.lockRanges = make([]LockRange, l.ranges)
 	l.contention = make([]ContentionData, l.ranges)
 
+	// add name and module mappings
+	AddNameMappingsForMap(l.objects.MapAddrFd, "lock-contention")
+	AddNameMappingsForMap(l.objects.Ranges, "lock-contention")
+	AddNameMappingsForMap(l.objects.LockStats, "lock-contention")
+	AddNameMappingsForProgram(l.objects.TpContentionBegin, "lock-contention")
+	AddNameMappingsForProgram(l.objects.TpContentionEnd, "lock-contention")
+
 	log.Infof("lock contention collector initialized")
 	l.initialized = true
 
