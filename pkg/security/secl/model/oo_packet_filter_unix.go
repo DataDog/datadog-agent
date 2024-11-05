@@ -41,6 +41,7 @@ func newPacketFilterEvaluator(field string, value string, state *eval.State) (*e
 			return nil, fmt.Errorf("failed to compile packet filter `%s` on field `%s`: %v", value, field, err)
 		}
 
+		// needed to track filter values and to apply tc filters
 		if err := state.UpdateFieldValues(field, eval.FieldValue{Value: value, Type: eval.ScalarValueType}); err != nil {
 			return nil, err
 		}

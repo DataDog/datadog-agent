@@ -367,25 +367,23 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 		filters = append(filters, field.Value.(string))
 	}
 
-	progSpec, err := probes.GetRawPacketTCFilterProg(rawPacketEventMap.FD(), routerMap.FD(), filters)
+	colSpec, err := probes.GetRawPacketTCFilterCollectionSpec(rawPacketEventMap.FD(), routerMap.FD(), filters)
 	if err != nil {
 		return err
 	}
 
-	colSpec := lib.CollectionSpec{
-		Programs: map[string]*lib.ProgramSpec{
-			progSpec.Name: progSpec,
-		},
-	}
-
-	col, err := lib.NewCollection(&colSpec)
+	col, err := lib.NewCollection(colSpec)
 	if err != nil {
 		return fmt.Errorf("failed to load program: %w", err)
 	}
 
+	if len(col.Programs) == 0 {
+		return nil
+	}
+
 	return p.Manager.UpdateTailCallRoutes(
 		manager.TailCallRoute{
-			Program:       col.Programs[progSpec.Name],
+			Program:       col.Programs[probes.RawPacketFilterEntryProg],
 			Key:           probes.TCRawPacketFilterKey,
 			ProgArrayName: "classifier_router",
 		},

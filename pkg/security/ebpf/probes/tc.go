@@ -9,6 +9,8 @@
 package probes
 
 import (
+	"fmt"
+
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
@@ -78,9 +80,21 @@ var RawPacketTCProgram = []string{
 	"classifier_raw_packet_ingress",
 }
 
-// GetRawPacketTCFilterProg returns a first tc filter
-func GetRawPacketTCFilterProg(rawPacketEventMapFd, clsRouterMapFd int, filters []string) (*ebpf.ProgramSpec, error) {
-	pcapBPF, err := pcap.CompileBPFFilter(layers.LinkTypeEthernet, 256, filters[0])
+const (
+	// First raw packet tc program to be called
+	RawPacketFilterEntryProg = "raw_packet_entry_prog"
+
+	// RawPacketCaptureSize see kernel definition
+	RawPacketCaptureSize = 256
+)
+
+type rawPacketProgOpts struct {
+	*cbpfc.EBPFOpts
+	sendEventLabel string
+}
+
+func bpfFilterToInsts(index int, filter string, opts rawPacketProgOpts) (asm.Instructions, error) {
+	pcapBPF, err := pcap.CompileBPFFilter(layers.LinkTypeEthernet, 256, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -89,6 +103,26 @@ func GetRawPacketTCFilterProg(rawPacketEventMapFd, clsRouterMapFd int, filters [
 		bpfInsts[i] = bpf.RawInstruction{Op: ri.Code, Jt: ri.Jt, Jf: ri.Jf, K: ri.K}.Disassemble()
 	}
 
+	// make a copy so that we can modify the labels
+	cbpfcOpts := *opts.EBPFOpts
+	cbpfcOpts.LabelPrefix = fmt.Sprintf("cbpfc-%d-", index)
+	cbpfcOpts.ResultLabel = fmt.Sprintf("check-result-%d", index)
+
+	insts, err := cbpfc.ToEBPF(bpfInsts, cbpfcOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// filter output
+	insts = append(insts,
+		asm.JNE.Imm(cbpfcOpts.Result, 0, opts.sendEventLabel).WithSymbol(cbpfcOpts.ResultLabel),
+	)
+
+	return insts, nil
+}
+
+// GetRawPacketTCFilterCollectionSpec returns a first tc filter
+func GetRawPacketTCFilterCollectionSpec(rawPacketEventMapFd, clsRouterMapFd int, filters []string) (*ebpf.CollectionSpec, error) {
 	const (
 		ctxReg = asm.R9
 
@@ -97,34 +131,29 @@ func GetRawPacketTCFilterProg(rawPacketEventMapFd, clsRouterMapFd int, filters [
 		dataOffset = 164
 	)
 
-	opts := cbpfc.EBPFOpts{
-		PacketStart: asm.R1,
-		PacketEnd:   asm.R2,
-		Result:      asm.R3,
-		Working: [4]asm.Register{
-			asm.R4,
-			asm.R5,
-			asm.R6,
-			asm.R7,
+	opts := rawPacketProgOpts{
+		EBPFOpts: &cbpfc.EBPFOpts{
+			PacketStart: asm.R1,
+			PacketEnd:   asm.R2,
+			Result:      asm.R3,
+			Working: [4]asm.Register{
+				asm.R4,
+				asm.R5,
+				asm.R6,
+				asm.R7,
+			},
+			StackOffset: 16, // adapt using the stack used outside of the filter itself, ex: map_lookup
 		},
-		LabelPrefix: "cbpfc-",
-		ResultLabel: "result",
-		StackOffset: 16, // adapt using the stack used outside of the filter itself, ex: map_lookup
+		sendEventLabel: "send-event",
 	}
 
-	filterInsts, err := cbpfc.ToEBPF(bpfInsts, opts)
-	if err != nil {
-		return nil, err
-	}
-
+	// save ctx
 	insts := asm.Instructions{
-		// save ctx
 		asm.Mov.Reg(ctxReg, asm.R1),
 	}
-	insts = append(insts,
-		// save ctx
-		asm.Mov.Reg(ctxReg, asm.R1),
 
+	// load raw event
+	insts = append(insts,
 		// load raw event
 		asm.Mov.Reg(asm.R2, asm.RFP),
 		asm.Add.Imm(asm.R2, -4),
@@ -133,26 +162,33 @@ func GetRawPacketTCFilterProg(rawPacketEventMapFd, clsRouterMapFd int, filters [
 		asm.FnMapLookupElem.Call(),
 		asm.JNE.Imm(asm.R0, 0, "raw-packet-event-not-null"),
 		asm.Return(),
+	)
 
-		// place in result in the start register and end register
+	// place in result in the start register and end register
+	insts = append(insts,
 		asm.Mov.Reg(opts.PacketStart, asm.R0).WithSymbol("raw-packet-event-not-null"),
 		asm.Add.Imm(opts.PacketStart, dataOffset),
 		asm.Mov.Reg(opts.PacketEnd, opts.PacketStart),
 		asm.Add.Imm(opts.PacketEnd, dataSize),
 	)
 
-	// insert the filter
-	insts = append(insts, filterInsts...)
+	// load all the filters
+	for i, filter := range filters {
+		filterInsts, err := bpfFilterToInsts(i, filter, opts)
+		if err != nil {
+			return nil, err
+		}
+		insts = append(insts, filterInsts...)
+	}
 
-	// filter output
+	// none of the filter matched
 	insts = append(insts,
-		asm.JNE.Imm(opts.Result, 0, "send-event").WithSymbol(opts.ResultLabel),
 		asm.Return(),
 	)
 
 	// tail call to the send event program
 	insts = append(insts,
-		asm.Mov.Reg(asm.R1, ctxReg).WithSymbol("send-event"),
+		asm.Mov.Reg(asm.R1, ctxReg).WithSymbol(opts.sendEventLabel),
 		asm.LoadMapPtr(asm.R2, clsRouterMapFd),
 		asm.Mov.Imm(asm.R3, int32(TCRawPacketParserKey)),
 		asm.FnTailCall.Call(),
@@ -160,11 +196,17 @@ func GetRawPacketTCFilterProg(rawPacketEventMapFd, clsRouterMapFd int, filters [
 		asm.Return(),
 	)
 
-	return &ebpf.ProgramSpec{
-		Type:         ebpf.SchedCLS,
-		Instructions: insts,
-		License:      "GPL",
-	}, nil
+	colSpec := &ebpf.CollectionSpec{
+		Programs: map[string]*ebpf.ProgramSpec{
+			RawPacketFilterEntryProg: {
+				Type:         ebpf.SchedCLS,
+				Instructions: insts,
+				License:      "GPL",
+			},
+		},
+	}
+
+	return colSpec, nil
 }
 
 // GetAllTCProgramFunctions returns the list of TC classifier sections
