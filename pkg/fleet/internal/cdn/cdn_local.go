@@ -19,8 +19,8 @@ type cdnLocal struct {
 	dirPath string
 }
 
-// newLocal creates a new local CDN.
-func newLocal(env *env.Env) (CDN, error) {
+// newCDNLocal creates a new local CDN.
+func newCDNLocal(env *env.Env) (CDN, error) {
 	return &cdnLocal{
 		dirPath: env.CDNLocalDirPath,
 	}, nil
