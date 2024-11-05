@@ -262,3 +262,58 @@ func TestToEnv(t *testing.T) {
 		})
 	}
 }
+
+func TestAgentUserVars(t *testing.T) {
+	tests := []struct {
+		name     string
+		envVars  map[string]string
+		expected *Env
+	}{
+		{
+			name:    "not set",
+			envVars: map[string]string{},
+			expected: &Env{
+				AgentUserName: "",
+			},
+		},
+		{
+			name: "primary set",
+			envVars: map[string]string{
+				envAgentUserName: "customuser",
+			},
+			expected: &Env{
+				AgentUserName: "customuser",
+			},
+		},
+		{
+			name: "compat set",
+			envVars: map[string]string{
+				envAgentUserNameCompat: "customuser",
+			},
+			expected: &Env{
+				AgentUserName: "customuser",
+			},
+		},
+		{
+			name: "primary precedence",
+			envVars: map[string]string{
+				envAgentUserName:       "customuser",
+				envAgentUserNameCompat: "otheruser",
+			},
+			expected: &Env{
+				AgentUserName: "customuser",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for key, value := range tt.envVars {
+				os.Setenv(key, value)
+				defer os.Unsetenv(key)
+			}
+			result := FromEnv()
+			assert.Equal(t, tt.expected.AgentUserName, result.AgentUserName)
+		})
+	}
+}
