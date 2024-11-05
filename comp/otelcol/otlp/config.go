@@ -63,6 +63,18 @@ func readConfigSection(cfg config.Reader, section string) *confmap.Conf {
 		if strings.HasPrefix(key, prefix) && cfg.IsSet(key) {
 			mapKey := strings.ReplaceAll(key[len(prefix):], ".", confmap.KeyDelimiter)
 			// deep copy since `cfg.Get` returns a reference
+
+			fmt.Printf("key: %s, mapKey: %s \n", key, mapKey)
+			if key == "otlp_config.metrics.resource_attributes_as_tags" {
+				fmt.Printf("value: %s\n", cfg.Get(key))
+				v := (cfg.Get(key))
+				if v == "true" {
+					stringMap[mapKey] = true
+				} else {
+					stringMap[mapKey] = false
+				}
+				continue
+			}
 			stringMap[mapKey] = deepcopy.Copy(cfg.Get(key))
 		}
 	}
