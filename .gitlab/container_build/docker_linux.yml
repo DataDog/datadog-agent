@@ -89,6 +89,33 @@ docker_build_agent7_arm64:
     TAG_SUFFIX: -7
     BUILD_ARG: --target test --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_arm64.deb
 
+# build agent7 fips image
+docker_build_fips_agent7:
+  extends: [.docker_build_job_definition_amd64, .docker_build_artifact]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs:
+    - job: agent_deb-x64-a7-fips
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -7-fips
+    BUILD_ARG: --target test --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent_7*_amd64.deb
+
+docker_build_fips_agent7_arm64:
+  extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs:
+    - job: agent_deb-arm64-a7-fips
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -7-fips
+    BUILD_ARG: --target test --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent_7*_arm64.deb
+
 # build agent7 jmx image
 docker_build_agent7_jmx:
   extends: [.docker_build_job_definition_amd64, .docker_build_artifact]

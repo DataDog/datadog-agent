@@ -32,6 +32,29 @@ dev_branch_multiarch-a7:
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-arm64
         IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx
 
+dev_branch_multiarch-fips:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules: !reference [.manual]
+  needs:
+    - docker_build_fips_agent7
+    - docker_build_fips_agent7_arm64
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-arm64
+    IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-fips
+
+dev_branch_multiarch-dogstatsd:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules: !reference [.manual]
+  needs:
+    - docker_build_dogstatsd_amd64
+    - docker_build_dogstatsd_arm64
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
+    IMG_DESTINATIONS: dogstatsd-dev:${CI_COMMIT_REF_SLUG}
 dev_branch_multiarch-dogstatsd:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy

@@ -204,6 +204,13 @@ RUN if [ -n "$PYTHON_VERSION" ]; then \
   && ln -sfn /opt/datadog-agent/embedded/bin/pip${PYTHON_VERSION} /opt/datadog-agent/embedded/bin/pip ; \
   fi
 
+# Enable FIPS if needed
+RUN if [ -x /opt/datadog-agent/embedded/bin/fipsinstall.sh ]; then \
+  /opt/datadog-agent/embedded/bin/fipsinstall.sh; \
+fi
+# This is used by MSGO to enable FIPS mode so it won't affect the non-FIPS image
+ENV GOFIPS=1
+
 # Override the exit script by ours to fix --pid=host operations
 RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
 COPY init-stage3          /etc/s6/init/init-stage3
