@@ -56,8 +56,14 @@ type PodAutoscalerInternal struct {
 	// (only if owner == remote)
 	settingsTimestamp time.Time
 
-	// scalingValues represents the current target scaling values (retrieved from RC)
+	// isLocalFallbackActive is true if the PodAutoscaler is using local fallback
+	isLocalFallbackActive bool
+
+	// scalingValues represents the main scaling values
 	scalingValues ScalingValues
+
+	// localScalingValues represents the local scaling values
+	localScalingValues ScalingValues
 
 	// horizontalLastActions is the last horizontal action successfully taken
 	horizontalLastActions []datadoghq.DatadogPodAutoscalerHorizontalAction
@@ -155,20 +161,24 @@ func (p *PodAutoscalerInternal) UpdateFromSettings(podAutoscalerSpec *datadoghq.
 
 // UpdateFromValues updates the PodAutoscalerInternal from a new scaling values
 func (p *PodAutoscalerInternal) UpdateFromValues(scalingValues ScalingValues) {
-	p.scalingValues.HorizontalError = scalingValues.HorizontalError
-	p.scalingValues.Horizontal = scalingValues.Horizontal
-	p.scalingValues.VerticalError = scalingValues.VerticalError
-	p.scalingValues.Vertical = scalingValues.Vertical
+	p.scalingValues = scalingValues
 }
 
 // UpdateFromLocalValues updates the PodAutoscalerInternal from new local scaling values
-func (p *PodAutoscalerInternal) UpdateFromLocalValues(localScalingValues *LocalScalingValues) {
-	p.scalingValues.Local = localScalingValues
+// nolint:unused
+func (p *PodAutoscalerInternal) UpdateFromLocalValues(localScalingValues ScalingValues) {
+	p.localScalingValues = localScalingValues
 }
 
 // RemoveValues clears autoscaling values data from the PodAutoscalerInternal as we stopped autoscaling
 func (p *PodAutoscalerInternal) RemoveValues() {
 	p.scalingValues = ScalingValues{}
+}
+
+// RemoveLocalValues clears local autoscaling values data from the PodAutoscalerInternal as we stopped autoscaling
+// nolint:unused
+func (p *PodAutoscalerInternal) RemoveLocalValues() {
+	p.localScalingValues = ScalingValues{}
 }
 
 // UpdateFromHorizontalAction updates the PodAutoscalerInternal from a new horizontal action
@@ -236,13 +246,16 @@ func (p *PodAutoscalerInternal) SetDeleted() {
 // UpdateFromStatus updates the PodAutoscalerInternal from an existing status.
 // It assumes the PodAutoscalerInternal is empty so it's not emptying existing data.
 func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghq.DatadogPodAutoscalerStatus) {
+	activeScalingValues := p.getActiveScalingValues()
+
 	if status.Horizontal != nil {
 		if status.Horizontal.Target != nil {
-			p.scalingValues.Horizontal = &HorizontalScalingValues{
+			horizontalScalingValues := &HorizontalScalingValues{
 				Source:    status.Horizontal.Target.Source,
 				Timestamp: status.Horizontal.Target.GeneratedAt.Time,
 				Replicas:  status.Horizontal.Target.Replicas,
 			}
+			activeScalingValues.Horizontal = horizontalScalingValues
 		}
 
 		if len(status.Horizontal.LastActions) > 0 {
@@ -252,12 +265,13 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghq.DatadogPodAut
 
 	if status.Vertical != nil {
 		if status.Vertical.Target != nil {
-			p.scalingValues.Vertical = &VerticalScalingValues{
+			verticalScalingValues := &VerticalScalingValues{
 				Source:             status.Vertical.Target.Source,
 				Timestamp:          status.Vertical.Target.GeneratedAt.Time,
 				ContainerResources: status.Vertical.Target.DesiredResources,
 				ResourcesHash:      status.Vertical.Target.Version,
 			}
+			activeScalingValues.Vertical = verticalScalingValues
 		}
 
 		p.verticalLastAction = status.Vertical.LastAction
@@ -276,13 +290,13 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghq.DatadogPodAut
 			// We're restoring this to error as it's the most generic
 			p.error = errors.New(cond.Reason)
 		case cond.Type == datadoghq.DatadogPodAutoscalerHorizontalAbleToRecommendCondition && cond.Status == corev1.ConditionFalse:
-			p.scalingValues.HorizontalError = errors.New(cond.Reason)
+			activeScalingValues.HorizontalError = errors.New(cond.Reason)
 		case cond.Type == datadoghq.DatadogPodAutoscalerHorizontalAbleToScaleCondition && cond.Status == corev1.ConditionFalse:
 			p.horizontalLastActionError = errors.New(cond.Reason)
 		case cond.Type == datadoghq.DatadogPodAutoscalerHorizontalScalingLimitedCondition && cond.Status == corev1.ConditionTrue:
 			p.horizontalLastLimitReason = cond.Reason
 		case cond.Type == datadoghq.DatadogPodAutoscalerVerticalAbleToRecommendCondition && cond.Status == corev1.ConditionFalse:
-			p.scalingValues.VerticalError = errors.New(cond.Reason)
+			activeScalingValues.VerticalError = errors.New(cond.Reason)
 		case cond.Type == datadoghq.DatadogPodAutoscalerVerticalAbleToApply && cond.Status == corev1.ConditionFalse:
 			p.verticalLastActionError = errors.New(cond.Reason)
 		}
@@ -341,6 +355,11 @@ func (p *PodAutoscalerInternal) CreationTimestamp() time.Time {
 // ScalingValues returns the scaling values of the PodAutoscaler
 func (p *PodAutoscalerInternal) ScalingValues() ScalingValues {
 	return p.scalingValues
+}
+
+// LocalScalingValues returns the local scaling values of the PodAutoscaler
+func (p *PodAutoscalerInternal) LocalScalingValues() ScalingValues {
+	return p.localScalingValues
 }
 
 // HorizontalLastActions returns the last horizontal actions taken
@@ -415,13 +434,15 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 		status.CurrentReplicas = p.currentReplicas
 	}
 
+	activeScalingValues := p.getActiveScalingValues()
+
 	// Produce Horizontal status only if we have a desired number of replicas
-	if p.scalingValues.Horizontal != nil {
+	if activeScalingValues.Horizontal != nil {
 		status.Horizontal = &datadoghq.DatadogPodAutoscalerHorizontalStatus{
 			Target: &datadoghq.DatadogPodAutoscalerHorizontalTargetStatus{
-				Source:      p.scalingValues.Horizontal.Source,
-				GeneratedAt: metav1.NewTime(p.scalingValues.Horizontal.Timestamp),
-				Replicas:    p.scalingValues.Horizontal.Replicas,
+				Source:      activeScalingValues.Horizontal.Source,
+				GeneratedAt: metav1.NewTime(activeScalingValues.Horizontal.Timestamp),
+				Replicas:    activeScalingValues.Horizontal.Replicas,
 			},
 		}
 
@@ -436,15 +457,15 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 	}
 
 	// Produce Vertical status only if we have a desired container resources
-	if p.scalingValues.Vertical != nil {
-		cpuReqSum, memReqSum := p.scalingValues.Vertical.SumCPUMemoryRequests()
+	if activeScalingValues.Vertical != nil {
+		cpuReqSum, memReqSum := activeScalingValues.Vertical.SumCPUMemoryRequests()
 
 		status.Vertical = &datadoghq.DatadogPodAutoscalerVerticalStatus{
 			Target: &datadoghq.DatadogPodAutoscalerVerticalTargetStatus{
-				Source:           p.scalingValues.Vertical.Source,
-				GeneratedAt:      metav1.NewTime(p.scalingValues.Vertical.Timestamp),
-				Version:          p.scalingValues.Vertical.ResourcesHash,
-				DesiredResources: p.scalingValues.Vertical.ContainerResources,
+				Source:           activeScalingValues.Vertical.Source,
+				GeneratedAt:      metav1.NewTime(activeScalingValues.Vertical.Timestamp),
+				Version:          activeScalingValues.Vertical.ResourcesHash,
+				DesiredResources: activeScalingValues.Vertical.ContainerResources,
 				Scaled:           p.scaledReplicas,
 				PODCPURequest:    cpuReqSum,
 				PODMemoryRequest: memReqSum,
@@ -476,7 +497,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 	// Building global error condition
 	globalError := p.error
 	if p.error == nil {
-		globalError = p.scalingValues.Error
+		globalError = activeScalingValues.Error
 	}
 	status.Conditions = append(status.Conditions, newConditionFromError(true, currentTime, globalError, datadoghq.DatadogPodAutoscalerErrorCondition, existingConditions))
 
@@ -489,16 +510,16 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 
 	// Building errors related to compute recommendations
 	var horizontalAbleToRecommend datadoghq.DatadogPodAutoscalerCondition
-	if p.scalingValues.HorizontalError != nil || p.scalingValues.Horizontal != nil {
-		horizontalAbleToRecommend = newConditionFromError(false, currentTime, p.scalingValues.HorizontalError, datadoghq.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, existingConditions)
+	if activeScalingValues.HorizontalError != nil || activeScalingValues.Horizontal != nil {
+		horizontalAbleToRecommend = newConditionFromError(false, currentTime, activeScalingValues.HorizontalError, datadoghq.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, existingConditions)
 	} else {
 		horizontalAbleToRecommend = newCondition(corev1.ConditionUnknown, "", currentTime, datadoghq.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, existingConditions)
 	}
 	status.Conditions = append(status.Conditions, horizontalAbleToRecommend)
 
 	var verticalAbleToRecommend datadoghq.DatadogPodAutoscalerCondition
-	if p.scalingValues.VerticalError != nil || p.scalingValues.Vertical != nil {
-		verticalAbleToRecommend = newConditionFromError(false, currentTime, p.scalingValues.VerticalError, datadoghq.DatadogPodAutoscalerVerticalAbleToRecommendCondition, existingConditions)
+	if activeScalingValues.VerticalError != nil || activeScalingValues.Vertical != nil {
+		verticalAbleToRecommend = newConditionFromError(false, currentTime, activeScalingValues.VerticalError, datadoghq.DatadogPodAutoscalerVerticalAbleToRecommendCondition, existingConditions)
 	} else {
 		verticalAbleToRecommend = newCondition(corev1.ConditionUnknown, "", currentTime, datadoghq.DatadogPodAutoscalerVerticalAbleToRecommendCondition, existingConditions)
 	}
@@ -536,6 +557,13 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 }
 
 // Private helpers
+func (p *PodAutoscalerInternal) getActiveScalingValues() *ScalingValues {
+	if p.isLocalFallbackActive {
+		return &p.localScalingValues
+	}
+	return &p.scalingValues
+}
+
 func addHorizontalAction(currentTime time.Time, retention time.Duration, actions []datadoghq.DatadogPodAutoscalerHorizontalAction, action *datadoghq.DatadogPodAutoscalerHorizontalAction) []datadoghq.DatadogPodAutoscalerHorizontalAction {
 	if retention == 0 {
 		actions = actions[:0]
