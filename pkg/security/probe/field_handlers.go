@@ -77,30 +77,9 @@ func getProcessService(config *config.Config, entry *model.ProcessCacheEntry) (s
 	return config.RuntimeSecurity.HostServiceName, false
 }
 
-type pceResolver interface {
-	ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool)
-}
-
-func resolveService(cfg *config.Config, fh pceResolver, ev *model.Event, e *model.BaseEvent) string {
-	if e.Service != "" {
-		return e.Service
-	}
-
-	entry, _ := fh.ResolveProcessCacheEntry(ev)
-	if entry == nil {
-		return ""
-	}
-
-	service, ok := getProcessService(cfg, entry)
-	if ok {
-		e.Service = service
-	}
-
-	return service
-}
-
 // BaseFieldHandlers holds the base field handlers
 type BaseFieldHandlers struct {
+	config       *config.Config
 	privateCIDRs eval.CIDRValues
 	hostname     string
 }
@@ -108,6 +87,7 @@ type BaseFieldHandlers struct {
 // NewBaseFieldHandlers creates a new BaseFieldHandlers
 func NewBaseFieldHandlers(cfg *config.Config, hostname string) (*BaseFieldHandlers, error) {
 	bfh := &BaseFieldHandlers{
+		config:   cfg,
 		hostname: hostname,
 	}
 
@@ -137,4 +117,23 @@ func (bfh *BaseFieldHandlers) ResolveIsIPPublic(_ *model.Event, ipCtx *model.IPP
 // ResolveHostname resolve the hostname
 func (bfh *BaseFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
 	return bfh.hostname
+}
+
+// ResolveService returns the service tag based on the process context
+func (bfh *BaseFieldHandlers) ResolveService(ev *model.Event, e *model.BaseEvent) string {
+	if e.Service != "" {
+		return e.Service
+	}
+
+	entry, _ := ev.ResolveProcessCacheEntry()
+	if entry == nil {
+		return ""
+	}
+
+	service, ok := getProcessService(bfh.config, entry)
+	if ok {
+		e.Service = service
+	}
+
+	return service
 }

@@ -42,11 +42,6 @@ func NewEBPFLessFieldHandlers(config *config.Config, resolvers *resolvers.EBPFLe
 	}, nil
 }
 
-// ResolveService returns the service tag based on the process context
-func (fh *EBPFLessFieldHandlers) ResolveService(ev *model.Event, e *model.BaseEvent) string {
-	return resolveService(fh.config, fh, ev, e)
-}
-
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
 	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
