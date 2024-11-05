@@ -74,8 +74,8 @@ func getMetadataItem(ctx context.Context, endpoint string, allowedIMDSVersions i
 	return doHTTPRequest(ctx, metadataURL+endpoint, allowedIMDSVersions, updateMetadataSource)
 }
 
-// getIMDSVersion returns true if the agent should use IMDSv2
-func getIMDSVersion() imdsVersion {
+// useIMDSv2 returns true if the agent should use IMDSv2
+func useIMDSv2() imdsVersion {
 	if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || pkgconfigsetup.Datadog().GetBool("ec2_imdsv2_transition_payload_enabled") {
 		return imdsAllVersions
 	}
