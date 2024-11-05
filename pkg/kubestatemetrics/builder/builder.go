@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -190,15 +191,21 @@ func GenerateStores[T any](
 	filteredMetricFamilies := generator.FilterFamilyGenerators(b.allowDenyList, metricFamilies)
 	composedMetricGenFuncs := generator.ComposeMetricGenFuncs(filteredMetricFamilies)
 
+	isPod := false
+	if _, ok := expectedType.(*corev1.Pod); ok {
+		isPod = true
+	} else if u, ok := expectedType.(*unstructured.Unstructured); ok {
+		isPod = u.GetAPIVersion() == "v1" && u.GetKind() == "Pod"
+	}
+
 	if b.namespaces.IsAllNamespaces() {
 		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
 
-		switch expectedType.(type) {
-		// Pods are handled differently because depending on the configuration
-		// they're collected from the API server or the Kubelet.
-		case *corev1.Pod:
+		if isPod {
+			// Pods are handled differently because depending on the configuration
+			// they're collected from the API server or the Kubelet.
 			handlePodCollection(b, store, client, listWatchFunc, corev1.NamespaceAll, useAPIServerCache)
-		default:
+		} else {
 			listWatcher := listWatchFunc(client, corev1.NamespaceAll, b.fieldSelectorFilter)
 			b.startReflector(expectedType, store, listWatcher, useAPIServerCache)
 		}
@@ -209,12 +216,11 @@ func GenerateStores[T any](
 	stores := make([]cache.Store, 0, len(b.namespaces))
 	for _, ns := range b.namespaces {
 		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
-		switch expectedType.(type) {
-		// Pods are handled differently because depending on the configuration
-		// they're collected from the API server or the Kubelet.
-		case *corev1.Pod:
+		if isPod {
+			// Pods are handled differently because depending on the configuration
+			// they're collected from the API server or the Kubelet.
 			handlePodCollection(b, store, client, listWatchFunc, ns, useAPIServerCache)
-		default:
+		} else {
 			listWatcher := listWatchFunc(client, ns, b.fieldSelectorFilter)
 			b.startReflector(expectedType, store, listWatcher, useAPIServerCache)
 		}
