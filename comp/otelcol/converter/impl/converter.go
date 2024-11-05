@@ -13,11 +13,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type ddConverter struct {
-	coreConfig optional.Option[config.Component]
+	coreConfig config.Component
 }
 
 var (
@@ -31,7 +30,7 @@ var (
 // with core agent config elements if any are missing from the provided
 // OTel configutation.
 type Requires struct {
-	Conf optional.Option[config.Component]
+	Conf config.Component
 }
 
 // NewConverter currently only supports a single URI in the uris slice, and this URI needs to be a file path.

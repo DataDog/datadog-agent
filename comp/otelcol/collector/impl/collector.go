@@ -83,6 +83,7 @@ type RequiresNoAgent struct {
 
 	CollectorContrib collectorcontrib.Component
 	URIs             []string
+	Config           config.Component
 	Converter        confmap.Converter
 }
 
@@ -198,12 +199,13 @@ func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
 	factories.Extensions[ddextension.Type] = ddextension.NewFactory(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
 
+	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
 	set := otelcol.CollectorSettings{
 		BuildInfo: buildInfo,
 		Factories: func() (otelcol.Factories, error) {
 			return factories, nil
 		},
-		ConfigProviderSettings: newConfigProviderSettings(reqs.URIs, reqs.Converter, true),
+		ConfigProviderSettings: newConfigProviderSettings(reqs.URIs, reqs.Converter, converterEnabled),
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {
