@@ -112,6 +112,28 @@ func (d *DatadogInstaller) runCommand(command, packageName string, opts ...insta
 	return d.execute(fmt.Sprintf("%s %s", command, packageURL), client.WithEnvVariables(envVars))
 }
 
+// RunInstallScript runs the Datadog Installer install script on the remote host.
+func (d *DatadogInstaller) RunInstallScript(extraEnvVars map[string]string) (string, error) {
+	// Get the URL of the installer.exe artifact from the pipeline
+	artifactURL, err := pipeline.GetPipelineArtifact(d.env.Environment.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
+		return strings.Contains(artifact, "datadog-installer") && strings.HasSuffix(artifact, ".exe")
+	})
+	if err != nil {
+		return "", err
+	}
+	// Set the environment variables for the install script
+	envVars := installer.InstallScriptEnv(e2eos.AMD64Arch)
+	for k, v := range extraEnvVars {
+		envVars[k] = v
+	}
+	envVars["DD_INSTALLER_URL"] = artifactURL
+	// TODO: Use install script from pipeline
+	cmd := `Set-ExecutionPolicy Bypass -Scope Process -Force;
+		[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
+		iex ((New-Object System.Net.WebClient).DownloadString('https://s3.amazonaws.com/dd-agent-mstesting/Install-Datadog.ps1'));`
+	return d.env.RemoteHost.Execute(cmd, client.WithEnvVariables(envVars))
+}
+
 // InstallPackage will attempt to use the Datadog Installer to install the package given in parameter.
 // version: A function that returns the version of the package to install. By default, it will install
 // the package matching the current pipeline. This is a function so that it can be combined with
