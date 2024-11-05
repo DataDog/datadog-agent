@@ -25,15 +25,24 @@ After you have refactored, if needed, and listed the packages that you want to e
  	    github.com/DataDog/datadog-agent/path/to/module => ./path/to/module
     )
     ```
-1. Update the `DEFAULT_MODULES` dictionary in the `tasks/modules.py` file. You need to create a new module, specifying the path, targets, and a condition to run tests (if any).
-   For example, if `pkg/A` depends on `pkg/B` and `pkg/B` is Windows only, we would specify:
-   ```python
-   DEFAULT_MODULES = {
-    "pkg/A": GoModule("pkg/A"),
-    "pkg/B": GoModule("pkg/B", condition=lambda: sys.platform == "win32")
-   }
-   ```
-   The dependencies are computed automatically.
+1. Create a `module.yml` file next to `go.mod` (even if empty). See the GoModule documentation [here](tasks/libs/common/gomodule.py) for attributes that can be defined. The dependencies are computed automatically. Here are two example configuration:
+
+    ```yaml
+    condition: is_linux
+    independent: true
+    used_by_otel: true
+    ```
+
+    ```yaml
+    lint_targets:
+    - ./pkg
+    - ./cmd
+    - ./comp
+    targets:
+    - ./pkg
+    - ./cmd
+    - ./comp
+    ```
 
 ## Go nested modules tooling
 
