@@ -83,6 +83,7 @@ type Probe struct {
 	cfg            *config.Config
 	consumer       *cudaEventConsumer
 	attacher       *uprobes.UprobeAttacher
+	sysCtx		   *systemContext
 	statsGenerator *statsGenerator
 	deps           ProbeDependencies
 	procMon        *monitor.ProcessMonitor
@@ -113,7 +114,13 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	}
 
 	attachCfg := getAttacherConfig(cfg)
-	attacher, err := uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, m, nil, &uprobes.NativeBinaryInspector{})
+	// Note: this will later be replaced by a common way to enable the process monitor across system-probe
+	procMon := monitor.GetProcessMonitor()
+	if err := procMon.Initialize(false); err != nil {
+		return nil, fmt.Errorf("error initializing process monitor: %w", err)
+	}
+
+	attacher, err := uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, m, nil, &uprobes.NativeBinaryInspector{}, procMon)
 	if err != nil {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
@@ -142,12 +149,6 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 // Start loads the ebpf programs using the ebpf manager and starts the process monitor and event consumer
 func (p *Probe) Start() error {
 	log.Tracef("starting GPU monitoring probe...")
-	// Note: this will later be replaced by a common way to enable the process monitor across system-probe
-	procMon := monitor.GetProcessMonitor()
-	if err := procMon.Initialize(false); err != nil {
-		return fmt.Errorf("error initializing process monitor: %w", err)
-	}
-
 	p.consumer.Start()
 
 	if err := p.m.Start(); err != nil {
