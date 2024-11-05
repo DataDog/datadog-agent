@@ -35,7 +35,6 @@ single-machine-performance-regression_detector:
   script:
     # Ensure output files exist for artifact downloads step
     - mkdir outputs # Also needed for smp job sync step
-    - touch outputs/report.md # Will be emitted by smp job sync
     # Compute merge base of current commit and `main`
     - git fetch origin
     - SMP_BASE_BRANCH=$(inv release.get-release-json-value base_branch)
@@ -158,6 +157,14 @@ single-machine-performance-regression_detector-pr-comment:
     FF_KUBERNETES_HONOR_ENTRYPOINT: false
   allow_failure: true  # allow_failure here should have same setting as in job above
   script: # ignore error message about no PR, because it happens for dev branches without PRs
+    # Prevent posting empty Regression Detector report if Markdown report is not found or
+    # has zero size.
+    - |
+      if [[ ! -s "outputs/report.md" ]]
+      then
+          echo "ERROR: Regression Detector report not found -- no PR comment posted"
+          exit 1
+      fi
     # We need to transform the Markdown report into a valid JSON string (without
     # quotes) in order to pass a well-formed payload to the PR commenting
     # service. Note that on macOS, the "-z" flag is invalid for `sed` (but
