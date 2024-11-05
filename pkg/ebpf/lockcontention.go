@@ -42,7 +42,13 @@ const (
 	// maximum lock ranges to track
 	maxTrackedRanges = 16384
 
-	// batch size when update per cpu map storing lock ranges
+	// batch size when updating per cpu map storing lock ranges
+	// this value is the chunks in which we add the ranges to the per-cpu map
+	// the size of each entry is equal to `struct lock_range`, which is 20 bytes.
+	// The expected upper bound for each batch is then
+	// sizeof(struct lock_range) * updateBatchSize * ncpus
+	// this does not strictly upper bound the memory since ncpus is uncontrolled
+	// but in practise this should be a reasonable value
 	updateBatchSize = 100
 )
 
@@ -442,26 +448,26 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		return int(int64(a.Start) - int64(b.Start))
 	})
 
-	batchSz := uint32(updateBatchSize)
-	if batchSz > ranges {
-		batchSz = ranges
+	batchSize := uint32(updateBatchSize)
+	if batchSize > ranges {
+		batchSize = ranges
 	}
 
 	var iter uint32
-	for iter = 0; iter < (ranges/batchSz)+1; iter++ {
-		keys := make([]uint32, batchSz)
-		values := make([]LockRange, cpus*batchSz)
+	for iter = 0; iter < (ranges/batchSize)+1; iter++ {
+		keys := make([]uint32, batchSize)
+		values := make([]LockRange, cpus*batchSize)
 
 		var i, j uint32
-		for i = 0; i < batchSz; i++ {
-			key := (iter * batchSz) + i
+		for i = 0; i < batchSize; i++ {
+			key := (iter * batchSize) + i
 			if key >= ranges {
 				break
 			}
 
 			keys[i] = key
 			for j = 0; j < cpus; j++ {
-				values[(j*batchSz)+i] = lockRanges[key]
+				values[(j*batchSize)+i] = lockRanges[key]
 			}
 		}
 
