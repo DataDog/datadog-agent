@@ -41,6 +41,15 @@ const (
 
 	// maximum lock ranges to track
 	maxTrackedRanges = 16384
+
+	// batch size when updating per cpu map storing lock ranges
+	// this value is the chunks in which we add the ranges to the per-cpu map
+	// the size of each entry is equal to `struct lock_range`, which is 20 bytes.
+	// The expected upper bound for each batch is then
+	// sizeof(struct lock_range) * updateBatchSize * ncpus
+	// this does not strictly upper bound the memory since ncpus is uncontrolled
+	// but in practise this should be a reasonable value
+	updateBatchSize = 100
 )
 
 // always use maxTrackedRanges
@@ -437,18 +446,41 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		return int(int64(a.Start) - int64(b.Start))
 	})
 
-	keys := make([]uint32, ranges)
-	values := make([]LockRange, cpus*ranges)
-	var i, j uint32
-	for i = 0; i < ranges; i++ {
-		keys[i] = i
-		for j = 0; j < cpus; j++ {
-			values[(j*ranges)+i] = lockRanges[i]
-		}
+	batchSize := uint32(updateBatchSize)
+	if batchSize > ranges {
+		batchSize = ranges
 	}
 
-	if _, err := l.objects.Ranges.BatchUpdate(keys, values, nil); err != nil {
-		return fmt.Errorf("unable to perform batch update on per cpu array map: %w", err)
+	var iter uint32
+
+	// this loop inserts the lock_ranges we have previously collected
+	// into the per-cpu map `ranges`. We perform the update in batches
+	// of size `batchSize`.
+	for iter = 0; iter < (ranges/batchSize)+1; iter++ {
+		keys := make([]uint32, batchSize)
+		values := make([]LockRange, cpus*batchSize)
+
+		var i, j uint32
+
+		// this loop builds the `values` and `keys` slices for this batch
+		for i = 0; i < batchSize; i++ {
+			key := (iter * batchSize) + i
+			if key >= ranges {
+				break
+			}
+
+			keys[i] = key
+
+			// Since `ranges` is a per-cpu map we need to duplicate each entry
+			// for the number of CPUs on this system
+			for j = 0; j < cpus; j++ {
+				values[(j*batchSize)+i] = lockRanges[key]
+			}
+		}
+
+		if _, err := l.objects.Ranges.BatchUpdate(keys, values, nil); err != nil {
+			return fmt.Errorf("unable to perform batch update on per cpu array map: %w", err)
+		}
 	}
 
 	// initialize buffers used in Collect
