@@ -29,7 +29,6 @@ def build(
     major_version='7',
     go_mod="mod",
     bundle=True,
-    fips_mode=False,
 ):
     """
     Build the process agent
@@ -48,6 +47,7 @@ def build(
     flavor = AgentFlavor[flavor]
     if flavor.is_ot():
         flavor = AgentFlavor.base
+    fips_mode = flavor.is_fips()
 
     ldflags, gcflags, env = get_build_flags(
         ctx,

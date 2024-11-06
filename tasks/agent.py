@@ -147,7 +147,6 @@ def build(
     bundle_ebpf=False,
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
-    fips_mode=False,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -161,6 +160,7 @@ def build(
     if flavor.is_ot():
         # for agent build purposes the UA agent is just like base
         flavor = AgentFlavor.base
+    fips_mode = flavor.is_fips()
 
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs

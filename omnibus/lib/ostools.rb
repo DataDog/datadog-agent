@@ -64,5 +64,5 @@ def os
 end
 
 def fips_mode?()
-  return ENV['FIPS_MODE'] == 'true' && (linux_target? || windows_target?)
+  return ENV['AGENT_FLAVOR'] == "fips" && (linux_target? || windows_target?)
 end

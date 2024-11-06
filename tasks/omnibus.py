@@ -188,13 +188,13 @@ def build(
     install_directory=None,
     config_directory=None,
     target_project=None,
-    fips_mode=False,
 ):
     """
     Build the Agent packages with Omnibus Installer.
     """
 
     flavor = AgentFlavor[flavor]
+    fips_mode = flavor.is_fips()
     durations = {}
     if not skip_deps:
         with timed(quiet=True) as durations['Deps']:

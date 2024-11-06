@@ -101,6 +101,8 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
     }
 )
 
+FIPS_AGENT_TAGS = AGENT_TAGS.union({"goexperiment.systemcrypto"})
+
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
 CLUSTER_AGENT_TAGS = {"clusterchecks", "datadog.no_waf", "kubeapiserver", "orchestrator", "zlib", "zstd", "ec2", "gce"}
 
@@ -214,6 +216,11 @@ build_tags = {
         "system-tests": AGENT_TAGS,
         "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+    },
+    AgentFlavor.fips: {
+        "agent": FIPS_AGENT_TAGS,
+        "lint": FIPS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "unit-tests": FIPS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
     },
 }
 

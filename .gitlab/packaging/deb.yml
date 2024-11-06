@@ -66,7 +66,7 @@ agent_deb-x64-a7-fips:
     - when: on_success
   needs: ["datadog-agent-7-x64-fips"]
   variables:
-    DESTINATION_DEB: "datadog-fips-agent_7_amd64.deb"
+    OMNIBUS_EXTRA_ARGS: "--flavor fips"
     DD_PROJECT: "agent"
 
 agent_deb-arm64-a7-fips:
@@ -76,7 +76,7 @@ agent_deb-arm64-a7-fips:
     - when: on_success
   needs: ["datadog-agent-7-arm64-fips"]
   variables:
-    DESTINATION_DEB: "datadog-fips-agent_7_arm64.deb"
+    OMNIBUS_EXTRA_ARGS: "--flavor fips"
     DD_PROJECT: "agent"
 
 .package_ot_deb_common:

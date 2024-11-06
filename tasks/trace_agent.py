@@ -24,7 +24,6 @@ def build(
     major_version='7',
     go_mod="mod",
     bundle=False,
-    fips_mode=False,
 ):
     """
     Build the trace agent.
@@ -44,6 +43,7 @@ def build(
     flavor = AgentFlavor[flavor]
     if flavor.is_ot():
         flavor = AgentFlavor.base
+    fips_mode = flavor.is_fips()
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
