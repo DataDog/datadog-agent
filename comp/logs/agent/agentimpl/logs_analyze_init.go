@@ -18,6 +18,7 @@ import (
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
@@ -42,15 +43,17 @@ func (a *logAgent) SetUpLaunchers(processingRules []*config.ProcessingRule) {
 	fileValidatePodContainer := a.config.GetBool("logs_config.validate_pod_container_id")
 	fileScanPeriod := time.Duration(a.config.GetFloat64("logs_config.file_scan_period") * float64(time.Second))
 	fileWildcardSelectionMode := a.config.GetString("logs_config.file_wildcard_selection_mode")
-	lnchrs.AddLauncher(filelauncher.NewLauncher(
+	fileLauncher := filelauncher.NewLauncher(
 		fileLimits,
 		filelauncher.DefaultSleepDuration,
 		fileValidatePodContainer,
 		fileScanPeriod,
 		fileWildcardSelectionMode,
 		a.flarecontroller,
-		a.tagger))
-
+		a.tagger)
+	sourceProvider := sources.NewConfigSources()
+	fileLauncher.Start(sourceProvider, pipelineProvider, auditor, a.tracker)
+	lnchrs.AddLauncher(fileLauncher)
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.auditor = auditor
 	a.destinationsCtx = destinationsCtx
