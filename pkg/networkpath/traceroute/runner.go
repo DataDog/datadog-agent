@@ -260,16 +260,19 @@ func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHo
 	for i, hop := range res.Hops {
 		ttl := i + 1
 		isReachable := false
-		var hopIPAddress string
+		hopname := fmt.Sprintf("unknown_hop_%d", ttl)
+		hostname := hopname
 
 		if !hop.IP.Equal(net.IP{}) {
 			isReachable = true
-			hopIPAddress = hop.IP.String()
+			hopname = hop.IP.String()
+			hostname = "" // reverse dns hostname will be set later
 		}
 
 		npHop := payload.NetworkPathHop{
 			TTL:       ttl,
-			IPAddress: hopIPAddress,
+			IPAddress: hopname,
+			Hostname:  hostname,
 			RTT:       float64(hop.RTT.Microseconds()) / float64(1000),
 			Reachable: isReachable,
 		}
@@ -331,7 +334,7 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 		// then add all the other hops
 		for _, hop := range hops {
 			hop := hop
-			var nodename string
+			nodename := fmt.Sprintf("unknown_hop_%d", hop.Sent.IP.TTL)
 			if hop.Received != nil {
 				nodename = hop.Received.IP.SrcIP.String()
 			}
