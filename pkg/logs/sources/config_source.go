@@ -6,6 +6,7 @@
 package sources
 
 import (
+	"fmt"
 	"os"
 	"sync"
 
@@ -65,6 +66,7 @@ func (s *ConfigSources) AddFileSource(filePath string) error {
 		// 	// labels attached to the same container.
 		// 	source.Config.IntegrationName = cfg.Name
 		// }
+		fmt.Println("wack3", source)
 		s.AddSource(source)
 	}
 

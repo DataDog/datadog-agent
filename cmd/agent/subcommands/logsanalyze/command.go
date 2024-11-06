@@ -15,7 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-const defaultCoreConfigPath = "/etc/datadog/datadog.yaml"
+// const defaultCoreConfigPath = "/etc/datadog/datadog.yaml"
+const defaultCoreConfigPath = "/Users/andrew.qian/Documents/Code/datadog-agent/dev/dist/conf.d/random_logs.d/conf.yaml"
 
 // CliParams holds the command-line arguments for the logs-analyze subcommand.
 type CliParams struct {
@@ -57,7 +58,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 
 	// Add flag for core config (optional)
-	cmd.Flags().StringVarP(&cliParams.CoreConfigPath, "core-config", "c", defaultCoreConfigPath, "Path to the core configuration file (optional)")
+	cmd.Flags().StringVarP(&cliParams.CoreConfigPath, "core-config", "C", defaultCoreConfigPath, "Path to the core configuration file (optional)")
 
 	return []*cobra.Command{cmd}
 }
@@ -76,10 +77,12 @@ func runLogsAnalyze(cliParams *CliParams) error {
 
 	//send paths to source provider
 	// Add log config source
+	fmt.Println("wack1")
 	if err := cliParams.ConfigSource.AddFileSource(cliParams.LogConfigPath); err != nil {
 		return fmt.Errorf("failed to add log config source: %w", err)
 	}
 
+	fmt.Println("wack2")
 	// Add core config source
 	if err := cliParams.ConfigSource.AddFileSource(cliParams.CoreConfigPath); err != nil {
 		return fmt.Errorf("failed to add core config source: %w", err)
