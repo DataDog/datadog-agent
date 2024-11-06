@@ -26,22 +26,22 @@ import (
 // TestShouldIgnorePid check cases of ignored and non-ignored services
 func TestShouldIgnorePid(t *testing.T) {
 	testCases := []struct {
-		name   string
-		comm   string
-		envs   string
-		ignore bool
+		name    string
+		comm    string
+		service string
+		ignore  bool
 	}{
 		{
-			name:   "should ignore datadog agent service",
-			comm:   "agent",
-			envs:   "DD_SERVICE=datadog-agent",
-			ignore: true,
+			name:    "should ignore datadog agent service",
+			comm:    "agent",
+			service: "datadog-agent",
+			ignore:  true,
 		},
 		{
-			name:   "should not ignore dummy service",
-			comm:   "dummy",
-			envs:   "DD_SERVICE=dummy",
-			ignore: false,
+			name:    "should not ignore dummy service",
+			comm:    "dummy",
+			service: "dummy",
+			ignore:  false,
 		},
 	}
 
@@ -59,7 +59,7 @@ func TestShouldIgnorePid(t *testing.T) {
 			makeAlias(t, test.comm, serverBin)
 			bin := filepath.Join(serverDir, test.comm)
 			cmd := exec.CommandContext(ctx, bin)
-			cmd.Env = append(cmd.Environ(), test.envs)
+			cmd.Env = append(cmd.Environ(), "DD_SERVICE="+test.service)
 
 			require.NoError(t, cmd.Start())
 			t.Cleanup(func() {
@@ -76,7 +76,7 @@ func TestShouldIgnorePid(t *testing.T) {
 				// wait until the service name becomes available
 				info, err := discovery.getServiceInfo(proc)
 				assert.NoError(collect, err)
-				assert.NotEmpty(collect, info.ddServiceName)
+				assert.Equal(collect, test.service, info.ddServiceName)
 			}, 3*time.Second, 100*time.Millisecond)
 
 			// now can check the ignored service

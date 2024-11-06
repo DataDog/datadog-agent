@@ -59,7 +59,7 @@ func (config *discoveryConfig) loadIgnoredComms(comms []string) {
 // loadIgnoredServices saves names that should not be reported as a service
 func (config *discoveryConfig) loadIgnoredServices(services []string) {
 	if len(services) == 0 {
-		log.Debug("loading ignored services found empty commands list")
+		log.Debug("loading ignored services found empty services list")
 		return
 	}
 	config.ignoreServices = make(map[string]struct{}, len(services))

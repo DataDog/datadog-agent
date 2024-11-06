@@ -67,7 +67,7 @@ type discovery struct {
 	cache map[int32]*serviceInfo
 
 	// ignorePids processes to be excluded from discovery
-	ignorePids map[int32]bool
+	ignorePids map[int32]struct{}
 
 	// privilegedDetector is used to detect the language of a process.
 	privilegedDetector privileged.LanguageDetector
@@ -88,7 +88,7 @@ func newDiscovery() *discovery {
 		config:             newConfig(),
 		mux:                &sync.RWMutex{},
 		cache:              make(map[int32]*serviceInfo),
-		ignorePids:         make(map[int32]bool),
+		ignorePids:         make(map[int32]struct{}),
 		privilegedDetector: privileged.NewLanguageDetector(),
 		scrubber:           procutil.NewDefaultDataScrubber(),
 	}
@@ -336,21 +336,22 @@ type parsingContext struct {
 // addIgnoredPid store excluded pid.
 func (s *discovery) addIgnoredPid(pid int32) {
 	s.mux.Lock()
-	s.ignorePids[pid] = true
-	s.mux.Unlock()
+	defer s.mux.Unlock()
+
+	s.ignorePids[pid] = struct{}{}
 }
 
 // shouldIgnorePid returns true if process should be excluded from handling.
 func (s *discovery) shouldIgnorePid(pid int32) bool {
 	s.mux.Lock()
-	_, found := s.ignorePids[pid]
-	s.mux.Unlock()
+	defer s.mux.Unlock()
 
+	_, found := s.ignorePids[pid]
 	return found
 }
 
-// shouldIgnoredService returns true if the service should be excluded from handling.
-func (s *discovery) shouldIgnoredService(name string) bool {
+// shouldIgnoreService returns true if the service should be excluded from handling.
+func (s *discovery) shouldIgnoreService(name string) bool {
 	if len(s.config.ignoreServices) == 0 {
 		return false
 	}
@@ -539,7 +540,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	if name == "" {
 		name = info.generatedName
 	}
-	if s.shouldIgnoredService(name) {
+	if s.shouldIgnoreService(name) {
 		s.addIgnoredPid(proc.Pid)
 		return nil
 	}
