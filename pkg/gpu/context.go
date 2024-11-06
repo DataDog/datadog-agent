@@ -204,7 +204,7 @@ func (ctx *systemContext) cleanupOldEntries() {
 	}
 }
 
-func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int) (*nvml.Device, error) {
+func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int) (nvml.Device, error) {
 	visibleDevices, ok := ctx.visibleDevicesCache[pid]
 	if !ok {
 		visibleDevices, err := cuda.GetVisibleDevicesForProcess(ctx.gpuDevices, pid, ctx.procRoot)
@@ -229,7 +229,7 @@ func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int) (*nvml.Dev
 		return nil, fmt.Errorf("device index %d is out of range", selectedDeviceIndex)
 	}
 
-	return &visibleDevices[selectedDeviceIndex], nil
+	return visibleDevices[selectedDeviceIndex], nil
 }
 
 func (ctx *systemContext) setDeviceSelection(pid int, tid int, deviceIndex int32) {
