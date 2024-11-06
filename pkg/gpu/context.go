@@ -189,6 +189,8 @@ func (ctx *systemContext) getProcessMemoryMaps(pid int) ([]*procfs.ProcMap, erro
 // removeProcess removes any data associated with a process from the system context.
 func (ctx *systemContext) removeProcess(pid int) {
 	delete(ctx.pidMaps, pid)
+	delete(ctx.selectedDeviceByPIDAndTID, pid)
+	delete(ctx.visibleDevicesCache, pid)
 }
 
 // cleanupOldEntries removes any old entries that have not been accessed in a while, to avoid
@@ -238,9 +240,4 @@ func (ctx *systemContext) setDeviceSelection(pid int, tid int, deviceIndex int32
 	}
 
 	ctx.selectedDeviceByPIDAndTID[pid][tid] = deviceIndex
-}
-
-func (ctx *systemContext) cleanupDataForProcess(pid int) {
-	delete(ctx.selectedDeviceByPIDAndTID, pid)
-	delete(ctx.visibleDevicesCache, pid)
 }
