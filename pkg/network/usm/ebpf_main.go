@@ -15,14 +15,14 @@ import (
 	"slices"
 	"unsafe"
 
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
 	"golang.org/x/sys/unix"
 
-	manager "github.com/DataDog/ebpf-manager"
-
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -185,7 +185,7 @@ func (e *ebpfProgram) Init() error {
 			return nil
 		}
 
-		if !e.cfg.AllowRuntimeCompiledFallback && !e.cfg.AllowPrecompiledFallback {
+		if !e.cfg.AllowRuntimeCompiledFallback && !e.cfg.AllowPrebuiltFallback {
 			return fmt.Errorf("co-re load failed: %w", err)
 		}
 		log.Warnf("co-re load failed. attempting fallback: %s", err)
@@ -198,10 +198,14 @@ func (e *ebpfProgram) Init() error {
 			return nil
 		}
 
-		if !e.cfg.AllowPrecompiledFallback {
+		if !e.cfg.AllowPrebuiltFallback {
 			return fmt.Errorf("runtime compilation failed: %w", err)
 		}
 		log.Warnf("runtime compilation failed: attempting fallback: %s", err)
+	}
+
+	if prebuilt.IsDeprecated() {
+		log.Warn("using deprecated prebuilt USM monitor")
 	}
 
 	e.buildMode = buildmode.Prebuilt

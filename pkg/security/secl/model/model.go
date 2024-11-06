@@ -125,10 +125,10 @@ type BaseEvent struct {
 	Timestamp     time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
 	Rules         []*MatchedRule `field:"-"`
 	ActionReports []ActionReport `field:"-"`
-	Os            string         `field:"event.os"`                               // SECLDoc[event.os] Definition:`Operating system of the event`
-	Origin        string         `field:"event.origin"`                           // SECLDoc[event.origin] Definition:`Origin of the event`
-	Service       string         `field:"event.service,handler:ResolveService"`   // SECLDoc[event.service] Definition:`Service associated with the event`
-	Hostname      string         `field:"event.hostname,handler:ResolveHostname"` // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
+	Os            string         `field:"event.os"`                                          // SECLDoc[event.os] Definition:`Operating system of the event`
+	Origin        string         `field:"event.origin"`                                      // SECLDoc[event.origin] Definition:`Origin of the event`
+	Service       string         `field:"event.service,handler:ResolveService,opts:skip_ad"` // SECLDoc[event.service] Definition:`Service associated with the event`
+	Hostname      string         `field:"event.hostname,handler:ResolveHostname"`            // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process"`

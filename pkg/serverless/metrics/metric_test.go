@@ -8,7 +8,6 @@ package metrics
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"math/rand"
 	"net"
 	"net/http"
@@ -38,13 +37,13 @@ func TestMain(m *testing.M) {
 }
 
 func TestStartDoesNotBlock(t *testing.T) {
-	flake.Mark(t)
 	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
 		t.Skip("TestStartDoesNotBlock is known to fail on the macOS Gitlab runners because of the already running Agent")
 	}
 	pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil)
 	metricAgent := &ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
+		Tagger:               nooptagger.NewTaggerClient(),
 	}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
@@ -67,6 +66,7 @@ func (m *InvalidMetricConfigMocked) GetMultipleEndpoints() (map[string][]string,
 func TestStartInvalidConfig(t *testing.T) {
 	metricAgent := &ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
+		Tagger:               nooptagger.NewTaggerClient(),
 	}
 	defer metricAgent.Stop()
 	metricAgent.Start(1*time.Second, &InvalidMetricConfigMocked{}, &MetricDogStatsD{})
@@ -84,6 +84,7 @@ func (m *MetricDogStatsDMocked) NewServer(_ aggregator.Demultiplexer) (dogstatsd
 func TestStartInvalidDogStatsD(t *testing.T) {
 	metricAgent := &ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
+		Tagger:               nooptagger.NewTaggerClient(),
 	}
 	defer metricAgent.Stop()
 	metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{})
@@ -100,6 +101,7 @@ func TestStartWithProxy(t *testing.T) {
 
 	metricAgent := &ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
+		Tagger:               nooptagger.NewTaggerClient(),
 	}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
