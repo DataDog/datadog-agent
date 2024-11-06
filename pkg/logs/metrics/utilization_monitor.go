@@ -5,7 +5,11 @@
 
 package metrics
 
-import "time"
+import (
+	"time"
+
+	"github.com/VividCortex/ewma"
+)
 
 // UtilizationMonitor is an interface for monitoring the utilization of a component.
 type UtilizationMonitor interface {
@@ -30,6 +34,7 @@ type TelemetryUtilizationMonitor struct {
 	idle       time.Duration
 	startIdle  time.Time
 	startInUse time.Time
+	avg        ewma.MovingAverage
 	name       string
 	instance   string
 	ticker     *time.Ticker
@@ -40,6 +45,7 @@ func NewTelemetryUtilizationMonitor(name, instance string, interval time.Duratio
 	return &TelemetryUtilizationMonitor{
 		startIdle:  time.Now(),
 		startInUse: time.Now(),
+		avg:        ewma.NewMovingAverage(),
 		name:       name,
 		instance:   instance,
 		ticker:     time.NewTicker(interval),
@@ -58,7 +64,8 @@ func (u *TelemetryUtilizationMonitor) Stop() {
 	u.startIdle = time.Now()
 	select {
 	case <-u.ticker.C:
-		TlmUtilization.Set(float64(u.inUse)/(float64(u.idle+u.inUse)), u.name, u.instance)
+		u.avg.Add(float64(u.inUse) / float64(u.idle+u.inUse))
+		TlmUtilization.Set(u.avg.Value(), u.name, u.instance)
 		u.idle = 0
 		u.inUse = 0
 	default:

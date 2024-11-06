@@ -7,7 +7,8 @@ package metrics
 
 import (
 	"sync"
-	"time"
+
+	"github.com/VividCortex/ewma"
 )
 
 // CapacityMonitor samples the average capacity of a component over a given interval.
@@ -19,20 +20,20 @@ type CapacityMonitor struct {
 	ingressBytes int64
 	egress       int64
 	egressBytes  int64
-	avg          float64
-	avgBytes     float64
+	avg          ewma.MovingAverage
+	avgBytes     ewma.MovingAverage
 	samples      float64
 	name         string
 	instance     string
-	ticker       *time.Ticker
 }
 
 // NewCapacityMonitor creates a new CapacityMonitor
-func NewCapacityMonitor(name, instance string, interval time.Duration) *CapacityMonitor {
+func NewCapacityMonitor(name, instance string) *CapacityMonitor {
 	return &CapacityMonitor{
 		name:     name,
 		instance: instance,
-		ticker:   time.NewTicker(interval),
+		avg:      ewma.NewMovingAverage(),
+		avgBytes: ewma.NewMovingAverage(),
 	}
 }
 
@@ -57,19 +58,12 @@ func (i *CapacityMonitor) AddEgress(pl MeasurablePayload) {
 
 func (i *CapacityMonitor) sample() {
 	i.samples++
-	i.avg = (i.avg*(i.samples-1) + float64(i.ingress-i.egress)) / i.samples
-	i.avgBytes = (i.avgBytes*(i.samples-1) + float64(i.ingressBytes-i.egressBytes)) / i.samples
+	i.avg.Add(float64(i.ingress - i.egress))
+	i.avgBytes.Add(float64(i.ingressBytes - i.egressBytes))
 	i.reportIfNeeded()
 }
 
 func (i *CapacityMonitor) reportIfNeeded() {
-	select {
-	case <-i.ticker.C:
-		TlmCapacity.Set(float64(i.avg), i.name, i.instance)
-		TlmCapacityBytes.Set(float64(i.avgBytes), i.name, i.instance)
-		i.avg = 0
-		i.avgBytes = 0
-		i.samples = 0
-	default:
-	}
+	TlmCapacity.Set(float64(i.avg.Value()), i.name, i.instance)
+	TlmCapacityBytes.Set(float64(i.avgBytes.Value()), i.name, i.instance)
 }

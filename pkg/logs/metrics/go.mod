@@ -12,6 +12,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3
+	github.com/VividCortex/ewma v1.2.0
 	github.com/stretchr/testify v1.9.0
 )
 

@@ -83,7 +83,7 @@ func (c *TelemetryPipelineMonitor) getMonitor(name string) *CapacityMonitor {
 	if !exists {
 		c.lock.Lock()
 		if c.monitors[key] == nil {
-			c.monitors[key] = NewCapacityMonitor(name, c.instanceID, c.interval)
+			c.monitors[key] = NewCapacityMonitor(name, c.instanceID)
 		}
 		monitor = c.monitors[key]
 		c.lock.Unlock()

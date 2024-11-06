@@ -24,6 +24,8 @@ crypto/internal/boring/bbig
 crypto/internal/boring/sig
 crypto/internal/edwards25519
 crypto/internal/edwards25519/field
+crypto/internal/hpke
+crypto/internal/mlkem768
 crypto/internal/nistec
 crypto/internal/nistec/fiat
 crypto/internal/randutil
@@ -341,6 +343,7 @@ github.com/DataDog/sketches-go/ddsketch/stat
 github.com/DataDog/sketches-go/ddsketch/store
 github.com/DataDog/viper
 github.com/DataDog/zstd
+github.com/VividCortex/ewma
 github.com/aws/aws-lambda-go/events
 github.com/aws/aws-sdk-go-v2/aws
 github.com/aws/aws-sdk-go-v2/aws/arn
@@ -1002,6 +1005,7 @@ html/template
 io
 io/fs
 io/ioutil
+iter
 k8s.io/apimachinery/pkg/runtime/schema
 k8s.io/apimachinery/pkg/util/sets
 log
@@ -1044,10 +1048,8 @@ regexp/syntax
 runtime
 runtime/cgo
 runtime/debug
-runtime/internal/atomic
 runtime/internal/math
 runtime/internal/sys
-runtime/internal/syscall
 runtime/metrics
 runtime/pprof
 runtime/trace
@@ -1066,6 +1068,7 @@ time
 unicode
 unicode/utf16
 unicode/utf8
+unique
 unsafe
 vendor/golang.org/x/crypto/chacha20
 vendor/golang.org/x/crypto/chacha20poly1305
@@ -1074,6 +1077,7 @@ vendor/golang.org/x/crypto/cryptobyte/asn1
 vendor/golang.org/x/crypto/hkdf
 vendor/golang.org/x/crypto/internal/alias
 vendor/golang.org/x/crypto/internal/poly1305
+vendor/golang.org/x/crypto/sha3
 vendor/golang.org/x/net/dns/dnsmessage
 vendor/golang.org/x/net/http/httpguts
 vendor/golang.org/x/net/http/httpproxy
