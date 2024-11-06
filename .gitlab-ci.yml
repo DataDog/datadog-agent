@@ -4,3 +4,5 @@ test_gitlab:
   script:
     - echo "Running tests"
     - pyenv virtualenvs --bare
+    - pyenv virtualenvs --bare | grep datadog-agent-python-3.11
+
