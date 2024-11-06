@@ -17,7 +17,7 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/otelcol"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -1127,7 +1127,7 @@ func TestUnmarshal(t *testing.T) {
 
 	provider, err := otelcol.NewConfigProvider(mapSettings)
 	require.NoError(t, err)
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 
 	components, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
 	require.NoError(t, err)

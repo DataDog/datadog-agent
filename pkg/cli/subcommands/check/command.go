@@ -45,8 +45,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -68,6 +69,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -76,6 +78,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -172,8 +175,25 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				apiimpl.Module(),
 				authtokenimpl.Module(),
 				fx.Supply(context.Background()),
-				fx.Provide(tagger.NewTaggerParamsForCoreAgent),
-				taggerimpl.Module(),
+				dualTaggerfx.Module(tagger.DualParams{
+					UseRemote: func(c config.Component) bool {
+						return pkgconfigsetup.IsCLCRunner(c) && c.GetBool("clc_runner_remote_tagger_enabled")
+					},
+				}, tagger.Params{}, tagger.RemoteParams{
+					RemoteTarget: func(config.Component) (string, error) {
+						target, err := utils.GetClusterAgentEndpoint()
+						if err != nil {
+							return "", err
+						}
+						return strings.TrimPrefix(target, "https://"), nil
+					},
+					RemoteTokenFetcher: func(c config.Component) func() (string, error) {
+						return func() (string, error) {
+							return security.GetClusterAgentAuthToken(c)
+						}
+					},
+					RemoteFilter: taggerTypes.NewFilterBuilder().Exclude(taggerTypes.KubernetesPodUID).Build(taggerTypes.HighCardinality),
+				}),
 				autodiscoveryimpl.Module(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithNoopForwarder())),
 				inventorychecksimpl.Module(),

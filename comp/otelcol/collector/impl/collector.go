@@ -30,7 +30,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
