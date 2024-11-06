@@ -43,7 +43,7 @@ func bestGuessServiceTag(serviceValues []string) string {
 }
 
 // getProcessService returns the service tag based on the process context
-func getProcessService(config *config.Config, entry *model.ProcessCacheEntry) string {
+func getProcessService(config *config.Config, entry *model.ProcessCacheEntry) (string, bool) {
 	var serviceValues []string
 
 	// first search in the process context itself
@@ -69,8 +69,30 @@ func getProcessService(config *config.Config, entry *model.ProcessCacheEntry) st
 	}
 
 	if service := bestGuessServiceTag(serviceValues); service != "" {
-		return service
+		return service, true
 	}
 
-	return config.RuntimeSecurity.HostServiceName
+	return config.RuntimeSecurity.HostServiceName, false
+}
+
+type pceResolver interface {
+	ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool)
+}
+
+func resolveService(cfg *config.Config, fh pceResolver, ev *model.Event, e *model.BaseEvent) string {
+	if e.Service != "" {
+		return e.Service
+	}
+
+	entry, _ := fh.ResolveProcessCacheEntry(ev)
+	if entry == nil {
+		return ""
+	}
+
+	service, ok := getProcessService(cfg, entry)
+	if ok {
+		e.Service = service
+	}
+
+	return service
 }

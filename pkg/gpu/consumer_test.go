@@ -15,12 +15,16 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestConsumerCanStartAndStop(t *testing.T) {
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	cfg := config.NewConfig()
-	consumer := newCudaEventConsumer(handler, cfg)
+	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
+	require.NoError(t, err)
+	consumer := newCudaEventConsumer(ctx, handler, cfg)
 
 	consumer.Start()
 	require.Eventually(t, func() bool { return consumer.running.Load() }, 100*time.Millisecond, 10*time.Millisecond)
