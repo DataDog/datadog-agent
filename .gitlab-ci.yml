@@ -7,8 +7,8 @@ test_gitlab:
     - VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
     - echo "venv $VENV_NAME python $PYTHON_REPO_VERSION"
     - ls tata || echo "Ignoring tata"
-    - pyenv virtualenv $PYTHON_VERSION $VENV_NAME || echo "Virtualenv already exists, skipping creation"
+    - pyenv virtualenv "$PYTHON_VERSION" "$VENV_NAME" || echo "Virtualenv already exists, skipping creation"
     - echo "toto"
-  
+
 
 
