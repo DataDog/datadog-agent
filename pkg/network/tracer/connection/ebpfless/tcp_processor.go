@@ -96,6 +96,7 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4
 				st.lastAck = tcp.Ack
 			} else if isSeqBefore(st.lastAck, tcp.Ack) {
 				ackDiff := tcp.Ack - st.lastAck
+				// if this is ack'ing a fin packet, there is an extra sequence number to cancel out
 				if isFinAck {
 					ackDiff--
 				}
@@ -207,6 +208,8 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4
 		switch st.tcpState {
 		case TcpStateClosed:
 			// retransmitted, ignore
+		case TcpStateTimeWait:
+			// already closed, ignore
 		case TcpStateSynSent:
 			fallthrough
 		case TcpStateSynRecv:
