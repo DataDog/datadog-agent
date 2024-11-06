@@ -177,8 +177,7 @@ func GetHostAliases(ctx context.Context) ([]string, error) {
 	log.Debugf("failed to get instance ID from DMI for Host Alias: %s", err)
 
 	// Try to use IMSDv2 if GetInstanceID didn't try it already
-	imdsv2Action := useIMDSv2()
-	if imdsv2Action == imdsV1 {
+	if useIMDSv2() == imdsV1 {
 		imsdv2InstanceID, err := GetIDMSv2InstanceID(ctx)
 		if err == nil {
 			return []string{imsdv2InstanceID}, nil
