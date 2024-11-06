@@ -112,8 +112,8 @@ func (t *GPUMonitoringModule) Close() {
 	t.Probe.Close()
 }
 
-// CreateProcessEventConsumer creates the process event consumer for the GPU module. Should be called from the event monitor module
-func CreateProcessEventConsumer(evm *eventmonitor.EventMonitor) error {
+// createGPUProcessEventConsumer creates the process event consumer for the GPU module. Should be called from the event monitor module
+func createGPUProcessEventConsumer(evm *eventmonitor.EventMonitor) error {
 	var err error
 	processEventConsumer, err = consumers.NewProcessConsumer(processConsumerId, processConsumerChanSize, processConsumerEventTypes, evm)
 	if err != nil {

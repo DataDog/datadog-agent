@@ -14,7 +14,6 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
-	"github.com/DataDog/datadog-agent/pkg/gpu"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	netconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
@@ -97,7 +96,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 
 	gpucfg := gpuconfig.NewConfig()
 	if gpucfg.Enabled {
-		err := gpu.CreateProcessEventConsumer(evm)
+		err := createGPUProcessEventConsumer(evm)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create event consumer for GPU: %w", err)
 		}
