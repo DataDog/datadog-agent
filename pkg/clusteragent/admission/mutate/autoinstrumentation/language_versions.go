@@ -108,6 +108,10 @@ func (l language) isSupported() bool {
 	return slices.Contains(supportedLanguages, l)
 }
 
+func (l language) isEnabledByDefault() bool {
+	return l != "php"
+}
+
 // languageVersions defines the major library versions we consider "default" for each
 // supported language. If not set, we will default to "latest", see defaultLibVersion.
 //
