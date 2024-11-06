@@ -98,10 +98,13 @@ func (t *Telemetry) Start(_ context.Context) error {
 	// The environment variable is usually not present, but can in certain cases
 	// be inherited from the login shell when the agent is started by the
 	// install script.
-	if appsecEnv, envSet := os.LookupEnv("DD_APPSEC_ENABLED"); envSet {
+	const appsecEnvVar = "DD_APPSEC_ENABLED"
+	if appsecEnv, envSet := os.LookupEnv(appsecEnvVar); envSet {
 		truthy, err := strconv.ParseBool(appsecEnv)
 		if truthy || err != nil {
-			os.Setenv("DD_APPSEC_ENABLED", "false")
+			os.Setenv(appsecEnvVar, "false")
+			// Restore the original value after the tracer is started...
+			defer os.Setenv(appsecEnvVar, appsecEnv)
 		}
 	}
 
