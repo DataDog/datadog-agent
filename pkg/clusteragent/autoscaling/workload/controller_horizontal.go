@@ -41,6 +41,9 @@ const (
 
 	defaultMinReplicas int32 = 1
 	defaultMaxReplicas int32 = math.MaxInt32
+
+	stabilizationWindowDownscaleSeconds int32 = 300
+	stabilizationWindowUpscaleSeconds   int32 = 0
 )
 
 type horizontalController struct {
@@ -204,6 +207,19 @@ func (hr *horizontalController) computeScaleAction(
 		return nil, 0, errors.New(reason)
 	}
 
+	var evalAfter time.Duration
+	var limitReason string
+
+	// Stabilize recommendation
+	var stabilizationLimitReason string
+	var stabilizationLimitedReplicas int32
+
+	stabilizationLimitedReplicas, stabilizationLimitReason = stabilizeRecommendations(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), targetDesiredReplicas, currentDesiredReplicas, stabilizationWindowUpscaleSeconds, stabilizationWindowDownscaleSeconds)
+	if stabilizationLimitReason != "" {
+		limitReason = stabilizationLimitReason
+		targetDesiredReplicas = stabilizationLimitedReplicas
+	}
+
 	// Going back inside requested boundaries in one shot.
 	// TODO: Should we apply scaling rules in this case?
 	if outsideBoundaries {
@@ -216,9 +232,6 @@ func (hr *horizontalController) computeScaleAction(
 			LimitedReason:       pointer.Ptr(fmt.Sprintf("current replica count is outside of min/max constraints, scaling back to closest boundary: %d replicas", targetDesiredReplicas)),
 		}, 0, nil
 	}
-
-	var evalAfter time.Duration
-	var limitReason string
 
 	// Scaling is allowed, applying Min/Max replicas constraints from Spec
 	if targetDesiredReplicas > maxReplicas {
@@ -456,4 +469,48 @@ func accumulateReplicasChange(currentTime time.Time, events []datadoghq.DatadogP
 		expireIn = periodDuration
 	}
 	return
+}
+
+func stabilizeRecommendations(currentTime time.Time, pastActions []datadoghq.DatadogPodAutoscalerHorizontalAction, originalTargetDesiredReplicas int32, currentDesiredReplicas int32, stabilizationWindowUpscaleSeconds int32, stabilizationWindowDownscaleSeconds int32) (int32, string) {
+	targetDesiredReplicas := originalTargetDesiredReplicas
+	limitReason := ""
+
+	if len(pastActions) == 0 {
+		return targetDesiredReplicas, limitReason
+	}
+
+	upRecommendation := originalTargetDesiredReplicas
+	upCutoff := currentTime.Add(-time.Duration(stabilizationWindowUpscaleSeconds) * time.Second)
+
+	downRecommendation := originalTargetDesiredReplicas
+	downCutoff := currentTime.Add(-time.Duration(stabilizationWindowDownscaleSeconds) * time.Second)
+
+	for _, a := range pastActions {
+		fmt.Printf("Action: %v\n", a)
+		if a.Time.Time.After(upCutoff) {
+			fmt.Printf("UP: upRec %d, recommended %d\n", upRecommendation, *a.RecommendedReplicas)
+			upRecommendation = min(upRecommendation, *a.RecommendedReplicas)
+		}
+
+		if a.Time.Time.After(downCutoff) {
+			fmt.Printf("DOWN: downRec %d, recommended %d\n", downRecommendation, *a.RecommendedReplicas)
+			downRecommendation = max(downRecommendation, *a.RecommendedReplicas)
+		}
+
+		if a.Time.Time.Before(upCutoff) && a.Time.Time.Before(downCutoff) {
+			break
+		}
+	}
+
+	if currentDesiredReplicas < upRecommendation {
+		targetDesiredReplicas = upRecommendation
+		limitReason = fmt.Sprintf("desired replica count limited to %d (originally %d) due to stabilization window (lowest recent recommendation)", targetDesiredReplicas, originalTargetDesiredReplicas)
+	}
+
+	if currentDesiredReplicas > downRecommendation {
+		targetDesiredReplicas = downRecommendation
+		limitReason = fmt.Sprintf("desired replica count limited to %d (originally %d) due to stabilization window (highest recent recommendation)", targetDesiredReplicas, originalTargetDesiredReplicas)
+	}
+
+	return targetDesiredReplicas, limitReason
 }
