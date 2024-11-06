@@ -109,8 +109,9 @@ func isUnsupportedUbuntu(t *testing.T) bool {
 	require.NoError(t, err)
 	platformVersion, err := kernel.PlatformVersion()
 	require.NoError(t, err)
+	arch := kernel.Arch()
 
-	return platform == ubuntuPlatform && platformVersion == "24.10"
+	return platform == ubuntuPlatform && platformVersion == "24.10" && arch == "x86"
 }
 
 func skipTestIfKernelNotSupported(t *testing.T) {
