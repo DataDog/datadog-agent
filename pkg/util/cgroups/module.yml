@@ -1,3 +1,2 @@
 condition: is_linux
-independent: true
 used_by_otel: true

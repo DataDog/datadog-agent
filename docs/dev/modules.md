@@ -29,11 +29,11 @@ After you have refactored, if needed, and listed the packages that you want to e
 
     ```yaml
     condition: is_linux
-    independent: true
     used_by_otel: true
     ```
 
     ```yaml
+    independent: false
     lint_targets:
     - ./pkg
     - ./cmd

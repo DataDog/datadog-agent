@@ -1,4 +1,3 @@
-independent: true
 lint_targets:
 - .
 - ./examples

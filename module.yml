@@ -1,3 +1,4 @@
+independent: false
 lint_targets:
 - ./pkg
 - ./cmd

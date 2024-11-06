@@ -36,7 +36,7 @@ class GoModule:
         A module is defined within a module.yml next to the go.mod file containing the following fields by default (these can be omitted if the default value is used):
         > condition: always
         > importable: true
-        > independent: false
+        > independent: true
         > lint_targets:
         > - .
         > should_tag: true
@@ -65,7 +65,7 @@ class GoModule:
     # A better solution would be to automatically detect if a module contains a main package,
     # at the cost of spending some time parsing the module.
     importable: bool = True
-    independent: bool = False
+    independent: bool = True
     lint_targets: list[str] | None = None
     used_by_otel: bool = False
     base_dir: Path | None = None
@@ -125,6 +125,7 @@ class GoModule:
 
                 return GoModule.from_dict(module_path, data, base_dir=base_dir)
         else:
+            # Default attributes
             return GoModule.from_dict(module_path, {}, base_dir=base_dir)
 
     @staticmethod
@@ -179,10 +180,15 @@ class GoModule:
 
         assert full_path.is_dir(), f"Directory {dir_path} does not exist"
 
-        with open(full_path / 'module.yml', "w") as file:
-            data = self.to_dict()
-            del data['path']
+        data = self.to_dict()
+        del data['path']
 
+        # Default attributes
+        if not data:
+            (full_path / 'module.yml').unlink(missing_ok=True)
+            return
+
+        with open(full_path / 'module.yml', "w") as file:
             yaml.dump(data, file, Dumper=GoModuleDumper)
 
     def verify_condition(self) -> bool:
