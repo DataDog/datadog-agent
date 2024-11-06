@@ -394,7 +394,7 @@ func (s *TracerSuite) TestTCPConnsReported() {
 		time.Sleep(time.Millisecond * 500)
 	}
 
-	// in ebpfless, it takes time for the packet capture to arrive, so poll
+	// for ebpfless, it takes time for the packet capture to arrive, so poll
 	require.Eventually(t, func() bool {
 		// Test
 		connections := getConnections(t, tr)
@@ -1084,7 +1084,7 @@ func (s *TracerSuite) TestTCPEstablished() {
 	var conn *network.ConnectionStats
 	var ok bool
 
-	// in ebpfless, wait for the packet capture to appear
+	// for ebpfless, wait for the packet capture to appear
 	require.Eventually(t, func() bool {
 		conn, ok = findConnection(laddr, raddr, getConnections(t, tr))
 		return ok

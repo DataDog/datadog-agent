@@ -23,10 +23,10 @@ var localhost net.IP = net.ParseIP("127.0.0.1")
 var remoteIP net.IP = net.ParseIP("12.34.56.78")
 
 const (
-	MIN_IHL             = 5
-	DEFAULT_LOCAL_PORT  = 12345
-	DEFAULT_REMOTE_PORT = 8080
-	DEFAULT_NS_ID       = 123
+	minIhl            = 5
+	defaultLocalPort  = 12345
+	defaultRemotePort = 8080
+	defaultNsId       = 123
 )
 
 const (
@@ -39,7 +39,7 @@ const (
 func ipv4Packet(src, dst net.IP, length uint16) layers.IPv4 {
 	return layers.IPv4{
 		Version:    4,
-		IHL:        MIN_IHL,
+		IHL:        minIhl,
 		TOS:        0,
 		Length:     length,
 		Id:         12345,
@@ -137,7 +137,7 @@ func makeTcpStates(synPkt testCapture) *network.ConnectionStats {
 			Source: util.AddressFromNetIP(srcIP),
 			Dest:   util.AddressFromNetIP(dstIP),
 			Pid:    0, // @stu we can't know this right
-			NetNS:  DEFAULT_NS_ID,
+			NetNS:  defaultNsId,
 			SPort:  uint16(synPkt.tcp.SrcPort),
 			DPort:  uint16(synPkt.tcp.DstPort),
 			Type:   network.TCP,
@@ -158,10 +158,10 @@ type tcpTestFixture struct {
 const TCP_HEADER_SIZE = 20
 
 func (fixture *tcpTestFixture) incoming(payloadLen uint16, relSeq, relAck uint32, flags uint8) testCapture {
-	ipv4 := ipv4Packet(remoteIP, localhost, MIN_IHL*4+TCP_HEADER_SIZE+payloadLen)
+	ipv4 := ipv4Packet(remoteIP, localhost, minIhl*4+TCP_HEADER_SIZE+payloadLen)
 	seq := relSeq + fixture.localSeqBase
 	ack := relAck + fixture.remoteSeqBase
-	tcp := tcpPacket(DEFAULT_REMOTE_PORT, DEFAULT_LOCAL_PORT, seq, ack, flags)
+	tcp := tcpPacket(defaultRemotePort, defaultLocalPort, seq, ack, flags)
 	return testCapture{
 		pktType: unix.PACKET_HOST,
 		ipv4:    &ipv4,
@@ -171,10 +171,10 @@ func (fixture *tcpTestFixture) incoming(payloadLen uint16, relSeq, relAck uint32
 }
 
 func (fixture *tcpTestFixture) outgoing(payloadLen uint16, relSeq, relAck uint32, flags uint8) testCapture {
-	ipv4 := ipv4Packet(localhost, remoteIP, MIN_IHL*4+TCP_HEADER_SIZE+payloadLen)
+	ipv4 := ipv4Packet(localhost, remoteIP, minIhl*4+TCP_HEADER_SIZE+payloadLen)
 	seq := relSeq + fixture.remoteSeqBase
 	ack := relAck + fixture.localSeqBase
-	tcp := tcpPacket(DEFAULT_LOCAL_PORT, DEFAULT_REMOTE_PORT, seq, ack, flags)
+	tcp := tcpPacket(defaultLocalPort, defaultRemotePort, seq, ack, flags)
 	return testCapture{
 		pktType: unix.PACKET_OUTGOING,
 		ipv4:    &ipv4,

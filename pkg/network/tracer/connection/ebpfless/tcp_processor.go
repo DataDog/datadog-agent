@@ -60,6 +60,8 @@ func NewTCPProcessor() *TCPProcessor {
 	}
 }
 
+// Process handles a TCP packet, calculating stats and keeping track of its state according to the
+// TCP state machine.
 // https://users.cs.northwestern.edu/~agupta/cs340/project2/TCPIP_State_Transition_Diagram.pdf
 func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, tcp *layers.TCP) error {
 	payloadLen, err := TCPPayloadLen(conn.Family, ip4, ip6, tcp)
@@ -322,21 +324,6 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4
 		}
 		goto done
 	} // end FIN
-
-	//if tcp.FIN || tcp.RST {
-	//	if !st.closed {
-	//		st.closed = true
-	//		conn.Monotonic.TCPClosed++
-	//		conn.Duration = time.Duration(time.Now().UnixNano() - int64(conn.Duration))
-	//	}
-	//	delete(t.conns, key)
-	//	return nil
-	//}
-	//
-	//if !tcp.SYN && !st.established {
-	//	st.established = true
-	//	conn.Monotonic.TCPEstablished++
-	//}
 
 done:
 
