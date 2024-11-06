@@ -120,7 +120,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 		}
 
 		state = append(state, taggerTypes.Entity{
-			ID:                          entityID,
+			ID:                          *entityID,
 			HighCardinalityTags:         entity.HighCardinalityTags,
 			OrchestratorCardinalityTags: entity.OrchestratorCardinalityTags,
 			LowCardinalityTags:          entity.LowCardinalityTags,

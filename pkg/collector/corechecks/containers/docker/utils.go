@@ -30,7 +30,7 @@ func getProcessorFilter(legacyFilter *containers.Filter, store workloadmeta.Comp
 	}
 }
 
-func getImageTagsFromContainer(taggerEntityID string, resolvedImageName string, isContainerExcluded bool) ([]string, error) {
+func getImageTagsFromContainer(taggerEntityID types.EntityID, resolvedImageName string, isContainerExcluded bool) ([]string, error) {
 	if isContainerExcluded {
 		return getImageTags(resolvedImageName)
 	}

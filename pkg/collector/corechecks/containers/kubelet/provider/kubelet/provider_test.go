@@ -19,7 +19,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -138,7 +140,9 @@ func (suite *ProviderTestSuite) SetupTest() {
 	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
 	defer fakeTagger.ResetTagger()
 	for entity, tags := range commontesting.CommonTags {
-		fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
+		prefix, id, _ := taggercommon.ExtractPrefixAndID(entity)
+		entityID := taggertypes.NewEntityID(prefix, id)
+		fakeTagger.SetTags(entityID, "foo", tags, nil, nil, nil)
 	}
 
 	podUtils := common.NewPodUtils()

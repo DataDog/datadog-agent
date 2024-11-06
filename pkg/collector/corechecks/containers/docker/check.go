@@ -239,7 +239,7 @@ func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, ra
 
 		isContainerExcluded := d.containerFilter.IsExcluded(annotations, containerName, resolvedImageName, rawContainer.Labels[kubernetes.CriContainerNamespaceLabel])
 		isContainerRunning := rawContainer.State == string(workloadmeta.ContainerStatusRunning)
-		taggerEntityID := types.NewEntityID(types.ContainerID, rawContainer.ID).String()
+		taggerEntityID := types.NewEntityID(types.ContainerID, rawContainer.ID)
 		tags, err := getImageTagsFromContainer(taggerEntityID, resolvedImageName, isContainerExcluded || !isContainerRunning)
 		if err != nil {
 			log.Debugf("Unable to fetch tags for image: %s, err: %v", rawContainer.ImageID, err)

@@ -239,6 +239,11 @@ func (d *DBMAuroraService) GetTags() ([]string, error) {
 	return []string{}, nil
 }
 
+// GetTagsWithCardinality returns the tags with given cardinality. Not supported in DBMAuroraService
+func (d *DBMAuroraService) GetTagsWithCardinality(_ string) ([]string, error) {
+	return d.GetTags()
+}
+
 // GetPid returns nil and an error because pids are currently not supported
 func (d *DBMAuroraService) GetPid(context.Context) (int, error) {
 	return -1, ErrNotSupported

@@ -109,14 +109,20 @@ void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)
     bpf_probe_read(&file->metadata.ctime, sizeof(file->metadata.ctime), &d_inode->i_ctime);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
     bpf_probe_read(&file->metadata.ctime, sizeof(file->metadata.ctime), &d_inode->__i_ctime);
+#else
+    bpf_probe_read(&file->metadata.ctime.tv_sec, sizeof(file->metadata.ctime.tv_sec), &d_inode->i_ctime_sec);
+    bpf_probe_read(&file->metadata.ctime.tv_nsec, sizeof(file->metadata.ctime.tv_nsec), &d_inode->i_ctime_nsec);
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 7, 0)
     bpf_probe_read(&file->metadata.mtime, sizeof(file->metadata.mtime), &d_inode->i_mtime);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
     bpf_probe_read(&file->metadata.mtime, sizeof(file->metadata.mtime), &d_inode->__i_mtime);
+#else
+    bpf_probe_read(&file->metadata.mtime.tv_sec, sizeof(file->metadata.mtime.tv_sec), &d_inode->i_mtime_sec);
+    bpf_probe_read(&file->metadata.mtime.tv_nsec, sizeof(file->metadata.mtime.tv_nsec), &d_inode->i_mtime_nsec);
 #endif
 }
 

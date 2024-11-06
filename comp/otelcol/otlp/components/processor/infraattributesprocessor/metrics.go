@@ -97,7 +97,7 @@ func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md
 
 		// Get all unique tags from resource attributes and global tags
 		for _, entityID := range entityIDs {
-			entityTags, err := iamp.tagger.Tag(entityID.String(), iamp.cardinality)
+			entityTags, err := iamp.tagger.Tag(entityID, iamp.cardinality)
 			if err != nil {
 				iamp.logger.Error("Cannot get tags for entity", zap.String("entityID", entityID.String()), zap.Error(err))
 				continue

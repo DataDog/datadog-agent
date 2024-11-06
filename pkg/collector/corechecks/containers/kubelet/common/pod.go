@@ -85,7 +85,7 @@ func (p *PodUtils) PopulateForPod(pod *kubelet.Pod) {
 // computePodTagsByPVC stores the tags for a given pod in a global caching layer, indexed by pod namespace and persistent
 // volume name.
 func (p *PodUtils) computePodTagsByPVC(pod *kubelet.Pod) {
-	podUID := types.NewEntityID(types.KubernetesPodUID, pod.Metadata.UID).String()
+	podUID := types.NewEntityID(types.KubernetesPodUID, pod.Metadata.UID)
 	tags, _ := tagger.Tag(podUID, types.OrchestratorCardinality)
 	if len(tags) == 0 {
 		return
@@ -192,7 +192,5 @@ func GetContainerID(store workloadmeta.Component, metric model.Metric, filter *c
 		return "", ErrContainerExcluded
 	}
 
-	cID := types.NewEntityID(types.ContainerID, container.ID).String()
-
-	return cID, nil
+	return container.ID, nil
 }

@@ -21,7 +21,7 @@ import (
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	noopAutodiscover "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -105,7 +105,7 @@ func MakeCommand() *cobra.Command {
 					defaultpaths.DogstatsDLogFile,
 					defaultpaths.StreamlogsLogFile,
 				)),
-				fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
+				noopAutodiscover.Module(),
 				fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				compressionimpl.Module(),

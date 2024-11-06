@@ -63,6 +63,8 @@ type AgentDemultiplexer struct {
 
 	senders *senders
 
+	hostTagProvider *HostTagProvider
+
 	// sharded statsd time samplers
 	statsd
 }
@@ -159,7 +161,6 @@ func initAgentDemultiplexer(
 
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(pkgconfigsetup.Datadog()))
-
 	_, statsdPipelinesCount := GetDogStatsDWorkerAndPipelineCount()
 	log.Debug("the Demultiplexer will use", statsdPipelinesCount, "pipelines")
 
@@ -190,7 +191,6 @@ func initAgentDemultiplexer(
 	}
 
 	// --
-
 	demux := &AgentDemultiplexer{
 		log:       log,
 		options:   options,
@@ -208,7 +208,8 @@ func initAgentDemultiplexer(
 			noAggSerializer:  noAggSerializer,
 		},
 
-		senders: newSenders(agg),
+		hostTagProvider: NewHostTagProvider(),
+		senders:         newSenders(agg),
 
 		// statsd time samplers
 		statsd: statsd{
@@ -400,8 +401,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	}
 
 	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
-	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, logPayloads, false)
-
+	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, logPayloads, false, d.hostTagProvider)
 	metrics.Serialize(
 		series,
 		sketches,

@@ -109,6 +109,11 @@ func (s *EnvironmentService) GetTags() ([]string, error) {
 	return nil, nil
 }
 
+// GetTagsWithCardinality returns the tags with given cardinality. Not supported in EnvironmentService
+func (s *EnvironmentService) GetTagsWithCardinality(_ string) ([]string, error) {
+	return s.GetTags()
+}
+
 // GetPid inspect the container and return its pid
 // Not relevant in this listener
 func (s *EnvironmentService) GetPid(context.Context) (int, error) {

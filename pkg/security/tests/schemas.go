@@ -10,8 +10,10 @@ package tests
 
 import (
 	"embed"
+	"fmt"
 	"math/big"
 	"net/http"
+	"os"
 	"testing"
 
 	"github.com/xeipuuv/gojsonschema"
@@ -22,9 +24,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 )
 
-const (
-	upstreamEventSchema = "https://raw.githubusercontent.com/DataDog/datadog-agent/main/docs/cloud-workload-security/backend.schema.json"
-)
+func getUpstreamEventSchema() string {
+	sha, _ := os.LookupEnv("CI_COMMIT_SHA")
+	if sha == "" {
+		sha = "main"
+	}
+	return fmt.Sprintf("https://raw.githubusercontent.com/DataDog/datadog-agent/%s/docs/cloud-workload-security/backend_linux.schema.json", sha)
+}
+
+var upstreamEventSchema = getUpstreamEventSchema()
 
 //nolint:deadcode,unused
 //go:embed schemas

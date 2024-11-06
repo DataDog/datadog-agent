@@ -6,9 +6,10 @@
 package tagger
 
 import (
-	"fmt"
+	"errors"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -37,23 +38,41 @@ func UnlockGlobalTaggerClient() {
 }
 
 // GetEntity returns the hash for the provided entity id.
-func GetEntity(entityID string) (*types.Entity, error) {
+func GetEntity(entityID types.EntityID) (*types.Entity, error) {
 	if globalTagger == nil {
-		return nil, fmt.Errorf("a global tagger must be set before calling GetEntity")
+		return nil, errors.New("a global tagger must be set before calling GetEntity")
 	}
 	return globalTagger.GetEntity(entityID)
 }
 
-// Tag is an interface function that queries taggerclient singleton
-func Tag(entity string, cardinality types.TagCardinality) ([]string, error) {
+// LegacyTag is an interface function that queries taggerclient singleton
+// If possible, avoid using this function, and use the Tag interface function instead.
+// This function exists in order not to break backward compatibility with rtloader and python
+// integrations using the tagger
+func LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
 	if globalTagger == nil {
-		return nil, fmt.Errorf("a global tagger must be set before calling Tag")
+		return nil, errors.New("a global tagger must be set before calling Tag")
+	}
+
+	prefix, id, err := common.ExtractPrefixAndID(entity)
+	if err != nil {
+		return nil, err
+	}
+
+	entityID := types.NewEntityID(prefix, id)
+	return globalTagger.Tag(entityID, cardinality)
+}
+
+// Tag is an interface function that queries taggerclient singleton
+func Tag(entity types.EntityID, cardinality types.TagCardinality) ([]string, error) {
+	if globalTagger == nil {
+		return nil, errors.New("a global tagger must be set before calling Tag")
 	}
 	return globalTagger.Tag(entity, cardinality)
 }
 
 // GetEntityHash is an interface function that queries taggerclient singleton
-func GetEntityHash(entityID string, cardinality types.TagCardinality) string {
+func GetEntityHash(entityID types.EntityID, cardinality types.TagCardinality) string {
 	if globalTagger != nil {
 		return globalTagger.GetEntityHash(entityID, cardinality)
 	}
@@ -63,7 +82,7 @@ func GetEntityHash(entityID string, cardinality types.TagCardinality) string {
 // AgentTags is an interface function that queries taggerclient singleton
 func AgentTags(cardinality types.TagCardinality) ([]string, error) {
 	if globalTagger == nil {
-		return nil, fmt.Errorf("a global tagger must be set before calling AgentTags")
+		return nil, errors.New("a global tagger must be set before calling AgentTags")
 	}
 	return globalTagger.AgentTags(cardinality)
 }
@@ -71,7 +90,7 @@ func AgentTags(cardinality types.TagCardinality) ([]string, error) {
 // GlobalTags is an interface function that queries taggerclient singleton
 func GlobalTags(cardinality types.TagCardinality) ([]string, error) {
 	if globalTagger == nil {
-		return nil, fmt.Errorf("a global tagger must be set before calling GlobalTags")
+		return nil, errors.New("a global tagger must be set before calling GlobalTags")
 	}
 	return globalTagger.GlobalTags(cardinality)
 }

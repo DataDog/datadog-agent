@@ -8,13 +8,18 @@ package utils
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
+	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+
+	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
 )
 
 // TestOTelAgentInstalled checks that the OTel Agent is installed in the test suite
@@ -24,7 +29,7 @@ func TestOTelAgentInstalled(s OTelTestSuite) {
 }
 
 // TestOTelFlare tests that the OTel Agent flare functionality works as expected
-func TestOTelFlare(s OTelTestSuite) {
+func TestOTelFlare(s OTelTestSuite, providedCfg string, fullCfg string, sources string) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 
@@ -56,10 +61,19 @@ func TestOTelFlare(s OTelTestSuite) {
 	otelResponseContent, err := flare.GetFileContent(otelResponse)
 	s.T().Log("Got flare otel-response.json", otelResponseContent)
 	require.NoError(s.T(), err)
-	expectedContents := []string{"otel-agent", "ddflare/dd-autoconfigured:", "health_check/dd-autoconfigured:", "pprof/dd-autoconfigured:", "zpages/dd-autoconfigured:", "infraattributes/dd-autoconfigured:", "prometheus/dd-autoconfigured:", "key: '[REDACTED]'"}
-	for _, expected := range expectedContents {
-		assert.Contains(s.T(), otelResponseContent, expected)
-	}
+	var resp extension.Response
+	require.NoError(s.T(), json.Unmarshal([]byte(otelResponseContent), &resp))
+
+	assert.Equal(s.T(), "otel-agent", resp.AgentCommand)
+	assert.Equal(s.T(), "Datadog Agent OpenTelemetry Collector", resp.AgentDesc)
+	assert.Equal(s.T(), "", resp.RuntimeOverrideConfig)
+
+	validateConfigs(s.T(), providedCfg, resp.CustomerConfig)
+	validateConfigs(s.T(), fullCfg, resp.RuntimeConfig)
+
+	srcJSONStr, err := json.Marshal(resp.Sources)
+	require.NoError(s.T(), err)
+	assert.JSONEq(s.T(), sources, string(srcJSONStr))
 }
 
 func getAgentPod(s OTelTestSuite) corev1.Pod {
@@ -69,4 +83,26 @@ func getAgentPod(s OTelTestSuite) corev1.Pod {
 	require.NoError(s.T(), err)
 	require.NotEmpty(s.T(), res.Items)
 	return res.Items[0]
+}
+
+func validateConfigs(t *testing.T, expectedCfg string, actualCfg string) {
+	var actualConfRaw map[string]any
+	require.NoError(t, yaml.Unmarshal([]byte(actualCfg), &actualConfRaw))
+
+	// Traces, metrics and logs endpoints are set dynamically to the fake intake address in the config
+	// These endpoints vary from test to test and should be ignored in the comparison
+	exps, _ := actualConfRaw["exporters"].(map[string]any)
+	ddExp, _ := exps["datadog"].(map[string]any)
+	tcfg := ddExp["traces"].(map[string]any)
+	delete(tcfg, "endpoint")
+	mcfg := ddExp["metrics"].(map[string]any)
+	delete(mcfg, "endpoint")
+	lcfg := ddExp["logs"].(map[string]any)
+	delete(lcfg, "endpoint")
+
+	actualCfgBytes, err := yaml.Marshal(actualConfRaw)
+	require.NoError(t, err)
+	actualCfg = string(actualCfgBytes)
+
+	assert.YAMLEq(t, expectedCfg, actualCfg)
 }

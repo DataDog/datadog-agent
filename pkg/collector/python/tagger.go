@@ -26,7 +26,7 @@ import "C"
 
 // for testing purposes
 var (
-	tagsFunc = tagger.Tag
+	tagsFunc = tagger.LegacyTag
 )
 
 // Tags bridges towards tagger.Tag to retrieve container tags

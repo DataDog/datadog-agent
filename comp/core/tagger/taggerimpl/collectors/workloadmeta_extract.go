@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
@@ -142,8 +143,6 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
 			case workloadmeta.KindContainerImageMetadata:
 				tagInfos = append(tagInfos, c.handleContainerImage(ev)...)
-			case workloadmeta.KindHost:
-				tagInfos = append(tagInfos, c.handleHostTags(ev)...)
 			case workloadmeta.KindKubernetesMetadata:
 				tagInfos = append(tagInfos, c.handleKubeMetadata(ev)...)
 			case workloadmeta.KindProcess:
@@ -298,17 +297,6 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 	}
 }
 
-func (c *WorkloadMetaCollector) handleHostTags(ev workloadmeta.Event) []*types.TagInfo {
-	hostTags := ev.Entity.(*workloadmeta.HostTags)
-	return []*types.TagInfo{
-		{
-			Source:      hostSource,
-			EntityID:    types.NewEntityID("internal", "global-entity-id"),
-			LowCardTags: hostTags.HostTags,
-		},
-	}
-}
-
 func (c *WorkloadMetaCollector) labelsToTags(labels map[string]string, tags *taglist.TagList) {
 	// standard tags from labels
 	c.extractFromMapWithFn(labels, standardDockerLabels, tags.AddStandard)
@@ -459,6 +447,8 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	taskTags.AddLow(tags.TaskName, task.Family)
 	taskTags.AddLow(tags.TaskFamily, task.Family)
 	taskTags.AddLow(tags.TaskVersion, task.Version)
+	taskTags.AddLow(tags.AwsAccount, strconv.Itoa(task.AWSAccountID))
+	taskTags.AddLow(tags.Region, task.Region)
 	taskTags.AddOrchestrator(tags.TaskARN, task.ID)
 
 	if task.ClusterName != "" {
@@ -469,7 +459,6 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	}
 
 	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
-		taskTags.AddLow(tags.Region, task.Region)
 		taskTags.AddLow(tags.AvailabilityZoneDeprecated, task.AvailabilityZone) // Deprecated
 		taskTags.AddLow(tags.AvailabilityZone, task.AvailabilityZone)
 	} else if c.collectEC2ResourceTags {

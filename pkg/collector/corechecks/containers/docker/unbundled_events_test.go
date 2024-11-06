@@ -132,7 +132,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 	defer fakeTagger.ResetTagger()
 	for _, ev := range incomingEvents {
 		fakeTagger.SetTags(
-			types.NewEntityID(types.ContainerID, ev.ContainerID).String(),
+			types.NewEntityID(types.ContainerID, ev.ContainerID),
 			"docker",
 			[]string{fmt.Sprintf("image_name:%s", ev.ImageName), fmt.Sprintf("container_name:%s", ev.ContainerName)},
 			[]string{},
