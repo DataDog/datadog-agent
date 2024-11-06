@@ -89,7 +89,7 @@ type Probe struct {
 	procMon        *monitor.ProcessMonitor
 }
 
-// NewProbe creates a GPU monitoring probe, containing relevant eBPF programs (uprobes), the
+// NewProbe creates and starts a GPU monitoring probe, containing relevant eBPF programs (uprobes), the
 // consumers for the events generated from the uprobes, and the stats generator to aggregate the data from
 // streams into per-process GPU stats.
 func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
