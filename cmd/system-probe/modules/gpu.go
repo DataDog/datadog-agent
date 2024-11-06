@@ -46,13 +46,13 @@ var GPUMonitoring = module.Factory{
 			return nil, fmt.Errorf("unable to initialize NVML library: %v", ret)
 		}
 
-		t, err := gpu.NewProbe(c, probeDeps)
+		p, err := gpu.NewProbe(c, probeDeps)
 		if err != nil {
-			return nil, fmt.Errorf("unable to start GPU monitoring: %w", err)
+			return nil, fmt.Errorf("unable to start %s: %w", config.GPUMonitoringModule, err)
 		}
 
 		return &GPUMonitoringModule{
-			Probe:     t,
+			Probe:     p,
 			lastCheck: atomic.NewInt64(0),
 		}, nil
 	},

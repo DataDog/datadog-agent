@@ -1261,7 +1261,7 @@ service:
 
 func TestMapGetChildNotFound(t *testing.T) {
 	m := map[string]interface{}{"a": "apple", "b": "banana"}
-	n, err := nodetreemodel.NewNode(m, model.SourceDefault)
+	n, err := nodetreemodel.NewNodeTree(m, model.SourceDefault)
 	assert.NoError(t, err)
 
 	val, err := n.GetChild("a")
