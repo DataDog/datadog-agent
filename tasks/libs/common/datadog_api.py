@@ -78,7 +78,7 @@ def send_event(title: str, text: str, tags: list[str] = None):
         api_instance = EventsApi(api_client)
         response = api_instance.create_event(body=body)
 
-        if response["errors"]:
+        if response.get("errors", None):
             print(
                 f"Error(s) while sending pipeline event to the Datadog backend: {response['errors']}", file=sys.stderr
             )
