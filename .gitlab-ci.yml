@@ -3,6 +3,7 @@ test_gitlab:
   tags: ["macos:monterey-amd64", "specific:true"]
   script:
     - PYTHON_REPO_VERSION=$(cat .python-version)
+    - PYTHON_VERSION=$(python3 --version | awk '{print $2}' | sed 's/\.[0-9]*$//')
     - VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
     - echo "venv $VENV_NAME python $PYTHON_REPO_VERSION"
     - pyenv virtualenv $PYTHON_VERSION $VENV_NAME || echo "Virtualenv already exists, skipping creation"
