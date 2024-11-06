@@ -26,7 +26,6 @@ import (
 
 // Provider provides message channels
 type Provider interface {
-	// 2.
 	Start()
 	Stop()
 	ReconfigureSDSStandardRules(standardRules []byte) (bool, error)
