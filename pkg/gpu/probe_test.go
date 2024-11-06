@@ -15,10 +15,10 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 )
 
 type probeTestSuite struct {
@@ -44,7 +44,8 @@ func (s *probeTestSuite) getProbe() *Probe {
 	cfg.InitialProcessSync = false
 
 	deps := ProbeDependencies{
-		NvmlLib: testutil.GetBasicNvmlMock(),
+		NvmlLib:        testutil.GetBasicNvmlMock(),
+		ProcessMonitor: consumerstestutil.NewTestProcessConsumer(t),
 	}
 	probe, err := NewProbe(cfg, deps)
 	require.NoError(t, err)
@@ -66,13 +67,7 @@ func (s *probeTestSuite) TestCanLoad() {
 func (s *probeTestSuite) TestCanReceiveEvents() {
 	t := s.T()
 
-	procMon := monitor.GetProcessMonitor()
-	require.NotNil(t, procMon)
-	require.NoError(t, procMon.Initialize(false))
-	t.Cleanup(procMon.Stop)
-
 	probe := s.getProbe()
-
 	cmd, err := testutil.RunSample(t, testutil.CudaSample)
 	require.NoError(t, err)
 
@@ -108,11 +103,6 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 
 func (s *probeTestSuite) TestCanGenerateStats() {
 	t := s.T()
-
-	procMon := monitor.GetProcessMonitor()
-	require.NotNil(t, procMon)
-	require.NoError(t, procMon.Initialize(false))
-	t.Cleanup(procMon.Stop)
 
 	probe := s.getProbe()
 
