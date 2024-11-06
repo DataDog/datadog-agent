@@ -177,6 +177,7 @@ func setupTraceAgent(tags map[string]string, tagger tagger.Component) trace.Serv
 		ColdStartSpanID:       random.Random.Uint64(),
 		AzureContainerAppTags: azureTags.String(),
 	})
+	traceAgent.SetTags(tags)
 	go func() {
 		for range time.Tick(3 * time.Second) {
 			traceAgent.Flush()
