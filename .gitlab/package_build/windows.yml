@@ -36,7 +36,7 @@
       -e BUNDLE_MIRROR__RUBYGEMS__ORG=${BUNDLE_MIRROR__RUBYGEMS__ORG}
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
       -e API_KEY_ORG2=${API_KEY_ORG2}
-      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\buildwin.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - get-childitem omnibus\pkg
@@ -108,7 +108,7 @@ windows_zip_agent_binaries_x64-a7:
       -e BUNDLE_MIRROR__RUBYGEMS__ORG=${BUNDLE_MIRROR__RUBYGEMS__ORG}
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
       -e API_KEY_ORG2=${API_KEY_ORG2}
-      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\buildwin.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - get-childitem omnibus\pkg
