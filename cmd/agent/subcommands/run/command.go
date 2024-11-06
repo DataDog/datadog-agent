@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -73,8 +74,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -125,6 +127,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
@@ -134,6 +137,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -393,8 +397,25 @@ func getSharedFxOption() fx.Option {
 		rcserviceimpl.Module(),
 		rcservicemrfimpl.Module(),
 		remoteconfig.Bundle(),
-		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
-		taggerimpl.Module(),
+		dualTaggerfx.Module(tagger.DualParams{
+			UseRemote: func(c config.Component) bool {
+				return pkgconfigsetup.IsCLCRunner(c) && c.GetBool("clc_runner_remote_tagger_enabled")
+			},
+		}, tagger.Params{}, tagger.RemoteParams{
+			RemoteTarget: func(config.Component) (string, error) {
+				target, err := utils.GetClusterAgentEndpoint()
+				if err != nil {
+					return "", err
+				}
+				return strings.TrimPrefix(target, "https://"), nil
+			},
+			RemoteTokenFetcher: func(c config.Component) func() (string, error) {
+				return func() (string, error) {
+					return security.GetClusterAgentAuthToken(c)
+				}
+			},
+			RemoteFilter: taggerTypes.NewFilterBuilder().Exclude(taggerTypes.KubernetesPodUID).Build(taggerTypes.HighCardinality),
+		}),
 		autodiscoveryimpl.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
