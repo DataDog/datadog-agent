@@ -33,7 +33,8 @@ var imageTag = flag.String("image-tag", "main", "Docker image tag to use")
 
 type gpuSuite struct {
 	e2e.BaseSuite[environments.Host]
-	imageTag string
+	imageTag             string
+	containerNameCounter int
 }
 
 const defaultGpuCheckConfig = `
@@ -106,17 +107,27 @@ type collectorStatus struct {
 	RunnerStats runnerStats `json:"runnerStats"`
 }
 
-func (v *gpuSuite) runCudaDockerWorkload() {
+// runCudaDockerWorkload runs a CUDA workload in a Docker container and returns the container ID
+func (v *gpuSuite) runCudaDockerWorkload() string {
 	// Configure some defaults
 	vectorSize := 50000
 	numLoops := 100      // Loop extra times to ensure the kernel runs for a bit
 	waitTimeSeconds := 5 // Give enough time to our monitor to hook the probes
 	binary := "/usr/local/bin/cuda-basic"
+	containerName := fmt.Sprintf("cuda-basic-%d", v.containerNameCounter)
+	v.containerNameCounter++
 
-	cmd := fmt.Sprintf("docker run --rm --gpus all %s %s %d %d %d", v.dockerImageName(), binary, vectorSize, numLoops, waitTimeSeconds)
+	cmd := fmt.Sprintf("docker run --gpus all --name %s %s %s %d %d %d", containerName, v.dockerImageName(), binary, vectorSize, numLoops, waitTimeSeconds)
 	out, err := v.Env().RemoteHost.Execute(cmd)
 	v.Require().NoError(err)
 	v.Require().NotEmpty(out)
+
+	containerIDCmd := fmt.Sprintf("docker inspect -f {{.Id}} %s", containerName)
+	idOut, err := v.Env().RemoteHost.Execute(containerIDCmd)
+	v.Require().NoError(err)
+	v.Require().NotEmpty(idOut)
+
+	return strings.TrimSpace(idOut)
 }
 
 func (v *gpuSuite) TestGPUCheckIsEnabled() {
@@ -140,7 +151,8 @@ func (v *gpuSuite) TestGPUSysprobeEndpointIsResponding() {
 }
 
 func (v *gpuSuite) TestVectorAddProgramDetected() {
-	v.runCudaDockerWorkload()
+	containerID := v.runCudaDockerWorkload()
+	containerIDTag := fmt.Sprintf("container_id:%s", containerID)
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// We are not including "gpu.memory", as that represents the "current
@@ -153,7 +165,7 @@ func (v *gpuSuite) TestVectorAddProgramDetected() {
 
 			for _, metric := range metrics {
 				assert.True(c, slices.ContainsFunc(metric.Tags, func(tag string) bool {
-					return strings.Contains(tag, "container_id:")
+					return strings.Contains(tag, containerIDTag)
 				}))
 			}
 		}
