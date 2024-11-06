@@ -10,6 +10,8 @@ package gpu
 import (
 	"fmt"
 	"math"
+	"path"
+	"strconv"
 
 	"github.com/prometheus/procfs"
 
@@ -156,7 +158,7 @@ func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error 
 
 	offsetInFile := uint64(int64(event.Kernel_addr) - int64(entry.StartAddr) + entry.Offset)
 
-	binaryPath := fmt.Sprintf("%s/%d/root/%s", sh.sysCtx.procRoot, sh.pid, entry.Pathname)
+	binaryPath := path.Join(sh.sysCtx.procRoot, strconv.Itoa(int(sh.pid)), "root", entry.Pathname)
 	fileData, err := sh.sysCtx.getCudaSymbols(binaryPath)
 	if err != nil {
 		return fmt.Errorf("error getting file data: %w", err)
