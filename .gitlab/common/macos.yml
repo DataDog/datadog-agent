@@ -37,7 +37,7 @@
     if ! pyenv virtualenvs --bare | grep -q "^${VENV_NAME}$"; then
       # The || true is a quickfix avoiding the command to fail if the virtualenv already exists
       # This should be removed once ACIX-500 is done
-      pyenv virtualenv $PYTHON_VERSION $VENV_NAME || true
+      pyenv virtualenv "$PYTHON_VERSION" "$VENV_NAME" || true
     fi
     pyenv activate $VENV_NAME
 
