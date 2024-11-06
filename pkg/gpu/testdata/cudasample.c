@@ -30,14 +30,20 @@ cudaError_t cudaStreamSynchronize(cudaStream_t stream) {
 int main(int argc, char **argv) {
     cudaStream_t stream = 30;
 
+    fprintf(stderr, "Running CUDA sample. Waiting to allow uprobes to attach...\n");
+
     // Give time for the eBPF program to load
     sleep(5);
+
+    fprintf(stderr, "Starting!\n");
 
     cudaLaunchKernel((void *)0x1234, (dim3){ 1, 2, 3 }, (dim3){ 4, 5, 6 }, NULL, 10, stream);
     void *ptr;
     cudaMalloc(&ptr, 100);
     cudaFree(ptr);
     cudaStreamSynchronize(stream);
+
+    fprintf(stderr, "Done!\n");
 
     return 0;
 }

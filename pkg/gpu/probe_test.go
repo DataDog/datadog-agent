@@ -134,3 +134,48 @@ func TestProbeCanGenerateStats(t *testing.T) {
 	require.Greater(t, pidStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
 }
+
+func TestProbeCanGenerateStatsInContainer(t *testing.T) {
+	if err := config.CheckGPUSupported(); err != nil {
+		t.Skipf("minimum kernel version not met, %v", err)
+	}
+
+	procMon := monitor.GetProcessMonitor()
+	require.NotNil(t, procMon)
+	require.NoError(t, procMon.Initialize(false))
+	t.Cleanup(procMon.Stop)
+
+	cfg := config.NewConfig()
+	cfg.InitialProcessSync = false
+	cfg.BPFDebug = true
+
+	nvmlMock := testutil.GetBasicNvmlMock()
+
+	probe, err := NewProbe(cfg, ProbeDependencies{NvmlLib: nvmlMock})
+	require.NoError(t, err)
+	require.NotNil(t, probe)
+	t.Cleanup(probe.Close)
+
+	pid, cid, err := testutil.RunSampleInDocker(t, testutil.CudaSample, testutil.MinimalDockerImage)
+	require.NoError(t, err)
+
+	utils.WaitForProgramsToBeTraced(t, gpuAttacherName, pid, utils.ManualTracingFallbackDisabled)
+
+	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
+	// so that we can time out correctly
+	require.Eventually(t, func() bool {
+		return !utils.IsProgramTraced(gpuAttacherName, pid)
+	}, 20*time.Second, 500*time.Millisecond, "process not stopped")
+	require.NoError(t, err)
+
+	stats, err := probe.GetAndFlush()
+	require.NoError(t, err)
+	require.NotNil(t, stats)
+	require.NotEmpty(t, stats.ProcessStats)
+	require.Contains(t, stats.ProcessStats, uint32(pid))
+
+	pidStats := stats.ProcessStats[uint32(pid)]
+	require.Greater(t, pidStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
+	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
+	require.Equal(t, pidStats.Metadata.ContainerID, cid)
+}
