@@ -108,8 +108,7 @@ func TestPackages(t *testing.T) {
 			t.Run(suite.Name(), func(t *testing.T) {
 				t.Parallel()
 				// FIXME: Fedora currently has DNS issues
-				// Redhat 9 AMI currently not available incident-32072
-				if flavor.Flavor == e2eos.Fedora || flavor == e2eos.RedHat9 {
+				if flavor.Flavor == e2eos.Fedora {
 					flake.Mark(t)
 				}
 
