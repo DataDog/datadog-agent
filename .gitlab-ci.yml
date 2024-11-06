@@ -6,8 +6,6 @@ include:
   - .gitlab/binary_build/include.yml
   - .gitlab/check_deploy/check_deploy.yml
   - .gitlab/check_merge/do_not_merge.yml
-  - .gitlab/choco_build/choco_build.yml
-  - .gitlab/choco_deploy/choco_deploy.yml
   - .gitlab/common/shared.yml
   - .gitlab/common/pr_commenter.yml
   - .gitlab/container_build/include.yml
@@ -34,7 +32,6 @@ include:
   - .gitlab/maintenance_jobs/include.yml
   - .gitlab/notify/notify.yml
   - .gitlab/package_build/include.yml
-  - .gitlab/packaging/include.yml
   - .gitlab/package_deps_build/package_deps_build.yml
   - .gitlab/pkg_metrics/pkg_metrics.yml
   - .gitlab/post_rc_build/post_rc_tasks.yml
