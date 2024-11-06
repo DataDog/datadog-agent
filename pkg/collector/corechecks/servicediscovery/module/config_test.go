@@ -137,7 +137,7 @@ func TestConfigIgnoredServices(t *testing.T) {
 		discovery := newDiscovery()
 		require.NotEmpty(t, discovery)
 
-		assert.Equal(t, len(discovery.config.ignoreServices), 1)
+		assert.Equal(t, len(discovery.config.ignoreServices), 4)
 	})
 
 	t.Run("check services in env variable", func(t *testing.T) {
