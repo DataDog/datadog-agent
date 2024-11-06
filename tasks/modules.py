@@ -5,6 +5,7 @@ import os
 import sys
 from collections import defaultdict
 from contextlib import contextmanager
+from glob import glob
 from pathlib import Path
 
 import yaml
@@ -12,7 +13,6 @@ from invoke import Context, Exit, task
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.gomodules import (
-    IGNORED_MODULE_PATHS,
     GoModule,
     GoModuleDumper,
     get_default_modules,
@@ -153,28 +153,67 @@ def for_each(
 
 
 @task
-def validate(_: Context):
+def validate(_: Context, base_dir='.'):
     """
-    Test if every module was properly added in the get_default_modules() list.
+    Lints each module.yml file.
     """
-    missing_modules: list[str] = []
-    default_modules_paths = {Path(p) for p in get_default_modules()}
 
-    # Find all go.mod files and make sure they are registered in get_default_modules()
-    for root, dirs, files in os.walk("."):
-        dirs[:] = [d for d in dirs if Path(root) / d not in IGNORED_MODULE_PATHS]
+    base_dir = Path(base_dir)
+    modules, ignored_modules = list_default_modules(base_dir=base_dir)
+    default_attributes = GoModule.get_default_attributes()
 
-        if "go.mod" in files and Path(root) not in default_modules_paths:
-            missing_modules.append(root)
+    def validate_module(config, path):
+        assert (path / 'go.mod').is_file(), "Configuration is not next to a go.mod file"
 
-    if missing_modules:
-        message = f"{color_message('ERROR', Color.RED)}: some modules are missing from get_default_modules()\n"
-        for module in missing_modules:
-            message += f"  {module} is missing from get_default_modules()\n"
+        with open(config) as f:
+            config_attributes = yaml.safe_load(f)
 
-        message += "Please add them to the get_default_modules() list or exclude them from the validation."
+        assert config_attributes, "Configuration is empty, the file must be removed"
 
-        raise Exit(message)
+        # Ignored module
+        if 'ignored' in config_attributes:
+            assert config_attributes['ignored'] is True, "`ignored` must appear only in ignored modules"
+            assert len(config_attributes) == 1, "`ignored` must be the only attribute in ignored modules"
+            assert str(path) in ignored_modules, "Configuration has not been recognized"
+
+            return
+
+        # Classic module
+        assert set(default_attributes).issuperset(
+            config_attributes
+        ), "Configuration contains unknown attributes ({set(config_attributes).difference(default_attributes)})"
+        assert str(path) in modules, "Configuration has not been recognized"
+        for key, value in config_attributes.items():
+            assert (
+                config_attributes[key] != default_attributes[key]
+            ), f"Configuration has a default value which must be removed for {key}: {value}"
+
+        # Verify values
+        module = modules[str(path)]
+        for target in module.targets:
+            assert (base_dir / target).is_dir(), f"Configuration has an unknown target: {target}"
+
+        for target in module.lint_targets:
+            assert (base_dir / target).is_dir(), f"Configuration has an unknown lint_target: {target}"
+
+        assert module.condition in GoModule.CONDITIONS, f"Configuration has an unknown condition: {module.condition}"
+
+    errors = []
+    for config in glob(str(base_dir / '**/module.yml'), recursive=True):
+        config_path = Path(config)
+        path = config_path.parent
+
+        try:
+            validate_module(config_path, path)
+        except AssertionError as e:
+            errors.append((path, e))
+
+    if errors:
+        print(f'{color_message("ERROR", Color.RED)}: Some modules have invalid configurations:')
+        for path, error in sorted(errors):
+            print(f'- {color_message(path, Color.BOLD)}: {error}')
+
+        raise Exit(f'{color_message("ERROR", Color.RED)}: Found errors in module configurations, see details above')
 
 
 @task

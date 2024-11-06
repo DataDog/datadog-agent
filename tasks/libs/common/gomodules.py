@@ -119,6 +119,10 @@ class GoModule:
             with open(config_path) as file:
                 data = yaml.safe_load(file)
 
+                assert (
+                    data is not None
+                ), f"Invalid {config_path}, this file must contain either `ignored: true` or a configuration. This file must be deleted to indicate the default module configuration"
+
                 # Skip this module
                 if 'ignored' in data and data['ignored']:
                     return None
@@ -278,22 +282,6 @@ class GoModule:
 
 
 AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
-
-# Folder containing a `go.mod` file but that should not be added to the default modules list
-IGNORED_MODULE_PATHS = [
-    # Test files
-    Path("./internal/tools/modparser/testdata/badformat"),
-    Path("./internal/tools/modparser/testdata/match"),
-    Path("./internal/tools/modparser/testdata/nomatch"),
-    Path("./internal/tools/modparser/testdata/patchgoversion"),
-    # This `go.mod` is a hack
-    Path("./pkg/process/procutil/resources"),
-    # We have test files in the tasks folder
-    Path("./tasks"),
-    # Test files
-    Path("./test/integration/serverless/recorder-extension"),
-    Path("./test/integration/serverless/src"),
-]
 
 
 def list_default_modules(base_dir: Path | None = None) -> tuple[dict[str, GoModule], set[str]]:
