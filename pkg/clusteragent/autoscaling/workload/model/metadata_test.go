@@ -36,21 +36,27 @@ func TestParseAnnotation(t *testing.T) {
 		{
 			name: "Fallback annotation",
 			annotations: map[string]string{
-				AnnotationsFallbackURLKey: "localhost:8080/fallback",
-			},
-			expected: Annotations{
-				FallbackEndpoint: "localhost:8080/fallback",
-			},
-		},
-		{
-			name: "URL and Fallback annotation",
-			annotations: map[string]string{
 				AnnotationsURLKey:         "localhost:8080/test",
 				AnnotationsFallbackURLKey: "localhost:8080/fallback",
 			},
 			expected: Annotations{
 				Endpoint:         "localhost:8080/test",
 				FallbackEndpoint: "localhost:8080/fallback",
+			},
+		},
+		{
+			name: "Settings annotation",
+			annotations: map[string]string{
+				AnnotationsURLKey:         "localhost:8080/test",
+				AnnotationsFallbackURLKey: "localhost:8080/fallback",
+				AnnotationsSettingsKey:    `{"key": "value"}`,
+			},
+			expected: Annotations{
+				Endpoint:         "localhost:8080/test",
+				FallbackEndpoint: "localhost:8080/fallback",
+				Settings: map[string]string{
+					"key": "value",
+				},
 			},
 		},
 	}
