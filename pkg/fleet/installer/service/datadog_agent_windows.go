@@ -99,9 +99,8 @@ func RemoveAgent(ctx context.Context) (err error) {
 }
 
 func installAgentPackage(target string, args []string) error {
-	// Lookup stored Agent user and pass it to the Agent MSI
-	// TODO: bootstrap doesn't have a command-line agent user parameter yet,
-	//       might need to update this when it does.
+	// Lookup Agent user stored in registry by the Installer MSI
+	// and pass it to the Agent MSI
 	agentUser, err := winregistry.GetAgentUserName()
 	if err != nil {
 		return fmt.Errorf("failed to get Agent user: %w", err)
