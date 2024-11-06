@@ -76,7 +76,11 @@ def send_event(title: str, text: str, tags: list[str] = None):
     configuration = Configuration()
     with ApiClient(configuration) as api_client:
         api_instance = EventsApi(api_client)
-        response = api_instance.create_event(body=body)
+        try:
+            response = api_instance.create_event(body=body)
+        except Exception as e:
+            print(f"Error while sending pipeline event to the Datadog backend: {e}", file=sys.stderr)
+            raise Exit(code=1) from e
 
         if response.get("errors", None):
             print(
