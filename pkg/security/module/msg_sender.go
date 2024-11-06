@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/reporter"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -101,10 +102,12 @@ func NewDirectMsgSender(stopper startstop.Stopper) (*DirectMsgSender, error) {
 	}, nil
 }
 
+// DiskSender defines a disk sender
 type DiskSender struct {
 	outputDir string
 }
 
+// NewDiskSender returns a DiskSender
 func NewDiskSender(outputDir string) (*DiskSender, error) {
 	if _, err := os.Stat(outputDir); err != nil {
 		if os.IsNotExist(err) {
@@ -120,8 +123,9 @@ func NewDiskSender(outputDir string) (*DiskSender, error) {
 	}, nil
 }
 
+// Send writes the given message to disk
 func (ds *DiskSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEventMessage)) {
-	fileName := fmt.Sprintf("%s", time.Now().Format(time.RFC3339Nano))
+	fileName := time.Now().Format(time.RFC3339Nano)
 	filePath := ""
 
 	// append event type to output file name
@@ -153,11 +157,11 @@ func (ds *DiskSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEv
 		if os.IsNotExist(err) {
 			err := os.MkdirAll(newOutputDir, 0755)
 			if err != nil {
-				log.Errorf("Failed to create output directory %s: %w", newOutputDir, err)
+				seclog.Errorf("Failed to create output directory %s: %v", newOutputDir, err)
 				return
 			}
 		} else if err != nil {
-			log.Errorf("Failed to stat output directory %s: %w", newOutputDir, err)
+			seclog.Errorf("Failed to stat output directory %s: %v", newOutputDir, err)
 			return
 		}
 		filePath = filepath.Join(newOutputDir, fileName)
@@ -168,6 +172,6 @@ func (ds *DiskSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEv
 	// dump the event as json file
 	err := os.WriteFile(filePath, msg.Data, 0666)
 	if err != nil {
-		log.Errorf("Failed to log event: %w", err)
+		seclog.Errorf("Failed to log event: %v", err)
 	}
 }

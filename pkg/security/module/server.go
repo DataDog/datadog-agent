@@ -322,7 +322,7 @@ func (a *APIServer) eventMatchProcess(event *model.Event) bool {
 	if slices.Contains(a.SAEOnlyProcessCachePids, event.PIDContext.Pid) {
 		// special case for exit to clear the cache:
 		if event.GetType() == "exit" {
-			slices.DeleteFunc(a.SAEOnlyProcessCachePids, func(pid uint32) bool { return pid == event.PIDContext.Pid })
+			_ = slices.DeleteFunc(a.SAEOnlyProcessCachePids, func(pid uint32) bool { return pid == event.PIDContext.Pid })
 		}
 		return true
 	}

@@ -25,14 +25,17 @@ import (
 )
 
 const (
-	StreamAllEvents                     bool   = true
-	DefaultStreamAllEventsOutputDir     string = "/tmp/dd_events"
-	StreamAllEventsOptionOutputDir      string = "STREAM_OUTPUT_DIR"
+	// StreamAllEvents specify the option to stream all events
+	StreamAllEvents bool = true
+	// DefaultStreamAllEventsOutputDir defines the default directory to store events
+	DefaultStreamAllEventsOutputDir string = "/tmp/dd_events"
+	// StreamAllEventsOptionOutputDir defines the env option to specify another output directory
+	StreamAllEventsOptionOutputDir string = "STREAM_OUTPUT_DIR"
+	// StreamAllEventsOptionContainersOnly defines the env option to enable to save only container events
 	StreamAllEventsOptionContainersOnly string = "STREAM_ONLY_CONTAINERS"
-	StreamAllEventsOptionProcessOnly    string = "STREAM_ONLY_PROCESS"
+	// StreamAllEventsOptionProcessOnly defines the env option to specify a process filter
+	StreamAllEventsOptionProcessOnly string = "STREAM_ONLY_PROCESS"
 )
-
-// const
 
 // Rule presents a rule in a ruleset
 type Rule struct {
@@ -573,7 +576,7 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 	return nil
 }
 
-var fakeRule *Rule = nil
+var fakeRule *Rule
 
 func getFakeRule() *Rule {
 	if fakeRule == nil {
