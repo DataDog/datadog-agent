@@ -1,6 +1,6 @@
 # datadog-secret-backend
 
-[![.github/workflows/release.yaml](https://github.com/rapdev-io/datadog-secret-backend/actions/workflows/release.yaml/badge.svg)](https://github.com/rapdev-io/datadog-secret-backend/actions/workflows/release.yaml)
+[![.github/workflows/release.yaml](https://github.com/DataDog/datadog-secret-backend/actions/workflows/release.yaml/badge.svg)](https://github.com/DataDog/datadog-secret-backend/actions/workflows/release.yaml)
 
 > **datadog-secret-backend** is an implementation of the [Datadog Agent Secrets Management](https://docs.datadoghq.com/agent/guide/secrets-management/?tab=linux) executable supporting multiple backend secret providers.
 
@@ -17,32 +17,33 @@
 
 ## Installation
 
-1. Make a new folder in `/etc/` to hold all the files required for this module in one place:
+1. Make a new folder to hold all the files required for this module in one place (in this example will use
+   `datadog-secret-backend`:
 
     ```
     ## Linux
-    mkdir -p /etc/rapdev-datadog
+    mkdir -p /etc/datadog-secret-backend
 
     ## Windows
-    mkdir 'C:\Program Files\rapdev-datadog\'
+    mkdir 'C:\Program Files\datadog-secret-backend\'
     ```
 
-2. Download the most recent version of the secret backend module by hitting the latest release endpoint from the `rapdev-io` repo by running one of the commands below:
+2. Download the most recent version of the secret backend module by hitting the latest release endpoint from this repo by running one of the commands below:
 
     ```
     ## Linux (amd64)
-    curl -L https://github.com/rapdev-io/datadog-secret-backend/releases/latest/download/datadog-secret-backend-linux-amd64.tar.gz \ 
+    curl -L https://github.com/DataDog/datadog-secret-backend/releases/latest/download/datadog-secret-backend-linux-amd64.tar.gz \ 
     -o /tmp/datadog-secret-backend-linux-amd64.tar.gz
 
     ## Linux (386)
-    curl -L https://github.com/rapdev-io/datadog-secret-backend/releases/latest/download/datadog-secret-backend-linux-386.tar.gz \ 
+    curl -L https://github.com/DataDog/datadog-secret-backend/releases/latest/download/datadog-secret-backend-linux-386.tar.gz \ 
     -o /tmp/datadog-secret-backend-linux-386.tar.gz
 
     ## Windows (amd64)
-    Invoke-WebRequest https://github.com/rapdev-io/datadog-secret-backend/releases/latest/download/datadog-secret-backend-windows-amd64.zip -OutFile 'C:\Program Files\rapdev-datadog\datadog-secret-backend-windows-amd64.zip'
+    Invoke-WebRequest https://github.com/DataDog/datadog-secret-backend/releases/latest/download/datadog-secret-backend-windows-amd64.zip -OutFile 'C:\Program Files\datadog-secret-backend\datadog-secret-backend-windows-amd64.zip'
 
     ## Windows (386)
-    Invoke-WebRequest https://github.com/rapdev-io/datadog-secret-backend/releases/latest/download/datadog-secret-backend-windows-386.zip -OutFile 'C:\Program Files\rapdev-datadog\datadog-secret-backend-windows-386.zip'
+    Invoke-WebRequest https://github.com/DataDog/datadog-secret-backend/releases/latest/download/datadog-secret-backend-windows-386.zip -OutFile 'C:\Program Files\datadog-secret-backend\datadog-secret-backend-windows-386.zip'
     ```
 
 3. Once you have the file from the github repo, you'll need to unzip it to get the executable:
@@ -50,10 +51,10 @@
     ```
     ## Linux (amd64, change end of filename to "386" if needed)
     tar -xvzf /tmp/datadog-secret-backend-linux-amd64.tar.gz \
-    -C /etc/rapdev-datadog
+    -C /etc/datadog-secret-backend
 
     ## Windows (amd64, change end of filename to "386" if needed)
-    Expand-Archive -LiteralPath 'C:\Program Files\rapdev-datadog\datadog-secret-backend-windows-amd64.zip' -DestinationPath 'C:\Program Files\rapdev-datadog\'
+    Expand-Archive -LiteralPath 'C:\Program Files\datadog-secret-backend\datadog-secret-backend-windows-amd64.zip' -DestinationPath 'C:\Program Files\datadog-secret-backend\'
     ```
 
 4. (Optional) Remove the old tar'd file:
@@ -63,15 +64,15 @@
     rm /tmp/datadog-secret-backend-linux-amd64.tar.gz
 
     ## Windows
-    Remove-Item 'C:\Program Files\rapdev-datadog\datadog-secret-backend-windows-amd64.zip'
+    Remove-Item 'C:\Program Files\datadog-secret-backend\datadog-secret-backend-windows-amd64.zip'
     ```
 
 5. Update the executable to have the required permissions. Datadog agent expects the executable to only be used by the `dd-agent` user for Linux and `ddagentuser` for Windows.
 
     ```
     ## Linux
-    chown dd-agent:root /etc/rapdev-datadog/datadog-secret-backend
-    chmod 500 /etc/rapdev-datadog/datadog-secret-backend
+    chown dd-agent:root /etc/datadog-secret-backend/datadog-secret-backend
+    chmod 500 /etc/datadog-secret-backend/datadog-secret-backend
 
     ## Windows
     1) Right click on the "datadog-secret-backend.exe" and select "Properties".
@@ -85,10 +86,10 @@
     ```
     ## datadog.yaml ##
 
-    secret_backend_command: /etc/rapdev-datadog/datadog-secret-backend
+    secret_backend_command: /etc/datadog-secret-backend/datadog-secret-backend
     ```
 
- 7. [Provide a configuration](https://github.com/rapdev-io/datadog-secret-backend/blob/main/datadog-secret-backend.yaml.example) for the secrets executable. Documentation for each supported provider can be found [here](https://github.com/rapdev-io/datadog-secret-backend/tree/main/docs).
+ 7. [Provide a configuration](https://github.com/DataDog/datadog-secret-backend/blob/main/datadog-secret-backend.yaml.example) for the secrets executable. Documentation for each supported provider can be found [here](https://github.com/DataDog/datadog-secret-backend/tree/main/docs).
 
 ## Usage
 
