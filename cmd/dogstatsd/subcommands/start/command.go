@@ -58,6 +58,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -152,6 +153,11 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		eventplatformreceiverimpl.Module(),
 		hostnameimpl.Module(),
 		taggerimpl.Module(),
+		// GetProvider must be called before the application starts so components using either GetProvider or GetMetaCollector can function correctly.
+		// TODO: (component) - create a container metrics provider component.
+		fx.Invoke(func(wmeta optional.Option[workloadmeta.Component]) {
+			metrics.GetProvider(wmeta)
+		}),
 		fx.Provide(tagger.NewTaggerParams),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.

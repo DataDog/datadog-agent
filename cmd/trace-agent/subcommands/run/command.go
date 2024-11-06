@@ -38,6 +38,7 @@ import (
 	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -105,6 +106,11 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 			return tagger.NewTaggerParams()
 		}),
 		taggerimpl.Module(),
+		// GetProvider must be called before the application starts so components using either GetProvider or GetMetaCollector can function correctly.
+		// TODO: (component) - create a container metrics provider component.
+		fx.Invoke(func(wmeta optional.Option[workloadmeta.Component]) {
+			metrics.GetProvider(wmeta)
+		}),
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),

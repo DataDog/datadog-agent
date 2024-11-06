@@ -54,6 +54,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	procnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
@@ -127,6 +128,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				fx.Provide(tagger.NewTaggerParams),
 				taggerimpl.Module(),
+				// GetProvider must be called before the application starts so components using either GetProvider or GetMetaCollector can function correctly.
+				// TODO: (component) - create a container metrics provider component.
+				fx.Invoke(func(wmeta optional.Option[workloadmeta.Component]) {
+					metrics.GetProvider(wmeta)
+				}),
 				autodiscoveryimpl.Module(),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				compressionimpl.Module(),

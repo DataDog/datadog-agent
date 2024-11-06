@@ -146,6 +146,7 @@ import (
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -397,11 +398,14 @@ func getSharedFxOption() fx.Option {
 		taggerimpl.Module(),
 		autodiscoveryimpl.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
-		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
-		// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
-		// we can include the tagger as part of the workloadmeta component.
+		// TODO: (component) - create a container provider component.
 		fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
 			proccontainers.InitSharedContainerProvider(wmeta, tagger)
+		}),
+		// GetProvider must be called before the application starts so components using either GetProvider or GetMetaCollector can function correctly.
+		// TODO: (component) - create a container metrics provider component.
+		fx.Invoke(func(wmeta optional.Option[workloadmeta.Component]) {
+			metrics.GetProvider(wmeta)
 		}),
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
 		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we

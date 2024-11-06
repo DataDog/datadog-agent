@@ -8,18 +8,19 @@ package start
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestStartCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		[]*cobra.Command{MakeCommand("defaultLogFile")},
-		[]string{"start", "--cfgpath", "PATH"},
+		[]string{"start"},
 		start,
 		func(cliParams *CLIParams, _ config.Params) {
-			require.Equal(t, "PATH", cliParams.confPath)
+			require.Equal(t, "", cliParams.confPath)
 		})
 }

@@ -54,6 +54,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
@@ -189,6 +190,11 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return tagger.NewNodeRemoteTaggerParamsWithFallback()
 		}),
 		taggerimpl.Module(),
+		// GetProvider must be called before the application starts so components using either GetProvider or GetMetaCollector can function correctly.
+		// TODO: (component) - create a container metrics provider component.
+		fx.Invoke(func(wmeta optional.Option[workloadmeta.Component]) {
+			metrics.GetProvider(wmeta)
+		}),
 		telemetryimpl.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())

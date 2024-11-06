@@ -62,6 +62,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -117,6 +118,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						return tagger.NewNodeRemoteTaggerParams()
 					}
 					return tagger.NewTaggerParams()
+				}),
+				// GetProvider must be called before the application starts so components using either GetProvider or GetMetaCollector can function correctly.
+				// TODO: (component) - create a container metrics provider component.
+				fx.Invoke(func(wmeta optional.Option[workloadmeta.Component]) {
+					metrics.GetProvider(wmeta)
 				}),
 				fx.Provide(func() startstop.Stopper {
 					return startstop.NewSerialStopper()
