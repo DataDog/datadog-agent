@@ -22,10 +22,17 @@
   - |
     PYTHON_VERSION=$(python3 --version | awk '{print $2}')
     VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
+    VENV_PATH="$(pyenv root)/versions/$VENV_NAME"
     echo "Using Python $PYTHON_VERSION..."
-    if ! pyenv virtualenvs --bare | grep -q "${VENV_NAME}$"; then
-      pyenv virtualenv $PYTHON_VERSION $VENV_NAME
+
+    # Check if the virtual environment directory exists
+    if [ ! -d "$VENV_PATH" ]; then
+      echo "Creating virtual environment '$VENV_NAME'..."
+      pyenv virtualenv "$PYTHON_VERSION" "$VENV_NAME"
+    else
+      echo "Virtual environment '$VENV_NAME' already exists. Skipping creation."
     fi
+
     pyenv activate $VENV_NAME
 
 .macos_gitlab:
