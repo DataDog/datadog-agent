@@ -4,8 +4,7 @@ test_gitlab:
   script:
     - echo "Running tests"
     - pyenv virtualenvs --bare
-    - echo "toto" | grep -q "toto"
-    - grep -q "toto" <<< "toto"
+
     - grep --help
 
 
