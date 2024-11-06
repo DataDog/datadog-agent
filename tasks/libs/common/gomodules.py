@@ -43,6 +43,9 @@ class GoModule:
         > targets:
         > - .
         > used_by_otel: false
+
+        If a module should be ignored and not included within get_default_modules(), add the following to the module.yml:
+        > ignored: true
     """
 
     # Possible conditions for GoModule.condition
@@ -109,10 +112,18 @@ class GoModule:
 
         assert full_path.is_dir(), f"Directory {full_path} does not exist"
 
-        with open(full_path / 'module.yml') as file:
-            data = yaml.safe_load(file)
+        config_path = full_path / 'module.yml'
+        if config_path.is_file():
+            with open(config_path) as file:
+                data = yaml.safe_load(file)
 
-            return GoModule.from_dict(module_path, data)
+                # Skip this module
+                if 'ignored' in data and data['ignored']:
+                    return None
+
+                return GoModule.from_dict(module_path, data)
+        else:
+            return GoModule.from_dict(module_path, {})
 
     @staticmethod
     def get_default_attributes() -> dict[str, object]:
@@ -276,16 +287,33 @@ IGNORED_MODULE_PATHS = [
 ]
 
 
+def list_default_modules(base_dir: Path | None = None) -> tuple[dict[str, GoModule], set[str]]:
+    """List all the module configurations of the repository.
+
+    Returns:
+        A tuple of (modules, ignored_module_paths).
+    """
+
+    modules = {}
+    ignored_modules = set()
+
+    for gomod_path in glob("**/go.mod", recursive=True, root_dir=base_dir):
+        module_data_dir = Path(gomod_path).parent
+
+        module = GoModule.from_file(module_data_dir, base_dir)
+        # Ignored module
+        if module is None:
+            ignored_modules.add(module_data_dir.as_posix())
+        else:
+            modules[module.path] = module
+
+    return modules, ignored_modules
+
+
 @lru_cache
 def get_default_modules(base_dir: Path | None = None) -> dict[str, GoModule]:
     """Load the default modules from all the module.yml files."""
 
-    modules = {}
-
-    for module_data_path in glob("**/module.yml", recursive=True, root_dir=base_dir):
-        module_data_dir = Path(module_data_path).parent
-
-        module = GoModule.from_file(module_data_dir, base_dir)
-        modules[module.path] = module
+    modules, _ = list_default_modules(base_dir)
 
     return modules
