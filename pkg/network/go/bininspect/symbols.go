@@ -133,7 +133,7 @@ func getSymbolsUnified(f *safeelf.File, typ safeelf.SectionType, filter symbolFi
 		return nil, errors.New("section has invalid string table link")
 	}
 	if symbolSection.ReaderAt == nil {
-		return nil, fmt.Errorf("symbol section not available in random-access form")
+		return nil, errors.New("symbol section not available in random-access form")
 	}
 
 	numWanted := filter.getNumWanted()
