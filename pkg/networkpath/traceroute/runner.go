@@ -330,6 +330,7 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 
 		// then add all the other hops
 		for _, hop := range hops {
+			hop := hop
 			var nodename string
 			if hop.Received != nil {
 				nodename = hop.Received.IP.SrcIP.String()
