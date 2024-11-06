@@ -39,7 +39,7 @@ type PodAutoscalerInternal struct {
 	name string
 
 	// annotations are the annotations of the PodAutoscaler
-	annotations map[string]string
+	annotations Annotations
 
 	// creationTimestamp is the time when the kubernetes object was created
 	// creationTimestamp is stored in .DatadogPodAutoscaler.CreationTimestamp
@@ -111,7 +111,7 @@ func NewPodAutoscalerInternal(podAutoscaler *datadoghq.DatadogPodAutoscaler) Pod
 	pai := PodAutoscalerInternal{
 		namespace:   podAutoscaler.Namespace,
 		name:        podAutoscaler.Name,
-		annotations: podAutoscaler.Annotations,
+		annotations: ParseAnnotations(podAutoscaler.Annotations),
 	}
 	pai.UpdateFromPodAutoscaler(podAutoscaler)
 	pai.UpdateFromStatus(&podAutoscaler.Status)
@@ -138,7 +138,7 @@ func NewPodAutoscalerFromSettings(ns, name string, podAutoscalerSpec *datadoghq.
 func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 	p.creationTimestamp = podAutoscaler.CreationTimestamp.Time
 	p.generation = podAutoscaler.Generation
-	p.annotations = podAutoscaler.Annotations
+	p.annotations = ParseAnnotations(podAutoscaler.Annotations)
 	p.spec = podAutoscaler.Spec.DeepCopy()
 	// Reset the target GVK as it might have changed
 	// Resolving the target GVK is done in the controller sync to ensure proper sync and error handling
@@ -326,7 +326,7 @@ func (p *PodAutoscalerInternal) Name() string {
 }
 
 // Annotations returns the annotations on the PodAutoscaler
-func (p *PodAutoscalerInternal) Annotations() map[string]string {
+func (p *PodAutoscalerInternal) Annotations() Annotations {
 	return p.annotations
 }
 
