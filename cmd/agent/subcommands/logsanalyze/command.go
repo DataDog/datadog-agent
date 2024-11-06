@@ -3,7 +3,6 @@ package logscheck
 
 import (
 	"fmt"
-	"os"
 
 	"go.uber.org/fx"
 
@@ -15,8 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// const defaultCoreConfigPath = "/etc/datadog/datadog.yaml"
-const defaultCoreConfigPath = "/Users/andrew.qian/Documents/Code/datadog-agent/dev/dist/conf.d/random_logs.d/conf.yaml"
+const defaultCoreConfigPath = "bin/agent/dist/datadog.yaml"
 
 // CliParams holds the command-line arguments for the logs-analyze subcommand.
 type CliParams struct {
@@ -66,14 +64,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // runLogsAnalyze handles the logs check operation.
 func runLogsAnalyze(cliParams *CliParams) error {
 	// Check if the provided log config file exists
-	if _, err := os.Stat(cliParams.LogConfigPath); os.IsNotExist(err) {
-		return fmt.Errorf("log config file %s does not exist", cliParams.LogConfigPath)
-	}
+	// if _, err := os.Stat(cliParams.LogConfigPath); os.IsNotExist(err) {
+	// 	return fmt.Errorf("log config file %s does not exist", cliParams.LogConfigPath)
+	// }
 
-	// Check if the core config file exists, using default or user-specified path
-	if _, err := os.Stat(cliParams.CoreConfigPath); os.IsNotExist(err) {
-		return fmt.Errorf("core config file %s does not exist", cliParams.CoreConfigPath)
-	}
+	// // Check if the core config file exists, using default or user-specified path
+	// if _, err := os.Stat(cliParams.CoreConfigPath); os.IsNotExist(err) {
+	// 	return fmt.Errorf("core config file %s does not exist", cliParams.CoreConfigPath)
+	// }
 
 	//send paths to source provider
 	// Add log config source

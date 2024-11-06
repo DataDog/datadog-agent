@@ -43,10 +43,18 @@ func NewConfigSources() *ConfigSources {
 }
 
 // AddFileSource gets a file from a file path and adds it as a source.
-func (s *ConfigSources) AddFileSource(filePath string) error {
+func (s *ConfigSources) AddFileSource(path string) error {
 
 	// Step 1: Read the file content as bytes
-	data, err := os.ReadFile(filePath)
+	wd, err := os.Getwd()
+	fmt.Println("working directory is : ", wd)
+	if err != nil {
+		return err
+	}
+
+	absolutePath := wd + "/" + path
+	data, err := os.ReadFile(absolutePath)
+	fmt.Println("absolutePath", absolutePath)
 	if err != nil {
 		return err
 	}
@@ -56,6 +64,7 @@ func (s *ConfigSources) AddFileSource(filePath string) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("logsConfig?", logsConfig)
 	for _, cfg := range logsConfig {
 		source := NewLogSource(cfg.Name, cfg)
 		// NOT SURE IF THIS IS NEEDED?
