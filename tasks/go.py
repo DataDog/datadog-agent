@@ -580,8 +580,10 @@ def create_module(ctx, path: str, no_verify: bool = False):
             for mod in dependent_modules:
                 add_replaces(ctx, mod, [path])
 
+        with open(f"{path}/module.yml", 'w') as f:
+            f.write('independent: true\n')
         print(
-            f'{color_message("NOTE", "blue")}: You can create a {path}/module.yml file to add a special configuration for this module'
+            f'{color_message("NOTE", "blue")}: A {path}/module.yml file has been created to mark the module as independent, you can modify this file to change the module configuration.'
         )
 
         if not is_empty:
