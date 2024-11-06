@@ -39,6 +39,7 @@ type ProvisionerParams struct {
 	eksWindowsNodeGroup      bool
 	awsEnv                   *aws.Environment
 	deployDogstatsd          bool
+	deployTestWorkload       bool
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -116,6 +117,14 @@ func WithEKSOptions(opts ...eks.Option) ProvisionerOption {
 func WithDeployDogstatsd() ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.deployDogstatsd = true
+		return nil
+	}
+}
+
+// WithDeployTestWorkload deploy a test workload
+func WithDeployTestWorkload() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.deployTestWorkload = true
 		return nil
 	}
 }

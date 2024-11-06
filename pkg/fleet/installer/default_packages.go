@@ -132,11 +132,15 @@ func packageToLanguage(packageName string) env.ApmLibLanguage {
 }
 
 func agentVersion(_ Package, e *env.Env) string {
-	if e.AgentMajorVersion != "" && e.AgentMinorVersion != "" {
-		return e.AgentMajorVersion + "." + e.AgentMinorVersion + "-1"
+	minorVersion := e.AgentMinorVersion
+	if strings.Contains(minorVersion, ".") && !strings.HasSuffix(minorVersion, "-1") {
+		minorVersion = minorVersion + "-1"
 	}
-	if e.AgentMinorVersion != "" {
-		return "7." + e.AgentMinorVersion + "-1"
+	if e.AgentMajorVersion != "" && minorVersion != "" {
+		return e.AgentMajorVersion + "." + minorVersion
+	}
+	if minorVersion != "" {
+		return "7." + minorVersion
 	}
 	return "latest"
 }

@@ -8,8 +8,8 @@ package nodetreemodel
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type Object struct {
@@ -18,14 +18,16 @@ type Object struct {
 }
 
 func TestNewReflectionNode(t *testing.T) {
-	n, err := NewNode(Object{
+	node, err := asReflectionNode(Object{
 		Name: "test",
 		Num:  7,
-	}, model.SourceDefault)
+	})
 	assert.NoError(t, err)
 
-	keys, err := n.ChildrenKeys()
-	assert.NoError(t, err)
+	n, ok := node.(InnerNode)
+	require.True(t, ok)
+
+	keys := n.ChildrenKeys()
 	assert.Equal(t, keys, []string{"name", "num"})
 
 	first, err := n.GetChild("name")

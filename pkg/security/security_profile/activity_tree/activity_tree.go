@@ -880,38 +880,50 @@ func (at *ActivityTree) visit(cb func(processNode *ProcessNode)) {
 }
 
 // ExtractPaths returns the exec / fim, exec / parent paths
-func (at *ActivityTree) ExtractPaths() (map[string][]string, map[string][]string) {
+func (at *ActivityTree) ExtractPaths(_, fimEnabled, lineageEnabled bool) (map[string][]string, map[string][]string) {
 
 	fimPathsperExecPath := make(map[string][]string)
 	execAndParent := make(map[string][]string)
+	modifiedPaths := make(map[string]string)
 
 	at.visit(func(processNode *ProcessNode) {
 		var fimPaths []string
-		for _, file := range processNode.Files {
-			at.visitFileNode(file, func(fileNode *FileNode) {
-				path := fileNode.File.PathnameStr
-				if len(path) > 0 {
-					if strings.Contains(path, "*") {
-						fimPaths = append(fimPaths, `~"`+path+`"`)
-					} else {
-						fimPaths = append(fimPaths, `"`+path+`"`)
+		if fimEnabled {
+			for _, file := range processNode.Files {
+				at.visitFileNode(file, func(fileNode *FileNode) {
+					path, ok := modifiedPaths[fileNode.File.PathnameStr]
+					if !ok {
+						modifiedPaths[fileNode.File.PathnameStr] = utils.CheckForPatterns(fileNode.File.PathnameStr)
+						path = modifiedPaths[fileNode.File.PathnameStr]
 					}
-				}
-			})
+					if len(path) > 0 {
+						fimPaths = append(fimPaths, path)
+					}
+				})
+			}
 		}
-		execPath := fmt.Sprintf("\"%s\"", processNode.Process.FileEvent.PathnameStr)
+
+		execPath, ok := modifiedPaths[processNode.Process.FileEvent.PathnameStr]
+		if !ok {
+			modifiedPaths[processNode.Process.FileEvent.PathnameStr] = utils.CheckForPatterns(processNode.Process.FileEvent.PathnameStr)
+			execPath = modifiedPaths[processNode.Process.FileEvent.PathnameStr]
+		}
+
 		paths, ok := fimPathsperExecPath[execPath]
 		if ok {
 			fimPathsperExecPath[execPath] = append(paths, fimPaths...)
 		} else {
 			fimPathsperExecPath[execPath] = fimPaths
 		}
-		p, pp := extractExecAndParent(processNode)
-		tmp, ok := execAndParent[p]
-		if ok {
-			execAndParent[p] = append(tmp, pp)
-		} else {
-			execAndParent[p] = []string{pp}
+
+		if lineageEnabled {
+			p, pp := extractExecAndParent(processNode)
+			tmp, ok := execAndParent[p]
+			if ok {
+				execAndParent[p] = append(tmp, pp)
+			} else {
+				execAndParent[p] = []string{pp}
+			}
 		}
 	})
 

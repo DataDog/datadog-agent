@@ -10,7 +10,7 @@ docker_trigger_internal:
       artifacts: false
     - job: docker_build_agent7_jmx_arm64
       artifacts: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
@@ -55,7 +55,7 @@ docker_trigger_internal-ot:
       artifacts: false
     - job: docker_build_ot_agent7_jmx_arm64
       artifacts: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
@@ -94,13 +94,13 @@ docker_trigger_internal-ot:
 
 docker_trigger_cluster_agent_internal:
   stage: internal_image_deploy
-  rules: !reference [.on_deploy]
+  rules: !reference [.on_deploy_internal_or_manual]
   needs:
     - job: docker_build_cluster_agent_amd64
       artifacts: false
     - job: docker_build_cluster_agent_arm64
       artifacts: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
@@ -146,7 +146,7 @@ docker_trigger_cws_instrumentation_internal:
       artifacts: false
     - job: docker_build_cws_instrumentation_arm64
       artifacts: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo

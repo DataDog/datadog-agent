@@ -79,21 +79,8 @@ func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.Proce
 }
 
 // ResolveService returns the service tag based on the process context
-func (fh *FieldHandlers) ResolveService(ev *model.Event, _ *model.BaseEvent) string {
-	entry, _ := fh.ResolveProcessCacheEntry(ev)
-	if entry == nil {
-		return ""
-	}
-	return getProcessService(fh.config, entry)
-}
-
-// GetProcessService returns the service tag based on the process context
-func (fh *FieldHandlers) GetProcessService(ev *model.Event) string {
-	entry, _ := fh.ResolveProcessCacheEntry(ev)
-	if entry == nil {
-		return ""
-	}
-	return getProcessService(fh.config, entry)
+func (fh *FieldHandlers) ResolveService(ev *model.Event, e *model.BaseEvent) string {
+	return resolveService(fh.config, fh, ev, e)
 }
 
 // ResolveProcessCmdLineScrubbed returns a scrubbed version of the cmdline

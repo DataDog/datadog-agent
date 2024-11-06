@@ -229,6 +229,7 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternMatchOpts) 
 
 // BuildPatterns find and build patterns for the path in the ruleset
 func BuildPatterns(ruleset []*rules.RuleDefinition) []*rules.RuleDefinition {
+
 	for _, rule := range ruleset {
 		findAndReplacePatterns(&rule.Expression)
 	}
@@ -257,12 +258,16 @@ func replacePatterns(paths []string) []string {
 	for _, pattern := range paths {
 		strippedPattern := strings.Trim(pattern, `~" `)
 		initalLength := len(result)
+
 		for _, path := range paths {
 			strippedPath := strings.Trim(path, `~" `)
 			if pattern == path {
 				continue
 			}
-			finalPath, ok := PathPatternBuilder(strippedPattern, strippedPath, PathPatternMatchOpts{WildcardLimit: 1, PrefixNodeRequired: 4})
+
+			pathPatternMatchOpts := determinePatternMatchOpts(strippedPath)
+
+			finalPath, ok := PathPatternBuilder(strippedPattern, strippedPath, pathPatternMatchOpts)
 			if ok {
 				finalPath = fmt.Sprintf("~\"%s\"", finalPath)
 				result = append(result, finalPath)
@@ -276,4 +281,51 @@ func replacePatterns(paths []string) []string {
 	slices.Sort(result)
 	result = slices.Compact(result)
 	return result
+}
+
+func determinePatternMatchOpts(path string) PathPatternMatchOpts {
+	pathPatternMatchOpts := PathPatternMatchOpts{
+		WildcardLimit:      1,
+		PrefixNodeRequired: 1,
+	}
+
+	if containsExceptions(path) {
+		pathPatternMatchOpts.PrefixNodeRequired = 4
+	}
+	return pathPatternMatchOpts
+}
+
+func containsExceptions(path string) bool {
+	exceptions := []string{"bin", "sbin"}
+
+	for _, ex := range exceptions {
+		if strings.Contains(path, ex) {
+			return true
+		}
+	}
+	return false
+}
+
+// CheckForPatterns replace patterns like uuid with *
+func CheckForPatterns(path string) string {
+	uuidRegex := regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+	dateRegex := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`) // Date in YYYY-MM-DD format
+	numericRegex := regexp.MustCompile(`^\d+$`)            // Any purely numeric subpath
+	hexRegex := regexp.MustCompile(`^[0-9a-fA-F]+$`)       // Hexadecimal pattern
+	patternsWithSeparatorRegex := regexp.MustCompile(`^\.*\d+([._-]\d+)*([._-]\d+)*$`)
+
+	// Split the path into subpaths
+	subpaths := strings.Split(path, "/")
+
+	// Check each subpath against defined patterns
+	for i, subpath := range subpaths {
+		if uuidRegex.MatchString(subpath) || dateRegex.MatchString(subpath) || numericRegex.MatchString(subpath) || hexRegex.MatchString(subpath) || patternsWithSeparatorRegex.MatchString(subpath) {
+			subpaths[i] = "*"
+		}
+	}
+
+	if slices.Contains(subpaths, "*") {
+		return fmt.Sprintf("~\"%s\"", strings.Join(subpaths, "/"))
+	}
+	return fmt.Sprintf("\"%s\"", strings.Join(subpaths, "/"))
 }

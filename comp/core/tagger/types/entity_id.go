@@ -6,117 +6,43 @@
 // Package types defines types used by the Tagger component.
 package types
 
-import (
-	"fmt"
-	"strings"
-
-	taggerutils "github.com/DataDog/datadog-agent/pkg/util/tagger"
-)
-
 const separator = "://"
+const separatorLength = len(separator)
+
+// GetSeparatorLengh returns the length of the entityID separator
+func GetSeparatorLengh() int {
+	return separatorLength
+}
 
 // EntityID represents a tagger entityID
-// An EntityID should be identified by a prefix and an id, and is represented as {prefix}://{id}
-type EntityID interface {
-	// GetID returns a prefix-specific id (i.e. an ID unique given prefix)
-	GetID() string
-	// GetPrefix returns the prefix of the EntityID
-	GetPrefix() EntityIDPrefix
-	// String returns a string representation of EntityID under the format {prefix}://{id}
-	String() string
+type EntityID struct {
+	prefix EntityIDPrefix
+	id     string
 }
 
-// DefaultEntityID implements EntityID as a plain string id
-type DefaultEntityID string
-
-// GetID implements EntityID#GetID
-func (de DefaultEntityID) GetID() string {
-	separatorIndex := strings.Index(string(de), separator)
-
-	if separatorIndex == -1 {
-		return ""
-	}
-
-	return string(de[separatorIndex+len(separator):])
+// Empty returns true if prefix and id are both empty strings
+func (eid EntityID) Empty() bool {
+	return eid.prefix == "" && eid.id == ""
 }
 
-// GetPrefix implements EntityID#GetPrefix
-func (de DefaultEntityID) GetPrefix() EntityIDPrefix {
-	separatorIndex := strings.Index(string(de), separator)
-
-	if separatorIndex == -1 {
-		return ""
-	}
-
-	return EntityIDPrefix(de[:separatorIndex])
+// GetPrefix returns the entityID prefix
+func (eid EntityID) GetPrefix() EntityIDPrefix {
+	return eid.prefix
 }
 
-// String implements EntityID#String
-func (de DefaultEntityID) String() string {
-	return string(de)
+// GetID returns the id excluding the prefix
+func (eid EntityID) GetID() string {
+	return eid.id
 }
 
-func newDefaultEntityID(id string) DefaultEntityID {
-	return DefaultEntityID(id)
+// String returns the entityID in the format `{prefix}://{id}`
+func (eid EntityID) String() string {
+	return eid.prefix.ToUID(eid.id)
 }
 
-// compositeEntityID implements EntityID as a struct of prefix and id
-type compositeEntityID struct {
-	Prefix EntityIDPrefix
-	ID     string
-}
-
-// GetPrefix implements EntityID#GetPrefix
-func (eid compositeEntityID) GetPrefix() EntityIDPrefix {
-	return eid.Prefix
-}
-
-// GetID implements EntityID#GetID
-func (eid compositeEntityID) GetID() string {
-	return eid.ID
-}
-
-// String implements EntityID#String
-func (eid compositeEntityID) String() string {
-	return eid.Prefix.ToUID(eid.ID)
-}
-
-// newcompositeEntityID returns a new EntityID based on a prefix and an id
-func newCompositeEntityID(prefix EntityIDPrefix, id string) EntityID {
-	return compositeEntityID{
-		Prefix: prefix,
-		ID:     id,
-	}
-}
-
-// NewEntityID builds and returns an EntityID object based on plain string uid
-// Currently, it defaults to the default implementation of EntityID as a plain string
+// NewEntityID builds and returns an EntityID object
 func NewEntityID(prefix EntityIDPrefix, id string) EntityID {
-	// TODO: use composite entity id always or use component framework for config component
-	if taggerutils.ShouldUseCompositeStore() {
-		return newCompositeEntityID(prefix, id)
-	}
-	return newDefaultEntityID(fmt.Sprintf("%s://%s", prefix, id))
-}
-
-// NewEntityIDFromString constructs EntityID from a plain string id
-func NewEntityIDFromString(plainStringID string) (EntityID, error) {
-	if taggerutils.ShouldUseCompositeStore() {
-
-		prefix, id, found := strings.Cut(plainStringID, separator)
-
-		if !found {
-			return nil, fmt.Errorf("unsupported tagger entity id format %q, correct format is `{prefix}://{id}`", plainStringID)
-		}
-
-		return newCompositeEntityID(EntityIDPrefix(prefix), id), nil
-	}
-	return newDefaultEntityID(plainStringID), nil
-}
-
-// NewDefaultEntityIDFromStr constructs a default EntityID from a plain string id
-func NewDefaultEntityIDFromStr(plainStringID string) EntityID {
-	return newDefaultEntityID(plainStringID)
+	return EntityID{prefix, id}
 }
 
 const (

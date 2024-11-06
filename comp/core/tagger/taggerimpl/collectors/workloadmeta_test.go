@@ -1471,10 +1471,11 @@ func TestHandleECSTask(t *testing.T) {
 				ContainerInstanceTags: map[string]string{
 					"instance_type": "g4dn.xlarge",
 				},
-				ClusterName: "ecs-cluster",
-				Family:      "datadog-agent",
-				Version:     "1",
-				LaunchType:  workloadmeta.ECSLaunchTypeEC2,
+				ClusterName:  "ecs-cluster",
+				Family:       "datadog-agent",
+				Version:      "1",
+				AWSAccountID: 1234567891234,
+				LaunchType:   workloadmeta.ECSLaunchTypeEC2,
 				Containers: []workloadmeta.OrchestratorContainer{
 					{
 						ID:   containerID,
@@ -1501,6 +1502,7 @@ func TestHandleECSTask(t *testing.T) {
 						"task_name:datadog-agent",
 						"task_version:1",
 						"ecs_service:datadog-agent-service",
+						"aws_account:1234567891234",
 					},
 					StandardTags: []string{},
 				},
@@ -1525,6 +1527,7 @@ func TestHandleECSTask(t *testing.T) {
 				},
 				AvailabilityZone: "us-east-1c",
 				Region:           "us-east-1",
+				AWSAccountID:     1234567891234,
 			},
 			expected: []*types.TagInfo{
 				{
@@ -1544,6 +1547,7 @@ func TestHandleECSTask(t *testing.T) {
 						"availability_zone:us-east-1c",
 						"availability-zone:us-east-1c",
 						"region:us-east-1",
+						"aws_account:1234567891234",
 					},
 					StandardTags: []string{},
 				},
@@ -1563,6 +1567,7 @@ func TestHandleECSTask(t *testing.T) {
 						"availability_zone:us-east-1c",
 						"availability-zone:us-east-1c",
 						"region:us-east-1",
+						"aws_account:1234567891234",
 					},
 					StandardTags: []string{},
 				},

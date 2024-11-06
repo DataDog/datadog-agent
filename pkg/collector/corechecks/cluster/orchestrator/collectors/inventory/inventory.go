@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	k8sCollectors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
@@ -24,34 +25,35 @@ type CollectorInventory struct {
 
 // NewCollectorInventory returns a new inventory containing all known
 // collectors.
-func NewCollectorInventory(cfg config.Component, store workloadmeta.Component) *CollectorInventory {
+func NewCollectorInventory(cfg config.Component, store workloadmeta.Component, tagger tagger.Component) *CollectorInventory {
 	return &CollectorInventory{
 		collectors: []collectors.CollectorVersions{
-			k8sCollectors.NewClusterCollectorVersions(),
-			k8sCollectors.NewClusterRoleCollectorVersions(),
-			k8sCollectors.NewClusterRoleBindingCollectorVersions(),
 			k8sCollectors.NewCRDCollectorVersions(),
+			k8sCollectors.NewClusterCollectorVersions(),
+			k8sCollectors.NewClusterRoleBindingCollectorVersions(),
+			k8sCollectors.NewClusterRoleCollectorVersions(),
 			k8sCollectors.NewCronJobCollectorVersions(),
 			k8sCollectors.NewDaemonSetCollectorVersions(),
 			k8sCollectors.NewDeploymentCollectorVersions(),
+			k8sCollectors.NewHorizontalPodAutoscalerCollectorVersions(),
 			k8sCollectors.NewIngressCollectorVersions(),
 			k8sCollectors.NewJobCollectorVersions(),
 			k8sCollectors.NewLimitRangeCollectorVersions(),
 			k8sCollectors.NewNamespaceCollectorVersions(),
+			k8sCollectors.NewNetworkPolicyCollectorVersions(),
 			k8sCollectors.NewNodeCollectorVersions(),
-			k8sCollectors.NewPersistentVolumeCollectorVersions(),
 			k8sCollectors.NewPersistentVolumeClaimCollectorVersions(),
+			k8sCollectors.NewPersistentVolumeCollectorVersions(),
+			k8sCollectors.NewPodDisruptionBudgetCollectorVersions(),
 			k8sCollectors.NewReplicaSetCollectorVersions(),
-			k8sCollectors.NewRoleCollectorVersions(),
 			k8sCollectors.NewRoleBindingCollectorVersions(),
-			k8sCollectors.NewServiceCollectorVersions(),
+			k8sCollectors.NewRoleCollectorVersions(),
 			k8sCollectors.NewServiceAccountCollectorVersions(),
+			k8sCollectors.NewServiceCollectorVersions(),
 			k8sCollectors.NewStatefulSetCollectorVersions(),
 			k8sCollectors.NewStorageClassCollectorVersions(),
-			k8sCollectors.NewUnassignedPodCollectorVersions(cfg, store),
+			k8sCollectors.NewUnassignedPodCollectorVersions(cfg, store, tagger),
 			k8sCollectors.NewVerticalPodAutoscalerCollectorVersions(),
-			k8sCollectors.NewHorizontalPodAutoscalerCollectorVersions(),
-			k8sCollectors.NewNetworkPolicyCollectorVersions(),
 		},
 	}
 }

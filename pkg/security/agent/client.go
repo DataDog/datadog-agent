@@ -32,7 +32,7 @@ type RuntimeSecurityClient struct {
 // SecurityModuleClientWrapper represents a security module client
 type SecurityModuleClientWrapper interface {
 	DumpDiscarders() (string, error)
-	DumpProcessCache(withArgs bool) (string, error)
+	DumpProcessCache(withArgs bool, format string) (string, error)
 	GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error)
 	ListActivityDumps() (*api.ActivityDumpListMessage, error)
 	StopActivityDump(name, containerid string) (*api.ActivityDumpStopMessage, error)
@@ -61,8 +61,8 @@ func (c *RuntimeSecurityClient) DumpDiscarders() (string, error) {
 }
 
 // DumpProcessCache sends a process cache dump request
-func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool) (string, error) {
-	response, err := c.apiClient.DumpProcessCache(context.Background(), &api.DumpProcessCacheParams{WithArgs: withArgs})
+func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool, format string) (string, error) {
+	response, err := c.apiClient.DumpProcessCache(context.Background(), &api.DumpProcessCacheParams{WithArgs: withArgs, Format: format})
 	if err != nil {
 		return "", err
 	}

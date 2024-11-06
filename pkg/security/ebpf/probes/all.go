@@ -24,7 +24,7 @@ const (
 	minPathnamesEntries = 64000 // ~27 MB
 	maxPathnamesEntries = 96000
 
-	minProcEntries = 16394
+	minProcEntries = 16384
 	maxProcEntries = 131072
 )
 
@@ -78,6 +78,7 @@ func AllProbes(fentry bool) []*manager.Probe {
 	allProbes = append(allProbes, getNetDeviceProbes()...)
 	allProbes = append(allProbes, GetTCProbes(true)...)
 	allProbes = append(allProbes, getBindProbes(fentry)...)
+	allProbes = append(allProbes, getConnectProbes(fentry)...)
 	allProbes = append(allProbes, getSyscallMonitorProbes()...)
 	allProbes = append(allProbes, getChdirProbes(fentry)...)
 	allProbes = append(allProbes, GetOnDemandProbes()...)
@@ -151,21 +152,29 @@ type MapSpecEditorOpts struct {
 	RingBufferSize          uint32
 	PathResolutionEnabled   bool
 	SecurityProfileMaxCount int
+	ReducedProcPidCacheSize bool
 }
 
 // AllMapSpecEditors returns the list of map editors
 func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.MapSpecEditor {
+	var procPidCacheMaxEntries uint32
+	if opts.ReducedProcPidCacheSize {
+		procPidCacheMaxEntries = getMaxEntries(numCPU, minProcEntries, maxProcEntries/2)
+	} else {
+		procPidCacheMaxEntries = getMaxEntries(numCPU, minProcEntries, maxProcEntries)
+	}
+
 	editors := map[string]manager.MapSpecEditor{
 		"syscalls": {
 			MaxEntries: 8192,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"proc_cache": {
-			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
+			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"pid_cache": {
-			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
+			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
 
