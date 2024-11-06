@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"fmt"
 	"os/exec"
 	"testing"
 	"time"
@@ -55,7 +54,7 @@ func TestContainerCreatedAt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu")
+	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
 		t.Skip("Skipping created time in containers tests: Docker not available")
 		return
@@ -102,7 +101,7 @@ func TestContainerCreatedAt(t *testing.T) {
 	})
 }
 
-func TestContainerFlags(t *testing.T) {
+func TestContainerFlagsDocker(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	ruleDefs := []*rules.RuleDefinition{
@@ -122,9 +121,9 @@ func TestContainerFlags(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu")
+	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
-		t.Skip("Skipping created time in containers tests: Docker not available")
+		t.Skipf("Skipping container test: Docker not available (%s)", err.Error())
 		return
 	}
 
@@ -149,64 +148,49 @@ func TestContainerFlags(t *testing.T) {
 	})
 }
 
-func TestContainerScopedVariable(t *testing.T) {
+func TestContainerFlagsPodman(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
-			ID:         "test_container_set_scoped_variable",
-			Expression: `open.file.path == "/tmp/test-open"`,
-			Actions: []*rules.ActionDefinition{{
-				Set: &rules.SetDefinition{
-					Name:  "var1",
-					Value: true,
-					Scope: "container",
-				},
-			}},
-		}, {
-			ID:         "test_container_check_scoped_variable",
-			Expression: `open.file.path == "/tmp/test-open-2" && ${container.var1} == true`,
+			ID:         "test_container_flags",
+			Expression: `container.runtime == "podman" && container.id != "" && open.file.path == "{{.Root}}/test-open" && cgroup.id =~ "*libpod*"`,
 		},
 	}
-
 	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
-	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "alpine")
+	testFile, _, err := test.Path("test-open")
 	if err != nil {
-		t.Skip("docker no available")
+		t.Fatal(err)
+	}
+
+	podmanWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", string(podmanWrapperType))
+	if err != nil {
+		t.Skip("Skipping created time in containers tests: podman not available")
 		return
 	}
 
-	if _, err := wrapper.start(); err != nil {
+	if _, err := podmanWrapper.start(); err != nil {
 		t.Fatal(err)
 	}
-	defer wrapper.stop()
+	defer podmanWrapper.stop()
 
-	wrapper.RunTest(t, "set-var", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	podmanWrapper.Run(t, "container-runtime", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
-			cmd := cmdFunc("/bin/touch", []string{"/tmp/test-open"}, nil)
-			if out, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("%s: %w", out, err)
-			}
-			return nil
+			cmd := cmdFunc("touch", []string{testFile}, nil)
+			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
-			assert.Equal(t, "test_container_set_scoped_variable", rule.ID, "wrong rule triggered")
-		})
-	})
+			assertTriggeredRule(t, rule, "test_container_flags")
+			assertFieldEqual(t, event, "open.file.path", testFile)
+			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
+			assertFieldEqual(t, event, "container.runtime", "podman")
+			assert.Equal(t, containerutils.CGroupFlags(containerutils.CGroupManagerPodman), event.CGroupContext.CGroupFlags)
 
-	wrapper.RunTest(t, "check-var", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		test.WaitSignal(t, func() error {
-			cmd := cmdFunc("/bin/touch", []string{"/tmp/test-open-2"}, nil)
-			if out, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("%s: %w", out, err)
-			}
-			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
-			assert.Equal(t, "test_container_check_scoped_variable", rule.ID, "wrong rule triggered")
+			test.validateOpenSchema(t, event)
 		})
 	})
 }

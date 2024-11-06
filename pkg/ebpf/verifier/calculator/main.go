@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/cilium/ebpf/rlimit"
@@ -67,6 +68,17 @@ func main() {
 	if directory == "" {
 		log.Fatalf("DD_SYSTEM_PROBE_BPF_DIR env var not set")
 	}
+	hasAbsPaths := false
+	for _, f := range filterFiles {
+		if filepath.IsAbs(f) {
+			objectFiles[filepath.Base(f)] = f
+			hasAbsPaths = true
+		}
+	}
+	filterFiles = slices.DeleteFunc(filterFiles, func(s string) bool {
+		return filepath.IsAbs(s)
+	})
+
 	if err := filepath.WalkDir(directory, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -79,7 +91,7 @@ func main() {
 			return nil
 		}
 
-		if len(filterFiles) > 0 {
+		if len(filterFiles) > 0 || hasAbsPaths {
 			found := false
 			for _, f := range filterFiles {
 				if d.Name() == f {

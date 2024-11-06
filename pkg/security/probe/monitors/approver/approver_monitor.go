@@ -65,28 +65,30 @@ func (d *Monitor) SendStats() error {
 	}
 
 	for eventType, stats := range statsByEventType {
-		if stats.EventApprovedByBasename == 0 && stats.EventApprovedByFlag == 0 {
-			continue
-		}
-
 		eventTypeTag := fmt.Sprintf("event_type:%s", model.EventType(eventType).String())
-		tagsForBasenameApprovedEvents := []string{
-			"approver_type:" + kfilters.BasenameApproverType,
-			eventTypeTag,
+		if stats.EventApprovedByBasename != 0 {
+			tagsForBasenameApprovedEvents := []string{
+				"approver_type:" + kfilters.BasenameApproverType,
+				eventTypeTag,
+			}
+			_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByBasename), tagsForBasenameApprovedEvents, 1.0)
 		}
-		_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByBasename), tagsForBasenameApprovedEvents, 1.0)
 
-		tagsForFlagApprovedEvents := []string{
-			"approver_type:" + kfilters.FlagApproverType,
-			eventTypeTag,
+		if stats.EventApprovedByFlag != 0 {
+			tagsForFlagApprovedEvents := []string{
+				"approver_type:" + kfilters.FlagApproverType,
+				eventTypeTag,
+			}
+			_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByFlag), tagsForFlagApprovedEvents, 1.0)
 		}
-		_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByFlag), tagsForFlagApprovedEvents, 1.0)
 
-		tagsForAUIDApprovedEvents := []string{
-			"approver_type:" + kfilters.AUIDApproverType,
-			eventTypeTag,
+		if stats.EventApprovedByAUID != 0 {
+			tagsForAUIDApprovedEvents := []string{
+				"approver_type:" + kfilters.AUIDApproverType,
+				eventTypeTag,
+			}
+			_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByAUID), tagsForAUIDApprovedEvents, 1.0)
 		}
-		_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByAUID), tagsForAUIDApprovedEvents, 1.0)
 	}
 	for i := uint32(0); i != uint32(model.LastApproverEventType); i++ {
 		_ = buffer.Put(i, d.statsZero)

@@ -16,7 +16,6 @@ from subprocess import PIPE, CalledProcessError, Popen
 from invoke.exceptions import Exit
 
 from tasks.flavor import AgentFlavor
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.utils import gitlab_section
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
@@ -24,6 +23,7 @@ from tasks.libs.pipeline.notifications import (
     GITHUB_JIRA_MAP,
     GITHUB_SLACK_MAP,
 )
+from tasks.libs.testing.flakes import get_tests_family, is_known_flaky_test
 from tasks.modules import DEFAULT_MODULES
 
 E2E_INTERNAL_ERROR_STRING = "E2E INTERNAL ERROR"
@@ -211,7 +211,11 @@ def split_junitxml(root_dir: Path, xml_path: Path, codeowners, flaky_tests):
         # Flag the test as known flaky if gotestsum already knew it
         for test_case in suite.iter("testcase"):
             test_name = "/".join([test_case.attrib["classname"], test_case.attrib["name"]])
-            test_case.attrib["agent_is_known_flaky"] = "true" if test_name in flaky_tests else "false"
+            if is_known_flaky_test(test_name, flaky_tests, get_tests_family(list(flaky_tests))):
+                test_case.attrib["agent_is_known_flaky"] = "true"
+                print("KNOWN FLAKY:", test_name)
+            else:
+                test_case.attrib["agent_is_known_flaky"] = "false"
 
         xml.getroot().append(suite)
 
@@ -282,8 +286,6 @@ def set_tags(owner, flavor, flag: str, additional_tags, file_name):
     codeowner = CODEOWNERS_ORG_PREFIX + owner
     slack_channel = GITHUB_SLACK_MAP.get(codeowner.lower(), DEFAULT_SLACK_CHANNEL)[1:]
     jira_project = GITHUB_JIRA_MAP.get(codeowner.lower(), DEFAULT_JIRA_PROJECT)[0:]
-    agent = get_gitlab_repo()
-    pipeline = agent.pipelines.get(os.environ["CI_PIPELINE_ID"])
     tags = [
         "--service",
         "datadog-agent",
@@ -296,7 +298,7 @@ def set_tags(owner, flavor, flag: str, additional_tags, file_name):
         "--tags",
         f"jira_project:{jira_project}",
         "--tags",
-        f"gitlab.pipeline_source:{pipeline.source}",
+        f"gitlab.pipeline_source:{os.environ['CI_PIPELINE_SOURCE']}",
         "--xpath-tag",
         "test.agent_is_known_flaky=/testcase/@agent_is_known_flaky",
     ]

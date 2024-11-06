@@ -147,6 +147,7 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 			}
 		}
 	}
+
 	if len(tagsFound) < len(envFilter) {
 		apmTags := getAPMTags(tagsFound, ev.GetExecFilePath())
 		if len(apmTags) > 0 {
@@ -182,7 +183,7 @@ func (h eventConsumerWrapper) ID() string {
 var _eventConsumerWrapper = &eventConsumerWrapper{}
 
 // Consumer returns an event consumer to handle events from the runtime security module
-func Consumer() sprobe.EventConsumerInterface {
+func Consumer() sprobe.EventConsumerHandler {
 	return _eventConsumerWrapper
 }
 

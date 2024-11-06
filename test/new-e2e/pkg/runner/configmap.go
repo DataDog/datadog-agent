@@ -12,6 +12,7 @@ import (
 	commonconfig "github.com/DataDog/test-infra-definitions/common/config"
 	infraaws "github.com/DataDog/test-infra-definitions/resources/aws"
 	infraazure "github.com/DataDog/test-infra-definitions/resources/azure"
+	infragcp "github.com/DataDog/test-infra-definitions/resources/gcp"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 
@@ -25,6 +26,8 @@ const (
 	AgentAPPKey = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPPKeyParamName
 	// AgentPipelineID pulumi config parameter name
 	AgentPipelineID = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentPipelineID
+	// AgentMajorVersion pulumi config parameter name
+	AgentMajorVersion = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentMajorVersion
 	// AgentCommitSHA pulumi config parameter name
 	AgentCommitSHA = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentCommitSHA
 
@@ -33,6 +36,9 @@ const (
 
 	// InfraExtraResourcesTags pulumi config parameter name
 	InfraExtraResourcesTags = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraExtraResourcesTags
+
+	//InfraInitOnly pulumi config parameter name
+	InfraInitOnly = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraInitOnly
 
 	// AWSKeyPairName pulumi config parameter name
 	AWSKeyPairName = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultKeyPairParamName
@@ -49,6 +55,13 @@ const (
 	AzurePrivateKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraazure.DDInfraDefaultPrivateKeyPath
 	// AzurePrivateKeyPassword pulumi config paramater name
 	AzurePrivateKeyPassword = commonconfig.DDInfraConfigNamespace + ":" + infraazure.DDInfraDefaultPrivateKeyPassword
+
+	// GCPPublicKeyPath pulumi config paramater name
+	GCPPublicKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infragcp.DDInfraDefaultPublicKeyPath
+	// GCPPrivateKeyPath pulumi config paramater name
+	GCPPrivateKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infragcp.DDInfraDefaultPrivateKeyPath
+	// GCPPrivateKeyPassword pulumi config paramater name
+	GCPPrivateKeyPassword = commonconfig.DDInfraConfigNamespace + ":" + infragcp.DDInfraDefaultPrivateKeyPassword
 )
 
 // ConfigMap type alias to auto.ConfigMap
@@ -111,11 +124,13 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 	cm.Set(InfraEnvironmentVariables, profile.EnvironmentNames(), false)
 	params := map[parameters.StoreKey][]string{
 		parameters.KeyPairName:        {AWSKeyPairName},
-		parameters.PublicKeyPath:      {AWSPublicKeyPath, AzurePublicKeyPath},
-		parameters.PrivateKeyPath:     {AWSPrivateKeyPath, AzurePrivateKeyPath},
+		parameters.PublicKeyPath:      {AWSPublicKeyPath, AzurePublicKeyPath, GCPPublicKeyPath},
+		parameters.PrivateKeyPath:     {AWSPrivateKeyPath, AzurePrivateKeyPath, GCPPrivateKeyPath},
 		parameters.ExtraResourcesTags: {InfraExtraResourcesTags},
 		parameters.PipelineID:         {AgentPipelineID},
+		parameters.MajorVersion:       {AgentMajorVersion},
 		parameters.CommitSHA:          {AgentCommitSHA},
+		parameters.InitOnly:           {InfraInitOnly},
 	}
 
 	for storeKey, configMapKeys := range params {
@@ -132,7 +147,7 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 	secretParams := map[parameters.StoreKey][]string{
 		parameters.APIKey:             {AgentAPIKey},
 		parameters.APPKey:             {AgentAPPKey},
-		parameters.PrivateKeyPassword: {AWSPrivateKeyPassword, AzurePrivateKeyPassword},
+		parameters.PrivateKeyPassword: {AWSPrivateKeyPassword, AzurePrivateKeyPassword, GCPPrivateKeyPassword},
 	}
 
 	for storeKey, configMapKeys := range secretParams {

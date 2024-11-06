@@ -1,0 +1,70 @@
+test_gitlab_configuration:
+  stage: .pre
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.on_gitlab_changes]
+  script:
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
+    - inv -e linter.gitlab-ci
+    - inv -e linter.job-change-path
+    - inv -e linter.gitlab-change-paths
+    - inv -e linter.ssm-parameters
+
+test_gitlab_compare_to:
+  stage: .pre
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.on_gitlab_changes]
+  script:
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
+    - !reference [.setup_agent_github_app]
+    - pip install -r tasks/requirements.txt
+    - inv pipeline.compare-to-itself
+
+# Computes and uploads the GitLab CI configuration diff as an artifact
+compute_gitlab_ci_config:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  stage: .pre
+  needs: []
+  tags: ["arch:arm64"]
+  before_script:
+    # Get main history
+    - git fetch origin main
+    - git checkout main
+    - git checkout -
+  script:
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
+    - mkdir -p artifacts
+    - inv -e gitlab.compute-gitlab-ci-config --before-file artifacts/before.gitlab-ci.yml --after-file artifacts/after.gitlab-ci.yml --diff-file artifacts/diff.gitlab-ci.yml
+  artifacts:
+    when: always
+    paths:
+      - artifacts/
+    expire_in: 1 day
+
+lint_gitlab_ci:
+  stage: .pre
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: [compute_gitlab_ci_config]
+  script:
+    - status=0
+    - inv -e linter.gitlab-ci-jobs-needs-rules --config-file artifacts/after.gitlab-ci.yml || status=1
+    - inv -e linter.gitlab-ci-jobs-owners --config-file artifacts/after.gitlab-ci.yml || status=1
+    - |
+      if [ $status != 0 ]; then
+        echo "At least one linter failed, exiting..." >& 2
+        exit $status
+      fi
+
+lint_gitlab_ci_jobs_codeowners:
+  stage: .pre
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: []
+  script:
+    - inv -e linter.gitlab-ci-jobs-codeowners --all-files

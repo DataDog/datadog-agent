@@ -354,3 +354,13 @@ func (m *Message) Tags() []string {
 func (m *Message) TagsToString() string {
 	return m.Origin.TagsToString(m.ProcessingTags)
 }
+
+// TruncatedReasonTag returns a tag with the reason for truncation.
+func TruncatedReasonTag(reason string) string {
+	return fmt.Sprintf("truncated:%s", reason)
+}
+
+// MultiLineSourceTag returns a tag for multiline logs.
+func MultiLineSourceTag(source string) string {
+	return fmt.Sprintf("multiline:%s", source)
+}

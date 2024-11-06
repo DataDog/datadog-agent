@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 )
 
 func TestMappings(t *testing.T) {
@@ -519,7 +520,7 @@ func getMapper(t *testing.T, configString string) (*MetricMapper, error) {
 
 	cfg := configComponent.NewMockFromYAML(t, configString)
 
-	err := cfg.UnmarshalKey("dogstatsd_mapper_profiles", &profiles)
+	err := structure.UnmarshalKey(cfg, "dogstatsd_mapper_profiles", &profiles)
 	if err != nil {
 		return nil, err
 	}

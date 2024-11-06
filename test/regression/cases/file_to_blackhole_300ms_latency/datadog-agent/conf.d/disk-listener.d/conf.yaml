@@ -1,0 +1,5 @@
+logs:
+  - type: file
+    path: "/tmp/smp/*.log"
+    service: "my-service"
+    source: "my-client-app"

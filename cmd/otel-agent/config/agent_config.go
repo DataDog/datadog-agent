@@ -8,6 +8,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -59,8 +60,14 @@ var logLevelReverseMap = func(src map[string]logLevel) map[logLevel]string {
 	return reverse
 }(logLevelMap)
 
+// ErrNoDDExporter indicates there is no Datadog exporter in the configs
+var ErrNoDDExporter = fmt.Errorf("no datadog exporter found")
+
 // NewConfigComponent creates a new config component from the given URIs
 func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (config.Component, error) {
+	if len(uris) == 0 {
+		return nil, errors.New("no URIs provided for configs")
+	}
 	// Load the configuration from the fileName
 	rs := confmap.ResolverSettings{
 		URIs: uris,
@@ -82,16 +89,11 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	if err != nil {
 		return nil, err
 	}
-	ddc, err := getDDExporterConfig(cfg)
-	if err != nil {
-		return nil, err
-	}
 	sc, err := getServiceConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
-	site := ddc.API.Site
-	apiKey := string(ddc.API.Key)
+
 	// Set the global agent config
 	pkgconfig := pkgconfigsetup.Datadog()
 
@@ -130,15 +132,21 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	if telemetryLogMapping < activeLogLevel {
 		activeLogLevel = telemetryLogMapping
 	}
+	pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
 
 	// Override config read (if any) with Default values
 	pkgconfigsetup.InitConfig(pkgconfig)
 	pkgconfigmodel.ApplyOverrideFuncs(pkgconfig)
 
-	pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
-
-	pkgconfig.Set("api_key", apiKey, pkgconfigmodel.SourceFile)
-	pkgconfig.Set("site", site, pkgconfigmodel.SourceFile)
+	ddc, err := getDDExporterConfig(cfg)
+	if err == ErrNoDDExporter {
+		return pkgconfig, err
+	}
+	if err != nil {
+		return nil, err
+	}
+	pkgconfig.Set("api_key", string(ddc.API.Key), pkgconfigmodel.SourceFile)
+	pkgconfig.Set("site", ddc.API.Site, pkgconfigmodel.SourceFile)
 
 	pkgconfig.Set("dd_url", ddc.Metrics.Endpoint, pkgconfigmodel.SourceFile)
 
@@ -220,7 +228,7 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogexporter.Config, error) {
 		}
 	}
 	if len(configs) == 0 {
-		return nil, fmt.Errorf("no datadog exporter found")
+		return nil, ErrNoDDExporter
 	}
 	// Check if we have multiple datadog exporters
 	// We only support one exporter for now

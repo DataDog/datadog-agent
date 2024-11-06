@@ -18,6 +18,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
@@ -623,7 +624,9 @@ func TestExtractServiceMetadata(t *testing.T) {
 			if tt.fs != nil {
 				fs = *tt.fs
 			}
-			meta, ok := ExtractServiceMetadata(tt.cmdline, tt.envs, fs, tt.lang, make(DetectorContextMap))
+			ctx := NewDetectionContext(tt.cmdline, envs.NewVariables(tt.envs), fs)
+			ctx.ContextMap = make(DetectorContextMap)
+			meta, ok := ExtractServiceMetadata(tt.lang, ctx)
 			if len(tt.expectedGeneratedName) == 0 && len(tt.expectedDDService) == 0 {
 				require.False(t, ok)
 			} else {

@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 type bucket struct {
@@ -61,27 +61,25 @@ func (b *bucket) flush() *message.Message {
 	copy(content, data)
 
 	msg := message.NewRawMessage(content, b.message.Status, b.originalDataLen, b.message.ParsingExtra.Timestamp)
-	tlmTags := []string{}
+	tlmTags := []string{"false", "single_line"}
 
 	if b.lineCount > 1 {
 		msg.ParsingExtra.IsMultiLine = true
-		tlmTags = append(tlmTags, "line_type:multi_line")
+		tlmTags[1] = "multi_line"
 		if b.tagMultiLineLogs {
-			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.AutoMultiLineTag)
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.MultiLineSourceTag("auto_multiline"))
 		}
-	} else {
-		tlmTags = append(tlmTags, "line_type:single_line")
 	}
 
 	if b.truncated {
 		msg.ParsingExtra.IsTruncated = true
-		tlmTags = append(tlmTags, "truncated:true")
+		tlmTags[0] = "true"
 		if b.tagTruncatedLogs {
-			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedTag)
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedReasonTag("auto_multiline"))
 		}
 	}
 
-	telemetry.GetStatsTelemetryProvider().Count("datadog.logs_agent.auto_multi_line_aggregator.flush", 1, tlmTags)
+	metrics.TlmAutoMultilineAggregatorFlush.Inc(tlmTags...)
 	return msg
 }
 
@@ -135,13 +133,12 @@ func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
 	// If `startGroup` - flush the bucket.
 	if label == startGroup {
 		a.multiLineMatchInfo.Add(1)
-		telemetry.GetStatsTelemetryProvider().Count("datadog.logs_agent.auto_multi_line_aggregator.multiline_matches", 1, []string{""})
 		a.Flush()
 	}
 
 	// At this point we either have `startGroup` with an empty bucket or `aggregate` with a non-empty bucket
 	// so we add the message to the bucket or flush if the bucket will overflow the max content size.
-	if msg.RawDataLen+a.bucket.buffer.Len() > a.maxContentSize {
+	if msg.RawDataLen+a.bucket.buffer.Len() > a.maxContentSize && !a.bucket.isEmpty() {
 		a.bucket.truncate() // Truncate the end of the current bucket
 		a.Flush()
 		a.bucket.truncate() // Truncate the start of the next bucket
@@ -149,7 +146,6 @@ func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
 
 	if !a.bucket.isEmpty() {
 		a.linesCombinedInfo.Add(1)
-		telemetry.GetStatsTelemetryProvider().Count("datadog.logs_agent.auto_multi_line_aggregator.lines_combined", 1, []string{""})
 	}
 
 	a.bucket.add(msg)

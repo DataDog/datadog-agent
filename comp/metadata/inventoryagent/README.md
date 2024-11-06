@@ -66,7 +66,7 @@ The payload is a JSON dict with the following fields
   - `system_probe_core_enabled` - **bool**: True if CO-RE is enabled in the System Probe (see: `system_probe_config.enable_co_re` config option in `system-probe.yaml`).
   - `system_probe_runtime_compilation_enabled` - **bool**: True if Runtime Compilation is enabled in the System Probe (see: `system_probe_config.enable_runtime_compiler` config option in `system-probe.yaml`).
   - `system_probe_kernel_headers_download_enabled` - **bool**: True if Kernel header downloading is enabled in the System Probe (see: `system_probe_config.enable_kernel_header_download` config option in `system-probe.yaml`).
-  - `system_probe_prebuilt_fallback_enabled` - **bool**: True if the System Probe will fallback to prebuilt when other options fail (see: `system_probe_config.allow_precompiled_fallback` config option in `system-probe.yaml`).
+  - `system_probe_prebuilt_fallback_enabled` - **bool**: True if the System Probe will fallback to prebuilt when other options fail (see: `system_probe_config.allow_prebuilt_fallback` config option in `system-probe.yaml`).
   - `system_probe_max_connections_per_message` - **int**: The maximum number of connections per message (see: `system_probe_config.max_conns_per_message` config option in `system-probe.yaml`).
   - `system_probe_track_tcp_4_connections` - **bool**: True if tracking TCPv4 connections is enabled in the System Probe (see: `network_config.collect_tcp_v4` config option in `system-probe.yaml`).
   - `system_probe_track_tcp_6_connections` - **bool**: True if tracking TCPv6 connections is enabled in the System Probe (see: `network_config.collect_tcp_v6` config option in `system-probe.yaml`).
@@ -83,7 +83,6 @@ The payload is a JSON dict with the following fields
   - `feature_usm_kafka_enabled` - **bool**: True if Kafka monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_kafka_monitoring` config option in `system-probe.yaml`)
   - `feature_usm_postgres_enabled` - **bool**: True if Postgres monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_postgres_monitoring` config option in `system-probe.yaml`)
   - `feature_usm_redis_enabled` - **bool**: True if Redis monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_redis_monitoring` config option in `system-probe.yaml`)
-  - `feature_usm_java_tls_enabled` - **bool**: True if HTTPS monitoring through java TLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.java.enabled` config option in `system-probe.yaml`).
   - `feature_usm_go_tls_enabled` - **bool**: True if HTTPS monitoring through GoTLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.go.enabled` config option in `system-probe.yaml`).
   - `feature_discovery_enabled` - **bool**: True if discovery module is enabled (see: `discovery.enabled` config option).
   - `feature_dynamic_instrumentation_enabled` - **bool**: True if dynamic instrumentation module is enabled (see: `dynamic_instrumentation.enabled` config option).
@@ -101,7 +100,6 @@ The payload is a JSON dict with the following fields
   - `feature_cws_network_enabled` - **bool**: True if Network Monitoring is enabled for Cloud Workload Security (see: `event_monitoring_config.network.enabled` config option).
   - `feature_cws_remote_config_enabled` - **bool**: True if Remote Config is enabled for Cloud Workload Security (see: `runtime_security_config.remote_configuration.enabled` config option).
   - `feature_cws_security_profiles_enabled` - **bool**: True if Security Profiles is enabled for Cloud Workload Security (see: `runtime_security_config.activity_dump.enabled` config option).
-  - `feature_usm_http_by_status_code_enabled` - **bool**: True if HTTP Stats by Status Code is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_http_stats_by_status_code` config option).
   - `feature_usm_istio_enabled` - **bool**: True if Istio is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.istio.enabled` config option).
   - `feature_windows_crash_detection_enabled` - **bool**: True if Windows Crash Detection is enabled (see: `windows_crash_detection.enabled` config option).
   - `full_configuration` - **string**: the current Agent configuration scrubbed, including all the defaults, as a YAML

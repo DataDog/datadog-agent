@@ -380,6 +380,16 @@ func (r *HTTPReceiver) Stop() error {
 	return nil
 }
 
+// UpdateAPIKey rebuilds the server handler to update API Keys in all endpoints
+func (r *HTTPReceiver) UpdateAPIKey() {
+	if r.server == nil {
+		return
+	}
+	log.Debug("API Key updated. Rebuilding API handler.")
+	handler := r.buildMux()
+	r.server.Handler = handler
+}
+
 func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.ResponseWriter, *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		if mediaType := getMediaType(req); mediaType == "application/msgpack" && (v == v01 || v == v02) {

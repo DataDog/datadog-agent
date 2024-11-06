@@ -6,6 +6,7 @@
 package status
 
 import (
+	_ "embed"
 	"fmt"
 	"regexp"
 	"time"
@@ -16,6 +17,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+//go:embed fixtures/custom_check.yaml
+var customCheckYaml []byte
+
+//go:embed fixtures/custom_check.py
+var customCheckPython []byte
 
 type baseStatusSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -76,6 +83,18 @@ func verifySectionContent(t require.TestingT, statusOutput string, section expec
 	} else {
 		assert.Error(t, err, "Section %v should not be present in the status output, but was found with the following content: %v", section.name, sectionContent)
 	}
+}
+
+// fetchAndCheckStatus execute the Agent status subcommand and compare it's output with the provided expectedSections via the verifySectionContent
+func fetchAndCheckStatus(v *baseStatusSuite, expectedSections []expectedSection) {
+	// the test will not run until the core-agent is running, but it can run before the process-agent or trace-agent are running
+	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		statusOutput := v.Env().Agent.Client.Status()
+
+		for _, section := range expectedSections {
+			verifySectionContent(t, statusOutput.Content, section)
+		}
+	}, 2*time.Minute, 20*time.Second)
 }
 
 func (v *baseStatusSuite) TestDefaultInstallStatus() {
@@ -181,12 +200,5 @@ func (v *baseStatusSuite) TestDefaultInstallStatus() {
 		},
 	}
 
-	// the test will not run until the core-agent is running, but it can run before the process-agent or trace-agent are running
-	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		status := v.Env().Agent.Client.Status()
-
-		for _, section := range expectedSections {
-			verifySectionContent(t, status.Content, section)
-		}
-	}, 2*time.Minute, 20*time.Second)
+	fetchAndCheckStatus(v, expectedSections)
 }

@@ -61,9 +61,11 @@ func flattenParameters(params []ditypes.Parameter) []ditypes.Parameter {
 	flattenedParams := []ditypes.Parameter{}
 	for i := range params {
 		kind := reflect.Kind(params[i].Kind)
-		if kind == reflect.Slice {
+		if kind == reflect.Slice || kind == reflect.String {
 			// Slices don't get flattened as we need the underlying type.
 			// We populate the slice's template using that type.
+			//
+			// Strings also don't get flattened as we need the underlying length.
 			flattenedParams = append(flattenedParams, params[i])
 		} else if hasHeader(kind) {
 			paramHeader := params[i]

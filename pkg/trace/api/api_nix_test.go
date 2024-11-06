@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -27,6 +28,9 @@ import (
 )
 
 func TestUDS(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
+		t.Skip("TestUDS is known to fail on the macOS Gitlab runners because of the already running Agent")
+	}
 	sockPath := filepath.Join(t.TempDir(), "apm.sock")
 	payload := msgpTraces(t, pb.Traces{testutil.RandomTrace(10, 20)})
 	client := http.Client{

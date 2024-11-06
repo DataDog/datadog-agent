@@ -7,6 +7,12 @@ contains the experiments for Agent. A similar one exists in [Vector]. Please do
 add your own experiments, instructions below. If you have any questions do
 contact #single-machine-performance; we'll be glad to help.
 
+## Quality Gate Experiments
+Experiments prefixed with `quality_gate_` represent the strongest claims made
+about the Agent and its performance. These are discussed in more detail on
+[this
+page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4294836779/Performance+Quality+Gates)
+
 ## Adding an Experiment
 
 In order for SMP's tooling to properly read a experiment directory please

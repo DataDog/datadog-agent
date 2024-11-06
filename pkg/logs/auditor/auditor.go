@@ -133,8 +133,7 @@ func (a *RegistryAuditor) Channel() chan *message.Payload {
 // GetOffset returns the last committed offset for a given identifier,
 // returns an empty string if it does not exist.
 func (a *RegistryAuditor) GetOffset(identifier string) string {
-	r := a.readOnlyRegistryCopy()
-	entry, exists := r[identifier]
+	entry, exists := a.readOnlyRegistryEntryCopy(identifier)
 	if !exists {
 		return ""
 	}
@@ -144,8 +143,7 @@ func (a *RegistryAuditor) GetOffset(identifier string) string {
 // GetTailingMode returns the last committed offset for a given identifier,
 // returns an empty string if it does not exist.
 func (a *RegistryAuditor) GetTailingMode(identifier string) string {
-	r := a.readOnlyRegistryCopy()
-	entry, exists := r[identifier]
+	entry, exists := a.readOnlyRegistryEntryCopy(identifier)
 	if !exists {
 		return ""
 	}
@@ -263,6 +261,16 @@ func (a *RegistryAuditor) readOnlyRegistryCopy() map[string]RegistryEntry {
 		r[path] = *entry
 	}
 	return r
+}
+
+func (a *RegistryAuditor) readOnlyRegistryEntryCopy(identifier string) (RegistryEntry, bool) {
+	a.registryMutex.Lock()
+	defer a.registryMutex.Unlock()
+	entry, exists := a.registry[identifier]
+	if !exists {
+		return RegistryEntry{}, false
+	}
+	return *entry, true
 }
 
 // flushRegistry writes on disk the registry at the given path

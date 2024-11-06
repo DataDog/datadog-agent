@@ -6,9 +6,22 @@
 // Package rdnsquerier provides the reverse DNS querier component.
 package rdnsquerier
 
-// team: network-device-monitoring
+import (
+	"context"
+)
+
+// team: ndm-integrations
+
+// ReverseDNSResult is the result of a reverse DNS lookup
+type ReverseDNSResult struct {
+	IP       string
+	Hostname string
+	Err      error
+}
 
 // Component is the component type.
 type Component interface {
-	GetHostname([]byte, func(string), func(string, error)) error
+	GetHostnameAsync([]byte, func(string), func(string, error)) error
+	GetHostname(context.Context, string) (string, error)
+	GetHostnames(context.Context, []string) map[string]ReverseDNSResult
 }

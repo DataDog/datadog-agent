@@ -43,6 +43,7 @@ const (
 	PingModule                   types.ModuleName = "ping"
 	TracerouteModule             types.ModuleName = "traceroute"
 	DiscoveryModule              types.ModuleName = "discovery"
+	GPUMonitoringModule          types.ModuleName = "gpu"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -121,8 +122,9 @@ func load() (*types.Config, error) {
 	npmEnabled := cfg.GetBool(netNS("enabled"))
 	usmEnabled := cfg.GetBool(smNS("enabled"))
 	ccmEnabled := cfg.GetBool(ccmNS("enabled"))
+	csmEnabled := cfg.GetBool(secNS("enabled"))
 
-	if npmEnabled || usmEnabled || ccmEnabled {
+	if npmEnabled || usmEnabled || ccmEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
 	}
 	if cfg.GetBool(spNS("enable_tcp_queue_length")) {
@@ -146,7 +148,7 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(diNS("enabled")) {
 		c.EnabledModules[DynamicInstrumentationModule] = struct{}{}
 	}
-	if cfg.GetBool(nskey("ebpf_check", "enabled")) {
+	if cfg.GetBool(NSkey("ebpf_check", "enabled")) {
 		c.EnabledModules[EBPFModule] = struct{}{}
 	}
 	if cfg.GetBool("system_probe_config.language_detection.enabled") {
@@ -161,6 +163,10 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(discoveryNS("enabled")) {
 		c.EnabledModules[DiscoveryModule] = struct{}{}
 	}
+	if cfg.GetBool(gpuNS("enabled")) {
+		c.EnabledModules[GPUMonitoringModule] = struct{}{}
+	}
+
 	if cfg.GetBool(wcdNS("enabled")) {
 		c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
 	}

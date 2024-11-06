@@ -8,8 +8,13 @@
 package net
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"os"
+	"time"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 )
@@ -25,6 +30,10 @@ const (
 	pprofURL             = "http://unix/debug/pprof"
 	languageDetectionURL = "http://unix/" + string(sysconfig.LanguageDetectionModule) + "/detect"
 	discoveryServicesURL = "http://unix/" + string(sysconfig.DiscoveryModule) + "/services"
+	telemetryURL         = "http://unix/telemetry"
+	conntrackCachedURL   = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/cached"
+	conntrackHostURL     = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/host"
+	ebpfBTFLoaderURL     = "http://unix/debug/ebpf_btf_loader_info"
 	netType              = "unix"
 )
 
@@ -39,4 +48,65 @@ func CheckPath(path string) error {
 		return fmt.Errorf("socket path does not exist: %v", err)
 	}
 	return nil
+}
+
+// newSystemProbe creates a group of clients to interact with system-probe.
+func newSystemProbe(path string) *RemoteSysProbeUtil {
+	return &RemoteSysProbeUtil{
+		path: path,
+		httpClient: http.Client{
+			Timeout: 10 * time.Second,
+			Transport: &http.Transport{
+				MaxIdleConns:    2,
+				IdleConnTimeout: 30 * time.Second,
+				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+					return net.Dial(netType, path)
+				},
+				TLSHandshakeTimeout:   1 * time.Second,
+				ResponseHeaderTimeout: 5 * time.Second,
+				ExpectContinueTimeout: 50 * time.Millisecond,
+			},
+		},
+		pprofClient: http.Client{
+			Transport: &http.Transport{
+				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+					return net.Dial(netType, path)
+				},
+			},
+		},
+		tracerouteClient: http.Client{
+			// no timeout set here, the expected usage of this client
+			// is that the caller will set a timeout on each request
+			Transport: &http.Transport{
+				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+					return net.Dial(netType, path)
+				},
+			},
+		},
+	}
+}
+
+// GetBTFLoaderInfo queries ebpf_btf_loader_info to get information about where btf files came from
+func (r *RemoteSysProbeUtil) GetBTFLoaderInfo() ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, ebpfBTFLoaderURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(`GetEbpfBtfInfo got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
+	}
+
+	return data, nil
 }

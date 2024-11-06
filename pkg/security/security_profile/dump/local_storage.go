@@ -22,10 +22,11 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type dumpFiles struct {
@@ -73,20 +74,20 @@ func NewActivityDumpLocalStorage(cfg *config.Config, m *ActivityDumpManager) (Ac
 	}
 
 	var err error
-	adls.localDumps, err = simplelru.NewLRU(cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount, func(_ string, files *[]string) {
-		if len(*files) == 0 {
+	adls.localDumps, err = simplelru.NewLRU(cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount, func(_ string, filePaths *[]string) {
+		if len(*filePaths) == 0 {
 			return
 		}
 
 		// notify the security profile directory provider that we're about to delete a profile
 		if m.securityProfileManager != nil {
-			m.securityProfileManager.OnLocalStorageCleanup(*files)
+			m.securityProfileManager.OnLocalStorageCleanup(*filePaths)
 		}
 
 		// remove everything
-		for _, f := range *files {
-			if err := os.Remove(path.Join(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, f)); err != nil {
-				seclog.Warnf("Failed to remove dump %s (limit of dumps reach): %v", f, err)
+		for _, filePath := range *filePaths {
+			if err := os.Remove(filePath); err != nil {
+				seclog.Warnf("Failed to remove dump %s (limit of dumps reach): %v", filePath, err)
 			}
 		}
 
@@ -137,11 +138,11 @@ func NewActivityDumpLocalStorage(cfg *config.Config, m *ActivityDumpManager) (Ac
 			if !ok {
 				ad = &dumpFiles{
 					Name:  dumpName,
-					Files: make([]string, 1),
+					Files: make([]string, 0, 1),
 				}
 				localDumps[dumpName] = ad
 			}
-			ad.Files = append(ad.Files, f.Name())
+			ad.Files = append(ad.Files, filepath.Join(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, f.Name()))
 			if !ad.MTime.IsZero() && ad.MTime.Before(dumpInfo.ModTime()) {
 				ad.MTime = dumpInfo.ModTime()
 			}
@@ -183,11 +184,11 @@ func (storage *ActivityDumpLocalStorage) Persist(request config.StorageRequest, 
 
 	// add the file to the list of local dumps (thus removing one or more files if we reached the limit)
 	if storage.localDumps != nil {
-		files, ok := storage.localDumps.Get(ad.Metadata.Name)
+		filePaths, ok := storage.localDumps.Get(ad.Metadata.Name)
 		if !ok {
 			storage.localDumps.Add(ad.Metadata.Name, &[]string{outputPath})
 		} else {
-			*files = append(*files, outputPath)
+			*filePaths = append(*filePaths, outputPath)
 		}
 	}
 

@@ -1112,6 +1112,55 @@ func TestNormalizeHTTPHeader(t *testing.T) {
 	}
 }
 
+func TestUpdateAPIKey(t *testing.T) {
+	assert := assert.New(t)
+
+	var counter int // keeps track of every time the buildHandler function has been called
+	buildHandler := func(*HTTPReceiver) http.Handler {
+		counter++
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			fmt.Fprintf(w, "%d", counter)
+		})
+	}
+
+	testEndpoint := Endpoint{
+		Pattern: "/test",
+		Handler: buildHandler,
+	}
+	AttachEndpoint(testEndpoint)
+
+	conf := newTestReceiverConfig()
+	receiver := newTestReceiverFromConfig(conf)
+	receiver.Start()
+	defer receiver.Stop()
+
+	assert.Equal(1, counter)
+
+	url := fmt.Sprintf("http://%s:%d/test",
+		conf.ReceiverHost, conf.ReceiverPort)
+
+	for i := 1; i <= 10; i++ {
+		receiver.UpdateAPIKey() // force handler rebuild
+
+		req, err := http.NewRequest("GET", url, nil)
+		assert.NoError(err)
+
+		resp, err := http.DefaultClient.Do(req)
+		assert.NoError(err)
+		defer resp.Body.Close()
+
+		assert.Equal(200, resp.StatusCode)
+
+		body, err := io.ReadAll(resp.Body)
+		assert.NoError(err)
+
+		number, err := strconv.Atoi(string(body))
+		assert.NoError(err)
+
+		assert.Equal(counter, number)
+	}
+}
+
 func msgpTraces(t *testing.T, traces pb.Traces) []byte {
 	bts, err := traces.MarshalMsg(nil)
 	if err != nil {

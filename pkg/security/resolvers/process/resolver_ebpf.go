@@ -39,12 +39,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
-	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	stime "github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
 const (
@@ -352,9 +352,6 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	entry.FileEvent.MountOrigin = model.MountOriginProcfs
 	entry.FileEvent.MountSource = model.MountSourceSnapshot
 
-	var id containerutils.CGroupID
-	id, entry.Process.ContainerID = containerutils.GetCGroupContext(containerID, containerFlags)
-	entry.Process.CGroup.CGroupID = id
 	entry.Process.CGroup.CGroupFlags = containerFlags
 	var fileStats unix.Statx_t
 
@@ -369,6 +366,21 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 			seclog.Debugf("snapshot failed for %d: couldn't retrieve inode info: %s", proc.Pid, err)
 		} else {
 			entry.Process.CGroup.CGroupFile.MountID = info.MountID
+		}
+	}
+
+	if cgroupFileContent, err := os.ReadFile(taskPath); err == nil {
+		lines := strings.Split(string(cgroupFileContent), "\n")
+		for _, line := range lines {
+			parts := strings.SplitN(line, ":", 3)
+
+			// Skip potentially malformed lines
+			if len(parts) != 3 {
+				continue
+			}
+
+			entry.Process.CGroup.CGroupID = containerutils.CGroupID(parts[2])
+			break
 		}
 	}
 
@@ -927,9 +939,9 @@ func (p *EBPFResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Proces
 		parent := p.resolveFromProcfs(ppid, maxDepth-1)
 		if inserted && parent != nil {
 			if parent.Equals(entry) {
-				entry.SetParentOfForkChild(parent)
+				entry.SetForkParent(parent)
 			} else {
-				entry.SetAncestor(parent)
+				entry.SetExecParent(parent)
 			}
 		}
 	}
@@ -975,6 +987,10 @@ func (p *EBPFResolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, bool
 
 // SetProcessEnvs set envs to cache entry
 func (p *EBPFResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
+	if !p.opts.envsResolutionEnabled {
+		return
+	}
+
 	if entry, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		if pce.EnvsTruncated {
 			p.envsTruncated.Inc()
@@ -1244,7 +1260,6 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 	}
 
 	entry = p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})
-	entry.IsThread = true
 
 	// update the cache entry
 	if err := p.enrichEventFromProc(entry, proc, filledProc); err != nil {
@@ -1257,9 +1272,9 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 	parent := p.entryCache[entry.PPid]
 	if parent != nil {
 		if parent.Equals(entry) {
-			entry.SetParentOfForkChild(parent)
+			entry.SetForkParent(parent)
 		} else {
-			entry.SetAncestor(parent)
+			entry.SetExecParent(parent)
 		}
 	}
 
@@ -1293,35 +1308,49 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 }
 
 // ToJSON return a json version of the cache
-func (p *EBPFResolver) ToJSON() ([]byte, error) {
+func (p *EBPFResolver) ToJSON(raw bool) ([]byte, error) {
 	dump := struct {
 		Entries []json.RawMessage
 	}{}
 
 	p.Walk(func(entry *model.ProcessCacheEntry) {
-		e := struct {
-			PID             uint32
-			PPID            uint32
-			Path            string
-			Inode           uint64
-			MountID         uint32
-			Source          string
-			ExecInode       uint64
-			IsThread        bool
-			IsParentMissing bool
-		}{
-			PID:             entry.Pid,
-			PPID:            entry.PPid,
-			Path:            entry.FileEvent.PathnameStr,
-			Inode:           entry.FileEvent.Inode,
-			MountID:         entry.FileEvent.MountID,
-			Source:          model.ProcessSourceToString(entry.Source),
-			ExecInode:       entry.ExecInode,
-			IsThread:        entry.IsThread,
-			IsParentMissing: entry.IsParentMissing,
+		var (
+			d   []byte
+			err error
+		)
+
+		if raw {
+			d, err = json.Marshal(entry)
+		} else {
+			e := struct {
+				PID             uint32
+				PPID            uint32
+				Path            string
+				Inode           uint64
+				MountID         uint32
+				Source          string
+				ExecInode       uint64
+				IsExec          bool
+				IsParentMissing bool
+				CGroup          string
+				ContainerID     string
+			}{
+				PID:             entry.Pid,
+				PPID:            entry.PPid,
+				Path:            entry.FileEvent.PathnameStr,
+				Inode:           entry.FileEvent.Inode,
+				MountID:         entry.FileEvent.MountID,
+				Source:          model.ProcessSourceToString(entry.Source),
+				ExecInode:       entry.ExecInode,
+				IsExec:          entry.IsExec,
+				IsParentMissing: entry.IsParentMissing,
+				CGroup:          string(entry.CGroup.CGroupID),
+				ContainerID:     string(entry.ContainerID),
+			}
+
+			d, err = json.Marshal(e)
 		}
 
-		d, err := json.Marshal(e)
 		if err == nil {
 			dump.Entries = append(dump.Entries, d)
 		}
@@ -1424,7 +1453,7 @@ func (p *EBPFResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
 	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver mount.ResolverInterface,
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
-	pathResolver spath.ResolverInterface, opts *ResolverOpts) (*EBPFResolver, error) {
+	pathResolver spath.ResolverInterface, envVarsResolver *envvars.Resolver, opts *ResolverOpts) (*EBPFResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint64, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
@@ -1459,7 +1488,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		userGroupResolver:         userGroupResolver,
 		timeResolver:              timeResolver,
 		pathResolver:              pathResolver,
-		envVarsResolver:           envvars.NewEnvVarsResolver(config),
+		envVarsResolver:           envVarsResolver,
 	}
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)

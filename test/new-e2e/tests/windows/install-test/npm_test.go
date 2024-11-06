@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -111,8 +110,6 @@ func (s *testNPMInstallWithAddLocalSuite) TestNPMInstallWithAddLocal() {
 //
 // Old name: Scenario 10
 func TestNPMUpgradeFromBeta(t *testing.T) {
-	// incident-30584
-	flake.Mark(t)
 	s := &testNPMUpgradeFromBeta{}
 	s.previousVersion = "7.23.2-beta1-1"
 	s.url = "https://ddagent-windows-unstable.s3.amazonaws.com/datadog-agent-7.23.2-beta1-1-x86_64.msi"

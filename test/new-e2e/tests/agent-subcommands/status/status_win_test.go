@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
@@ -30,13 +31,37 @@ func (v *windowsStatusSuite) TestStatusHostname() {
 	metadata := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 	resourceID := metadata.Get("instance-id")
 
-	status := v.Env().Agent.Client.Status()
-
-	expected := expectedSection{
-		name:            `Hostname`,
-		shouldBePresent: true,
-		shouldContain:   []string{fmt.Sprintf("instance-id: %v", resourceID), "hostname provider: os"},
+	expectedSections := []expectedSection{
+		{
+			name:            `Hostname`,
+			shouldBePresent: true,
+			shouldContain:   []string{fmt.Sprintf("instance-id: %v", resourceID), "hostname provider: os"},
+		},
 	}
 
-	verifySectionContent(v.T(), status.Content, expected)
+	fetchAndCheckStatus(&v.baseStatusSuite, expectedSections)
+}
+
+// This test asserts the presence of metadata sent by Python checks in the status subcommand output.
+func (v *windowsStatusSuite) TestChecksMetadataWindows() {
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
+		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithAgentOptions(
+			agentparams.WithFile("C:/ProgramData/Datadog/conf.d/custom_check.d/conf.yaml", string(customCheckYaml), true),
+			agentparams.WithFile("C:/ProgramData/Datadog/checks.d/custom_check.py", string(customCheckPython), true),
+		)))
+
+	expectedSections := []expectedSection{
+		{
+			name:            "Collector",
+			shouldBePresent: true,
+			shouldContain: []string{"Instance ID:", "[OK]",
+				// Following lines check the presence of checks metadata
+				"metadata:",
+				"custom_metadata_key: custom_metadata_value",
+			},
+		},
+	}
+
+	fetchAndCheckStatus(&v.baseStatusSuite, expectedSections)
 }

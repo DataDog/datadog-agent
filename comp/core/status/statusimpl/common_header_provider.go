@@ -33,6 +33,7 @@ type headerProvider struct {
 	name                   string
 	textTemplatesFunctions textTemplate.FuncMap
 	htmlTemplatesFunctions htmlTemplate.FuncMap
+	config                 config.Component
 }
 
 func (h *headerProvider) Index() int {
@@ -72,6 +73,7 @@ func (h *headerProvider) HTML(_ bool, buffer io.Writer) error {
 func (h *headerProvider) data() map[string]interface{} {
 	data := maps.Clone(h.constdata)
 	data["time_nano"] = nowFunc().UnixNano()
+	data["config"] = populateConfig(h.config)
 	return data
 }
 
@@ -88,13 +90,13 @@ func newCommonHeaderProvider(params status.Params, config config.Component) stat
 	pythonVersion := params.PythonVersionGetFunc()
 	data["python_version"] = strings.Split(pythonVersion, " ")[0]
 	data["build_arch"] = runtime.GOARCH
-	data["config"] = populateConfig(config)
 
 	return &headerProvider{
 		constdata:              data,
 		name:                   fmt.Sprintf("%s (v%s)", flavor.GetHumanReadableFlavor(), data["version"]),
 		textTemplatesFunctions: status.TextFmap(),
 		htmlTemplatesFunctions: status.HTMLFmap(),
+		config:                 config,
 	}
 }
 

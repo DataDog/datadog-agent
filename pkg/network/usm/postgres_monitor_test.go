@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -45,6 +46,7 @@ const (
 	alterTableQuery          = "ALTER TABLE dummy ADD test VARCHAR(255);"
 	truncateTableQuery       = "TRUNCATE TABLE dummy"
 	showQuery                = "SHOW search_path"
+	maxSupportedMessages     = protocols.PostgresMaxMessagesPerTailCall * protocols.PostgresMaxTailCalls
 )
 
 var (
@@ -103,7 +105,11 @@ type postgresProtocolParsingSuite struct {
 func TestPostgresMonitoring(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	if !prebuilt.IsDeprecated() {
+		modes = append(modes, ebpftest.Prebuilt)
+	}
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 		suite.Run(t, new(postgresProtocolParsingSuite))
 	})
 }
@@ -185,7 +191,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 
 	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
 	if isTLS {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid(), utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
 	}
 
 	tests := []postgresParsingTestAttributes{
@@ -397,11 +403,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				ctx.extras["pg"] = pg
 			},
 			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
-				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
-					ServerAddress: ctx.serverAddress,
-					EnableTLS:     isTLS,
-				})
-				require.NoError(t, err)
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
 				require.NoError(t, pg.Ping())
 				ctx.extras["pg"] = pg
 				require.NoError(t, pg.RunQuery(createTableQuery))
@@ -478,7 +480,6 @@ func testDecoding(t *testing.T, isTLS bool) {
 				}, isTLS)
 			},
 		},
-		// This test validates that the SHOW command is currently not supported.
 		{
 			name: "show command",
 			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
@@ -497,8 +498,8 @@ func testDecoding(t *testing.T, isTLS bool) {
 			},
 			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
-					"UNKNOWN": {
-						postgres.UnknownOP: adjustCount(1),
+					"search_path": {
+						postgres.ShowOP: adjustCount(1),
 					},
 				}, isTLS)
 			},
@@ -585,6 +586,67 @@ func testDecoding(t *testing.T, isTLS bool) {
 			},
 			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{}, isTLS)
+			},
+		},
+		// The purpose of this test is to validate the POSTGRES_MAX_MESSAGES_PER_TAIL_CALL * POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES limit.
+		{
+			name: "validate supporting max supported messages limit",
+			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+			},
+			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+				// We reduce the limit by 2 messages because the protocol adds messages at the beginning of the maximum message response.
+				require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(1, maxSupportedMessages-3)...)))
+				require.NoError(t, pg.RunQuery(selectAllQuery))
+			},
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"dummy": {
+						postgres.SelectOP:      adjustCount(1),
+						postgres.InsertOP:      adjustCount(1),
+						postgres.CreateTableOP: adjustCount(1),
+					},
+				}, isTLS)
+			},
+		},
+		// This test validates that when we exceed the POSTGRES_MAX_MESSAGES_PER_TAIL_CALL * POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES limit,
+		// the request is not captured as we will miss the response.In this case, it applies to the SELECT query.
+		{
+			name: "validate exceeding max supported messages limit is not supported",
+			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+			},
+			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+				require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(1, maxSupportedMessages+1)...)))
+				require.NoError(t, pg.RunQuery(selectAllQuery))
+			},
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"dummy": {
+						postgres.InsertOP:      adjustCount(1),
+						postgres.CreateTableOP: adjustCount(1),
+					},
+				}, isTLS)
 			},
 		},
 	}
@@ -724,11 +786,106 @@ func validatePostgres(t *testing.T, monitor *Monitor, expectedStats map[string]m
 			if hasTLSTag != tls {
 				continue
 			}
-			if _, ok := found[key.TableName]; !ok {
-				found[key.TableName] = make(map[postgres.Operation]int)
+			if _, ok := found[key.Parameters]; !ok {
+				found[key.Parameters] = make(map[postgres.Operation]int)
 			}
-			found[key.TableName][key.Operation] += stats.Count
+			found[key.Parameters][key.Operation] += stats.Count
 		}
 		return reflect.DeepEqual(expectedStats, found)
 	}, time.Second*5, time.Millisecond*100, "Expected to find a %v stats, instead captured %v", &expectedStats, &found)
+}
+
+func (s *postgresProtocolParsingSuite) TestExtractParameters() {
+	t := s.T()
+
+	units := []struct {
+		name     string
+		expected string
+		event    ebpf.EbpfEvent
+	}{
+		{
+			name:     "query_size longer than the actual length of the content",
+			expected: "version and status",
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    createFragment([]byte("SHOW version and status")),
+					Original_query_size: 64,
+				},
+			},
+		},
+		{
+			name:     "query_size shorter than the actual length of the content",
+			expected: "param1 param2",
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    createFragment([]byte("SHOW param1 param2 param3")),
+					Original_query_size: 18,
+				},
+			},
+		},
+		{
+			name:     "the query has no parameters",
+			expected: postgres.EmptyParameters,
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    createFragment([]byte("SHOW ")),
+					Original_query_size: 10,
+				},
+			},
+		},
+		{
+			name:     "command has trailing zeros",
+			expected: "param",
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    [ebpf.BufferSize]byte{'S', 'H', 'O', 'W', ' ', 'p', 'a', 'r', 'a', 'm', 0, 0, 0},
+					Original_query_size: 13,
+				},
+			},
+		},
+		{
+			name:     "malformed command with wrong query_size",
+			expected: postgres.EmptyParameters,
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    [ebpf.BufferSize]byte{'S', 'H', 'O', 'W', ' ', 0, 0, 'a', ' ', 'b', 'c', 0, 0, 0},
+					Original_query_size: 14,
+				},
+			},
+		},
+		{
+			name:     "empty parameters with spaces and nils",
+			expected: postgres.EmptyParameters,
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    [ebpf.BufferSize]byte{'S', 'H', 'O', 'W', ' ', 0, ' ', 0, ' ', 0, 0, 0},
+					Original_query_size: 12,
+				},
+			},
+		},
+		{
+			name:     "parameters with control codes only",
+			expected: "\x01\x02\x03\x04\x05",
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    [ebpf.BufferSize]byte{'S', 'H', 'O', 'W', ' ', 1, 2, 3, 4, 5},
+					Original_query_size: 10,
+				},
+			},
+		},
+	}
+	for _, unit := range units {
+		t.Run(unit.name, func(t *testing.T) {
+			e := postgres.NewEventWrapper(&unit.event)
+			require.NotNil(t, e)
+			e.Operation()
+			require.Equal(t, unit.expected, e.Parameters())
+		})
+	}
+}
+
+func createFragment(fragment []byte) [ebpf.BufferSize]byte {
+	var b [ebpf.BufferSize]byte
+	copy(b[:], fragment)
+	return b
 }

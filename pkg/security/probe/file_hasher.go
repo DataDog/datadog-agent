@@ -91,17 +91,21 @@ func (p *FileHasher) HandleProcessExited(event *model.Event) {
 	})
 }
 
-// HashAndReport hash and report
-func (p *FileHasher) HashAndReport(rule *rules.Rule, ev *model.Event) {
+// HashAndReport hash and report, returns true if the hash computation is supported for the given event
+func (p *FileHasher) HashAndReport(rule *rules.Rule, ev *model.Event) bool {
 	eventType := ev.GetEventType()
+
+	if !p.cfg.RuntimeSecurity.HashResolverEnabled {
+		return false
+	}
 
 	// only open events are supported
 	if eventType != model.FileOpenEventType && eventType != model.ExecEventType {
-		return
+		return false
 	}
 
 	if ev.ProcessContext.Pid == utils.Getpid() {
-		return
+		return false
 	}
 
 	report := &HashActionReport{
@@ -114,4 +118,6 @@ func (p *FileHasher) HashAndReport(rule *rules.Rule, ev *model.Event) {
 	}
 	ev.ActionReports = append(ev.ActionReports, report)
 	p.pendingReports = append(p.pendingReports, report)
+
+	return true
 }

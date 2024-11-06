@@ -10,11 +10,11 @@ import (
 	"context"
 	"fmt"
 
-	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/otelcol"
 )
 
 const (
@@ -24,20 +24,22 @@ const (
 type ddExtensionFactory struct {
 	extension.Factory
 
-	configstore configstore.Component
+	factories              *otelcol.Factories
+	configProviderSettings otelcol.ConfigProviderSettings
 }
 
 // NewFactory creates a factory for HealthCheck extension.
-func NewFactory(configstore configstore.Component) extension.Factory {
+func NewFactory(factories *otelcol.Factories, configProviderSettings otelcol.ConfigProviderSettings) extension.Factory {
 	return &ddExtensionFactory{
-		configstore: configstore,
+		factories:              factories,
+		configProviderSettings: configProviderSettings,
 	}
 }
 
 func (f *ddExtensionFactory) CreateExtension(ctx context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
-
 	config := &Config{
-		ConfigStore: f.configstore,
+		factories:              f.factories,
+		configProviderSettings: f.configProviderSettings,
 	}
 	config.HTTPConfig = cfg.(*Config).HTTPConfig
 	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo)
@@ -48,7 +50,6 @@ func (f *ddExtensionFactory) CreateDefaultConfig() component.Config {
 		HTTPConfig: &confighttp.ServerConfig{
 			Endpoint: fmt.Sprintf("localhost:%d", defaultHTTPPort),
 		},
-		ConfigStore: f.configstore,
 	}
 }
 

@@ -7,7 +7,6 @@ namespace WixSetup.Datadog_Installer
     {
         public ManagedAction RunAsAdmin { get; }
         public ManagedAction ReadConfig { get; }
-        public ManagedAction WriteConfig { get; }
         public ManagedAction ReadInstallState { get; }
         public ManagedAction WriteInstallState { get; }
         public ManagedAction RollbackWriteInstallState { get; }
@@ -71,24 +70,6 @@ namespace WixSetup.Datadog_Installer
                 Execute = Execute.firstSequence
             }
             .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
-
-            WriteConfig = new CustomAction<CustomActions>(
-                new Id(nameof(WriteConfig)),
-                CustomActions.WriteConfig,
-                Return.check,
-                When.Before,
-                Step.InstallServices,
-                Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
-            )
-            {
-                Execute = Execute.deferred,
-                Impersonate = false
-            }
-            .SetProperties(
-                "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]," +
-                "APIKEY=[APIKEY], " +
-                "SITE=[SITE]")
-            .HideTarget(true);
 
             OpenMsiLog = new CustomAction<CustomActions>(
                 new Id(nameof(OpenMsiLog)),

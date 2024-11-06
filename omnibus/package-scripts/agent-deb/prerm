@@ -131,7 +131,10 @@ remove_sysprobe_secagent_files()
     if [ -d "$INSTALL_DIR/run" ]; then
         rmdir "$INSTALL_DIR/run" 2>/dev/null || true
     fi
+}
 
+remove_sysprobe_core_files()
+{
     # Remove any unpacked BTF files
     find "$INSTALL_DIR/embedded/share/system-probe/ebpf/co-re/btf" -name "*.btf*" -type f -delete || true
     # And remove empty directories
@@ -150,6 +153,20 @@ remove_remote_config_db()
     fi
 }
 
+remove_persist_integration_files()
+{
+    # Remove any file related to reinstalling non-core integrations (see python-scripts/packages.py for the names)
+    if [ -f "$INSTALL_DIR/.prerm_python_installed_packages.txt" ]; then
+        rm "$INSTALL_DIR/.prerm_python_installed_packages.txt" || true
+    fi
+    if [ -f "$INSTALL_DIR/.postinst_python_installed_packages.txt" ]; then
+        rm "$INSTALL_DIR/.postinst_python_installed_packages.txt" || true
+    fi
+    if [ -f "$INSTALL_DIR/.diff_python_installed_packages.txt" ]; then
+        rm "$INSTALL_DIR/.diff_python_installed_packages.txt" || true
+    fi
+}
+
 remove_apm_remote_config()
 {
     if [ -f "$INSTALL_DIR/run/inject_config.yaml" ]; then
@@ -158,10 +175,21 @@ remove_apm_remote_config()
     fi
 }
 
+case "$1" in #this can't be merged with the later case block because running 'remove_custom_integrations' would defeat the persisting integrations feature
+    upgrade)
+        # We're upgrading.
+        if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then  
+            ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/prerm.py" "${INSTALL_DIR}" || true
+        fi
+    ;;
+    *)
+    ;;
+esac
 stop_agent
 deregister_agent
 remove_custom_integrations
 remove_py_compiled_files
+remove_sysprobe_core_files
 
 case "$1" in
     remove)
@@ -169,6 +197,7 @@ case "$1" in
         remove_version_history
         remove_sysprobe_secagent_files
         remove_remote_config_db
+        remove_persist_integration_files
     ;;
     upgrade)
         # We're upgrading.
@@ -180,5 +209,8 @@ esac
 # Delete all .pyc files in the `agent/` and the `bin/agent/dist` dirs
 find $INSTALL_DIR/bin/agent/dist -name '*.py[co]' -type f -delete || echo "Unable to delete .pyc files in $INSTALL_DIR/bin/agent/dist"
 find $INSTALL_DIR/bin/agent/dist -name '__pycache__' -type d -delete || echo "Unable to delete __pycache__ directories in $INSTALL_DIR/bin/agent/dist"
+# Delete all .pyc files in the `python-scripts/` dir
+find $INSTALL_DIR/python-scripts -name '*.py[co]' -type f -delete || echo "Unable to delete .pyc files in $INSTALL_DIR/python-scripts"
+find $INSTALL_DIR/python-scripts -name '__pycache__' -type d -delete || echo "Unable to delete __pycache__ directories in $INSTALL_DIR/python-scripts"
 
 exit 0

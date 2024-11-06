@@ -36,6 +36,9 @@ build do
 
   env["CFLAGS"] = "-I#{install_dir}/embedded/include -O1 -D_FORTIFY_SOURCE=1 -fPIC"
 
+  patch source: "0001-disable-tests-building.patch"
+  command 'autoreconf -vif'
+
   configure_options = [
     "--enable-maintainer-mode",
   ]

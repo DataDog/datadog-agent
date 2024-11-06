@@ -33,29 +33,55 @@
             "properties": {
                 "signal": {
                     "const": "SIGKILL"
+                },
+                "status": {
+                    "const": "performed"
                 }
             },
             "required": [
                 "type",
                 "signal",
+                "scope",
+                "status",
                 "created_at",
                 "detected_at",
                 "killed_at",
-                "exited_at"
+                "exited_at",
+                "ttr"
             ]
         },
         {
             "properties": {
                 "signal": {
                     "const": "SIGUSR2"
+                },
+                "status": {
+                    "const": "performed"
                 }
             },
             "required": [
                 "type",
                 "signal",
+                "scope",
+                "status",
                 "created_at",
                 "detected_at",
                 "killed_at"
+            ]
+        },
+        {
+            "properties": {
+                "status": {
+                    "const": "rule_disarmed"
+                }
+            },
+            "required": [
+                "type",
+                "signal",
+                "scope",
+                "status",
+                "created_at",
+                "detected_at"
             ]
         }
     ]
