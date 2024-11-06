@@ -206,51 +206,52 @@ func GetOTelResourceV1(span ptrace.Span, res pcommon.Resource) (resName string) 
 }
 
 // GetOTelResourceV2 returns the DD resource name based on OTel span and resource attributes.
-func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) string {
-	resName := GetOTelAttrValInResAndSpanAttrs(span, res, false, "resource.name")
-	if resName == "" {
-		if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "http.request.method", semconv.AttributeHTTPMethod); m != "" {
-			if m == "_OTHER" {
-				m = "HTTP"
-			}
-			// use the HTTP method + route (if available)
-			resName = m
-			if span.Kind() == ptrace.SpanKindServer {
-				if route := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeHTTPRoute); route != "" {
-					resName = resName + " " + route
-				}
-			}
+func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) (resName string) {
+	defer func() {
+		if len(resName) > MaxResourceLen {
+			resName = resName[:MaxResourceLen]
 		}
+	}()
+	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "resource.name"); m != "" {
+		resName = m
+		return
 	}
 
-	if resName == "" {
-		if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeMessagingOperation); m != "" {
-			resName = m
-			// use the messaging operation
-			if dest := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeMessagingDestination, semconv117.AttributeMessagingDestinationName); dest != "" {
-				resName = resName + " " + dest
+	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "http.request.method", semconv.AttributeHTTPMethod); m != "" {
+		if m == "_OTHER" {
+			m = "HTTP"
+		}
+		// use the HTTP method + route (if available)
+		resName = m
+		if span.Kind() == ptrace.SpanKindServer {
+			if route := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeHTTPRoute); route != "" {
+				resName = resName + " " + route
 			}
 		}
+		return
 	}
 
-	if resName == "" {
-		if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeRPCMethod); m != "" {
-			resName = m
-			// use the RPC method
-			if svc := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeRPCService); m != "" {
-				// ...and service if available
-				resName = resName + " " + svc
-			}
+	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeMessagingOperation); m != "" {
+		resName = m
+		// use the messaging operation
+		if dest := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeMessagingDestination, semconv117.AttributeMessagingDestinationName); dest != "" {
+			resName = resName + " " + dest
 		}
+		return
 	}
 
-	if resName == "" {
-		resName = span.Name()
+	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeRPCMethod); m != "" {
+		resName = m
+		// use the RPC method
+		if svc := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeRPCService); m != "" {
+			// ...and service if available
+			resName = resName + " " + svc
+		}
+		return
 	}
-	if len(resName) > MaxResourceLen {
-		resName = resName[:MaxResourceLen]
-	}
-	return resName
+	resName = span.Name()
+
+	return
 }
 
 // GetOTelOperationNameV2 returns the DD operation name based on OTel span and resource attributes and given configs.
