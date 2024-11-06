@@ -12,12 +12,10 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
@@ -26,10 +24,8 @@ import (
 type Event int
 
 const (
-	// WorkloadSelectorResolved is used to notify that a new cgroup with a resolved workload selector is ready
-	WorkloadSelectorResolved Event = iota
 	// CGroupDeleted is used to notify that a cgroup was deleted
-	CGroupDeleted
+	CGroupDeleted Event = iota + 1
 	// CGroupCreated new croup created
 	CGroupCreated
 	// CGroupMaxEvent is used cap the event ID
@@ -42,20 +38,16 @@ type Listener func(workload *cgroupModel.CacheEntry)
 // Resolver defines a cgroup monitor
 type Resolver struct {
 	sync.RWMutex
-	workloads            *simplelru.LRU[string, *cgroupModel.CacheEntry]
-	tagsResolver         tags.Resolver
-	workloadsWithoutTags chan *cgroupModel.CacheEntry
+	workloads *simplelru.LRU[string, *cgroupModel.CacheEntry]
 
 	listenersLock sync.Mutex
 	listeners     map[Event][]Listener
 }
 
 // NewResolver returns a new cgroups monitor
-func NewResolver(tagsResolver tags.Resolver) (*Resolver, error) {
+func NewResolver() (*Resolver, error) {
 	cr := &Resolver{
-		tagsResolver:         tagsResolver,
-		workloadsWithoutTags: make(chan *cgroupModel.CacheEntry, 100),
-		listeners:            make(map[Event][]Listener),
+		listeners: make(map[Event][]Listener),
 	}
 	workloads, err := simplelru.NewLRU(1024, func(_ string, value *cgroupModel.CacheEntry) {
 		value.CallReleaseCallback()
@@ -76,27 +68,6 @@ func NewResolver(tagsResolver tags.Resolver) (*Resolver, error) {
 
 // Start starts the goroutine of the SBOM resolver
 func (cr *Resolver) Start(ctx context.Context) {
-	go func() {
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		delayerTick := time.NewTicker(10 * time.Second)
-		defer delayerTick.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-delayerTick.C:
-				select {
-				case workload := <-cr.workloadsWithoutTags:
-					cr.checkTags(workload)
-				default:
-				}
-
-			}
-		}
-	}()
 }
 
 // RegisterListener registers a CGroup event listener
@@ -145,42 +116,6 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 		l(newCGroup)
 	}
 	cr.listenersLock.Unlock()
-
-	// check the tags of this workload
-	cr.checkTags(newCGroup)
-}
-
-// checkTags checks if the tags of a workload were properly set
-func (cr *Resolver) checkTags(workload *cgroupModel.CacheEntry) {
-	// check if the workload tags were found
-	if workload.NeedsTagsResolution() {
-		// this is a container, try to resolve its tags now
-		if err := cr.fetchTags(workload); err != nil || workload.NeedsTagsResolution() {
-			// push to the workloadsWithoutTags chan so that its tags can be resolved later
-			select {
-			case cr.workloadsWithoutTags <- workload:
-			default:
-			}
-			return
-		}
-	}
-
-	// notify listeners
-	cr.listenersLock.Lock()
-	defer cr.listenersLock.Unlock()
-	for _, l := range cr.listeners[WorkloadSelectorResolved] {
-		l(workload)
-	}
-}
-
-// fetchTags fetches tags for the provided workload
-func (cr *Resolver) fetchTags(workload *cgroupModel.CacheEntry) error {
-	newTags, err := cr.tagsResolver.ResolveWithErr(string(workload.ContainerID))
-	if err != nil {
-		return fmt.Errorf("failed to resolve %s: %w", workload.ContainerID, err)
-	}
-	workload.SetTags(newTags)
-	return nil
 }
 
 // GetWorkload returns the workload referenced by the provided ID

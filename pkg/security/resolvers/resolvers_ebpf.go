@@ -91,16 +91,16 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		}
 	}
 
+	cgroupsResolver, err := cgroup.NewResolver()
+	if err != nil {
+		return nil, err
+	}
+
 	var tagsResolver tags.Resolver
 	if opts.TagsResolver != nil {
 		tagsResolver = opts.TagsResolver
 	} else {
-		tagsResolver = tags.NewResolver(config.Probe, telemetry)
-	}
-
-	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)
-	if err != nil {
-		return nil, err
+		tagsResolver = tags.NewResolver(config.Probe, telemetry, cgroupsResolver)
 	}
 
 	userGroupResolver, err := usergroup.NewResolver(cgroupsResolver)
@@ -112,7 +112,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		if err := cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, sbomResolver.OnCGroupDeletedEvent); err != nil {
 			return nil, err
 		}
-		if err := cgroupsResolver.RegisterListener(cgroup.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent); err != nil {
+		if err := tagsResolver.RegisterListener(tags.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent); err != nil {
 			return nil, err
 		}
 	}

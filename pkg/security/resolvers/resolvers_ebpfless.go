@@ -33,11 +33,16 @@ type EBPFLessResolvers struct {
 
 // NewEBPFLessResolvers creates a new instance of EBPFLessResolvers
 func NewEBPFLessResolvers(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, opts Opts, telemetry telemetry.Component) (*EBPFLessResolvers, error) {
+	cgroupsResolver, err := cgroup.NewResolver()
+	if err != nil {
+		return nil, err
+	}
+
 	var tagsResolver tags.Resolver
 	if opts.TagsResolver != nil {
 		tagsResolver = opts.TagsResolver
 	} else {
-		tagsResolver = tags.NewResolver(config.Probe, telemetry)
+		tagsResolver = tags.NewResolver(config.Probe, telemetry, cgroupsResolver)
 	}
 
 	processOpts := process.NewResolverOpts()
@@ -48,10 +53,6 @@ func NewEBPFLessResolvers(config *config.Config, statsdClient statsd.ClientInter
 		return nil, err
 	}
 
-	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)
-	if err != nil {
-		return nil, err
-	}
 	hashResolver, err := hash.NewResolver(config.RuntimeSecurity, statsdClient, cgroupsResolver)
 	if err != nil {
 		return nil, err
