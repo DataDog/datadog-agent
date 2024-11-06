@@ -57,7 +57,8 @@ func NewPipeline(outputChan chan *message.Payload,
 		senderDoneChan = make(chan *sync.WaitGroup)
 		flushWg = &sync.WaitGroup{}
 	}
-	pipelineMonitor := metrics.NewTelemetryPipelineMonitor(5*time.Second, strconv.Itoa(pipelineID))
+	// 15 seconds is the same interval used by the agent to report telemetry. Using a lower value can lead to lost data.
+	pipelineMonitor := metrics.NewTelemetryPipelineMonitor(15*time.Second, strconv.Itoa(pipelineID))
 
 	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineMonitor, serverless, senderDoneChan, status, cfg)
 
