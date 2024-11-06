@@ -390,6 +390,10 @@ kmt_secagent_cleanup_arm64:
   needs:
     - kmt_setup_env_secagent_arm64
     - kmt_run_secagent_tests_arm64
+    - kmt_run_secagent_tests_arm64_ad
+    - kmt_run_secagent_tests_arm64_ebpfless
+    - kmt_run_secagent_tests_arm64_fentry
+    - kmt_run_secagent_tests_arm64_docker
     - upload_dependencies_secagent_arm64
     - upload_secagent_tests_arm64
   variables:
@@ -403,6 +407,10 @@ kmt_secagent_cleanup_x64:
   needs:
     - kmt_setup_env_secagent_x64
     - kmt_run_secagent_tests_x64
+    - kmt_run_secagent_tests_x64_ad
+    - kmt_run_secagent_tests_x64_ebpfless
+    - kmt_run_secagent_tests_x64_fentry
+    - kmt_run_secagent_tests_x64_docker
     - upload_dependencies_secagent_x64
     - upload_secagent_tests_x64
   variables:
