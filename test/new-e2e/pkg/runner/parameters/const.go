@@ -19,14 +19,26 @@ const (
 	ExtraResourcesTags StoreKey = "extra_resources_tags"
 	// KeyPairName aws keypairname, used to access EC2 instances
 	KeyPairName StoreKey = "key_pair_name"
-	// PrivateKeyPassword private ssh key password
-	PrivateKeyPassword StoreKey = "private_key_password"
-	// PrivateKeyPath private ssh key path
-	PrivateKeyPath StoreKey = "private_key_path"
+	// AWSPrivateKeyPassword private ssh key password
+	AWSPrivateKeyPassword StoreKey = "aws_private_key_password"
+	// AWSPrivateKeyPath private ssh key path
+	AWSPrivateKeyPath StoreKey = "aws_private_key_path"
 	// Profile aws profile name
 	Profile StoreKey = "profile"
 	// PublicKeyPath public ssh key path
-	PublicKeyPath StoreKey = "public_key_path"
+	AWSPublicKeyPath StoreKey = "aws_public_key_path"
+	//AzurePrivateKeyPassword private ssh key password
+	AzurePrivateKeyPassword StoreKey = "azure_private_key_password"
+	//AzurePrivateKeyPath private ssh key path
+	AzurePrivateKeyPath StoreKey = "azure_private_key_path"
+	//AzurePublicKeyPath public ssh key path
+	AzurePublicKeyPath StoreKey = "azure_public_key_path"
+	//GCPPrivateKeyPassword private ssh key password
+	GCPPrivateKeyPassword StoreKey = "gcp_private_key_password"
+	//GCPPrivateKeyPath private ssh key path
+	GCPPrivateKeyPath StoreKey = "gcp_private_key_path"
+	//GCPPublicKeyPath public ssh key path
+	GCPPublicKeyPath StoreKey = "gcp_public_key_path"
 	// PulumiPassword config file parameter name
 	PulumiPassword StoreKey = "pulumi_password"
 	// SkipDeleteOnFailure keep the stack on test failure

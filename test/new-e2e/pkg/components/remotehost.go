@@ -16,6 +16,7 @@ import (
 // RemoteHost represents a remote host
 type RemoteHost struct {
 	remote.HostOutput
+	cloudProvider e2e.CloudProviderIdentifier
 
 	*client.Host
 	context e2e.Context
@@ -26,7 +27,7 @@ var _ e2e.Initializable = (*RemoteHost)(nil)
 // Init is called by e2e test Suite after the component is provisioned.
 func (h *RemoteHost) Init(ctx e2e.Context) (err error) {
 	h.context = ctx
-	h.Host, err = client.NewHost(ctx, h.HostOutput)
+	h.Host, err = client.NewHost(ctx, h.HostOutput, h.cloudProvider)
 	return err
 }
 

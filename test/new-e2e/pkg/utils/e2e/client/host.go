@@ -63,16 +63,40 @@ type Host struct {
 
 // NewHost creates a new ssh client to connect to a remote host with
 // reconnect retry logic
-func NewHost(context e2e.Context, hostOutput remote.HostOutput) (*Host, error) {
+func NewHost(context e2e.Context, hostOutput remote.HostOutput, cloudProvider e2e.CloudProviderIdentifier) (*Host, error) {
 	var privateSSHKey []byte
-	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
-	if err != nil {
-		return nil, err
-	}
+	var privateKeyPath string
+	var privateKeyPassword string
+	var err error
 
-	privateKeyPassword, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.PrivateKeyPassword, "")
-	if err != nil {
-		return nil, err
+	switch cloudProvider {
+	case e2e.AWS:
+		privateKeyPath, err = runner.GetProfile().ParamStore().GetWithDefault(parameters.AWSPrivateKeyPath, "")
+		if err != nil {
+			return nil, err
+		}
+		privateKeyPassword, err = runner.GetProfile().SecretStore().GetWithDefault(parameters.AWSPrivateKeyPassword, "")
+		if err != nil {
+			return nil, err
+		}
+	case e2e.Azure:
+		privateKeyPath, err = runner.GetProfile().ParamStore().GetWithDefault(parameters.AzurePrivateKeyPath, "")
+		if err != nil {
+			return nil, err
+		}
+		privateKeyPassword, err = runner.GetProfile().SecretStore().GetWithDefault(parameters.AzurePrivateKeyPassword, "")
+		if err != nil {
+			return nil, err
+		}
+	case e2e.GCP:
+		privateKeyPath, err = runner.GetProfile().ParamStore().GetWithDefault(parameters.GCPPrivateKeyPath, "")
+		if err != nil {
+			return nil, err
+		}
+		privateKeyPassword, err = runner.GetProfile().SecretStore().GetWithDefault(parameters.GCPPrivateKeyPassword, "")
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if privateKeyPath != "" {

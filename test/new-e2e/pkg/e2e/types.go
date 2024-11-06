@@ -28,3 +28,11 @@ func (rr RawResources) Merge(in RawResources) {
 		rr[k] = v
 	}
 }
+
+type CloudProviderIdentifier int
+
+const (
+	AWS CloudProviderIdentifier = iota
+	GCP
+	Azure
+)
