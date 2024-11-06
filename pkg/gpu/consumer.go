@@ -116,21 +116,21 @@ func (c *cudaEventConsumer) Start() {
 						continue
 					}
 					ckl := (*gpuebpf.CudaKernelLaunch)(unsafe.Pointer(&batchData.Data[0]))
-					c.streamHandlers[key].handleKernelLaunch(ckl)
+					streamHandler.handleKernelLaunch(ckl)
 				case gpuebpf.CudaEventTypeMemory:
 					if dataLen != gpuebpf.SizeofCudaMemEvent {
 						log.Errorf("Not enough data to parse memory event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaMemEvent)
 						continue
 					}
 					cme := (*gpuebpf.CudaMemEvent)(unsafe.Pointer(&batchData.Data[0]))
-					c.streamHandlers[key].handleMemEvent(cme)
+					streamHandler.handleMemEvent(cme)
 				case gpuebpf.CudaEventTypeSync:
 					if dataLen != gpuebpf.SizeofCudaSync {
 						log.Errorf("Not enough data to parse sync event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaSync)
 						continue
 					}
 					cs := (*gpuebpf.CudaSync)(unsafe.Pointer(&batchData.Data[0]))
-					c.streamHandlers[key].handleSync(cs)
+					streamHandler.handleSync(cs)
 				case gpuebpf.CudaEventTypeSetDevice:
 					if dataLen != gpuebpf.SizeofCudaSetDeviceEvent {
 						log.Errorf("Not enough data to parse set device event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaSetDeviceEvent)
