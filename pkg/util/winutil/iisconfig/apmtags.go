@@ -26,12 +26,14 @@ type APMTags struct {
 	DDEnv     string `json:"DD_ENV"`
 	DDVersion string `json:"DD_VERSION"`
 }
+
 // keep a count of errors to avoid flooding the log
 var (
-	jsonLogCount = 0
-	dotnetConfigLogCount = 0
+	jsonLogCount          = 0
+	dotnetConfigLogCount  = 0
 	logErrorCountInterval = 500
 )
+
 // ReadDatadogJSON reads a datadog.json file and returns the APM tags
 func ReadDatadogJSON(datadogJSONPath string) (APMTags, error) {
 	var apmtags APMTags
