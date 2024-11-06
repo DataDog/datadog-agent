@@ -34,12 +34,20 @@ type ConfigSources struct {
 	removedByType map[string][]chan *LogSource
 }
 
-// NewConfigSources creates a new config sources.
-func NewConfigSources() *ConfigSources {
-	return &ConfigSources{
-		addedByType:   make(map[string][]chan *LogSource),
-		removedByType: make(map[string][]chan *LogSource),
-	}
+var (
+	instance *ConfigSources
+	once     sync.Once
+)
+
+// GetInstance provides a singleton instance of ConfigSources.
+func GetInstance() *ConfigSources {
+	once.Do(func() {
+		instance = &ConfigSources{
+			addedByType:   make(map[string][]chan *LogSource),
+			removedByType: make(map[string][]chan *LogSource),
+		}
+	})
+	return instance
 }
 
 // AddFileSource gets a file from a file path and adds it as a source.
