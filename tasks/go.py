@@ -19,7 +19,6 @@ from pathlib import Path
 from invoke import task
 from invoke.exceptions import Exit
 
-import tasks.modules
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
@@ -507,44 +506,6 @@ def add_replaces(ctx, path, replaces: Iterable[str]):
                 ctx.run(f"go mod edit -replace={online_path}={module_local_path}")
 
 
-def add_go_module(path):
-    """
-    Add go module to modules.py
-    """
-    print(color_message("Updating get_default_modules() within modules.py", "blue"))
-    modules_path = tasks.modules.__file__
-    with open(modules_path) as f:
-        modulespy = f.read()
-
-    modulespy_regex = re.compile(r"get_default_modules() = {\n(.+?)\n}", re.DOTALL | re.MULTILINE)
-
-    all_modules_match = modulespy_regex.search(modulespy)
-    assert all_modules_match, "Could not find get_default_modules() in modules.py"
-    all_modules = all_modules_match.group(1)
-    all_modules = all_modules.split('\n')
-    indent = ' ' * 4
-
-    new_module = f'{indent}"{path}": GoModule("{path}", independent=True),'
-
-    # Insert in order
-    insert_line = 0
-    for i, line in enumerate(all_modules):
-        # This line is the start of a module (not a comment / middle of a module declaration)
-        if line.startswith(f'{indent}"'):
-            results = re.search(rf'{indent}"([^"]*)"', line)
-            assert results, f"Could not find module name in line '{line}'"
-            module = results.group(1)
-            if module < path:
-                insert_line = i
-            else:
-                assert module != path, f"Module {path} already exists within {modules_path}"
-
-    all_modules.insert(insert_line, new_module)
-    all_modules = '\n'.join(all_modules)
-    with open(modules_path, 'w') as f:
-        f.write(modulespy.replace(all_modules_match.group(1), all_modules))
-
-
 @task
 def create_module(ctx, path: str, no_verify: bool = False):
     """
@@ -619,8 +580,9 @@ def create_module(ctx, path: str, no_verify: bool = False):
             for mod in dependent_modules:
                 add_replaces(ctx, mod, [path])
 
-        # Update modules.py
-        add_go_module(path)
+        print(
+            f'{color_message("NOTE", "blue")}: You can create a {path}/module.yml file to add a special configuration for this module'
+        )
 
         if not is_empty:
             # Tidy all

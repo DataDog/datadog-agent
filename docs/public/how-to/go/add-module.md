@@ -27,13 +27,15 @@ The repository contains a few submodules. To add a new one and ensure it is test
     ```
 
 
-4.  Add `mymodule` to the `DEFAULT_MODULES` in [tasks/modules.py](https://github.com/DataDog/datadog-agent/blob/main/tasks/modules.py):
-    ```python
-    DEFAULT_MODULES = (
-    ...,
-    "path/to/mymodule": GoModule("path/to/mymodule", independent=True, should_tag=False, targets=["."]),
-    )
+4.  Create the `module.yml` file next to `go.mod` with this content:
+
+    ```yaml
+    independent: true
+    should_tag: false
+    targets:
+    - .
     ```
+
     - `independent`: Should it be importable as an independent module?
     - `should_tag`: Should the Agent pipeline tag it?
     - `targets`: Should `go test` target specific subfolders?
