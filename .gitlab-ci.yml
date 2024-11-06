@@ -6,6 +6,7 @@ test_gitlab:
     - PYTHON_VERSION=$(python3 --version | awk '{print $2}' | sed 's/\.[0-9]*$//')
     - VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
     - echo "venv $VENV_NAME python $PYTHON_REPO_VERSION"
+    - ls tata || echo "Ignoring tata"
     - pyenv virtualenv $PYTHON_VERSION $VENV_NAME || echo "Virtualenv already exists, skipping creation"
   
 
