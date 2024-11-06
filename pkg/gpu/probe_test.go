@@ -143,6 +143,9 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	require.Contains(t, stats.ProcessStats, uint32(cmd.Process.Pid))
 
 	pidStats := stats.ProcessStats[uint32(cmd.Process.Pid)]
-	require.Greater(t, pidStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
-	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
+	require.Contains(t, pidStats.StatsPerDevice, testutil.DefaultGpuUUID)
+	devStats := pidStats.StatsPerDevice[testutil.DefaultGpuUUID]
+
+	require.Greater(t, devStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
+	require.Equal(t, devStats.Memory.MaxBytes, uint64(110))
 }

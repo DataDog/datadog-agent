@@ -16,6 +16,8 @@ import (
 // DefaultGpuCores is the default number of cores for a GPU device in the mock.
 const DefaultGpuCores = 10
 
+const DefaultGpuUUID = "GPU-12345678-1234-1234-1234-123456789012"
+
 // GetBasicNvmlMock returns a mock of the nvml.Interface with a single device with 10 cores,
 // useful for basic tests that need only the basic interaction with NVML to be working.
 func GetBasicNvmlMock() *nvmlmock.Interface {
@@ -30,6 +32,9 @@ func GetBasicNvmlMock() *nvmlmock.Interface {
 				},
 				GetCudaComputeCapabilityFunc: func() (int, int, nvml.Return) {
 					return 7, 5, nvml.SUCCESS
+				},
+				GetUUIDFunc: func() (string, nvml.Return) {
+					return DefaultGpuUUID, nvml.SUCCESS
 				},
 			}, nvml.SUCCESS
 		},

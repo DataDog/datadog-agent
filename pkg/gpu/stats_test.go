@@ -81,12 +81,15 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	require.Contains(t, stats.ProcessStats, pid)
 
 	pidStats := stats.ProcessStats[pid]
-	require.Equal(t, allocSize*2, pidStats.Memory.CurrentBytes)
-	require.Equal(t, allocSize*2, pidStats.Memory.MaxBytes)
+	require.Contains(t, pidStats.StatsPerDevice, testutil.DefaultGpuUUID)
+	devStats := pidStats.StatsPerDevice[testutil.DefaultGpuUUID]
+
+	require.Equal(t, allocSize*2, devStats.Memory.CurrentBytes)
+	require.Equal(t, allocSize*2, devStats.Memory.MaxBytes)
 
 	// defined kernel is using only 1 core for 9 of the 10 seconds
 	expectedUtil := 1.0 / testutil.DefaultGpuCores * 0.9
-	require.Equal(t, expectedUtil, pidStats.UtilizationPercentage)
+	require.Equal(t, expectedUtil, devStats.UtilizationPercentage)
 }
 
 func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
@@ -133,14 +136,17 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	require.Contains(t, stats.ProcessStats, pid)
 
 	pidStats := stats.ProcessStats[pid]
-	require.Equal(t, uint64(0), pidStats.Memory.CurrentBytes)
-	require.Equal(t, allocSize, pidStats.Memory.MaxBytes)
+	require.Contains(t, pidStats.StatsPerDevice, testutil.DefaultGpuUUID)
+	devStats := pidStats.StatsPerDevice[testutil.DefaultGpuUUID]
+
+	require.Equal(t, uint64(0), devStats.Memory.CurrentBytes)
+	require.Equal(t, allocSize, devStats.Memory.MaxBytes)
 
 	// numThreads / DefaultGpuCores is the utilization for the
 	threadSecondsUsed := float64(numThreads) * float64(endKtime-startKtime) / 1e9
 	threadSecondsAvailable := float64(testutil.DefaultGpuCores) * checkDuration.Seconds()
 	expectedUtil := threadSecondsUsed / threadSecondsAvailable
-	require.InDelta(t, expectedUtil, pidStats.UtilizationPercentage, 0.001)
+	require.InDelta(t, expectedUtil, devStats.UtilizationPercentage, 0.001)
 }
 
 func TestGetStatsWithPastAndCurrentData(t *testing.T) {
@@ -208,8 +214,11 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	require.Contains(t, stats.ProcessStats, pid)
 
 	pidStats := stats.ProcessStats[pid]
-	require.Equal(t, allocSize+shmemSize, pidStats.Memory.CurrentBytes)
-	require.Equal(t, allocSize*2+shmemSize, pidStats.Memory.MaxBytes)
+	require.Contains(t, pidStats.StatsPerDevice, testutil.DefaultGpuUUID)
+	devStats := pidStats.StatsPerDevice[testutil.DefaultGpuUUID]
+
+	require.Equal(t, allocSize+shmemSize, devStats.Memory.CurrentBytes)
+	require.Equal(t, allocSize*2+shmemSize, devStats.Memory.MaxBytes)
 
 	// numThreads / DefaultGpuCores is the utilization for the
 	threadSecondsUsed := float64(numThreads) * float64(endKtime-startKtime) / 1e9
@@ -217,5 +226,5 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	expectedUtilKern1 := threadSecondsUsed / threadSecondsAvailable
 	expectedUtilKern2 := 1.0 / testutil.DefaultGpuCores * 0.9
 	expectedUtil := expectedUtilKern1 + expectedUtilKern2
-	require.InDelta(t, expectedUtil, pidStats.UtilizationPercentage, 0.001)
+	require.InDelta(t, expectedUtil, devStats.UtilizationPercentage, 0.001)
 }

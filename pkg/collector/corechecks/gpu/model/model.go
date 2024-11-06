@@ -13,10 +13,15 @@ type MemoryStats struct {
 	MaxBytes     uint64 `json:"max_bytes"`
 }
 
-// ProcessStats contains the GPU stats for a given PID
-type ProcessStats struct {
+// DeviceStats contains the GPU stats for a given device and process
+type DeviceStats struct {
 	UtilizationPercentage float64     `json:"utilization_percentage"`
 	Memory                MemoryStats `json:"memory"`
+}
+
+// ProcessStats contains the GPU stats for a given PID
+type ProcessStats struct {
+	StatsPerDevice map[string]DeviceStats `json:"device_stats"`
 }
 
 // GPUStats contains the past and current data for all streams, including kernel spans and allocations.
