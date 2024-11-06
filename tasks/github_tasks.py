@@ -18,6 +18,7 @@ from tasks.libs.ciproviders.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
+from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH
 from tasks.libs.common.datadog_api import create_gauge, send_metrics
 from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
@@ -26,7 +27,6 @@ from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packag
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 from tasks.release import _get_release_json_value
-from tasks.libs.common.color import color_message
 
 ALL_TEAMS = '@datadog/agent-all'
 
@@ -423,6 +423,7 @@ def assign_codereview_label(_, pr_id=-1):
     complexity = gh.get_codereview_complexity(pr_id)
     gh.update_review_complexity_labels(pr_id, complexity)
 
+
 @task
 def agenttelemetry_list_change_ack_check(_, pr_id=-1):
     """
@@ -446,6 +447,8 @@ def agenttelemetry_list_change_ack_check(_, pr_id=-1):
             message = f"{color_message('Error', 'red')}: If you change the `comp/core/agenttelemetry/impl/config.go` file, you need to add `need-change/agenttelemetry-governance` label. Please follow the instructions specified in https://datadoghq.atlassian.net/wiki/spaces/ASUP/pages/4340679635/Agent+Telemetry+Governance"
             raise Exit(message, code=1)
         else:
-            print("'need-change/agenttelemetry-governance' label found on the PR: potential change to Agent Telemetry metrics is acknowledged and the governance instructions are followed.")
-   
+            print(
+                "'need-change/agenttelemetry-governance' label found on the PR: potential change to Agent Telemetry metrics is acknowledged and the governance instructions are followed."
+            )
+
     return True

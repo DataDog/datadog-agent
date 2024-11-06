@@ -546,12 +546,6 @@ def lint_components(_, fix=False):
             f.write(codeowners)
     elif current != codeowners:
         print(f"** {filename} differs")
-
-        print(f"** CURRENT")
-        print(f"{current}")
-        print(f"** CODDEOWNERS")
-        print(f"{codeowners}")
-
         ok = False
         fixable = True
 

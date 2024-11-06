@@ -306,7 +306,6 @@
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
 /comp/checks/windowseventlog @DataDog/windows-agent
 /comp/checks/winregistry @DataDog/windows-agent
-/comp/core/agenttelemetry @DataDog/agent-shared-components
 /comp/core/autodiscovery @DataDog/container-platform
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/tagger @DataDog/container-platform
