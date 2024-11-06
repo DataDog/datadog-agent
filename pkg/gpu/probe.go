@@ -163,19 +163,11 @@ func (p *Probe) start() error {
 
 // Close stops the probe
 func (p *Probe) Close() {
-	if p.procMon != nil {
-		p.procMon.Stop()
-	}
-
-	if p.attacher != nil {
-		p.attacher.Stop()
-	}
-
+	p.procMon.Stop()
+	p.attacher.Stop()
 	_ = p.m.Stop(manager.CleanAll)
-
-	if p.consumer != nil {
-		p.consumer.Stop()
-	}
+	p.consumer.Stop()
+	p.eventHandler.Stop()
 }
 
 // GetAndFlush returns the GPU stats
