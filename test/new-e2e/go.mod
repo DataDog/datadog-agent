@@ -206,7 +206,7 @@ require (
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
 	github.com/zclconf/go-cty v1.14.4 // indirect
-	github.com/zorkian/go-datadog-api v2.30.0+incompatible
+	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20240604190554-fc45aab8b7f8 // indirect
@@ -239,6 +239,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.58.2
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.56.1
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.16.1
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.17.1
@@ -249,7 +250,13 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.2 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.36.2 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.67.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.56.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.67.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.67.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.67.0 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.5 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v2 v2.7.8 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v6 v6.67.1 // indirect
+	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
 )

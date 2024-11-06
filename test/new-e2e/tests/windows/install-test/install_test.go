@@ -25,9 +25,10 @@ import (
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
+	"testing"
+
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"testing"
 )
 
 type agentMSISuite struct {
@@ -250,7 +251,7 @@ func (is *agentMSISuite) TestAgentUser() {
 	for _, tc := range tcs {
 		if !is.Run(tc.testname, func() {
 			// subtest needs a new output dir
-			is.OutputDir, err = runner.GetTestOutputDir(runner.GetProfile(), is.T())
+			is.OutputDir, err = runner.GetProfile().GetOutputDir()
 			is.Require().NoError(err, "should get output dir")
 
 			// initialize test helper
@@ -295,7 +296,7 @@ func (is *agentMSISuite) newTester(vm *components.RemoteHost, options ...TesterO
 		WithAgentPackage(is.AgentPackage),
 	}
 	testerOpts = append(testerOpts, options...)
-	t, err := NewTester(is.T(), vm, testerOpts...)
+	t, err := NewTester(is, vm, testerOpts...)
 	is.Require().NoError(err, "should create tester")
 	return t
 }

@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/docker/cli/cli/connhelper"
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/stretchr/testify/require"
@@ -119,33 +118,4 @@ func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands 
 	}
 
 	return stdout, stderr, err
-}
-
-// ListContainers returns a list of container names.
-func (docker *Docker) ListContainers() ([]string, error) {
-	containersMap, err := docker.getContainerIDsByName()
-	if err != nil {
-		return nil, err
-	}
-	containerNames := make([]string, 0, len(containersMap))
-	for name := range containersMap {
-		containerNames = append(containerNames, name)
-	}
-	return containerNames, nil
-}
-
-func (docker *Docker) getContainerIDsByName() (map[string]string, error) {
-	containersMap := make(map[string]string)
-	containers, err := docker.client.ContainerList(context.Background(), container.ListOptions{All: true})
-	if err != nil {
-		return containersMap, err
-	}
-	for _, container := range containers {
-		for _, name := range container.Names {
-			// remove leading /
-			name = strings.TrimPrefix(name, "/")
-			containersMap[name] = container.ID
-		}
-	}
-	return containersMap, nil
 }
