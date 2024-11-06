@@ -22,12 +22,20 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+)
+
+const (
+	networkPathCollectorMetricPrefix    = "datadog.network_path.collector."
+	reverseDNSLookupMetricPrefix        = networkPathCollectorMetricPrefix + "reverse_dns_lookup."
+	reverseDNSLookupFailuresMetricName  = reverseDNSLookupMetricPrefix + "failures"
+	reverseDNSLookupSuccessesMetricName = reverseDNSLookupMetricPrefix + "successes"
 )
 
 type npCollectorImpl struct {
@@ -38,6 +46,7 @@ type npCollectorImpl struct {
 	logger       log.Component
 	metricSender metricsender.MetricSender
 	statsdClient ddgostatsd.ClientInterface
+	rdnsquerier  rdnsquerier.Component
 
 	// Counters
 	receivedPathtestCount    *atomic.Uint64
@@ -74,8 +83,8 @@ func newNoopNpCollectorImpl() *npCollectorImpl {
 	}
 }
 
-func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component) *npCollectorImpl {
-	logger.Infof("New NpCollector (workers=%d timeout=%d max_ttl=%d input_chan_size=%d processing_chan_size=%d pathtest_contexts_limit=%d pathtest_ttl=%s pathtest_interval=%s flush_interval=%s)",
+func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component, rdnsquerier rdnsquerier.Component) *npCollectorImpl {
+	logger.Infof("New NpCollector (workers=%d timeout=%d max_ttl=%d input_chan_size=%d processing_chan_size=%d pathtest_contexts_limit=%d pathtest_ttl=%s pathtest_interval=%s flush_interval=%s reverse_dns_enabled=%t reverse_dns_timeout=%d)",
 		collectorConfigs.workers,
 		collectorConfigs.timeout,
 		collectorConfigs.maxTTL,
@@ -84,11 +93,15 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		collectorConfigs.pathtestContextsLimit,
 		collectorConfigs.pathtestTTL,
 		collectorConfigs.pathtestInterval,
-		collectorConfigs.flushInterval)
+		collectorConfigs.flushInterval,
+		collectorConfigs.reverseDNSEnabled,
+		collectorConfigs.reverseDNSTimeout,
+	)
 
 	return &npCollectorImpl{
 		epForwarder:      epForwarder,
 		collectorConfigs: collectorConfigs,
+		rdnsquerier:      rdnsquerier,
 		logger:           logger,
 
 		pathtestStore:          pathteststore.NewPathtestStore(collectorConfigs.pathtestTTL, collectorConfigs.pathtestInterval, collectorConfigs.pathtestContextsLimit, logger),
@@ -231,6 +244,9 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.Namespace = s.networkDevicesNamespace
 	path.Origin = payload.PathOriginNetworkTraffic
 
+	// Perform reverse DNS lookup on destination and hop IPs
+	s.enrichPathWithRDNS(&path)
+
 	s.sendTelemetry(path, startTime, ptest)
 
 	payloadBytes, err := json.Marshal(path)
@@ -284,22 +300,22 @@ func (s *npCollectorImpl) flushWrapper(flushTime time.Time, lastFlushTime time.T
 	s.logger.Debugf("Flush loop at %s", flushTime)
 	if !lastFlushTime.IsZero() {
 		flushInterval := flushTime.Sub(lastFlushTime)
-		s.statsdClient.Gauge("datadog.network_path.collector.flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
+		s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
 	}
 
 	s.flush()
-	s.statsdClient.Gauge("datadog.network_path.collector.flush_duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"flush_duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1) //nolint:errcheck
 }
 
 func (s *npCollectorImpl) flush() {
-	s.statsdClient.Gauge("datadog.network_path.collector.workers", float64(s.workers), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"workers", float64(s.workers), []string{}, 1) //nolint:errcheck
 
 	flowsContexts := s.pathtestStore.GetContextsCount()
-	s.statsdClient.Gauge("datadog.network_path.collector.pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
 
 	flushTime := s.TimeNowFn()
 	flowsToFlush := s.pathtestStore.Flush()
-	s.statsdClient.Gauge("datadog.network_path.collector.pathtest_flushed_count", float64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"pathtest_flushed_count", float64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
 
 	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
@@ -307,6 +323,76 @@ func (s *npCollectorImpl) flush() {
 		s.logger.Tracef("flushed ptConf %s:%d", ptConf.Pathtest.Hostname, ptConf.Pathtest.Port)
 		s.pathtestProcessingChan <- ptConf
 	}
+}
+
+func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath) {
+	if !s.collectorConfigs.reverseDNSEnabled {
+		return
+	}
+
+	// collect unique IP addresses from destination and hops
+	ipSet := make(map[string]struct{}, len(path.Hops)+1) // +1 for destination
+	ipSet[path.Destination.IPAddress] = struct{}{}
+	for _, hop := range path.Hops {
+		if !hop.Reachable {
+			continue
+		}
+		ipSet[hop.IPAddress] = struct{}{}
+	}
+	ipAddrs := make([]string, 0, len(ipSet))
+	for ip := range ipSet {
+		ipAddrs = append(ipAddrs, ip)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), s.collectorConfigs.reverseDNSTimeout)
+	defer cancel()
+
+	// perform reverse DNS lookup on destination and hops
+	results := s.rdnsquerier.GetHostnames(ctx, ipAddrs)
+	if len(results) != len(ipAddrs) {
+		s.statsdClient.Incr(reverseDNSLookupMetricPrefix+"results_length_mismatch", []string{}, 1) //nolint:errcheck
+		s.logger.Debugf("Reverse lookup failed for all hops in path from %s to %s", path.Source.Hostname, path.Destination.Hostname)
+	}
+
+	// assign resolved hostnames to destination and hops
+	hostname := s.getReverseDNSResult(path.Destination.IPAddress, results)
+	// if hostname is blank, use what's given by traceroute
+	// TODO: would it be better to move the logic up from the traceroute command?
+	// benefit to the current approach is having consistent behavior for all paths
+	// both static and dynamic
+	if hostname != "" {
+		path.Destination.ReverseDNSHostname = hostname
+	}
+
+	for i, hop := range path.Hops {
+		if !hop.Reachable {
+			continue
+		}
+		hostname := s.getReverseDNSResult(hop.IPAddress, results)
+		if hostname != "" {
+			path.Hops[i].Hostname = hostname
+		}
+	}
+}
+
+func (s *npCollectorImpl) getReverseDNSResult(ipAddr string, results map[string]rdnsquerier.ReverseDNSResult) string {
+	result, ok := results[ipAddr]
+	if !ok {
+		s.statsdClient.Incr(reverseDNSLookupFailuresMetricName, []string{"reason:absent"}, 1) //nolint:errcheck
+		s.logger.Tracef("Reverse DNS lookup failed for IP %s", ipAddr)
+		return ""
+	}
+	if result.Err != nil {
+		s.statsdClient.Incr(reverseDNSLookupFailuresMetricName, []string{"reason:error"}, 1) //nolint:errcheck
+		s.logger.Tracef("Reverse lookup failed for hop IP %s: %s", ipAddr, result.Err)
+		return ""
+	}
+	if result.Hostname == "" {
+		s.statsdClient.Incr(reverseDNSLookupSuccessesMetricName, []string{"status:empty"}, 1) //nolint:errcheck
+	} else {
+		s.statsdClient.Incr(reverseDNSLookupSuccessesMetricName, []string{"status:found"}, 1) //nolint:errcheck
+	}
+	return result.Hostname
 }
 
 func (s *npCollectorImpl) sendTelemetry(path payload.NetworkPath, startTime time.Time, ptest *pathteststore.PathtestContext) {

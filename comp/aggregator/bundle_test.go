@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
@@ -24,5 +25,6 @@ func TestBundleDependencies(t *testing.T) {
 		defaultforwarder.MockModule(),
 		orchestratorForwarderImpl.MockModule(),
 		eventplatformimpl.MockModule(),
+		nooptagger.Module(),
 	)
 }

@@ -292,6 +292,11 @@ func (fh *EBPFFieldHandlers) ResolveProcessEnvs(_ *model.Event, process *model.P
 	return envs
 }
 
+// ResolveProcessIsThread returns true is the process is a thread
+func (fh *EBPFFieldHandlers) ResolveProcessIsThread(_ *model.Event, process *model.Process) bool {
+	return !process.IsExec
+}
+
 // ResolveSetuidUser resolves the user of the Setuid event
 func (fh *EBPFFieldHandlers) ResolveSetuidUser(ev *model.Event, e *model.SetuidEvent) string {
 	if len(e.User) == 0 {
@@ -396,12 +401,8 @@ func (fh *EBPFFieldHandlers) ResolveEventTimestamp(ev *model.Event, e *model.Bas
 }
 
 // ResolveService returns the service tag based on the process context
-func (fh *EBPFFieldHandlers) ResolveService(ev *model.Event, _ *model.BaseEvent) string {
-	entry, _ := fh.ResolveProcessCacheEntry(ev)
-	if entry == nil {
-		return ""
-	}
-	return getProcessService(fh.config, entry)
+func (fh *EBPFFieldHandlers) ResolveService(ev *model.Event, e *model.BaseEvent) string {
+	return resolveService(fh.config, fh, ev, e)
 }
 
 // ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time

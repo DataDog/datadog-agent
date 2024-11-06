@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
@@ -28,9 +27,11 @@ import (
 )
 
 var devMode = flag.Bool("devmode", false, "enable dev mode")
+var imageTag = flag.String("image-tag", "main", "Docker image tag to use")
 
 type gpuSuite struct {
 	e2e.BaseSuite[environments.Host]
+	imageTag string
 }
 
 const defaultGpuCheckConfig = `
@@ -46,14 +47,12 @@ gpu_monitoring:
   enabled: true
 `
 
-const vectorAddDockerImg = "nvcr.io/nvidia/k8s/cuda-sample:vectoradd-cuda10.2"
+const vectorAddDockerImg = "ghcr.io/datadog/apps-cuda-basic"
 const gpuEnabledAMI = "ami-0f71e237bb2ba34be" // Ubuntu 22.04 with GPU drivers
 
 // TestGPUSuite runs tests for the VM interface to ensure its implementation is correct.
+// Not to be run in parallel, as some tests wait until the checks are available.
 func TestGPUSuite(t *testing.T) {
-	// Marked as flaky pending removal of unattended-upgrades in the AMI
-	flake.Mark(t)
-
 	provisioner := awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(
 			ec2.WithInstanceType("g4dn.xlarge"),
@@ -71,13 +70,21 @@ func TestGPUSuite(t *testing.T) {
 		suiteParams = append(suiteParams, e2e.WithDevMode())
 	}
 
-	e2e.Run(t, &gpuSuite{}, suiteParams...)
+	suite := &gpuSuite{
+		imageTag: *imageTag,
+	}
+
+	e2e.Run(t, suite, suiteParams...)
 }
 
 func (v *gpuSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
 
-	v.Env().RemoteHost.MustExecute(fmt.Sprintf("docker pull %s", vectorAddDockerImg))
+	v.Env().RemoteHost.MustExecute(fmt.Sprintf("docker pull %s", v.dockerImageName()))
+}
+
+func (v *gpuSuite) dockerImageName() string {
+	return fmt.Sprintf("%s:%s", vectorAddDockerImg, v.imageTag)
 }
 
 // TODO: Extract this to common package? service_discovery uses it too
@@ -97,6 +104,19 @@ type collectorStatus struct {
 	RunnerStats runnerStats `json:"runnerStats"`
 }
 
+func (v *gpuSuite) runCudaDockerWorkload() {
+	// Configure some defaults
+	vectorSize := 50000
+	numLoops := 100      // Loop extra times to ensure the kernel runs for a bit
+	waitTimeSeconds := 5 // Give enough time to our monitor to hook the probes
+	binary := "/usr/local/bin/cuda-basic"
+
+	cmd := fmt.Sprintf("docker run --rm --gpus all %s %s %d %d %d", v.dockerImageName(), binary, vectorSize, numLoops, waitTimeSeconds)
+	out, err := v.Env().RemoteHost.Execute(cmd)
+	v.Require().NoError(err)
+	v.Require().NotEmpty(out)
+}
+
 func (v *gpuSuite) TestGPUCheckIsEnabled() {
 	statusOutput := v.Env().Agent.Client.Status(agentclient.WithArgs([]string{"collector", "--json"}))
 
@@ -109,19 +129,40 @@ func (v *gpuSuite) TestGPUCheckIsEnabled() {
 	v.Require().Equal(gpuCheckStatus.LastError, "")
 }
 
-func (v *gpuSuite) TestVectorAddProgramDetected() {
-	vm := v.Env().RemoteHost
+func (v *gpuSuite) TestGPUSysprobeEndpointIsResponding() {
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		out, err := v.Env().RemoteHost.Execute("sudo curl -s --unix /opt/datadog-agent/run/sysprobe.sock http://unix/gpu/check")
+		assert.NoError(c, err)
+		assert.NotEmpty(c, out)
+	}, 2*time.Minute, 10*time.Second)
+}
 
-	out, err := vm.Execute(fmt.Sprintf("docker run --rm --gpus all %s", vectorAddDockerImg))
-	v.Require().NoError(err)
-	v.Require().NotEmpty(out)
+func (v *gpuSuite) TestVectorAddProgramDetected() {
+	v.runCudaDockerWorkload()
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		metricNames := []string{"gpu.memory", "gpu.utilization", "gpu.memory.max"}
+		// We are not including "gpu.memory", as that represents the "current
+		// memory usage" and that might be zero at the time it's checked
+		metricNames := []string{"gpu.utilization", "gpu.memory.max"}
 		for _, metricName := range metricNames {
 			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0))
 			assert.NoError(c, err)
 			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
+		}
+	}, 5*time.Minute, 10*time.Second)
+}
+
+func (v *gpuSuite) TestNvmlMetricsPresent() {
+	// Nvml metrics are always being collected
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		// Not all NVML metrics are supported in all devices. We check for some basic ones
+		metricNames := []string{"gpu.temperature", "gpu.pci.throughput.tx", "gpu.power.usage"}
+		for _, metricName := range metricNames {
+			// We don't care about values, as long as the metrics are there. Values come from NVML
+			// so we cannot control that.
+			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName)
+			assert.NoError(c, err)
+			assert.Greater(c, len(metrics), 0, "no metric '%s' found")
 		}
 	}, 5*time.Minute, 10*time.Second)
 }

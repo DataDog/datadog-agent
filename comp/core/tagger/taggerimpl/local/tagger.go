@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
@@ -103,6 +104,20 @@ func (t *Tagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) 
 		return nil, err
 	}
 	return tags.Copy(), nil
+}
+
+// LegacyTag has the same behaviour as the Tag method, but it receives the entity id as a string and parses it.
+// If possible, avoid using this function, and use the Tag method instead.
+// This function exists in order not to break backward compatibility with rtloader and python
+// integrations using the tagger
+func (t *Tagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
+	prefix, id, err := taggercommon.ExtractPrefixAndID(entity)
+	if err != nil {
+		return nil, err
+	}
+
+	entityID := types.NewEntityID(prefix, id)
+	return t.Tag(entityID, cardinality)
 }
 
 // Standard returns standard tags for a given entity

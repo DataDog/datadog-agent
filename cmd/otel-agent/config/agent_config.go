@@ -89,16 +89,11 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	if err != nil {
 		return nil, err
 	}
-	ddc, err := getDDExporterConfig(cfg)
-	if err != nil {
-		return nil, err
-	}
 	sc, err := getServiceConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
-	site := ddc.API.Site
-	apiKey := string(ddc.API.Key)
+
 	// Set the global agent config
 	pkgconfig := pkgconfigsetup.Datadog()
 
@@ -137,15 +132,21 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	if telemetryLogMapping < activeLogLevel {
 		activeLogLevel = telemetryLogMapping
 	}
+	pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
 
 	// Override config read (if any) with Default values
 	pkgconfigsetup.InitConfig(pkgconfig)
 	pkgconfigmodel.ApplyOverrideFuncs(pkgconfig)
 
-	pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
-
-	pkgconfig.Set("api_key", apiKey, pkgconfigmodel.SourceFile)
-	pkgconfig.Set("site", site, pkgconfigmodel.SourceFile)
+	ddc, err := getDDExporterConfig(cfg)
+	if err == ErrNoDDExporter {
+		return pkgconfig, err
+	}
+	if err != nil {
+		return nil, err
+	}
+	pkgconfig.Set("api_key", string(ddc.API.Key), pkgconfigmodel.SourceFile)
+	pkgconfig.Set("site", ddc.API.Site, pkgconfigmodel.SourceFile)
 
 	pkgconfig.Set("dd_url", ddc.Metrics.Endpoint, pkgconfigmodel.SourceFile)
 

@@ -1,0 +1,52 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "connect.json",
+    "type": "object",
+    "allOf": [
+        {
+            "$ref": "/schemas/event.json"
+        },
+        {
+            "$ref": "/schemas/usr.json"
+        },
+        {
+            "$ref": "/schemas/process_context.json"
+        },
+        {
+            "date": {
+                "$ref": "/schemas/datetime.json"
+            }
+        },
+        {
+            "properties": {
+                "connect": {
+                    "type": "object",
+                    "required": [
+                        "addr"
+                    ],
+                    "properties": {
+                        "addr": {
+                            "type": "object",
+                            "required": [
+                                "family",
+                                "ip",
+                                "port"
+                            ],
+                            "properties": {
+                                "family": {
+                                    "type": "string"
+                                },
+                                "ip": {
+                                    "type": "string"
+                                },
+                                "port": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}

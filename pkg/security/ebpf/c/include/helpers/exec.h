@@ -19,7 +19,7 @@ int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_
     // set mount_id to 0 is this is a fileless exec, meaning that the vfs type is tmpfs and that is an internal mount
     u32 mount_id = is_tmpfs(syscall->exec.dentry) && get_path_mount_flags(path) & MNT_INTERNAL ? 0 : get_path_mount_id(path);
 
-    syscall->exec.file.path_key.ino = get_inode_ino(inode);
+    syscall->exec.file.path_key.ino = inode ? get_inode_ino(inode) : get_path_ino(path);
     syscall->exec.file.path_key.mount_id = mount_id;
     syscall->exec.file.path_key.path_id = get_path_id(mount_id, 0);
 

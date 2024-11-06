@@ -94,6 +94,29 @@ func (m *MockBinaryInspector) Cleanup(fpath utils.FilePath) {
 	_ = m.Called(fpath)
 }
 
+type mockProcessMonitor struct {
+	mock.Mock
+}
+
+func (m *mockProcessMonitor) SubscribeExec(cb func(uint32)) func() {
+	args := m.Called(cb)
+	return args.Get(0).(func())
+}
+
+func (m *mockProcessMonitor) SubscribeExit(cb func(uint32)) func() {
+	args := m.Called(cb)
+	return args.Get(0).(func())
+}
+
+// Create a new mockProcessMonitor that accepts any callback and returns a no-op function
+func newMockProcessMonitor() *mockProcessMonitor {
+	pm := &mockProcessMonitor{}
+	pm.On("SubscribeExec", mock.Anything).Return(func() {})
+	pm.On("SubscribeExit", mock.Anything).Return(func() {})
+
+	return pm
+}
+
 // === Test utils
 
 // FakeProcFSEntry represents a fake /proc filesystem entry for testing purposes.

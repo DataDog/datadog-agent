@@ -662,16 +662,16 @@ func TestIsExecExecRuntime(t *testing.T) {
 	resolver.AddExecEntry(child3, 0)
 
 	assert.False(t, parent.IsExecExec)
-	assert.False(t, parent.IsThread) // root node, no fork
+	assert.False(t, parent.IsExec)
 
 	assert.False(t, child.IsExecExec)
-	assert.True(t, child.IsThread)
+	assert.False(t, child.IsExec)
 
 	assert.False(t, child2.IsExecExec)
-	assert.False(t, child2.IsThread)
+	assert.True(t, child2.IsExec)
 
 	assert.True(t, child3.IsExecExec)
-	assert.False(t, child3.IsThread)
+	assert.True(t, child3.IsExec)
 
 	child4 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
 	child4.FileEvent.Inode = 3
@@ -679,7 +679,7 @@ func TestIsExecExecRuntime(t *testing.T) {
 	resolver.AddExecEntry(child4, 0)
 
 	assert.True(t, child3.IsExecExec)
-	assert.False(t, child3.IsThread)
+	assert.True(t, child3.IsExec)
 }
 
 func TestIsExecExecSnapshot(t *testing.T) {
@@ -691,7 +691,6 @@ func TestIsExecExecSnapshot(t *testing.T) {
 	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
 	parent.ForkTime = time.Now()
 	parent.FileEvent.Inode = 1
-	parent.IsThread = true
 
 	// parent
 	resolver.insertEntry(parent, nil, model.ProcessCacheEntryFromSnapshot)
@@ -699,7 +698,6 @@ func TestIsExecExecSnapshot(t *testing.T) {
 	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
 	child.PPid = parent.Pid
 	child.FileEvent.Inode = 2
-	child.IsThread = true
 
 	// parent
 	//     \ child
@@ -708,10 +706,10 @@ func TestIsExecExecSnapshot(t *testing.T) {
 	resolver.insertEntry(child, nil, model.ProcessCacheEntryFromSnapshot)
 
 	assert.False(t, parent.IsExecExec)
-	assert.True(t, parent.IsThread) // root node, no fork
+	assert.False(t, parent.IsExec)
 
 	assert.False(t, child.IsExecExec)
-	assert.True(t, child.IsThread)
+	assert.False(t, child.IsExec)
 
 	// parent
 	//     \ child
@@ -723,7 +721,7 @@ func TestIsExecExecSnapshot(t *testing.T) {
 	resolver.AddExecEntry(child2, 0)
 
 	assert.False(t, child2.IsExecExec)
-	assert.False(t, child2.IsThread)
+	assert.True(t, child2.IsExec)
 
 	child3 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
 	child3.FileEvent.Inode = 4
@@ -731,5 +729,5 @@ func TestIsExecExecSnapshot(t *testing.T) {
 	resolver.AddExecEntry(child3, 0)
 
 	assert.True(t, child3.IsExecExec)
-	assert.False(t, child3.IsThread)
+	assert.True(t, child3.IsExec)
 }

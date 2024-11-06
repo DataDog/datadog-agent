@@ -14,10 +14,11 @@ import (
 	"runtime"
 	"time"
 
+	"modernc.org/mathutil"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
-	"modernc.org/mathutil"
 )
 
 // Model describes the data model for the runtime security agent events
@@ -124,10 +125,10 @@ type BaseEvent struct {
 	Timestamp     time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
 	Rules         []*MatchedRule `field:"-"`
 	ActionReports []ActionReport `field:"-"`
-	Os            string         `field:"event.os"`                               // SECLDoc[event.os] Definition:`Operating system of the event`
-	Origin        string         `field:"event.origin"`                           // SECLDoc[event.origin] Definition:`Origin of the event`
-	Service       string         `field:"event.service,handler:ResolveService"`   // SECLDoc[event.service] Definition:`Service associated with the event`
-	Hostname      string         `field:"event.hostname,handler:ResolveHostname"` // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
+	Os            string         `field:"event.os"`                                          // SECLDoc[event.os] Definition:`Operating system of the event`
+	Origin        string         `field:"event.origin"`                                      // SECLDoc[event.origin] Definition:`Origin of the event`
+	Service       string         `field:"event.service,handler:ResolveService,opts:skip_ad"` // SECLDoc[event.service] Definition:`Service associated with the event`
+	Hostname      string         `field:"event.hostname,handler:ResolveHostname"`            // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process"`
@@ -628,11 +629,4 @@ func (dfh *FakeFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerConte
 // TLSContext represents a tls context
 type TLSContext struct {
 	Version uint16 `field:"version"` // SECLDoc[version] Definition:`TLS version`
-}
-
-// RawPacketEvent represents a packet event
-type RawPacketEvent struct {
-	NetworkContext
-
-	TLSContext TLSContext `field:"tls"` // SECLDoc[tls] Definition:`TLS context`
 }

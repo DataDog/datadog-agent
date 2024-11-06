@@ -59,22 +59,22 @@ var testCatalog = catalog{
 		{
 			Package: string(datadogAgent),
 			Version: latestAgentImageVersion,
-			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", latestAgentImageVersion),
+			URL:     fmt.Sprintf("oci://install.datadoghq.com/agent-package:%s", latestAgentImageVersion),
 		},
 		{
 			Package: string(datadogAgent),
 			Version: previousAgentImageVersion,
-			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", previousAgentImageVersion),
+			URL:     fmt.Sprintf("oci://install.datadoghq.com/agent-package:%s", previousAgentImageVersion),
 		},
 		{
 			Package: string(datadogInstaller),
 			Version: latestInstallerImageVersion,
-			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/installer-package:%s", latestInstallerImageVersion),
+			URL:     fmt.Sprintf("oci://install.datadoghq.com/installer-package:%s", latestInstallerImageVersion),
 		},
 		{
 			Package: string(datadogInstaller),
 			Version: previousInstallerImageVersion,
-			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/installer-package:%s", previousInstallerImageVersion),
+			URL:     fmt.Sprintf("oci://install.datadoghq.com/installer-package:%s", previousInstallerImageVersion),
 		},
 	},
 }
@@ -209,7 +209,7 @@ func (s *upgradeScenarioSuite) TestExperimentCurrentVersion() {
 			{
 				Package: "datadog-agent",
 				Version: currentVersion,
-				URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", currentVersion),
+				URL:     fmt.Sprintf("oci://install.datadoghq.com/agent-package:%s", currentVersion),
 			},
 		},
 	}
@@ -624,7 +624,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentStopExperiment(timestamp hos
 func (s *upgradeScenarioSuite) startConfigExperiment(localCDNPath string, pkg packageName, hash string) (string, error) {
 	cmd := fmt.Sprintf("sudo -E datadog-installer install-config-experiment %s %s > /tmp/start_config_experiment.log 2>&1", pkg, hash)
 	s.T().Logf("Running start command: %s", cmd)
-	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH": localCDNPath}))
+	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH": localCDNPath, "DD_REMOTE_POLICIES": "true"}))
 }
 
 func (s *upgradeScenarioSuite) mustStartConfigExperiment(localCDNPath string, pkg packageName, version string) string {
@@ -640,7 +640,7 @@ func (s *upgradeScenarioSuite) mustStartConfigExperiment(localCDNPath string, pk
 func (s *upgradeScenarioSuite) promoteConfigExperiment(localCDNPath string, pkg packageName) (string, error) {
 	cmd := fmt.Sprintf("sudo -E datadog-installer promote-config-experiment %s > /tmp/promote_config_experiment.log 2>&1", pkg)
 	s.T().Logf("Running promote command: %s", cmd)
-	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH": localCDNPath}))
+	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH": localCDNPath, "DD_REMOTE_POLICIES": "true"}))
 }
 
 func (s *upgradeScenarioSuite) mustPromoteConfigExperiment(localCDNPath string, pkg packageName) string {
@@ -656,7 +656,7 @@ func (s *upgradeScenarioSuite) mustPromoteConfigExperiment(localCDNPath string, 
 func (s *upgradeScenarioSuite) stopConfigExperiment(localCDNPath string, pkg packageName) (string, error) {
 	cmd := fmt.Sprintf("sudo -E datadog-installer remove-config-experiment %s > /tmp/stop_config_experiment.log 2>&1", pkg)
 	s.T().Logf("Running stop command: %s", cmd)
-	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH": localCDNPath}))
+	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH": localCDNPath, "DD_REMOTE_POLICIES": "true"}))
 }
 
 func (s *upgradeScenarioSuite) mustStopConfigExperiment(localCDNPath string, pkg packageName) string {
@@ -735,12 +735,20 @@ func (s *upgradeScenarioSuite) assertSuccessfulConfigStopExperiment(timestamp ho
 func (s *upgradeScenarioSuite) getInstallerStatus() installerStatus {
 	socketPath := "/opt/datadog-packages/run/installer.sock"
 
-	requestHeader := " -H 'Content-Type: application/json' -H 'Accept: application/json' "
-	response := s.Env().RemoteHost.MustExecute(fmt.Sprintf(
-		"sudo curl -s --unix-socket %s %s http://daemon/status",
-		socketPath,
-		requestHeader,
-	))
+	var response string
+	assert.Eventually(s.T(), func() bool {
+		var err error
+		requestHeader := " -H 'Content-Type: application/json' -H 'Accept: application/json' "
+		response, err = s.Env().RemoteHost.Execute(fmt.Sprintf(
+			"sudo curl -s --unix-socket %s %s http://daemon/status",
+			socketPath,
+			requestHeader,
+		))
+		return err == nil
+	}, time.Second*30, time.Second*1, "Failed to get installer status: %s\n\n%s",
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer-exp"),
+	)
 
 	// {"version":"7.56.0-devel+git.446.acf2836","packages":{
 	//     "datadog-agent":{"Stable":"7.56.0-devel.git.446.acf2836.pipeline.37567760-1","Experiment":"7.54.1-1"},

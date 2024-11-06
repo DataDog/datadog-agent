@@ -122,12 +122,12 @@ func TestGetRefAndKeychain(t *testing.T) {
 	}
 
 	tests := []test{
-		{url: "docker.io/datadog/agent-package-dev:latest", expectedRef: "docker.io/datadog/agent-package-dev:latest", expectedKeychain: authn.DefaultKeychain},
+		{url: "install.datad0g.com/agent-package-dev:latest", expectedRef: "install.datad0g.com/agent-package-dev:latest", expectedKeychain: authn.DefaultKeychain},
 		{url: "gcr.io/datadoghq/agent-package@sha256:1234", expectedRef: "gcr.io/datadoghq/agent-package@sha256:1234", expectedKeychain: authn.DefaultKeychain},
-		{url: "docker.io/datadog/agent-package-dev:latest", registryOverride: "fake.io", expectedRef: "fake.io/agent-package-dev:latest", expectedKeychain: authn.DefaultKeychain},
+		{url: "install.datad0g.com/agent-package-dev:latest", registryOverride: "fake.io", expectedRef: "fake.io/agent-package-dev:latest", expectedKeychain: authn.DefaultKeychain},
 		{url: "gcr.io/datadoghq/agent-package@sha256:1234", registryOverride: "fake.io", expectedRef: "fake.io/agent-package@sha256:1234", expectedKeychain: authn.DefaultKeychain},
 		{
-			url:                "docker.io/datadog/agent-package-dev:latest",
+			url:                "install.datad0g.com/agent-package-dev:latest",
 			regOverrideByImage: map[string]string{"agent-package-dev": "fake.io"},
 			expectedRef:        "fake.io/agent-package-dev:latest",
 			expectedKeychain:   authn.DefaultKeychain,
@@ -200,8 +200,8 @@ func TestPackageURL(t *testing.T) {
 	}
 
 	tests := []test{
-		{site: "datad0g.com", pkg: "datadog-agent", version: "latest", expected: "oci://docker.io/datadog/agent-package-dev:latest"},
-		{site: "datadoghq.com", pkg: "datadog-agent", version: "1.2.3", expected: "oci://gcr.io/datadoghq/agent-package:1.2.3"},
+		{site: "datad0g.com", pkg: "datadog-agent", version: "latest", expected: "oci://install.datad0g.com/agent-package-dev:latest"},
+		{site: "datadoghq.com", pkg: "datadog-agent", version: "1.2.3", expected: "oci://install.datadoghq.com/agent-package:1.2.3"},
 	}
 
 	for _, tt := range tests {
@@ -249,6 +249,84 @@ func TestIsStreamResetError(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, isStreamResetError(tc.err))
+		})
+	}
+}
+
+func TestGetRefAndKeychains(t *testing.T) {
+	type test struct {
+		name                    string
+		url                     string
+		registryOverride        string
+		registryAuthOverride    string
+		expectedRefAndKeychains []urlWithKeychain
+		isProd                  bool
+	}
+
+	tests := []test{
+		{
+			name: "no override - staging",
+			url:  "install.datad0g.com/agent-package-dev:latest",
+			expectedRefAndKeychains: []urlWithKeychain{
+				{ref: "install.datad0g.com/agent-package-dev:latest", keychain: authn.DefaultKeychain},
+				{ref: "docker.io/datadog/agent-package-dev:latest", keychain: authn.DefaultKeychain},
+			},
+		},
+		{
+			name:   "no override - prod",
+			url:    "install.datadoghq.com/agent-package@sha256:1234",
+			isProd: true,
+			expectedRefAndKeychains: []urlWithKeychain{
+				{ref: "install.datadoghq.com/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
+				{ref: "gcr.io/datadoghq/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
+				{ref: "public.ecr.aws/datadog/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
+				{ref: "docker.io/datadog/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
+			},
+		},
+		{
+			name:   "no override - different url",
+			url:    "mysuperregistry.tv/agent-package@sha256:1234",
+			isProd: true,
+			expectedRefAndKeychains: []urlWithKeychain{
+				{ref: "mysuperregistry.tv/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
+				{ref: "install.datadoghq.com/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
+				{ref: "gcr.io/datadoghq/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
+				{ref: "public.ecr.aws/datadog/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
+				{ref: "docker.io/datadog/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
+			},
+		},
+		{
+			name:                 "override",
+			url:                  "gcr.io/datadoghq/agent-package@sha256:1234",
+			registryOverride:     "mysuperregistry.tv",
+			registryAuthOverride: "gcr",
+			isProd:               true,
+			expectedRefAndKeychains: []urlWithKeychain{
+				{ref: "mysuperregistry.tv/agent-package@sha256:1234", keychain: google.Keychain},
+				{ref: "install.datadoghq.com/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
+				{ref: "gcr.io/datadoghq/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
+				{ref: "public.ecr.aws/datadog/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
+				{ref: "docker.io/datadog/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := &env.Env{
+				Site:                 "datad0g.com",
+				RegistryOverride:     tt.registryOverride,
+				RegistryAuthOverride: tt.registryAuthOverride,
+			}
+			if tt.isProd {
+				env.Site = "datadoghq.com"
+			}
+			actual := getRefAndKeychains(env, tt.url)
+			assert.Len(t, actual, len(tt.expectedRefAndKeychains))
+			for i, a := range actual {
+				assert.Equal(t, tt.expectedRefAndKeychains[i].ref, a.ref)
+				assert.Equal(t, tt.expectedRefAndKeychains[i].keychain, a.keychain)
+			}
 		})
 	}
 }

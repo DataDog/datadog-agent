@@ -100,7 +100,9 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 	if err == agentConfig.ErrNoDDExporter {
 		return fxutil.Run(
 			fx.Supply(uris),
-			fx.Supply(optional.NewNoneOption[coreconfig.Component]()),
+			fx.Provide(func() coreconfig.Component {
+				return acfg
+			}),
 			converterfx.Module(),
 			fx.Provide(func(cp converter.Component) confmap.Converter {
 				return cp
