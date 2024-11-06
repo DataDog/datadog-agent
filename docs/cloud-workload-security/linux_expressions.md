@@ -35,6 +35,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `chdir` | File | [Experimental] A process changed the current directory | 7.52 |
 | `chmod` | File | A file’s permissions were changed | 7.27 |
 | `chown` | File | A file’s owner was changed | 7.27 |
+| `connect` | Network | A connect was executed | 7.60 |
 | `dns` | Network | A DNS request was sent | 7.36 |
 | `exec` | Process | A process was executed or forked | 7.27 |
 | `exit` | Process | A process was terminated | 7.38 |
@@ -166,12 +167,12 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`process.ancestors.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`process.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.ancestors.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`process.ancestors.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`process.ancestors.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`process.ancestors.file.path`](#common-fileevent-path-doc) | File's path |
-| [`process.ancestors.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.ancestors.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.ancestors.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`process.ancestors.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`process.ancestors.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -192,17 +193,19 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`process.ancestors.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.ancestors.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`process.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.ancestors.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`process.ancestors.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`process.ancestors.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`process.ancestors.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
-| [`process.ancestors.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.ancestors.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.ancestors.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`process.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`process.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`process.ancestors.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`process.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`process.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`process.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`process.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`process.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
@@ -246,12 +249,12 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`process.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`process.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`process.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`process.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`process.file.path`](#common-fileevent-path-doc) | File's path |
-| [`process.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`process.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`process.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -272,15 +275,16 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`process.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`process.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`process.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`process.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`process.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
-| [`process.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`process.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`process.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`process.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`process.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`process.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`process.parent.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
@@ -317,12 +321,12 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`process.parent.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.parent.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`process.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.parent.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`process.parent.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`process.parent.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`process.parent.file.path`](#common-fileevent-path-doc) | File's path |
-| [`process.parent.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.parent.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.parent.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`process.parent.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`process.parent.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -343,15 +347,16 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`process.parent.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.parent.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`process.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.parent.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`process.parent.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`process.parent.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`process.parent.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
-| [`process.parent.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.parent.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.parent.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`process.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`process.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`process.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`process.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`process.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`process.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
@@ -428,12 +433,12 @@ A process changed the current directory
 | [`chdir.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`chdir.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`chdir.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`chdir.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`chdir.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`chdir.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`chdir.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`chdir.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`chdir.file.path`](#common-fileevent-path-doc) | File's path |
-| [`chdir.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`chdir.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`chdir.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`chdir.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`chdir.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -459,12 +464,12 @@ A file’s permissions were changed
 | [`chmod.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`chmod.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`chmod.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`chmod.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`chmod.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`chmod.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`chmod.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`chmod.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`chmod.file.path`](#common-fileevent-path-doc) | File's path |
-| [`chmod.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`chmod.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`chmod.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`chmod.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`chmod.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -493,12 +498,12 @@ A file’s owner was changed
 | [`chown.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`chown.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`chown.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`chown.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`chown.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`chown.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`chown.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`chown.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`chown.file.path`](#common-fileevent-path-doc) | File's path |
-| [`chown.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`chown.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`chown.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`chown.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`chown.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -506,6 +511,20 @@ A file’s owner was changed
 | [`chown.syscall.gid`](#chown-syscall-gid-doc) | GID argument of the syscall |
 | [`chown.syscall.path`](#chown-syscall-path-doc) | Path argument of the syscall |
 | [`chown.syscall.uid`](#chown-syscall-uid-doc) | UID argument of the syscall |
+
+### Event `connect`
+
+A connect was executed
+
+| Property | Definition |
+| -------- | ------------- |
+| [`connect.addr.family`](#connect-addr-family-doc) | Address family |
+| [`connect.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`connect.addr.port`](#common-ipportcontext-port-doc) | Port number |
+| [`connect.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`connect.server.addr.family`](#connect-server-addr-family-doc) | Server address family |
+| [`connect.server.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`connect.server.addr.port`](#common-ipportcontext-port-doc) | Port number |
 
 ### Event `dns`
 
@@ -518,7 +537,7 @@ A DNS request was sent
 | [`dns.question.count`](#dns-question-count-doc) | the total count of questions in the DNS request |
 | [`dns.question.length`](#dns-question-length-doc) | the total DNS request size in bytes |
 | [`dns.question.name`](#dns-question-name-doc) | the queried domain name |
-| [`dns.question.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`dns.question.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
@@ -569,12 +588,12 @@ A process was executed or forked
 | [`exec.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`exec.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exec.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`exec.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exec.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`exec.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`exec.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`exec.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`exec.file.path`](#common-fileevent-path-doc) | File's path |
-| [`exec.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exec.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`exec.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`exec.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`exec.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -595,15 +614,16 @@ A process was executed or forked
 | [`exec.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`exec.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exec.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`exec.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exec.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`exec.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`exec.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`exec.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`exec.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
-| [`exec.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exec.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`exec.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`exec.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`exec.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`exec.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`exec.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`exec.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`exec.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
@@ -659,12 +679,12 @@ A process was terminated
 | [`exit.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`exit.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exit.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`exit.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exit.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`exit.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`exit.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`exit.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`exit.file.path`](#common-fileevent-path-doc) | File's path |
-| [`exit.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exit.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`exit.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`exit.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`exit.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -685,15 +705,16 @@ A process was terminated
 | [`exit.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`exit.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exit.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`exit.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exit.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`exit.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`exit.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`exit.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`exit.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
-| [`exit.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exit.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`exit.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`exit.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`exit.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`exit.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`exit.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`exit.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`exit.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
@@ -747,12 +768,12 @@ Create a new name/alias for a file
 | [`link.file.destination.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`link.file.destination.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`link.file.destination.name`](#common-fileevent-name-doc) | File's basename |
-| [`link.file.destination.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`link.file.destination.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`link.file.destination.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`link.file.destination.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`link.file.destination.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`link.file.destination.path`](#common-fileevent-path-doc) | File's path |
-| [`link.file.destination.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`link.file.destination.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`link.file.destination.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`link.file.destination.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`link.file.destination.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -766,12 +787,12 @@ Create a new name/alias for a file
 | [`link.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`link.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`link.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`link.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`link.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`link.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`link.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`link.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`link.file.path`](#common-fileevent-path-doc) | File's path |
-| [`link.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`link.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`link.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`link.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`link.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -799,12 +820,12 @@ A new kernel module was loaded
 | [`load_module.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`load_module.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`load_module.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`load_module.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`load_module.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`load_module.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`load_module.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`load_module.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`load_module.file.path`](#common-fileevent-path-doc) | File's path |
-| [`load_module.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`load_module.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`load_module.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`load_module.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`load_module.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -831,12 +852,12 @@ A directory was created
 | [`mkdir.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`mkdir.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`mkdir.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`mkdir.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`mkdir.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`mkdir.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`mkdir.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`mkdir.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`mkdir.file.path`](#common-fileevent-path-doc) | File's path |
-| [`mkdir.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`mkdir.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`mkdir.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`mkdir.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`mkdir.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -859,12 +880,12 @@ A mmap command was executed
 | [`mmap.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`mmap.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`mmap.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`mmap.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`mmap.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`mmap.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`mmap.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`mmap.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`mmap.file.path`](#common-fileevent-path-doc) | File's path |
-| [`mmap.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`mmap.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`mmap.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`mmap.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`mmap.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -917,12 +938,12 @@ A file was opened
 | [`open.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`open.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`open.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`open.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`open.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`open.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`open.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`open.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`open.file.path`](#common-fileevent-path-doc) | File's path |
-| [`open.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`open.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`open.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`open.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`open.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -941,6 +962,7 @@ A raw network packet captured
 | [`packet.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`packet.destination.port`](#common-ipportcontext-port-doc) | Port number |
 | [`packet.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
+| [`packet.filter`](#packet-filter-doc) | pcap filter expression |
 | [`packet.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
 | [`packet.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
 | [`packet.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
@@ -990,12 +1012,12 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`ptrace.tracee.ancestors.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`ptrace.tracee.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`ptrace.tracee.ancestors.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`ptrace.tracee.ancestors.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`ptrace.tracee.ancestors.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`ptrace.tracee.ancestors.file.path`](#common-fileevent-path-doc) | File's path |
-| [`ptrace.tracee.ancestors.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.ancestors.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`ptrace.tracee.ancestors.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`ptrace.tracee.ancestors.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`ptrace.tracee.ancestors.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -1016,17 +1038,19 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`ptrace.tracee.ancestors.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.ancestors.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`ptrace.tracee.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`ptrace.tracee.ancestors.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`ptrace.tracee.ancestors.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`ptrace.tracee.ancestors.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`ptrace.tracee.ancestors.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
-| [`ptrace.tracee.ancestors.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.ancestors.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`ptrace.tracee.ancestors.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`ptrace.tracee.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`ptrace.tracee.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`ptrace.tracee.ancestors.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`ptrace.tracee.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`ptrace.tracee.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`ptrace.tracee.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`ptrace.tracee.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`ptrace.tracee.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`ptrace.tracee.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
@@ -1070,12 +1094,12 @@ A ptrace command was executed
 | [`ptrace.tracee.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`ptrace.tracee.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`ptrace.tracee.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`ptrace.tracee.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`ptrace.tracee.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`ptrace.tracee.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`ptrace.tracee.file.path`](#common-fileevent-path-doc) | File's path |
-| [`ptrace.tracee.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`ptrace.tracee.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`ptrace.tracee.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`ptrace.tracee.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -1096,15 +1120,16 @@ A ptrace command was executed
 | [`ptrace.tracee.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`ptrace.tracee.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`ptrace.tracee.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`ptrace.tracee.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`ptrace.tracee.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`ptrace.tracee.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`ptrace.tracee.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
-| [`ptrace.tracee.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`ptrace.tracee.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`ptrace.tracee.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`ptrace.tracee.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`ptrace.tracee.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`ptrace.tracee.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`ptrace.tracee.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`ptrace.tracee.parent.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
@@ -1141,12 +1166,12 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`ptrace.tracee.parent.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.parent.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`ptrace.tracee.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`ptrace.tracee.parent.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`ptrace.tracee.parent.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`ptrace.tracee.parent.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`ptrace.tracee.parent.file.path`](#common-fileevent-path-doc) | File's path |
-| [`ptrace.tracee.parent.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.parent.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`ptrace.tracee.parent.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`ptrace.tracee.parent.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`ptrace.tracee.parent.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -1167,15 +1192,16 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`ptrace.tracee.parent.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.parent.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`ptrace.tracee.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`ptrace.tracee.parent.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`ptrace.tracee.parent.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`ptrace.tracee.parent.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`ptrace.tracee.parent.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
-| [`ptrace.tracee.parent.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.parent.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`ptrace.tracee.parent.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`ptrace.tracee.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`ptrace.tracee.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`ptrace.tracee.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`ptrace.tracee.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`ptrace.tracee.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`ptrace.tracee.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
@@ -1216,12 +1242,12 @@ Remove extended attributes
 | [`removexattr.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`removexattr.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`removexattr.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`removexattr.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`removexattr.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`removexattr.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`removexattr.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`removexattr.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`removexattr.file.path`](#common-fileevent-path-doc) | File's path |
-| [`removexattr.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`removexattr.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`removexattr.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`removexattr.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`removexattr.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -1245,12 +1271,12 @@ A file/directory was renamed
 | [`rename.file.destination.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`rename.file.destination.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`rename.file.destination.name`](#common-fileevent-name-doc) | File's basename |
-| [`rename.file.destination.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.destination.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`rename.file.destination.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`rename.file.destination.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`rename.file.destination.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`rename.file.destination.path`](#common-fileevent-path-doc) | File's path |
-| [`rename.file.destination.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.destination.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`rename.file.destination.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`rename.file.destination.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`rename.file.destination.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -1264,12 +1290,12 @@ A file/directory was renamed
 | [`rename.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`rename.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`rename.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`rename.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`rename.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`rename.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`rename.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`rename.file.path`](#common-fileevent-path-doc) | File's path |
-| [`rename.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`rename.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`rename.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`rename.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -1294,12 +1320,12 @@ A directory was removed
 | [`rmdir.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`rmdir.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`rmdir.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`rmdir.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rmdir.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`rmdir.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`rmdir.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`rmdir.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`rmdir.file.path`](#common-fileevent-path-doc) | File's path |
-| [`rmdir.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rmdir.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`rmdir.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`rmdir.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`rmdir.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -1361,12 +1387,12 @@ Set exteneded attributes
 | [`setxattr.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`setxattr.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setxattr.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`setxattr.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`setxattr.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`setxattr.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`setxattr.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`setxattr.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`setxattr.file.path`](#common-fileevent-path-doc) | File's path |
-| [`setxattr.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`setxattr.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`setxattr.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`setxattr.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`setxattr.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -1414,12 +1440,12 @@ A signal was sent
 | [`signal.target.ancestors.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`signal.target.ancestors.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`signal.target.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`signal.target.ancestors.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`signal.target.ancestors.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`signal.target.ancestors.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`signal.target.ancestors.file.path`](#common-fileevent-path-doc) | File's path |
-| [`signal.target.ancestors.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.ancestors.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`signal.target.ancestors.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`signal.target.ancestors.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`signal.target.ancestors.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -1440,17 +1466,19 @@ A signal was sent
 | [`signal.target.ancestors.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`signal.target.ancestors.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.ancestors.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`signal.target.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`signal.target.ancestors.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`signal.target.ancestors.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`signal.target.ancestors.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`signal.target.ancestors.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
-| [`signal.target.ancestors.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.ancestors.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`signal.target.ancestors.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`signal.target.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`signal.target.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`signal.target.ancestors.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`signal.target.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`signal.target.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`signal.target.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`signal.target.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`signal.target.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`signal.target.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
@@ -1494,12 +1522,12 @@ A signal was sent
 | [`signal.target.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`signal.target.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`signal.target.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`signal.target.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`signal.target.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`signal.target.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`signal.target.file.path`](#common-fileevent-path-doc) | File's path |
-| [`signal.target.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`signal.target.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`signal.target.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`signal.target.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -1520,15 +1548,16 @@ A signal was sent
 | [`signal.target.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`signal.target.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`signal.target.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`signal.target.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`signal.target.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`signal.target.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`signal.target.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
-| [`signal.target.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`signal.target.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`signal.target.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`signal.target.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`signal.target.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`signal.target.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`signal.target.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`signal.target.parent.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
@@ -1565,12 +1594,12 @@ A signal was sent
 | [`signal.target.parent.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`signal.target.parent.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.parent.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`signal.target.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`signal.target.parent.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`signal.target.parent.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`signal.target.parent.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`signal.target.parent.file.path`](#common-fileevent-path-doc) | File's path |
-| [`signal.target.parent.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.parent.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`signal.target.parent.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`signal.target.parent.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`signal.target.parent.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -1591,15 +1620,16 @@ A signal was sent
 | [`signal.target.parent.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`signal.target.parent.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.parent.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`signal.target.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`signal.target.parent.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`signal.target.parent.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`signal.target.parent.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`signal.target.parent.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
-| [`signal.target.parent.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.parent.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`signal.target.parent.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`signal.target.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`signal.target.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`signal.target.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`signal.target.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`signal.target.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`signal.target.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
@@ -1639,12 +1669,12 @@ A splice command was executed
 | [`splice.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`splice.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`splice.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`splice.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`splice.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`splice.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`splice.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`splice.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`splice.file.path`](#common-fileevent-path-doc) | File's path |
-| [`splice.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`splice.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`splice.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`splice.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`splice.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -1669,12 +1699,12 @@ A file was deleted
 | [`unlink.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`unlink.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`unlink.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`unlink.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`unlink.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`unlink.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`unlink.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`unlink.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`unlink.file.path`](#common-fileevent-path-doc) | File's path |
-| [`unlink.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`unlink.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`unlink.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`unlink.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`unlink.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -1710,12 +1740,12 @@ Change file access/modification times
 | [`utimes.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`utimes.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`utimes.file.name`](#common-fileevent-name-doc) | File's basename |
-| [`utimes.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`utimes.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`utimes.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
 | [`utimes.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
 | [`utimes.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
 | [`utimes.file.path`](#common-fileevent-path-doc) | File's path |
-| [`utimes.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`utimes.file.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`utimes.file.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`utimes.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`utimes.file.user`](#common-filefields-user-doc) | User of the file's owner |
@@ -2105,8 +2135,17 @@ Type: IP/CIDR
 
 Definition: IP address
 
-`*.ip` has 5 possible prefixes:
-`bind.addr` `network.destination` `network.source` `packet.destination` `packet.source`
+`*.ip` has 7 possible prefixes:
+`bind.addr` `connect.addr` `connect.server.addr` `network.destination` `network.source` `packet.destination` `packet.source`
+
+
+### `*.is_exec` {#common-process-is_exec-doc}
+Type: bool
+
+Definition: Indicates whether the process entry is from a new binary execution
+
+`*.is_exec` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
 ### `*.is_kworker` {#common-pidcontext-is_kworker-doc}
@@ -2181,10 +2220,10 @@ Constants: [L4 protocols](#l4-protocols)
 ### `*.length` {#common-string-length-doc}
 Type: int
 
-Definition: Length of the corresponding string
+Definition: Length of the corresponding element
 
-`*.length` has 79 possible prefixes:
-`chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `open.file.name` `open.file.path` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
+`*.length` has 82 possible prefixes:
+`chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
 
 
 ### `*.manager` {#common-cgroupcontext-manager-doc}
@@ -2311,8 +2350,8 @@ Type: int
 
 Definition: Port number
 
-`*.port` has 5 possible prefixes:
-`bind.addr` `network.destination` `network.source` `packet.destination` `packet.source`
+`*.port` has 7 possible prefixes:
+`bind.addr` `connect.addr` `connect.server.addr` `network.destination` `network.source` `packet.destination` `packet.source`
 
 
 ### `*.ppid` {#common-process-ppid-doc}
@@ -2329,8 +2368,8 @@ Type: int
 
 Definition: Return value of the syscall
 
-`*.retval` has 22 possible prefixes:
-`bind` `bpf` `chdir` `chmod` `chown` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
+`*.retval` has 23 possible prefixes:
+`bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
 
 Constants: [Error constants](#error-constants)
 
@@ -2605,6 +2644,20 @@ Definition: Path argument of the syscall
 Type: int
 
 Definition: UID argument of the syscall
+
+
+
+### `connect.addr.family` {#connect-addr-family-doc}
+Type: int
+
+Definition: Address family
+
+
+
+### `connect.server.addr.family` {#connect-server-addr-family-doc}
+Type: int
+
+Definition: Server address family
 
 
 
@@ -2999,6 +3052,13 @@ Definition: Mode argument of the syscall
 Type: string
 
 Definition: Path argument of the syscall
+
+
+
+### `packet.filter` {#packet-filter-doc}
+Type: string
+
+Definition: pcap filter expression
 
 
 

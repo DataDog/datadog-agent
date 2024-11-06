@@ -7,6 +7,9 @@
 package common
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,8 +30,6 @@ func BuildTaggerEntityID(entityID workloadmeta.EntityID) types.EntityID {
 		return types.NewEntityID(types.Process, entityID.ID)
 	case workloadmeta.KindKubernetesDeployment:
 		return types.NewEntityID(types.KubernetesDeployment, entityID.ID)
-	case workloadmeta.KindHost:
-		return types.NewEntityID(types.Host, entityID.ID)
 	case workloadmeta.KindKubernetesMetadata:
 		return types.NewEntityID(types.KubernetesMetadata, entityID.ID)
 	default:
@@ -39,14 +40,18 @@ func BuildTaggerEntityID(entityID workloadmeta.EntityID) types.EntityID {
 }
 
 var globalEntityID = types.NewEntityID("internal", "global-entity-id")
-var globalEntityIDString = globalEntityID.String()
 
 // GetGlobalEntityID returns the entity ID that holds global tags
 func GetGlobalEntityID() types.EntityID {
 	return globalEntityID
 }
 
-// GetGlobalEntityIDString returns, in a plain string format, the entity ID that holds global tags
-func GetGlobalEntityIDString() string {
-	return globalEntityIDString
+// ExtractPrefixAndID extracts prefix and id from tagger entity id and returns an error if the received entityID is not valid
+func ExtractPrefixAndID(entityID string) (prefix types.EntityIDPrefix, id string, err error) {
+	extractedPrefix, extractedID, found := strings.Cut(entityID, "://")
+	if !found {
+		return "", "", fmt.Errorf("unsupported tagger entity id format %q, correct format is `{prefix}://{id}`", entityID)
+	}
+
+	return types.EntityIDPrefix(extractedPrefix), extractedID, nil
 }

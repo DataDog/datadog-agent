@@ -24,7 +24,7 @@ from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.utils import REPO_PATH, color_message, running_in_ci
 from tasks.modules import DEFAULT_MODULES
-from tools.e2e_stacks import destroy_remote_stack
+from tasks.tools.e2e_stacks import destroy_remote_stack
 
 
 @task(
@@ -230,6 +230,10 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
         )
         if stack_regex.match(stack_id):
             to_delete_stacks.add(f"organization/e2eci/{stack_id}")
+
+    if len(to_delete_stacks) == 0:
+        print("No stacks to delete")
+        return
 
     print("About to delete the following stacks:", to_delete_stacks)
     with multiprocessing.Pool(len(to_delete_stacks)) as pool:

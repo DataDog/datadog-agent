@@ -20,14 +20,6 @@
     methods . A fresh reference to the module is created here. This function is
     python3 only.
 */
-/*! \fn void Py2_init_datadog_agent()
-    \brief Initializes the datadog_agent builtin python module.
-
-    The datadog_agent python builtin is created and registered here as per the module_def
-    PyMethodDef definition in `datadog_agent.c` with the corresponding C-implemented python
-    methods . A fresh reference to the module is created here. This function is
-    python2 only.
-*/
 /*! \fn void _set_get_version_cb(cb_get_version_t)
     \brief Sets a callback to be used by rtloader to collect the agent version.
     \param object A function pointer with cb_get_version_t prototype to the callback

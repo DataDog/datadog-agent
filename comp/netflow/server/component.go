@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: network-device-monitoring
+// team: ndm-integrations
 
 // Component is the component type. It has no exposed methods.
 type Component interface{}

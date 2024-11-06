@@ -71,10 +71,29 @@ var sources = []Source{
 	SourceCLI,
 }
 
+// sourcesPriority give each source a priority, the higher the more important a source. This is used when merging
+// configuration tree (a higher priority overwrites a lower one).
+var sourcesPriority = map[Source]int{
+	SourceDefault:            0,
+	SourceUnknown:            1,
+	SourceFile:               2,
+	SourceEnvVar:             3,
+	SourceFleetPolicies:      4,
+	SourceAgentRuntime:       5,
+	SourceLocalConfigProcess: 6,
+	SourceRC:                 7,
+	SourceCLI:                8,
+}
+
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
 type ValueWithSource struct {
 	Source Source
 	Value  interface{}
+}
+
+// IsGreaterOrEqualThan returns true if the current source is of higher priority than the one given as a parameter
+func (s Source) IsGreaterOrEqualThan(x Source) bool {
+	return sourcesPriority[s] >= sourcesPriority[x]
 }
 
 // String casts Source into a string
@@ -246,6 +265,11 @@ func (c *safeConfig) GetKnownKeysLowercased() map[string]interface{} {
 	// GetKnownKeysLowercased returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
 	return c.Viper.GetKnownKeys()
+}
+
+// BuildSchema is a no-op for the viper based config
+func (c *safeConfig) BuildSchema() {
+	// pass
 }
 
 // ParseEnvAsStringSlice registers a transformer function to parse an an environment variables as a []string.
@@ -674,8 +698,8 @@ func (c *safeConfig) MergeConfigMap(cfg map[string]any) error {
 
 // AllSettings wraps Viper for concurrent access
 func (c *safeConfig) AllSettings() map[string]interface{} {
-	c.RLock()
-	defer c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
 
 	// AllSettings returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
@@ -684,8 +708,8 @@ func (c *safeConfig) AllSettings() map[string]interface{} {
 
 // AllSettingsWithoutDefault returns a copy of the all the settings in the configuration without defaults
 func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
-	c.RLock()
-	defer c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
 
 	// AllSettingsWithoutDefault returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
@@ -694,8 +718,8 @@ func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
 func (c *safeConfig) AllSettingsBySource() map[Source]interface{} {
-	c.RLock()
-	defer c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
 
 	sources := []Source{
 		SourceDefault,

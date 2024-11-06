@@ -24,9 +24,9 @@ import (
 	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -52,7 +52,7 @@ type languagePatcher struct {
 }
 
 // NewLanguagePatcher initializes and returns a new patcher with a dynamic k8s client
-func newLanguagePatcher(ctx context.Context, store workloadmeta.Component, logger log.Component, apiCl *apiserver.APIClient) *languagePatcher {
+func newLanguagePatcher(ctx context.Context, store workloadmeta.Component, logger log.Component, datadogConfig config.Component, apiCl *apiserver.APIClient) *languagePatcher {
 
 	ctx, cancel := context.WithCancel(ctx)
 
@@ -66,8 +66,8 @@ func newLanguagePatcher(ctx context.Context, store workloadmeta.Component, logge
 		logger:    logger,
 		queue: workqueue.NewRateLimitingQueueWithConfig(
 			workqueue.NewItemExponentialFailureRateLimiter(
-				pkgconfigsetup.Datadog().GetDuration("cluster_agent.language_detection.patcher.base_backoff"),
-				pkgconfigsetup.Datadog().GetDuration("cluster_agent.language_detection.patcher.max_backoff"),
+				datadogConfig.GetDuration("cluster_agent.language_detection.patcher.base_backoff"),
+				datadogConfig.GetDuration("cluster_agent.language_detection.patcher.max_backoff"),
 			),
 			workqueue.RateLimitingQueueConfig{
 				Name:            subsystem,
@@ -83,7 +83,7 @@ var (
 )
 
 // Start initializes and starts the language detection patcher
-func Start(ctx context.Context, store workloadmeta.Component, logger log.Component) error {
+func Start(ctx context.Context, store workloadmeta.Component, logger log.Component, datadogConfig config.Component) error {
 
 	if patcher != nil {
 		return fmt.Errorf("can't start language detection patcher twice")
@@ -101,7 +101,7 @@ func Start(ctx context.Context, store workloadmeta.Component, logger log.Compone
 
 	languagePatcherOnce.Do(func() {
 		logger.Info("Starting language detection patcher")
-		patcher = newLanguagePatcher(ctx, store, logger, apiCl)
+		patcher = newLanguagePatcher(ctx, store, logger, datadogConfig, apiCl)
 		go patcher.run(ctx)
 	})
 

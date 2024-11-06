@@ -41,20 +41,21 @@ type packageRunConfiguration struct {
 }
 
 type testConfig struct {
-	runCount          int
-	retryCount        int
-	verbose           bool
-	packagesRunConfig map[string]packageRunConfiguration
-	testDirRoot       string
-	testingTools      string
-	extraParams       string
-	extraEnv          string
-	inContainerImage  string
+	userProvidedConfig
+	runCount     int
+	retryCount   int
+	verbose      bool
+	testDirRoot  string
+	testingTools string
+	extraParams  string
+	extraEnv     string
 }
 
 type userProvidedConfig struct {
-	PackagesRunConfig map[string]packageRunConfiguration `json:"filters"`
-	InContainerImage  string                             `json:"testcontainer"`
+	PackagesRunConfig  map[string]packageRunConfiguration `json:"filters"`
+	InContainerImage   string                             `json:"testcontainer"`
+	AdditionalTestArgs []string                           `json:"additional_test_args"`
+	AdditionalEnvVars  []string                           `json:"additional_env_vars"`
 }
 
 const ciVisibility = "/ci-visibility"
@@ -151,8 +152,9 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []st
 	if testConfig.extraParams != "" {
 		args = append(args, strings.Split(testConfig.extraParams, " ")...)
 	}
+	args = append(args, testConfig.AdditionalTestArgs...)
 
-	packagesRunConfig := testConfig.packagesRunConfig
+	packagesRunConfig := testConfig.PackagesRunConfig
 	if config, ok := packagesRunConfig[pkg]; ok && config.RunOnly != nil {
 		args = append(args, "-test.run", strings.Join(config.RunOnly, "|"))
 	}
@@ -199,15 +201,32 @@ func createDir(d string) error {
 	return nil
 }
 
+func collectEnvVars(testConfig *testConfig, bpfDir string) []string {
+	var env []string
+	env = append(env, baseEnv...)
+	env = append(env,
+		"DD_SYSTEM_PROBE_BPF_DIR="+bpfDir,
+		"DD_SERVICE_MONITORING_CONFIG_TLS_JAVA_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/network/protocols/tls/java"),
+	)
+
+	if testConfig.extraEnv != "" {
+		env = append(env, strings.Split(testConfig.extraEnv, " ")...)
+	}
+
+	env = append(env, testConfig.AdditionalEnvVars...)
+
+	return env
+}
+
 func testPass(testConfig *testConfig, props map[string]string) error {
 	testsuites, err := glob(testConfig.testDirRoot, "testsuite", func(path string) bool {
 		dir, _ := filepath.Rel(testConfig.testDirRoot, filepath.Dir(path))
 
-		if config, ok := testConfig.packagesRunConfig[dir]; ok {
+		if config, ok := testConfig.PackagesRunConfig[dir]; ok {
 			return !config.Exclude
 		}
 
-		if config, ok := testConfig.packagesRunConfig[matchAllPackages]; ok {
+		if config, ok := testConfig.PackagesRunConfig[matchAllPackages]; ok {
 			return !config.Exclude
 		}
 
@@ -232,9 +251,11 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 	}
 	bpfDir := filepath.Join(testConfig.testDirRoot, buildDir)
 
+	envVars := collectEnvVars(testConfig, bpfDir)
+
 	var testContainer *testContainer
-	if testConfig.inContainerImage != "" {
-		testContainer = newTestContainer(testConfig.inContainerImage, bpfDir)
+	if testConfig.InContainerImage != "" {
+		testContainer = newTestContainer(testConfig.InContainerImage, bpfDir)
 		if err := testContainer.start(); err != nil {
 			return fmt.Errorf("error creating test container: %w", err)
 		}
@@ -251,22 +272,13 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 
 		testsuiteArgs := []string{testsuite}
 		if testContainer != nil {
-			testsuiteArgs = testContainer.buildDockerExecArgs(testsuite, "--env", "docker")
+			testsuiteArgs = testContainer.buildDockerExecArgs(testsuite, envVars)
 		}
 
 		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuiteArgs, testConfig)
-
 		cmd := exec.Command(filepath.Join(testConfig.testingTools, "go/bin/gotestsum"), args...)
 
-		baseEnv = append(
-			baseEnv,
-			"DD_SYSTEM_PROBE_BPF_DIR="+bpfDir,
-			"DD_SERVICE_MONITORING_CONFIG_TLS_JAVA_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/network/protocols/tls/java"),
-		)
-		if testConfig.extraEnv != "" {
-			baseEnv = append(baseEnv, strings.Split(testConfig.extraEnv, " ")...)
-		}
-		cmd.Env = append(cmd.Environ(), baseEnv...)
+		cmd.Env = append(cmd.Environ(), envVars...)
 
 		cmd.Dir = filepath.Dir(testsuite)
 		cmd.Stdout = os.Stdout
@@ -340,15 +352,14 @@ func buildTestConfiguration() (*testConfig, error) {
 	}
 
 	return &testConfig{
-		runCount:          *runCount,
-		verbose:           *verbose,
-		retryCount:        *retryPtr,
-		packagesRunConfig: userConfig.PackagesRunConfig,
-		testDirRoot:       root,
-		testingTools:      tools,
-		extraParams:       *extraParams,
-		extraEnv:          *extraEnv,
-		inContainerImage:  userConfig.InContainerImage,
+		userProvidedConfig: userConfig,
+		runCount:           *runCount,
+		verbose:            *verbose,
+		retryCount:         *retryPtr,
+		testDirRoot:        root,
+		testingTools:       tools,
+		extraParams:        *extraParams,
+		extraEnv:           *extraEnv,
 	}, nil
 }
 

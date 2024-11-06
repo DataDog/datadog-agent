@@ -346,8 +346,6 @@ func StopAgent(log log.Component) {
 
 func setupInternalProfiling(config config.Component) error {
 	if config.GetBool(secAgentKey("internal_profiling.enabled")) {
-		v, _ := version.Agent()
-
 		cfgSite := config.GetString(secAgentKey("internal_profiling.site"))
 		cfgURL := config.GetString(secAgentKey("internal_profiling.profile_dd_url"))
 
@@ -363,7 +361,7 @@ func setupInternalProfiling(config config.Component) error {
 		}
 
 		tags := config.GetStringSlice(secAgentKey("internal_profiling.extra_tags"))
-		tags = append(tags, fmt.Sprintf("version:%v", v))
+		tags = append(tags, fmt.Sprintf("version:%v", version.AgentVersion))
 
 		profSettings := profiling.Settings{
 			ProfilingURL:         site,

@@ -30,12 +30,14 @@ const (
 // Server is a grpc server that streams tagger entities
 type Server struct {
 	taggerComponent tagger.Component
+	maxEventSize    int
 }
 
 // NewServer returns a new Server
-func NewServer(t tagger.Component) *Server {
+func NewServer(t tagger.Component, maxEventSize int) *Server {
 	return &Server{
 		taggerComponent: t,
+		maxEventSize:    maxEventSize,
 	}
 }
 
@@ -86,16 +88,20 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 				responseEvents = append(responseEvents, e)
 			}
 
-			err = grpc.DoWithTimeout(func() error {
-				return out.Send(&pb.StreamTagsResponse{
-					Events: responseEvents,
-				})
-			}, taggerStreamSendTimeout)
+			// Split events into chunks and send each one
+			chunks := splitEvents(responseEvents, s.maxEventSize)
+			for _, chunk := range chunks {
+				err = grpc.DoWithTimeout(func() error {
+					return out.Send(&pb.StreamTagsResponse{
+						Events: chunk,
+					})
+				}, taggerStreamSendTimeout)
 
-			if err != nil {
-				log.Warnf("error sending tagger event: %s", err)
-				s.taggerComponent.GetTaggerTelemetryStore().ServerStreamErrors.Inc()
-				return err
+				if err != nil {
+					log.Warnf("error sending tagger event: %s", err)
+					s.taggerComponent.GetTaggerTelemetryStore().ServerStreamErrors.Inc()
+					return err
+				}
 			}
 
 		case <-out.Context().Done():
@@ -133,7 +139,7 @@ func (s *Server) TaggerFetchEntity(_ context.Context, in *pb.FetchEntityRequest)
 		return nil, status.Errorf(codes.InvalidArgument, `missing "id" parameter`)
 	}
 
-	entityID := types.EntityIDPrefix(in.Id.Prefix).ToUID(in.Id.Uid)
+	entityID := types.NewEntityID(types.EntityIDPrefix(in.Id.Prefix), in.Id.Uid)
 	cardinality, err := proto.Pb2TaggerCardinality(in.GetCardinality())
 	if err != nil {
 		return nil, err

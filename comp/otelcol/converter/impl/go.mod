@@ -42,7 +42,6 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.2
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.2
 	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/collector/confmap v0.104.0
 	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.104.0
@@ -71,6 +70,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.56.2 // indirect

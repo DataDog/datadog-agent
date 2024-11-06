@@ -61,6 +61,33 @@ type OTLPReceiver struct {
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
 func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
+	operationAndResourceNamesV2GateEnabled := cfg.HasFeature("enable_operation_and_resource_name_logic_v2")
+	operationAndResourceNamesV2GateEnabledVal := 0.0
+	if operationAndResourceNamesV2GateEnabled {
+		operationAndResourceNamesV2GateEnabledVal = 1.0
+	}
+	_ = statsd.Gauge("datadog.trace_agent.otlp.operation_and_resource_names_v2_gate_enabled", operationAndResourceNamesV2GateEnabledVal, nil, 1)
+
+	spanNameAsResourceNameEnabledVal := 0.0
+	if cfg.OTLPReceiver.SpanNameAsResourceName {
+		if operationAndResourceNamesV2GateEnabled {
+			log.Warnf("Detected SpanNameAsResourceName in config - this feature will be deprecated in a future version, and overrides feature gate \"enable_operation_and_resource_name_logic_v2\". Please remove it and set \"operation.name\" attribute on your spans instead.")
+		} else {
+			log.Warnf("Detected SpanNameAsResourceName in config - this feature will be deprecated in a future version. Please remove it, enable feature gate \"enable_operation_and_resource_name_logic_v2\", and set \"operation.name\" attribute on your spans instead.")
+		}
+		spanNameAsResourceNameEnabledVal = 1.0
+	}
+	_ = statsd.Gauge("datadog.trace_agent.otlp.span_name_as_resource_name_enabled", spanNameAsResourceNameEnabledVal, nil, 1)
+	spanNameRemappingsEnabledVal := 0.0
+	if cfg.OTLPReceiver.SpanNameRemappings != nil && len(cfg.OTLPReceiver.SpanNameRemappings) > 0 {
+		if operationAndResourceNamesV2GateEnabled {
+			log.Warnf("Detected SpanNameRemappings in config - this feature will be deprecated in a future version. Please remove it to access functionality from feature gate \"enable_operation_and_resource_name_logic_v2\".")
+		} else {
+			log.Warnf("Detected SpanNameRemappings in config - this feature will be deprecated in a future version. Please remove it and enable feature gate \"enable_operation_and_resource_name_logic_v2\"")
+		}
+		spanNameRemappingsEnabledVal = 1.0
+	}
+	_ = statsd.Gauge("datadog.trace_agent.otlp.span_name_remappings_enabled", spanNameRemappingsEnabledVal, nil, 1)
 	computeTopLevelBySpanKindVal := 0.0
 	if cfg.HasFeature("enable_otlp_compute_top_level_by_span_kind") {
 		computeTopLevelBySpanKindVal = 1.0
@@ -208,7 +235,6 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	otelres := rspans.Resource()
 	resourceAttributes := otelres.Attributes()
 
-	topLevelByKind := o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
 	tracesByID := make(map[uint64]pb.Trace)
 	priorityByID := make(map[uint64]sampler.SamplingPriority)
 	var spancount int64
@@ -216,7 +242,13 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		libspans := rspans.ScopeSpans().At(i)
 		for j := 0; j < libspans.Spans().Len(); j++ {
 			otelspan := libspans.Spans().At(j)
-			if _, exists := o.ignoreResNames[traceutil.GetOTelResource(otelspan, otelres)]; exists {
+			var resourceName string
+			if transform.OperationAndResourceNameV2Enabled(o.conf) {
+				resourceName = traceutil.GetOTelResourceV2(otelspan, otelres)
+			} else {
+				resourceName = traceutil.GetOTelResourceV1(otelspan, otelres)
+			}
+			if _, exists := o.ignoreResNames[resourceName]; exists {
 				continue
 			}
 
@@ -225,7 +257,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 			if tracesByID[traceID] == nil {
 				tracesByID[traceID] = pb.Trace{}
 			}
-			ddspan := transform.OtelSpanToDDSpan(otelspan, otelres, libspans.Scope(), topLevelByKind, o.conf, nil)
+			ddspan := transform.OtelSpanToDDSpan(otelspan, otelres, libspans.Scope(), o.conf, nil)
 
 			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
 				priorityByID[traceID] = sampler.SamplingPriority(p)
@@ -584,29 +616,41 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		transform.SetMetaOTLP(span, semconv.OtelStatusDescription, msg)
 	}
 	transform.Status2Error(in.Status(), in.Events(), span)
-	if span.Name == "" {
-		name := in.Name()
-		if !o.conf.OTLPReceiver.SpanNameAsResourceName {
-			name = traceutil.OTelSpanKindName(in.Kind())
-			if lib.Name() != "" {
-				name = lib.Name() + "." + name
-			} else {
-				name = "opentelemetry." + name
+	if transform.OperationAndResourceNameV2Enabled(o.conf) {
+		span.Name = traceutil.GetOTelOperationNameV2(in)
+	} else {
+		if span.Name == "" {
+			name := in.Name()
+			if !o.conf.OTLPReceiver.SpanNameAsResourceName {
+				name = traceutil.OTelSpanKindName(in.Kind())
+				if lib.Name() != "" {
+					name = lib.Name() + "." + name
+				} else {
+					name = "opentelemetry." + name
+				}
 			}
+			if v, ok := o.conf.OTLPReceiver.SpanNameRemappings[name]; ok {
+				name = v
+			}
+			span.Name = name
 		}
-		if v, ok := o.conf.OTLPReceiver.SpanNameRemappings[name]; ok {
-			name = v
-		}
-		span.Name = name
 	}
 	if span.Service == "" {
 		span.Service = "OTLPResourceNoServiceName"
 	}
 	if span.Resource == "" {
-		if r := resourceFromTags(span.Meta); r != "" {
-			span.Resource = r
+		if transform.OperationAndResourceNameV2Enabled(o.conf) {
+			res := pcommon.NewResource()
+			for k, v := range rattr {
+				res.Attributes().PutStr(k, v)
+			}
+			span.Resource = traceutil.GetOTelResourceV2(in, res)
 		} else {
-			span.Resource = in.Name()
+			if r := resourceFromTags(span.Meta); r != "" {
+				span.Resource = r
+			} else {
+				span.Resource = in.Name()
+			}
 		}
 	}
 	if span.Type == "" {

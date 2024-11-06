@@ -124,10 +124,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadmetafx.Module(workloadmeta.Params{
 					AgentType:  workloadmeta.NodeAgent,
 					InitHelper: common.GetWorkloadmetaInit(),
-					NoInstance: !cliParams.forceLocal, //if forceLocal is true, we want to run workloadmeta
 				}),
-				taggerimpl.OptionalModule(),
-				autodiscoveryimpl.OptionalModule(), // if forceLocal is true, we will start autodiscovery (loadComponents) later
+				fx.Provide(tagger.NewTaggerParams),
+				taggerimpl.Module(),
+				autodiscoveryimpl.Module(),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				compressionimpl.Module(),
 				diagnosesendermanagerimpl.Module(),
@@ -282,7 +282,7 @@ func makeFlare(flareComp flare.Component,
 	_ sysprobeconfig.Component,
 	cliParams *cliParams,
 	_ optional.Option[workloadmeta.Component],
-	_ optional.Option[tagger.Component]) error {
+	_ tagger.Component) error {
 	var (
 		profile flare.ProfileData
 		err     error

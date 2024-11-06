@@ -898,6 +898,62 @@ func (ev *Event) GetChownSyscallUid() int {
 	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chown.SyscallContext)
 }
 
+// GetConnectAddrFamily returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectAddrFamily() uint16 {
+	if ev.GetEventType().String() != "connect" {
+		return uint16(0)
+	}
+	return ev.Connect.AddrFamily
+}
+
+// GetConnectAddrIp returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectAddrIp() net.IPNet {
+	if ev.GetEventType().String() != "connect" {
+		return net.IPNet{}
+	}
+	return ev.Connect.Addr.IPNet
+}
+
+// GetConnectAddrPort returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectAddrPort() uint16 {
+	if ev.GetEventType().String() != "connect" {
+		return uint16(0)
+	}
+	return ev.Connect.Addr.Port
+}
+
+// GetConnectRetval returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectRetval() int64 {
+	if ev.GetEventType().String() != "connect" {
+		return int64(0)
+	}
+	return ev.Connect.SyscallEvent.Retval
+}
+
+// GetConnectServerAddrFamily returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectServerAddrFamily() uint16 {
+	if ev.GetEventType().String() != "connect" {
+		return uint16(0)
+	}
+	return ev.Connect.AddrFamily
+}
+
+// GetConnectServerAddrIp returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectServerAddrIp() net.IPNet {
+	if ev.GetEventType().String() != "connect" {
+		return net.IPNet{}
+	}
+	return ev.Connect.Addr.IPNet
+}
+
+// GetConnectServerAddrPort returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectServerAddrPort() uint16 {
+	if ev.GetEventType().String() != "connect" {
+		return uint16(0)
+	}
+	return ev.Connect.Addr.Port
+}
+
 // GetContainerCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerCreatedAt() int {
 	if ev.BaseEvent.ContainerContext == nil {
@@ -1949,6 +2005,17 @@ func (ev *Event) GetExecInterpreterFileUser() string {
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exec.Process.LinuxBinprm.FileEvent.FileFields)
 }
 
+// GetExecIsExec returns the value of the field, resolving if necessary
+func (ev *Event) GetExecIsExec() bool {
+	if ev.GetEventType().String() != "exec" {
+		return false
+	}
+	if ev.Exec.Process == nil {
+		return false
+	}
+	return ev.Exec.Process.IsExec
+}
+
 // GetExecIsKworker returns the value of the field, resolving if necessary
 func (ev *Event) GetExecIsKworker() bool {
 	if ev.GetEventType().String() != "exec" {
@@ -1968,7 +2035,7 @@ func (ev *Event) GetExecIsThread() bool {
 	if ev.Exec.Process == nil {
 		return false
 	}
-	return ev.Exec.Process.IsThread
+	return ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Exec.Process)
 }
 
 // GetExecPid returns the value of the field, resolving if necessary
@@ -3075,6 +3142,17 @@ func (ev *Event) GetExitInterpreterFileUser() string {
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields)
 }
 
+// GetExitIsExec returns the value of the field, resolving if necessary
+func (ev *Event) GetExitIsExec() bool {
+	if ev.GetEventType().String() != "exit" {
+		return false
+	}
+	if ev.Exit.Process == nil {
+		return false
+	}
+	return ev.Exit.Process.IsExec
+}
+
 // GetExitIsKworker returns the value of the field, resolving if necessary
 func (ev *Event) GetExitIsKworker() bool {
 	if ev.GetEventType().String() != "exit" {
@@ -3094,7 +3172,7 @@ func (ev *Event) GetExitIsThread() bool {
 	if ev.Exit.Process == nil {
 		return false
 	}
-	return ev.Exit.Process.IsThread
+	return ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Exit.Process)
 }
 
 // GetExitPid returns the value of the field, resolving if necessary
@@ -4756,6 +4834,14 @@ func (ev *Event) GetPacketDeviceIfname() string {
 	return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.RawPacket.NetworkContext.Device)
 }
 
+// GetPacketFilter returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketFilter() string {
+	if ev.GetEventType().String() != "packet" {
+		return ""
+	}
+	return ev.RawPacket.Filter
+}
+
 // GetPacketL3Protocol returns the value of the field, resolving if necessary
 func (ev *Event) GetPacketL3Protocol() uint16 {
 	if ev.GetEventType().String() != "packet" {
@@ -6316,6 +6402,27 @@ func (ev *Event) GetProcessAncestorsInterpreterFileUser() []string {
 	return values
 }
 
+// GetProcessAncestorsIsExec returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsIsExec() []bool {
+	if ev.BaseEvent.ProcessContext == nil {
+		return []bool{}
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return []bool{}
+	}
+	var values []bool
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := element.ProcessContext.Process.IsExec
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
 // GetProcessAncestorsIsKworker returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsIsKworker() []bool {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -6351,11 +6458,24 @@ func (ev *Event) GetProcessAncestorsIsThread() []bool {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.IsThread
+		result := ev.FieldHandlers.ResolveProcessIsThread(ev, &element.ProcessContext.Process)
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
 	return values
+}
+
+// GetProcessAncestorsLength returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsLength() int {
+	if ev.BaseEvent.ProcessContext == nil {
+		return 0
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return 0
+	}
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	return iterator.Len(ctx)
 }
 
 // GetProcessAncestorsPid returns the value of the field, resolving if necessary
@@ -7255,6 +7375,14 @@ func (ev *Event) GetProcessInterpreterFileUser() string {
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 }
 
+// GetProcessIsExec returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessIsExec() bool {
+	if ev.BaseEvent.ProcessContext == nil {
+		return false
+	}
+	return ev.BaseEvent.ProcessContext.Process.IsExec
+}
+
 // GetProcessIsKworker returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessIsKworker() bool {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -7268,7 +7396,7 @@ func (ev *Event) GetProcessIsThread() bool {
 	if ev.BaseEvent.ProcessContext == nil {
 		return false
 	}
-	return ev.BaseEvent.ProcessContext.Process.IsThread
+	return ev.FieldHandlers.ResolveProcessIsThread(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessParentArgs returns the value of the field, resolving if necessary
@@ -8375,6 +8503,20 @@ func (ev *Event) GetProcessParentInterpreterFileUser() string {
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
 }
 
+// GetProcessParentIsExec returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessParentIsExec() bool {
+	if ev.BaseEvent.ProcessContext == nil {
+		return false
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		return false
+	}
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return false
+	}
+	return ev.BaseEvent.ProcessContext.Parent.IsExec
+}
+
 // GetProcessParentIsKworker returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentIsKworker() bool {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -8400,7 +8542,7 @@ func (ev *Event) GetProcessParentIsThread() bool {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return false
 	}
-	return ev.BaseEvent.ProcessContext.Parent.IsThread
+	return ev.FieldHandlers.ResolveProcessIsThread(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentPid returns the value of the field, resolving if necessary
@@ -10345,6 +10487,30 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileUser() []string {
 	return values
 }
 
+// GetPtraceTraceeAncestorsIsExec returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeAncestorsIsExec() []bool {
+	if ev.GetEventType().String() != "ptrace" {
+		return []bool{}
+	}
+	if ev.PTrace.Tracee == nil {
+		return []bool{}
+	}
+	if ev.PTrace.Tracee.Ancestor == nil {
+		return []bool{}
+	}
+	var values []bool
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := element.ProcessContext.Process.IsExec
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
 // GetPtraceTraceeAncestorsIsKworker returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsIsKworker() []bool {
 	if ev.GetEventType().String() != "ptrace" {
@@ -10386,11 +10552,27 @@ func (ev *Event) GetPtraceTraceeAncestorsIsThread() []bool {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.IsThread
+		result := ev.FieldHandlers.ResolveProcessIsThread(ev, &element.ProcessContext.Process)
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
 	return values
+}
+
+// GetPtraceTraceeAncestorsLength returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeAncestorsLength() int {
+	if ev.GetEventType().String() != "ptrace" {
+		return 0
+	}
+	if ev.PTrace.Tracee == nil {
+		return 0
+	}
+	if ev.PTrace.Tracee.Ancestor == nil {
+		return 0
+	}
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	return iterator.Len(ctx)
 }
 
 // GetPtraceTraceeAncestorsPid returns the value of the field, resolving if necessary
@@ -11542,6 +11724,17 @@ func (ev *Event) GetPtraceTraceeInterpreterFileUser() string {
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields)
 }
 
+// GetPtraceTraceeIsExec returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeIsExec() bool {
+	if ev.GetEventType().String() != "ptrace" {
+		return false
+	}
+	if ev.PTrace.Tracee == nil {
+		return false
+	}
+	return ev.PTrace.Tracee.Process.IsExec
+}
+
 // GetPtraceTraceeIsKworker returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeIsKworker() bool {
 	if ev.GetEventType().String() != "ptrace" {
@@ -11561,7 +11754,7 @@ func (ev *Event) GetPtraceTraceeIsThread() bool {
 	if ev.PTrace.Tracee == nil {
 		return false
 	}
-	return ev.PTrace.Tracee.Process.IsThread
+	return ev.FieldHandlers.ResolveProcessIsThread(ev, &ev.PTrace.Tracee.Process)
 }
 
 // GetPtraceTraceeParentArgs returns the value of the field, resolving if necessary
@@ -12884,6 +13077,23 @@ func (ev *Event) GetPtraceTraceeParentInterpreterFileUser() string {
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields)
 }
 
+// GetPtraceTraceeParentIsExec returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeParentIsExec() bool {
+	if ev.GetEventType().String() != "ptrace" {
+		return false
+	}
+	if ev.PTrace.Tracee == nil {
+		return false
+	}
+	if ev.PTrace.Tracee.Parent == nil {
+		return false
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return false
+	}
+	return ev.PTrace.Tracee.Parent.IsExec
+}
+
 // GetPtraceTraceeParentIsKworker returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentIsKworker() bool {
 	if ev.GetEventType().String() != "ptrace" {
@@ -12915,7 +13125,7 @@ func (ev *Event) GetPtraceTraceeParentIsThread() bool {
 	if !ev.PTrace.Tracee.HasParent() {
 		return false
 	}
-	return ev.PTrace.Tracee.Parent.IsThread
+	return ev.FieldHandlers.ResolveProcessIsThread(ev, ev.PTrace.Tracee.Parent)
 }
 
 // GetPtraceTraceeParentPid returns the value of the field, resolving if necessary
@@ -15970,6 +16180,30 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFileUser() []string {
 	return values
 }
 
+// GetSignalTargetAncestorsIsExec returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetAncestorsIsExec() []bool {
+	if ev.GetEventType().String() != "signal" {
+		return []bool{}
+	}
+	if ev.Signal.Target == nil {
+		return []bool{}
+	}
+	if ev.Signal.Target.Ancestor == nil {
+		return []bool{}
+	}
+	var values []bool
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := element.ProcessContext.Process.IsExec
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
 // GetSignalTargetAncestorsIsKworker returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsIsKworker() []bool {
 	if ev.GetEventType().String() != "signal" {
@@ -16011,11 +16245,27 @@ func (ev *Event) GetSignalTargetAncestorsIsThread() []bool {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.IsThread
+		result := ev.FieldHandlers.ResolveProcessIsThread(ev, &element.ProcessContext.Process)
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
 	return values
+}
+
+// GetSignalTargetAncestorsLength returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetAncestorsLength() int {
+	if ev.GetEventType().String() != "signal" {
+		return 0
+	}
+	if ev.Signal.Target == nil {
+		return 0
+	}
+	if ev.Signal.Target.Ancestor == nil {
+		return 0
+	}
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	return iterator.Len(ctx)
 }
 
 // GetSignalTargetAncestorsPid returns the value of the field, resolving if necessary
@@ -17167,6 +17417,17 @@ func (ev *Event) GetSignalTargetInterpreterFileUser() string {
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields)
 }
 
+// GetSignalTargetIsExec returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetIsExec() bool {
+	if ev.GetEventType().String() != "signal" {
+		return false
+	}
+	if ev.Signal.Target == nil {
+		return false
+	}
+	return ev.Signal.Target.Process.IsExec
+}
+
 // GetSignalTargetIsKworker returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetIsKworker() bool {
 	if ev.GetEventType().String() != "signal" {
@@ -17186,7 +17447,7 @@ func (ev *Event) GetSignalTargetIsThread() bool {
 	if ev.Signal.Target == nil {
 		return false
 	}
-	return ev.Signal.Target.Process.IsThread
+	return ev.FieldHandlers.ResolveProcessIsThread(ev, &ev.Signal.Target.Process)
 }
 
 // GetSignalTargetParentArgs returns the value of the field, resolving if necessary
@@ -18509,6 +18770,23 @@ func (ev *Event) GetSignalTargetParentInterpreterFileUser() string {
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields)
 }
 
+// GetSignalTargetParentIsExec returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetParentIsExec() bool {
+	if ev.GetEventType().String() != "signal" {
+		return false
+	}
+	if ev.Signal.Target == nil {
+		return false
+	}
+	if ev.Signal.Target.Parent == nil {
+		return false
+	}
+	if !ev.Signal.Target.HasParent() {
+		return false
+	}
+	return ev.Signal.Target.Parent.IsExec
+}
+
 // GetSignalTargetParentIsKworker returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentIsKworker() bool {
 	if ev.GetEventType().String() != "signal" {
@@ -18540,7 +18818,7 @@ func (ev *Event) GetSignalTargetParentIsThread() bool {
 	if !ev.Signal.Target.HasParent() {
 		return false
 	}
-	return ev.Signal.Target.Parent.IsThread
+	return ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Signal.Target.Parent)
 }
 
 // GetSignalTargetParentPid returns the value of the field, resolving if necessary
