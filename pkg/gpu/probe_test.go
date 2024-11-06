@@ -168,6 +168,13 @@ func TestProbeCanGenerateStatsInContainer(t *testing.T) {
 	}, 20*time.Second, 500*time.Millisecond, "process not stopped")
 	require.NoError(t, err)
 
+	// Check that the stream handlers have the correct container ID assigned
+	for key, handler := range probe.consumer.streamHandlers {
+		if key.pid == uint32(pid) {
+			require.Equal(t, cid, handler.containerID)
+		}
+	}
+
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
 	require.NotNil(t, stats)
@@ -177,5 +184,4 @@ func TestProbeCanGenerateStatsInContainer(t *testing.T) {
 	pidStats := stats.ProcessStats[uint32(pid)]
 	require.Greater(t, pidStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
-	require.Equal(t, pidStats.Metadata.ContainerID, cid)
 }

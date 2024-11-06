@@ -36,14 +36,7 @@ func newStatsGenerator(sysCtx *systemContext, currKTime int64, streamHandlers ma
 func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	g.currGenerationKTime = nowKtime
 
-	pidToMetadata := make(map[uint32]model.ProcessMetadata)
-
 	for key, handler := range g.streamHandlers {
-		// Ensure we have the metadata for the process
-		if _, ok := pidToMetadata[key.pid]; !ok {
-			pidToMetadata[key.pid] = handler.metadata
-		}
-
 		aggr := g.getOrCreateAggregator(key.pid)
 		currData := handler.getCurrentData(uint64(nowKtime))
 		pastData := handler.getPastData(true)
@@ -69,7 +62,6 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 
 	for pid, aggr := range g.aggregators {
 		procStats := aggr.getStats(normFactor)
-		procStats.Metadata = pidToMetadata[pid]
 		stats.ProcessStats[pid] = procStats
 	}
 
