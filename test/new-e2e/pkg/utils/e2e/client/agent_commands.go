@@ -111,6 +111,15 @@ func (agent *agentCommandRunner) Flare(commandArgs ...agentclient.AgentArgsOptio
 	return agent.executeCommand("flare", commandArgs...)
 }
 
+// FlareWithError runs flare command and returns the output or an error. You should use the FakeIntake client to fetch the flare archive
+func (agent *agentCommandRunner) FlareWithError(commandArgs ...agentclient.AgentArgsOption) (string, error) {
+	args, err := optional.MakeParams(commandArgs...)
+	require.NoError(agent.t, err)
+
+	arguments := append([]string{"flare"}, args.Args...)
+	return agent.executor.execute(arguments)
+}
+
 // Health runs health command and returns the runtime agent health
 func (agent *agentCommandRunner) Health() (string, error) {
 	arguments := []string{"health"}
@@ -172,6 +181,7 @@ func (agent *agentCommandRunner) StatusWithError(commandArgs ...agentclient.Agen
 func (agent *agentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
 	interval := 100 * time.Millisecond
 	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
+	agent.t.Log("Waiting for the agent to be ready")
 	err := backoff.Retry(func() error {
 		_, err := agent.executor.execute([]string{"status"})
 		if err != nil {
