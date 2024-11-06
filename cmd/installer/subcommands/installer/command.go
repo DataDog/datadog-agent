@@ -199,7 +199,7 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 	if site == "" {
 		site = config.Site
 	}
-	t, err := telemetry.NewTelemetry(apiKey, site, "datadog-installer")
+	t, err := telemetry.NewTelemetry(apiKey, site, "datadog-installer") // No sampling rules for commands
 	if err != nil {
 		fmt.Printf("failed to initialize telemetry: %v\n", err)
 		return nil

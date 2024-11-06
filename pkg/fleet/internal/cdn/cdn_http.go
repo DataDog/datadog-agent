@@ -45,7 +45,13 @@ func newCDNHTTP(env *env.Env, configDBPath string) (CDN, error) {
 func (c *cdnHTTP) Get(ctx context.Context, pkg string) (cfg Config, err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "cdn.Get")
 	span.SetTag("cdn_type", "cdn")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	defer func() {
+		spanErr := err
+		if spanErr == ErrProductNotSupported {
+			spanErr = nil
+		}
+		span.Finish(tracer.WithError(spanErr))
+	}()
 
 	switch pkg {
 	case "datadog-agent":
