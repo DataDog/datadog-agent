@@ -266,7 +266,7 @@ func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHo
 		if !hop.IP.Equal(net.IP{}) {
 			isReachable = true
 			hopname = hop.IP.String()
-			hostname = hopname // setting hopname for now, reverse DNS lookup will override this field later
+			hostname = hopname // setting to ip address for now, reverse DNS lookup will override hostname field later
 		}
 
 		npHop := payload.NetworkPathHop{
