@@ -118,6 +118,9 @@ func (c *ntmConfig) setValueSource(key string, newValue interface{}, source mode
 }
 
 func (c *ntmConfig) set(key string, value interface{}, tree InnerNode, source model.Source) (bool, error) {
+	if tree == nil {
+		return false, fmt.Errorf("cannot assign to nil Node")
+	}
 	parts := strings.Split(strings.ToLower(key), ",")
 	return tree.SetAt(parts, value, source)
 }
@@ -141,21 +144,21 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 		tree = c.defaults
 	case model.SourceFile:
 		tree = c.file
+	default:
+		log.Errorf("unknown source tree: %s\n", source)
 	}
 
 	c.Lock()
-
 	previousValue, _ := c.getValue(key)
 	_, _ = c.set(key, newValue, tree, source)
 	updated, _ := c.set(key, newValue, c.root, source)
+	receivers := slices.Clone(c.notificationReceivers)
+	c.Unlock()
 
 	// if no value has changed we don't notify
 	if !updated || reflect.DeepEqual(previousValue, newValue) {
 		return
 	}
-
-	receivers := slices.Clone(c.notificationReceivers)
-	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
