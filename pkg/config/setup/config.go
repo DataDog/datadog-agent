@@ -1114,7 +1114,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
 
-	// Default payloads (disabled for Error Tracking Standalone, Logs Collection Only)
+	// Core agent (disabled for Error Tracking Standalone, Logs Collection Only)
 	config.BindEnvAndSetDefault("core_agent.enabled", true)
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 }

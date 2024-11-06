@@ -1423,7 +1423,7 @@ func TestServerlessConfigInit(t *testing.T) {
 	assert.False(t, conf.IsKnown("inventories_enabled"))
 }
 
-func TestDisableDefaultPayloads(t *testing.T) {
+func TestDisableCoreAgent(t *testing.T) {
 	pkgconfigmodel.CleanOverride(t)
 	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
