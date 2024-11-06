@@ -83,9 +83,9 @@ type Probe struct {
 	cfg            *config.Config
 	consumer       *cudaEventConsumer
 	attacher       *uprobes.UprobeAttacher
-	sysCtx		   *systemContext
 	statsGenerator *statsGenerator
 	deps           ProbeDependencies
+	sysCtx         *systemContext
 	procMon        *monitor.ProcessMonitor
 }
 
@@ -125,7 +125,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
 
-	sysCtx, err := getSystemContext(deps.NvmlLib)
+	sysCtx, err := getSystemContext(deps.NvmlLib, cfg.ProcRoot)
 	if err != nil {
 		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
@@ -136,10 +136,10 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		attacher: attacher,
 		deps:     deps,
 		procMon:  procMon,
-		sysCtx:	  sysCtx,
+		sysCtx:   sysCtx,
 	}
 
-	p.consumer = newCudaEventConsumer(eventHandler, p.cfg)
+	p.consumer = newCudaEventConsumer(sysCtx, eventHandler, p.cfg)
 	//TODO: decouple this to avoid sharing streamHandlers between consumer and statsGenerator
 	p.statsGenerator = newStatsGenerator(sysCtx, p.consumer.streamHandlers)
 
