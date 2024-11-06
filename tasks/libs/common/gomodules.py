@@ -68,9 +68,10 @@ class GoModule:
     independent: bool = False
     lint_targets: list[str] | None = None
     used_by_otel: bool = False
+    base_dir: Path | None = None
 
     @staticmethod
-    def from_dict(path: str, data: dict[str, object]) -> GoModule:
+    def from_dict(path: str, data: dict[str, object], base_dir: Path | None = None) -> GoModule:
         default = GoModule.get_default_attributes()
 
         return GoModule(
@@ -82,6 +83,7 @@ class GoModule:
             importable=data.get("importable", default["importable"]),
             independent=data.get("independent", default["independent"]),
             used_by_otel=data.get("used_by_otel", default["used_by_otel"]),
+            base_dir=base_dir,
         )
 
     @staticmethod
@@ -121,9 +123,9 @@ class GoModule:
                 if 'ignored' in data and data['ignored']:
                     return None
 
-                return GoModule.from_dict(module_path, data)
+                return GoModule.from_dict(module_path, data, base_dir=base_dir)
         else:
-            return GoModule.from_dict(module_path, {})
+            return GoModule.from_dict(module_path, {}, base_dir=base_dir)
 
     @staticmethod
     def get_default_attributes() -> dict[str, object]:
@@ -136,6 +138,7 @@ class GoModule:
         self.targets = self.targets or ["."]
         self.lint_targets = self.lint_targets or self.targets
 
+        self.base_dir = Path(self.base_dir) if isinstance(self.base_dir, str) else (self.base_dir or Path.cwd())
         self._dependencies = None
 
     def to_dict(self, remove_defaults=True) -> dict[str, object]:
@@ -235,7 +238,7 @@ class GoModule:
 
     def full_path(self):
         """Return the absolute path of the Go module."""
-        return os.path.abspath(self.path)
+        return str((self.base_dir / self.path).resolve())
 
     def go_mod_path(self):
         """Return the absolute path of the Go module go.mod file."""

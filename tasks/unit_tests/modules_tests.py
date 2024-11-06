@@ -256,6 +256,10 @@ class TestGoModuleSerialization(unittest.TestCase):
             # Load modules
             modules_loaded = get_default_modules(base_dir=Path(tmpdir))
 
+            # Reset base_dir which differs from both collections
+            for module in modules_loaded.values():
+                module.base_dir = Path.cwd()
+
             self.assertDictEqual(modules, modules_loaded)
 
     def test_module_default(self):
@@ -314,3 +318,27 @@ class TestGoModulePath(unittest.TestCase):
         self.assert_path_equal(base_dir, '../agent6')
         self.assert_path_equal(dir_path, Path('pkg/my/module'))
         self.assert_path_equal(full_path, Path('../agent6/pkg/my/module'))
+
+    def test_full_path(self):
+        module = GoModule('pkg/my/module')
+
+        self.assertEqual(module.full_path(), str(Path('pkg/my/module').resolve()))
+
+    def test_full_path_base(self):
+        module = GoModule('pkg/my/module', base_dir='/tmp')
+
+        self.assertEqual(module.full_path(), str(Path('/tmp/pkg/my/module').resolve()))
+
+    def test_load_modules_path(self):
+        with tempfile.TemporaryDirectory() as temp:
+            temp = Path(temp)
+            (temp / 'pkg/my/module').mkdir(parents=True, exist_ok=True)
+            (temp / 'pkg/my/module' / 'go.mod').touch()
+            with open(temp / 'pkg/my/module' / 'module.yml', 'w') as f:
+                print('independent: true', file=f)
+
+            modules = get_default_modules(base_dir=temp)
+            self.assertEqual(len(modules), 1)
+            mod = next(iter(modules.values()))
+            self.assertEqual(mod.path, 'pkg/my/module')
+            self.assertEqual(mod.full_path(), str(Path(temp / 'pkg/my/module').resolve()))
