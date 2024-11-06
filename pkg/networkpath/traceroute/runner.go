@@ -260,16 +260,16 @@ func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHo
 	for i, hop := range res.Hops {
 		ttl := i + 1
 		isReachable := false
-		var hopIpAddress string
+		var hopIPAddress string
 
 		if !hop.IP.Equal(net.IP{}) {
 			isReachable = true
-			hopIpAddress = hop.IP.String()
+			hopIPAddress = hop.IP.String()
 		}
 
 		npHop := payload.NetworkPathHop{
 			TTL:       ttl,
-			IPAddress: hopIpAddress,
+			IPAddress: hopIPAddress,
 			RTT:       float64(hop.RTT.Microseconds()) / float64(1000),
 			Reachable: isReachable,
 		}
