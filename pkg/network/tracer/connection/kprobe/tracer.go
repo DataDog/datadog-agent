@@ -16,6 +16,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -138,8 +139,8 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 
 		if cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback {
 			log.Warnf("error loading CO-RE network tracer, falling back to runtime compiled: %s", err)
-		} else if cfg.AllowPrecompiledFallback {
-			log.Warnf("error loading CO-RE network tracer, falling back to pre-compiled: %s", err)
+		} else if cfg.AllowPrebuiltFallback {
+			log.Warnf("error loading CO-RE network tracer, falling back to prebuilt: %s", err)
 		} else {
 			return nil, nil, TracerTypeCORE, fmt.Errorf("error loading CO-RE network tracer: %w", err)
 		}
@@ -151,16 +152,20 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 			return m, closeFn, TracerTypeRuntimeCompiled, err
 		}
 
-		if !cfg.AllowPrecompiledFallback {
+		if !cfg.AllowPrebuiltFallback {
 			return nil, nil, TracerTypeRuntimeCompiled, fmt.Errorf("error compiling network tracer: %w", err)
 		}
 
-		log.Warnf("error compiling network tracer, falling back to pre-compiled: %s", err)
+		log.Warnf("error compiling network tracer, falling back to prebuilt: %s", err)
+	}
+
+	if prebuilt.IsDeprecated() {
+		log.Warn("using deprecated prebuilt network tracer")
 	}
 
 	offsets, err := tracerOffsetGuesserRunner(cfg)
 	if err != nil {
-		return nil, nil, TracerTypePrebuilt, fmt.Errorf("error loading prebuilt tracer: error guessing offsets: %s", err)
+		return nil, nil, TracerTypePrebuilt, fmt.Errorf("error loading prebuilt tracer: error guessing offsets: %w", err)
 	}
 
 	mgrOpts.ConstantEditors = append(mgrOpts.ConstantEditors, offsets...)

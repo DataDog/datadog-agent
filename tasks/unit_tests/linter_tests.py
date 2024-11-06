@@ -51,7 +51,7 @@ class TestIsGetParameterCall(unittest.TestCase):
     def test_with_wrapper_with_env(self):
         with open(self.test_file, "w") as f:
             f.write(
-                "DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $APP_KEY_ORG2) || exit $?; export DD_APP_KEY"
+                "DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_APP_KEY_ORG2 token) || exit $?; export DD_APP_KEY"
             )
         matched = linter.list_get_parameter_calls(self.test_file)
         self.assertListEqual([], matched)

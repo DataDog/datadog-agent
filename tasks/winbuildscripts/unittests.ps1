@@ -34,7 +34,7 @@ if($err -ne 0){
 }
 
 & inv -e deps
-& .\tasks\winbuildscripts\pre-go-build.ps1 -PythonRuntimes "$Env:PY_RUNTIMES"
+& .\tasks\winbuildscripts\pre-go-build.ps1
 
 & inv -e rtloader.test
 $err = $LASTEXITCODE
@@ -54,9 +54,10 @@ if($err -ne 0){
     Write-Host -ForegroundColor Red "Agent build failed $err"
     [Environment]::Exit($err)
 }
-& inv -e test --junit-tar="$Env:JUNIT_TAR" --race --profile --rerun-fails=2 --coverage --cpus 8 --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --save-result-json C:\mnt\$test_output_file $Env:EXTRA_OPTS --build-stdlib $TEST_WASHER_FLAG
-
-$err = $LASTEXITCODE
+& inv -e test --junit-tar="$Env:JUNIT_TAR" --race --profile --rerun-fails=2 --coverage --cpus 8 --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --save-result-json C:\mnt\$test_output_file $Env:EXTRA_OPTS --build-stdlib $TEST_WASHER_FLAG
+If ($LASTEXITCODE -ne "0") {
+    exit $LASTEXITCODE
+}
 
 # Ignore upload failures
 $ErrorActionPreference = "Continue"
@@ -65,10 +66,14 @@ $tmpfile = [System.IO.Path]::GetTempFileName()
 # 1. Upload coverage reports to Codecov
 & "$UT_BUILD_ROOT\tools\ci\fetch_secret.ps1" -parameterName "$Env:CODECOV_TOKEN" -tempFile "$tmpfile"
 If ($LASTEXITCODE -ne "0") {
-    exit $LASTEXITCODE
+    Write-Host "Failed to fetch CODECOV_TOKEN - ignoring"
+    exit "0"
 }
 $Env:CODECOV_TOKEN=$(cat "$tmpfile")
 & inv -e coverage.upload-to-codecov $Env:COVERAGE_CACHE_FLAG
+if($LASTEXITCODE -ne "0"){
+    Write-Host -ForegroundColor Red "coverage upload failed $err"
+}
 
 # 2. Upload junit files
 # Copy test files to c:\mnt for further gitlab upload
@@ -77,15 +82,15 @@ Get-ChildItem -Path "$UT_BUILD_ROOT" -Filter "junit-out-*.xml" -Recurse | ForEac
 }
 & "$UT_BUILD_ROOT\tools\ci\fetch_secret.ps1" -parameterName "$Env:API_KEY_ORG2" -tempFile "$tmpfile"
 If ($LASTEXITCODE -ne "0") {
-    exit $LASTEXITCODE
+    Write-Host "Failed to fetch API_KEY - ignoring"
+    exit "0"
 }
 $Env:DATADOG_API_KEY=$(cat "$tmpfile")
 Remove-Item "$tmpfile"
 
 & inv -e junit-upload --tgz-path $Env:JUNIT_TAR
-if($err -ne 0){
-    Write-Host -ForegroundColor Red "test failed $err"
-    [Environment]::Exit($err)
+if($LASTEXITCODE -ne "0"){
+    Write-Host -ForegroundColor Red "junit upload failed $err"
 }
 
 Write-Host Test passed

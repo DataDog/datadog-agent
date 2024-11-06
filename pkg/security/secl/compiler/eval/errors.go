@@ -177,3 +177,12 @@ type ErrValueOutOfRange struct {
 func (e ErrValueOutOfRange) Error() string {
 	return fmt.Sprintf("incorrect value for type `%s`, out of range", e.Field)
 }
+
+// ErrIteratorVariable error when the iterator variable constraints are reached
+type ErrIteratorVariable struct {
+	Err error
+}
+
+func (e ErrIteratorVariable) Error() string {
+	return fmt.Sprintf("iterator variable error: %s", e.Err)
+}

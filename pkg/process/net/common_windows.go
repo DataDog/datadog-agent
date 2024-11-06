@@ -9,6 +9,7 @@ package net
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -26,14 +27,18 @@ const (
 	pprofURL             = "http://localhost:3333/debug/pprof"
 	tracerouteURL        = "http://localhost:3333/" + string(sysconfig.TracerouteModule) + "/traceroute/"
 	netType              = "tcp"
+	telemetryURL         = "http://localhost:3333/telemetry"
 
 	// discovery* is not used on Windows, the value is added to avoid a compilation error
 	discoveryServicesURL = "http://localhost:3333/" + string(sysconfig.DiscoveryModule) + "/services"
 	// procStatsURL is not used in windows, the value is added to avoid compilation error in windows
 	procStatsURL = "http://localhost:3333/" + string(sysconfig.ProcessModule) + "stats"
 	// pingURL is not used in windows, the value is added to avoid compilation error in windows
-	pingURL      = "http://localhost:3333/" + string(sysconfig.PingModule) + "/ping/"
-	telemetryURL = "http://localhost:3333/telemetry"
+	pingURL = "http://localhost:3333/" + string(sysconfig.PingModule) + "/ping/"
+	// conntrackCachedURL is not used on Windows, the value is added to avoid a compilation error
+	conntrackCachedURL = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/cached"
+	// conntrackHostURL is not used on Windows, the value is added to avoid a compilation error
+	conntrackHostURL = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/host"
 
 	// SystemProbePipeName is the production named pipe for system probe
 	SystemProbePipeName = `\\.\pipe\dd_system_probe`
@@ -98,4 +103,9 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 			},
 		},
 	}
+}
+
+// GetBTFLoaderInfo is not implemented on windows
+func (r *RemoteSysProbeUtil) GetBTFLoaderInfo() ([]byte, error) {
+	return nil, errors.New("GetBTFLoaderInfo is not supported on windows")
 }

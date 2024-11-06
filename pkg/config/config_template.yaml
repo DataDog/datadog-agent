@@ -1330,23 +1330,23 @@ api_key:
   #
   # connection_limit: 2000
 
-  ## @param compute_stats_by_span_kind - bool - default: false
-  ## @env DD_APM_COMPUTE_STATS_BY_SPAN_KIND - bool - default: false
-  ## [BETA] Enables an additional stats computation check on spans to see they have an eligible `span.kind` (server, consumer, client, producer).
+  ## @param compute_stats_by_span_kind - bool - default: true
+  ## @env DD_APM_COMPUTE_STATS_BY_SPAN_KIND - bool - default: true
+  ## Enables an additional stats computation check on spans to see they have an eligible `span.kind` (server, consumer, client, producer).
   ## If enabled, a span with an eligible `span.kind` will have stats computed. If disabled, only top-level and measured spans will have stats computed.
   ## NOTE: For stats computed from OTel traces, only top-level spans are considered when this option is off.
   ## If you are sending OTel traces and want stats on non-top-level spans, this flag will need to be enabled.
   ## If you are sending OTel traces and do not want stats computed by span kind, you need to disable this flag and remove the "enable_otlp_compute_top_level_by_span_kind" APM feature if present.
-  # compute_stats_by_span_kind: false
+  # compute_stats_by_span_kind: true
 
-  ## @param peer_service_aggregation - bool - default: false
-  ## @env DD_APM_PEER_SERVICE_AGGREGATION - bool - default: false
+  ## @param peer_service_aggregation - bool - default: true
+  ## @env DD_APM_PEER_SERVICE_AGGREGATION - bool - default: true
   ## DEPRECATED - please use `peer_tags_aggregation` instead.
-  # peer_service_aggregation: false
+  # peer_service_aggregation: true
 
-  ## @param peer_tags_aggregation - bool - default: false
-  ## @env DD_APM_PEER_TAGS_AGGREGATION - bool - default: false
-  ## [BETA] Enables aggregation of peer related tags (e.g., `peer.service`, `db.instance`, etc.) in the Agent.
+  ## @param peer_tags_aggregation - bool - default: true
+  ## @env DD_APM_PEER_TAGS_AGGREGATION - bool - default: true
+  ## Enables aggregation of peer related tags (e.g., `peer.service`, `db.instance`, etc.) in the Agent.
   ## If disabled, aggregated trace stats will not include these tags as dimensions on trace metrics.
   ## For the best experience with peer tags, Datadog also recommends enabling `compute_stats_by_span_kind`.
   ## If you are using an OTel tracer, it's best to have both enabled because client/producer spans with relevant peer tags
@@ -1355,11 +1355,11 @@ api_key:
   ## A high cardinality of peer tags or APM resources can also contribute to higher CPU and memory consumption.
   ## You can check for the cardinality of these fields by making trace search queries in the Datadog UI.
   ## The default list of peer tags can be found in pkg/trace/stats/concentrator.go.
-  # peer_tags_aggregation: false
+  # peer_tags_aggregation: true
 
   ## @param peer_tags - list of strings - optional
   ## @env DD_APM_PEER_TAGS - list of strings - optional
-  ## [BETA] Optional list of supplementary peer tags that go beyond the defaults. The Datadog backend validates all tags
+  ## Optional list of supplementary peer tags that go beyond the defaults. The Datadog backend validates all tags
   ## and will drop ones that are unapproved.
   # peer_tags: []
 
@@ -3108,13 +3108,13 @@ api_key:
 
       ## @param cpu - string - optional
       ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_RESOURCES_CPU - string - optional
-      ## Configures the CPU request and limit for the init containers.
+      ## Configures the CPU request that will be applied for the init container's CPU request and limit.
       #
       # cpu:
 
       ## @param memory - string - optional
       ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_RESOURCES_MEMORY - string - optional
-      ## Configures the memory request and limit for the init containers.
+      ## Configures the memory request that will be applied for the init container's memory request and limit.
       #
       # memory:
 

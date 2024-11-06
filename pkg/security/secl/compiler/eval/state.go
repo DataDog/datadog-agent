@@ -20,10 +20,10 @@ type StateRegexpCache struct {
 type State struct {
 	model       Model
 	field       Field
-	events      map[EventType]bool
 	fieldValues map[Field][]FieldValue
 	macros      map[MacroID]*MacroEvaluator
 	regexpCache StateRegexpCache
+	registers   []Register
 }
 
 // UpdateFields updates the fields used in the rule
@@ -60,7 +60,6 @@ func NewState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *Sta
 		field:       field,
 		macros:      macros,
 		model:       model,
-		events:      make(map[EventType]bool),
 		fieldValues: make(map[Field][]FieldValue),
 	}
 }

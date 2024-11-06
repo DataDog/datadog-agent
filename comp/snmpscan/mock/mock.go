@@ -32,7 +32,7 @@ func New(*testing.T) Provides {
 	}
 }
 
-func (m mock) RunDeviceScan(_ *gosnmp.GoSNMP, _ string) error {
+func (m mock) RunDeviceScan(_ *gosnmp.GoSNMP, _ string, _ string) error {
 	return nil
 }
 func (m mock) RunSnmpWalk(_ *gosnmp.GoSNMP, _ string) error {

@@ -27,12 +27,13 @@ func TestGetContainerAppTags(t *testing.T) {
 	tags := service.GetTags()
 
 	assert.Equal(t, map[string]string{
-		"app_name":     "test_app_name",
-		"origin":       "containerapp",
-		"region":       "eastus",
-		"revision":     "test_revision",
-		"replica_name": "test--6nyz8z7-b845f7667-m7hlv",
-		"_dd.origin":   "containerapp",
+		"app_name":         "test_app_name",
+		"origin":           "containerapp",
+		"region":           "eastus",
+		"revision":         "test_revision",
+		"replica_name":     "test--6nyz8z7-b845f7667-m7hlv",
+		"aca.replica.name": "test--6nyz8z7-b845f7667-m7hlv",
+		"_dd.origin":       "containerapp",
 	}, tags)
 }
 
@@ -53,15 +54,19 @@ func TestGetContainerAppTagsWithOptionalEnvVars(t *testing.T) {
 	tags := service.GetTags()
 
 	assert.Equal(t, map[string]string{
-		"app_name":        "test_app_name",
-		"origin":          "containerapp",
-		"region":          "eastus",
-		"revision":        "test_revision",
-		"replica_name":    "test--6nyz8z7-b845f7667-m7hlv",
-		"_dd.origin":      "containerapp",
-		"subscription_id": "test_subscription_id",
-		"resource_id":     "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.app/containerapps/test_app_name",
-		"resource_group":  "test_resource_group",
+		"app_name":            "test_app_name",
+		"origin":              "containerapp",
+		"region":              "eastus",
+		"revision":            "test_revision",
+		"replica_name":        "test--6nyz8z7-b845f7667-m7hlv",
+		"aca.replica.name":    "test--6nyz8z7-b845f7667-m7hlv",
+		"_dd.origin":          "containerapp",
+		"subscription_id":     "test_subscription_id",
+		"aca.subscription.id": "test_subscription_id",
+		"resource_id":         "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.app/containerapps/test_app_name",
+		"aca.resource.id":     "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.app/containerapps/test_app_name",
+		"resource_group":      "test_resource_group",
+		"aca.resource.group":  "test_resource_group",
 	}, tags)
 
 	assert.Nil(t, err)

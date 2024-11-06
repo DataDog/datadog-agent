@@ -254,7 +254,7 @@ func run(
 	cliParams *cliParams,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
-	_ tagger.Component,
+	tagger tagger.Component,
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
@@ -289,14 +289,14 @@ func run(
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
 	pkgcollector.InitPython(common.GetPythonPaths()...)
-	commonchecks.RegisterChecks(wmeta, config, telemetry)
+	commonchecks.RegisterChecks(wmeta, tagger, config, telemetry)
 
 	common.LoadComponents(secretResolver, wmeta, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver)
+	pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver, tagger)
 
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)

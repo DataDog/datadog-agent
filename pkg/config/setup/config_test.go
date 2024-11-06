@@ -673,6 +673,8 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, 15*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
 	assert.Equal(t, 5*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
 	assert.Equal(t, 10*time.Second, config.GetDuration("network_path.collector.flush_interval"))
+	assert.Equal(t, true, config.GetBool("network_path.collector.reverse_dns_enrichment.enabled"))
+	assert.Equal(t, 5000, config.GetInt("network_path.collector.reverse_dns_enrichment.timeout"))
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
@@ -929,21 +931,31 @@ func TestEnablePeerServiceStatsAggregationEnv(t *testing.T) {
 }
 
 func TestEnablePeerTagsAggregationEnv(t *testing.T) {
-	t.Setenv("DD_APM_PEER_TAGS_AGGREGATION", "true")
 	testConfig := newTestConf()
 	require.True(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
+
+	t.Setenv("DD_APM_PEER_TAGS_AGGREGATION", "true")
+	testConfig = newTestConf()
+	require.True(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
+
 	t.Setenv("DD_APM_PEER_TAGS_AGGREGATION", "false")
 	testConfig = newTestConf()
 	require.False(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
 }
 
 func TestEnableStatsComputationBySpanKindYAML(t *testing.T) {
-	datadogYaml := `
+	datadogYaml := ""
+	testConfig := confFromYAML(t, datadogYaml)
+	err := setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
+
+	datadogYaml = `
 apm_config:
   compute_stats_by_span_kind: false
 `
-	testConfig := confFromYAML(t, datadogYaml)
-	err := setupFipsEndpoints(testConfig)
+	testConfig = confFromYAML(t, datadogYaml)
+	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.False(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
 
@@ -958,9 +970,13 @@ apm_config:
 }
 
 func TestComputeStatsBySpanKindEnv(t *testing.T) {
-	t.Setenv("DD_APM_COMPUTE_STATS_BY_SPAN_KIND", "false")
 	testConfig := newTestConf()
+	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
+
+	t.Setenv("DD_APM_COMPUTE_STATS_BY_SPAN_KIND", "false")
+	testConfig = newTestConf()
 	require.False(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
+
 	t.Setenv("DD_APM_COMPUTE_STATS_BY_SPAN_KIND", "true")
 	testConfig = newTestConf()
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))

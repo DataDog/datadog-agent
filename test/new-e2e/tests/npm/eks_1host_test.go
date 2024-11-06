@@ -17,6 +17,7 @@ import (
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -73,7 +74,7 @@ func eksHttpbinEnvProvisioner(opts ...envkube.ProvisionerOption) e2e.PulumiEnvRu
 
 		provisionerOpts := []envkube.ProvisionerOption{
 			envkube.WithAwsEnv(&awsEnv),
-			envkube.WithEKSLinuxNodeGroup(),
+			envkube.WithEKSOptions(eks.WithLinuxNodeGroup()),
 			envkube.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigNPMHelmValues)),
 			envkube.WithWorkloadApp(npmToolsWorkload),
 		}

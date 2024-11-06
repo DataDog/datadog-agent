@@ -18,22 +18,12 @@ static PyMethodDef methods[] = {
     { NULL, NULL } // guards
 };
 
-#ifdef DATADOG_AGENT_THREE
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, CONTAINERS_MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit_containers(void)
 {
     return PyModule_Create(&module_def);
 }
-#elif defined(DATADOG_AGENT_TWO)
-// in Python2 keep the object alive for the program lifetime
-static PyObject *module;
-
-void Py2_init_containers()
-{
-    module = Py_InitModule(CONTAINERS_MODULE_NAME, methods);
-}
-#endif
 
 void _set_is_excluded_cb(cb_is_excluded_t cb)
 {

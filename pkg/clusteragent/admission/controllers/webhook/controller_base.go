@@ -94,7 +94,9 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	// Note: the auto_instrumentation pod injection filter is used across
 	// multiple mutating webhooks, so we add it as a hard dependency to each
 	// of the components that use it via the injectionFilter parameter.
-	injectionFilter := autoinstrumentation.GetInjectionFilter()
+	// TODO: for now we ignore the error returned by NewInjectionFilter, but we should not and surface it
+	//       in the admission controller section in agent status.
+	injectionFilter, _ := autoinstrumentation.NewInjectionFilter(datadogConfig)
 
 	var webhooks []Webhook
 	var validatingWebhooks []Webhook
@@ -111,21 +113,21 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	if c.config.isMutationEnabled() {
 		mutatingWebhooks = []Webhook{
 			configWebhook.NewWebhook(wmeta, injectionFilter, datadogConfig),
-			tagsfromlabels.NewWebhook(wmeta, injectionFilter),
+			tagsfromlabels.NewWebhook(wmeta, datadogConfig, injectionFilter),
 			agentsidecar.NewWebhook(datadogConfig),
 			autoscaling.NewWebhook(pa),
 		}
 		webhooks = append(webhooks, mutatingWebhooks...)
 
 		// APM Instrumentation webhook needs to be registered after the configWebhook webhook.
-		apm, err := autoinstrumentation.NewWebhook(wmeta, injectionFilter)
+		apm, err := autoinstrumentation.NewWebhook(wmeta, datadogConfig, injectionFilter)
 		if err == nil {
 			webhooks = append(webhooks, apm)
 		} else {
 			log.Errorf("failed to register APM Instrumentation webhook: %v", err)
 		}
 
-		cws, err := cwsinstrumentation.NewCWSInstrumentation(wmeta)
+		cws, err := cwsinstrumentation.NewCWSInstrumentation(wmeta, datadogConfig)
 		if err == nil {
 			webhooks = append(webhooks, cws.WebhookForPods(), cws.WebhookForCommands())
 		} else {

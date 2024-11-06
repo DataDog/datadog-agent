@@ -25,7 +25,7 @@ func init() {
 }
 
 type linuxImpl struct {
-	getSysProbeClient func() (systemProbeClient, error)
+	getSysProbeClient processnet.SysProbeUtilGetter
 	time              timer
 
 	ignoreCfg         map[string]bool
@@ -38,7 +38,7 @@ type linuxImpl struct {
 
 func newLinuxImpl(ignoreCfg map[string]bool, containerProvider proccontainers.ContainerProvider) (osImpl, error) {
 	return &linuxImpl{
-		getSysProbeClient: getSysProbeClient,
+		getSysProbeClient: processnet.GetRemoteSystemProbeUtil,
 		time:              realTime{},
 		ignoreCfg:         ignoreCfg,
 		containerProvider: containerProvider,
@@ -49,7 +49,8 @@ func newLinuxImpl(ignoreCfg map[string]bool, containerProvider proccontainers.Co
 }
 
 func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
-	sysProbe, err := li.getSysProbeClient()
+	socket := pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")
+	sysProbe, err := li.getSysProbeClient(socket)
 	if err != nil {
 		return nil, errWithCode{
 			err:  err,
@@ -181,14 +182,4 @@ func (li *linuxImpl) getServiceInfo(service model.Service) serviceInfo {
 		service:       service,
 		LastHeartbeat: li.time.Now(),
 	}
-}
-
-type systemProbeClient interface {
-	GetDiscoveryServices() (*model.ServicesResponse, error)
-}
-
-func getSysProbeClient() (systemProbeClient, error) {
-	return processnet.GetRemoteSystemProbeUtil(
-		pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"),
-	)
 }

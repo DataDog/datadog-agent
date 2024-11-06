@@ -4,7 +4,7 @@
 
 integration_tests_otel:
   stage: integration_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_deps"]
   script:
@@ -23,11 +23,11 @@ integration_tests_otel:
     - when: always
 
 
-docker_image_build_otel:  
+docker_image_build_otel:
   stage: integration_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   needs: ["go_deps","integration_tests_otel"]
-  tags: ["runner:docker"]
+  tags: ["runner:docker"]  # Still required because the otel_agent_build_tests.py is doing a container run
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - mkdir -p /tmp/otel-ci
@@ -37,9 +37,9 @@ docker_image_build_otel:
     - wget https://github.com/mikefarah/yq/releases/download/3.4.1/yq_linux_amd64 -O
       /usr/bin/yq && chmod +x /usr/bin/yq
     - export OTELCOL_VERSION=v$(/usr/bin/yq r /tmp/otel-ci/manifest.yaml dist.otelcol_version)
-    - yq w -i /tmp/otel-ci/manifest.yaml "receivers[+] gomod" 
+    - yq w -i /tmp/otel-ci/manifest.yaml "receivers[+] gomod"
       "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver ${OTELCOL_VERSION}"
-    - yq w -i /tmp/otel-ci/manifest.yaml "processors[+] gomod" 
+    - yq w -i /tmp/otel-ci/manifest.yaml "processors[+] gomod"
       "github.com/open-telemetry/opentelemetry-collector-contrib/processor/metricstransformprocessor ${OTELCOL_VERSION}"
   script:
     - docker build -t agent-byoc:latest -f /tmp/otel-ci/Dockerfile.agent-otel /tmp/otel-ci

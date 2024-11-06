@@ -35,14 +35,14 @@ const (
 )
 
 var (
-	defaultPerRuleLimiters = map[eval.RuleID]Limiter{
-		RulesetLoadedRuleID:             NewStdLimiter(rate.Inf, 1), // No limit on ruleset loaded
-		HeartbeatRuleID:                 NewStdLimiter(rate.Inf, 1), // No limit on heartbeat
-		AbnormalPathRuleID:              NewStdLimiter(rate.Every(30*time.Second), 1),
-		NoProcessContextErrorRuleID:     NewStdLimiter(rate.Every(30*time.Second), 1),
-		BrokenProcessLineageErrorRuleID: NewStdLimiter(rate.Every(30*time.Second), 1),
-		EBPFLessHelloMessageRuleID:      NewStdLimiter(rate.Inf, 1), // No limit on hello message
-		InternalCoreDumpRuleID:          NewStdLimiter(rate.Every(30*time.Second), 1),
+	defaultPerRuleLimiters = map[eval.RuleID]rate.Limit{
+		RulesetLoadedRuleID:             rate.Inf, // No limit on ruleset loaded
+		HeartbeatRuleID:                 rate.Inf, // No limit on heartbeat
+		AbnormalPathRuleID:              rate.Every(30 * time.Second),
+		NoProcessContextErrorRuleID:     rate.Every(30 * time.Second),
+		BrokenProcessLineageErrorRuleID: rate.Every(30 * time.Second),
+		EBPFLessHelloMessageRuleID:      rate.Inf, // No limit on hello message
+		InternalCoreDumpRuleID:          rate.Every(30 * time.Second),
 	}
 )
 
@@ -72,8 +72,8 @@ func NewRateLimiter(config *config.RuntimeSecurityConfig, client statsd.ClientIn
 }
 
 func (rl *RateLimiter) applyBaseLimitersFromDefault(limiters map[string]Limiter) {
-	for id, limiter := range defaultPerRuleLimiters {
-		limiters[id] = limiter
+	for id, rate := range defaultPerRuleLimiters {
+		limiters[id] = NewStdLimiter(rate, 1)
 	}
 
 	limiter, err := NewAnomalyDetectionLimiter(rl.config.AnomalyDetectionRateLimiterNumKeys, rl.config.AnomalyDetectionRateLimiterNumEventsAllowed, rl.config.AnomalyDetectionRateLimiterPeriod)
