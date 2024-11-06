@@ -255,8 +255,7 @@ func (c *ntmConfig) BuildSchema() {
 	defer c.Unlock()
 	c.buildEnvVars()
 	c.ready.Store(true)
-	// TODO: Instead of assigning defaultSource to root, merge the trees
-	c.root = c.defaults
+	c.mergeAllLayers()
 }
 
 func (c *ntmConfig) isReady() bool {
