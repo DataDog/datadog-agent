@@ -154,9 +154,10 @@ func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
 	for pid, pidStats := range stats.ProcessStats {
 		// Per-PID metrics are subject to change due to high cardinality
 		tags := []string{fmt.Sprintf("pid:%d", pid)}
-		snd.Gauge(metricNameMemory, float64(pidStats.CurrentMemoryBytes), "", tags)
-		snd.Gauge(metricNameMaxMem, float64(pidStats.MaxMemoryBytes), "", tags)
 		snd.Gauge(metricNameUtil, pidStats.UtilizationPercentage, "", tags)
+
+		snd.Gauge(metricNameMemory, float64(pidStats.Memory.CurrentBytes), "", tags)
+		snd.Gauge(metricNameMaxMem, float64(pidStats.Memory.MaxBytes), "", tags)
 
 		m.activePIDs[pid] = true
 	}

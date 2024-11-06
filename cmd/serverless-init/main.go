@@ -10,8 +10,10 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -150,9 +152,31 @@ func setup(_ mode.Conf, tagger tagger.Component) (cloudservice.CloudService, *se
 	go flushMetricsAgent(metricAgent)
 	return cloudService, agentLogConfig, traceAgent, metricAgent, logsAgent
 }
+
+var azureContainerAppTags = []string{
+	"subscription_id",
+	"resource_group",
+	"resource_id",
+	"replicate_name",
+	"aca.subscription.id",
+	"aca.resource.group",
+	"aca.resource.id",
+	"aca.replica.name",
+}
+
 func setupTraceAgent(tags map[string]string, tagger tagger.Component) trace.ServerlessTraceAgent {
-	traceAgent := trace.StartServerlessTraceAgent(pkgconfigsetup.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger}, nil, random.Random.Uint64())
-	traceAgent.SetTags(tags)
+	var azureTags strings.Builder
+	for _, azureContainerAppTag := range azureContainerAppTags {
+		if value, ok := tags[azureContainerAppTag]; ok {
+			azureTags.WriteString(fmt.Sprintf(",%s:%s", azureContainerAppTag, value))
+		}
+	}
+	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
+		Enabled:               pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
+		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
+		ColdStartSpanID:       random.Random.Uint64(),
+		AzureContainerAppTags: azureTags.String(),
+	})
 	go func() {
 		for range time.Tick(3 * time.Second) {
 			traceAgent.Flush()

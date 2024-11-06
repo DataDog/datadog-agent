@@ -474,6 +474,8 @@ tags: {tags}''')
         tags=tags,
     )
 
+    print(f"Event sent to Datadog for PR #{pr.number}")
+
 
 def extract_test_qa_description(pr_body: str) -> str:
     """

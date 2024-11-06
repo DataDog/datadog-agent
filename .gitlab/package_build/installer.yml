@@ -93,7 +93,7 @@ bootstrapper_build:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
@@ -226,7 +226,7 @@ windows-installer-amd64:
       -e S3_OMNIBUS_CACHE_BUCKET="$S3_OMNIBUS_CACHE_BUCKET"
       -e USE_S3_CACHING="$USE_S3_CACHING"
       -e API_KEY_ORG2=${API_KEY_ORG2}
-      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\buildinstaller.bat
   after_script:
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
