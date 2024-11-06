@@ -54,6 +54,8 @@ type ntmConfig struct {
 	ready *atomic.Bool
 	// defaults contains the settings with a default value
 	defaults InnerNode
+	// envs contains config settings created by environment variables
+	envs InnerNode
 	// file contains the settings pulled from YAML files
 	file InnerNode
 	// root contains the final configuration, it's the result of merging all other tree by ordre of priority
@@ -61,6 +63,7 @@ type ntmConfig struct {
 
 	envPrefix      string
 	envKeyReplacer *strings.Replacer
+	envTransform   map[string]func(string) interface{}
 
 	notificationReceivers []model.NotificationReceiver
 
@@ -72,8 +75,8 @@ type ntmConfig struct {
 	configType string
 
 	// configEnvVars is the set of env vars that are consulted for
-	// configuration values.
-	configEnvVars map[string]struct{}
+	// any given configuration key. Multiple env vars can be associated with one key
+	configEnvVars map[string]string
 
 	// known keys are all the keys that meet at least one of these criteria:
 	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()
@@ -250,8 +253,8 @@ func (c *ntmConfig) GetKnownKeysLowercased() map[string]interface{} {
 func (c *ntmConfig) BuildSchema() {
 	c.Lock()
 	defer c.Unlock()
+	c.buildEnvVars()
 	c.ready.Store(true)
-	// TODO: Build the environment variable tree
 	// TODO: Instead of assigning defaultSource to root, merge the trees
 	c.root = c.defaults
 }
@@ -260,32 +263,65 @@ func (c *ntmConfig) isReady() bool {
 	return c.ready.Load()
 }
 
+func (c *ntmConfig) buildEnvVars() {
+	root := newInnerNode(nil)
+	envWarnings := []string{}
+	for _, e := range os.Environ() {
+		pair := strings.SplitN(e, "=", 2)
+		if len(pair) != 2 {
+			continue
+		}
+		envkey := pair[0]
+		envval := pair[1]
+
+		if configKey, found := c.configEnvVars[envkey]; found {
+			if err := c.insertNodeFromString(root, configKey, envval); err != nil {
+				envWarnings = append(envWarnings, fmt.Sprintf("inserting env var: %s", err))
+			}
+		}
+	}
+	c.envs = root
+	c.warnings = append(c.warnings, envWarnings...)
+}
+
+func (c *ntmConfig) insertNodeFromString(curr InnerNode, key string, envval string) error {
+	parts := strings.Split(key, ".")
+	var actualValue interface{} = envval
+	// TODO: When the nodetreemodel config is further along, we should get the default[key] node
+	// and use its type to convert the envval into something appropriate.
+	if xform, found := c.envTransform[key]; found {
+		actualValue = xform(envval)
+	}
+	_, err := curr.SetAt(parts, actualValue, model.SourceEnvVar)
+	return err
+}
+
 // ParseEnvAsStringSlice registers a transform function to parse an environment variable as a []string.
 func (c *ntmConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
 	c.Lock()
 	defer c.Unlock()
-	c.noimpl.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
 // ParseEnvAsMapStringInterface registers a transform function to parse an environment variable as a map[string]interface{}
 func (c *ntmConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map[string]interface{}) {
 	c.Lock()
 	defer c.Unlock()
-	c.noimpl.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
 // ParseEnvAsSliceMapString registers a transform function to parse an environment variable as a []map[string]string
 func (c *ntmConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
 	c.Lock()
 	defer c.Unlock()
-	c.noimpl.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
 // ParseEnvAsSlice registers a transform function to parse an environment variable as a []interface
 func (c *ntmConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 	c.Lock()
 	defer c.Unlock()
-	c.noimpl.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
 // SetFs assigns a filesystem to the config
@@ -595,12 +631,10 @@ func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 	}
 
 	for _, envvar := range envvars {
-		// apply EnvKeyReplacer to each key
 		if c.envKeyReplacer != nil {
 			envvar = c.envKeyReplacer.Replace(envvar)
 		}
-		// TODO: Use envvar to build the envvar source tree
-		c.configEnvVars[envvar] = struct{}{}
+		c.configEnvVars[envvar] = key
 	}
 
 	c.knownKeys[key] = struct{}{}
@@ -608,10 +642,10 @@ func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 }
 
 // SetEnvKeyReplacer binds a replacer function for keys
-func (c *ntmConfig) SetEnvKeyReplacer(_r *strings.Replacer) {
+func (c *ntmConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 	c.Lock()
 	defer c.Unlock()
-	c.logErrorNotImplemented("SetEnvKeyReplacer")
+	c.envKeyReplacer = r
 }
 
 // UnmarshalKey unmarshals the data for the given key
@@ -795,11 +829,12 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 	config := ntmConfig{
 		ready:         atomic.NewBool(false),
 		noimpl:        &notImplMethodsImpl{},
-		configEnvVars: map[string]struct{}{},
+		configEnvVars: map[string]string{},
 		knownKeys:     map[string]struct{}{},
 		unknownKeys:   map[string]struct{}{},
 		defaults:      newInnerNode(nil),
 		file:          newInnerNode(nil),
+		envTransform:  make(map[string]func(string) interface{}),
 	}
 
 	config.SetTypeByDefaultValue(true)
