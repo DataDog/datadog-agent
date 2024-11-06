@@ -6,8 +6,10 @@
 package sources
 
 import (
+	"os"
 	"sync"
 
+	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -37,6 +39,36 @@ func NewConfigSources() *ConfigSources {
 		addedByType:   make(map[string][]chan *LogSource),
 		removedByType: make(map[string][]chan *LogSource),
 	}
+}
+
+// AddFileSource gets a file from a file path and adds it as a source.
+func (s *ConfigSources) AddFileSource(filePath string) error {
+
+	// Step 1: Read the file content as bytes
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+
+	// Step 2: Parse the YAML data into LogsConfig structs
+	logsConfig, err := logsConfig.ParseYAML(data)
+	if err != nil {
+		return err
+	}
+	for _, cfg := range logsConfig {
+		source := NewLogSource(cfg.Name, cfg)
+		// NOT SURE IF THIS IS NEEDED?
+		// if source.Config.IntegrationName == "" {
+		// 	// If the log integration comes from a config file, we try to match it with the config name
+		// 	// that is most likely the integration name.
+		// 	// If it comes from a container environment, the name was computed based on the `check_names`
+		// 	// labels attached to the same container.
+		// 	source.Config.IntegrationName = cfg.Name
+		// }
+		s.AddSource(source)
+	}
+
+	return nil
 }
 
 // AddSource adds a new source.
