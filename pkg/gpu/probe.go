@@ -52,6 +52,7 @@ type Probe struct {
 	attacher       *uprobes.UprobeAttacher
 	statsGenerator *statsGenerator
 	deps           ProbeDependencies
+	sysCtx         *systemContext
 	procMon        *monitor.ProcessMonitor
 }
 
@@ -157,7 +158,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 		procMon:  procMon,
 	}
 
-	sysCtx, err := getSystemContext(deps.NvmlLib)
+	p.sysCtx, err = getSystemContext(deps.NvmlLib, cfg.Config.ProcRoot)
 	if err != nil {
 		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
@@ -168,7 +169,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 	}
 
 	p.startEventConsumer()
-	p.statsGenerator = newStatsGenerator(sysCtx, now, p.consumer.streamHandlers)
+	p.statsGenerator = newStatsGenerator(p.sysCtx, now, p.consumer.streamHandlers)
 
 	if err := mgr.InitWithOptions(buf, &opts); err != nil {
 		return nil, fmt.Errorf("failed to init manager: %w", err)
@@ -231,6 +232,6 @@ func (p *Probe) startEventConsumer() {
 		},
 	}
 	p.mgr.RingBuffers = append(p.mgr.RingBuffers, rb)
-	p.consumer = newCudaEventConsumer(handler, p.cfg)
+	p.consumer = newCudaEventConsumer(p.sysCtx, handler, p.cfg)
 	p.consumer.Start()
 }
