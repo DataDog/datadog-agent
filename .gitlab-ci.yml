@@ -3,3 +3,4 @@ test_gitlab:
   tags: ["macos:monterey-amd64", "specific:true"]
   script:
     - echo "Running tests"
+    - pyenv virtualenvs --bare
