@@ -18,16 +18,11 @@
     echo "pyenv uninstall -f <version>"
 
 .select_python_env_commands:
-  # Print a warning if the current Python version is different from the one in .python-version
   # Select the virtualenv using the current Python version. Create it if it doesn't exist.
   - |
-    PYTHON_REPO_VERSION=$(cat .python-version)
     PYTHON_VERSION=$(python3 --version | awk '{print $2}')
     VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
-    if [ "$PYTHON_REPO_VERSION" != "$PYTHON_VERSION" ]; then
-      echo "Warning: The current Python version $PYTHON_VERSION is different from $PYTHON_REPO_VERSION in .python-version."
-      echo "Installing Python $PYTHON_REPO_VERSION..."
-    fi
+    echo "Using Python $PYTHON_VERSION..."
     ## START TEMPORARY DEBUG see ACIX-500
     echo $PYTHON_VERSION
     echo $VENV_NAME
