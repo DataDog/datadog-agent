@@ -79,20 +79,6 @@ func BenchmarkAllPidsProcs(b *testing.B) {
 	runtime.KeepAlive(pids)
 }
 
-const mapsFileSample = `
-08048000-08049000 r-xp 00000000 03:00 8312       /opt/test
-08049000-0804a000 rw-p 00001000 03:00 8312       /opt/test
-0804a000-0806b000 rw-p 00000000 00:00 0          [heap]
-a7ed5000-a8008000 r-xp 00000000 03:00 4222       /lib/libc.so.6
-a800b000-a800e000 rw-p 00000000 00:00 0
-a800e000-a8022000 r-xp 00000000 03:00 14462      /lib/libpthread.so.0
-a8024000-a8027000 rw-p 00000000 00:00 0
-a8027000-a8043000 r-xp 00000000 03:00 8317       /lib/ld-linux.so.2
-aff35000-aff4a000 rw-p 00000000 00:00 0          [stack]
-ffffe000-fffff000 r-xp 00000000 00:00 0          [vdso]
-01c00000-02000000 rw-p 00000000 00:0d 6123886    /anon_hugepage (deleted)
-`
-
 func TestGetEnvVariableFromBuffer(t *testing.T) {
 	cases := []struct {
 		name     string
