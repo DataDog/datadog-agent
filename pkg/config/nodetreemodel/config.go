@@ -597,8 +597,7 @@ func (c *ntmConfig) GetSource(key string) model.Source {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	c.logErrorNotImplemented("GetSource")
-	return model.SourceUnknown
+	return c.leafAtPath(key).Source()
 }
 
 // SetEnvPrefix sets the environment variable prefix to use

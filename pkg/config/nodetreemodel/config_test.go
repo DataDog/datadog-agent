@@ -32,7 +32,7 @@ func TestBuildDefaultMakesTooManyNodes(t *testing.T) {
 
 // Test that default, file, and env layers can build, get merged, and retrieve settings
 func TestBuildDefaultFileAndEnv(t *testing.T) {
-	t.Skip("implement GetSource and fix merge to enable this test")
+	t.Skip("fix merge to enable this test")
 
 	configData := `network_path:
   collector:
@@ -42,45 +42,59 @@ secret_backend_command: ./my_secret_fetcher.sh
 	os.Setenv("DD_SECRET_BACKEND_TIMEOUT", "60")
 	os.Setenv("DD_NETWORK_PATH_COLLECTOR_INPUT_CHAN_SIZE", "23456")
 
-	cfg := NewConfig("test", "", nil)
+	cfg := NewConfig("test", "DD", nil)
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.workers", 4)
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")
-	cfg.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	cfg.BindEnvAndSetDefault("secret_backend_timeout", 0)
+	cfg.BindEnvAndSetDefault("server_timeout", 30)
+
 	cfg.BuildSchema()
 	err := cfg.ReadConfig(strings.NewReader(configData))
 	require.NoError(t, err)
 
 	testCases := []struct {
+		description  string
 		setting      string
 		expectValue  interface{}
+		expectIntVal int
 		expectSource model.Source
 	}{
 		{
+			description:  "nested setting from env var works",
 			setting:      "network_path.collector.input_chan_size",
 			expectValue:  23456,
 			expectSource: model.SourceEnvVar,
 		},
 		{
+			description:  "top-level setting from env var works",
 			setting:      "secret_backend_timeout",
-			expectValue:  60,
+			expectValue:  "60", // TODO: cfg.Get returns string because this is an env var
 			expectSource: model.SourceEnvVar,
 		},
 		{
+			description:  "nested setting from config file works",
+			setting:      "network_path.collector.workers",
+			expectValue:  6,
+			expectSource: model.SourceFile,
+		},
+		{
+			description:  "top-level setting from config file works",
 			setting:      "secret_backend_command",
 			expectValue:  "./my_secret_fetcher.sh",
 			expectSource: model.SourceFile,
 		},
 		{
-			setting:      "network_path.collector.workers",
-			expectValue:  6,
-			expectSource: model.SourceEnvVar,
-		},
-		{
+			description:  "nested setting from default works",
 			setting:      "network_path.collector.processing_chan_size",
 			expectValue:  100000,
+			expectSource: model.SourceDefault,
+		},
+		{
+			description:  "top-level setting from default works",
+			setting:      "server_timeout",
+			expectValue:  30,
 			expectSource: model.SourceDefault,
 		},
 	}
@@ -89,8 +103,8 @@ secret_backend_command: ./my_secret_fetcher.sh
 		t.Run(fmt.Sprintf("case %d: setting %s", i, tc.setting), func(t *testing.T) {
 			val := cfg.Get(tc.setting)
 			require.Equal(t, tc.expectValue, val)
-			//src := cfg.GetSource(tc.setting)
-			//require.Equal(t, tc.expectSource, src)
+			src := cfg.GetSource(tc.setting)
+			require.Equal(t, tc.expectSource, src)
 		})
 	}
 }
