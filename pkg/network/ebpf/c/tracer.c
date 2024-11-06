@@ -291,6 +291,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
         bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
         if (err == TCP_CONN_FAILED_RESET || err == TCP_CONN_FAILED_TIMEOUT || err == TCP_CONN_FAILED_REFUSED) {
             increment_telemetry_count(tcp_close_target_failures);
+            // only set tcp_failure_reason if err is one of the desired values
             tcp_failure_reason = err;
         }
 
