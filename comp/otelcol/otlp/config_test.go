@@ -288,7 +288,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
-					"instrumentation_scope_metadata_as_tags": "true",
+					"instrumentation_scope_metadata_as_tags": true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 
