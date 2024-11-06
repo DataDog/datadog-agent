@@ -273,9 +273,9 @@ func TestIINIsSensitive(t *testing.T) {
 	})
 }
 
-func TestCCSkipKeys(t *testing.T) {
+func TestCCKeepValues(t *testing.T) {
 	possibleCard := "378282246310005"
-	o := NewObfuscator(Config{CreditCard: CreditCardsConfig{Enabled: true, SkipKeys: []string{"skip_me"}}})
+	o := NewObfuscator(Config{CreditCard: CreditCardsConfig{Enabled: true, KeepValues: []string{"skip_me"}}})
 
 	assert.Equal(t, possibleCard, o.ObfuscateCreditCardNumber("skip_me", possibleCard))
 	assert.Equal(t, "?", o.ObfuscateCreditCardNumber("obfuscate_me", possibleCard))

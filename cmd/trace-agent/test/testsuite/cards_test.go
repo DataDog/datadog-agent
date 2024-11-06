@@ -93,7 +93,7 @@ apm_config:
   obfuscation:
     credit_cards:
       enabled: false
-      skip_keys: ["credit_card_number"]`),
+      keep_values: ["credit_card_number"]`),
 			out:     "4166 6766 6766 6746",
 			version: "v0.5",
 		},

@@ -265,9 +265,9 @@ type CreditCardsConfig struct {
 	// It reduces false positives, but increases the CPU time X3.
 	Luhn bool `mapstructure:"luhn"`
 
-	// SkipKeys specifies tag keys that are known to not ever contain credit cards
-	// and can therefore be skipped.
-	SkipKeys []string `mapstructure:"skip_keys"`
+	// KeepValues specifies tag keys that are known to not ever contain credit cards
+	// and therefore their values can be kept.
+	KeepValues []string `mapstructure:"keep_values"`
 }
 
 // NewObfuscator creates a new obfuscator
