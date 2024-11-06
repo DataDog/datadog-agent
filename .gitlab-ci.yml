@@ -5,7 +5,7 @@ test_gitlab:
     - echo "Running tests"
     - pyenv virtualenvs --bare
     - which grep
-    - pyenv virtualenvs --bare | grep -q "datadog-agent-python-3.11"
+    - pyenv virtualenvs --bare | grep "datadog-agent-python-3.11"
     - echo "toto" | grep -q "toto"
     - grep -q "toto" <<< "toto"
     - grep --help
