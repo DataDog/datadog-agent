@@ -697,8 +697,8 @@ github.com/DataDog/datadog-operator v1.8.0-rc.1 h1:w6/z5jcTzWGv90/H9AhcgZd3gAdP3
 github.com/DataDog/datadog-operator v1.8.0-rc.1/go.mod h1:qxwdMzmiZ165BAMbTYkr4yJKvhOnDUMAcGNQiPJVmAA=
 github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 h1:RoH7VLzTnxHEugRPIgnGlxwDFszFGI7b3WZZUtWuPRM=
 github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42/go.mod h1:TX7CTOQ3LbQjfAi4SwqUoR5gY1zfUk7VRBDTuArjaDc=
-github.com/DataDog/ebpf-manager v0.7.1 h1:q8y6Kb5Zk1gaLoZpoj3vHi7wUe8MbtNDIq8zO/DODzM=
-github.com/DataDog/ebpf-manager v0.7.1/go.mod h1:ld5QVq/+O3AEtol/9fhiQziGkdHSECDQvm5+DQ9V98s=
+github.com/DataDog/ebpf-manager v0.7.4 h1:fI2fJbDpykDiO/hq3IVIi+YLVVrJ97qG6O8LT7mdCnQ=
+github.com/DataDog/ebpf-manager v0.7.4/go.mod h1:QlCkGTH3koCMDG7E8o9Si6O9UXjBwQspP6z2YtKlyGU=
 github.com/DataDog/extendeddaemonset v0.10.0-rc.4 h1:m88E+emuRHIqKgi7kHMd9N0S/NtruCCOISp3cjB7DNs=
 github.com/DataDog/extendeddaemonset v0.10.0-rc.4/go.mod h1:uqO05mxbfqPQ8cghfYN2Uhy/eUv4ZEx89cb4P1Z1uz4=
 github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe h1:RO40ywnX/vZLi4Pb4jRuFGgQQBYGIIoQ6u+P2MIgFOA=
