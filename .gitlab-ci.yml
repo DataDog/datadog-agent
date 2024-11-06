@@ -4,7 +4,9 @@ test_gitlab:
   script:
   - |
     PYTHON_REPO_VERSION=$(cat .python-version)
+    echo "1 $?"
     PYTHON_VERSION=$(python3 --version | awk '{print $2}' | sed 's/\.[0-9]*$//')
+    echo "2 $?"
     VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
     if [ "$PYTHON_REPO_VERSION" != "$PYTHON_VERSION" ]; then
       echo "Warning: The current Python version $PYTHON_VERSION is different from $PYTHON_REPO_VERSION in .python-version."
@@ -17,10 +19,13 @@ test_gitlab:
     ls $(pyenv root)/versions/
     ## END TEMPORARY DEBUG see ACIX-500
     if ! pyenv virtualenvs --bare | grep -q "^${VENV_NAME}$"; then
+      echo "3 $?"
       # The || true is a quickfix avoiding the command to fail if the virtualenv already exists
       # This should be removed once ACIX-500 is done
       pyenv virtualenv $PYTHON_VERSION $VENV_NAME || true
+      echo "4 $?"
     fi
     pyenv activate $VENV_NAME
+    echo "5 $?"
 
 
