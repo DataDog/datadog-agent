@@ -258,38 +258,14 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 
 func getManager(buf io.ReaderAt, opts manager.Options) (*ddebpf.Manager, error) {
 	m := ddebpf.NewManagerWithDefault(&manager.Manager{
-		Probes: []*manager.Probe{
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: cudaLaunchKernelProbe,
-				},
-			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: cudaMallocProbe,
-				},
-			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: cudaMallocRetProbe,
-				},
-			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: cudaStreamSyncProbe,
-				},
-			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: cudaStreamSyncRetProbe,
-				},
-			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: cudaFreeProbe,
-				},
-			},
-		},
+		/* 	We don't init the probes list here, because the manager will try to attach them at startup
+		   	and fail since those are uprobes and their full path is resolved in runtime using the uprobeAttacher
+		   	the uprobeAttacher will add those probe later via manager.AddHook API
+
+		   	All manager's modifiers will still run as they operate on the ProgramSpecs map
+			of the manager,which is populated while parsing the elf file and creating the CollectionSpec
+		*/
+
 		Maps: []*manager.Map{
 			{
 				Name: cudaAllocCacheMap,
