@@ -22,7 +22,7 @@
   # Select the virtualenv using the current Python version. Create it if it doesn't exist.
   - |
     PYTHON_REPO_VERSION=$(cat .python-version)
-    PYTHON_VERSION=$(python3 --version | awk '{print $2}' | sed 's/\.[0-9]*$//')
+    PYTHON_VERSION=$(python3 --version | awk '{print $2}')
     VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
     if [ "$PYTHON_REPO_VERSION" != "$PYTHON_VERSION" ]; then
       echo "Warning: The current Python version $PYTHON_VERSION is different from $PYTHON_REPO_VERSION in .python-version."
