@@ -720,3 +720,91 @@ func TestConnectTwice(t *testing.T) {
 	}
 	require.Equal(t, expectedStats, f.conn.Monotonic)
 }
+
+func TestSimultaneousOpen(t *testing.T) {
+	t.Skip("simultaneous open is slightly wrong")
+	f := newTcpTestFixture(t, lowerSeq, higherSeq)
+
+	basicHandshake := []testCapture{
+		f.incoming(0, 0, 0, SYN),
+		f.outgoing(0, 0, 0, SYN),
+		f.incoming(0, 1, 1, SYN|ACK),
+		f.outgoing(0, 1, 1, SYN|ACK),
+		f.incoming(0, 2, 2, ACK),
+		f.outgoing(0, 2, 2, ACK),
+		// active close after sending no data
+		f.outgoing(0, 2, 2, FIN|ACK),
+		f.incoming(0, 2, 3, FIN|ACK),
+		f.outgoing(0, 3, 3, ACK),
+	}
+
+	expectedClientStates := []tcpState{
+		TcpStateSynRecv,
+		TcpStateSynRecv,
+		TcpStateSynRecv,
+		TcpStateSynRecv,
+		// even though a synack has been ack'd, both synacks have not been ack'd so it is not established
+		TcpStateSynRecv,
+		TcpStateEstablished,
+		// active close begins here
+		TcpStateFinWait1,
+		TcpStateFinWait2,
+		TcpStateTimeWait,
+	}
+
+	f.runAgainstState(basicHandshake, expectedClientStates)
+
+	require.Empty(t, f.conn.TCPFailures)
+
+	expectedStats := network.StatCounters{
+		SentBytes:      0,
+		RecvBytes:      0,
+		SentPackets:    5,
+		RecvPackets:    4,
+		Retransmits:    0,
+		TCPEstablished: 1,
+		TCPClosed:      1,
+	}
+	require.Equal(t, expectedStats, f.conn.Monotonic)
+}
+
+func TestSimultaneousClose(t *testing.T) {
+	f := newTcpTestFixture(t, lowerSeq, higherSeq)
+
+	basicHandshake := []testCapture{
+		f.incoming(0, 0, 0, SYN),
+		f.outgoing(0, 0, 1, SYN|ACK),
+		f.incoming(0, 1, 1, ACK),
+		// active close after sending no data
+		f.outgoing(0, 1, 1, FIN|ACK),
+		f.incoming(0, 1, 1, FIN|ACK),
+		f.outgoing(0, 2, 2, ACK),
+		f.incoming(0, 2, 2, ACK),
+	}
+
+	expectedClientStates := []tcpState{
+		TcpStateSynRecv,
+		TcpStateSynRecv,
+		TcpStateEstablished,
+		// active close begins here
+		TcpStateFinWait1,
+		TcpStateClosing,
+		TcpStateClosing,
+		TcpStateTimeWait,
+	}
+
+	f.runAgainstState(basicHandshake, expectedClientStates)
+
+	require.Empty(t, f.conn.TCPFailures)
+
+	expectedStats := network.StatCounters{
+		SentBytes:      0,
+		RecvBytes:      0,
+		SentPackets:    3,
+		RecvPackets:    4,
+		Retransmits:    0,
+		TCPEstablished: 1,
+		TCPClosed:      1,
+	}
+	require.Equal(t, expectedStats, f.conn.Monotonic)
+}

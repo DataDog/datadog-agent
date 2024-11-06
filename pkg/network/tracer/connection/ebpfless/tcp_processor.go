@@ -20,24 +20,33 @@ import (
 type connectionState struct {
 	tcpState tcpState
 
-	// @stu doc
+	// hasSentPacket is whether anything has been sent outgoing (aka whether maxSeqSent) exists
 	hasSentPacket bool
-	// localStartSeq is only used for debugging
-	localStartSeq  uint32
-	maxSeqSent     uint32
+	// localStartSeq is the initial outgoing tcp.Seq - only used for debugging relative seqs
+	localStartSeq uint32
+	// maxSeqSent is the latest outgoing tcp.Seq if hasSentPacket==true
+	maxSeqSent uint32
+	// hasAckedPacket is whether the outgoing side has ACK'd any packets
 	hasAckedPacket bool
-	lastAck        uint32
+	// lastAck is the latest outgoing tcp.Ack if hasAcked==true
+	lastAck uint32
 
-	// hasReceivedPacket is only used for debugging
+	// hasReceivedPacket is whether anything has been received - only used for debugging (to see if remoteStartSeq exists)
 	hasReceivedPacket bool
-	// remoteStartSeq is only used for debugging
+	// remoteStartSeq is the initial incoming tcp.Seq - only used for debugging
 	remoteStartSeq uint32
 
+	// hasSynAcked is used to keep track of whether we should advance to TcpStateEstablished
+	// (because the state transition requires multiple packets)
 	hasSynAcked bool
 
-	hasLocalFin  bool
+	// hasLocalFin is whether the outgoing side has FIN'd
+	hasLocalFin bool
+	// hasRemoteFin is whether the incoming side has FIN'd
 	hasRemoteFin bool
-	localFinSeq  uint32
+	// localFinSeq is the tcp.Seq number for the outgoing FIN (including any payload length)
+	localFinSeq uint32
+	// remoteFinSeq is the tcp.Seq number for the incoming FIN (including any payload length)
 	remoteFinSeq uint32
 }
 
@@ -49,11 +58,6 @@ func NewTCPProcessor() *TCPProcessor {
 	return &TCPProcessor{
 		conns: map[network.ConnectionTuple]connectionState{},
 	}
-}
-
-func logFailedConn(fmt string, params ...interface{}) {
-	// @stu
-	log.Debugf(fmt, params...)
 }
 
 // https://users.cs.northwestern.edu/~agupta/cs340/project2/TCPIP_State_Transition_Diagram.pdf
@@ -181,7 +185,12 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4
 					return fmt.Errorf("entered state=%d without a localFin (shouldn't get here)", st.tcpState)
 				}
 				if isSeqBefore(st.localFinSeq, tcp.Ack) {
-					st.tcpState = TcpStateClosed
+					nextState := TcpStateClosed
+					// in a simultaneous close, we go to TimeWait instead
+					if st.tcpState == TcpStateClosing {
+						nextState = TcpStateTimeWait
+					}
+					st.tcpState = nextState
 					conn.Monotonic.TCPClosed++
 				}
 			}
@@ -199,14 +208,10 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4
 		case TcpStateSynSent:
 			fallthrough
 		case TcpStateSynRecv:
-			logFailedConn("RST on an attempted connection; Failure")
 			conn.TCPFailures[uint32(syscall.ECONNREFUSED)]++
 		case TcpStateEstablished:
-			logFailedConn("RST on an established connection; Failure")
 			conn.TCPFailures[uint32(syscall.ECONNRESET)]++
-			// TODO what to do when RST happens in one of the closing states?
 		default:
-			logFailedConn("RST on a connection with tcpState=%d; Failure", st.tcpState)
 			conn.TCPFailures[uint32(syscall.ECONNRESET)]++
 		}
 
@@ -296,7 +301,7 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4
 		case TcpStateFinWait1:
 			if pktType == unix.PACKET_HOST {
 				// simultaneous close
-				// XXXXXXXXXXXXXXX
+				st.tcpState = TcpStateClosing
 			}
 			// nothing but counting FIN retransmits
 		case TcpStateFinWait2:
