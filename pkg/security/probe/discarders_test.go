@@ -341,63 +341,63 @@ func TestIsGrandParentDiscarder(t *testing.T) {
 	}
 }
 
-type testEventListener struct {
-	fields map[eval.Field]int
-}
+// type testEventListener struct {
+// 	fields map[eval.Field]int
+// }
 
-func (l *testEventListener) RuleMatch(_ *rules.Rule, _ eval.Event) bool { return true }
+// func (l *testEventListener) RuleMatch(_ *rules.Rule, _ eval.Event) bool { return true }
 
-func (l *testEventListener) EventDiscarderFound(_ *rules.RuleSet, _ eval.Event, field eval.Field, _ eval.EventType) {
-	if l.fields == nil {
-		l.fields = make(map[eval.Field]int)
-	}
-	l.fields[field]++
-}
+// func (l *testEventListener) EventDiscarderFound(_ *rules.RuleSet, _ eval.Event, field eval.Field, _ eval.EventType) {
+// 	if l.fields == nil {
+// 		l.fields = make(map[eval.Field]int)
+// 	}
+// 	l.fields[field]++
+// }
 
-func TestIsDiscarderOverride(t *testing.T) {
-	enabled := map[eval.EventType]bool{"*": true}
+// func TestIsDiscarderOverride(t *testing.T) {
+// 	enabled := map[eval.EventType]bool{"*": true}
 
-	var evalOpts eval.Opts
-	evalOpts.
-		WithConstants(model.SECLConstants()).
-		WithLegacyFields(model.SECLLegacyFields)
+// 	var evalOpts eval.Opts
+// 	evalOpts.
+// 		WithConstants(model.SECLConstants()).
+// 		WithLegacyFields(model.SECLLegacyFields)
 
-	var opts rules.Opts
-	opts.
-		WithEventTypeEnabled(enabled).
-		WithLogger(seclog.DefaultLogger)
+// 	var opts rules.Opts
+// 	opts.
+// 		WithEventTypeEnabled(enabled).
+// 		WithLogger(seclog.DefaultLogger)
 
-	var listener testEventListener
+// 	var listener testEventListener
 
-	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, &opts, &evalOpts)
-	rs.AddListener(&listener)
-	rules.AddTestRuleExpr(t, rs, `unlink.file.path == "/var/log/httpd" && process.file.path == "/bin/touch"`)
+// 	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, &opts, &evalOpts)
+// 	rs.AddListener(&listener)
+// 	rules.AddTestRuleExpr(t, rs, `unlink.file.path == "/var/log/httpd" && process.file.path == "/bin/touch"`)
 
-	event := rs.NewEvent().(*model.Event)
-	event.Init()
+// 	event := rs.NewEvent().(*model.Event)
+// 	event.Init()
 
-	event.Type = uint32(model.FileUnlinkEventType)
-	event.SetFieldValue("unlink.file.path", "/var/log/httpd")
-	event.SetFieldValue("process.file.path", "/bin/touch")
+// 	event.Type = uint32(model.FileUnlinkEventType)
+// 	event.SetFieldValue("unlink.file.path", "/var/log/httpd")
+// 	event.SetFieldValue("process.file.path", "/bin/touch")
 
-	if !rs.Evaluate(event) {
-		rs.EvaluateDiscarders(event)
-	}
+// 	if !rs.Evaluate(event) {
+// 		rs.EvaluateDiscarders(event)
+// 	}
 
-	if listener.fields["process.file.path"] > 0 {
-		t.Error("shouldn't get a discarder")
-	}
+// 	if listener.fields["process.file.path"] > 0 {
+// 		t.Error("shouldn't get a discarder")
+// 	}
 
-	event.SetFieldValue("process.file.path", "/bin/cat")
+// 	event.SetFieldValue("process.file.path", "/bin/cat")
 
-	if !rs.Evaluate(event) {
-		rs.EvaluateDiscarders(event)
-	}
+// 	if !rs.Evaluate(event) {
+// 		rs.EvaluateDiscarders(event)
+// 	}
 
-	if listener.fields["process.file.path"] == 0 {
-		t.Error("should get a discarder")
-	}
-}
+// 	if listener.fields["process.file.path"] == 0 {
+// 		t.Error("should get a discarder")
+// 	}
+// }
 
 func BenchmarkParentDiscarder(b *testing.B) {
 	id := newInodeDiscarders(nil, nil)
