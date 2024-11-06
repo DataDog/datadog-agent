@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 )
 
@@ -57,33 +56,25 @@ func (Provider) populateStatus(stats map[string]interface{}) {
 	autodiscoveryVar := expvar.Get("snmpAutodiscovery")
 
 	if autodiscoveryVar != nil {
+		autodiscoveryConfig, _ := snmp.NewListenerConfig()
 
-		var autodiscoveryConfig snmp.ListenerConfig
-		if pkgconfigsetup.Datadog().IsSet("network_devices.autodiscovery") {
-			err := pkgconfigsetup.Datadog().UnmarshalKey("network_devices.autodiscovery", &autodiscoveryConfig)
-			if err != nil {
-				return
-			}
-			var subnetOrder []string
-			for _, autodiscoveryConfig := range autodiscoveryConfig.Configs {
-				if autodiscoveryConfig.NetworkLegacy != "" {
-					subnetOrder = append(subnetOrder, autodiscoveryConfig.NetworkLegacy)
-				} else {
-					subnetOrder = append(subnetOrder, autodiscoveryConfig.Network)
-				}
-			}
-
-			autodiscoverySubnets := getSubnetsStatus(autodiscoveryVar)
-			var orderedSubnets []subnetStatus
-			for _, subnet := range subnetOrder {
-				for _, status := range autodiscoverySubnets {
-					if status.Subnet == subnet {
-						orderedSubnets = append(orderedSubnets, status)
-					}
-				}
-			}
-			stats["autodiscoverySubnets"] = orderedSubnets
+		var subnetConfigHashOrdered []string
+		for _, autodiscoveryConfig := range autodiscoveryConfig.Configs {
+			subnetConfigHashOrdered = append(subnetConfigHashOrdered, autodiscoveryConfig.Digest(autodiscoveryConfig.Network))
 		}
+
+		autodiscoverySubnets := getSubnetsStatus(autodiscoveryVar)
+		orderedSubnets := []subnetStatus{}
+
+		for _, configHash := range subnetConfigHashOrdered {
+			for _, status := range autodiscoverySubnets {
+				if status.configHash == configHash {
+					orderedSubnets = append(orderedSubnets, status)
+					break
+				}
+			}
+		}
+		stats["autodiscoverySubnets"] = orderedSubnets
 	}
 
 	// subnets configured in the snmp.d can not be ordered here as we can't retrieve the config here
@@ -100,22 +91,23 @@ type subnetStatus struct {
 	DevicesScanned int
 	IpsCount       int
 	DevicesFound   []string
+	configHash     string
 }
 
-func getSubnetsStatus(discoveryVar expvar.Var) map[string]subnetStatus {
+func getSubnetsStatus(discoveryVar expvar.Var) []subnetStatus {
 	discoverySubnets := make(map[string]listeners.AutodiscoveryStatus)
 	discoveryJSON := []byte(discoveryVar.String())
 	json.Unmarshal(discoveryJSON, &discoverySubnets) //nolint:errcheck
 
-	discoverySubnetsStatus := make(map[string]subnetStatus)
+	discoverySubnetsStatus := []subnetStatus{}
 
 	for subnetKey, autodiscoveryStatus := range discoverySubnets {
-		subnet, _ := strings.Split(subnetKey, "|")[0], strings.Split(subnetKey, "|")[1]
+		subnet, configHash := strings.Split(subnetKey, "|")[0], strings.Split(subnetKey, "|")[1]
 		_, ipNet, _ := net.ParseCIDR(subnet)
 
 		ones, bits := ipNet.Mask.Size()
 		ipsTotalCount := 1 << (bits - ones)
-		discoverySubnetsStatus[subnetKey] = subnetStatus{subnet, autodiscoveryStatus.CurrentDevice, autodiscoveryStatus.DevicesScannedCount, ipsTotalCount, autodiscoveryStatus.DevicesFoundList}
+		discoverySubnetsStatus = append(discoverySubnetsStatus, subnetStatus{subnet, autodiscoveryStatus.CurrentDevice, autodiscoveryStatus.DevicesScannedCount, ipsTotalCount, autodiscoveryStatus.DevicesFoundList, configHash})
 	}
 
 	return discoverySubnetsStatus

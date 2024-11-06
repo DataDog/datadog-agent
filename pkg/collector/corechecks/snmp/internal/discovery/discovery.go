@@ -219,17 +219,21 @@ func (d *Discovery) checkDevice(job checkDeviceJob) error {
 		}
 	}
 
-	ipsFound := []string{}
-	d.discDevMu.Lock()
-	for _, device := range d.discoveredDevices {
-		ipsFound = append(ipsFound, device.deviceIP)
-	}
-	d.discDevMu.Unlock()
-
-	discoveryStatus := listeners.AutodiscoveryStatus{DevicesFoundList: ipsFound, CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
+	discoveryStatus := listeners.AutodiscoveryStatus{DevicesFoundList: d.getDevicesFound(), CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
 	discoveryVar.Set(listeners.GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey), &discoveryStatus)
 
 	return nil
+}
+
+func (d *Discovery) getDevicesFound() []string {
+	d.discDevMu.RLock()
+	defer d.discDevMu.RUnlock()
+
+	ipsFound := make([]string, 0, len(d.discoveredDevices))
+	for _, device := range d.discoveredDevices {
+		ipsFound = append(ipsFound, device.deviceIP)
+	}
+	return ipsFound
 }
 
 func (d *Discovery) createDevice(deviceDigest checkconfig.DeviceDigest, subnet *snmpSubnet, deviceIP string, writeCache bool) {

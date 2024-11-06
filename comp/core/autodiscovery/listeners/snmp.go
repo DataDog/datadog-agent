@@ -60,7 +60,7 @@ type SNMPListener struct {
 	delService chan<- Service
 	stop       chan bool
 	config     snmp.ListenerConfig
-	services   map[string]Service
+	services   map[string]*SNMPService
 }
 
 // SNMPService implements and store results from the Service interface for the SNMP listener
@@ -69,6 +69,7 @@ type SNMPService struct {
 	entityID     string
 	deviceIP     string
 	config       snmp.Config
+	subnet       *snmpSubnet
 }
 
 // Make sure SNMPService implements the Service interface
@@ -97,7 +98,7 @@ func NewSNMPListener(ServiceListernerDeps) (ServiceListener, error) {
 		return nil, err
 	}
 	return &SNMPListener{
-		services: map[string]Service{},
+		services: map[string]*SNMPService{},
 		stop:     make(chan bool),
 		config:   snmpConfig,
 	}, nil
@@ -195,20 +196,21 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 		}
 	}
 
+	autodiscoveryStatus := AutodiscoveryStatus{DevicesFoundList: l.getDevicesFoundInSubnet(*job.subnet), CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
+	autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey), &autodiscoveryStatus)
+}
+
+func (l *SNMPListener) getDevicesFoundInSubnet(subnet snmpSubnet) []string {
 	l.Lock()
+	defer l.Unlock()
+
 	ipsFound := []string{}
 	for _, svc := range l.services {
-		snmpSvc, ok := svc.(*SNMPService)
-		if !ok {
-			log.Errorf("Service is not of type SNMPService")
-			continue
+		if svc.subnet.cacheKey == subnet.cacheKey {
+			ipsFound = append(ipsFound, svc.deviceIP)
 		}
-		ipsFound = append(ipsFound, snmpSvc.deviceIP)
 	}
-	l.Unlock()
-
-	autodiscoveryStatus := AutodiscoveryStatus{DevicesFoundList: ipsFound, CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
-	autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey), &autodiscoveryStatus)
+	return ipsFound
 }
 
 func (l *SNMPListener) checkDevices() {
@@ -230,14 +232,13 @@ func (l *SNMPListener) checkDevices() {
 		}
 
 		subnet := snmpSubnet{
-			adIdentifier:          adIdentifier,
-			config:                config,
-			startingIP:            startingIP,
-			network:               *ipNet,
-			cacheKey:              cacheKey,
-			devices:               map[string]string{},
-			deviceFailures:        map[string]int{},
-			devicesScannedCounter: *atomic.NewUint32(0),
+			adIdentifier:   adIdentifier,
+			config:         config,
+			startingIP:     startingIP,
+			network:        *ipNet,
+			cacheKey:       cacheKey,
+			devices:        map[string]string{},
+			deviceFailures: map[string]int{},
 		}
 		subnets = append(subnets, subnet)
 
@@ -316,6 +317,7 @@ func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, device
 		entityID:     entityID,
 		deviceIP:     deviceIP,
 		config:       subnet.config,
+		subnet:       subnet,
 	}
 	l.services[entityID] = svc
 	subnet.devices[entityID] = deviceIP

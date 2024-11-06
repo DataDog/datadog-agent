@@ -8,36 +8,38 @@
 {{- if or .autodiscoverySubnets .discoverySubnets }}
   Autodiscovery
   =============
-  {{- range $subnet := .autodiscoverySubnets }}
+{{- range $subnet := .autodiscoverySubnets -}}
   {{- if eq $subnet.IpsCount $subnet.DevicesScanned }}
-  {{- if $subnet.DevicesFound }}
-  Subnet {{$subnet.Subnet}} scanned. Found the following IP(s) :
-    {{- range $device := $subnet.DevicesFound }}
-    - {{$device}}
-    {{- end }}
-  {{- else }}
-  Subnet {{$subnet.Subnet}} scanned. Found no IPs in the subnet.
-  {{- end }}
+  Subnet {{$subnet.Subnet}} scanned.
   {{- else if eq $subnet.DeviceScanning "" }}
   Subnet {{$subnet.Subnet}} is queued for scanning.
   {{- else}}
   Scanning subnet {{$subnet.Subnet}}... Currently scanning IP {{$subnet.DeviceScanning}}, {{$subnet.DevicesScanned}} IPs out of {{$subnet.IpsCount}} scanned.
   {{- end }}
-  {{- end }}
-  {{- range $subnet := .discoverySubnets }}
-  {{- if eq $subnet.IpsCount $subnet.DevicesScanned }}
   {{- if $subnet.DevicesFound }}
-  Subnet {{$subnet.Subnet}} scanned. Found the following IP(s) :
-    {{- range $device := $subnet.DevicesFound }}
+  Found the following IP(s) in the subnet:
+  {{- range $device := $subnet.DevicesFound }}
     - {{$device}}
-    {{- end }}
-  {{- else }}
-  Subnet {{$subnet.Subnet}} scanned. Found no IPs in the subnet.
   {{- end }}
+  {{- else }}
+  No IPs found in the subnet.
+  {{- end }}
+{{ end -}}
+{{- range $subnet := .discoverySubnets -}}
+  {{- if eq $subnet.IpsCount $subnet.DevicesScanned }}
+  Subnet {{$subnet.Subnet}} scanned.
   {{- else if eq $subnet.DeviceScanning "" }}
   Subnet {{$subnet.Subnet}} is queued for scanning.
   {{- else}}
   Scanning subnet {{$subnet.Subnet}}... Currently scanning IP {{$subnet.DeviceScanning}}, {{$subnet.DevicesScanned}} IPs out of {{$subnet.IpsCount}} scanned.
   {{- end }}
+  {{- if $subnet.DevicesFound }}
+  Found the following IP(s) in the subnet:
+  {{- range $device := $subnet.DevicesFound }}
+    - {{$device}}
   {{- end }}
+  {{- else }}
+  No IPs found in the subnet.
+  {{- end }}
+{{ end -}}
 {{- end -}}
