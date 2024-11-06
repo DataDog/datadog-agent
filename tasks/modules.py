@@ -11,7 +11,13 @@ import yaml
 from invoke import Context, Exit, task
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.gomodules import IGNORED_MODULE_PATHS, GoModule, GoModuleDumper, get_default_modules
+from tasks.libs.common.gomodules import (
+    IGNORED_MODULE_PATHS,
+    GoModule,
+    GoModuleDumper,
+    get_default_modules,
+    list_default_modules,
+)
 
 AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
 
@@ -241,10 +247,15 @@ def _print_modules(modules: dict[str, GoModule], details: bool, remove_defaults:
 
 
 @task
-def show(_, path: str, remove_defaults: bool = False):
+def show(_, path: str, remove_defaults: bool = False, base_dir: str = '.'):
     """Show the module information for the given path."""
 
-    module = get_default_modules().get(path)
+    default_modules, ignored_modules = list_default_modules(Path(base_dir))
+    if path in ignored_modules:
+        print(f'Module {path} is ignored')
+        return
+
+    module = default_modules.get(path)
 
     assert module, f'Module {path} not found'
 
@@ -252,12 +263,17 @@ def show(_, path: str, remove_defaults: bool = False):
 
 
 @task
-def show_all(_, details: bool = False, remove_defaults: bool = True):
+def show_all(_, details: bool = False, remove_defaults: bool = True, base_dir: str = '.', ignored=False):
     """Show the list of modules.
 
     Args:
         details: If True, will show also the contents of each module (will list only the names otherwise).
         remove_defaults: If True, will remove default values from the output.
+        ignored: If True, will list ignored modules.
     """
 
-    _print_modules(get_default_modules(), details=details, remove_defaults=remove_defaults)
+    if ignored:
+        _, ignored_modules = list_default_modules(Path(base_dir))
+        print('\n'.join(sorted(ignored_modules)))
+    else:
+        _print_modules(get_default_modules(base_dir), details=details, remove_defaults=remove_defaults)
