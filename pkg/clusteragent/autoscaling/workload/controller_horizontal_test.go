@@ -77,6 +77,15 @@ func (f *horizontalControllerFixture) runSync(fakePai *model.FakePodAutoscalerIn
 	return autoscalerInternal, res, err
 }
 
+func newHorizontalAction(time time.Time, fromReplicas, toReplicas, recommendedReplicas int32) datadoghq.DatadogPodAutoscalerHorizontalAction {
+	return datadoghq.DatadogPodAutoscalerHorizontalAction{
+		Time:                metav1.NewTime(time),
+		FromReplicas:        fromReplicas,
+		ToReplicas:          toReplicas,
+		RecommendedReplicas: pointer.Ptr[int32](recommendedReplicas),
+	}
+}
+
 type horizontalScalingTestArgs struct {
 	fakePai          *model.FakePodAutoscalerInternal
 	dataSource       datadoghq.DatadogPodAutoscalerValueSource
@@ -1118,4 +1127,68 @@ func TestHorizontalControllerSyncScaleDecisionsWithRules(t *testing.T) {
 	})
 	assert.Equal(t, autoscaling.NoRequeue, result)
 	assert.NoError(t, err)
+}
+
+func TestStabilizeRecommendations(t *testing.T) {
+	currentTime := time.Now()
+
+	tests := []struct {
+		name            string
+		actions         []datadoghq.DatadogPodAutoscalerHorizontalAction
+		currentReplicas int32
+		recReplicas     int32
+		expected        int32
+		expectedReason  string
+		upscaleWindow   int32
+		downscaleWindow int32
+	}{
+		{
+			name: "no stabilization required - constant upscale",
+			actions: []datadoghq.DatadogPodAutoscalerHorizontalAction{
+				newHorizontalAction(currentTime.Add(-60*time.Second), 4, 5, 6),
+				newHorizontalAction(currentTime.Add(-30*time.Second), 6, 4, 4),
+			},
+			currentReplicas: 4,
+			recReplicas:     8,
+			expected:        8,
+			expectedReason:  "",
+			upscaleWindow:   0,
+			downscaleWindow: 300,
+		},
+		{
+			name: "downscale stabilization",
+			actions: []datadoghq.DatadogPodAutoscalerHorizontalAction{
+				newHorizontalAction(currentTime.Add(-60*time.Second), 8, 6, 6),
+				newHorizontalAction(currentTime.Add(-30*time.Second), 6, 5, 5),
+			},
+			currentReplicas: 5,
+			recReplicas:     4,
+			expected:        5,
+			expectedReason:  "desired replica count limited to 5 (originally 4) due to stabilization window",
+			upscaleWindow:   0,
+			downscaleWindow: 300,
+		},
+		{
+			name: "downscale stabilization, recommendation flapping",
+			actions: []datadoghq.DatadogPodAutoscalerHorizontalAction{
+				newHorizontalAction(currentTime.Add(-90*time.Second), 8, 6, 6),
+				newHorizontalAction(currentTime.Add(-60*time.Second), 6, 9, 9),
+				newHorizontalAction(currentTime.Add(-30*time.Second), 9, 7, 7),
+			},
+			currentReplicas: 7,
+			recReplicas:     5,
+			expected:        7,
+			expectedReason:  "desired replica count limited to 7 (originally 5) due to stabilization window",
+			upscaleWindow:   0,
+			downscaleWindow: 300,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recommendedReplicas, limitReason := stabilizeRecommendations(currentTime, tt.actions, tt.currentReplicas, tt.recReplicas, tt.upscaleWindow, tt.downscaleWindow)
+			assert.Equal(t, tt.expected, recommendedReplicas)
+			assert.Equal(t, tt.expectedReason, limitReason)
+		})
+	}
 }
