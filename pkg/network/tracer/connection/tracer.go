@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failure"
 )
 
 // TracerType is the type of the underlying tracer
@@ -47,8 +46,6 @@ type Tracer interface {
 	GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error
 	// FlushPending forces any closed connections waiting for batching to be processed immediately.
 	FlushPending()
-	// GetFailedConnections returns the underlying map used to store failed connections
-	GetFailedConnections() *failure.FailedConns
 	// Remove deletes the connection from tracking state.
 	// It does not prevent the connection from re-appearing later, if additional traffic occurs.
 	Remove(conn *network.ConnectionStats) error
