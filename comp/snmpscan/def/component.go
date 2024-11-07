@@ -10,7 +10,7 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-// team: network-device-monitoring
+// team: ndm-core
 
 // Component is the component type.
 type Component interface {

@@ -60,6 +60,22 @@ func TestNewDefaultForwarder(t *testing.T) {
 
 	assert.Equal(t, forwarder.internalState.Load(), Stopped)
 	assert.Equal(t, forwarder.State(), forwarder.internalState.Load())
+
+	mockConfig.SetWithoutSource("autoscaling.failover.enabled", true)
+	mockConfig.SetWithoutSource("cluster_agent.enabled", true)
+	localDomain := "https://localhost"
+	localAuth := "tokenABCD12345678910109876543210"
+	mockConfig.SetWithoutSource("cluster_agent.url", localDomain)
+	mockConfig.SetWithoutSource("cluster_agent.auth_token", localAuth)
+	forwarder2 := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysPerDomains)))
+	assert.NotNil(t, forwarder2)
+	assert.Equal(t, 1, forwarder2.NumberOfWorkers)
+	require.Len(t, forwarder2.domainForwarders, 2) // 1 remote domain, 1 dca domain
+	domainResolver := resolver.NewSingleDomainResolvers(validKeysPerDomain)
+	domainResolver[localDomain] = resolver.NewLocalDomainResolver(localDomain, localAuth)
+	assert.Equal(t, domainResolver, forwarder2.domainResolvers)
+	assert.Equal(t, forwarder2.internalState.Load(), Stopped)
+	assert.Equal(t, forwarder2.State(), forwarder2.internalState.Load())
 }
 
 func TestFeature(t *testing.T) {

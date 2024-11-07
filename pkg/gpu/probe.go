@@ -52,6 +52,8 @@ type Probe struct {
 	attacher       *uprobes.UprobeAttacher
 	statsGenerator *statsGenerator
 	deps           ProbeDependencies
+	sysCtx         *systemContext
+	procMon        *monitor.ProcessMonitor
 }
 
 // NewProbe starts the GPU monitoring probe, setting up the eBPF program and the uprobes, the
@@ -139,7 +141,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 		return nil, fmt.Errorf("error initializing process monitor: %w", err)
 	}
 
-	attacher, err := uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{})
+	attacher, err := uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{}, procMon)
 	if err != nil {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
@@ -153,9 +155,10 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 		cfg:      cfg,
 		attacher: attacher,
 		deps:     deps,
+		procMon:  procMon,
 	}
 
-	sysCtx, err := getSystemContext(deps.NvmlLib)
+	p.sysCtx, err = getSystemContext(deps.NvmlLib, cfg.Config.ProcRoot)
 	if err != nil {
 		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
@@ -166,7 +169,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 	}
 
 	p.startEventConsumer()
-	p.statsGenerator = newStatsGenerator(sysCtx, now, p.consumer.streamHandlers)
+	p.statsGenerator = newStatsGenerator(p.sysCtx, now, p.consumer.streamHandlers)
 
 	if err := mgr.InitWithOptions(buf, &opts); err != nil {
 		return nil, fmt.Errorf("failed to init manager: %w", err)
@@ -185,6 +188,10 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDep
 
 // Close stops the probe
 func (p *Probe) Close() {
+	if p.procMon != nil {
+		p.procMon.Stop()
+	}
+
 	if p.attacher != nil {
 		p.attacher.Stop()
 	}
@@ -225,6 +232,6 @@ func (p *Probe) startEventConsumer() {
 		},
 	}
 	p.mgr.RingBuffers = append(p.mgr.RingBuffers, rb)
-	p.consumer = newCudaEventConsumer(handler, p.cfg)
+	p.consumer = newCudaEventConsumer(p.sysCtx, handler, p.cfg)
 	p.consumer.Start()
 }

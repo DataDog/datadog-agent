@@ -322,7 +322,7 @@ Package systemprobe is the metadata provider for system-probe process
 
 ## [comp/ndmtmp](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/ndmtmp) (Component Bundle)
 
-*Datadog Team*: network-device-monitoring
+*Datadog Team*: ndm-core
 
 Package ndmtmp implements the "ndmtmp" bundle, which exposes the default
 sender.Sender and the event platform forwarder. This is a temporary module
@@ -334,7 +334,7 @@ Package forwarder exposes the event platform forwarder for netflow.
 
 ## [comp/netflow](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/netflow) (Component Bundle)
 
-*Datadog Team*: network-device-monitoring
+*Datadog Team*: ndm-integrations
 
 Package netflow implements the "netflow" bundle, which listens for netflow
 packets, processes them, and forwards relevant data to the backend.
@@ -482,7 +482,7 @@ Package rctelemetryreporter provides a component that sends RC-specific metrics 
 
 ## [comp/snmptraps](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps) (Component Bundle)
 
-*Datadog Team*: network-device-monitoring
+*Datadog Team*: ndm-core
 
 Package snmptraps implements the a server that listens for SNMP trap data
 and sends it to the backend.
@@ -602,7 +602,7 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 
-*Datadog Team*: network-device-monitoring
+*Datadog Team*: ndm-integrations
 
 Package rdnsquerier provides the reverse DNS querier component.
 
@@ -614,6 +614,6 @@ Package compression provides a compression implementation based on the configura
 
 ### [comp/snmpscan](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmpscan)
 
-*Datadog Team*: network-device-monitoring
+*Datadog Team*: ndm-core
 
 Package snmpscan is a light component that can be used to perform a scan or a walk of a particular device

@@ -187,6 +187,19 @@
       "type": "object",
       "description": "CGroupContextSerializer serializes a cgroup context to JSON"
     },
+    "ConnectEvent": {
+      "properties": {
+        "addr": {
+          "$ref": "#/$defs/IPPortFamily"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "addr"
+      ],
+      "description": "ConnectEventSerializer serializes a connect event to JSON"
+    },
     "ContainerContext": {
       "properties": {
         "id": {
@@ -1730,6 +1743,9 @@
     },
     "bind": {
       "$ref": "#/$defs/BindEvent"
+    },
+    "connect": {
+      "$ref": "#/$defs/ConnectEvent"
     },
     "mount": {
       "$ref": "#/$defs/MountEvent"

@@ -80,12 +80,12 @@ func TestGroupByConnection(t *testing.T) {
 
 	// Connection 1
 	// Assert that (key1, val1) and (key2, val2) were grouped together
-	connection1 := network.ConnectionStats{
+	connection1 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 		Source: util.AddressFromString("1.1.1.1"),
 		Dest:   util.AddressFromString("2.2.2.2"),
 		SPort:  60000,
 		DPort:  80,
-	}
+	}}
 	connectionData1 := byConnection.Find(connection1)
 	assert.NotNil(t, connectionData1)
 	assert.Len(t, connectionData1.Data, 2)
@@ -94,12 +94,12 @@ func TestGroupByConnection(t *testing.T) {
 
 	// Connection 2
 	// Assert that (key3, val3) and (key4, val4) were grouped together
-	connection2 := network.ConnectionStats{
+	connection2 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 		Source: util.AddressFromString("3.3.3.3"),
 		Dest:   util.AddressFromString("4.4.4.4"),
 		SPort:  60000,
 		DPort:  80,
-	}
+	}}
 	connectionData2 := byConnection.Find(connection2)
 	assert.NotNil(t, connectionData2)
 	assert.Len(t, connectionData1.Data, 2)

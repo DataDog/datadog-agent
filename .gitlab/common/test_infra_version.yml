@@ -4,4 +4,4 @@ variables:
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
   # Make sure to update test-infra-definitions version in go.mod as well
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: f089ef2327de
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0a48ed729822

@@ -39,7 +39,9 @@ import (
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -124,6 +126,11 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				// Provide eventplatformimpl module
 				eventplatformreceiverimpl.Module(),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+
+				// Provide rdnsquerier module
+				rdnsquerierfx.Module(),
+
+				// Provide npcollector module
 				npcollectorimpl.Module(),
 				// Provide the corresponding workloadmeta Params to configure the catalog
 				wmcatalog.GetCatalog(),
@@ -149,6 +156,13 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 					return tagger.NewTaggerParams()
 				}),
 				processComponent.Bundle(),
+				// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
+				// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
+				// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
+				// we can include the tagger as part of the workloadmeta component.
+				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
+					proccontainers.InitSharedContainerProvider(wmeta, tagger)
+				}),
 			)
 		},
 		SilenceUsage: true,

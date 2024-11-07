@@ -106,6 +106,7 @@ func GetOTelAttrVal(attrs pcommon.Map, normalize bool, keys ...string) string {
 		attrval, exists := attrs.Get(key)
 		if exists {
 			val = attrval.AsString()
+			break
 		}
 	}
 

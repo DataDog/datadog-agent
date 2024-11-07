@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -83,7 +82,7 @@ func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender se
 			status = servicecheck.ServiceCheckCritical
 		}
 
-		tags, err := tagger.Tag(types.NewEntityID(types.ContainerID, ev.ContainerID), types.HighCardinality)
+		tags, err := d.tagger.Tag(types.NewEntityID(types.ContainerID, ev.ContainerID), types.HighCardinality)
 		if err != nil {
 			log.Debugf("no tags for %s: %s", ev.ContainerID, err)
 			tags = []string{}
