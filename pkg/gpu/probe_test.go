@@ -12,51 +12,66 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 )
 
-func TestProbeCanLoad(t *testing.T) {
+type probeTestSuite struct {
+	suite.Suite
+}
+
+func TestProbe(t *testing.T) {
 	if err := config.CheckGPUSupported(); err != nil {
 		t.Skipf("minimum kernel version not met, %v", err)
 	}
 
-	cfg := config.NewConfig()
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.CORE}, "", func(t *testing.T) {
+		suite.Run(t, new(probeTestSuite))
+	})
+}
+
+func (s *probeTestSuite) getProbe() *Probe {
+	t := s.T()
+
+	cfg := config.New()
+
+	// Avoid waiting for the initial sync to finish in tests, we don't need it
 	cfg.InitialProcessSync = false
-	nvmlMock := testutil.GetBasicNvmlMock()
-	probe, err := NewProbe(cfg, ProbeDependencies{NvmlLib: nvmlMock})
+
+	deps := ProbeDependencies{
+		NvmlLib: testutil.GetBasicNvmlMock(),
+	}
+	probe, err := NewProbe(cfg, deps)
 	require.NoError(t, err)
 	require.NotNil(t, probe)
 	t.Cleanup(probe.Close)
 
+	return probe
+}
+
+func (s *probeTestSuite) TestCanLoad() {
+	t := s.T()
+
+	probe := s.getProbe()
 	data, err := probe.GetAndFlush()
 	require.NoError(t, err)
 	require.NotNil(t, data)
 }
 
-func TestProbeCanReceiveEvents(t *testing.T) {
-	if err := config.CheckGPUSupported(); err != nil {
-		t.Skipf("minimum kernel version not met, %v", err)
-	}
+func (s *probeTestSuite) TestCanReceiveEvents() {
+	t := s.T()
 
 	procMon := monitor.GetProcessMonitor()
 	require.NotNil(t, procMon)
 	require.NoError(t, procMon.Initialize(false))
 	t.Cleanup(procMon.Stop)
 
-	cfg := config.NewConfig()
-	cfg.InitialProcessSync = false
-	cfg.BPFDebug = true
-
-	nvmlMock := testutil.GetBasicNvmlMock()
-
-	probe, err := NewProbe(cfg, ProbeDependencies{NvmlLib: nvmlMock})
-	require.NoError(t, err)
-	require.NotNil(t, probe)
-	t.Cleanup(probe.Close)
+	probe := s.getProbe()
 
 	cmd, err := testutil.RunSample(t, testutil.CudaSample)
 	require.NoError(t, err)
@@ -91,26 +106,15 @@ func TestProbeCanReceiveEvents(t *testing.T) {
 	require.Greater(t, alloc.endKtime, alloc.startKtime)
 }
 
-func TestProbeCanGenerateStats(t *testing.T) {
-	if err := config.CheckGPUSupported(); err != nil {
-		t.Skipf("minimum kernel version not met, %v", err)
-	}
+func (s *probeTestSuite) TestCanGenerateStats() {
+	t := s.T()
 
 	procMon := monitor.GetProcessMonitor()
 	require.NotNil(t, procMon)
 	require.NoError(t, procMon.Initialize(false))
 	t.Cleanup(procMon.Stop)
 
-	cfg := config.NewConfig()
-	cfg.InitialProcessSync = false
-	cfg.BPFDebug = true
-
-	nvmlMock := testutil.GetBasicNvmlMock()
-
-	probe, err := NewProbe(cfg, ProbeDependencies{NvmlLib: nvmlMock})
-	require.NoError(t, err)
-	require.NotNil(t, probe)
-	t.Cleanup(probe.Close)
+	probe := s.getProbe()
 
 	cmd, err := testutil.RunSample(t, testutil.CudaSample)
 	require.NoError(t, err)
