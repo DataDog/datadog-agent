@@ -270,7 +270,12 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	}
 
 	if p.sysprobeClient != nil && p.sysProbeConfig.ProcessModuleEnabled {
-		mergeProcWithSysprobeStats(p.lastPIDs, procs, p.sysprobeClient)
+		pStats, err := net.GetProcStats(p.sysprobeClient, p.lastPIDs)
+		if err == nil {
+			mergeProcWithSysprobeStats(procs, pStats)
+		} else {
+			log.Debugf("cannot do GetProcStats from system-probe for process check: %s", err)
+		}
 	}
 
 	var containers []*model.Container
@@ -660,20 +665,15 @@ func skipProcess(
 }
 
 // mergeProcWithSysprobeStats takes a process by PID map and fill the stats from system probe into the processes in the map
-func mergeProcWithSysprobeStats(pids []int32, procs map[int32]*procutil.Process, client *http.Client) {
-	pStats, err := net.GetProcStats(client, pids)
-	if err == nil {
-		for pid, proc := range procs {
-			if s, ok := pStats.StatsByPID[pid]; ok {
-				proc.Stats.OpenFdCount = s.OpenFDCount
-				proc.Stats.IOStat.ReadCount = s.ReadCount
-				proc.Stats.IOStat.WriteCount = s.WriteCount
-				proc.Stats.IOStat.ReadBytes = s.ReadBytes
-				proc.Stats.IOStat.WriteBytes = s.WriteBytes
-			}
+func mergeProcWithSysprobeStats(procs map[int32]*procutil.Process, pStats *model.ProcStatsWithPermByPID) {
+	for pid, proc := range procs {
+		if s, ok := pStats.StatsByPID[pid]; ok {
+			proc.Stats.OpenFdCount = s.OpenFDCount
+			proc.Stats.IOStat.ReadCount = s.ReadCount
+			proc.Stats.IOStat.WriteCount = s.WriteCount
+			proc.Stats.IOStat.ReadBytes = s.ReadBytes
+			proc.Stats.IOStat.WriteBytes = s.WriteBytes
 		}
-	} else {
-		log.Debugf("cannot do GetProcStats from system-probe for process check: %s", err)
 	}
 }
 
