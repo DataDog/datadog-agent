@@ -21,15 +21,15 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 )
 
-type myECSSuite6 struct {
+type myECSSuite struct {
 	e2e.BaseSuite[environments.ECS]
 }
 
 func TestMyECSSuite(t *testing.T) {
-	e2e.Run(t, &myECSSuite6{}, e2e.WithProvisioner(ecs.Provisioner(ecs.WithECSOptions(tifEcs.WithLinuxNodeGroup()))))
+	e2e.Run(t, &myECSSuite{}, e2e.WithProvisioner(ecs.Provisioner(ecs.WithECSOptions(tifEcs.WithLinuxNodeGroup()))))
 }
 
-func (v *myECSSuite6) TestECS() {
+func (v *myECSSuite) TestECS() {
 	ctx := context.Background()
 
 	tasks, err := v.Env().ECSCluster.ECSClient.ListTasks(ctx, &awsecs.ListTasksInput{
