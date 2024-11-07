@@ -34,7 +34,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &CliParams{
 		GlobalParams:   globalParams,
 		CoreConfigPath: defaultCoreConfigPath, // Set default path
-		ConfigSource:   sources.GetInstance(),
+		ConfigSource:   sources.NewConfigSources(),
 	}
 
 	cmd := &cobra.Command{
