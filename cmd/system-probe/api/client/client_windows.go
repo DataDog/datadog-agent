@@ -8,14 +8,36 @@
 package client
 
 import (
-	"net/http"
+	"context"
+	"fmt"
+	"net"
+	"time"
 
-	processNet "github.com/DataDog/datadog-agent/pkg/process/net"
+	"github.com/Microsoft/go-winio"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// newSystemProbeClient returns a http client configured to talk to the system-probe
-// This is a simple wrapper around process_net.NewSystemProbeHttpClient because
-// Linux is unable to import pkg/process/net due to size restrictions.
-func newSystemProbeClient(_ string) *http.Client {
-	return processNet.NewSystemProbeClient()
+const (
+	idleConnTimeout = 5 * time.Second
+)
+
+func DialContextFunc(pipeName string) func(context.Context, string, string) (net.Conn, error) {
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		// Go clients do not immediately close (named pipe) connections when done,
+		// they keep connections idle for a while.  Make sure the idle time
+		// is not too high and the timeout is generous enough for pending connections.
+		var timeout = time.Duration(30 * time.Second)
+
+		namedPipe, err := winio.DialPipe(pipeName, &timeout)
+		if err != nil {
+			// This important error may not get reported upstream, making connection failures
+			// very difficult to diagnose. Explicitly log the error here too for diagnostics.
+			var namedPipeErr = fmt.Errorf("error connecting to named pipe %s : %s", pipeName, err)
+			log.Errorf("%s", namedPipeErr.Error())
+			return nil, namedPipeErr
+		}
+
+		return namedPipe, nil
+	}
 }

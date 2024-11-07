@@ -3,23 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build !(process && linux)
+//go:build !linux
 
 package sysprobe
 
 import "errors"
 
-// GetSystemProbeConntrackCached is a stub designed to prevent builds without the process agent from importing pkg/process/net
+// GetSystemProbeConntrackCached is a stub for unsupported OSes
 func GetSystemProbeConntrackCached(_ string) ([]byte, error) {
 	return nil, errors.New("GetSystemProbeConntrackCached is not supported")
 }
 
-// GetSystemProbeConntrackHost is a stub designed to prevent builds without the process agent from importing pkg/process/net
+// GetSystemProbeConntrackHost is a stub for unsupported OSes
 func GetSystemProbeConntrackHost(_ string) ([]byte, error) {
 	return nil, errors.New("GetSystemProbeConntrackHost is not supported")
 }
 
-// GetSystemProbeBTFLoaderInfo is a stub designed to prevent builds without the process agent from importing pkg/process/net
+// GetSystemProbeBTFLoaderInfo is a stub for unsupported OSes
 func GetSystemProbeBTFLoaderInfo(_ string) ([]byte, error) {
 	return nil, errors.New("GetSystemProbeBTFLoaderInfo is not supported")
 }

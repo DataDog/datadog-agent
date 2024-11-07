@@ -1,11 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2024-present Datadog, Inc.
 
-//go:build linux
-
-package net
+package server
 
 import (
 	"net"
@@ -25,7 +23,7 @@ func testSocketExistsNewUDSListener(t *testing.T, socketPath string) {
 	assert.NoError(t, err)
 
 	// Create a new socket using UDSListener
-	l, err := NewSystemProbeListener(socketPath)
+	l, err := NewListener(socketPath)
 	require.NoError(t, err)
 
 	l.Stop()
@@ -38,12 +36,12 @@ func testSocketExistsAsRegularFileNewUDSListener(t *testing.T, socketPath string
 	defer f.Close()
 
 	// Create a new socket using UDSListener
-	_, err = NewSystemProbeListener(socketPath)
+	_, err = NewListener(socketPath)
 	require.Error(t, err)
 }
 
 func testWorkingNewUDSListener(t *testing.T, socketPath string) {
-	s, err := NewSystemProbeListener(socketPath)
+	s, err := NewListener(socketPath)
 	require.NoError(t, err)
 	defer s.Stop()
 

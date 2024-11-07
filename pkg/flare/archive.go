@@ -23,6 +23,7 @@ import (
 
 	"github.com/fatih/color"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -259,16 +260,20 @@ func getSystemProbeStats() ([]byte, error) {
 }
 
 func getSystemProbeTelemetry() ([]byte, error) {
-	return sysprobe.GetSystemProbeTelemetry(getSystemProbeSocketPath())
+	sysprobeclient := client.Get(getSystemProbeSocketPath())
+	return sysprobe.GetSystemProbeTelemetry(sysprobeclient)
 }
 func getSystemProbeConntrackCached() ([]byte, error) {
-	return sysprobe.GetSystemProbeConntrackCached(getSystemProbeSocketPath())
+	sysprobeclient := client.Get(getSystemProbeSocketPath())
+	return sysprobe.GetSystemProbeConntrackCached(sysprobeclient)
 }
 func getSystemProbeConntrackHost() ([]byte, error) {
-	return sysprobe.GetSystemProbeConntrackHost(getSystemProbeSocketPath())
+	sysprobeclient := client.Get(getSystemProbeSocketPath())
+	return sysprobe.GetSystemProbeConntrackHost(sysprobeclient)
 }
 func getSystemProbeBTFLoaderInfo() ([]byte, error) {
-	return sysprobe.GetSystemProbeBTFLoaderInfo(getSystemProbeSocketPath())
+	sysprobeclient := client.Get(getSystemProbeSocketPath())
+	return sysprobe.GetSystemProbeBTFLoaderInfo(sysprobeclient)
 }
 
 // getProcessAgentFullConfig fetches process-agent runtime config as YAML and returns it to be added to  process_agent_runtime_config_dump.yaml

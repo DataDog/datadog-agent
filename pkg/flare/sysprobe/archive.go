@@ -8,13 +8,36 @@
 // Package sysprobe contains flare logic that only imports pkg/process/net when the process build tag is included
 package sysprobe
 
-import "github.com/DataDog/datadog-agent/pkg/process/net"
+import (
+	"fmt"
+	"io"
+	"net/http"
+
+	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
+)
 
 // GetSystemProbeTelemetry queries the telemetry endpoint from system-probe.
-func GetSystemProbeTelemetry(socketPath string) ([]byte, error) {
-	probeUtil, err := net.GetRemoteSystemProbeUtil(socketPath)
+func GetSystemProbeTelemetry(client *http.Client) ([]byte, error) {
+	url := sysprobeclient.URL("", "/telemetry")
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	return probeUtil.GetTelemetry()
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(`GetTelemetry got non-success status code: url: %s, status_code: %d, response: "%s"`, req.URL, resp.StatusCode, data)
+	}
+
+	return data, nil
 }
