@@ -22,8 +22,10 @@ const (
 	idleConnTimeout = 5 * time.Second
 )
 
+// DialContextFunc returns a function to be used in http.Transport.DialContext for connecting to system-probe.
+// The result will be OS-specific.
 func DialContextFunc(pipeName string) func(context.Context, string, string) (net.Conn, error) {
-	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+	return func(_ context.Context, _, _ string) (net.Conn, error) {
 		// Go clients do not immediately close (named pipe) connections when done,
 		// they keep connections idle for a while.  Make sure the idle time
 		// is not too high and the timeout is generous enough for pending connections.
