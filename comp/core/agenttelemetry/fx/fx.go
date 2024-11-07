@@ -7,11 +7,17 @@
 package fx
 
 import (
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryimpl "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Module defines the fx options for this component
 func Module() fxutil.Module {
-	return agenttelemetryimpl.Module()
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(
+			agenttelemetryimpl.NewComponent,
+		),
+		fxutil.ProvideOptional[agenttelemetry.Component](),
+	)
 }
