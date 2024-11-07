@@ -10,29 +10,34 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/ecs"
 
 	tifEcs "github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
 	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
+	"github.com/aws/aws-sdk-go/aws"
 )
 
-type myECSSuite struct {
+type myECSSuite6 struct {
 	e2e.BaseSuite[environments.ECS]
 }
 
 func TestMyECSSuite(t *testing.T) {
-	e2e.Run(t, &myECSSuite{}, e2e.WithProvisioner(ecs.Provisioner(ecs.WithECSOptions(tifEcs.WithLinuxNodeGroup()))))
+	e2e.Run(t, &myECSSuite6{}, e2e.WithProvisioner(ecs.Provisioner(ecs.WithECSOptions(tifEcs.WithLinuxNodeGroup()))))
 }
 
-func (v *myECSSuite) TestECS() {
+func (v *myECSSuite6) TestECS() {
 	ctx := context.Background()
-	services, err := v.Env().ECSCluster.ECSClient.ListServices(ctx, &awsecs.ListServicesInput{})
-	v.Require().NoError(err)
-	for _, service := range services.ServiceArns {
-		fmt.Println("Service:", service)
-	}
-	fmt.Println("Services:", services)
 
+	tasks, err := v.Env().ECSCluster.ECSClient.ListTasks(ctx, &awsecs.ListTasksInput{
+		Cluster: aws.String(v.Env().ECSCluster.ClusterName),
+	})
+	require.NoError(v.T(), err)
+	out, err := v.Env().ECSCluster.ECSClient.ExecCommand(tasks.TaskArns[0], "datadog-agent", "ls -l")
+	require.NoError(v.T(), err)
+	fmt.Println("cmd output:", out, "end of cmd output")
+	require.NotEmpty(v.T(), out)
 }
