@@ -67,12 +67,12 @@ const (
 
 var (
 	defaultRegistriesStaging = []string{
+		"install.datad0g.com",
 		"docker.io/datadog",
 	}
 	defaultRegistriesProd = []string{
+		"install.datadoghq.com",
 		"gcr.io/datadoghq",
-		"public.ecr.aws/datadog",
-		"docker.io/datadog",
 	}
 )
 
@@ -172,12 +172,17 @@ type urlWithKeychain struct {
 
 // getRefAndKeychains returns the references and their keychains to try in order to download an OCI at the given URL
 func getRefAndKeychains(mainEnv *env.Env, url string) []urlWithKeychain {
-	refAndKeychains := []urlWithKeychain{getRefAndKeychain(mainEnv, url)}
+	mainRefAndKeyChain := getRefAndKeychain(mainEnv, url)
+	refAndKeychains := []urlWithKeychain{mainRefAndKeyChain}
+	if mainRefAndKeyChain.ref != url || mainRefAndKeyChain.keychain != authn.DefaultKeychain {
+		// Override: we don't need to try the default registries
+		return refAndKeychains
+	}
+
 	defaultRegistries := defaultRegistriesProd
 	if mainEnv.Site == "datad0g.com" {
 		defaultRegistries = defaultRegistriesStaging
 	}
-
 	for _, additionalDefaultRegistry := range defaultRegistries {
 		refAndKeychain := getRefAndKeychain(&env.Env{RegistryOverride: additionalDefaultRegistry}, url)
 		// Deduplicate
@@ -208,7 +213,8 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 		}
 	}
 	ref := url
-	if registryOverride != "" {
+	// public.ecr.aws/datadog is ignored for now as there are issues with it
+	if registryOverride != "" && registryOverride != "public.ecr.aws/datadog" {
 		if !strings.HasSuffix(registryOverride, "/") {
 			registryOverride += "/"
 		}
@@ -349,9 +355,9 @@ func (d *DownloadedPackage) WriteOCILayout(dir string) error {
 func PackageURL(env *env.Env, pkg string, version string) string {
 	switch env.Site {
 	case "datad0g.com":
-		return fmt.Sprintf("oci://docker.io/datadog/%s-package-dev:%s", strings.TrimPrefix(pkg, "datadog-"), version)
+		return fmt.Sprintf("oci://install.datad0g.com/%s-package-dev:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 	default:
-		return fmt.Sprintf("oci://gcr.io/datadoghq/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
+		return fmt.Sprintf("oci://install.datadoghq.com/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 	}
 }
 
