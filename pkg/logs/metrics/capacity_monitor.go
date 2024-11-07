@@ -64,6 +64,6 @@ func (i *CapacityMonitor) sample() {
 }
 
 func (i *CapacityMonitor) reportIfNeeded() {
-	TlmCapacity.Set(float64(i.avg.Value()), i.name, i.instance)
-	TlmCapacityBytes.Set(float64(i.avgBytes.Value()), i.name, i.instance)
+	TlmUtilizationItems.Set(float64(i.avg.Value()), i.name, i.instance)
+	TlmUtilizationBytes.Set(float64(i.avgBytes.Value()), i.name, i.instance)
 }

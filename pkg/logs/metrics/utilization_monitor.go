@@ -65,7 +65,7 @@ func (u *TelemetryUtilizationMonitor) Stop() {
 	select {
 	case <-u.ticker.C:
 		u.avg.Add(float64(u.inUse) / float64(u.idle+u.inUse))
-		TlmUtilization.Set(u.avg.Value(), u.name, u.instance)
+		TlmUtilizationRatio.Set(u.avg.Value(), u.name, u.instance)
 		u.idle = 0
 		u.inUse = 0
 	default:

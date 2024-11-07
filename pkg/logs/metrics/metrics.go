@@ -82,12 +82,15 @@ var (
 	// TlmLogsDiscardedFromSDSBuffer how many messages were dropped when waiting for an SDS configuration because the buffer is full
 	TlmLogsDiscardedFromSDSBuffer = telemetry.NewCounter("logs", "sds__dropped_from_buffer", nil, "Count of messages dropped from the buffer while waiting for an SDS configuration")
 
-	// TlmUtilization is the utilization of a component
-	TlmUtilization = telemetry.NewGauge("logs_component", "utilization", []string{"name", "instance"}, "Gauge of the utilization of a component")
-	// TlmCapacity is the capacity of a component by number of elements
-	TlmCapacity = telemetry.NewGauge("logs_component", "capacity", []string{"name", "instance"}, "Gauge of the capacity of a component by number of elements")
-	// TlmCapacityBytes is the capacity of a component by number of bytes
-	TlmCapacityBytes = telemetry.NewGauge("logs_component", "capacity_bytes", []string{"name", "instance"}, "Gauge of the capacity of a component by number of bytes")
+	// TlmUtilizationRatio is the utilization ratio of a component.
+	// Utilization ratio is calculated as the ratio of time spent in use to the total time.
+	// This metric is internally sampled and exposed as an ewma in order to produce a useable value.
+	TlmUtilizationRatio = telemetry.NewGauge("logs_component_utilization", "ratio", []string{"name", "instance"}, "Gauge of the utilization ratio of a component")
+	// TlmUtilizationItems is the capacity of a component by number of elements
+	// Both the number of items and the number of bytes are aggregated and exposed as a ewma.
+	TlmUtilizationItems = telemetry.NewGauge("logs_component_utilization", "items", []string{"name", "instance"}, "Gauge of the number of items currently held in a component and it's bufferes")
+	// TlmUtilizationBytes is the capacity of a component by number of bytes
+	TlmUtilizationBytes = telemetry.NewGauge("logs_component_utilization", "bytes", []string{"name", "instance"}, "Gauge of the number of bytes currently held in a component and it's bufferes")
 )
 
 func init() {
