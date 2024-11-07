@@ -191,10 +191,10 @@ def validate(_: Context, base_dir='.'):
         # Verify values
         module = modules[str(path)]
         for target in module.targets:
-            assert (base_dir / target).is_dir(), f"Configuration has an unknown target: {target}"
+            assert (base_dir / module.path / target).is_dir(), f"Configuration has an unknown target: {target}"
 
         for target in module.lint_targets:
-            assert (base_dir / target).is_dir(), f"Configuration has an unknown lint_target: {target}"
+            assert (base_dir / module.path / target).is_dir(), f"Configuration has an unknown lint_target: {target}"
 
         assert module.condition in GoModule.CONDITIONS, f"Configuration has an unknown condition: {module.condition}"
 
