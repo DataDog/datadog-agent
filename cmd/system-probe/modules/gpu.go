@@ -33,7 +33,7 @@ var gpuMonitoringConfigNamespaces = []string{gpuconfig.GPUNS}
 // Note: In the future we should have a better way to handle dependencies between modules
 var processEventConsumer *consumers.ProcessConsumer
 
-const processConsumerId = "gpu"
+const processConsumerID = "gpu"
 const processConsumerChanSize = 100
 
 var processConsumerEventTypes = []consumers.ProcessConsumerEventTypes{consumers.ExecEventType, consumers.ExitEventType}
@@ -115,7 +115,7 @@ func (t *GPUMonitoringModule) Close() {
 // createGPUProcessEventConsumer creates the process event consumer for the GPU module. Should be called from the event monitor module
 func createGPUProcessEventConsumer(evm *eventmonitor.EventMonitor) error {
 	var err error
-	processEventConsumer, err = consumers.NewProcessConsumer(processConsumerId, processConsumerChanSize, processConsumerEventTypes, evm)
+	processEventConsumer, err = consumers.NewProcessConsumer(processConsumerID, processConsumerChanSize, processConsumerEventTypes, evm)
 	if err != nil {
 		return err
 	}
