@@ -209,3 +209,58 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	require.Greater(t, pidStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
 }
+
+func TestProbeMultiGPUSupport(t *testing.T) {
+	if err := config.CheckGPUSupported(); err != nil {
+		t.Skipf("minimum kernel version not met, %v", err)
+	}
+
+	procMon := monitor.GetProcessMonitor()
+	require.NotNil(t, procMon)
+	require.NoError(t, procMon.Initialize(false))
+	t.Cleanup(procMon.Stop)
+
+	cfg := config.NewConfig()
+	cfg.InitialProcessSync = false
+	cfg.BPFDebug = true
+
+	nvmlMock := testutil.GetBasicNvmlMock()
+
+	probe, err := NewProbe(cfg, ProbeDependencies{NvmlLib: nvmlMock})
+	require.NoError(t, err)
+	require.NotNil(t, probe)
+	t.Cleanup(probe.Close)
+
+	sampleArgs := testutil.SampleArgs{
+		WaitTimeSec:           5,
+		CudaVisibleDevicesEnv: "1,2",
+		DeviceToSelect:        1,
+	}
+	// Visible devices 1,2 -> selects 1 in that array -> global device index = 2
+	selectedGPU := testutil.GPUUUIDs[2]
+
+	cmd, err := testutil.RunSampleWithArgs(t, testutil.CudaSample, sampleArgs)
+	require.NoError(t, err)
+
+	utils.WaitForProgramsToBeTraced(t, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
+
+	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
+	// so that we can time out correctly
+	require.Eventually(t, func() bool {
+		return !utils.IsProgramTraced(gpuAttacherName, cmd.Process.Pid)
+	}, 60*time.Second, 500*time.Millisecond, "process not stopped")
+	require.NoError(t, err)
+
+	stats, err := probe.GetAndFlush()
+	require.NoError(t, err)
+	require.NotNil(t, stats)
+	require.NotEmpty(t, stats.ProcessStats)
+	require.Contains(t, stats.ProcessStats, uint32(cmd.Process.Pid))
+
+	pidStats := stats.ProcessStats[uint32(cmd.Process.Pid)]
+	require.Contains(t, pidStats.StatsPerDevice, selectedGPU)
+	devStats := pidStats.StatsPerDevice[selectedGPU]
+
+	require.Greater(t, devStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
+	require.Equal(t, devStats.Memory.MaxBytes, uint64(110))
+}
