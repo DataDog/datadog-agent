@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
@@ -445,7 +444,6 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFromExistingExperiment() {
 }
 
 func (s *upgradeScenarioSuite) TestUpgradeConfigFailure() {
-	flake.Mark(s.T()) // TODO(baptiste): Remove & fix
 	localCDN := host.NewLocalCDN(s.host)
 	localCDN.AddLayer("config", "\"log_level\": \"debug\"")
 	s.RunInstallScript(
