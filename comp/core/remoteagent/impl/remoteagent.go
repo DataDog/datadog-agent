@@ -21,10 +21,10 @@ import (
 	remoteagentStatus "github.com/DataDog/datadog-agent/comp/core/remoteagent/status"
 	util "github.com/DataDog/datadog-agent/comp/core/remoteagent/util"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -32,7 +32,7 @@ import (
 // Requires defines the dependencies for the remoteagent component
 type dependencies struct {
 	Config    config.Component
-	Lifecycle fx.Lifecycle
+	Lifecycle compdef.Lifecycle
 }
 
 // Provides defines the output of the remoteagent component
@@ -61,7 +61,7 @@ func newRemoteAgent(deps dependencies) remoteagent.Component {
 		shutdownChan: shutdownChan,
 	}
 
-	deps.Lifecycle.Append(fx.Hook{
+	deps.Lifecycle.Append(compdef.Hook{
 		OnStart: func(context.Context) error {
 			go comp.start()
 			return nil
@@ -69,7 +69,8 @@ func newRemoteAgent(deps dependencies) remoteagent.Component {
 		OnStop: func(context.Context) error {
 			shutdownChan <- struct{}{}
 			return nil
-		}})
+		},
+	})
 
 	return comp
 }
