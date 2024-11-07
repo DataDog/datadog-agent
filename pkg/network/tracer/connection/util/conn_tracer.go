@@ -147,8 +147,8 @@ func AddBoolConst(options *manager.Options, name string, flag bool) {
 	)
 }
 
-// ConnStatsToTuple converts a ConnectionStats to a ConnTuple
-func ConnStatsToTuple(c *network.ConnectionStats, tup *netebpf.ConnTuple) {
+// ConnTupleToEBPFTuple converts a ConnectionTuple to an eBPF ConnTuple
+func ConnTupleToEBPFTuple(c *network.ConnectionTuple, tup *netebpf.ConnTuple) {
 	tup.Sport = c.SPort
 	tup.Dport = c.DPort
 	tup.Netns = c.NetNS

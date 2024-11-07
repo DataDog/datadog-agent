@@ -42,7 +42,7 @@ func (s *StoreTestSuite) SetupTest() {
 }
 
 func (s *StoreTestSuite) TestIngest() {
-	entityID := types.NewEntityID("", "test")
+	entityID := types.NewEntityID(types.ContainerID, "test")
 
 	s.tagstore.ProcessTagInfo([]*types.TagInfo{
 		{
@@ -67,7 +67,7 @@ func (s *StoreTestSuite) TestIngest() {
 }
 
 func (s *StoreTestSuite) TestLookup() {
-	entityID := types.NewEntityID("", "test")
+	entityID := types.NewEntityID(types.ContainerID, "test")
 	s.tagstore.ProcessTagInfo([]*types.TagInfo{
 		{
 			Source:       "source1",
@@ -98,7 +98,6 @@ func (s *StoreTestSuite) TestLookup() {
 
 func (s *StoreTestSuite) TestLookupHashedWithEntityStr() {
 	entityID := types.NewEntityID(types.ContainerID, "test")
-	entityIDStr := entityID.String()
 	s.tagstore.ProcessTagInfo([]*types.TagInfo{
 		{
 			Source:       "source1",
@@ -118,9 +117,9 @@ func (s *StoreTestSuite) TestLookupHashedWithEntityStr() {
 		},
 	})
 
-	tagsLow := s.tagstore.LookupHashedWithEntityStr(entityIDStr, types.LowCardinality)
-	tagsOrch := s.tagstore.LookupHashedWithEntityStr(entityIDStr, types.OrchestratorCardinality)
-	tagsHigh := s.tagstore.LookupHashedWithEntityStr(entityIDStr, types.HighCardinality)
+	tagsLow := s.tagstore.LookupHashedWithEntityStr(entityID, types.LowCardinality)
+	tagsOrch := s.tagstore.LookupHashedWithEntityStr(entityID, types.OrchestratorCardinality)
+	tagsHigh := s.tagstore.LookupHashedWithEntityStr(entityID, types.HighCardinality)
 
 	assert.ElementsMatch(s.T(), tagsLow.Get(), []string{"low1", "low2"})
 	assert.ElementsMatch(s.T(), tagsOrch.Get(), []string{"low1", "low2", "orchestrator1"})
@@ -128,7 +127,7 @@ func (s *StoreTestSuite) TestLookupHashedWithEntityStr() {
 }
 
 func (s *StoreTestSuite) TestLookupStandard() {
-	entityID := types.NewEntityID("", "test")
+	entityID := types.NewEntityID(types.ContainerID, "test")
 
 	s.tagstore.ProcessTagInfo([]*types.TagInfo{
 		{
@@ -156,14 +155,14 @@ func (s *StoreTestSuite) TestLookupStandard() {
 }
 
 func (s *StoreTestSuite) TestLookupNotPresent() {
-	entityID := types.NewEntityID("", "test")
+	entityID := types.NewEntityID(types.ContainerID, "test")
 	tags := s.tagstore.Lookup(entityID, types.LowCardinality)
 	assert.Nil(s.T(), tags)
 }
 
 func (s *StoreTestSuite) TestPrune__deletedEntities() {
-	entityID1 := types.NewEntityID("", "test1")
-	entityID2 := types.NewEntityID("", "test2")
+	entityID1 := types.NewEntityID(types.ContainerID, "test1")
+	entityID2 := types.NewEntityID(types.ContainerID, "test2")
 
 	s.tagstore.ProcessTagInfo([]*types.TagInfo{
 		// Adds
@@ -240,11 +239,11 @@ func (s *StoreTestSuite) TestPrune__deletedEntities() {
 }
 
 func (s *StoreTestSuite) TestPrune__emptyEntries() {
-	entityID1 := types.NewEntityID("", "test1")
-	entityID2 := types.NewEntityID("", "test2")
-	entityID3 := types.NewEntityID("", "test3")
-	emptyEntityID1 := types.NewEntityID("", "emptyEntity1")
-	emptyEntityID2 := types.NewEntityID("", "emptyEntity2")
+	entityID1 := types.NewEntityID(types.ContainerID, "test1")
+	entityID2 := types.NewEntityID(types.ContainerID, "test2")
+	entityID3 := types.NewEntityID(types.ContainerID, "test3")
+	emptyEntityID1 := types.NewEntityID(types.ContainerID, "emptyEntity1")
+	emptyEntityID2 := types.NewEntityID(types.ContainerID, "emptyEntity2")
 
 	s.tagstore.ProcessTagInfo([]*types.TagInfo{
 		{
@@ -307,8 +306,8 @@ func (s *StoreTestSuite) TestPrune__emptyEntries() {
 }
 
 func (s *StoreTestSuite) TestList() {
-	entityID1 := types.NewEntityID("", "entity-1")
-	entityID2 := types.NewEntityID("", "entity-2")
+	entityID1 := types.NewEntityID(types.ContainerID, "entity-1")
+	entityID2 := types.NewEntityID(types.ContainerID, "entity-2")
 
 	s.tagstore.ProcessTagInfo(
 		[]*types.TagInfo{
@@ -354,7 +353,7 @@ func (s *StoreTestSuite) TestList() {
 }
 
 func (s *StoreTestSuite) TestGetEntity() {
-	entityID1 := types.NewEntityID("", "entity-1")
+	entityID1 := types.NewEntityID(types.ContainerID, "entity-1")
 	_, err := s.tagstore.GetEntity(entityID1)
 	require.Error(s.T(), err)
 
@@ -391,18 +390,18 @@ func TestStoreSuite(t *testing.T) {
 }
 
 func (s *StoreTestSuite) TestGetExpiredTags() {
-	entityIDA := types.NewEntityID("", "entityA")
-	entityIDB := types.NewEntityID("", "entityB")
+	entityIDA := types.NewEntityID(types.ContainerID, "entityA")
+	entityIDB := types.NewEntityID(types.ContainerID, "entityB")
 	s.tagstore.ProcessTagInfo([]*types.TagInfo{
 		{
 			Source:       "source",
-			EntityID:     types.NewEntityID("", "entityA"),
+			EntityID:     entityIDA,
 			HighCardTags: []string{"expired"},
 			ExpiryDate:   s.clock.Now().Add(-10 * time.Second),
 		},
 		{
 			Source:       "source",
-			EntityID:     types.NewEntityID("", "entityB"),
+			EntityID:     entityIDB,
 			HighCardTags: []string{"expiresSoon"},
 			ExpiryDate:   s.clock.Now().Add(10 * time.Second),
 		},
@@ -429,7 +428,7 @@ func (s *StoreTestSuite) TestDuplicateSourceTags() {
 		collectors.CollectorPriorities = originalCollectorPriorities
 	}()
 
-	testEntityID := types.NewEntityID("", "testEntityID")
+	testEntityID := types.NewEntityID(types.ContainerID, "testEntityID")
 
 	// Mock collector priorities
 	collectors.CollectorPriorities = map[string]types.CollectorPriority{

@@ -1128,7 +1128,7 @@ func TestUnmarshal(t *testing.T) {
 	provider, err := otelcol.NewConfigProvider(mapSettings)
 	require.NoError(t, err)
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
+
 	components, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
 	require.NoError(t, err)
 

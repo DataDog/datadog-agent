@@ -21,13 +21,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
 
 type VMFakeintakeSuite struct {
@@ -176,6 +177,8 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 	s.Require().NoError(err)
 
 	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
+	addSpanTags := "peer.hostname:foo,span.kind:producer"
+	expectPeerTag := "peer.hostname:foo"
 
 	// Wait for agent to be live
 	s.T().Log("Waiting for Trace Agent to be live.")
@@ -184,12 +187,12 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
 	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
-	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport, addSpanTags: addSpanTags})
 	defer shutdown()
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testStatsForService(s.T(), c, service, s.Env().FakeIntake)
+		testStatsForService(s.T(), c, service, expectPeerTag, s.Env().FakeIntake)
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
 }

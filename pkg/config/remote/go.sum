@@ -13,8 +13,8 @@ github.com/DataDog/datadog-go/v5 v5.5.0 h1:G5KHeB8pWBNXT4Jtw0zAkhdxEAWSpWH00geHI
 github.com/DataDog/datadog-go/v5 v5.5.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/go-libddwaf/v3 v3.3.0 h1:jS72fuQpFgJZEdEJDmHJCPAgNTEMZoz1EUvimPUOiJ4=
 github.com/DataDog/go-libddwaf/v3 v3.3.0/go.mod h1:Bz/0JkpGf689mzbUjKJeheJINqsyyhM8p9PDuHdK2Ec=
-github.com/DataDog/go-sqllexer v0.0.15 h1:rUUu52dP8EQhJLnUw0MIAxZp0BQx2fOTuMztr3vtHUU=
-github.com/DataDog/go-sqllexer v0.0.15/go.mod h1:KwkYhpFEVIq+BfobkTC1vfqm4gTi65skV/DpDBXtexc=
+github.com/DataDog/go-sqllexer v0.0.16 h1:RoSUMS6MECyB3gTUIdydzXwK5NhEhv6GMJkS7ptsgRA=
+github.com/DataDog/go-sqllexer v0.0.16/go.mod h1:KwkYhpFEVIq+BfobkTC1vfqm4gTi65skV/DpDBXtexc=
 github.com/DataDog/go-tuf v1.1.0-0.5.2 h1:4CagiIekonLSfL8GMHRHcHudo1fQnxELS9g4tiAupQ4=
 github.com/DataDog/go-tuf v1.1.0-0.5.2/go.mod h1:zBcq6f654iVqmkk8n2Cx81E1JnNTMOAx1UEO/wZR+P0=
 github.com/DataDog/gostackparse v0.7.0 h1:i7dLkXHvYzHV308hnkvVGDL3BR4FWl7IsXNPz/IGQh4=

@@ -26,10 +26,15 @@ func (m *EventMonitor) getListener() (net.Listener, error) {
 
 func (m *EventMonitor) init() error {
 	// force socket cleanup of previous socket not cleanup
-	os.Remove(m.Config.SocketPath)
+	if err := os.Remove(m.Config.SocketPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
 	return nil
 }
 
-func (m *EventMonitor) cleanup() {
-	os.Remove(m.Config.SocketPath)
+func (m *EventMonitor) cleanup() error {
+	if err := os.Remove(m.Config.SocketPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }

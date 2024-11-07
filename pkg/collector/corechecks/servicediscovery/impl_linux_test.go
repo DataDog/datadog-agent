@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/process/net"
+	netmocks "github.com/DataDog/datadog-agent/pkg/process/net/mocks"
 )
 
 type testProc struct {
@@ -31,11 +33,9 @@ type testProc struct {
 }
 
 var (
-	bootTimeSeconds = uint64(time.Date(2000, 01, 01, 0, 0, 0, 0, time.UTC).Unix())
-	// procLaunched is number of clicks (100 per second) since bootTime when the process started
-	// assume it's 12 hours later
-	procLaunchedSeconds = bootTimeSeconds + uint64((12 * time.Hour).Seconds())
-	pythonCommandLine   = []string{"python", "-m", "foobar.main"}
+	bootTimeMilli     = uint64(time.Date(2000, 01, 01, 0, 0, 0, 0, time.UTC).UnixMilli())
+	procLaunchedMilli = bootTimeMilli + uint64((12 * time.Hour).Milliseconds())
+	pythonCommandLine = []string{"python", "-m", "foobar.main"}
 )
 
 var (
@@ -78,7 +78,7 @@ var (
 		RSS:                100 * 1024 * 1024,
 		CPUCores:           1.5,
 		CommandLine:        []string{"test-service-1"},
-		StartTimeSecs:      procLaunchedSeconds,
+		StartTimeMilli:     procLaunchedMilli,
 	}
 	portTCP8080UpdatedRSS = model.Service{
 		PID:                procTestService1.pid,
@@ -90,7 +90,7 @@ var (
 		RSS:                200 * 1024 * 1024,
 		CPUCores:           1.5,
 		CommandLine:        []string{"test-service-1"},
-		StartTimeSecs:      procLaunchedSeconds,
+		StartTimeMilli:     procLaunchedMilli,
 	}
 	portTCP8080DifferentPID = model.Service{
 		PID:                procTestService1DifferentPID.pid,
@@ -101,36 +101,36 @@ var (
 		Ports:              []uint16{8080},
 		APMInstrumentation: string(apm.Injected),
 		CommandLine:        []string{"test-service-1"},
-		StartTimeSecs:      procLaunchedSeconds,
+		StartTimeMilli:     procLaunchedMilli,
 	}
 	portTCP8081 = model.Service{
-		PID:           procIgnoreService1.pid,
-		Name:          "ignore-1",
-		GeneratedName: "ignore-1",
-		Ports:         []uint16{8081},
-		StartTimeSecs: procLaunchedSeconds,
+		PID:            procIgnoreService1.pid,
+		Name:           "ignore-1",
+		GeneratedName:  "ignore-1",
+		Ports:          []uint16{8081},
+		StartTimeMilli: procLaunchedMilli,
 	}
 	portTCP5000 = model.Service{
-		PID:           procPythonService.pid,
-		Name:          "python-service",
-		GeneratedName: "python-service",
-		Language:      "python",
-		Ports:         []uint16{5000},
-		CommandLine:   pythonCommandLine,
-		StartTimeSecs: procLaunchedSeconds,
+		PID:            procPythonService.pid,
+		Name:           "python-service",
+		GeneratedName:  "python-service",
+		Language:       "python",
+		Ports:          []uint16{5000},
+		CommandLine:    pythonCommandLine,
+		StartTimeMilli: procLaunchedMilli,
 	}
 	portTCP5432 = model.Service{
-		PID:           procTestService1Repeat.pid,
-		Name:          "test-service-1",
-		GeneratedName: "test-service-1",
-		Ports:         []uint16{5432},
-		CommandLine:   []string{"test-service-1"},
-		StartTimeSecs: procLaunchedSeconds,
+		PID:            procTestService1Repeat.pid,
+		Name:           "test-service-1",
+		GeneratedName:  "test-service-1",
+		Ports:          []uint16{5432},
+		CommandLine:    []string{"test-service-1"},
+		StartTimeMilli: procLaunchedMilli,
 	}
 )
 
 func calcTime(additionalTime time.Duration) time.Time {
-	unix := time.Unix(int64(procLaunchedSeconds), 0)
+	unix := time.UnixMilli(int64(procLaunchedMilli))
 	return unix.Add(additionalTime)
 }
 
@@ -235,6 +235,7 @@ func Test_linuxImpl(t *testing.T) {
 						HostName:             host,
 						Env:                  "",
 						StartTime:            calcTime(0).Unix(),
+						StartTimeMilli:       calcTime(0).UnixMilli(),
 						LastSeen:             calcTime(1 * time.Minute).Unix(),
 						Ports:                []uint16{8080},
 						PID:                  99,
@@ -258,6 +259,7 @@ func Test_linuxImpl(t *testing.T) {
 						HostName:             host,
 						Env:                  "",
 						StartTime:            calcTime(0).Unix(),
+						StartTimeMilli:       calcTime(0).UnixMilli(),
 						LastSeen:             calcTime(20 * time.Minute).Unix(),
 						Ports:                []uint16{8080},
 						PID:                  99,
@@ -281,6 +283,7 @@ func Test_linuxImpl(t *testing.T) {
 						HostName:             host,
 						Env:                  "",
 						StartTime:            calcTime(0).Unix(),
+						StartTimeMilli:       calcTime(0).UnixMilli(),
 						LastSeen:             calcTime(20 * time.Minute).Unix(),
 						Ports:                []uint16{8080},
 						PID:                  99,
@@ -302,6 +305,7 @@ func Test_linuxImpl(t *testing.T) {
 						HostName:             host,
 						Env:                  "",
 						StartTime:            calcTime(0).Unix(),
+						StartTimeMilli:       calcTime(0).UnixMilli(),
 						LastSeen:             calcTime(1 * time.Minute).Unix(),
 						Ports:                []uint16{5000},
 						PID:                  500,
@@ -321,6 +325,7 @@ func Test_linuxImpl(t *testing.T) {
 						HostName:             host,
 						Env:                  "",
 						StartTime:            calcTime(0).Unix(),
+						StartTimeMilli:       calcTime(0).UnixMilli(),
 						LastSeen:             calcTime(20 * time.Minute).Unix(),
 						Ports:                []uint16{5000},
 						PID:                  500,
@@ -377,6 +382,7 @@ func Test_linuxImpl(t *testing.T) {
 						HostName:             host,
 						Env:                  "",
 						StartTime:            calcTime(0).Unix(),
+						StartTimeMilli:       calcTime(0).UnixMilli(),
 						LastSeen:             calcTime(1 * time.Minute).Unix(),
 						Ports:                []uint16{5432},
 						PID:                  101,
@@ -397,6 +403,7 @@ func Test_linuxImpl(t *testing.T) {
 						HostName:             host,
 						Env:                  "",
 						StartTime:            calcTime(0).Unix(),
+						StartTimeMilli:       calcTime(0).UnixMilli(),
 						LastSeen:             calcTime(1 * time.Minute).Unix(),
 						Ports:                []uint16{8080},
 						PID:                  99,
@@ -418,6 +425,7 @@ func Test_linuxImpl(t *testing.T) {
 						HostName:             host,
 						Env:                  "",
 						StartTime:            calcTime(0).Unix(),
+						StartTimeMilli:       calcTime(0).UnixMilli(),
 						LastSeen:             calcTime(20 * time.Minute).Unix(),
 						Ports:                []uint16{5432},
 						PID:                  101,
@@ -436,6 +444,7 @@ func Test_linuxImpl(t *testing.T) {
 						HostName:             host,
 						Env:                  "",
 						StartTime:            calcTime(0).Unix(),
+						StartTimeMilli:       calcTime(0).UnixMilli(),
 						LastSeen:             calcTime(20 * time.Minute).Unix(),
 						Ports:                []uint16{5432},
 						PID:                  101,
@@ -456,6 +465,7 @@ func Test_linuxImpl(t *testing.T) {
 						HostName:             host,
 						Env:                  "",
 						StartTime:            calcTime(0).Unix(),
+						StartTimeMilli:       calcTime(0).UnixMilli(),
 						LastSeen:             calcTime(20 * time.Minute).Unix(),
 						Ports:                []uint16{8080},
 						PID:                  99,
@@ -514,6 +524,7 @@ func Test_linuxImpl(t *testing.T) {
 						HostName:             host,
 						Env:                  "",
 						StartTime:            calcTime(0).Unix(),
+						StartTimeMilli:       calcTime(0).UnixMilli(),
 						LastSeen:             calcTime(1 * time.Minute).Unix(),
 						Ports:                []uint16{8080},
 						PID:                  99,
@@ -537,6 +548,7 @@ func Test_linuxImpl(t *testing.T) {
 						HostName:             host,
 						Env:                  "",
 						StartTime:            calcTime(0).Unix(),
+						StartTimeMilli:       calcTime(0).UnixMilli(),
 						LastSeen:             calcTime(22 * time.Minute).Unix(),
 						Ports:                []uint16{8080},
 						PID:                  102,
@@ -573,7 +585,7 @@ func Test_linuxImpl(t *testing.T) {
 			require.NotNil(t, check.os)
 
 			for _, cr := range tc.checkRun {
-				mSysProbe := NewMocksystemProbeClient(ctrl)
+				mSysProbe := netmocks.NewSysProbeUtil(t)
 				mSysProbe.EXPECT().GetDiscoveryServices().
 					Return(cr.servicesResp, nil).
 					Times(1)
@@ -584,7 +596,7 @@ func Test_linuxImpl(t *testing.T) {
 				mTimer.EXPECT().Now().Return(cr.time).AnyTimes()
 
 				// set mocks
-				check.os.(*linuxImpl).getSysProbeClient = func() (systemProbeClient, error) {
+				check.os.(*linuxImpl).getSysProbeClient = func(_ string) (net.SysProbeUtil, error) {
 					return mSysProbe, nil
 				}
 				check.os.(*linuxImpl).time = mTimer

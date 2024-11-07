@@ -1250,3 +1250,76 @@ def full_config_get_all_stages(full_config: dict) -> set[str]:
         all_stages.update(config.get("stages", []))
 
     return all_stages
+
+
+def update_test_infra_def(file_path, image_tag):
+    """
+    Override TEST_INFRA_DEFINITIONS_BUILDIMAGES in `.gitlab/common/test_infra_version.yml` file
+    """
+    with open(file_path) as gl:
+        file_content = gl.readlines()
+    with open(file_path, "w") as gl:
+        for line in file_content:
+            test_infra_def = re.search(r"TEST_INFRA_DEFINITIONS_BUILDIMAGES:\s*(\w+)", line)
+            if test_infra_def:
+                gl.write(line.replace(test_infra_def.group(1), image_tag))
+            else:
+                gl.write(line)
+
+
+def update_gitlab_config(file_path, tag, images="", test=True, update=True):
+    """
+    Override variables in .gitlab-ci.yml file.
+    """
+    with open(file_path) as gl:
+        file_content = gl.readlines()
+    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+    gitlab_ci = yaml.safe_load("".join(file_content))
+    variables = gitlab_ci['variables']
+    # Select the buildimages prefixed with CI_IMAGE matchins input images list + buildimages prefixed with DATADOG_AGENT_
+    images_to_update = list(find_buildimages(variables, images, "CI_IMAGE_")) + list(find_buildimages(variables))
+    if update:
+        output = update_image_tag(file_content, tag, images_to_update, test=test)
+        with open(file_path, "w") as gl:
+            gl.writelines(output)
+    return images_to_update
+
+
+def find_buildimages(variables, images="", prefix="DATADOG_AGENT_"):
+    """
+    Select the buildimages variables to update.
+    With default values, the former DATADOG_AGENT_ variables are updated.
+    """
+    suffix = "_SUFFIX"
+    for variable in variables:
+        if (
+            variable.startswith(prefix)
+            and variable.endswith(suffix)
+            and any(image in variable.casefold() for image in images.casefold().split(","))
+        ):
+            yield variable.removesuffix(suffix)
+
+
+def update_image_tag(lines, tag, variables, test=True):
+    """
+    Update the variables in the .gitlab-ci.yml file.
+    We update the file content (instead of the yaml.load) to keep the original order/formatting.
+    """
+    output = []
+    tag_pattern = re.compile(r"v\d+-\w+")
+    for line in lines:
+        if any(variable in line for variable in variables):
+            if "SUFFIX" in line:
+                if test:
+                    output.append(line.replace('""', '"_test_only"'))
+                else:
+                    output.append(line.replace('"_test_only"', '""'))
+            else:
+                is_tag = tag_pattern.search(line)
+                if is_tag:
+                    output.append(line.replace(is_tag.group(), tag))
+                else:
+                    output.append(line)
+        else:
+            output.append(line)
+    return output

@@ -24,13 +24,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -99,7 +100,7 @@ func CLCRunnerOptions(config config.Component) (Options, error) {
 	}
 
 	if !opts.Disabled {
-		target, err := clusteragent.GetClusterAgentEndpoint()
+		target, err := utils.GetClusterAgentEndpoint()
 		if err != nil {
 			return opts, fmt.Errorf("unable to get cluster agent endpoint: %w", err)
 		}
@@ -200,9 +201,8 @@ func (t *Tagger) GetTaggerTelemetryStore() *telemetry.Store {
 }
 
 // Tag returns tags for a given entity at the desired cardinality.
-func (t *Tagger) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
-	id, _ := types.NewEntityIDFromString(entityID)
-	entity := t.store.getEntity(id)
+func (t *Tagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
+	entity := t.store.getEntity(entityID)
 	if entity != nil {
 		t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
 		return entity.GetTags(cardinality), nil
@@ -213,8 +213,22 @@ func (t *Tagger) Tag(entityID string, cardinality types.TagCardinality) ([]strin
 	return []string{}, nil
 }
 
+// LegacyTag has the same behaviour as the Tag method, but it receives the entity id as a string and parses it.
+// If possible, avoid using this function, and use the Tag method instead.
+// This function exists in order not to break backward compatibility with rtloader and python
+// integrations using the tagger
+func (t *Tagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
+	prefix, id, err := taggercommon.ExtractPrefixAndID(entity)
+	if err != nil {
+		return nil, err
+	}
+
+	entityID := types.NewEntityID(prefix, id)
+	return t.Tag(entityID, cardinality)
+}
+
 // AccumulateTagsFor returns tags for a given entity at the desired cardinality.
-func (t *Tagger) AccumulateTagsFor(entityID string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
+func (t *Tagger) AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
 	tags, err := t.Tag(entityID, cardinality)
 	if err != nil {
 		return err
@@ -224,9 +238,8 @@ func (t *Tagger) AccumulateTagsFor(entityID string, cardinality types.TagCardina
 }
 
 // Standard returns the standard tags for a given entity.
-func (t *Tagger) Standard(entityID string) ([]string, error) {
-	id, _ := types.NewEntityIDFromString(entityID)
-	entity := t.store.getEntity(id)
+func (t *Tagger) Standard(entityID types.EntityID) ([]string, error) {
+	entity := t.store.getEntity(entityID)
 	if entity == nil {
 		return []string{}, nil
 	}
@@ -235,9 +248,8 @@ func (t *Tagger) Standard(entityID string) ([]string, error) {
 }
 
 // GetEntity returns the entity corresponding to the specified id and an error
-func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
-	id, _ := types.NewEntityIDFromString(entityID)
-	entity := t.store.getEntity(id)
+func (t *Tagger) GetEntity(entityID types.EntityID) (*types.Entity, error) {
+	entity := t.store.getEntity(entityID)
 	if entity == nil {
 		return nil, fmt.Errorf("Entity not found for entityID")
 	}

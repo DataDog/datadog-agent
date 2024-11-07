@@ -94,6 +94,29 @@ func (m *MockBinaryInspector) Cleanup(fpath utils.FilePath) {
 	_ = m.Called(fpath)
 }
 
+type mockProcessMonitor struct {
+	mock.Mock
+}
+
+func (m *mockProcessMonitor) SubscribeExec(cb func(uint32)) func() {
+	args := m.Called(cb)
+	return args.Get(0).(func())
+}
+
+func (m *mockProcessMonitor) SubscribeExit(cb func(uint32)) func() {
+	args := m.Called(cb)
+	return args.Get(0).(func())
+}
+
+// Create a new mockProcessMonitor that accepts any callback and returns a no-op function
+func newMockProcessMonitor() *mockProcessMonitor {
+	pm := &mockProcessMonitor{}
+	pm.On("SubscribeExec", mock.Anything).Return(func() {})
+	pm.On("SubscribeExit", mock.Anything).Return(func() {})
+
+	return pm
+}
+
 // === Test utils
 
 // FakeProcFSEntry represents a fake /proc filesystem entry for testing purposes.
@@ -181,18 +204,24 @@ func checkIfEventually(condition func() bool, checkInterval time.Duration, check
 	}
 }
 
-// waitAndRetryIfFail is basically a way to do require.Eventually with multiple retries.
-// In each retry, it will run the setupFunc, then wait until the condition defined by testFunc is met or the timeout is reached, and then run the retryCleanup function.
-// If the condition is met, it will return, otherwise it will retry the same thing again.
-// If the condition is not met after maxRetries, it will fail the test.
-func waitAndRetryIfFail(t *testing.T, setupFunc func(), testFunc func() bool, retryCleanup func(), maxRetries int, checkInterval time.Duration, maxSingleCheckTime time.Duration, msgAndArgs ...interface{}) {
+// waitAndRetryIfFail is basically a way to do require.Eventually with multiple
+// retries. In each retry, it will run the setupFunc, then wait until the
+// condition defined by testFunc is met or the timeout is reached, and then run
+// the retryCleanup function. The retryCleanup function is useful to clean up
+// any state that was set up in the setupFunc. It will receive a boolean
+// indicating if the test was successful or not, in case the cleanup needs to be
+// different depending on the test result (e.g., if the test didn't fail we
+// might want to keep some state). If the condition is met, it will return,
+// otherwise it will retry the same thing again. If the condition is not met
+// after maxRetries, it will fail the test.
+func waitAndRetryIfFail(t *testing.T, setupFunc func(), testFunc func() bool, retryCleanup func(testSuccess bool), maxRetries int, checkInterval time.Duration, maxSingleCheckTime time.Duration, msgAndArgs ...interface{}) {
 	for i := 0; i < maxRetries; i++ {
 		if setupFunc != nil {
 			setupFunc()
 		}
 		result := checkIfEventually(testFunc, checkInterval, maxSingleCheckTime)
 		if retryCleanup != nil {
-			retryCleanup()
+			retryCleanup(result)
 		}
 
 		if result {

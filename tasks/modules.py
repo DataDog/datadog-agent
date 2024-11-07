@@ -281,7 +281,6 @@ DEFAULT_MODULES = {
     "pkg/util/statstracker": GoModule("pkg/util/statstracker", independent=True, used_by_otel=True),
     "pkg/util/system": GoModule("pkg/util/system", independent=True, used_by_otel=True),
     "pkg/util/system/socket": GoModule("pkg/util/system/socket", independent=True, used_by_otel=True),
-    "pkg/util/tagger": GoModule("pkg/util/tagger", independent=True, used_by_otel=True),
     "pkg/util/testutil": GoModule("pkg/util/testutil", independent=True, used_by_otel=True),
     "pkg/util/uuid": GoModule("pkg/util/uuid", independent=True),
     "pkg/util/winutil": GoModule("pkg/util/winutil", independent=True, used_by_otel=True),

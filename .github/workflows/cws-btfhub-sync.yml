@@ -64,7 +64,7 @@ jobs:
           sparse-checkout: ${{ matrix.cone }}
 
       - name: Install python
-        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: 3.11
           cache: 'pip'
@@ -81,8 +81,11 @@ jobs:
           echo "ARTIFACT_NAME=constants-${{ matrix.cone }}" | tr '/' '-' >> $GITHUB_OUTPUT
 
       - name: Sync constants
+        env:
+          ARTIFACT_NAME: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
+          FORCE_REFRESH: ${{ inputs.force_refresh && '--force-refresh' || '' }}
         run: |
-          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./${{ steps.artifact-name.outputs.ARTIFACT_NAME }}.json ${{ inputs.force_refresh && '--force-refresh' || '' }}
+          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./"$ARTIFACT_NAME".json "$FORCE_REFRESH"
 
       - name: Upload artifact
         uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a # v4.3.6
@@ -103,7 +106,7 @@ jobs:
           ref: ${{ inputs.base_branch || 'main' }}
 
       - name: Install python
-        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: 3.11
           cache: 'pip'
@@ -140,6 +143,9 @@ jobs:
           skip_checkout: true
 
       - name: Create Pull Request
+        env:
+          BRANCH_NAME: ${{ steps.branch-name.outputs.BRANCH_NAME }}
+          BASE_BRANCH: ${{ inputs.base_branch || 'main' }}
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         if: steps.commit-creator.outputs.changes_detected == 'true'
         with:
@@ -149,8 +155,8 @@ jobs:
               title: 'CWS: sync BTFHub constants',
               owner,
               repo,
-              head: '${{ steps.branch-name.outputs.BRANCH_NAME }}',
-              base: '${{ inputs.base_branch || 'main' }}',
+              head: "$BRANCH_NAME",
+              base: "$BASE_BRANCH",
               body: [
                 '### What does this PR do?',
                 'This PR syncs the BTFHub constants used by CWS',

@@ -8,10 +8,6 @@
 // is not built in the binary.
 package flarebuilder
 
-import (
-	compdef "github.com/DataDog/datadog-agent/comp/def"
-)
-
 // FlareBuilder contains all the helpers to add files to a flare archive.
 //
 // When adding data to a flare the builder will do multiple things internally.
@@ -145,21 +141,4 @@ type FlareBuilder interface {
 	// This method must not be used by flare callbacks and will be removed once all flare code has been migrated to
 	// components.
 	Save() (string, error)
-}
-
-// FlareCallback is a function that can be registered as a data provider for flares. This function, if registered, will
-// be called everytime a flare is created.
-type FlareCallback func(fb FlareBuilder) error
-
-// Provider is provided by other components to register themselves to provide flare data.
-type Provider struct {
-	compdef.Out
-	Callback FlareCallback `group:"flare"`
-}
-
-// NewProvider returns a new Provider to be called when a flare is created
-func NewProvider(callback FlareCallback) Provider {
-	return Provider{
-		Callback: callback,
-	}
 }

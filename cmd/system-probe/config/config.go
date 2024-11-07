@@ -148,7 +148,7 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(diNS("enabled")) {
 		c.EnabledModules[DynamicInstrumentationModule] = struct{}{}
 	}
-	if cfg.GetBool(nskey("ebpf_check", "enabled")) {
+	if cfg.GetBool(NSkey("ebpf_check", "enabled")) {
 		c.EnabledModules[EBPFModule] = struct{}{}
 	}
 	if cfg.GetBool("system_probe_config.language_detection.enabled") {

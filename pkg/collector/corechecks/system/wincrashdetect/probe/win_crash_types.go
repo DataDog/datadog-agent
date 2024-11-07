@@ -29,10 +29,26 @@ const (
 	DumpTypeAutomatic    = int(7) // automatic
 )
 
+const (
+	// WinCrashStatusCodeUnknown indicates an invalid or corrupted code.
+	WinCrashStatusCodeUnknown = int(-1)
+
+	// WinCrashStatusCodeSuccess indicates that crash dump processing succeeded
+	// or no crash dump was found.
+	WinCrashStatusCodeSuccess = int(0)
+
+	// WinCrashStatusCodeBusy indicates that crash dump processing is still busy
+	// and no result is yet available.
+	WinCrashStatusCodeBusy = int(1)
+
+	// WinCrashStatusCodeFailed indicates that crash dump processing failed or had an error.
+	WinCrashStatusCodeFailed = int(2)
+)
+
 // WinCrashStatus defines all of the information returned from the system
 // probe to the caller
 type WinCrashStatus struct {
-	Success    bool   `json:"success"`
+	StatusCode int    `json:"statuscode"`
 	ErrString  string `json:"errstring"`
 	FileName   string `json:"filename"`
 	Type       int    `json:"dumptype"`
