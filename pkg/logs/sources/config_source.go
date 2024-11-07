@@ -34,22 +34,12 @@ type ConfigSources struct {
 	removedByType map[string][]chan *LogSource
 }
 
-var (
-	instance *ConfigSources
-	once     sync.Once
-)
-
-// GetInstance provides a singleton instance of ConfigSources.
-func GetInstance() *ConfigSources {
-	once.Do(func() {
-		fmt.Println("andrewq config_source.go: Instantiate ConfigSources")
-		instance = &ConfigSources{
-			addedByType:   make(map[string][]chan *LogSource),
-			removedByType: make(map[string][]chan *LogSource),
-		}
-	})
-	fmt.Println("andrewq config_source.go: return instance of ConfigSources")
-	return instance
+// NewConfigSources creates a new config sources.
+func NewConfigSources() *ConfigSources {
+	return &ConfigSources{
+		addedByType:   make(map[string][]chan *LogSource),
+		removedByType: make(map[string][]chan *LogSource),
+	}
 }
 
 // AddFileSource gets a file from a file path and adds it as a source.

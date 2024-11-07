@@ -49,7 +49,7 @@ func (a *logAgent) SetUpLaunchers(processingRules []*config.ProcessingRule) {
 		fileWildcardSelectionMode,
 		a.flarecontroller,
 		a.tagger)
-	sourceProvider := sources.GetInstance()
+	sourceProvider := sources.NewConfigSources()
 	fileLauncher.Start(sourceProvider, pipelineProvider, auditor, a.tracker)
 	lnchrs.AddLauncher(fileLauncher)
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
