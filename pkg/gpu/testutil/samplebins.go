@@ -8,9 +8,13 @@
 package testutil
 
 import (
+<<<<<<< HEAD
 	"bufio"
 	"fmt"
 	"io"
+=======
+	"fmt"
+>>>>>>> 9b7b3279fc (Allow passing args to sample)
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -39,12 +43,27 @@ type SampleArgs struct {
 	// eBPF probe has a chance to read the events and inspect the binary. To make the behavior of the sample binary
 	// more predictable and avoid flakiness in the tests, we introduce a delay before the binary exits.
 	EndWaitTimeSec int
+
+	// CudaVisibleDevicesEnv represents the value of the CUDA_VISIBLE_DEVICES environment variable
+	CudaVisibleDevicesEnv string
+
+	// DeviceToSelect represents the device that the CUDA sample will select
+	DeviceToSelect int
+}
+
+func (a *SampleArgs) getEnv() []string {
+	env := []string{}
+	if a.CudaVisibleDevicesEnv != "" {
+		env = append(env, fmt.Sprintf("CUDA_VISIBLE_DEVICES=%s", a.CudaVisibleDevicesEnv))
+	}
+	return env
 }
 
 func (a *SampleArgs) getCLIArgs() []string {
 	return []string{
 		strconv.Itoa(int(a.StartWaitTimeSec)),
 		strconv.Itoa(int(a.EndWaitTimeSec)),
+		strconv.Itoa(a.DeviceToSelect),
 	}
 }
 
@@ -52,6 +71,8 @@ func RunSample(t *testing.T, name SampleName) (*exec.Cmd, error) {
 	args := SampleArgs{
 		StartWaitTimeSec: 5,
 		EndWaitTimeSec:   0,
+		CudaVisibleDevicesEnv: "",
+		DeviceToSelect:        0,
 	}
 	return RunSampleWithArgs(t, name, args)
 }
@@ -79,7 +100,9 @@ func RunSampleWithArgs(t *testing.T, name SampleName, args SampleArgs) (*exec.Cm
 	require.NoError(t, err)
 
 	cliArgs := args.getCLIArgs()
+	env := args.getEnv()
 	cmd := exec.Command(builtBin, cliArgs...)
+	cmd.Env = append(cmd.Env, env...)
 	t.Cleanup(func() {
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
@@ -94,7 +117,7 @@ func RunSampleWithArgs(t *testing.T, name SampleName, args SampleArgs) (*exec.Cm
 	redirectReaderToLog(stdout, fmt.Sprintf("%s stdout", name))
 	redirectReaderToLog(stderr, fmt.Sprintf("%s stderr", name))
 
-	log.Debugf("Running sample binary %s with args=%v", name, args.getCLIArgs())
+	log.Debugf("Running sample binary %s with args=%v, env=%v", name, cliArgs, env)
 	err = cmd.Start()
 	require.NoError(t, err)
 

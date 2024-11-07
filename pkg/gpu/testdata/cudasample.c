@@ -34,22 +34,23 @@ cudaError_t cudaSetDevice(int device) {
 int main(int argc, char **argv) {
     cudaStream_t stream = 30;
 
-    if (argc < 3) {
-        fprintf(stderr, "Usage: %s <wait-to-start-sec> <wait-to-end-sec>\n", argv[0]);
+    if (argc < 4) {
+        fprintf(stderr, "Usage: %s <wait-to-start-sec> <wait-to-end-sec> <device-index>\n", argv[0]);
         return 1;
     }
 
     int waitStart = atoi(argv[1]);
     int waitEnd = atoi(argv[2]);
+    int device = atoi(argv[3]);
 
     fprintf(stderr, "Waiting for %d seconds before starting\n", waitStart);
 
     // Give time for the eBPF program to load
     sleep(waitStart);
 
-    fprintf(stderr, "Starting calls.\n");
+    fprintf(stderr, "Starting calls, will use device index %d\n", device);
 
-    cudaSetDevice(3);
+    cudaSetDevice(device);
     cudaLaunchKernel((void *)0x1234, (dim3){ 1, 2, 3 }, (dim3){ 4, 5, 6 }, NULL, 10, stream);
     void *ptr;
     cudaMalloc(&ptr, 100);
