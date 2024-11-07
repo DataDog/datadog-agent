@@ -33,7 +33,7 @@ var GPUMonitoring = module.Factory{
 	ConfigNamespaces: gpuMonitoringConfigNamespaces,
 	Fn: func(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 
-		c := gpuconfig.NewConfig()
+		c := gpuconfig.New()
 		probeDeps := gpu.ProbeDependencies{
 			Telemetry: deps.Telemetry,
 			//if the config parameter doesn't exist or is empty string, the default value is used as defined in go-nvml library
@@ -46,13 +46,13 @@ var GPUMonitoring = module.Factory{
 			return nil, fmt.Errorf("unable to initialize NVML library: %v", ret)
 		}
 
-		t, err := gpu.NewProbe(c, probeDeps)
+		p, err := gpu.NewProbe(c, probeDeps)
 		if err != nil {
-			return nil, fmt.Errorf("unable to start GPU monitoring: %w", err)
+			return nil, fmt.Errorf("unable to start %s: %w", config.GPUMonitoringModule, err)
 		}
 
 		return &GPUMonitoringModule{
-			Probe:     t,
+			Probe:     p,
 			lastCheck: atomic.NewInt64(0),
 		}, nil
 	},

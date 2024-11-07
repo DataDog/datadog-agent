@@ -31,11 +31,17 @@ jobs:
 
       # build the comment
       - name: Build full comment
+        env:
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          FORMER_GO_VERSION: ${{ steps.former_go_version.outputs.version }}
+          NEW_GO_VERSION: ${{ steps.new_go_version.outputs.version }}
         id: old_versions
         run: |
           set -euo pipefail
           # build the base of the Github URL to the current commit
-          GITHUB_HEAD_URL='${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}'
+          GITHUB_HEAD_URL="GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$GITHUB_SHA"
           {
             echo "matches<<EOF"
             echo "Here are potential matches of the former version:"
@@ -45,7 +51,7 @@ jobs:
             # the script `detect-old-version.sh` displays each matching line as "file:line_number:line_content"
             # the sed command transforms this format into a markdown list with Github permalink URL for each file/line
             # note that the sed command only works properly with GNU sed (MacOS sed doesn't seem to understand \S properly)
-            bash -x ./tools/go-update/detect-old-version.sh "${{ steps.former_go_version.outputs.version }}" "${{ steps.new_go_version.outputs.version }}" | \
+            bash -x ./tools/go-update/detect-old-version.sh "$FORMER_GO_VERSION" "$NEW_GO_VERSION" | \
               sed -E 's|^([^:]+):([^:]+):\s*(\S.*)$|- [\1:\2]('"$GITHUB_HEAD_URL"'/\1#L\2): `\3`|'
 
             echo "EOF"

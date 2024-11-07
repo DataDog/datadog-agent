@@ -34,13 +34,13 @@ func isScalar(v interface{}) bool {
 	}
 }
 
-func newLeafNodeImpl(v interface{}, source model.Source) Node {
+func newLeafNode(v interface{}, source model.Source) Node {
 	return &leafNodeImpl{val: v, source: source}
 }
 
 // Clone clones a LeafNode
 func (n *leafNodeImpl) Clone() Node {
-	return newLeafNodeImpl(n.val, n.source)
+	return newLeafNode(n.val, n.source)
 }
 
 // SourceGreaterOrEqual returns true if the source of the current node is greater or equal to the one given as a

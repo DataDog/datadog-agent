@@ -22,7 +22,7 @@ func TestNewNodeAndNodeMethods(t *testing.T) {
 		},
 	}
 
-	node, err := NewNode(obj, model.SourceDefault)
+	node, err := NewNodeTree(obj, model.SourceDefault)
 	assert.NoError(t, err)
 
 	n, ok := node.(InnerNode)

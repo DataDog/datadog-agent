@@ -38,10 +38,12 @@ jobs:
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
 
       - name: Fetch branch
+        env:
+          TARGET_BRANCH: ${{ inputs.branch }}
         # this step needs the github repository to be already cloned locally
         id: branch_fetch
         run: |
-          if git fetch origin "refs/heads/${{ inputs.branch }}"; then
+          if git fetch origin "refs/heads/$TARGET_BRANCH"; then
             echo "RESULT=true" >> $GITHUB_OUTPUT
           else
             echo "RESULT=false" >> $GITHUB_OUTPUT
@@ -74,7 +76,7 @@ jobs:
         id: current_go_version
         run: |
           echo "GO_VERSION=$(inv go-version)" >> $GITHUB_OUTPUT
-    
+
       - name: Get current buildimage tag
         id: current_buildimage_tag
         run: |
@@ -85,13 +87,16 @@ jobs:
         env:
           TEST_VERSION_FLAG: ${{ inputs.test_version && '--test' || '--no-test' }}
           INCLUDE_OTEL_MODULES: ${{ inputs.include_otel_modules && '--include-otel-modules' || '' }}
+          CURRENT_GO_VERSION: ${{ steps.current_go_version.outputs.GO_VERSION }}
+          INPUT_GO_VERSION: ${{ inputs.go_version }}
+          IMAGES_ID: ${{ inputs.images_id }}
         run: |
-          if [ "${{ steps.current_go_version.outputs.GO_VERSION }}" = "${{ inputs.go_version }}" ]; then
-            inv -e buildimages.update --tag ${{ inputs.images_id }} $TEST_VERSION_FLAG
-            echo 'MESSAGE=Update buildimages ID to ${{ inputs.images_id }}' >> $GITHUB_OUTPUT
+          if [ "$CURRENT_GO_VERSION" = "$INPUT_GO_VERSION" ]; then
+            inv -e buildimages.update --tag "$IMAGES_ID" "$TEST_VERSION_FLAG"
+            echo "MESSAGE=Update buildimages ID to $IMAGES_ID" >> $GITHUB_OUTPUT
           else
-            inv -e update-go --image-tag ${{ inputs.images_id }} $TEST_VERSION_FLAG $INCLUDE_OTEL_MODULES -v "${{ inputs.go_version }}"
-            echo 'MESSAGE=Update Go version to ${{ inputs.go_version }}' >> $GITHUB_OUTPUT
+            inv -e update-go --image-tag "$IMAGES_ID" "$TEST_VERSION_FLAG" "$INCLUDE_OTEL_MODULES" -v "$INPUT_GO_VERSION"
+            echo "MESSAGE=Update Go version to $INPUT_GO_VERSION" >> $GITHUB_OUTPUT
           fi
 
       - uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5.0.1
@@ -111,19 +116,19 @@ jobs:
         id: check_pr
         env:
           GH_TOKEN: ${{ github.token }}
+          BASE_BRANCH: ${{ github.ref_name }}
+          INPUT_BRANCH: ${{ inputs.branch }}
         run: |
-          base_branch=${{ github.ref }} # Get the full ref
-          base_branch=${base_branch#refs/heads/} # Remove 'refs/heads/' from the ref
           # prs variable contains the number of PRs already created that match head and base branches
           prs=$(gh pr list \
               --repo "$GITHUB_REPOSITORY" \
-              --head ${{ inputs.branch }} \
-              --base $base_branch \
+              --head "$INPUT_BRANCH" \
+              --base "$BASE_BRANCH" \
               --json title \
               --jq 'length')
           if [ $prs -eq 0 ]; then
             echo "CREATE_PR=true" >> $GITHUB_OUTPUT
-          fi 
+          fi
 
       # Create PR only if there is no pre-existing PR on the branch
       - name: Create PR
@@ -133,19 +138,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_TITLE: "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}"
           PR_LABELS: "go-update,team/agent-shared-components"
+          CURRENT_BUILDIMAGE_TAG: ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }}
+          IMAGES_ID: ${{ inputs.images_id }}
+          CURRENT_GO_VERSION: ${{ steps.current_go_version.outputs.GO_VERSION }}
+          INPUT_GO_VERSION: ${{ inputs.go_version }}
+          INPUT_TEST_VERSION: ${{ inputs.test_version && '--test' || '' }}
+          GITHUB_REF: ${{ github.ref }}
         run: |
           # Generate the PR description
           inv -e buildimages.generate-pr-body \
-          ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }} \
-          ${{ inputs.images_id }} \
-          ${{ steps.current_go_version.outputs.GO_VERSION }} \
-          ${{ inputs.go_version }} \
-          ${{ inputs.test_version && '--test' || '' }} > $TMP_PR_BODY_PATH
+          "$CURRENT_BUILDIMAGE_TAG" \
+          "$IMAGES_ID" \
+          "$CURRENT_GO_VERSION" \
+          "$INPUT_GO_VERSION" \
+          "$INPUT_TEST_VERSION" > $TMP_PR_BODY_PATH
 
           # Create the PR
           gh pr create \
-          --base ${{ github.ref }} \
+          --base "$GITHUB_REF" \
           --title "$PR_TITLE" \
-          --body-file $TMP_PR_BODY_PATH \
+          --body-file "$TMP_PR_BODY_PATH" \
           --label "$PR_LABELS" \
           --draft \
