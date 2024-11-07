@@ -19,7 +19,8 @@ agent_integration_tests:
   timeout: 30m
   retry: 2
   script:
-    # Login to the docker registry not be rate-limited during the docker compose
+    # DockerHub login not to be rate-limited during the docker compose
+    - DOCKER_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO token | docker login --username "$DOCKER_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     - inv -e integration-tests --race --remote-docker
 
