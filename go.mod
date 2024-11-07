@@ -322,22 +322,22 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	k8s.io/api v0.31.1
-	k8s.io/apiextensions-apiserver v0.31.1
-	k8s.io/apimachinery v0.31.1
-	k8s.io/apiserver v0.31.1 // indirect
+	k8s.io/api v0.31.2
+	k8s.io/apiextensions-apiserver v0.31.2
+	k8s.io/apimachinery v0.31.2
+	k8s.io/apiserver v0.31.2 // indirect
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.13.0
-	k8s.io/client-go v0.31.1
-	k8s.io/cri-api v0.31.1
+	k8s.io/client-go v0.31.2
+	k8s.io/cri-api v0.31.2
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
 	k8s.io/klog/v2 v2.130.1
-	k8s.io/kube-aggregator v0.31.1
+	k8s.io/kube-aggregator v0.31.2
 	k8s.io/kube-openapi v0.0.0-20240430033511-f0e62f92d13f // indirect
 	k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f
-	k8s.io/kubelet v0.31.1
-	k8s.io/metrics v0.31.1
+	k8s.io/kubelet v0.31.2
+	k8s.io/metrics v0.31.2
 	k8s.io/utils v0.0.0-20240821151609-f90d01438635
-	sigs.k8s.io/custom-metrics-apiserver v1.30.0
+	sigs.k8s.io/custom-metrics-apiserver v1.30.1-0.20241105195130-84dc8cfe2555
 
 )
 
@@ -579,7 +579,7 @@ require (
 	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
-	k8s.io/component-base v0.31.1
+	k8s.io/component-base v0.31.2
 	mellium.im/sasl v0.3.2 // indirect
 	modernc.org/cc/v3 v3.41.0 // indirect
 	modernc.org/ccgo/v3 v3.16.15 // indirect
@@ -745,8 +745,8 @@ require (
 	go.opentelemetry.io/collector/service v0.111.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13
-	k8s.io/cli-runtime v0.31.1
-	k8s.io/kubectl v0.31.1
+	k8s.io/cli-runtime v0.31.2
+	k8s.io/kubectl v0.31.2
 )
 
 require (
@@ -1021,8 +1021,8 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gotest.tools/v3 v3.5.1 // indirect
 	honnef.co/go/tools v0.4.5 // indirect
-	k8s.io/kms v0.31.1 // indirect
-	k8s.io/sample-controller v0.31.1 // indirect
+	k8s.io/kms v0.31.2 // indirect
+	k8s.io/sample-controller v0.31.2 // indirect
 	lukechampine.com/uint128 v1.3.0 // indirect
 	modernc.org/strutil v1.2.0 // indirect
 	modernc.org/token v1.1.0 // indirect
@@ -1074,6 +1074,3 @@ replace github.com/ProtonMail/go-crypto => github.com/ProtonMail/go-crypto v1.0.
 exclude go.opentelemetry.io/proto/otlp v1.1.0
 
 replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0-20240626205202-4ac4cee31f14
-
-// Remove once https://github.com/kubernetes-sigs/custom-metrics-apiserver/pull/184 is merged
-replace sigs.k8s.io/custom-metrics-apiserver v1.30.0 => github.com/L3n41c/custom-metrics-apiserver v0.0.0-20241014100211-ccded82d0da2
