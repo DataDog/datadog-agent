@@ -73,6 +73,7 @@ func KindProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environment
 
 // KindRunFunc is the Pulumi run function that runs the provisioner
 func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *ProvisionerParams) error {
+	kindClusterName := ctx.Stack()
 	awsEnv, err := aws.NewEnvironment(ctx)
 	if err != nil {
 		return err
@@ -88,7 +89,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
-	kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, awsEnv.CommonNamer().ResourceName("kind"), params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, awsEnv.CommonNamer().ResourceName("kind"), kindClusterName, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	if err != nil {
 		return err
 	}
@@ -129,7 +130,6 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 
 	var dependsOnCrd []pulumi.Resource
 	if params.agentOptions != nil {
-		kindClusterName := ctx.Stack()
 		helmValues := fmt.Sprintf(`
 datadog:
   kubelet:
