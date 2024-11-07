@@ -14,7 +14,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -90,24 +89,6 @@ func (t *Telemetry) Start(_ context.Context) error {
 		env = "staging"
 	}
 
-	// Explicitly set the `DD_APPSEC_ENABLED` environment variable to `false`
-	// for this process if it was set to any truthy or invalid value. This
-	// prevents the tracer from attempting to start appsec features; which are
-	// not needed nor supported in this context.
-	// Starting appsec in the agent may trigger emission of an error
-	// The environment variable is usually not present, but can in certain cases
-	// be inherited from the login shell when the agent is started by the
-	// install script.
-	const appsecEnvVar = "DD_APPSEC_ENABLED"
-	if appsecEnv, envSet := os.LookupEnv(appsecEnvVar); envSet {
-		truthy, err := strconv.ParseBool(appsecEnv)
-		if truthy || err != nil {
-			os.Setenv(appsecEnvVar, "false")
-			// Restore the original value after the tracer is started...
-			defer os.Setenv(appsecEnvVar, appsecEnv)
-		}
-	}
-
 	tracer.Start(
 		tracer.WithService(t.service),
 		tracer.WithServiceVersion(version.AgentVersion),
@@ -116,6 +97,7 @@ func (t *Telemetry) Start(_ context.Context) error {
 		tracer.WithHTTPClient(t.client),
 		tracer.WithLogStartup(false),
 		tracer.WithLogger(agentLogger{}),
+		tracer.WithAppSecEnabled(false), // Not needed nor supported here.
 	)
 	return nil
 }

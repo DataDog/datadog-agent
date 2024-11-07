@@ -693,6 +693,8 @@ github.com/DataDog/datadog-api-client-go/v2 v2.26.0/go.mod h1:QKOu6vscsh87fMY1lH
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go/v5 v5.5.0 h1:G5KHeB8pWBNXT4Jtw0zAkhdxEAWSpWH00geHI6LDrKU=
 github.com/DataDog/datadog-go/v5 v5.5.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
+github.com/DataDog/datadog-operator v1.0.3 h1:zBGNnmFsU99wttrt0PWXXRgJvTRGeWt3YD7wUh7VBd4=
+github.com/DataDog/datadog-operator v1.0.3/go.mod h1:CXTLg7VFcpaMvjbwkKTxKUIzxRumfSe01/CWOINo4c0=
 github.com/DataDog/datadog-operator v1.8.0-rc.1 h1:w6/z5jcTzWGv90/H9AhcgZd3gAdP3eaWEGpnE7nVdRM=
 github.com/DataDog/datadog-operator v1.8.0-rc.1/go.mod h1:qxwdMzmiZ165BAMbTYkr4yJKvhOnDUMAcGNQiPJVmAA=
 github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 h1:RoH7VLzTnxHEugRPIgnGlxwDFszFGI7b3WZZUtWuPRM=
@@ -3596,6 +3598,8 @@ google.golang.org/protobuf v1.32.0/go.mod h1:c6P6GXX6sHbq/GpV6MGZEdwhWPcYBgnhAHh
 google.golang.org/protobuf v1.33.0/go.mod h1:c6P6GXX6sHbq/GpV6MGZEdwhWPcYBgnhAHhKbcUYpos=
 google.golang.org/protobuf v1.35.1 h1:m3LfL6/Ca+fqnjnlqQXNpFPABW1UD7mjh8KO2mKFytA=
 google.golang.org/protobuf v1.35.1/go.mod h1:9fA7Ob0pmnwhb644+1+CVWFRbNajQ6iRojtC/QF5bRE=
+gopkg.in/DataDog/dd-trace-go.v1 v1.39.0-alpha.1.0.20241106231100-d2882eb00f61 h1:KB8C1gY+AwP8jU/HtHX9kQ6NzV5uXIux1X5aWTAudjo=
+gopkg.in/DataDog/dd-trace-go.v1 v1.39.0-alpha.1.0.20241106231100-d2882eb00f61/go.mod h1:2re6Ub8ErfDhx+vP2SkYnwkW8DFX2enftcG2N+IE7RY=
 gopkg.in/DataDog/dd-trace-go.v1 v1.69.1 h1:grTElrPaCfxUsrJjyPLHlVPbmlKVzWMxVdcBrGZSzEk=
 gopkg.in/DataDog/dd-trace-go.v1 v1.69.1/go.mod h1:U9AOeBHNAL95JXcd/SPf4a7O5GNeF/yD13sJtli/yaU=
 gopkg.in/Knetic/govaluate.v3 v3.0.0 h1:18mUyIt4ZlRlFZAAfVetz4/rzlJs9yhN+U02F4u1AOc=

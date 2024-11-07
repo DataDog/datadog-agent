@@ -146,16 +146,16 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.9.1
 	github.com/DataDog/appsec-internal-go v1.9.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.57.0
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.58.0
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.58.0
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/trace v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/trace v0.58.0
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.57.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.58.0
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.57.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.57.1
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.58.0
 	github.com/DataDog/datadog-go/v5 v5.5.0
-	github.com/DataDog/datadog-operator v1.8.0-rc.1
+	github.com/DataDog/datadog-operator v1.0.3
 	github.com/DataDog/ebpf-manager v0.7.1
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.7
@@ -316,7 +316,7 @@ require (
 	google.golang.org/grpc v1.67.1
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.35.1
-	gopkg.in/DataDog/dd-trace-go.v1 v1.69.1
+	gopkg.in/DataDog/dd-trace-go.v1 v1.39.0-alpha.1.0.20241106231100-d2882eb00f61
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
@@ -655,7 +655,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/env v0.57.1
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/model v0.57.1
-	github.com/DataDog/datadog-agent/pkg/config/remote v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.1
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.57.1
 	github.com/DataDog/datadog-agent/pkg/errors v0.56.0-rc.3
@@ -675,7 +674,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/proto v0.58.0
 	github.com/DataDog/datadog-agent/pkg/security/seclwin v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/serializer v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/status/health v0.56.0-rc.3
