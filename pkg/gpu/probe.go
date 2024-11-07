@@ -130,6 +130,9 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 				return nil, fmt.Errorf("error loading CO-RE %s: %w", sysconfig.GPUMonitoringModule, err)
 			}
 		}
+	} else {
+		//if CO-RE is disabled we don't need to check the AllowRuntimeCompiledFallback config flag
+		allowRC = cfg.EnableRuntimeCompiler
 	}
 
 	//if manager is not initialized yet and RC is enabled, try runtime compilation
