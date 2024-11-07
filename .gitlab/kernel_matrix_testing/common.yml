@@ -98,7 +98,7 @@
 
 .package_dependencies:
   stage: kernel_matrix_testing_prepare
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   before_script:
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
@@ -154,7 +154,7 @@
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
       # Each VM gets 12GB of memory. We have set 8GB as base for the system, and upto 4GB can be used
       # by a ram backed filesystem holding the system-probe test packages
-    - inv -e kmt.gen-config --ci --arch=$ARCH --output-file=$VMCONFIG_FILE --sets=$TEST_SETS --vmconfig-template=$TEST_COMPONENT --memory=12288
+    - inv -e kmt.gen-config --ci --arch=$ARCH --output-file=$VMCONFIG_FILE --vmconfig-template=$TEST_COMPONENT --memory=12288
     - inv -e system-probe.start-microvms --provision-instance --provision-microvms --vmconfig=$VMCONFIG_FILE $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-${TEST_COMPONENT}-${ARCH}-${CI_PIPELINE_ID} --run-agent
     - jq "." $CI_PROJECT_DIR/stack.output
     - pulumi logout
@@ -292,7 +292,7 @@
 
 notify_ebpf_complexity_changes:
   stage: notify
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules:
     - !reference [.except_mergequeue]

@@ -90,8 +90,10 @@ type SecurityProfileContext struct {
 
 // IPPortContext is used to hold an IP and Port
 type IPPortContext struct {
-	IPNet net.IPNet `field:"ip"`   // SECLDoc[ip] Definition:`IP address`
-	Port  uint16    `field:"port"` // SECLDoc[port] Definition:`Port number`
+	IPNet            net.IPNet `field:"ip"`                                  // SECLDoc[ip] Definition:`IP address`
+	Port             uint16    `field:"port"`                                // SECLDoc[port] Definition:`Port number`
+	IsPublic         bool      `field:"is_public,handler:ResolveIsIPPublic"` // SECLDoc[is_public] Definition:`Whether the IP address belongs to a public network`
+	IsPublicResolved bool      `field:"-"`
 }
 
 // NetworkContext represents the network context of the event
@@ -125,10 +127,10 @@ type BaseEvent struct {
 	Timestamp     time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
 	Rules         []*MatchedRule `field:"-"`
 	ActionReports []ActionReport `field:"-"`
-	Os            string         `field:"event.os"`                               // SECLDoc[event.os] Definition:`Operating system of the event`
-	Origin        string         `field:"event.origin"`                           // SECLDoc[event.origin] Definition:`Origin of the event`
-	Service       string         `field:"event.service,handler:ResolveService"`   // SECLDoc[event.service] Definition:`Service associated with the event`
-	Hostname      string         `field:"event.hostname,handler:ResolveHostname"` // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
+	Os            string         `field:"event.os"`                                          // SECLDoc[event.os] Definition:`Operating system of the event`
+	Origin        string         `field:"event.origin"`                                      // SECLDoc[event.origin] Definition:`Origin of the event`
+	Service       string         `field:"event.service,handler:ResolveService,opts:skip_ad"` // SECLDoc[event.service] Definition:`Service associated with the event`
+	Hostname      string         `field:"event.hostname,handler:ResolveHostname"`            // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process"`

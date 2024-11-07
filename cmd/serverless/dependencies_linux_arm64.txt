@@ -439,6 +439,7 @@ github.com/ebitengine/purego/internal/strings
 github.com/fatih/color
 github.com/felixge/httpsnoop
 github.com/fsnotify/fsnotify
+github.com/fsnotify/fsnotify/internal
 github.com/go-logr/logr
 github.com/go-logr/logr/funcr
 github.com/go-logr/stdr

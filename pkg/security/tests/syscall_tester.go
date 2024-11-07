@@ -62,11 +62,7 @@ func runSyscallTesterFunc(ctx context.Context, t *testing.T, path string, args .
 	output, err := sideTester.CombinedOutput()
 
 	if err != nil {
-		t.Error(err)
-		output := string(output)
-		if output != "" {
-			t.Error(output)
-		}
+		t.Fatalf("failed to run syscall tester: %v, output: %s", err, string(output))
 	}
 	return err
 }

@@ -416,10 +416,11 @@
 /pkg/eventmonitor/                      @DataDog/ebpf-platform @DataDog/agent-security
 /pkg/dynamicinstrumentation/            @DataDog/debugger
 /pkg/flare/                             @DataDog/agent-shared-components
+/pkg/flare/manifests.go                 @DataDog/container-ecosystems
 /pkg/flare/*_win.go                     @Datadog/windows-agent
 /pkg/flare/*_windows.go                 @Datadog/windows-agent
 /pkg/flare/*_windows_test.go            @Datadog/windows-agent
-/pkg/flare/sysprobe                     @DataDog/Networks @Datadog/windows-agent @DataDog/processes @DataDog/agent-security @DataDog/universal-service-monitoring @DataDog/ebpf-platform
+/pkg/flare/sysprobe                     @DataDog/Networks @Datadog/windows-agent @DataDog/agent-security @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/fleet/                             @DataDog/fleet @DataDog/windows-agent
 /pkg/pidfile/                           @DataDog/agent-shared-components
 /pkg/persistentcache/                   @DataDog/agent-metrics-logs
@@ -475,7 +476,7 @@
 /pkg/process/metadata/parser/           @DataDog/universal-service-monitoring @DataDog/processes @DataDog/Networks
 /pkg/process/metadata/parser/*windows*  @DataDog/universal-service-monitoring @DataDog/processes @DataDog/Networks @DataDog/windows-kernel-integrations
 /pkg/process/monitor/                   @DataDog/universal-service-monitoring
-/pkg/process/net/                       @DataDog/universal-service-monitoring @DataDog/processes @DataDog/Networks
+/pkg/process/net/                       @DataDog/universal-service-monitoring @DataDog/Networks
 /pkg/process/net/common_windows.go      @DataDog/windows-agent
 /pkg/process/net/windows_pipe.go        @DataDog/windows-kernel-integrations
 /pkg/process/net/windows_pipe_testutil.go     @DataDog/windows-kernel-integrations

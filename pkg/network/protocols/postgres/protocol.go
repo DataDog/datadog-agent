@@ -29,14 +29,17 @@ import (
 
 const (
 	// InFlightMap is the name of the in-flight map.
-	InFlightMap             = "postgres_in_flight"
-	scratchBufferMap        = "postgres_scratch_buffer"
-	processTailCall         = "socket__postgres_process"
-	parseMessageTailCall    = "socket__postgres_process_parse_message"
-	tlsProcessTailCall      = "uprobe__postgres_tls_process"
-	tlsParseMessageTailCall = "uprobe__postgres_tls_process_parse_message"
-	tlsTerminationTailCall  = "uprobe__postgres_tls_termination"
-	eventStream             = "postgres"
+	InFlightMap               = "postgres_in_flight"
+	scratchBufferMap          = "postgres_scratch_buffer"
+	iterationsMap             = "postgres_iterations"
+	handleTailCall            = "socket__postgres_handle"
+	handleResponseTailCall    = "socket__postgres_handle_response"
+	parseMessageTailCall      = "socket__postgres_process_parse_message"
+	tlsHandleTailCall         = "uprobe__postgres_tls_handle"
+	tlsParseMessageTailCall   = "uprobe__postgres_tls_process_parse_message"
+	tlsTerminationTailCall    = "uprobe__postgres_tls_termination"
+	tlsHandleResponseTailCall = "uprobe__postgres_tls_handle_response"
+	eventStream               = "postgres"
 )
 
 // protocol holds the state of the postgres protocol monitoring.
@@ -59,6 +62,9 @@ var Spec = &protocols.ProtocolSpec{
 			Name: scratchBufferMap,
 		},
 		{
+			Name: iterationsMap,
+		},
+		{
 			Name: "postgres_batch_events",
 		},
 		{
@@ -73,7 +79,14 @@ var Spec = &protocols.ProtocolSpec{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramPostgres),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: processTailCall,
+				EBPFFuncName: handleTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramPostgresHandleResponse),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: handleResponseTailCall,
 			},
 		},
 		{
@@ -87,7 +100,7 @@ var Spec = &protocols.ProtocolSpec{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramPostgres),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: tlsProcessTailCall,
+				EBPFFuncName: tlsHandleTailCall,
 			},
 		},
 		{
@@ -102,6 +115,13 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramPostgresTermination),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsTerminationTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramPostgresHandleResponse),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsHandleResponseTailCall,
 			},
 		},
 	},

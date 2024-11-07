@@ -220,10 +220,15 @@ func (f *extendedPodFactory) customResourceGenerator(p *v1.Pod, resourceType str
 
 func wrapPodFunc(f func(*v1.Pod) *metric.Family) func(interface{}) *metric.Family {
 	return func(obj interface{}) *metric.Family {
-		pod := &v1.Pod{}
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(*unstructured.Unstructured).Object, pod); err != nil {
-			log.Warnf("cannot decode object %q into v1.Pod, err=%s, skipping", obj.(*unstructured.Unstructured).Object["apiVersion"], err)
-			return nil
+		var pod *v1.Pod
+		if p, ok := obj.(*v1.Pod); ok {
+			pod = p
+		} else {
+			pod = &v1.Pod{}
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(*unstructured.Unstructured).Object, pod); err != nil {
+				log.Warnf("cannot decode object %q into v1.Pod, err=%s, skipping", obj.(*unstructured.Unstructured).Object["apiVersion"], err)
+				return nil
+			}
 		}
 
 		metricFamily := f(pod)

@@ -11,10 +11,8 @@ target:
   command: /bin/entrypoint.sh
 
   environment:
-    DD_TELEMETRY_ENABLED: true
     DD_API_KEY: 00000001
     DD_HOSTNAME: smp-regression
-    DD_DD_URL: http://127.0.0.1:9092
 
   profiling_environment:
     # internal profiling
@@ -43,11 +41,12 @@ target:
     DD_PROFILING_WAIT_PROFILE: true
 
 checks:
+  # Note: quality gates will stop using this experiment in the future in favor of quality_gate_idle_all_features.
   - name: memory_usage
     description: "Memory usage quality gate. This puts a bound on the total agent memory usage."
     bounds:
       series: total_rss_bytes
-      upper_bound: "785.0 MiB"
+      upper_bound: "770.0 MiB"
 
 report_links:
   - text: "bounds checks dashboard"

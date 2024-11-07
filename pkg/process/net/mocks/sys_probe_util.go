@@ -88,6 +88,63 @@ func (_c *SysProbeUtil_DetectLanguage_Call) RunAndReturn(run func([]int32) ([]la
 	return _c
 }
 
+// GetBTFLoaderInfo provides a mock function with given fields:
+func (_m *SysProbeUtil) GetBTFLoaderInfo() ([]byte, error) {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetBTFLoaderInfo")
+	}
+
+	var r0 []byte
+	var r1 error
+	if rf, ok := ret.Get(0).(func() ([]byte, error)); ok {
+		return rf()
+	}
+	if rf, ok := ret.Get(0).(func() []byte); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]byte)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// SysProbeUtil_GetBTFLoaderInfo_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetBTFLoaderInfo'
+type SysProbeUtil_GetBTFLoaderInfo_Call struct {
+	*mock.Call
+}
+
+// GetBTFLoaderInfo is a helper method to define mock.On call
+func (_e *SysProbeUtil_Expecter) GetBTFLoaderInfo() *SysProbeUtil_GetBTFLoaderInfo_Call {
+	return &SysProbeUtil_GetBTFLoaderInfo_Call{Call: _e.mock.On("GetBTFLoaderInfo")}
+}
+
+func (_c *SysProbeUtil_GetBTFLoaderInfo_Call) Run(run func()) *SysProbeUtil_GetBTFLoaderInfo_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *SysProbeUtil_GetBTFLoaderInfo_Call) Return(_a0 []byte, _a1 error) *SysProbeUtil_GetBTFLoaderInfo_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SysProbeUtil_GetBTFLoaderInfo_Call) RunAndReturn(run func() ([]byte, error)) *SysProbeUtil_GetBTFLoaderInfo_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetCheck provides a mock function with given fields: module
 func (_m *SysProbeUtil) GetCheck(module types.ModuleName) (interface{}, error) {
 	ret := _m.Called(module)

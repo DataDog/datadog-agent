@@ -8,7 +8,7 @@ require (
 	github.com/alecthomas/participle v0.7.1
 	github.com/davecgh/go-spew v1.1.1
 	github.com/fatih/structtag v1.2.0
-	github.com/fsnotify/fsnotify v1.7.0
+	github.com/fsnotify/fsnotify v1.8.0
 	github.com/google/go-cmp v0.6.0
 	github.com/google/gopacket v1.1.19
 	github.com/hashicorp/go-multierror v1.1.1
