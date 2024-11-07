@@ -10,28 +10,15 @@ package client
 import (
 	"context"
 	"net"
-	"net/http"
 	"time"
 )
 
 const (
-	netType = "unix"
+	idleConnTimeout = 30 * time.Second
 )
 
-// newSystemProbeClient returns a http client configured to talk to the system-probe
-// Linux is unable to import pkg/process/net due to size restrictions.
-func newSystemProbeClient(socketPath string) *http.Client {
-	return &http.Client{
-		Timeout: 10 * time.Second,
-		Transport: &http.Transport{
-			MaxIdleConns:    2,
-			IdleConnTimeout: 30 * time.Second,
-			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial(netType, socketPath)
-			},
-			TLSHandshakeTimeout:   1 * time.Second,
-			ResponseHeaderTimeout: 5 * time.Second,
-			ExpectContinueTimeout: 50 * time.Millisecond,
-		},
+func DialContextFunc(socketPath string) func(context.Context, string, string) (net.Conn, error) {
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return net.Dial("unix", socketPath)
 	}
 }

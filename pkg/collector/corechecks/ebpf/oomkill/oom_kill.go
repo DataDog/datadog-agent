@@ -3,11 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// FIXME: we require the `cgo` build tag because of this dep relationship:
-// github.com/DataDog/datadog-agent/pkg/process/net depends on `github.com/DataDog/agent-payload/v5/process`,
-// which has a hard dependency on `github.com/DataDog/zstd_0`, which requires CGO.
-// Should be removed once `github.com/DataDog/agent-payload/v5/process` can be imported with CGO disabled.
-//go:build cgo && linux
+//go:build linux
 
 // Package oomkill contains the OOMKill check.
 package oomkill
@@ -18,6 +14,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -28,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -90,13 +86,8 @@ func (m *OOMKillCheck) Run() error {
 		return nil
 	}
 
-	sysProbeUtil, err := process_net.GetRemoteSystemProbeUtil(
-		pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
-	if err != nil {
-		return err
-	}
-
-	data, err := sysProbeUtil.GetCheck(sysconfig.OOMKillProbeModule)
+	client := sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	oomkillStats, err := sysprobeclient.GetCheck[[]model.OOMKillStats](client, sysconfig.OOMKillProbeModule)
 	if err != nil {
 		return err
 	}
@@ -109,10 +100,6 @@ func (m *OOMKillCheck) Run() error {
 
 	triggerType := ""
 	triggerTypeText := ""
-	oomkillStats, ok := data.([]model.OOMKillStats)
-	if !ok {
-		return log.Errorf("Raw data has incorrect type")
-	}
 	for _, line := range oomkillStats {
 		containerID, err := cgroups.ContainerFilter("", line.CgroupName)
 		if err != nil || containerID == "" {

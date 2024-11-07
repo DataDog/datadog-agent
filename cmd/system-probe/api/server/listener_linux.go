@@ -1,13 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2024-present Datadog, Inc.
 
-//go:build linux || darwin
-
-package net
+package server
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -22,10 +21,10 @@ type UDSListener struct {
 	socketPath string
 }
 
-// newSocketListener creates a Unix Domain Socket Listener
-func newSocketListener(socketAddr string) (*UDSListener, error) {
+// NewListener creates a Unix Domain Socket Listener
+func NewListener(socketAddr string) (Listener, error) {
 	if len(socketAddr) == 0 {
-		return nil, fmt.Errorf("uds: empty socket path provided")
+		return nil, errors.New("uds: empty socket path provided")
 	}
 
 	addr, err := net.ResolveUnixAddr("unix", socketAddr)
@@ -71,16 +70,6 @@ func newSocketListener(socketAddr string) (*UDSListener, error) {
 
 	log.Debugf("uds: %s successfully initialized", conn.Addr())
 	return listener, nil
-}
-
-// NewSystemProbeListener returns an idle UDSListener
-func NewSystemProbeListener(socketAddr string) (*UDSListener, error) {
-	var listener, err = newSocketListener(socketAddr)
-	if err != nil {
-		return nil, fmt.Errorf("error creating IPC socket: %s", err)
-	}
-
-	return listener, err
 }
 
 // GetListener will return the underlying Conn's net.Listener

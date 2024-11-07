@@ -8,12 +8,16 @@
 package servicediscovery
 
 import (
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"time"
 
+	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -25,8 +29,8 @@ func init() {
 }
 
 type linuxImpl struct {
-	getSysProbeClient processnet.SysProbeUtilGetter
-	time              timer
+	getDiscoveryServices func(client *http.Client) (*model.ServicesResponse, error)
+	time                 timer
 
 	ignoreCfg         map[string]bool
 	containerProvider proccontainers.ContainerProvider
@@ -38,27 +42,45 @@ type linuxImpl struct {
 
 func newLinuxImpl(ignoreCfg map[string]bool, containerProvider proccontainers.ContainerProvider) (osImpl, error) {
 	return &linuxImpl{
-		getSysProbeClient: processnet.GetRemoteSystemProbeUtil,
-		time:              realTime{},
-		ignoreCfg:         ignoreCfg,
-		containerProvider: containerProvider,
-		ignoreProcs:       make(map[int]bool),
-		aliveServices:     make(map[int]*serviceInfo),
-		potentialServices: make(map[int]*serviceInfo),
+		getDiscoveryServices: getDiscoveryServices,
+		time:                 realTime{},
+		ignoreCfg:            ignoreCfg,
+		containerProvider:    containerProvider,
+		ignoreProcs:          make(map[int]bool),
+		aliveServices:        make(map[int]*serviceInfo),
+		potentialServices:    make(map[int]*serviceInfo),
 	}, nil
+}
+
+func getDiscoveryServices(client *http.Client) (*model.ServicesResponse, error) {
+	url := sysprobeclient.URL(sysconfig.DiscoveryModule, "/services")
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("got non-success status code: url: %s, status_code: %d", req.URL, resp.StatusCode)
+	}
+
+	res := &model.ServicesResponse{}
+	if err := json.NewDecoder(resp.Body).Decode(res); err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	socket := pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")
-	sysProbe, err := li.getSysProbeClient(socket)
-	if err != nil {
-		return nil, errWithCode{
-			err:  err,
-			code: errorCodeSystemProbeConn,
-		}
-	}
+	sysProbe := sysprobeclient.Get(socket)
 
-	response, err := sysProbe.GetDiscoveryServices()
+	response, err := li.getDiscoveryServices(sysProbe)
 	if err != nil {
 		return nil, errWithCode{
 			err:  err,
