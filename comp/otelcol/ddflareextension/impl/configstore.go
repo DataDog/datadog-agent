@@ -72,7 +72,9 @@ func (c *configStore) getEnhancedConf() (*confmap.Conf, error) {
 func (c *configStore) getProvidedConfAsString() (string, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-
+	if !c.providedConfigSupported {
+		return "", errProvidedConfigUnsupported
+	}
 	bytesConf, err := yaml.Marshal(c.provided.ToStringMap())
 	if err != nil {
 		return "", err
