@@ -218,7 +218,7 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4
 	if tcp.RST {
 		switch st.tcpState {
 		case TcpStateClosed:
-			// retransmitted, ignore
+			// TODO retransmit
 		case TcpStateTimeWait:
 			// already closed, ignore
 		case TcpStateSynSent:
