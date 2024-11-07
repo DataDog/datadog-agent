@@ -73,7 +73,6 @@ var (
 	defaultRegistriesProd = []string{
 		"install.datadoghq.com",
 		"gcr.io/datadoghq",
-		"docker.io/datadog",
 	}
 )
 
