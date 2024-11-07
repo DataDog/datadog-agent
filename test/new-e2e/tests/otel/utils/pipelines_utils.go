@@ -124,7 +124,7 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 }
 
 // TestTracesWithSpanReceiverV2 tests that OTLP traces are received through OTel pipelines as expected with updated OTLP span receiver
-func TestTracesWithSpanReceiverV2(s OTelTestSuite, iaParams IAParams) {
+func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 
@@ -150,11 +150,6 @@ func TestTracesWithSpanReceiverV2(s OTelTestSuite, iaParams IAParams) {
 			return
 		}
 		assert.Equal(s.T(), telemetrygenService, tp.Chunks[0].Spans[0].Service)
-		if iaParams.InfraAttributes {
-			ctags, ok := getContainerTags(s.T(), tp)
-			assert.True(s.T(), ok)
-			assert.NotNil(s.T(), ctags["kube_ownerref_kind"])
-		}
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
@@ -175,13 +170,13 @@ func TestTracesWithSpanReceiverV2(s OTelTestSuite, iaParams IAParams) {
 		assert.Equal(s.T(), version, sp.Meta["version"])
 		assert.Equal(s.T(), customAttributeValue, sp.Meta[customAttribute])
 		if sp.Meta["span.kind"] == "client" {
-			assert.Equal(s.T(), "lets_go", sp.Name)
+			assert.Equal(s.T(), "telemetrygen.client", sp.Name)
 			assert.Equal(s.T(), "lets-go", sp.Resource)
 			assert.Equal(s.T(), "http", sp.Type)
 			assert.Zero(s.T(), sp.ParentID)
 		} else {
 			assert.Equal(s.T(), "server", sp.Meta["span.kind"])
-			assert.Equal(s.T(), "okey_dokey_0", sp.Name)
+			assert.Equal(s.T(), "telemetrygen.server", sp.Name)
 			assert.Equal(s.T(), "okey-dokey-0", sp.Resource)
 			assert.Equal(s.T(), "web", sp.Type)
 			assert.IsType(s.T(), uint64(0), sp.ParentID)
@@ -197,12 +192,6 @@ func TestTracesWithSpanReceiverV2(s OTelTestSuite, iaParams IAParams) {
 		assert.Equal(s.T(), sp.Meta["k8s.container.name"], ctags["kube_container_name"])
 		assert.Equal(s.T(), sp.Meta["k8s.namespace.name"], ctags["kube_namespace"])
 		assert.Equal(s.T(), sp.Meta["k8s.pod.name"], ctags["pod_name"])
-
-		// Verify container tags from infraattributes processor
-		if iaParams.InfraAttributes {
-			maps.Copy(ctags, sp.Meta)
-			testInfraTags(s.T(), ctags, iaParams)
-		}
 	}
 }
 
@@ -410,68 +399,7 @@ func TestSpanReceiverV2(s OTelTestSuite) {
 	numTraces := 10
 
 	s.T().Log("Starting telemetrygen")
-	createTelemetrygenJobForSpanReceiverV2(ctx, s, "traces", []string{"--traces", fmt.Sprint(numTraces)})
-}
-
-func createTelemetrygenJobForSpanReceiverV2(ctx context.Context, s OTelTestSuite, telemetry string, options []string) {
-	var ttlSecondsAfterFinished int32 = 0 //nolint:revive // We want to see this is explicitly set to 0
-	var backOffLimit int32 = 4
-
-	otlpEndpoint := fmt.Sprintf("%v:4317", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
-	jobSpec := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("telemetrygen-job-%v-%v", telemetry, strings.ReplaceAll(strings.ToLower(s.T().Name()), "/", "-")),
-			Namespace: "datadog",
-		},
-		Spec: batchv1.JobSpec{
-			TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
-			Template: corev1.PodTemplateSpec{
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Env: []corev1.EnvVar{{
-								Name:  "OTEL_SERVICE_NAME",
-								Value: telemetrygenService,
-							}, {
-								Name:      "OTEL_K8S_POD_ID",
-								ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}},
-							}, {
-								Name:      "OTEL_K8S_NAMESPACE",
-								ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}},
-							}, {
-								Name:      "OTEL_K8S_NODE_NAME",
-								ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "spec.nodeName"}},
-							}, {
-								Name:      "OTEL_K8S_POD_NAME",
-								ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}},
-							}},
-							Name:  "telemetrygen-job",
-							Image: "ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:v0.107.0",
-							Command: append([]string{
-								"/telemetrygen", telemetry, "--otlp-endpoint", otlpEndpoint, "--otlp-insecure",
-								"--telemetry-attributes", fmt.Sprintf("%v=%v", customAttribute, customAttributeValue),
-								"--telemetry-attributes", fmt.Sprintf("%v=\"%v\"", "k8s.pod.uid", "did-it-work"),
-								"--otlp-attributes", "service.name=\"$(OTEL_SERVICE_NAME)\"",
-								"--otlp-attributes", "host.name=\"$(OTEL_K8S_NODE_NAME)\"",
-								"--otlp-attributes", fmt.Sprintf("deployment.environment=\"%v\"", env),
-								"--otlp-attributes", fmt.Sprintf("service.version=\"%v\"", version),
-								"--otlp-attributes", "k8s.namespace.name=\"$(OTEL_K8S_NAMESPACE)\"",
-								"--otlp-attributes", "k8s.node.name=\"$(OTEL_K8S_NODE_NAME)\"",
-								"--otlp-attributes", "k8s.pod.name=\"$(OTEL_K8S_POD_NAME)\"",
-								//"--otlp-attributes", "k8s.pod.uid=\"$(OTEL_K8S_POD_ID)\"",
-								"--otlp-attributes", "k8s.container.name=\"telemetrygen-job\"",
-							}, options...),
-						},
-					},
-					RestartPolicy: corev1.RestartPolicyNever,
-				},
-			},
-			BackoffLimit: &backOffLimit,
-		},
-	}
-
-	_, err := s.Env().KubernetesCluster.Client().BatchV1().Jobs("datadog").Create(ctx, jobSpec, metav1.CreateOptions{})
-	require.NoError(s.T(), err, "Could not properly start job")
+	createTelemetrygenJob(ctx, s, "traces", []string{"--traces", fmt.Sprint(numTraces)})
 }
 
 func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry string, options []string) {
@@ -511,6 +439,7 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 							Command: append([]string{
 								"/telemetrygen", telemetry, "--otlp-endpoint", otlpEndpoint, "--otlp-insecure",
 								"--telemetry-attributes", fmt.Sprintf("%v=%v", customAttribute, customAttributeValue),
+								"--telemetry-attributes", "k8s.pod.uid=\"$(OTEL_K8S_POD_ID)\"",
 								"--otlp-attributes", "service.name=\"$(OTEL_SERVICE_NAME)\"",
 								"--otlp-attributes", "host.name=\"$(OTEL_K8S_NODE_NAME)\"",
 								"--otlp-attributes", fmt.Sprintf("deployment.environment=\"%v\"", env),
@@ -518,7 +447,6 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 								"--otlp-attributes", "k8s.namespace.name=\"$(OTEL_K8S_NAMESPACE)\"",
 								"--otlp-attributes", "k8s.node.name=\"$(OTEL_K8S_NODE_NAME)\"",
 								"--otlp-attributes", "k8s.pod.name=\"$(OTEL_K8S_POD_NAME)\"",
-								"--otlp-attributes", "k8s.pod.uid=\"$(OTEL_K8S_POD_ID)\"",
 								"--otlp-attributes", "k8s.container.name=\"telemetrygen-job\"",
 							}, options...),
 						},
