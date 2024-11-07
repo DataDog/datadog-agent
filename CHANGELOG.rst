@@ -2,6 +2,140 @@
 Release Notes
 =============
 
+.. _Release Notes_7.59.0:
+
+7.59.0
+======
+
+.. _Release Notes_7.59.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-11-06
+
+- Please refer to the `7.59.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7590>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.59.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Removed the deprecated config option ``otlp_config.debug.loglevel`` in favor of ``otlp_config.debug.verbosity``:
+  * ``loglevel: debug`` maps to ``verbosity: detailed``
+  * ``loglevel: info`` maps to ``verbosity: normal``
+  * ``loglevel: warn/error`` maps to ``verbosity: basic``
+  * ``loglevel: disabled`` maps to ``verbosity: none``
+
+
+.. _Release Notes_7.59.0_New Features:
+
+New Features
+------------
+
+- Add ability to run process/container collection on the core Agent (Linux only). This is controlled
+  by the `process_config.run_in_core_agent.enabled` option in datadog.yaml.
+
+- DBM: Add configuration options to SQL obfuscator to customize the obfuscation of SQL statements:
+  - ``KeepJSONPath`` - option to control whether JSON paths following JSON operators in SQL statements should be obfuscated. This option is only valid when ``ObfuscationMode`` is ``obfuscate_and_normalize``.
+
+- APM: Add new 'sqllexer' feature flag for the Trace Agent, which enables
+  the sqllexer imprementation of the SQL Obfuscator.
+
+- Introduce new Kubernetes tag `gpu_vendor` for the GPU resource requested by a container.
+
+
+.. _Release Notes_7.59.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Added additional Agent telemetry metrics for the log tailer code flow: logs.bytes_sent, logs.encoded_bytes_sent, and logs.bytes_missed
+
+- Datadog may collect environmental, performance, and feature usage
+  information about the Datadog Agent. This may include diagnostic
+  logs and crash dumps of the Datadog Agent with obfuscated stack
+  traces to support and further improve the Datadog Agent.
+  
+  More details could be found in the
+  `docs <https://docs.datadoghq.com/data_security/agent/#telemetry-collection>`_
+
+- APM: Updates peer tags for ``peer.db.system``.
+
+- Agents are now built with Go ``1.22.7``.
+
+- Agents are now built with Go ``1.22.8``.
+
+- Agents are now built with Go ``1.22.8``.
+
+- While using the AWS Lambda Extension, when a Lambda Function is invoked by 
+  a [properly instrumented][1] Step Function, the Lambda Function will create
+  its Trace and Parent IDs deterministically based on the Step Function's 
+  execution context. 
+  [1]: https://docs.datadoghq.com/serverless/step_functions/installation/?tab=custom "Install Serverless Monitoring for AWS Step Functions"
+
+- Updates default .NET library used for auto-instrumentation from v2 to v3
+
+- The system-probe selinux policy is now installed on Oracle Linux
+
+- Increases the default input channel, processing channel, and context store sizes
+  for network traffic paths.
+
+- Adds support for file log collection from Podman rootless containers when ``logs_config.use_podman_logs`` is set to ``true`` and ``podman_db_path`` is configured.
+
+- Allow Python integrations to emit Agent telemetry data.
+
+
+.. _Release Notes_7.59.0_Security Notes:
+
+Security Notes
+--------------
+
+- Update OpenSSL to 3.3.2 (on Linux & macOS) in order to mitigate CVE-2024-6119.
+
+
+.. _Release Notes_7.59.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes the default configuration template to include the Cloud Security Management configuration options.
+
+- Fixing a bug introduced in 7.55 where in some specific scenarios, checks associated with a deleted container or POD would keep running until the Agent is restarted.
+
+- Fix the forwarder health check so that it reports unhealthy when the API key is invalid.
+
+- Fix the removal of 'non-core' integrations during Agent upgrades.
+
+- Fix Process Agent argument scrubbing to allow scrubbing of quoted arguments.
+
+- Fix Orchestrator argument scrubbing to allow scrubbing of quoted arguments.
+
+- Fixes an issue where TCP traceroute latency was not being calculated correctly.
+
+- Fixes the telemetry type for Oracle metrics.
+
+- APM: Fix obfuscation of SQL queries containing non-numeric prepared statement variables.
+
+
+.. _Release Notes_7.59.0_Other Notes:
+
+Other Notes
+-----------
+
+- Adds Postgres integration metrics to cross-org telemetry whitelist.
+
+- The Agent is now built with a custom toolchain that targets our minimally
+  supported glibc version (2.17 on x86_64 and 2.23 on aarch64)
+
+- On Windows, the TCP socket transport mechanism for system probe
+  communications has been replaced with a named pipe.
+  This deprecates the system_probe_config.sysprobe_socket configuration
+  entry for Windows.
+  The new fixed named pipe path is \\.\pipe\dd_system_probe.
+
+
 .. _Release Notes_7.58.2:
 
 7.58.2
