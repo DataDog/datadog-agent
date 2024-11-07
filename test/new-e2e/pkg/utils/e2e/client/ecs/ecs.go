@@ -38,6 +38,7 @@ func NewClient(clusterName string) (*Client, error) {
 // ExecCommand executes a command in a container in a task in an ECS cluster.
 // It accepts either the task ARN or the task ID.
 // WARNING: This function will return a nil error as soon as it succeed to execute the command and retrieve the output, even if the command executed failed
+// WARNING: This function will not work on Fargate tasks with pidMode=task per https://github.com/aws/containers-roadmap/issues/2268
 func (c *Client) ExecCommand(task, containerName string, cmd string) (string, error) {
 	taskID := task
 	if strings.HasPrefix(task, "arn:") {
