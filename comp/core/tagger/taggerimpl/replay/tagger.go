@@ -99,16 +99,6 @@ func (t *Tagger) AccumulateTagsFor(entityID types.EntityID, cardinality types.Ta
 	return nil
 }
 
-// Standard returns the standard tags for a given entity.
-func (t *Tagger) Standard(entityID types.EntityID) ([]string, error) {
-	tags, err := t.store.LookupStandard(entityID)
-	if err != nil {
-		return []string{}, err
-	}
-
-	return tags, nil
-}
-
 // List returns all the entities currently stored by the tagger.
 func (t *Tagger) List() types.TaggerListResponse {
 	return t.store.List()

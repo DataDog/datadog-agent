@@ -275,16 +275,6 @@ func (s *TagStore) Lookup(entityID types.EntityID, cardinality types.TagCardinal
 	return s.LookupHashed(entityID, cardinality).Get()
 }
 
-// LookupStandard returns the standard tags recorded for a given entity
-func (s *TagStore) LookupStandard(entityID types.EntityID) ([]string, error) {
-	storedTags, err := s.getEntityTags(entityID)
-	if err != nil {
-		return nil, err
-	}
-
-	return storedTags.getStandard(), nil
-}
-
 // List returns full list of entities and their tags per source in an API format.
 func (s *TagStore) List() types.TaggerListResponse {
 	r := types.TaggerListResponse{

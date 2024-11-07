@@ -314,22 +314,6 @@ func (t *TaggerClient) GetEntityHash(entityID types.EntityID, cardinality types.
 	return utils.ComputeTagsHash(tags)
 }
 
-// Standard queries the defaultTagger to get entity
-// standard tags (env, version, service) from cache or sources.
-func (t *TaggerClient) Standard(entityID types.EntityID) ([]string, error) {
-	t.mux.RLock()
-	// TODO(components) (tagger): captureTagger is a legacy global variable to be eliminated
-	if t.captureTagger != nil {
-		tags, err := t.captureTagger.Standard(entityID)
-		if err == nil && len(tags) > 0 {
-			t.mux.RUnlock()
-			return tags, nil
-		}
-	}
-	t.mux.RUnlock()
-	return t.defaultTagger.Standard(entityID)
-}
-
 // AgentTags returns the agent tags
 // It relies on the container provider utils to get the Agent container ID
 func (t *TaggerClient) AgentTags(cardinality types.TagCardinality) ([]string, error) {

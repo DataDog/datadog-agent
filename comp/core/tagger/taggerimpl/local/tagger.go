@@ -120,16 +120,6 @@ func (t *Tagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]s
 	return t.Tag(entityID, cardinality)
 }
 
-// Standard returns standard tags for a given entity
-// It triggers a tagger fetch if the no tags are found
-func (t *Tagger) Standard(entityID types.EntityID) ([]string, error) {
-	if entityID.Empty() {
-		return nil, fmt.Errorf("empty entity ID")
-	}
-
-	return t.tagStore.LookupStandard(entityID)
-}
-
 // GetEntity returns the entity corresponding to the specified id and an error
 func (t *Tagger) GetEntity(entityID types.EntityID) (*types.Entity, error) {
 	return t.tagStore.GetEntity(entityID)

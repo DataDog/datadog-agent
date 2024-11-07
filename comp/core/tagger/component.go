@@ -45,7 +45,6 @@ type Component interface {
 	LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error)
 	Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error)
 	AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error
-	Standard(entityID types.EntityID) ([]string, error)
 	List() types.TaggerListResponse
 	GetEntity(entityID types.EntityID) (*types.Entity, error)
 	// subscriptionID is used for logging and debugging purposes

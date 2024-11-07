@@ -126,34 +126,6 @@ func (s *StoreTestSuite) TestLookupHashedWithEntityStr() {
 	assert.ElementsMatch(s.T(), tagsHigh.Get(), []string{"low1", "low2", "orchestrator1", "high1"})
 }
 
-func (s *StoreTestSuite) TestLookupStandard() {
-	entityID := types.NewEntityID(types.ContainerID, "test")
-
-	s.tagstore.ProcessTagInfo([]*types.TagInfo{
-		{
-			Source:       "source1",
-			EntityID:     entityID,
-			LowCardTags:  []string{"tag", "env:dev"},
-			StandardTags: []string{"env:dev"},
-		},
-		{
-			Source:       "source2",
-			EntityID:     entityID,
-			LowCardTags:  []string{"tag", "service:foo"},
-			StandardTags: []string{"service:foo"},
-		},
-	})
-
-	standard, err := s.tagstore.LookupStandard(entityID)
-	assert.Nil(s.T(), err)
-	assert.Len(s.T(), standard, 2)
-	assert.Contains(s.T(), standard, "env:dev")
-	assert.Contains(s.T(), standard, "service:foo")
-
-	_, err = s.tagstore.LookupStandard(types.NewEntityID("not", "found"))
-	assert.NotNil(s.T(), err)
-}
-
 func (s *StoreTestSuite) TestLookupNotPresent() {
 	entityID := types.NewEntityID(types.ContainerID, "test")
 	tags := s.tagstore.Lookup(entityID, types.LowCardinality)

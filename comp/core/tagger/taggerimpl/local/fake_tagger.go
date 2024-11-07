@@ -138,11 +138,6 @@ func (f *FakeTagger) AccumulateTagsFor(entityID types.EntityID, cardinality type
 	return nil
 }
 
-// Standard fake implementation
-func (f *FakeTagger) Standard(entityID types.EntityID) ([]string, error) {
-	return f.store.LookupStandard(entityID)
-}
-
 // GetEntity returns faked entity corresponding to the specified id and an error
 func (f *FakeTagger) GetEntity(entityID types.EntityID) (*types.Entity, error) {
 	return f.store.GetEntity(entityID)
