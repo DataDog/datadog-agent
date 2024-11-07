@@ -22,7 +22,7 @@ func TestGPUCompile(t *testing.T) {
 			t.Skip("GPU Runtime compilation not supported on this kernel version")
 		}
 
-		cfg := config.NewConfig()
+		cfg := config.New()
 		cfg.BPFDebug = true
 		out, err := getRuntimeCompiledGPUMonitoring(cfg)
 		require.NoError(t, err)
