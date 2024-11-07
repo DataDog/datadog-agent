@@ -92,31 +92,6 @@ func NewPipeline(outputChan chan *message.Payload,
 	}
 }
 
-func NewProcessorOnlyPipeline(
-	processingRules []*config.ProcessingRule,
-	diagnosticMessageReceiver diagnostic.MessageReceiver,
-	pipelineID int,
-	hostname hostnameinterface.Component,
-	cfg pkgconfigmodel.Reader) *Pipeline {
-	strategyInput := make(chan *message.Message, config.ChanSize)
-	encoder := processor.JSONServerlessEncoder
-
-	inputChan := make(chan *message.Message, config.ChanSize)
-
-	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, pipelineID)
-
-	return &Pipeline{
-		InputChan:  inputChan,
-		flushChan:  nil,
-		processor:  processor,
-		strategy:   nil,
-		sender:     nil,
-		serverless: true,
-		flushWg:    nil,
-	}
-}
-
 // Start launches the pipeline
 func (p *Pipeline) Start() {
 	p.sender.Start()

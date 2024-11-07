@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -57,16 +58,7 @@ type provider struct {
 }
 
 type processorOnlyProvider struct {
-	auditor                   auditor.Auditor
-	numberOfPipelines         int
-	diagnosticMessageReceiver diagnostic.MessageReceiver
-	processingRules           []*config.ProcessingRule
-	pipelines                 []*Pipeline
-	currentPipelineIndex      *atomic.Uint32
-	hostname                  hostnameinterface.Component
-	currentProcessorIndex     *atomic.Uint32
-	cfg                       pkgconfigmodel.Reader
-	outputChan                chan *message.Payload
+	processor *processor.Processor
 }
 
 // NewProvider returns a new Provider
@@ -79,30 +71,18 @@ func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, diagn
 	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, true, status, hostname, cfg)
 }
 
-// NewProcessorOnlyProvider returns a new Provider in serverless mode
+// NewProcessorOnlyProvider returns a new Provider with only the processor
 func NewProcessorOnlyProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, cfg pkgconfigmodel.Reader, endpoints *config.Endpoints, hostname hostnameinterface.Component) Provider {
-	return &processorOnlyProvider{
-		numberOfPipelines:         numberOfPipelines,
-		diagnosticMessageReceiver: diagnosticMessageReceiver,
-		auditor:                   auditor,
-		hostname:                  hostname,
-		processingRules:           processingRules,
-		pipelines:                 []*Pipeline{},
-		currentPipelineIndex:      atomic.NewUint32(0),
-		currentProcessorIndex:     atomic.NewUint32(0),
-		cfg:                       cfg,
-	}
-}
+	strategyInput := make(chan *message.Message, config.ChanSize)
+	encoder := processor.JSONServerlessEncoder
+	inputChan := make(chan *message.Message, config.ChanSize)
+	pipelineId := 0
+	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
+		encoder, diagnosticMessageReceiver, hostname, pipelineId)
 
-// NextPipelineChan returns the next pipeline input channel
-func (p *processorOnlyProvider) NextPipelineChan() chan *message.Message {
-	pipelinesLen := len(p.pipelines)
-	if pipelinesLen == 0 {
-		return nil
+	return &processorOnlyProvider{
+		processor: processor,
 	}
-	index := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
-	nextPipeline := p.pipelines[index]
-	return nextPipeline.InputChan
 }
 
 // NewMockProvider creates a new provider that will not provide any pipelines.
@@ -139,16 +119,8 @@ func (p *provider) Start() {
 	}
 }
 
-// Start initializes the pipelines
 func (p *processorOnlyProvider) Start() {
-	// This requires the auditor to be started before.
-	p.outputChan = p.auditor.Channel()
-
-	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewProcessorOnlyPipeline(p.processingRules, p.diagnosticMessageReceiver, i, p.hostname, p.cfg)
-		pipeline.Start()
-		p.pipelines = append(p.pipelines, pipeline)
-	}
+	p.processor.Start()
 }
 
 // Stop stops all pipelines in parallel,
@@ -164,13 +136,7 @@ func (p *provider) Stop() {
 }
 
 func (p *processorOnlyProvider) Stop() {
-	stopper := startstop.NewParallelStopper()
-	for _, pipeline := range p.pipelines {
-		stopper.Add(pipeline)
-	}
-	stopper.Stop()
-	p.pipelines = p.pipelines[:0]
-	p.outputChan = nil
+	p.processor.Stop()
 }
 
 // return true if all processor SDS scanners are active.
@@ -212,43 +178,28 @@ func (p *provider) reconfigureSDS(config []byte, orderType sds.ReconfigureOrderT
 	return allScannersActive, rerr
 }
 
-// return true if all processor SDS scanners are active.
+// return true if processor SDS scanners are active.
 func (p *processorOnlyProvider) reconfigureSDS(config []byte, orderType sds.ReconfigureOrderType) (bool, error) {
-	var responses []chan sds.ReconfigureResponse
-
-	// send a reconfiguration order to every running pipeline
-
-	for _, pipeline := range p.pipelines {
-		order := sds.ReconfigureOrder{
-			Type:         orderType,
-			Config:       config,
-			ResponseChan: make(chan sds.ReconfigureResponse),
-		}
-		responses = append(responses, order.ResponseChan)
-
-		log.Debug("Sending SDS reconfiguration order:", string(order.Type))
-		pipeline.processor.ReconfigChan <- order
+	// Send a reconfiguration order to the running pipeline
+	order := sds.ReconfigureOrder{
+		Type:         orderType,
+		Config:       config,
+		ResponseChan: make(chan sds.ReconfigureResponse),
 	}
 
-	// reports if at least one error occurred
+	log.Debug("Sending SDS reconfiguration order:", string(order.Type))
+	p.processor.ReconfigChan <- order
 
+	// Receive response and determine if any errors occurred
+	resp := <-order.ResponseChan
+	scannerActive := resp.IsActive
 	var rerr error
-	allScannersActive := true
-	for _, response := range responses {
-		resp := <-response
-
-		if !resp.IsActive {
-			allScannersActive = false
-		}
-
-		if resp.Err != nil {
-			rerr = multierror.Append(rerr, resp.Err)
-		}
-
-		close(response)
+	if resp.Err != nil {
+		rerr = multierror.Append(rerr, resp.Err)
 	}
 
-	return allScannersActive, rerr
+	return scannerActive, rerr
+
 }
 
 // ReconfigureSDSStandardRules stores the SDS standard rules for the given provider.
@@ -299,6 +250,10 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 	return nextPipeline.InputChan
 }
 
+func (p *processorOnlyProvider) NextPipelineChan() chan *message.Message {
+	return nil
+}
+
 // Flush flushes synchronously all the contained pipeline of this provider.
 func (p *provider) Flush(ctx context.Context) {
 	for _, p := range p.pipelines {
@@ -313,12 +268,5 @@ func (p *provider) Flush(ctx context.Context) {
 
 // Flush flushes synchronously all the contained pipeline of this provider.
 func (p *processorOnlyProvider) Flush(ctx context.Context) {
-	for _, p := range p.pipelines {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			p.Flush(ctx)
-		}
-	}
+	p.processor.Flush(ctx)
 }
