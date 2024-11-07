@@ -3,7 +3,7 @@ import sys
 from invoke.exceptions import Exit
 
 
-def create_metric(metric_type, metric_name, timestamp, value, tags, unit=None, origin_metrics=None):
+def create_metric(metric_type, metric_name, timestamp, value, tags, unit=None, metric_origin=None):
     """
     - metric_type: See types in the following documentation https://datadoghq.dev/datadog-api-client-python/datadog_api_client.v2.model.html#module-datadog_api_client.v2.model.metric_intake_type
     """
@@ -16,8 +16,8 @@ def create_metric(metric_type, metric_name, timestamp, value, tags, unit=None, o
     unit = unit or unset
     metadata = unset
 
-    if origin_metrics:
-        metadata = MetricMetadata(origin=MetricOrigin(**origin_metrics))
+    if metric_origin:
+        metadata = MetricMetadata(origin=MetricOrigin(**metric_origin))
 
     return MetricSeries(
         metric=metric_name,
@@ -40,10 +40,10 @@ def create_count(metric_name, timestamp, value, tags, unit=None):
     return create_metric(MetricIntakeType.COUNT, metric_name, timestamp, value, tags, unit)
 
 
-def create_gauge(metric_name, timestamp, value, tags, unit=None, origin_metrics=None):
+def create_gauge(metric_name, timestamp, value, tags, unit=None, metric_origin=None):
     from datadog_api_client.v2.model.metric_intake_type import MetricIntakeType
 
-    return create_metric(MetricIntakeType.GAUGE, metric_name, timestamp, value, tags, unit, origin_metrics)
+    return create_metric(MetricIntakeType.GAUGE, metric_name, timestamp, value, tags, unit, metric_origin)
 
 
 def send_metrics(series):

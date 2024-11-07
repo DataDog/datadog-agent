@@ -3,7 +3,8 @@ import tempfile
 from datetime import datetime
 
 from tasks.libs.common.color import color_message
-from tasks.libs.common.utils import get_origin_metrics
+from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
+from tasks.libs.common.utils import get_metric_origin
 
 DEBIAN_OS = "debian"
 CENTOS_OS = "centos"
@@ -105,7 +106,7 @@ def compute_package_size_metrics(
                 timestamp,
                 package_compressed_size,
                 tags=common_tags,
-                origin_metrics=get_origin_metrics(17, 0, 0),
+                metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
             ),
         )
         series.append(
@@ -114,7 +115,7 @@ def compute_package_size_metrics(
                 timestamp,
                 package_uncompressed_size,
                 tags=common_tags,
-                origin_metrics=get_origin_metrics(17, 0, 0),
+                metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
             ),
         )
 
@@ -126,7 +127,7 @@ def compute_package_size_metrics(
                     timestamp,
                     binary_size,
                     tags=common_tags + [f"bin:{binary_name}"],
-                    origin_metrics=get_origin_metrics(17, 0, 0),
+                    metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
                 ),
             )
 
