@@ -73,7 +73,6 @@ var (
 	defaultRegistriesProd = []string{
 		"install.datadoghq.com",
 		"gcr.io/datadoghq",
-		"public.ecr.aws/datadog",
 		"docker.io/datadog",
 	}
 )
@@ -210,7 +209,8 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 		}
 	}
 	ref := url
-	if registryOverride != "" {
+	// public.ecr.aws/datadog is ignored for now as there are issues with it
+	if registryOverride != "" && registryOverride != "public.ecr.aws/datadog" {
 		if !strings.HasSuffix(registryOverride, "/") {
 			registryOverride += "/"
 		}

@@ -21,7 +21,7 @@ import (
 
 func TestConsumerCanStartAndStop(t *testing.T) {
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
-	cfg := config.NewConfig()
+	cfg := config.New()
 	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
 	consumer := newCudaEventConsumer(ctx, handler, cfg)
