@@ -174,16 +174,16 @@ type urlWithKeychain struct {
 // getRefAndKeychains returns the references and their keychains to try in order to download an OCI at the given URL
 func getRefAndKeychains(mainEnv *env.Env, url string) []urlWithKeychain {
 	mainRefAndKeyChain := getRefAndKeychain(mainEnv, url)
+	refAndKeychains := []urlWithKeychain{mainRefAndKeyChain}
 	if mainRefAndKeyChain.ref != url || mainRefAndKeyChain.keychain != authn.DefaultKeychain {
 		// Override: we don't need to try the default registries
-		return []urlWithKeychain{mainRefAndKeyChain}
+		return refAndKeychains
 	}
 
 	defaultRegistries := defaultRegistriesProd
 	if mainEnv.Site == "datad0g.com" {
 		defaultRegistries = defaultRegistriesStaging
 	}
-	refAndKeychains := []urlWithKeychain{}
 	for _, additionalDefaultRegistry := range defaultRegistries {
 		refAndKeychain := getRefAndKeychain(&env.Env{RegistryOverride: additionalDefaultRegistry}, url)
 		// Deduplicate
