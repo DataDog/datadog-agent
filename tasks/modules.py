@@ -389,8 +389,11 @@ def show_all(_, details: bool = False, remove_defaults: bool = True, base_dir: s
         ignored: If True, will list ignored modules.
     """
 
+    modules, ignored_modules = list_default_modules(Path(base_dir))
+
     if ignored:
-        _, ignored_modules = list_default_modules(Path(base_dir))
         print('\n'.join(sorted(ignored_modules)))
     else:
-        _print_modules(get_default_modules(base_dir), details=details, remove_defaults=remove_defaults)
+        _print_modules(modules, details=details, remove_defaults=remove_defaults)
+
+    print(len(modules), 'modules and', len(ignored_modules), 'ignored modules')
