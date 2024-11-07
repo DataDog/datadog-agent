@@ -39,7 +39,6 @@ type ddExtension struct {
 	info        component.BuildInfo
 	debug       extensionDef.DebugSourceResponse
 	configStore *configStore
-	ocb         bool
 }
 
 // TODO: update to reference extensioncapabilities.ConfigWatcher when updated to v0.109.0 or later,
@@ -62,8 +61,9 @@ func extensionType(s string) string {
 // calling Start.
 func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) error {
 	var err error
+	ext.telemetry.Logger.Info("Collector called NotifyConfig interface")
 	ext.configStore.setEnhancedConf(conf)
-
+	ext.telemetry.Logger.Info("Enhanced config set")
 	extensionConfs, err := conf.Sub("extensions")
 	if err != nil {
 		return err
@@ -119,7 +119,7 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 }
 
 // NewExtension creates a new instance of the extension.
-func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo, ocb bool) (extensionDef.Component, error) {
+func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo, getProvidedConfig bool) (extensionDef.Component, error) {
 	ext := &ddExtension{
 		cfg:         cfg,
 		telemetry:   telemetry,
@@ -128,10 +128,9 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 		debug: extensionDef.DebugSourceResponse{
 			Sources: map[string]extensionDef.OTelFlareSource{},
 		},
-		ocb: ocb,
 	}
 	// only initiate the configprovider and set provided config if being built by Agent
-	if ocb {
+	if getProvidedConfig {
 		ext.configStore.setProvidedConfigSupported(false)
 	} else {
 		ext.configStore.setProvidedConfigSupported(true)
@@ -143,16 +142,16 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 		if err != nil {
 			return nil, err
 		}
-	  conf := confmap.New()
-	  err = conf.Marshal(providedConf)
-	  if err != nil {
-		  return nil, err
-	  }
+		conf := confmap.New()
+		err = conf.Marshal(providedConf)
+		if err != nil {
+			return nil, err
+		}
 
-	  ext.configStore.setProvidedConf(conf)
+		ext.configStore.setProvidedConf(conf)
 	}
 	var err error
-	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext, ext.ocb)
+	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext, getProvidedConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -196,27 +195,15 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 			return
 		}
 	} else {
-		customer = "ConfigProvider not supported, only enhanced config available"
+		customer = ""
 	}
-	var enhanced string
-	if ext.ocb {
-		enhanced, err = ext.configStore.getEffectiveConfigAsString()
-		if err != nil {
-			ext.telemetry.Logger.Error("Unable to get effective config", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintf(w, "Unable to get effective config\n")
-			return
-		}
-	} else {
-		enhanced, err = ext.configStore.getEnhancedConfAsString()
-		if err != nil {
-			ext.telemetry.Logger.Error("Unable to get enhanced config", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintf(w, "Unable to get enhanced config\n")
-			return
-		}
+	enhanced, err := ext.configStore.getEnhancedConfAsString()
+	if err != nil {
+		ext.telemetry.Logger.Error("Unable to get enhanced config", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "Unable to get enhanced config\n")
+		return
 	}
-
 	envconfig := ""
 	envvars := getEnvironmentAsMap()
 	if envbytes, err := json.Marshal(envvars); err == nil {

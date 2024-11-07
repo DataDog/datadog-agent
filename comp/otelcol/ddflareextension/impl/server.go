@@ -40,7 +40,7 @@ func validateToken(next http.Handler) http.Handler {
 	})
 }
 
-func newServer(endpoint string, handler http.Handler, ocb bool) (*server, error) {
+func newServer(endpoint string, handler http.Handler, auth bool) (*server, error) {
 
 	// Generate a self-signed certificate
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -115,7 +115,7 @@ func newServer(endpoint string, handler http.Handler, ocb bool) (*server, error)
 
 	// no easy way currently to pass required bearer auth token to OSS collector;
 	// skip the validation if running inside a separate collector
-	if !ocb {
+	if !auth {
 		r.Use(validateToken)
 	}
 

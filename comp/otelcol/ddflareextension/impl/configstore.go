@@ -15,9 +15,9 @@ import (
 )
 
 type configStore struct {
-	provided *confmap.Conf
-	enhanced *confmap.Conf
-	mu       sync.RWMutex
+	provided                *confmap.Conf
+	enhanced                *confmap.Conf
+	mu                      sync.RWMutex
 	providedConfigSupported bool
 }
 
@@ -43,7 +43,6 @@ func (c *configStore) setProvidedConf(config *confmap.Conf) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.provided = config
-	return nil
 }
 
 // setEnhancedConf stores the config into configStoreImpl.

@@ -27,14 +27,15 @@ type ddExtensionFactory struct {
 
 	factories              *otelcol.Factories
 	configProviderSettings otelcol.ConfigProviderSettings
-	ocb                    bool
+}
+
+func (f *ddExtensionFactory) isOCB() bool {
+	return f.factories == nil
 }
 
 // NewFactory creates a factory for Datadog Flare Extension for use with OCB and OSS Collector
 func NewFactory() extension.Factory {
-	return &ddExtensionFactory{
-		ocb: true,
-	}
+	return &ddExtensionFactory{}
 }
 
 // NewFactoryForAgent creates a factory for Datadog Flare Extension for use with Agent
@@ -42,17 +43,30 @@ func NewFactoryForAgent(factories *otelcol.Factories, configProviderSettings ote
 	return &ddExtensionFactory{
 		factories:              factories,
 		configProviderSettings: configProviderSettings,
-		ocb:                    false,
 	}
 }
 
+// CreateExtension creates a new instance of the Datadog Flare Extension, deprecated as of v0.112.0
+// TODO: Remove CreateExtension when updating collector dependencies to v0.112.0 or later
 func (f *ddExtensionFactory) CreateExtension(ctx context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
 	config := &Config{
 		factories:              f.factories,
 		configProviderSettings: f.configProviderSettings,
 	}
 	config.HTTPConfig = cfg.(*Config).HTTPConfig
-	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, f.ocb)
+	providedConfigSupported := f.isOCB()
+	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, providedConfigSupported)
+}
+
+// Create creates a new instance of the Datadog Flare Extension, as of v0.112.0 or later
+func (f *ddExtensionFactory) Create(ctx context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
+	config := &Config{
+		factories:              f.factories,
+		configProviderSettings: f.configProviderSettings,
+	}
+	config.HTTPConfig = cfg.(*Config).HTTPConfig
+	providedConfigSupported := f.isOCB()
+	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, providedConfigSupported)
 }
 
 func (f *ddExtensionFactory) CreateDefaultConfig() component.Config {
@@ -67,6 +81,13 @@ func (f *ddExtensionFactory) Type() component.Type {
 	return metadata.Type
 }
 
+// ExtensionStability is deprecated as of v0.112.0
+// TODO: remove ExtensionStability when updating collector dependencies to v0.112.0 or later
 func (f *ddExtensionFactory) ExtensionStability() component.StabilityLevel {
+	return metadata.ExtensionStability
+}
+
+// Stability is the new stability level interface for extension as of v0.112.0
+func (f *ddExtensionFactory) Stability() component.StabilityLevel {
 	return metadata.ExtensionStability
 }
