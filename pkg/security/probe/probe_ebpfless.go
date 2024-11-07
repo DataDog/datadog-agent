@@ -306,6 +306,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.ContainerContext.Tags = []string{
 			"image_name:" + containerContext.ImageShortName,
 			"image_tag:" + containerContext.ImageTag,
+			"container_id:" + containerContext.ID,
 		}
 	}
 
