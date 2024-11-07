@@ -97,19 +97,10 @@ send_pkg_size-a7:
   needs:
     - agent_deb-x64-a7
     - agent_deb-arm64-a7
-    - iot_agent_deb-x64
-    - iot_agent_deb-arm64
-    - dogstatsd_deb-x64
-    - dogstatsd_deb-arm64
     - agent_heroku_deb-x64-a7
     - agent_rpm-arm64-a7
     - agent_rpm-x64-a7
-    - iot_agent_rpm-x64
-    - iot_agent_rpm-arm64
-    - dogstatsd_rpm-x64
     - agent_suse-x64-a7
-    - dogstatsd_suse-x64
-    - iot_agent_suse-x64
   before_script:
     # FIXME: tmp while we uppdate the base image
     - apt-get install -y wget rpm2cpio cpio
@@ -288,18 +279,9 @@ check_pkg_size-amd64-a7:
   rules: !reference [.on_a7]
   needs:
     - agent_deb-x64-a7
-    - iot_agent_deb-x64
-    - dogstatsd_deb-x64
     - agent_heroku_deb-x64-a7
     - agent_rpm-x64-a7
-    - iot_agent_rpm-x64
-    - dogstatsd_rpm-x64
     - agent_suse-x64-a7
-    - dogstatsd_suse-x64
-    - iot_agent_suse-x64
-    - agentless_scanner_deb-x64
-    - agentless_scanner_rpm-x64
-    - agentless_scanner_suse-x64
   variables:
     MAJOR_VERSION: 7
     FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd datadog-heroku-agent"
@@ -322,12 +304,7 @@ check_pkg_size-arm64-a7:
   rules: !reference [.on_all_builds_a7]
   needs:
     - agent_deb-arm64-a7
-    - iot_agent_deb-arm64
-    - dogstatsd_deb-arm64
     - agent_rpm-arm64-a7
-    - iot_agent_rpm-arm64
-    - agentless_scanner_deb-arm64
-    - agentless_scanner_rpm-arm64
   variables:
     MAJOR_VERSION: 7
     FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd"

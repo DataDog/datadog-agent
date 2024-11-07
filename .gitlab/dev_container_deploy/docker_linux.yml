@@ -21,18 +21,6 @@ dev_branch-a6:
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-py2py3-jmx-amd64
         IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py2py3-jmx
 
-dev_branch-dogstatsd:
-  extends: .docker_publish_job_definition
-  stage: dev_container_deploy
-  rules: !reference [.on_a7_manual]
-  needs:
-    - docker_build_dogstatsd_amd64
-    - docker_build_dogstatsd_arm64
-  variables:
-    IMG_REGISTRIES: dev
-    IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
-    IMG_DESTINATIONS: dogstatsd-dev:${CI_COMMIT_REF_SLUG}
-
 dev_branch_multiarch-a6:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
@@ -72,18 +60,6 @@ dev_branch_multiarch-a7:
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-arm64
         IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx
 
-dev_branch_multiarch-dogstatsd:
-  extends: .docker_publish_job_definition
-  stage: dev_container_deploy
-  rules: !reference [.on_a7_manual]
-  needs:
-    - docker_build_dogstatsd_amd64
-    - docker_build_dogstatsd_arm64
-  variables:
-    IMG_REGISTRIES: dev
-    IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
-    IMG_DESTINATIONS: dogstatsd-dev:${CI_COMMIT_REF_SLUG}
-
 dev_master-a6:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
@@ -120,18 +96,6 @@ dev_master-a7:
         IMG_DESTINATIONS: agent-dev:master-py3
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-arm64
         IMG_DESTINATIONS: agent-dev:master-py3-jmx
-
-dev_master-dogstatsd:
-  extends: .docker_publish_job_definition
-  stage: dev_container_deploy
-  rules: !reference [.on_main_a7]
-  needs:
-    - docker_build_dogstatsd_amd64
-    - docker_build_dogstatsd_arm64
-  variables:
-    IMG_REGISTRIES: dev
-    IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
-    IMG_DESTINATIONS: dogstatsd-dev:master
 
 dca_dev_branch:
   extends: .docker_publish_job_definition
@@ -230,19 +194,6 @@ single_machine_performance-nightly-amd64-a7:
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
     IMG_DESTINATIONS: 08450328-agent:nightly-${CI_COMMIT_BRANCH}-${CI_COMMIT_SHA}-7-amd64
 
-# deploys nightlies to agent-dev
-dev_nightly-dogstatsd:
-  extends: .docker_publish_job_definition
-  stage: dev_container_deploy
-  rules: !reference [.on_deploy_nightly_repo_branch_a7]
-  needs:
-    - docker_build_dogstatsd_amd64
-    - docker_build_dogstatsd_arm64
-  variables:
-    IMG_REGISTRIES: dev
-    IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
-    IMG_DESTINATIONS: dogstatsd-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA},dogstatsd-dev:nightly-${CI_COMMIT_REF_SLUG}
-
 # push images to `datadog-agent-qa` ECR for the end-to-end tests defined in `e2e.yml`
 qa_agent:
   extends: .docker_publish_job_definition
@@ -272,19 +223,6 @@ qa_dca:
     IMG_REGISTRIES: agent-qa
     IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
     IMG_DESTINATIONS: cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
-
-qa_dogstatsd:
-  extends: .docker_publish_job_definition
-  stage: dev_container_deploy
-  rules:
-    !reference [.on_container_or_e2e_changes_or_manual]
-  needs:
-    - docker_build_dogstatsd_amd64
-    - docker_build_dogstatsd_arm64
-  variables:
-    IMG_REGISTRIES: agent-qa
-    IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
-    IMG_DESTINATIONS: dogstatsd:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
 
 .qa_cws_instrumentation:
   extends: .docker_publish_job_definition

@@ -151,7 +151,6 @@ k8s-e2e-otlp-main:
   needs:
     - qa_agent
     - qa_dca
-    - qa_dogstatsd
 
 new-e2e-containers:
   extends:
@@ -283,16 +282,6 @@ new-e2e-apm:
       - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteTCP
       - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
       - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
-
-new-e2e-updater:
-  extends: .new_e2e_template
-  rules:
-    !reference [.on_updater_or_e2e_changes_or_manual]
-  needs:
-    - deploy_deb_testing-u7_arm64
-  variables:
-    TARGETS: ./tests/updater
-    TEAM: fleet
 
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the

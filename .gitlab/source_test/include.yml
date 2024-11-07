@@ -6,7 +6,6 @@
 include:
   - .gitlab/source_test/ebpf.yml
   - .gitlab/source_test/linux.yml
-  - .gitlab/source_test/macos.yml
   - .gitlab/source_test/windows.yml
   - .gitlab/source_test/go_generate_check.yml
   - .gitlab/source_test/slack.yml
