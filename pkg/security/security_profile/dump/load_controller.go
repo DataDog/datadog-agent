@@ -87,7 +87,6 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 	newDump.Metadata.ContainerID = ad.Metadata.ContainerID
 	newDump.Metadata.DifferentiateArgs = ad.Metadata.DifferentiateArgs
 	newDump.Tags = ad.Tags
-	newDump.selector = ad.selector
 
 	// copy storage requests
 	for _, reqList := range ad.StorageRequests {
@@ -102,7 +101,7 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 	}
 
 	// compute the duration it took to reach the dump size threshold
-	timeToThreshold := time.Since(ad.Start)
+	timeToThreshold := ad.End.Sub(ad.Start)
 
 	// set new load parameters
 	newDump.SetTimeout(ad.LoadConfig.Timeout - timeToThreshold)
