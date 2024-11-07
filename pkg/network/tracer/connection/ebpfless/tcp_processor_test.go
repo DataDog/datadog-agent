@@ -861,3 +861,46 @@ func TestSimultaneousClose(t *testing.T) {
 	}
 	require.Equal(t, expectedStats, f.conn.Monotonic)
 }
+
+func TestUnusualAckSyn(t *testing.T) {
+	// according to zeek, some unusual clients such as ftp.microsoft.com do the ACK and SYN separately
+	f := newTcpTestFixture(t, lowerSeq, higherSeq)
+
+	basicHandshake := []testCapture{
+		f.incoming(0, 0, 0, SYN),
+		// ACK the first SYN before even sending your own SYN
+		f.outgoing(0, 0, 1, ACK),
+		f.outgoing(0, 0, 1, SYN),
+		f.incoming(0, 1, 1, ACK),
+		// active close after sending no data
+		f.outgoing(0, 1, 1, FIN|ACK),
+		f.incoming(0, 1, 2, FIN|ACK),
+		f.outgoing(0, 2, 2, ACK),
+	}
+
+	expectedClientStates := []tcpState{
+		TcpStateSynRecv,
+		TcpStateSynRecv,
+		TcpStateSynRecv,
+		TcpStateEstablished,
+		// active close begins here
+		TcpStateFinWait1,
+		TcpStateFinWait2,
+		TcpStateTimeWait,
+	}
+
+	f.runAgainstState(basicHandshake, expectedClientStates)
+
+	require.Empty(t, f.conn.TCPFailures)
+
+	expectedStats := network.StatCounters{
+		SentBytes:      0,
+		RecvBytes:      0,
+		SentPackets:    4,
+		RecvPackets:    3,
+		Retransmits:    0,
+		TCPEstablished: 1,
+		TCPClosed:      1,
+	}
+	require.Equal(t, expectedStats, f.conn.Monotonic)
+}
