@@ -20,25 +20,35 @@ import (
 type connectionState struct {
 	tcpState tcpState
 
-	// hasSentPacket is whether anything has been sent outgoing (aka whether maxSeqSent) exists
+	// hasSentPacket is whether anything has been sent outgoing (aka whether maxSeqSent exists)
 	hasSentPacket bool
-	// localStartSeq is the initial outgoing tcp.Seq - only used for debugging relative seqs
+	// localStartSeq is the initial outgoing tcp.Seq - only used for debugging with relative SEQ's
 	localStartSeq uint32
 	// maxSeqSent is the latest outgoing tcp.Seq if hasSentPacket==true
 	maxSeqSent uint32
-	// hasAckedPacket is whether the outgoing side has ACK'd any packets
-	hasAckedPacket bool
-	// lastAck is the latest outgoing tcp.Ack if hasAcked==true
-	lastAck uint32
+
+	// hasLocalAck is whether there have been outgoing ACK's
+	hasLocalAck bool
+	// lastLocalAck is the latest outgoing tcp.Ack if hasLocalAck
+	lastLocalAck uint32
+	// hasRemoteAck is whether there have been incoming ACK's
+	hasRemoteAck bool
+	// lastRemoteAck is the latest incoming tcp.Ack if hasRemoteAck
+	lastRemoteAck uint32
 
 	// hasReceivedPacket is whether anything has been received - only used for debugging (to see if remoteStartSeq exists)
 	hasReceivedPacket bool
-	// remoteStartSeq is the initial incoming tcp.Seq - only used for debugging
+	// remoteStartSeq is the initial incoming tcp.Seq - only used for debugging with relative SEQ's
 	remoteStartSeq uint32
 
-	// hasSynAcked is used to keep track of whether we should advance to TcpStateEstablished
-	// (because the state transition requires multiple packets)
-	hasSynAcked bool
+	// hasLocalSyn is whether there has been an outgoing SYN
+	hasLocalSyn bool
+	// localSynSeq is the tcp.Seq of the SYN if hasLocalSyn
+	localSynSeq uint32
+	// hasLocalSyn is whether there has been an incoming SYN
+	hasRemoteSyn bool
+	// remoteSynSeq is the tcp.Seq of the SYN if hasRemoteSyn
+	remoteSynSeq uint32
 
 	// hasLocalFin is whether the outgoing side has FIN'd
 	hasLocalFin bool
@@ -89,26 +99,35 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4
 		} else {
 			// TODO retransmit
 		}
-		if tcp.ACK {
-			isFinAck := st.hasRemoteFin && tcp.Ack == st.remoteFinSeq+1
-			if !st.hasAckedPacket {
-				st.hasAckedPacket = true
-				st.lastAck = tcp.Ack
-			} else if isSeqBefore(st.lastAck, tcp.Ack) {
-				ackDiff := tcp.Ack - st.lastAck
+
+		ackOutdated := !st.hasLocalAck || isSeqBefore(st.lastLocalAck, tcp.Ack)
+		if tcp.ACK && ackOutdated {
+			// wait until data comes in via remoteSynIsAcked
+			remoteSynIsAcked := st.hasRemoteSyn && st.hasLocalAck && isSeqBefore(st.remoteSynSeq, st.lastLocalAck)
+			if remoteSynIsAcked {
+				ackDiff := tcp.Ack - st.lastLocalAck
 				// if this is ack'ing a fin packet, there is an extra sequence number to cancel out
+				isFinAck := st.hasRemoteFin && tcp.Ack == st.remoteFinSeq+1
 				if isFinAck {
 					ackDiff--
 				}
 				conn.Monotonic.RecvBytes += uint64(ackDiff)
-				st.lastAck = tcp.Ack
 			}
+
+			st.hasLocalAck = true
+			st.lastLocalAck = tcp.Ack
 		}
 	case unix.PACKET_HOST:
 		conn.Monotonic.RecvPackets++
 		if !st.hasReceivedPacket {
 			st.hasReceivedPacket = true
 			st.remoteStartSeq = tcp.Seq
+		}
+
+		ackOutdated := !st.hasRemoteAck || isSeqBefore(st.lastRemoteAck, tcp.Ack)
+		if tcp.ACK && ackOutdated {
+			st.hasRemoteAck = true
+			st.lastRemoteAck = tcp.Ack
 		}
 	default:
 		return fmt.Errorf("TCPProcessor saw invalid pktType: %d", pktType)
@@ -134,24 +153,13 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4
 		case TcpStateClosed:
 		// TODO missed the handshake?
 		case TcpStateSynSent:
-			if pktType == unix.PACKET_OUTGOING {
-				if st.hasSynAcked {
-					// we are acking the remote's synack, mark as established
-					st.tcpState = TcpStateEstablished
-					conn.Monotonic.TCPEstablished++
-				} else {
-					log.Warnf("missed the SYNACK for tcpState=%d", st.tcpState)
-				}
-			}
+			fallthrough
 		case TcpStateSynRecv:
-			if pktType == unix.PACKET_HOST {
-				if st.hasSynAcked {
-					// remote has acked our synack, mark as established
-					st.tcpState = TcpStateEstablished
-					conn.Monotonic.TCPEstablished++
-				} else {
-					log.Warnf("missed the SYNACK for tcpState=%d", st.tcpState)
-				}
+			localSynIsAcked := st.hasLocalSyn && st.hasRemoteAck && isSeqBefore(st.localSynSeq, st.lastRemoteAck)
+			remoteSynIsAcked := st.hasRemoteSyn && st.hasLocalAck && isSeqBefore(st.remoteSynSeq, st.lastLocalAck)
+			if localSynIsAcked && remoteSynIsAcked {
+				st.tcpState = TcpStateEstablished
+				conn.Monotonic.TCPEstablished++
 			}
 		case TcpStateEstablished:
 			// if the remote closed, and we have acknowledged, enter CloseWait (passive close)
@@ -172,7 +180,9 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4
 			// active close: wait until we send an ack of the fin received from the remote
 			if pktType == unix.PACKET_OUTGOING {
 				if st.hasRemoteFin && isSeqBefore(st.remoteFinSeq, tcp.Ack) {
-					st.tcpState = TcpStateTimeWait
+					st = connectionState{
+						tcpState: TcpStateTimeWait,
+					}
 					conn.Monotonic.TCPClosed++
 				}
 			}
@@ -193,17 +203,18 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4
 					if st.tcpState == TcpStateClosing {
 						nextState = TcpStateTimeWait
 					}
-					st.tcpState = nextState
+					st = connectionState{
+						tcpState: nextState,
+					}
 					conn.Monotonic.TCPClosed++
 				}
 			}
 		case TcpStateTimeWait:
 		}
-		// this branch is the only one that doesn't GOTO done - it needs to fall through
-		// because there can be RSTACK and FINACK packets
-	} // end regular ACK
+	} // end tcp.ACK
 
-	// RST flag
+	// All the remaining flags don't fall through, unlike tcp.ACK.
+	// this is because there can be RSTACK and FINACK packets
 	if tcp.RST {
 		switch st.tcpState {
 		case TcpStateClosed:
@@ -222,58 +233,40 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4
 
 		if !isClosedState(st.tcpState) {
 			conn.Monotonic.TCPClosed++
-			st.tcpState = TcpStateClosed
-		}
-		goto done
-	} // end RST
-
-	// initial SYN (no ACK)
-	if tcp.SYN && !tcp.ACK {
-		switch st.tcpState {
-		case TcpStateClosed:
-			fallthrough
-		case TcpStateTimeWait:
-			if pktType == unix.PACKET_OUTGOING {
-				st.tcpState = TcpStateSynSent
-			} else {
-				st.tcpState = TcpStateSynRecv
+			st = connectionState{
+				tcpState: TcpStateClosed,
 			}
-		case TcpStateSynSent:
-			if pktType == unix.PACKET_OUTGOING {
-				// TODO retransmit
+		}
+		// end tcp.RST
+	} else if tcp.SYN {
+		// in the case of simultaneous open, this will overwrite (which is good)
+		if pktType == unix.PACKET_OUTGOING {
+			if !st.hasLocalSyn || isSeqBefore(st.localSynSeq, tcp.Seq) {
+				st.hasLocalSyn = true
+				st.localSynSeq = tcp.Seq
 			} else {
+				// TODO retransmit
+			}
+			if isClosedState(st.tcpState) {
+				st.tcpState = TcpStateSynSent
+			}
+
+		} else {
+			if !st.hasRemoteSyn || isSeqBefore(st.remoteSynSeq, tcp.Seq) {
+				st.hasRemoteSyn = true
+				st.remoteSynSeq = tcp.Seq
+			} else {
+				// TODO retransmit
+			}
+			if isClosedState(st.tcpState) {
+				st.tcpState = TcpStateSynRecv
+			} else if st.tcpState == TcpStateSynSent && !tcp.ACK {
 				// simultaneous open
 				st.tcpState = TcpStateSynRecv
 			}
-		case TcpStateSynRecv:
-			// TODO retransmit
-		default:
-			log.Warnf("SYN on a connection with tcpState=%d", st.tcpState)
 		}
-		goto done
-	} // end SYN (no ACK)
-
-	// SYNACK
-	if tcp.SYN && tcp.ACK {
-		switch st.tcpState {
-		case TcpStateClosed:
-			// TODO we missed the initial SYN packet, what to do here?
-			// for now assume things proceeded normally prior
-			st.tcpState = TcpStateSynRecv
-			fallthrough
-		case TcpStateSynSent:
-			fallthrough
-		case TcpStateSynRecv:
-			st.hasSynAcked = true
-		case TcpStateEstablished:
-			// TODO retransmit
-		default:
-			log.Warnf("SYNACK on a connection with tcpState=%d", st.tcpState)
-		}
-		goto done
-	} // end SYNACK
-
-	if tcp.FIN {
+		// end tcp.SYN
+	} else if tcp.FIN {
 		if pktType == unix.PACKET_OUTGOING {
 			if !st.hasLocalFin {
 				st.hasLocalFin = true
@@ -325,10 +318,7 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4
 			// TODO what to do?
 			log.Warnf("saw initial FIN in tcpState=%d", st.tcpState)
 		}
-		goto done
-	} // end FIN
-
-done:
+	} // end tcp.FIN
 
 	log.TraceFunc(func() string {
 		return fmt.Sprintf("ack_seq=%+v", st)

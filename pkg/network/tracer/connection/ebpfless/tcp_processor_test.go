@@ -704,6 +704,13 @@ func TestConnectTwice(t *testing.T) {
 	}
 
 	f.runAgainstState(basicHandshake, expectedClientStates)
+
+	state := f.tcp.conns[f.conn.ConnectionTuple]
+	// make sure the TCP state was erased after the connection was closed
+	require.Equal(t, connectionState{
+		tcpState: TcpStateTimeWait,
+	}, state)
+
 	// second connection here
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
@@ -722,7 +729,6 @@ func TestConnectTwice(t *testing.T) {
 }
 
 func TestSimultaneousOpen(t *testing.T) {
-	t.Skip("simultaneous open is slightly wrong")
 	f := newTcpTestFixture(t, lowerSeq, higherSeq)
 
 	basicHandshake := []testCapture{

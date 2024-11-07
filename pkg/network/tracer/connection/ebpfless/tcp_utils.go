@@ -92,7 +92,8 @@ func debugTcpFlags(tcp *layers.TCP) string {
 	return strings.Join(flags, "|")
 }
 
-func seqDiff(seq uint32, hasBase bool, base uint32) uint32 {
+// getRelativeSeq is used for debugging to visualize
+func getRelativeSeq(seq uint32, hasBase bool, base uint32) uint32 {
 	if !hasBase {
 		return seq
 	}
@@ -107,7 +108,7 @@ func debugPacketInfo(pktType uint8, tcp *layers.TCP, payloadLen uint16, st conne
 		hasStartSeq, hasAckSeq = hasAckSeq, hasStartSeq
 		startSeq, ackSeq = ackSeq, startSeq
 	}
-	relativeSeq := seqDiff(tcp.Seq, hasStartSeq, startSeq)
-	relativeAck := seqDiff(tcp.Ack, hasAckSeq, ackSeq)
+	relativeSeq := getRelativeSeq(tcp.Seq, hasStartSeq, startSeq)
+	relativeAck := getRelativeSeq(tcp.Ack, hasAckSeq, ackSeq)
 	return fmt.Sprintf("pktType=%+v ports=(%+v, %+v) size=%d relSeq=%+v relAck=%+v flags=%s", debugPacketDir(pktType), uint16(tcp.SrcPort), uint16(tcp.DstPort), payloadLen, relativeSeq, relativeAck, debugTcpFlags(tcp))
 }
