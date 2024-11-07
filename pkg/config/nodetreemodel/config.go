@@ -124,12 +124,12 @@ func (c *ntmConfig) set(key string, value interface{}, tree InnerNode, source mo
 	if tree == nil {
 		return false, fmt.Errorf("cannot assign to nil Node")
 	}
-	parts := strings.Split(strings.ToLower(key), ",")
+	parts := splitKey(key)
 	return tree.SetAt(parts, value, source)
 }
 
 func (c *ntmConfig) setDefault(key string, value interface{}) {
-	parts := strings.Split(strings.ToLower(key), ",")
+	parts := splitKey(key)
 	// TODO: Ensure that for default tree, setting nil to a node will not override
 	// an existing value
 	_, _ = c.defaults.SetAt(parts, value, model.SourceDefault)
@@ -286,13 +286,13 @@ func (c *ntmConfig) buildEnvVars() {
 }
 
 func (c *ntmConfig) insertNodeFromString(curr InnerNode, key string, envval string) error {
-	parts := strings.Split(key, ".")
 	var actualValue interface{} = envval
 	// TODO: When the nodetreemodel config is further along, we should get the default[key] node
 	// and use its type to convert the envval into something appropriate.
-	if xform, found := c.envTransform[key]; found {
-		actualValue = xform(envval)
+	if transformer, found := c.envTransform[key]; found {
+		actualValue = transformer(envval)
 	}
+	parts := splitKey(key)
 	_, err := curr.SetAt(parts, actualValue, model.SourceEnvVar)
 	return err
 }
@@ -352,7 +352,7 @@ func (c *ntmConfig) leafAtPath(key string) LeafNode {
 		return missingLeaf
 	}
 
-	pathParts := strings.Split(strings.ToLower(key), ".")
+	pathParts := splitKey(key)
 	var curr Node = c.root
 	for _, part := range pathParts {
 		next, err := curr.GetChild(part)
@@ -372,7 +372,7 @@ func (c *ntmConfig) GetNode(key string) (Node, error) {
 	if !c.isReady() {
 		return nil, log.Errorf("attempt to read key before config is constructed: %s", key)
 	}
-	pathParts := strings.Split(key, ".")
+	pathParts := splitKey(key)
 	var curr Node = c.root
 	for _, part := range pathParts {
 		next, err := curr.GetChild(part)
@@ -645,6 +645,9 @@ func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 func (c *ntmConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 	c.Lock()
 	defer c.Unlock()
+	if c.isReady() {
+		panic("cannot SetEnvKeyReplacer() once the config has been marked as ready for use")
+	}
 	c.envKeyReplacer = r
 }
 
@@ -810,8 +813,8 @@ func (c *ntmConfig) GetEnvVars() []string {
 
 // BindEnvAndSetDefault binds an environment variable and sets a default for the given key
 func (c *ntmConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
-	c.SetDefault(key, val)
 	c.BindEnv(key, envvars...) //nolint:errcheck
+	c.SetDefault(key, val)
 }
 
 // Warnings just returns nil

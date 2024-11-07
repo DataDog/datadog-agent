@@ -32,17 +32,15 @@ func TestBuildDefaultMakesTooManyNodes(t *testing.T) {
 
 // Test that default, file, and env layers can build, get merged, and retrieve settings
 func TestBuildDefaultFileAndEnv(t *testing.T) {
-	t.Skip("fix merge to enable this test")
-
 	configData := `network_path:
   collector:
     workers: 6
 secret_backend_command: ./my_secret_fetcher.sh
 `
-	os.Setenv("DD_SECRET_BACKEND_TIMEOUT", "60")
-	os.Setenv("DD_NETWORK_PATH_COLLECTOR_INPUT_CHAN_SIZE", "23456")
+	os.Setenv("TEST_SECRET_BACKEND_TIMEOUT", "60")
+	os.Setenv("TEST_NETWORK_PATH_COLLECTOR_INPUT_CHAN_SIZE", "23456")
 
-	cfg := NewConfig("test", "DD", nil)
+	cfg := NewConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.workers", 4)
@@ -64,7 +62,7 @@ secret_backend_command: ./my_secret_fetcher.sh
 		{
 			description:  "nested setting from env var works",
 			setting:      "network_path.collector.input_chan_size",
-			expectValue:  23456,
+			expectValue:  "23456",
 			expectSource: model.SourceEnvVar,
 		},
 		{
