@@ -795,8 +795,8 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 		configEnvVars: map[string]struct{}{},
 		knownKeys:     map[string]struct{}{},
 		unknownKeys:   map[string]struct{}{},
-		defaults:      newInnerNodeImpl(),
-		file:          newInnerNodeImpl(),
+		defaults:      newInnerNode(nil),
+		file:          newInnerNode(nil),
 	}
 
 	config.SetTypeByDefaultValue(true)

@@ -16,47 +16,36 @@ import (
 
 // innerNode represents an non-leaf node of the config
 type innerNode struct {
-	val map[string]Node
+	children map[string]Node
 	// remapCase maps each lower-case key to the original case. This
 	// enables GetChild to retrieve values using case-insensitive keys
 	remapCase map[string]string
 }
 
-func newInnerNodeImpl() *innerNode {
-	return &innerNode{val: map[string]Node{}, remapCase: map[string]string{}}
-}
-
-func newInnerNodeImplWithData(v map[string]interface{}, source model.Source) (*innerNode, error) {
-	children := map[string]Node{}
-	for name, value := range v {
-		n, err := NewNode(value, source)
-		if err != nil {
-			return nil, err
-		}
-		children[name] = n
+func newInnerNode(children map[string]Node) *innerNode {
+	if children == nil {
+		children = map[string]Node{}
 	}
-	in := &innerNode{val: children}
-	in.makeRemapCase()
-	return in, nil
+	node := &innerNode{children: children, remapCase: map[string]string{}}
+	node.makeRemapCase()
+	return node
 }
 
 var _ Node = (*innerNode)(nil)
 
 // Clone clones a InnerNode and all its children
 func (n *innerNode) Clone() Node {
-	clone := newInnerNodeImpl()
-
-	for k, node := range n.val {
-		clone.val[k] = node.Clone()
+	children := make(map[string]Node)
+	for k, node := range n.children {
+		children[k] = node.Clone()
 	}
-	clone.makeRemapCase()
-	return clone
+	return newInnerNode(children)
 }
 
 // makeRemapCase creates a map that converts keys from their lower-cased version to their original case
 func (n *innerNode) makeRemapCase() {
 	remap := make(map[string]string)
-	for k := range n.val {
+	for k := range n.children {
 		remap[strings.ToLower(k)] = k
 	}
 	n.remapCase = remap
@@ -65,7 +54,7 @@ func (n *innerNode) makeRemapCase() {
 // GetChild returns the child node at the given case-insensitive key, or an error if not found
 func (n *innerNode) GetChild(key string) (Node, error) {
 	mkey := n.remapCase[strings.ToLower(key)]
-	child, found := n.val[mkey]
+	child, found := n.children[mkey]
 	if !found {
 		return nil, ErrNotFound
 	}
@@ -74,7 +63,7 @@ func (n *innerNode) GetChild(key string) (Node, error) {
 
 // HasChild returns true if the node has a child for that given key
 func (n *innerNode) HasChild(key string) bool {
-	_, ok := n.val[key]
+	_, ok := n.children[key]
 	return ok
 }
 
@@ -86,7 +75,7 @@ func (n *innerNode) Merge(src InnerNode) error {
 		srcChild, _ := src.GetChild(name)
 
 		if !n.HasChild(name) {
-			n.val[name] = srcChild.Clone()
+			n.children[name] = srcChild.Clone()
 		} else {
 			// We alredy have child with the same name
 
@@ -100,7 +89,7 @@ func (n *innerNode) Merge(src InnerNode) error {
 
 			if srcIsLeaf {
 				if srcLeaf.SourceGreaterOrEqual(dstLeaf.Source()) {
-					n.val[name] = srcLeaf.Clone()
+					n.children[name] = srcLeaf.Clone()
 				}
 			} else {
 				dstInner, _ := dstChild.(InnerNode)
@@ -116,7 +105,7 @@ func (n *innerNode) Merge(src InnerNode) error {
 
 // ChildrenKeys returns the list of keys of the children of the given node, if it is a map
 func (n *innerNode) ChildrenKeys() []string {
-	mapkeys := maps.Keys(n.val)
+	mapkeys := maps.Keys(n.children)
 	// map keys are iterated non-deterministically, sort them
 	slices.Sort(mapkeys)
 	return mapkeys
@@ -136,15 +125,15 @@ func (n *innerNode) SetAt(key []string, value interface{}, source model.Source) 
 
 	part := key[0]
 	if keyLen == 1 {
-		node, ok := n.val[part]
+		node, ok := n.children[part]
 		if !ok {
-			n.val[part] = newLeafNodeImpl(value, source)
+			n.children[part] = newLeafNode(value, source)
 			return true, nil
 		}
 
 		if leaf, ok := node.(LeafNode); ok {
 			if leaf.Source().IsGreaterOrEqualThan(source) {
-				n.val[part] = newLeafNodeImpl(value, source)
+				n.children[part] = newLeafNode(value, source)
 				return true, nil
 			}
 			return false, nil
@@ -153,9 +142,9 @@ func (n *innerNode) SetAt(key []string, value interface{}, source model.Source) 
 	}
 
 	// new node case
-	if _, ok := n.val[part]; !ok {
-		newNode := newInnerNodeImpl()
-		n.val[part] = newNode
+	if _, ok := n.children[part]; !ok {
+		newNode := newInnerNode(nil)
+		n.children[part] = newNode
 		return newNode.SetAt(key[1:keyLen], value, source)
 	}
 
@@ -170,6 +159,6 @@ func (n *innerNode) SetAt(key []string, value interface{}, source model.Source) 
 
 // InsertChildNode sets a node in the current node
 func (n *innerNode) InsertChildNode(name string, node Node) {
-	n.val[name] = node
+	n.children[name] = node
 	n.makeRemapCase()
 }
