@@ -209,7 +209,8 @@ func (ctx *systemContext) cleanupOldEntries() {
 func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int) (nvml.Device, error) {
 	visibleDevices, ok := ctx.visibleDevicesCache[pid]
 	if !ok {
-		visibleDevices, err := cuda.GetVisibleDevicesForProcess(ctx.gpuDevices, pid, ctx.procRoot)
+		var err error
+		visibleDevices, err = cuda.GetVisibleDevicesForProcess(ctx.gpuDevices, pid, ctx.procRoot)
 		if err != nil {
 			return nil, fmt.Errorf("error getting visible devices for process %d: %w", pid, err)
 		}
