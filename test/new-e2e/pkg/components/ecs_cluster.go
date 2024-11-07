@@ -10,14 +10,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	clientecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/ecs"
 )
 
 // ECSCluster is an ECS Cluster
 type ECSCluster struct {
 	ecs.ClusterOutput
 
-	ECSClient *client.ECSClient
+	ECSClient *clientecs.Client
 }
 
 var _ e2e.Initializable = &ECSCluster{}
@@ -25,7 +25,7 @@ var _ e2e.Initializable = &ECSCluster{}
 // Init is called by e2e test Suite after the component is provisioned.
 func (c *ECSCluster) Init(e2e.Context) error {
 
-	ecsClient, err := client.NewECSClient(c.ClusterOutput.ClusterName)
+	ecsClient, err := clientecs.NewClient(c.ClusterOutput.ClusterName)
 	if err != nil {
 		return err
 	}
