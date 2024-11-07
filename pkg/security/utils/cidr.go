@@ -60,7 +60,6 @@ func appendByteFilter(filter *[]*byteMaskFilter, iter int, ipnet *net.IPNet) {
 		return
 	}
 	appendByteFilter(&newBMF.next, iter+1, ipnet)
-	return
 }
 
 // AppendCIDR appends a CIDR to the set
