@@ -5,7 +5,7 @@ include:
 #
 # Use these steps to revert the latest tags to a previous release
 # while maintaining content trust signatures
-# - Create a pipeline on main with the RELEASE_6  env vars
+# - Create a pipeline on main with the RELEASE_6 env vars
 # - in the gitlab pipeline view, trigger the step (in the first column)
 #
 revert_latest_6:

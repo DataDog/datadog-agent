@@ -102,15 +102,6 @@ lint_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
-tests_flavor_iot_deb-x64:
-  extends:
-    - .rtloader_tests
-    - .linux_tests_with_upload
-    - .linux_x64
-  variables:
-    PYTHON_RUNTIMES: '3'
-    CONDA_ENV: ddpy3
-    FLAVORS: '--flavors iot'
 
 tests_flavor_heroku_deb-x64:
   extends:
