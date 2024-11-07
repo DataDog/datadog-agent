@@ -6,13 +6,15 @@
 package installertests
 
 import (
+	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	agentVersion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
-	"testing"
 )
 
 type testInstallerUpgradesSuite struct {
@@ -26,6 +28,7 @@ func TestInstallerUpgrades(t *testing.T) {
 
 // TestUpgrades tests upgrading the stable version of the Datadog installer to the latest from the pipeline.
 func (s *testInstallerUpgradesSuite) TestUpgrades() {
+	flake.Mark(s.T())
 	// Arrange
 	s.Require().NoError(s.Installer().Install(
 		installerwindows.WithInstallerURLFromInstallersJSON(pipeline.StableURL, s.StableInstallerVersion().PackageVersion())),

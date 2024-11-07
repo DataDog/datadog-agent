@@ -697,8 +697,8 @@ github.com/DataDog/datadog-operator v1.8.0-rc.1 h1:w6/z5jcTzWGv90/H9AhcgZd3gAdP3
 github.com/DataDog/datadog-operator v1.8.0-rc.1/go.mod h1:qxwdMzmiZ165BAMbTYkr4yJKvhOnDUMAcGNQiPJVmAA=
 github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 h1:RoH7VLzTnxHEugRPIgnGlxwDFszFGI7b3WZZUtWuPRM=
 github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42/go.mod h1:TX7CTOQ3LbQjfAi4SwqUoR5gY1zfUk7VRBDTuArjaDc=
-github.com/DataDog/ebpf-manager v0.7.1 h1:q8y6Kb5Zk1gaLoZpoj3vHi7wUe8MbtNDIq8zO/DODzM=
-github.com/DataDog/ebpf-manager v0.7.1/go.mod h1:ld5QVq/+O3AEtol/9fhiQziGkdHSECDQvm5+DQ9V98s=
+github.com/DataDog/ebpf-manager v0.7.4 h1:fI2fJbDpykDiO/hq3IVIi+YLVVrJ97qG6O8LT7mdCnQ=
+github.com/DataDog/ebpf-manager v0.7.4/go.mod h1:QlCkGTH3koCMDG7E8o9Si6O9UXjBwQspP6z2YtKlyGU=
 github.com/DataDog/extendeddaemonset v0.10.0-rc.4 h1:m88E+emuRHIqKgi7kHMd9N0S/NtruCCOISp3cjB7DNs=
 github.com/DataDog/extendeddaemonset v0.10.0-rc.4/go.mod h1:uqO05mxbfqPQ8cghfYN2Uhy/eUv4ZEx89cb4P1Z1uz4=
 github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe h1:RO40ywnX/vZLi4Pb4jRuFGgQQBYGIIoQ6u+P2MIgFOA=
@@ -914,8 +914,8 @@ github.com/aws/aws-sdk-go-v2/internal/v4a v1.1.6/go.mod h1:Q0Hq2X/NuL7z8b1Dww8rm
 github.com/aws/aws-sdk-go-v2/service/appconfig v1.4.2/go.mod h1:FZ3HkCe+b10uFZZkFdvf98LHW21k49W8o8J366lqVKY=
 github.com/aws/aws-sdk-go-v2/service/ebs v1.27.0 h1:4zuGQITyy9O+GlSGcs+aUz3+SmlvnYFc1/o4lRBs5Bw=
 github.com/aws/aws-sdk-go-v2/service/ebs v1.27.0/go.mod h1:T0t6q7wBD2P11xwVcc6GvwmuDT3i6ZJgZ+13ziQUUnA=
-github.com/aws/aws-sdk-go-v2/service/ec2 v1.186.1 h1:s3en74URaTjlhpJqOUCHlmombBFo88jxZqs3qjRmXrI=
-github.com/aws/aws-sdk-go-v2/service/ec2 v1.186.1/go.mod h1:ossaD9Z1ugYb6sq9QIqQLEOorCGcqUoxlhud9M9yE70=
+github.com/aws/aws-sdk-go-v2/service/ec2 v1.187.0 h1:cA4hWo269CN5RY7Arqt8BfzXF0KIN8DSNo/KcqHKkWk=
+github.com/aws/aws-sdk-go-v2/service/ec2 v1.187.0/go.mod h1:ossaD9Z1ugYb6sq9QIqQLEOorCGcqUoxlhud9M9yE70=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.36.0 h1:OVg61nfvhkvneY2btZ50sdYHsvhJs46dqtuBiURZo2A=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.36.0/go.mod h1:kdKXMMVpJd/N59EYI8aneYNsQNqCd99iSg2bEmQHaUI=
 github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.27.0 h1:k4ykVLeoO2JohTC7BIfIqWYvmf8HcirbWHf8Zn0SPpI=
@@ -1067,8 +1067,8 @@ github.com/containerd/containerd/api v1.7.19 h1:VWbJL+8Ap4Ju2mx9c9qS1uFSB1OVYr5J
 github.com/containerd/containerd/api v1.7.19/go.mod h1:fwGavl3LNwAV5ilJ0sbrABL44AQxmNjDRcwheXDb6Ig=
 github.com/containerd/continuity v0.4.3 h1:6HVkalIp+2u1ZLH1J/pYX2oBVXlJZvh1X1A7bEZ9Su8=
 github.com/containerd/continuity v0.4.3/go.mod h1:F6PTNCKepoxEaXLQp3wDAjygEnImnZ/7o4JzpodfroQ=
-github.com/containerd/errdefs v0.3.0 h1:FSZgGOeK4yuT/+DnF07/Olde/q4KBoMsaamhXxIMDp4=
-github.com/containerd/errdefs v0.3.0/go.mod h1:+YBYIdtsnF4Iw6nWZhJcqGSg/dwvV7tyJ/kCkyJ2k+M=
+github.com/containerd/errdefs v1.0.0 h1:tg5yIfIlQIrxYtu9ajqY42W3lpS19XqdxRQeEwYG8PI=
+github.com/containerd/errdefs v1.0.0/go.mod h1:+YBYIdtsnF4Iw6nWZhJcqGSg/dwvV7tyJ/kCkyJ2k+M=
 github.com/containerd/fifo v1.1.0 h1:4I2mbh5stb1u6ycIABlBw9zgtlK8viPI9QkQNRQEEmY=
 github.com/containerd/fifo v1.1.0/go.mod h1:bmC4NWMbXlt2EZ0Hc7Fx7QzTFxgPID13eH0Qu+MAb2o=
 github.com/containerd/log v0.1.0 h1:TCJt7ioM2cr/tfR8GPbGf9/VRAX8D2B4PjzCpfX540I=
@@ -1230,8 +1230,8 @@ github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMo
 github.com/fsnotify/fsnotify v1.4.9/go.mod h1:znqG4EE+3YCdAaPaxE2ZRY/06pZUdp0tY4IgpuI1SZQ=
 github.com/fsnotify/fsnotify v1.5.4/go.mod h1:OVB6XrOHzAwXMpEM7uPOzcehqUV2UqJxmVXmkdnm1bU=
 github.com/fsnotify/fsnotify v1.6.0/go.mod h1:sl3t1tCWJFWoRz9R8WJCbQihKKwmorjAbSClcnxKAGw=
-github.com/fsnotify/fsnotify v1.7.0 h1:8JEhPFa5W2WU7YfeZzPNqzMP6Lwt7L2715Ggo0nosvA=
-github.com/fsnotify/fsnotify v1.7.0/go.mod h1:40Bi/Hjc2AVfZrqy+aj+yEI+/bRxZnMJyTJwOpGvigM=
+github.com/fsnotify/fsnotify v1.8.0 h1:dAwr6QBTBZIkG8roQaJjGof0pp0EeF+tNV7YBP3F/8M=
+github.com/fsnotify/fsnotify v1.8.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8TRcHyHii0=
 github.com/ghodss/yaml v1.0.0 h1:wQHKEahhL6wmXdzwWG11gIVCkOv05bNOh+Rxn0yngAk=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
 github.com/gin-contrib/sse v0.1.0/go.mod h1:RHrZQHXnP2xjPF+u1gW/2HnVO7nvIa9PG3Gm+fLHvGI=
@@ -2035,8 +2035,8 @@ github.com/onsi/gomega v1.27.4/go.mod h1:riYq/GJKh8hhoM01HN6Vmuy93AarCXCBGpvFDK3
 github.com/onsi/gomega v1.27.6/go.mod h1:PIQNjfQwkP3aQAH7lf7j87O/5FiNr+ZR8+ipb+qQlhg=
 github.com/onsi/gomega v1.33.1 h1:dsYjIxxSR755MDmKVsaFQTE22ChNBcuuTWgkUDSubOk=
 github.com/onsi/gomega v1.33.1/go.mod h1:U4R44UsT+9eLIaYRB2a5qajjtQYn0hauxvRm16AVYg0=
-github.com/open-policy-agent/opa v0.69.0 h1:s2igLw2Z6IvGWGuXSfugWkVultDMsM9pXiDuMp7ckWw=
-github.com/open-policy-agent/opa v0.69.0/go.mod h1:+qyXJGkpEJ6kpB1kGo8JSwHtVXbTdsGdQYPWWNYNj+4=
+github.com/open-policy-agent/opa v0.70.0 h1:B3cqCN2iQAyKxK6+GI+N40uqkin+wzIrM7YA60t9x1U=
+github.com/open-policy-agent/opa v0.70.0/go.mod h1:Y/nm5NY0BX0BqjBriKUiV81sCl8XOjjvqQG7dXrggtI=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0 h1:Kpfqjwp+nlgqacXkSS8T8iGiTMTFo8NoT8AoRomDOpU=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0/go.mod h1:ymbGC/jEXTq8mgHsxzV1PjVGHmV5hSQXmkYkFfGfuLw=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.104.0 h1:6dvpPt8pCcV+TfMnnanFk2NQYf9HN1voSS9iIHdW+L8=
@@ -3596,8 +3596,8 @@ google.golang.org/protobuf v1.32.0/go.mod h1:c6P6GXX6sHbq/GpV6MGZEdwhWPcYBgnhAHh
 google.golang.org/protobuf v1.33.0/go.mod h1:c6P6GXX6sHbq/GpV6MGZEdwhWPcYBgnhAHhKbcUYpos=
 google.golang.org/protobuf v1.35.1 h1:m3LfL6/Ca+fqnjnlqQXNpFPABW1UD7mjh8KO2mKFytA=
 google.golang.org/protobuf v1.35.1/go.mod h1:9fA7Ob0pmnwhb644+1+CVWFRbNajQ6iRojtC/QF5bRE=
-gopkg.in/DataDog/dd-trace-go.v1 v1.69.0 h1:zSY6DDsFRMQDNQYKWCv/AEwJXoPpDf1FfMyw7I1B7M8=
-gopkg.in/DataDog/dd-trace-go.v1 v1.69.0/go.mod h1:U9AOeBHNAL95JXcd/SPf4a7O5GNeF/yD13sJtli/yaU=
+gopkg.in/DataDog/dd-trace-go.v1 v1.69.1 h1:grTElrPaCfxUsrJjyPLHlVPbmlKVzWMxVdcBrGZSzEk=
+gopkg.in/DataDog/dd-trace-go.v1 v1.69.1/go.mod h1:U9AOeBHNAL95JXcd/SPf4a7O5GNeF/yD13sJtli/yaU=
 gopkg.in/Knetic/govaluate.v3 v3.0.0 h1:18mUyIt4ZlRlFZAAfVetz4/rzlJs9yhN+U02F4u1AOc=
 gopkg.in/Knetic/govaluate.v3 v3.0.0/go.mod h1:csKLBORsPbafmSCGTEh3U7Ozmsuq8ZSIlKk1bcqph0E=
 gopkg.in/asn1-ber.v1 v1.0.0-20181015200546-f715ec2f112d/go.mod h1:cuepJuh7vyXfUyUwEgHQXw849cJrilpS5NeIjOWESAw=

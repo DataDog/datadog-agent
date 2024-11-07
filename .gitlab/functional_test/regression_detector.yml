@@ -4,7 +4,7 @@ single-machine-performance-regression_detector:
   rules:
     - !reference [.except_main_or_release_branch]
     - when: on_success
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
     - job: single_machine_performance-amd64-a7
@@ -20,7 +20,7 @@ single-machine-performance-regression_detector:
       - outputs/junit.xml # for debugging, also on S3
     when: always
   variables:
-    SMP_VERSION: 0.16.0
+    SMP_VERSION: 0.18.1
   # At present we require two artifacts to exist for the 'baseline' and the
   # 'comparison'. We are guaranteed by the structure of the pipeline that
   # 'comparison' exists, not so much with 'baseline' as it has to come from main
@@ -35,7 +35,6 @@ single-machine-performance-regression_detector:
   script:
     # Ensure output files exist for artifact downloads step
     - mkdir outputs # Also needed for smp job sync step
-    - touch outputs/report.md # Will be emitted by smp job sync
     # Compute merge base of current commit and `main`
     - git fetch origin
     - SMP_BASE_BRANCH=$(inv release.get-release-json-value base_branch)
@@ -44,12 +43,12 @@ single-machine-performance-regression_detector:
     - echo "Merge base is ${SMP_MERGE_BASE}"
     # Setup AWS credentials for single-machine-performance AWS account
     - AWS_NAMED_PROFILE="single-machine-performance"
-    - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT account_id) || exit $?
+    - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT_ID) || exit $?
     - SMP_ECR_URL=${SMP_ACCOUNT_ID}.dkr.ecr.us-west-2.amazonaws.com
-    - SMP_AGENT_TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT agent_team_id) || exit $?
-    - SMP_API=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT api_url) || exit $?
-    - SMP_BOT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_login) || exit $?
-    - SMP_BOT_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_token) || exit $?
+    - SMP_AGENT_TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_AGENT_TEAM_ID) || exit $?
+    - SMP_API=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_API) || exit $?
+    - SMP_BOT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_BOT_ACCESS_KEY_ID) || exit $?
+    - SMP_BOT_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_BOT_ACCESS_KEY) || exit $?
     - aws configure set aws_access_key_id "$SMP_BOT_ID" --profile ${AWS_NAMED_PROFILE}
     - aws configure set aws_secret_access_key "$SMP_BOT_KEY" --profile ${AWS_NAMED_PROFILE}
     - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
@@ -158,6 +157,14 @@ single-machine-performance-regression_detector-pr-comment:
     FF_KUBERNETES_HONOR_ENTRYPOINT: false
   allow_failure: true  # allow_failure here should have same setting as in job above
   script: # ignore error message about no PR, because it happens for dev branches without PRs
+    # Prevent posting empty Regression Detector report if Markdown report is not found or
+    # has zero size.
+    - |
+      if [[ ! -s "outputs/report.md" ]]
+      then
+          echo "ERROR: Regression Detector report not found -- no PR comment posted"
+          exit 1
+      fi
     # We need to transform the Markdown report into a valid JSON string (without
     # quotes) in order to pass a well-formed payload to the PR commenting
     # service. Note that on macOS, the "-z" flag is invalid for `sed` (but

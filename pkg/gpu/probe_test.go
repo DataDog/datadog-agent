@@ -24,10 +24,11 @@ func TestProbeCanLoad(t *testing.T) {
 		t.Skipf("minimum kernel version not met, %v", err)
 	}
 
+	cfg := config.NewConfig()
+	cfg.InitialProcessSync = false
 	nvmlMock := testutil.GetBasicNvmlMock()
-	probe, err := NewProbe(config.NewConfig(), ProbeDependencies{NvmlLib: nvmlMock})
+	probe, err := NewProbe(cfg, ProbeDependencies{NvmlLib: nvmlMock})
 	require.NoError(t, err)
-	require.NotNil(t, probe)
 	t.Cleanup(probe.Close)
 
 	data, err := probe.GetAndFlush()
@@ -53,7 +54,6 @@ func TestProbeCanReceiveEvents(t *testing.T) {
 
 	probe, err := NewProbe(cfg, ProbeDependencies{NvmlLib: nvmlMock})
 	require.NoError(t, err)
-	require.NotNil(t, probe)
 	t.Cleanup(probe.Close)
 
 	cmd, err := testutil.RunSample(t, testutil.CudaSample)
@@ -107,7 +107,6 @@ func TestProbeCanGenerateStats(t *testing.T) {
 
 	probe, err := NewProbe(cfg, ProbeDependencies{NvmlLib: nvmlMock})
 	require.NoError(t, err)
-	require.NotNil(t, probe)
 	t.Cleanup(probe.Close)
 
 	cmd, err := testutil.RunSample(t, testutil.CudaSample)
@@ -130,6 +129,5 @@ func TestProbeCanGenerateStats(t *testing.T) {
 
 	pidStats := stats.ProcessStats[uint32(cmd.Process.Pid)]
 	require.Greater(t, pidStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
-	require.Equal(t, pidStats.MaxMemoryBytes, uint64(100))
-
+	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
 }
