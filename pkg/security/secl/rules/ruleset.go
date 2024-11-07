@@ -743,7 +743,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 		rulesIndex = make(map[string]*PolicyRule)
 	)
 
-	parsingContext := ast.NewParsingContext()
+	parsingContext := ast.NewParsingContext(false)
 
 	policies, err := loader.LoadPolicies(opts)
 	if err != nil {

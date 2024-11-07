@@ -44,17 +44,21 @@ type TCPQueueLengthConfig struct {
 type TCPQueueLengthCheck struct {
 	core.CheckBase
 	instance *TCPQueueLengthConfig
+	tagger   tagger.Component
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory(tagger tagger.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return newCheck(tagger)
+	})
 }
 
-func newCheck() check.Check {
+func newCheck(tagger tagger.Component) check.Check {
 	return &TCPQueueLengthCheck{
 		CheckBase: core.NewCheckBase(CheckName),
 		instance:  &TCPQueueLengthConfig{},
+		tagger:    tagger,
 	}
 }
 
@@ -113,7 +117,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 		entityID := types.NewEntityID(types.ContainerID, containerID)
 		var tags []string
 		if !entityID.Empty() {
-			tags, err = tagger.Tag(entityID, types.HighCardinality)
+			tags, err = t.tagger.Tag(entityID, types.HighCardinality)
 			if err != nil {
 				log.Errorf("Error collecting tags for container %s: %s", k, err)
 			}

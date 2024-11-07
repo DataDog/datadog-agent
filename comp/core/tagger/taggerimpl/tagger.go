@@ -169,7 +169,6 @@ func newTaggerClient(deps dependencies) provides {
 	taggerClient.telemetryStore = telemetryStore
 
 	deps.Log.Info("TaggerClient is created, defaultTagger type: ", reflect.TypeOf(taggerClient.defaultTagger))
-	taggerComp.SetGlobalTaggerClient(taggerClient)
 	deps.Lc.Append(fx.Hook{OnStart: func(_ context.Context) error {
 		var err error
 		checkCard := deps.Config.GetString("checks_tag_cardinality")
@@ -271,6 +270,20 @@ func (t *TaggerClient) Tag(entityID types.EntityID, cardinality types.TagCardina
 	}
 	t.mux.RUnlock()
 	return t.defaultTagger.Tag(entityID, cardinality)
+}
+
+// LegacyTag has the same behaviour as the Tag method, but it receives the entity id as a string and parses it.
+// If possible, avoid using this function, and use the Tag method instead.
+// This function exists in order not to break backward compatibility with rtloader and python
+// integrations using the tagger
+func (t *TaggerClient) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
+	prefix, id, err := taggercommon.ExtractPrefixAndID(entity)
+	if err != nil {
+		return nil, err
+	}
+
+	entityID := types.NewEntityID(prefix, id)
+	return t.Tag(entityID, cardinality)
 }
 
 // AccumulateTagsFor queries the defaultTagger to get entity tags from cache or
@@ -572,42 +585,4 @@ func taggerCardinality(cardinality string,
 // Subscribe calls defaultTagger.Subscribe
 func (t *TaggerClient) Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
 	return t.defaultTagger.Subscribe(subscriptionID, filter)
-}
-
-type optionalTaggerDeps struct {
-	fx.In
-
-	Lc        fx.Lifecycle
-	Config    config.Component
-	Log       log.Component
-	Wmeta     optional.Option[workloadmeta.Component]
-	Telemetry coretelemetry.Component
-}
-
-// OptionalModule defines the fx options when tagger should be used as an optional
-func OptionalModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(
-			NewOptionalTagger,
-		),
-	)
-}
-
-// NewOptionalTagger returns a tagger component if workloadmeta is available
-func NewOptionalTagger(deps optionalTaggerDeps) optional.Option[taggerComp.Component] {
-	w, ok := deps.Wmeta.Get()
-	if !ok {
-		return optional.NewNoneOption[taggerComp.Component]()
-	}
-	return optional.NewOption[taggerComp.Component](newTaggerClient(dependencies{
-		In:     deps.In,
-		Lc:     deps.Lc,
-		Config: deps.Config,
-		Log:    deps.Log,
-		Wmeta:  w,
-		Params: taggerComp.Params{
-			AgentTypeForTagger: taggerComp.LocalTaggerAgent,
-		},
-		Telemetry: deps.Telemetry,
-	}).Comp)
 }

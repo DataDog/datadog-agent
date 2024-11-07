@@ -9,6 +9,7 @@ package installer
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"runtime"
 	"strings"
@@ -46,6 +47,10 @@ const (
 	envAgentMajorVersion           = "DD_AGENT_MAJOR_VERSION"
 	envAgentMinorVersion           = "DD_AGENT_MINOR_VERSION"
 	envAgentDistChannel            = "DD_AGENT_DIST_CHANNEL"
+	envRemoteUpdates               = "DD_REMOTE_UPDATES"
+	envHTTPProxy                   = "HTTP_PROXY"
+	envHTTPSProxy                  = "HTTPS_PROXY"
+	envNoProxy                     = "NO_PROXY"
 )
 
 // BootstrapCommand returns the bootstrap command.
@@ -161,9 +166,25 @@ func newBootstrapperCmd(operation string) *bootstrapperCmd {
 	cmd.span.SetTag("env.DD_RPM_REPO_GPGCHECK", os.Getenv(envRPMRepoGPGCheck))
 	cmd.span.SetTag("env.DD_AGENT_MAJOR_VERSION", os.Getenv(envAgentMajorVersion))
 	cmd.span.SetTag("env.DD_AGENT_MINOR_VERSION", os.Getenv(envAgentMinorVersion))
+	cmd.span.SetTag("env.DD_AGENT_DIST_CHANNEL", os.Getenv(envAgentDistChannel))
+	cmd.span.SetTag("env.DD_REMOTE_UPDATES", os.Getenv(envRemoteUpdates))
+	cmd.span.SetTag("env.HTTP_PROXY", redactURL(os.Getenv(envHTTPProxy)))
+	cmd.span.SetTag("env.HTTPS_PROXY", redactURL(os.Getenv(envHTTPSProxy)))
+	cmd.span.SetTag("env.NO_PROXY", os.Getenv(envNoProxy))
 	return &bootstrapperCmd{
 		cmd: cmd,
 	}
+}
+
+func redactURL(u string) string {
+	if u == "" {
+		return ""
+	}
+	url, err := url.Parse(u)
+	if err != nil {
+		return "invalid"
+	}
+	return url.Redacted()
 }
 
 type telemetryConfigFields struct {
@@ -293,7 +314,7 @@ func installCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer i.stop(err)
+			defer func() { i.stop(err) }()
 			i.span.SetTag("params.url", args[0])
 			return i.Install(i.ctx, args[0], installArgs)
 		},
@@ -313,7 +334,7 @@ func removeCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer i.stop(err)
+			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.Remove(i.ctx, args[0])
 		},
@@ -332,7 +353,7 @@ func purgeCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer i.stop(err)
+			defer func() { i.stop(err) }()
 			i.Purge(i.ctx)
 			return nil
 		},
@@ -351,7 +372,7 @@ func installExperimentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer i.stop(err)
+			defer func() { i.stop(err) }()
 			i.span.SetTag("params.url", args[0])
 			return i.InstallExperiment(i.ctx, args[0])
 		},
@@ -370,7 +391,7 @@ func removeExperimentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer i.stop(err)
+			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.RemoveExperiment(i.ctx, args[0])
 		},
@@ -389,7 +410,7 @@ func promoteExperimentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer i.stop(err)
+			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.PromoteExperiment(i.ctx, args[0])
 		},
@@ -408,7 +429,7 @@ func installConfigExperimentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			i.span.SetTag("params.version", args[1])
 			return i.InstallConfigExperiment(i.ctx, args[0], args[1])
@@ -428,7 +449,7 @@ func removeConfigExperimentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.RemoveConfigExperiment(i.ctx, args[0])
 		},
@@ -447,7 +468,7 @@ func promoteConfigExperimentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.PromoteConfigExperiment(i.ctx, args[0])
 		},
@@ -466,7 +487,7 @@ func garbageCollectCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer i.stop(err)
+			defer func() { i.stop(err) }()
 			return i.GarbageCollect(i.ctx)
 		},
 	}
@@ -489,7 +510,7 @@ func isInstalledCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer i.stop(err)
+			defer func() { i.stop(err) }()
 			installed, err := i.IsInstalled(i.ctx, args[0])
 			if err != nil {
 				return err

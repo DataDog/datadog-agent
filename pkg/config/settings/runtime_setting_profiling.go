@@ -85,10 +85,9 @@ func (l *ProfilingRuntimeSetting) Set(config config.Component, v interface{}, so
 
 		// Note that we must derive a new profiling.Settings on every
 		// invocation, as many of these settings may have changed at runtime.
-		v, _ := version.Agent()
 
 		tags := config.GetStringSlice(l.ConfigPrefix + "internal_profiling.extra_tags")
-		tags = append(tags, fmt.Sprintf("version:%v", v))
+		tags = append(tags, fmt.Sprintf("version:%v", version.AgentVersion))
 
 		settings := profiling.Settings{
 			ProfilingURL:         site,

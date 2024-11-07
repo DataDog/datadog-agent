@@ -24,13 +24,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -99,7 +100,7 @@ func CLCRunnerOptions(config config.Component) (Options, error) {
 	}
 
 	if !opts.Disabled {
-		target, err := clusteragent.GetClusterAgentEndpoint()
+		target, err := utils.GetClusterAgentEndpoint()
 		if err != nil {
 			return opts, fmt.Errorf("unable to get cluster agent endpoint: %w", err)
 		}
@@ -210,6 +211,20 @@ func (t *Tagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) 
 	t.telemetryStore.QueriesByCardinality(cardinality).EmptyTags.Inc()
 
 	return []string{}, nil
+}
+
+// LegacyTag has the same behaviour as the Tag method, but it receives the entity id as a string and parses it.
+// If possible, avoid using this function, and use the Tag method instead.
+// This function exists in order not to break backward compatibility with rtloader and python
+// integrations using the tagger
+func (t *Tagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
+	prefix, id, err := taggercommon.ExtractPrefixAndID(entity)
+	if err != nil {
+		return nil, err
+	}
+
+	entityID := types.NewEntityID(prefix, id)
+	return t.Tag(entityID, cardinality)
 }
 
 // AccumulateTagsFor returns tags for a given entity at the desired cardinality.

@@ -8,3 +8,5 @@ dependency 'pympler'
 dependency 'datadog-agent-integrations-py3-dependencies'
 
 dependency "systemd" if linux_target?
+
+dependency 'libpcap' if linux_target? and !heroku_target? # system-probe dependency
