@@ -42,11 +42,13 @@ var (
 // GetInstance provides a singleton instance of ConfigSources.
 func GetInstance() *ConfigSources {
 	once.Do(func() {
+		fmt.Println("andrewq config_source.go: Instantiate ConfigSources")
 		instance = &ConfigSources{
 			addedByType:   make(map[string][]chan *LogSource),
 			removedByType: make(map[string][]chan *LogSource),
 		}
 	})
+	fmt.Println("andrewq config_source.go: return instance of ConfigSources")
 	return instance
 }
 
@@ -55,14 +57,14 @@ func (s *ConfigSources) AddFileSource(path string) error {
 
 	// Step 1: Read the file content as bytes
 	wd, err := os.Getwd()
-	fmt.Println("working directory is : ", wd)
+	fmt.Println("andrewq config_source.go: working directory ", wd)
 	if err != nil {
 		return err
 	}
 
 	absolutePath := wd + "/" + path
 	data, err := os.ReadFile(absolutePath)
-	fmt.Println("absolutePath", absolutePath)
+	fmt.Println("andrewq config_source.go: absolutePath", absolutePath)
 	if err != nil {
 		return err
 	}
@@ -72,7 +74,7 @@ func (s *ConfigSources) AddFileSource(path string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("logsConfig?", logsConfig)
+	fmt.Println("andrewq config_source.go: logsConfig ", logsConfig)
 	for _, cfg := range logsConfig {
 		source := NewLogSource(cfg.Name, cfg)
 		// NOT SURE IF THIS IS NEEDED?
@@ -83,7 +85,7 @@ func (s *ConfigSources) AddFileSource(path string) error {
 		// 	// labels attached to the same container.
 		// 	source.Config.IntegrationName = cfg.Name
 		// }
-		fmt.Println("wack3", source)
+		fmt.Println("andrewq config_source.go: source ", source)
 		s.AddSource(source)
 	}
 
@@ -100,6 +102,7 @@ func (s *ConfigSources) AddSource(source *LogSource) {
 	s.sources = append(s.sources, source)
 	if source.Config == nil || source.Config.Validate() != nil {
 		s.mu.Unlock()
+		fmt.Println("andrewq config_source.go: source config isnt valid")
 		return
 	}
 	streams := s.added

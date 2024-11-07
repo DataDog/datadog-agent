@@ -75,16 +75,17 @@ func runLogsAnalyze(cliParams *CliParams) error {
 
 	//send paths to source provider
 	// Add log config source
-	fmt.Println("wack1")
+	fmt.Println("andrewq command.go 1")
 	if err := cliParams.ConfigSource.AddFileSource(cliParams.LogConfigPath); err != nil {
 		return fmt.Errorf("failed to add log config source: %w", err)
 	}
 
-	fmt.Println("wack2")
+	fmt.Println("andrewq command.go 2")
 	// Add core config source
 	if err := cliParams.ConfigSource.AddFileSource(cliParams.CoreConfigPath); err != nil {
 		return fmt.Errorf("failed to add core config source: %w", err)
 	}
+	fmt.Println("andrewq command.go 3, added both log files")
 
 	return nil
 }

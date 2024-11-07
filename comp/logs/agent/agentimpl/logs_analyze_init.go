@@ -22,10 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
-// NewAgent returns a new Logs Agent
 func (a *logAgent) SetUpLaunchers(processingRules []*config.ProcessingRule) {
 	health := health.RegisterLiveness("logs-agent")
-	// 1.
 	// setup the auditor
 	// We pass the health handle to the auditor because it's the end of the pipeline and the most
 	// critical part. Arguably it could also be plugged to the destination.
