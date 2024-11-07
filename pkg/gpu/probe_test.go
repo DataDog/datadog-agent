@@ -30,7 +30,7 @@ func TestProbe(t *testing.T) {
 		t.Skipf("minimum kernel version not met, %v", err)
 	}
 
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.CORE}, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.CORE, ebpftest.RuntimeCompiled}, "", func(t *testing.T) {
 		suite.Run(t, new(probeTestSuite))
 	})
 }
