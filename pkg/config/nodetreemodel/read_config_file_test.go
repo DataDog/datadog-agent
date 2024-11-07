@@ -48,7 +48,7 @@ func setupDefault(t *testing.T, cfg model.Config) *ntmConfig {
 			},
 		},
 	}
-	newNode, err := NewNode(obj, model.SourceDefault)
+	newNode, err := NewNodeTree(obj, model.SourceDefault)
 	require.NoError(t, err)
 	defaults, ok := newNode.(InnerNode)
 	require.True(t, ok)
@@ -174,12 +174,12 @@ c:
 			},
 		},
 	}
-	newNode, err := NewNode(obj, model.SourceDefault)
+	newNode, err := NewNodeTree(obj, model.SourceDefault)
 	require.NoError(t, err)
 	defaults, ok := newNode.(InnerNode)
 	require.True(t, ok)
 
-	tree := newInnerNodeImpl()
+	tree := newInnerNode(nil)
 
 	warnings := loadYamlInto(defaults, tree, yamlData, "")
 
@@ -187,11 +187,11 @@ c:
 
 	expected := &innerNode{
 		remapCase: map[string]string{"a": "a", "c": "c"},
-		val: map[string]Node{
+		children: map[string]Node{
 			"a": &leafNodeImpl{val: "orange", source: model.SourceFile},
 			"c": &innerNode{
 				remapCase: map[string]string{"d": "d"},
-				val: map[string]Node{
+				children: map[string]Node{
 					"d": &leafNodeImpl{val: 1234, source: model.SourceFile},
 				},
 			},
@@ -218,12 +218,12 @@ c:
 			"d": true,
 		},
 	}
-	newNode, err := NewNode(obj, model.SourceDefault)
+	newNode, err := NewNodeTree(obj, model.SourceDefault)
 	require.NoError(t, err)
 	defaults, ok := newNode.(InnerNode)
 	require.True(t, ok)
 
-	tree := newInnerNodeImpl()
+	tree := newInnerNode(nil)
 
 	warnings := loadYamlInto(defaults, tree, yamlData, "")
 
@@ -232,11 +232,11 @@ c:
 
 	expected := &innerNode{
 		remapCase: map[string]string{"a": "a", "c": "c"},
-		val: map[string]Node{
+		children: map[string]Node{
 			"a": &leafNodeImpl{val: "orange", source: model.SourceFile},
 			"c": &innerNode{
 				remapCase: map[string]string{"d": "d"},
-				val: map[string]Node{
+				children: map[string]Node{
 					"d": &leafNodeImpl{val: 1234, source: model.SourceFile},
 				},
 			},
@@ -261,12 +261,12 @@ c: 1234
 			"d": true,
 		},
 	}
-	newNode, err := NewNode(obj, model.SourceDefault)
+	newNode, err := NewNodeTree(obj, model.SourceDefault)
 	require.NoError(t, err)
 	defaults, ok := newNode.(InnerNode)
 	require.True(t, ok)
 
-	tree := newInnerNodeImpl()
+	tree := newInnerNode(nil)
 
 	warnings := loadYamlInto(defaults, tree, yamlData, "")
 
@@ -275,11 +275,11 @@ c: 1234
 
 	expected := &innerNode{
 		remapCase: map[string]string{"a": "a", "c": "c"},
-		val: map[string]Node{
+		children: map[string]Node{
 			"a": &leafNodeImpl{val: "orange", source: model.SourceFile},
 			"c": &innerNode{
 				remapCase: map[string]string{},
-				val:       map[string]Node{},
+				children:  map[string]Node{},
 			},
 		},
 	}
@@ -302,12 +302,12 @@ a:
 			"b": true,
 		},
 	}
-	newNode, err := NewNode(obj, model.SourceDefault)
+	newNode, err := NewNodeTree(obj, model.SourceDefault)
 	require.NoError(t, err)
 	defaults, ok := newNode.(InnerNode)
 	require.True(t, ok)
 
-	tree := newInnerNodeImpl()
+	tree := newInnerNode(nil)
 	tree.SetAt([]string{"a", "b", "c"}, 9876, model.SourceFile)
 
 	warnings := loadYamlInto(defaults, tree, yamlData, "")
@@ -334,12 +334,12 @@ a:
 			},
 		},
 	}
-	newNode, err := NewNode(obj, model.SourceDefault)
+	newNode, err := NewNodeTree(obj, model.SourceDefault)
 	require.NoError(t, err)
 	defaults, ok := newNode.(InnerNode)
 	require.True(t, ok)
 
-	tree := newInnerNodeImpl()
+	tree := newInnerNode(nil)
 	tree.SetAt([]string{"a", "b"}, 9876, model.SourceFile)
 
 	warnings := loadYamlInto(defaults, tree, yamlData, "")

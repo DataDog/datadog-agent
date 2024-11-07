@@ -36,6 +36,8 @@ jobs:
     steps:
       - name: Checkout branch
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          persist-credentials: false
 
       - name: Fetch branch
         env:
@@ -54,6 +56,7 @@ jobs:
         if: ${{ steps.branch_fetch.outputs.RESULT == 'true' }}
         with:
           ref: ${{ inputs.branch }}
+          persist-credentials: false
 
       - name: Setup Python and pip
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0

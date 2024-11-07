@@ -5,13 +5,15 @@ blackhole:
       binding_addr: "127.0.0.1:9091"
   - http:
       binding_addr: "127.0.0.1:9092"
+  - http:
+      binding_addr: "127.0.0.1:9093"
 
 target_metrics:
   - prometheus: #core agent telemetry
       uri: "http://127.0.0.1:5000/telemetry"
       tags:
         sub_agent: "core"
-  - prometheus: #process agent telemetry 
+  - prometheus: #process agent telemetry
       uri: "http://127.0.0.1:6062/telemetry"
       tags:
         sub_agent: "process"
