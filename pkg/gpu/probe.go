@@ -96,6 +96,11 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		return nil, err
 	}
 
+	allowRC := cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback
+	if !allowRC && !cfg.EnableCORE {
+		return nil, fmt.Errorf("%s probe supports CO-RE or Runtime Compilation modes, but none of them are enabled", sysconfig.GPUMonitoringModule)
+	}
+
 	attachCfg := getAttacherConfig(cfg)
 	// Note: this will later be replaced by a common way to enable the process monitor across system-probe
 	procMon := monitor.GetProcessMonitor()
@@ -115,10 +120,9 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		sysCtx:  sysCtx,
 	}
 
-	allowRC := cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback
 	//try CO-RE first
 	if cfg.EnableCORE {
-		err = p.getCOREGPU(cfg)
+		err = p.initCOREGPU(cfg)
 		if err != nil {
 			if allowRC {
 				log.Warnf("error loading CO-RE %s, falling back to runtime compiled: %v", sysconfig.GPUMonitoringModule, err)
@@ -130,7 +134,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 
 	//if manager is not initialized yet and RC is enabled, try runtime compilation
 	if p.m == nil && allowRC {
-		err = p.getRCGPU(cfg)
+		err = p.initRCGPU(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("unable to compile %s probe: %w", sysconfig.GPUMonitoringModule, err)
 		}
@@ -193,7 +197,7 @@ func (p *Probe) cleanupFinished() {
 	p.consumer.cleanFinishedHandlers()
 }
 
-func (p *Probe) getRCGPU(cfg *config.Config) error {
+func (p *Probe) initRCGPU(cfg *config.Config) error {
 	buf, err := getRuntimeCompiledGPUMonitoring(cfg)
 	if err != nil {
 		return err
@@ -203,7 +207,7 @@ func (p *Probe) getRCGPU(cfg *config.Config) error {
 	return p.setupManager(buf, manager.Options{})
 }
 
-func (p *Probe) getCOREGPU(cfg *config.Config) error {
+func (p *Probe) initCOREGPU(cfg *config.Config) error {
 	asset := getAssetName("gpu", cfg.BPFDebug)
 	var err error
 	err = ddebpf.LoadCOREAsset(asset, func(ar bytecode.AssetReader, o manager.Options) error {
