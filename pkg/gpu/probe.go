@@ -96,8 +96,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		return nil, err
 	}
 
-	allowRC := cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback
-	if !allowRC && !cfg.EnableCORE {
+	if !cfg.EnableRuntimeCompiler && !cfg.EnableCORE {
 		return nil, fmt.Errorf("%s probe supports CO-RE or Runtime Compilation modes, but none of them are enabled", sysconfig.GPUMonitoringModule)
 	}
 
@@ -120,6 +119,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		sysCtx:  sysCtx,
 	}
 
+	allowRC := cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback
 	//try CO-RE first
 	if cfg.EnableCORE {
 		err = p.initCOREGPU(cfg)
