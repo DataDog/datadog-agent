@@ -78,7 +78,7 @@ repos:
       description: Format .net file of the MSI installer
       language: system
       # The dotnet format tool requires a solution file to operate.
-      entry: dotnet format ./tools/windows/DatadogAgentInstaller --include 
+      entry: dotnet format ./tools/windows/DatadogAgentInstaller --include
       types: [c#]
     - id: go-mod-tidy
       name: go-mod-tidy
@@ -144,4 +144,4 @@ repos:
       entry: 'inv modules.validate'
       language: system
       pass_filenames: false
-      files: .*go\.mod$
+      files: (.*go\.mod|.*module.yml)$
