@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -106,40 +107,20 @@ func (c *cudaEventConsumer) Start() {
 				}
 
 				header := (*gpuebpf.CudaEventHeader)(unsafe.Pointer(&batchData.Data[0]))
-				key := c.getStreamKey(header)
-				streamHandler := c.getStreamHandler(key)
 
-				switch header.Type {
-				case gpuebpf.CudaEventTypeKernelLaunch:
-					if dataLen != gpuebpf.SizeofCudaKernelLaunch {
-						log.Errorf("Not enough data to parse kernel launch event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaKernelLaunch)
-						continue
-					}
-					ckl := (*gpuebpf.CudaKernelLaunch)(unsafe.Pointer(&batchData.Data[0]))
-					streamHandler.handleKernelLaunch(ckl)
-				case gpuebpf.CudaEventTypeMemory:
-					if dataLen != gpuebpf.SizeofCudaMemEvent {
-						log.Errorf("Not enough data to parse memory event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaMemEvent)
-						continue
-					}
-					cme := (*gpuebpf.CudaMemEvent)(unsafe.Pointer(&batchData.Data[0]))
-					streamHandler.handleMemEvent(cme)
-				case gpuebpf.CudaEventTypeSync:
-					if dataLen != gpuebpf.SizeofCudaSync {
-						log.Errorf("Not enough data to parse sync event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaSync)
-						continue
-					}
-					cs := (*gpuebpf.CudaSync)(unsafe.Pointer(&batchData.Data[0]))
-					streamHandler.handleSync(cs)
-				case gpuebpf.CudaEventTypeSetDevice:
-					if dataLen != gpuebpf.SizeofCudaSetDeviceEvent {
-						log.Errorf("Not enough data to parse set device event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaSetDeviceEvent)
-						continue
-					}
-					csde := (*gpuebpf.CudaSetDeviceEvent)(unsafe.Pointer(&batchData.Data[0]))
+				log.Debugf("Processing CUDA event: %+v", header)
 
-					tid := uint32(header.Pid_tgid & 0xFFFFFFFF)
-					c.sysCtx.setDeviceSelection(int(key.pid), int(tid), csde.Device)
+				dataPtr := unsafe.Pointer(&batchData.Data[0])
+
+				var err error
+				if isStreamSpecificEvent(gpuebpf.CudaEventType(header.Type)) {
+					err = c.handleStreamEvent(header, dataPtr, dataLen)
+				} else {
+					err = c.handleGlobalEvent(header, dataPtr, dataLen)
+				}
+
+				if err != nil {
+					log.Errorf("Error processing CUDA event: %v", err)
 				}
 
 				batchData.Done()
@@ -152,6 +133,62 @@ func (c *cudaEventConsumer) Start() {
 		}
 	}()
 	log.Trace("CUDA event consumer started")
+}
+
+func isStreamSpecificEvent(eventType gpuebpf.CudaEventType) bool {
+	return eventType != gpuebpf.CudaEventTypeSetDevice
+}
+
+func (c *cudaEventConsumer) handleStreamEvent(header *gpuebpf.CudaEventHeader, data unsafe.Pointer, dataLen int) error {
+	key := c.getStreamKey(header)
+	streamHandler := c.getStreamHandler(key)
+
+	switch header.Type {
+	case gpuebpf.CudaEventTypeKernelLaunch:
+		if dataLen != gpuebpf.SizeofCudaKernelLaunch {
+			return fmt.Errorf("Not enough data to parse kernel launch event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaKernelLaunch)
+
+		}
+		ckl := (*gpuebpf.CudaKernelLaunch)(data)
+		streamHandler.handleKernelLaunch(ckl)
+	case gpuebpf.CudaEventTypeMemory:
+		if dataLen != gpuebpf.SizeofCudaMemEvent {
+			return fmt.Errorf("Not enough data to parse memory event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaMemEvent)
+
+		}
+		cme := (*gpuebpf.CudaMemEvent)(data)
+		streamHandler.handleMemEvent(cme)
+	case gpuebpf.CudaEventTypeSync:
+		if dataLen != gpuebpf.SizeofCudaSync {
+			return fmt.Errorf("Not enough data to parse sync event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaSync)
+
+		}
+		cs := (*gpuebpf.CudaSync)(data)
+		streamHandler.handleSync(cs)
+	default:
+		return fmt.Errorf("Unknown event type: %d", header.Type)
+	}
+
+	return nil
+}
+
+func (c *cudaEventConsumer) handleGlobalEvent(header *gpuebpf.CudaEventHeader, data unsafe.Pointer, dataLen int) error {
+	switch header.Type {
+	case gpuebpf.CudaEventTypeSetDevice:
+		if dataLen != gpuebpf.SizeofCudaSetDeviceEvent {
+			return fmt.Errorf("Not enough data to parse set device event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaSetDeviceEvent)
+
+		}
+		csde := (*gpuebpf.CudaSetDeviceEvent)(unsafe.Pointer(data))
+
+		tid := uint32(header.Pid_tgid & 0xFFFFFFFF)
+		pid := uint32(header.Pid_tgid >> 32)
+		c.sysCtx.setDeviceSelection(int(pid), int(tid), csde.Device)
+	default:
+		return fmt.Errorf("Unknown event type: %d", header.Type)
+	}
+
+	return nil
 }
 
 func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
