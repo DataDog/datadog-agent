@@ -357,9 +357,10 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
 
 
 def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
-    gpu_c_dir = Path("pkg/gpu/ebpf/c")
-    gpu_flags = f"-I{gpu_c_dir} -g"
-    gpu_programs = ["runtime/gpu"]
+    gpu_headers_dir = Path("pkg/gpu/ebpf/c")
+    gpu_c_dir = gpu_headers_dir / "runtime"
+    gpu_flags = f"-I{gpu_headers_dir} -I{gpu_c_dir}"
+    gpu_programs = ["gpu"]
 
     for prog in gpu_programs:
         infile = os.path.join(gpu_c_dir, f"{prog}.c")
