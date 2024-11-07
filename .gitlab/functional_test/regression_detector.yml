@@ -119,7 +119,7 @@ single-machine-performance-regression_detector:
     - echo "SMP Job Id is ${SMP_JOB_ID}"
     - datadog-ci tag --level job --tags smp_job_id:${SMP_JOB_ID}
     # Wait for job to complete.
-    - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
+    - RUST_LOG="${RUST_LOG}" datadog-ci trace --name "SMP Status" -- ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
       job status
       --wait
       --wait-delay-seconds 60
