@@ -12,6 +12,16 @@
 
 agent_integration_tests:
   extends: .integration_tests_deb
+  variables:
+    KUBERNETES_POD_ANNOTATIONS_1: "ci.ddbuild.io/enforce-static-cpus=true"
+    KUBERNETES_CPU_LIMIT: "4"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
+    KUBERNETES_SERVICE_CPU_REQUEST: "8"
+    KUBERNETES_SERVICE_CPU_LIMIT: "8"
+    KUBERNETES_SERVICE_MEMORY_REQUEST: "32Gi"
+    KUBERNETES_SERVICE_MEMORY_LIMIT: "32Gi"
+    KUBERNETES_HELPER_CPU_LIMIT: "999m"
+    KUBERNETES_HELPER_MEMORY_LIMIT: "1Gi"
   # We have capacity issues on the docker-in-docker:amd64 runners for now.
   # Setting allow_failure to true to avoid blocking the pipelines.
   # Setting the timeout to 30 min and retry to 2 to avoid the job from pending for too long.
