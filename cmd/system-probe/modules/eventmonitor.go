@@ -94,7 +94,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		}
 	}
 
-	gpucfg := gpuconfig.NewConfig()
+	gpucfg := gpuconfig.New()
 	if gpucfg.Enabled {
 		err := createGPUProcessEventConsumer(evm)
 		if err != nil {
