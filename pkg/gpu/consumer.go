@@ -51,7 +51,6 @@ func (c *cudaEventConsumer) Stop() {
 	if c == nil {
 		return
 	}
-	c.eventHandler.Stop()
 	c.once.Do(func() {
 		close(c.closed)
 	})
