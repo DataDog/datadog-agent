@@ -9,6 +9,7 @@ package installer
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"runtime"
 	"strings"
@@ -46,6 +47,10 @@ const (
 	envAgentMajorVersion           = "DD_AGENT_MAJOR_VERSION"
 	envAgentMinorVersion           = "DD_AGENT_MINOR_VERSION"
 	envAgentDistChannel            = "DD_AGENT_DIST_CHANNEL"
+	envRemoteUpdates               = "DD_REMOTE_UPDATES"
+	envHTTPProxy                   = "HTTP_PROXY"
+	envHTTPSProxy                  = "HTTPS_PROXY"
+	envNoProxy                     = "NO_PROXY"
 )
 
 // BootstrapCommand returns the bootstrap command.
@@ -161,9 +166,25 @@ func newBootstrapperCmd(operation string) *bootstrapperCmd {
 	cmd.span.SetTag("env.DD_RPM_REPO_GPGCHECK", os.Getenv(envRPMRepoGPGCheck))
 	cmd.span.SetTag("env.DD_AGENT_MAJOR_VERSION", os.Getenv(envAgentMajorVersion))
 	cmd.span.SetTag("env.DD_AGENT_MINOR_VERSION", os.Getenv(envAgentMinorVersion))
+	cmd.span.SetTag("env.DD_AGENT_DIST_CHANNEL", os.Getenv(envAgentDistChannel))
+	cmd.span.SetTag("env.DD_REMOTE_UPDATES", os.Getenv(envRemoteUpdates))
+	cmd.span.SetTag("env.HTTP_PROXY", redactURL(os.Getenv(envHTTPProxy)))
+	cmd.span.SetTag("env.HTTPS_PROXY", redactURL(os.Getenv(envHTTPSProxy)))
+	cmd.span.SetTag("env.NO_PROXY", os.Getenv(envNoProxy))
 	return &bootstrapperCmd{
 		cmd: cmd,
 	}
+}
+
+func redactURL(u string) string {
+	if u == "" {
+		return ""
+	}
+	url, err := url.Parse(u)
+	if err != nil {
+		return "invalid"
+	}
+	return url.Redacted()
 }
 
 type telemetryConfigFields struct {
