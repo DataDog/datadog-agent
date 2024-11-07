@@ -17,6 +17,7 @@ jobs:
       - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           ref: ${{ github.base_ref }}
+          persist-credentials: false
       - name: Get former Go version
         id: former_go_version
         run: |
@@ -24,6 +25,8 @@ jobs:
 
       # get the Go version of the PR branch
       - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          persist-credentials: false
       - name: Get current Go version
         id: new_go_version
         run: |

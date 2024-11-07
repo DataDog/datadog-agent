@@ -28,10 +28,23 @@ import (
 
 // EBPFFieldHandlers defines a field handlers
 type EBPFFieldHandlers struct {
-	config    *config.Config
+	*BaseFieldHandlers
 	resolvers *resolvers.EBPFResolvers
-	hostname  string
 	onDemand  *OnDemandProbesManager
+}
+
+// NewEBPFFieldHandlers returns a new EBPFFieldHandlers
+func NewEBPFFieldHandlers(config *config.Config, resolvers *resolvers.EBPFResolvers, hostname string, onDemand *OnDemandProbesManager) (*EBPFFieldHandlers, error) {
+	bfh, err := NewBaseFieldHandlers(config, hostname)
+	if err != nil {
+		return nil, err
+	}
+
+	return &EBPFFieldHandlers{
+		BaseFieldHandlers: bfh,
+		resolvers:         resolvers,
+		onDemand:          onDemand,
+	}, nil
 }
 
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
@@ -400,11 +413,6 @@ func (fh *EBPFFieldHandlers) ResolveEventTimestamp(ev *model.Event, e *model.Bas
 	return int(fh.ResolveEventTime(ev, e).UnixNano())
 }
 
-// ResolveService returns the service tag based on the process context
-func (fh *EBPFFieldHandlers) ResolveService(ev *model.Event, e *model.BaseEvent) string {
-	return resolveService(fh.config, fh, ev, e)
-}
-
 // ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time
 func (fh *EBPFFieldHandlers) ResolveEventTime(ev *model.Event, _ *model.BaseEvent) time.Time {
 	if ev.Timestamp.IsZero() {
@@ -669,11 +677,6 @@ func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt2(ev *model.Event, e *model
 func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt3(ev *model.Event, e *model.SyscallContext) int {
 	fh.ResolveSyscallCtxArgs(ev, e)
 	return int(e.IntArg3)
-}
-
-// ResolveHostname resolve the hostname
-func (fh *EBPFFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
-	return fh.hostname
 }
 
 // ResolveOnDemandName resolves the on-demand event name
