@@ -18,28 +18,20 @@
     echo "pyenv uninstall -f <version>"
 
 .select_python_env_commands:
-  # Print a warning if the current Python version is different from the one in .python-version
   # Select the virtualenv using the current Python version. Create it if it doesn't exist.
+  - PYTHON_VERSION=$(python3 --version | awk '{print $2}')
+  - VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
+  - VENV_PATH="$(pyenv root)/versions/$VENV_NAME"
+  - echo "Using Python $PYTHON_VERSION..."
   - |
-    PYTHON_REPO_VERSION=$(cat .python-version)
-    PYTHON_VERSION=$(python3 --version | awk '{print $2}' | sed 's/\.[0-9]*$//')
-    VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
-    if [ "$PYTHON_REPO_VERSION" != "$PYTHON_VERSION" ]; then
-      echo "Warning: The current Python version $PYTHON_VERSION is different from $PYTHON_REPO_VERSION in .python-version."
-      echo "Installing Python $PYTHON_REPO_VERSION..."
+    # Check if the virtual environment directory exists
+    if [ ! -d "$VENV_PATH" ]; then
+      echo "Creating virtual environment '$VENV_NAME'..."
+      pyenv virtualenv "$PYTHON_VERSION" "$VENV_NAME"
+    else
+      echo "Virtual environment '$VENV_NAME' already exists. Skipping creation."
     fi
-    ## START TEMPORARY DEBUG see ACIX-500
-    echo $PYTHON_VERSION
-    echo $VENV_NAME
-    pyenv virtualenvs --bare
-    ls $(pyenv root)/versions/
-    ## END TEMPORARY DEBUG see ACIX-500
-    if ! pyenv virtualenvs --bare | grep -q "^${VENV_NAME}$"; then
-      # The || true is a quickfix avoiding the command to fail if the virtualenv already exists
-      # This should be removed once ACIX-500 is done
-      pyenv virtualenv $PYTHON_VERSION $VENV_NAME || true
-    fi
-    pyenv activate $VENV_NAME
+  - pyenv activate $VENV_NAME
 
 .macos_gitlab:
   before_script:
