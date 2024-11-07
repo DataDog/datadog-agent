@@ -147,7 +147,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return fmt.Errorf("ec2.InstallECRCredentialsHelper %w", err)
 	}
 
-	kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, awsEnv.CommonNamer().ResourceName("kind"), params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, "kind", awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	if err != nil {
 		return fmt.Errorf("kubeComp.NewKindCluster: %w", err)
 	}
@@ -186,18 +186,17 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 
 	if params.agentOptions != nil {
 		kindClusterName := ctx.Stack()
-		helmValues := fmt.Sprintf(`
+		helmValues := `
 datadog:
   kubelet:
     tlsVerify: false
-  clusterName: "%s"
   envDict:
     DD_CONTAINER_EXCLUDE: "kube_namespace:^exclude-namespace$"
 agents:
   useHostNetwork: true
-`, kindClusterName)
+`
 
-		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
+		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues), kubernetesagentparams.WithClusterName(kindCluster.ClusterName)}
 		params.agentOptions = append(newOpts, params.agentOptions...)
 		agent, err := helm.NewKubernetesAgent(&awsEnv, kindClusterName, kubeProvider, params.agentOptions...)
 		if err != nil {
