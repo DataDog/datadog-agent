@@ -15,7 +15,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
@@ -52,15 +51,10 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
 	sharedForwarder := forwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), deps.Log, forwarderOpts)
-	// TODO Do we do this for the benchmarks?
-	compressor := deps.CompressionFactory.NewCompressor(
-		deps.Config.GetString("serializer_compressor_kind"),
-		deps.Config.GetInt("serializer_zstd_compressor_level"),
-		"serializer_compressor_kind",
-		[]string{"zstd", "zlib"},
-	)
-	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname))
+
+	compressor := deps.CompressionFactory.NewNoopCompressor()
+	orchestratorForwarder := optional.NewOption[forwarder.Forwarder](forwarder.NoopForwarder{})
+	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname, deps.CompressionFactory))
 	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, compressor, taggerComponent, "hostname")
 	defer demux.Stop(true)
 
