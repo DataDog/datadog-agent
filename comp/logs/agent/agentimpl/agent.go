@@ -237,6 +237,7 @@ func (a *logAgent) setupAgent() error {
 	}
 
 	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs)
+	a.SetUpLaunchers(processingRules)
 	return nil
 }
 
@@ -254,6 +255,7 @@ func (a *logAgent) startPipeline() {
 		a.diagnosticMessageReceiver,
 		a.launchers,
 	)
+	fmt.Println("andrewq agentimpl/agent.go startPipeline?")
 	starter.Start()
 
 	if !sds.ShouldBlockCollectionUntilSDSConfiguration(a.config) {
