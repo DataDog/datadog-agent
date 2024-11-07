@@ -390,10 +390,6 @@ func (s *TracerSuite) TestTCPConnsReported() {
 	defer c.Close()
 	<-processedChan
 
-	if tr.config.EnableEbpfless {
-		time.Sleep(time.Millisecond * 500)
-	}
-
 	// for ebpfless, it takes time for the packet capture to arrive, so poll
 	require.Eventually(t, func() bool {
 		// Test
