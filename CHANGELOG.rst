@@ -12,7 +12,7 @@ Release Notes
 Prelude
 -------
 
-Release on: 2024-11-06
+Release on: 2024-11-07
 
 - Please refer to the `7.59.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7590>`_ for the list of changes on the Core Checks
 
