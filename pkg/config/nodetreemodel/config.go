@@ -138,14 +138,6 @@ func (c *ntmConfig) setValueSource(key string, newValue interface{}, source mode
 	}
 }
 
-func (c *ntmConfig) set(key string, value interface{}, tree InnerNode, source model.Source) (bool, error) {
-	if tree == nil {
-		return false, fmt.Errorf("cannot assign to nil Node")
-	}
-	parts := splitKey(key)
-	return tree.SetAt(parts, value, source)
-}
-
 func (c *ntmConfig) setDefault(key string, value interface{}) {
 	parts := splitKey(key)
 	// TODO: Ensure that for default tree, setting nil to a node will not override
@@ -163,16 +155,46 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	switch source {
 	case model.SourceDefault:
 		tree = c.defaults
+	case model.SourceUnknown:
+		tree = c.unknown
 	case model.SourceFile:
 		tree = c.file
+	case model.SourceEnvVar:
+		tree = c.envs
+	case model.SourceAgentRuntime:
+		tree = c.runtime
+	case model.SourceLocalConfigProcess:
+		tree = c.localConfigProcess
+	case model.SourceRC:
+		tree = c.remoteConfig
+	case model.SourceFleetPolicies:
+		tree = c.fleetPolicies
+	case model.SourceCLI:
+		tree = c.cli
 	default:
 		log.Errorf("unknown source tree: %s\n", source)
 	}
 
+	if !c.IsKnown(key) {
+		log.Errorf("could not set '%s' unknown key", key)
+		return
+	}
+
 	c.Lock()
 	previousValue, _ := c.getValue(key)
-	_, _ = c.set(key, newValue, tree, source)
-	updated, _ := c.set(key, newValue, c.root, source)
+
+	parts := splitKey(key)
+
+	_, err := tree.SetAt(parts, newValue, source)
+	if err != nil {
+		log.Errorf("could not set '%s' invalid key: %s", key, err)
+	}
+
+	updated, err := c.root.SetAt(parts, newValue, source)
+	if err != nil {
+		log.Errorf("could not set '%s' invalid key: %s", key, err)
+	}
+
 	receivers := slices.Clone(c.notificationReceivers)
 	c.Unlock()
 
@@ -875,7 +897,7 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 	config := ntmConfig{
 		ready:              atomic.NewBool(false),
 		noimpl:             &notImplMethodsImpl{},
-		configEnvVars:      map[string]struct{}{},
+		configEnvVars:      map[string]string{},
 		knownKeys:          map[string]struct{}{},
 		unknownKeys:        map[string]struct{}{},
 		defaults:           newInnerNode(nil),
