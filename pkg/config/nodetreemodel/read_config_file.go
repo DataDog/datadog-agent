@@ -22,10 +22,14 @@ func (c *ntmConfig) mergeAllLayers() error {
 	treeList := []InnerNode{
 		c.defaults,
 		c.file,
+		c.envs,
 	}
 
 	// TODO: handle all configuration sources
 	for _, tree := range treeList {
+		if tree == nil {
+			continue
+		}
 		err := root.Merge(tree)
 		if err != nil {
 			return err
