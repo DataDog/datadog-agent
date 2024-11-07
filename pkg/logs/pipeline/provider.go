@@ -79,6 +79,7 @@ func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, diagn
 	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, true, status, hostname, cfg)
 }
 
+// NewProcessorOnlyProvider returns a new Provider in serverless mode
 func NewProcessorOnlyProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, cfg pkgconfigmodel.Reader, endpoints *config.Endpoints, hostname hostnameinterface.Component) Provider {
 	return &processorOnlyProvider{
 		numberOfPipelines:         numberOfPipelines,

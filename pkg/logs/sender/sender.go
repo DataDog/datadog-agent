@@ -6,6 +6,7 @@
 package sender
 
 import (
+	"fmt"
 	"strconv"
 	"sync"
 	"time"
@@ -67,6 +68,7 @@ func (s *Sender) Stop() {
 }
 
 func (s *Sender) run() {
+	fmt.Println("andrewq sender.go, Sender is ", s)
 	reliableDestinations := buildDestinationSenders(s.config, s.destinations.Reliable, s.outputChan, s.bufferSize)
 
 	sink := additionalDestinationsSink(s.bufferSize)

@@ -99,8 +99,7 @@ func NewProcessorOnlyPipeline(
 	hostname hostnameinterface.Component,
 	cfg pkgconfigmodel.Reader) *Pipeline {
 	strategyInput := make(chan *message.Message, config.ChanSize)
-	var encoder processor.Encoder
-	encoder = processor.JSONServerlessEncoder
+	encoder := processor.JSONServerlessEncoder
 
 	inputChan := make(chan *message.Message, config.ChanSize)
 
