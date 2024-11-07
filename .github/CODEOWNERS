@@ -321,7 +321,7 @@
 # END COMPONENTS
 
 # Additional notification to  @iglendd about Agent Telemetry changes for optional approval and governance acknowledgement
-/comp/core/agenttelemetry               @iglendd
+/comp/core/agenttelemetry               @DataDog/agent-shared-components @iglendd
 
 # pkg
 /pkg/                                   @DataDog/agent-shared-components
