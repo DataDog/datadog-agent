@@ -142,7 +142,7 @@ func GetRawPacketTCFilterCollectionSpec(rawPacketEventMapFd, clsRouterMapFd int,
 				asm.R6,
 				asm.R7,
 			},
-			StackOffset: 16, // adapt using the stack used outside of the filter itself, ex: map_lookup
+			StackOffset: 16, // adapt using the stack size used outside of the filter itself, ex: map_lookup
 		},
 		sendEventLabel: "send-event",
 	}
