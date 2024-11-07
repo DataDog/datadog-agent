@@ -39,7 +39,7 @@ var (
 		e2eos.AmazonLinux2,
 		e2eos.Debian12,
 		e2eos.RedHat9,
-		e2eos.Fedora37,
+		e2eos.Fedora40,
 		e2eos.CentOS7,
 		e2eos.Suse15,
 	}
