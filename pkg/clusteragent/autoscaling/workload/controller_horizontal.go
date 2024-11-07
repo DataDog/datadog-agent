@@ -214,7 +214,7 @@ func (hr *horizontalController) computeScaleAction(
 	var stabilizationLimitReason string
 	var stabilizationLimitedReplicas int32
 
-	stabilizationLimitedReplicas, stabilizationLimitReason = stabilizeRecommendations(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), currentDesiredReplicas, targetDesiredReplicas, stabilizationWindowUpscaleSeconds, stabilizationWindowDownscaleSeconds)
+	stabilizationLimitedReplicas, stabilizationLimitReason = stabilizeRecommendations(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), currentDesiredReplicas, targetDesiredReplicas, autoscalerInternal.Spec().Policy.Upscale.StabilizationWindowSeconds, autoscalerInternal.Spec().Policy.Downscale.StabilizationWindowSeconds)
 	if stabilizationLimitReason != "" {
 		limitReason = stabilizationLimitReason
 		targetDesiredReplicas = stabilizationLimitedReplicas

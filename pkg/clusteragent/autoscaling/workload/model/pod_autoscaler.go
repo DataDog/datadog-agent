@@ -589,16 +589,14 @@ func getHorizontalEventsRetention(policy *datadoghq.DatadogPodAutoscalerPolicy, 
 
 	if policy.Upscale != nil {
 		upscaleRetention := getLongestScalingRulesPeriod(policy.Upscale.Rules)
-		if upscaleRetention > longestRetention {
-			longestRetention = upscaleRetention
-		}
+		upscaleStabilizationWindow := time.Second * time.Duration(policy.Upscale.StabilizationWindowSeconds)
+		longestRetention = max(longestRetention, upscaleRetention, upscaleStabilizationWindow)
 	}
 
 	if policy.Downscale != nil {
 		downscaleRetention := getLongestScalingRulesPeriod(policy.Downscale.Rules)
-		if downscaleRetention > longestRetention {
-			longestRetention = downscaleRetention
-		}
+		downscaleStabilizationWindow := time.Second * time.Duration(policy.Downscale.StabilizationWindowSeconds)
+		longestRetention = max(longestRetention, downscaleRetention, downscaleStabilizationWindow)
 	}
 
 	if longestRetention > longestLookbackAllowed {
