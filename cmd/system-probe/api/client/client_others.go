@@ -17,8 +17,10 @@ const (
 	idleConnTimeout = 30 * time.Second
 )
 
-func DialContextFunc(socketPath string) func(context.Context, string, string) (net.Conn, error) {
-	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+// DialContextFunc returns a function to be used in http.Transport.DialContext for connecting to system-probe.
+// The result will be OS-specific.
+func DialContextFunc(_ string) func(context.Context, string, string) (net.Conn, error) {
+	return func(_ context.Context, _, _ string) (net.Conn, error) {
 		return ErrNotImplemented
 	}
 }
