@@ -255,7 +255,9 @@ func (c *ntmConfig) BuildSchema() {
 	defer c.Unlock()
 	c.buildEnvVars()
 	c.ready.Store(true)
-	c.mergeAllLayers()
+	if err := c.mergeAllLayers(); err != nil {
+		c.warnings = append(c.warnings, err.Error())
+	}
 }
 
 func (c *ntmConfig) isReady() bool {
