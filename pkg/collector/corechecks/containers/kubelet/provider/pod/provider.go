@@ -234,9 +234,8 @@ func (r *runningAggregator) generateRunningAggregatorMetrics(sender sender.Sende
 }
 
 // generateTagHash creates a sorted string representation of the tags supplied. The resulting string that it returns is
-// the concatenated key-value pairs of tags, sorted, which should reduce the likelihood of a hash collision that is
-// possible using tagger.GetEntityHash.
-//
+// the concatenated key-value pairs of tags, sorted, which should reduce the likelihood of a hash collision.
+
 // This is mainly used for aggregation purposes, and is here because go does not support using a slice as a map key.
 // It is intended to keep the existing functionality in place after migrating this check from python.
 func generateTagHash(tags []string) string {

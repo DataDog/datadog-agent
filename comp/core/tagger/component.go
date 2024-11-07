@@ -49,7 +49,6 @@ type Component interface {
 	GetEntity(entityID types.EntityID) (*types.Entity, error)
 	// subscriptionID is used for logging and debugging purposes
 	Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error)
-	GetEntityHash(entityID types.EntityID, cardinality types.TagCardinality) string
 	AgentTags(cardinality types.TagCardinality) ([]string, error)
 	GlobalTags(cardinality types.TagCardinality) ([]string, error)
 	SetNewCaptureTagger(newCaptureTagger Component)

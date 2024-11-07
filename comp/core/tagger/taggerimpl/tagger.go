@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/replay"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -302,16 +301,6 @@ func (t *TaggerClient) AccumulateTagsFor(entityID types.EntityID, cardinality ty
 	}
 	t.mux.RUnlock()
 	return t.defaultTagger.AccumulateTagsFor(entityID, cardinality, tb)
-}
-
-// GetEntityHash returns the hash for the tags associated with the given entity
-// Returns an empty string if the tags lookup fails
-func (t *TaggerClient) GetEntityHash(entityID types.EntityID, cardinality types.TagCardinality) string {
-	tags, err := t.Tag(entityID, cardinality)
-	if err != nil {
-		return ""
-	}
-	return utils.ComputeTagsHash(tags)
 }
 
 // AgentTags returns the agent tags

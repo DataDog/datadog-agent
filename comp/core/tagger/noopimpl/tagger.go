@@ -83,10 +83,6 @@ func (n *noopTagger) Subscribe(string, *types.Filter) (types.Subscription, error
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (n *noopTagger) GetEntityHash(types.EntityID, types.TagCardinality) string {
-	return ""
-}
-
 func (n *noopTagger) AgentTags(types.TagCardinality) ([]string, error) {
 	return nil, nil
 }

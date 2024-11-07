@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -94,9 +95,16 @@ func (l *KubeletListener) createPodService(
 
 	entity := kubelet.PodUIDToEntityName(pod.ID)
 	taggerEntityID := common.BuildTaggerEntityID(pod.GetID())
+
+	var tagsHash string
+	tags, err := l.tagger.Tag(taggerEntityID, l.tagger.ChecksCardinality())
+	if err == nil {
+		tagsHash = taggerUtils.ComputeTagsHash(tags)
+	}
+
 	svc := &service{
 		entity:        pod,
-		tagsHash:      l.tagger.GetEntityHash(taggerEntityID, l.tagger.ChecksCardinality()),
+		tagsHash:      tagsHash,
 		adIdentifiers: []string{entity},
 		hosts:         map[string]string{"pod": pod.IP},
 		ports:         ports,
@@ -157,9 +165,14 @@ func (l *KubeletListener) createContainerService(
 	})
 
 	entity := containers.BuildEntityName(string(container.Runtime), container.ID)
+	var tagsHash string
+	tags, err := l.tagger.Tag(types.NewEntityID(types.ContainerID, container.ID), l.tagger.ChecksCardinality())
+	if err == nil {
+		tagsHash = taggerUtils.ComputeTagsHash(tags)
+	}
 	svc := &service{
 		entity:   container,
-		tagsHash: l.tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID), l.tagger.ChecksCardinality()),
+		tagsHash: tagsHash,
 		ready:    pod.Ready,
 		ports:    ports,
 		extraConfig: map[string]string{
@@ -200,7 +213,6 @@ func (l *KubeletListener) createContainerService(
 		svc.adIdentifiers = append(svc.adIdentifiers, containerImg.ShortName)
 	}
 
-	var err error
 	svc.checkNames, err = utils.ExtractCheckNamesFromPodAnnotations(pod.Annotations, adIdentifier)
 	if err != nil {
 		log.Error(err.Error())

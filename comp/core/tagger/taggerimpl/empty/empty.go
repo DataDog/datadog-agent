@@ -16,12 +16,6 @@ import (
 // Tagger struct to embed in other taggers that do not implement some of the tagger component functions
 type Tagger struct{}
 
-// GetEntityHash returns the hash for the tags associated with the given entity
-// Returns an empty string if the tags lookup fails
-func (t *Tagger) GetEntityHash(types.EntityID, types.TagCardinality) string {
-	return ""
-}
-
 // AgentTags returns the agent tags
 // It relies on the container provider utils to get the Agent container ID
 func (t *Tagger) AgentTags(types.TagCardinality) ([]string, error) {
