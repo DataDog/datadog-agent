@@ -42,6 +42,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
@@ -50,12 +53,14 @@ import (
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	processstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -110,6 +115,17 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(workloadmeta.Params{
 					AgentType: workloadmeta.Remote,
+				}),
+				// Provide tagger module
+				remoteTaggerFx.Module(tagger.RemoteParams{
+					RemoteTarget: func(c config.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
+					RemoteTokenFetcher: func(c config.Component) func() (string, error) {
+						return func() (string, error) { return security.FetchAuthToken(c) }
+					},
+					RemoteFilter: taggerTypes.NewMatchAllFilter(),
+				}),
+				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
+					proccontainers.InitSharedContainerProvider(wmeta, tagger)
 				}),
 				autoexitimpl.Module(),
 				pidimpl.Module(),
@@ -272,6 +288,17 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
+		}),
+		// Provide tagger module
+		remoteTaggerFx.Module(tagger.RemoteParams{
+			RemoteTarget: func(c config.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
+			RemoteTokenFetcher: func(c config.Component) func() (string, error) {
+				return func() (string, error) { return security.FetchAuthToken(c) }
+			},
+			RemoteFilter: taggerTypes.NewMatchAllFilter(),
+		}),
+		fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
+			proccontainers.InitSharedContainerProvider(wmeta, tagger)
 		}),
 		systemprobeloggerfx.Module(),
 		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
