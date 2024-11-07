@@ -24,11 +24,15 @@ extensions:
   ddflare:
     include_metadata: true  # Set to true for testing; adjust for production.
   health_check:
+  zpages:
+  pprof:
 
 service:
   extensions:
     - ddflare
     - health_check
+    - pprof
+    - zpages
   pipelines:
     traces:
       receivers: [otlp]

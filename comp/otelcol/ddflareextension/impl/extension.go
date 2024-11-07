@@ -129,7 +129,7 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 			Sources: map[string]extensionDef.OTelFlareSource{},
 		},
 	}
-	// only initiate the configprovider and set provided config if being built by Agent
+	// only initiate the configprovider and set provided config if factories are provided
 	if getProvidedConfig {
 		ext.configStore.setProvidedConfigSupported(false)
 	} else {

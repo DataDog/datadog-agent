@@ -310,9 +310,6 @@ IGNORED_MODULE_PATHS = [
     # Test files
     Path("./test/integration/serverless/recorder-extension"),
     Path("./test/integration/serverless/src"),
-    # TODO: Remove comp/core/log and pkg/util/tagger once otel agent dependencies are fixed
-    Path("./comp/core/log"),
-    Path("./pkg/util/tagger"),
     Path("./comp/otelcol/ddflareextension/impl"),
 ]
 
@@ -481,8 +478,6 @@ def validate_used_by_otel(ctx: Context):
 
     # for every module labeled as "used_by_otel"
     for otel_mod in otel_mods:
-        if otel_mod in [path.as_posix() for path in IGNORED_MODULE_PATHS]:
-            continue
         gomod_path = f"{otel_mod}/go.mod"
         # get the go.mod data
         result = ctx.run(f"go mod edit -json {gomod_path}", hide='both')
