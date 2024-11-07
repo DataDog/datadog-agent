@@ -53,7 +53,7 @@ func TestExtractPersistentVolumeClaim(t *testing.T) {
 							"app": "test-sts",
 						},
 					},
-					Resources: corev1.ResourceRequirements{
+					Resources: corev1.VolumeResourceRequirements{
 						Requests: corev1.ResourceList{
 							corev1.ResourceStorage: resource.MustParse("2Gi"),
 						},

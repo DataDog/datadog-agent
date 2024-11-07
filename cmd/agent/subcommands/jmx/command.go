@@ -58,6 +58,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -159,6 +160,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			taggerimpl.Module(),
 			autodiscoveryimpl.Module(),
 			agent.Bundle(jmxloggerimpl.NewCliParams(cliParams.logFile)),
+			// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
+			// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
+			// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
+			// we can include the tagger as part of the workloadmeta component.
+			fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
+				proccontainers.InitSharedContainerProvider(wmeta, tagger)
+			}),
 		)
 	}
 
@@ -296,7 +304,8 @@ func runJmxCommandConsole(config config.Component,
 	agentAPI internalAPI.Component,
 	collector optional.Option[collector.Component],
 	jmxLogger jmxlogger.Component,
-	logReceiver optional.Option[integrations.Component]) error {
+	logReceiver optional.Option[integrations.Component],
+	tagger tagger.Component) error {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
 	// Disabling it is both more efficient and gets rid of this log spam
@@ -313,7 +322,7 @@ func runJmxCommandConsole(config config.Component,
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(collector, senderManager, logReceiver)
+	pkgcollector.InitCheckScheduler(collector, senderManager, logReceiver, tagger)
 
 	// if cliSelectedChecks is empty, then we want to fetch all check configs;
 	// otherwise, we fetch only the matching cehck configs.

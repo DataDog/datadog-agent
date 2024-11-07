@@ -11,8 +11,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
@@ -44,6 +46,14 @@ type ddExtension struct {
 // see https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/e788e319e129071e74c13db48296464a5253413d/extension/opampextension/opamp_agent.go#L67-L69
 var _ extension.Extension = (*ddExtension)(nil)
 
+func extensionType(s string) string {
+	index := strings.Index(s, "/")
+	if index == -1 {
+		return s
+	}
+	return s[:index]
+}
+
 // NotifyConfig implements the ConfigWatcher interface, which allows this extension
 // to be notified of the Collector's effective configuration. See interface:
 // https://github.com/open-telemetry/opentelemetry-collector/blob/d0fde2f6b98f13cbbd8657f8188207ac7d230ed5/extension/extension.go#L46.
@@ -51,57 +61,31 @@ var _ extension.Extension = (*ddExtension)(nil)
 // This method is called during the startup process by the Collector's Service right after
 // calling Start.
 func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) error {
-	ext.configStore.setEffectiveConfig(conf)
-	if ext.ocb {
-		return nil
-	}
-
-	var cfg *configSettings
 	var err error
-	// unmarshal will only be called if we created this component via the Agent
-	if cfg, err = unmarshal(conf, *ext.cfg.factories); err != nil {
-		return fmt.Errorf("cannot unmarshal the configuration: %w", err)
-	}
+	ext.configStore.setEnhancedConf(conf)
 
-	config := &otelcol.Config{
-		Receivers:  cfg.Receivers.Configs(),
-		Processors: cfg.Processors.Configs(),
-		Exporters:  cfg.Exporters.Configs(),
-		Connectors: cfg.Connectors.Configs(),
-		Extensions: cfg.Extensions.Configs(),
-		Service:    cfg.Service,
-	}
-
-	ext.configStore.setEnhancedConf(config)
-
-	// List configured Extensions
-	c, err := ext.configStore.getEnhancedConf()
+	extensionConfs, err := conf.Sub("extensions")
 	if err != nil {
 		return err
 	}
 
-	extensionConfs, err := c.Sub("extensions")
-	if err != nil {
-		return nil
-	}
-
-	extensions := config.Extensions
+	extensions := extensionConfs.ToStringMap()
 	for extension := range extensions {
-		extractor, ok := supportedDebugExtensions[extension.Type().String()]
+		extractor, ok := supportedDebugExtensions[extensionType(extension)]
 		if !ok {
 			continue
 		}
 
-		exconf, err := extensionConfs.Sub(extension.String())
+		exconf, err := extensionConfs.Sub(extension)
 		if err != nil {
-			ext.telemetry.Logger.Info("There was an issue pulling the configuration for", zap.String("extension", extension.String()))
+			ext.telemetry.Logger.Info("There was an issue pulling the configuration for", zap.String("extension", extension))
 			continue
 		}
 
 		uri, err := extractor(exconf)
 
 		var uris []string
-		switch extension.Type().String() {
+		switch extensionType(extension) {
 		case "pprof":
 			uris = []string{
 				uri + "/debug/pprof/heap",
@@ -121,12 +105,12 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 		}
 
 		if err != nil {
-			ext.telemetry.Logger.Info("Unavailable debug extension for", zap.String("extension", extension.String()))
+			ext.telemetry.Logger.Info("Unavailable debug extension for", zap.String("extension", extension))
 			continue
 		}
 
 		ext.telemetry.Logger.Info("Found debug extension at", zap.String("uri", uri))
-		ext.debug.Sources[extension.String()] = extensionDef.OTelFlareSource{
+		ext.debug.Sources[extension] = extensionDef.OTelFlareSource{
 			URLs: uris,
 		}
 	}
@@ -155,15 +139,17 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 		if err != nil {
 			return nil, fmt.Errorf("failed to create configprovider: %w", err)
 		}
-
 		providedConf, err := ocpProvided.Get(context.Background(), *cfg.factories)
 		if err != nil {
 			return nil, err
 		}
-		err = ext.configStore.setProvidedConf(providedConf)
-		if err != nil {
-			return nil, err
-		}
+	  conf := confmap.New()
+	  err = conf.Marshal(providedConf)
+	  if err != nil {
+		  return nil, err
+	  }
+
+	  ext.configStore.setProvidedConf(conf)
 	}
 	var err error
 	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext, ext.ocb)
@@ -174,12 +160,12 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 }
 
 // Start is called when the extension is started.
-func (ext *ddExtension) Start(_ context.Context, _ component.Host) error {
+func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
 	ext.telemetry.Logger.Info("Starting DD Extension HTTP server", zap.String("url", ext.cfg.HTTPConfig.Endpoint))
 
 	go func() {
 		if err := ext.server.start(); err != nil && err != http.ErrServerClosed {
-			ext.telemetry.ReportStatus(component.NewFatalErrorEvent(err))
+			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(err))
 			ext.telemetry.Logger.Info("DD Extension HTTP could not start", zap.String("err", err.Error()))
 		}
 	}()

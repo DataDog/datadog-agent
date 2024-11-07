@@ -49,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/profiler"
 	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
@@ -57,6 +58,7 @@ import (
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
@@ -131,6 +133,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		eventplatformreceiverimpl.Module(),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+
+		// Provides the rdnssquerier module
+		rdnsquerierfx.Module(),
 
 		// Provide network path bundle
 		networkpath.Bundle(),
@@ -277,6 +282,7 @@ type miscDeps struct {
 	HostInfo     hostinfo.Component
 	WorkloadMeta workloadmeta.Component
 	Logger       logcomp.Component
+	Tagger       tagger.Component
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
@@ -286,6 +292,12 @@ func initMisc(deps miscDeps) error {
 	if err := ddutil.SetupCoreDump(deps.Config); err != nil {
 		deps.Logger.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
+
+	// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
+	// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
+	// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
+	// we can include the tagger as part of the workloadmeta component.
+	proccontainers.InitSharedContainerProvider(deps.WorkloadMeta, deps.Tagger)
 
 	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg)
 

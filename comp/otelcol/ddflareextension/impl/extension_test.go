@@ -98,7 +98,7 @@ func getResponseToHandlerRequest(t *testing.T, tokenOverride string) *httptest.R
 
 	ddExt.Start(context.TODO(), host)
 
-	conf := confmapFromResolverSettings(t, newResolverSettings(uriFromFile("config.yaml"), false))
+	conf := confmapFromResolverSettings(t, newResolverSettings(uriFromFile("config.yaml"), true))
 	ddExt.NotifyConfig(context.TODO(), conf)
 	assert.NoError(t, err)
 

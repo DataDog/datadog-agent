@@ -11,18 +11,14 @@ import (
 	"sync"
 
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/otelcol"
 	"gopkg.in/yaml.v2"
 )
 
 type configStore struct {
-	provided                *otelcol.Config
-	enhanced                *otelcol.Config
-	mu                      sync.RWMutex
+	provided *confmap.Conf
+	enhanced *confmap.Conf
+	mu       sync.RWMutex
 	providedConfigSupported bool
-	// TODO: Replace enhanced config with effective config once dependencies
-	// are updated to v0.105.0 or newer (https://github.com/open-telemetry/opentelemetry-collector/pull/10139/files)
-	effectiveConfig *confmap.Conf
 }
 
 // setProvidedConfigSupported sets the variable to determine if provided configuration read/write
@@ -43,59 +39,18 @@ func (c *configStore) isProvidedConfigSupported() bool {
 }
 
 // setProvidedConf stores the config into configStoreImpl.
-func (c *configStore) setProvidedConf(config *otelcol.Config) error {
+func (c *configStore) setProvidedConf(config *confmap.Conf) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if !c.providedConfigSupported {
-		return errProvidedConfigUnsupported
-	}
 	c.provided = config
 	return nil
 }
 
 // setEnhancedConf stores the config into configStoreImpl.
-func (c *configStore) setEnhancedConf(config *otelcol.Config) {
+func (c *configStore) setEnhancedConf(config *confmap.Conf) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
 	c.enhanced = config
-}
-
-func (c *configStore) setEffectiveConfig(conf *confmap.Conf) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.effectiveConfig = conf
-}
-
-func (c *configStore) getEffectiveConfigAsString() (string, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	return confMapToString(c.effectiveConfig)
-}
-
-func confMapToString(conf *confmap.Conf) (string, error) {
-	bytesConf, err := yaml.Marshal(conf.ToStringMap())
-	if err != nil {
-		return "", err
-	}
-
-	return string(bytesConf), nil
-}
-
-func confToString(conf *otelcol.Config) (string, error) {
-	cfg := confmap.New()
-	err := cfg.Marshal(conf)
-	if err != nil {
-		return "", err
-	}
-	bytesConf, err := yaml.Marshal(cfg.ToStringMap())
-	if err != nil {
-		return "", err
-	}
-
-	return string(bytesConf), nil
 }
 
 // getProvidedConf returns a string representing the enhanced collector configuration.
@@ -103,12 +58,7 @@ func (c *configStore) getProvidedConf() (*confmap.Conf, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	conf := confmap.New()
-	err := conf.Marshal(c.provided)
-	if err != nil {
-		return nil, err
-	}
-	return conf, nil
+	return c.provided, nil
 }
 
 // getEnhancedConf returns a string representing the enhanced collector configuration.
@@ -116,12 +66,7 @@ func (c *configStore) getEnhancedConf() (*confmap.Conf, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	conf := confmap.New()
-	err := conf.Marshal(c.enhanced)
-	if err != nil {
-		return nil, err
-	}
-	return conf, nil
+	return c.enhanced, nil
 }
 
 // getProvidedConfAsString returns a string representing the enhanced collector configuration string.
@@ -129,7 +74,11 @@ func (c *configStore) getProvidedConfAsString() (string, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return confToString(c.provided)
+	bytesConf, err := yaml.Marshal(c.provided.ToStringMap())
+	if err != nil {
+		return "", err
+	}
+	return string(bytesConf), nil
 }
 
 // getEnhancedConfAsString returns a string representing the enhanced collector configuration string.
@@ -137,7 +86,11 @@ func (c *configStore) getEnhancedConfAsString() (string, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return confToString(c.enhanced)
+	bytesConf, err := yaml.Marshal(c.enhanced.ToStringMap())
+	if err != nil {
+		return "", err
+	}
+	return string(bytesConf), nil
 }
 
 var errProvidedConfigUnsupported = errors.New("reading/writing provided configuration is not supported")
