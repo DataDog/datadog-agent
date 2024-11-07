@@ -52,12 +52,30 @@ type ntmConfig struct {
 
 	// ready is whether the schema has been built, which marks the config as ready for use
 	ready *atomic.Bool
+
+	// Bellow are all the different configuration layers. Each layers represents a source for our configuration.
+	// They are merge into the 'root' tree following order of importance (see pkg/model/viper.go:sourcesPriority).
+
 	// defaults contains the settings with a default value
 	defaults InnerNode
-	// envs contains config settings created by environment variables
-	envs InnerNode
+	// unknown contains the settings set at runtime from unknown source. This should only evey be used by tests.
+	unknown InnerNode
 	// file contains the settings pulled from YAML files
 	file InnerNode
+	// envs contains config settings created by environment variables
+	envs InnerNode
+	// runtime contains the settings set from the agent code itself at runtime (self configured values).
+	runtime InnerNode
+	// localConfigProcess contains the settings pulled from the config process (process owning the source of truth
+	// for the coniguration and mirrored by other processes).
+	localConfigProcess InnerNode
+	// remoteConfig contains the settings pulled from Remote Config.
+	remoteConfig InnerNode
+	// fleetPolicies contains the settings pulled from fleetPolicies.
+	fleetPolicies InnerNode
+	// cli contains the settings set by users at runtime through the CLI.
+	cli InnerNode
+
 	// root contains the final configuration, it's the result of merging all other tree by ordre of priority
 	root InnerNode
 
@@ -247,6 +265,31 @@ func (c *ntmConfig) GetKnownKeysLowercased() map[string]interface{} {
 		ret[key] = value
 	}
 	return ret
+}
+
+func (c *ntmConfig) mergeAllLayers() error {
+	treeList := []InnerNode{
+		c.defaults,
+		c.unknown,
+		c.file,
+		c.envs,
+		c.fleetPolicies,
+		c.runtime,
+		c.localConfigProcess,
+		c.remoteConfig,
+		c.cli,
+	}
+
+	root := newInnerNode(nil)
+	for _, tree := range treeList {
+		err := root.Merge(tree)
+		if err != nil {
+			return err
+		}
+	}
+
+	c.root = root
+	return nil
 }
 
 // BuildSchema is called when Setup is complete, and the config is ready to be used
@@ -830,14 +873,21 @@ func (c *ntmConfig) Object() model.Reader {
 // NewConfig returns a new Config object.
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
 	config := ntmConfig{
-		ready:         atomic.NewBool(false),
-		noimpl:        &notImplMethodsImpl{},
-		configEnvVars: map[string]string{},
-		knownKeys:     map[string]struct{}{},
-		unknownKeys:   map[string]struct{}{},
-		defaults:      newInnerNode(nil),
-		file:          newInnerNode(nil),
-		envTransform:  make(map[string]func(string) interface{}),
+		ready:              atomic.NewBool(false),
+		noimpl:             &notImplMethodsImpl{},
+		configEnvVars:      map[string]struct{}{},
+		knownKeys:          map[string]struct{}{},
+		unknownKeys:        map[string]struct{}{},
+		defaults:           newInnerNode(nil),
+		file:               newInnerNode(nil),
+		unknown:            newInnerNode(nil),
+		envs:               newInnerNode(nil),
+		runtime:            newInnerNode(nil),
+		localConfigProcess: newInnerNode(nil),
+		remoteConfig:       newInnerNode(nil),
+		fleetPolicies:      newInnerNode(nil),
+		cli:                newInnerNode(nil),
+		envTransform:       make(map[string]func(string) interface{}),
 	}
 
 	config.SetTypeByDefaultValue(true)

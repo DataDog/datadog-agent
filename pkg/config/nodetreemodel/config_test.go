@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -105,4 +107,39 @@ secret_backend_command: ./my_secret_fetcher.sh
 			require.Equal(t, tc.expectSource, src)
 		})
 	}
+}
+
+func TestNewConfig(t *testing.T) {
+	cfg := NewConfig("config_name", "PREFIX", nil)
+
+	c := cfg.(*ntmConfig)
+
+	assert.False(t, c.ready)
+
+	assert.Equal(t, "config_name", c.configName)
+	assert.Equal(t, "", c.configFile)
+	assert.Equal(t, "PREFIX", c.envPrefix)
+
+	assert.NotNil(t, c.defaults)
+	assert.NotNil(t, c.file)
+	assert.NotNil(t, c.unknown)
+	assert.NotNil(t, c.env)
+	assert.NotNil(t, c.runtime)
+	assert.NotNil(t, c.localConfigProcess)
+	assert.NotNil(t, c.remoteConfig)
+	assert.NotNil(t, c.fleetPolicies)
+	assert.NotNil(t, c.cli)
+
+	// TODO: test SetTypeByDefaultValue and SetEnvKeyReplacer once implemented
+}
+
+// TODO: expand testing coverage once we have environment and Set() implemented
+func TestBasicUsage(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+
+	cfg.SetDefault("a", 1)
+	cfg.BuildSchema()
+	cfg.ReadConfig(strings.NewReader("a: 2"))
+
+	assert.Equal(t, 2, cfg.Get("a"))
 }
