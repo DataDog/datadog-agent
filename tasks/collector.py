@@ -17,7 +17,7 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.104.0"
+OCB_VERSION = "0.111.0"
 
 MANDATORY_COMPONENTS = {
     "extensions": [
@@ -42,9 +42,7 @@ COMPONENTS_TO_STRIP = {
     ],
 }
 
-BASE_URL = (
-    f"https://github.com/open-telemetry/opentelemetry-collector/releases/download/cmd%2Fbuilder%2Fv{OCB_VERSION}/"
-)
+BASE_URL = f"https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv{OCB_VERSION}/"
 
 BINARY_NAMES_BY_SYSTEM_AND_ARCH = {
     "Linux": {

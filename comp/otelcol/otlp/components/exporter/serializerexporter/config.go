@@ -18,8 +18,8 @@ import (
 // ExporterConfig defines configuration for the serializer exporter.
 type ExporterConfig struct {
 	// squash ensures fields are correctly decoded in embedded struct
-	exporterhelper.TimeoutSettings `mapstructure:",squash"`
-	exporterhelper.QueueSettings   `mapstructure:",squash"`
+	exporterhelper.TimeoutConfig `mapstructure:",squash"`
+	exporterhelper.QueueConfig   `mapstructure:",squash"`
 
 	Metrics MetricsConfig `mapstructure:"metrics"`
 
@@ -249,7 +249,7 @@ type MetricsExporterConfig struct {
 
 // Validate configuration
 func (e *ExporterConfig) Validate() error {
-	return e.QueueSettings.Validate()
+	return e.QueueConfig.Validate()
 }
 
 var _ confmap.Unmarshaler = (*ExporterConfig)(nil)

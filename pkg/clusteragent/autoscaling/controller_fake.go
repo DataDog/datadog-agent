@@ -21,7 +21,7 @@ import (
 	kscheme "k8s.io/client-go/kubernetes/scheme"
 	core "k8s.io/client-go/testing"
 
-	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 )
 
 var (

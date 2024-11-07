@@ -16,8 +16,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	vpaclientset "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	ksmbuild "k8s.io/kube-state-metrics/v2/pkg/builder"
@@ -39,7 +39,6 @@ type Builder struct {
 
 	customResourceClients map[string]interface{}
 	kubeClient            clientset.Interface
-	vpaClient             vpaclientset.Interface
 	namespaces            options.NamespaceList
 	fieldSelectorFilter   string
 	ctx                   context.Context
@@ -91,12 +90,6 @@ func (b *Builder) WithCustomResourceClients(clients map[string]interface{}) {
 	b.ksmBuilder.WithCustomResourceClients(clients)
 }
 
-// WithVPAClient sets the vpaClient property of a Builder so that the verticalpodautoscaler collector can query VPA objects.
-func (b *Builder) WithVPAClient(c vpaclientset.Interface) {
-	b.vpaClient = c
-	b.ksmBuilder.WithVPAClient(c)
-}
-
 // WithMetrics sets the metrics property of a Builder.
 func (b *Builder) WithMetrics(r prometheus.Registerer) {
 	b.ksmBuilder.WithMetrics(r)
@@ -136,7 +129,7 @@ func (b *Builder) WithAllowLabels(l map[string][]string) error {
 
 // WithAllowAnnotations configures which annotations can be returned for metrics
 func (b *Builder) WithAllowAnnotations(l map[string][]string) {
-	b.ksmBuilder.WithAllowAnnotations(l)
+	_ = b.ksmBuilder.WithAllowAnnotations(l)
 }
 
 // WithPodCollectionFromKubelet configures the builder to collect pods from the
@@ -198,15 +191,21 @@ func GenerateStores[T any](
 	filteredMetricFamilies := generator.FilterFamilyGenerators(b.allowDenyList, metricFamilies)
 	composedMetricGenFuncs := generator.ComposeMetricGenFuncs(filteredMetricFamilies)
 
+	isPod := false
+	if _, ok := expectedType.(*corev1.Pod); ok {
+		isPod = true
+	} else if u, ok := expectedType.(*unstructured.Unstructured); ok {
+		isPod = u.GetAPIVersion() == "v1" && u.GetKind() == "Pod"
+	}
+
 	if b.namespaces.IsAllNamespaces() {
 		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
 
-		switch expectedType.(type) {
-		// Pods are handled differently because depending on the configuration
-		// they're collected from the API server or the Kubelet.
-		case *corev1.Pod:
+		if isPod {
+			// Pods are handled differently because depending on the configuration
+			// they're collected from the API server or the Kubelet.
 			handlePodCollection(b, store, client, listWatchFunc, corev1.NamespaceAll, useAPIServerCache)
-		default:
+		} else {
 			listWatcher := listWatchFunc(client, corev1.NamespaceAll, b.fieldSelectorFilter)
 			b.startReflector(expectedType, store, listWatcher, useAPIServerCache)
 		}
@@ -217,12 +216,11 @@ func GenerateStores[T any](
 	stores := make([]cache.Store, 0, len(b.namespaces))
 	for _, ns := range b.namespaces {
 		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
-		switch expectedType.(type) {
-		// Pods are handled differently because depending on the configuration
-		// they're collected from the API server or the Kubelet.
-		case *corev1.Pod:
+		if isPod {
+			// Pods are handled differently because depending on the configuration
+			// they're collected from the API server or the Kubelet.
 			handlePodCollection(b, store, client, listWatchFunc, ns, useAPIServerCache)
-		default:
+		} else {
 			listWatcher := listWatchFunc(client, ns, b.fieldSelectorFilter)
 			b.startReflector(expectedType, store, listWatcher, useAPIServerCache)
 		}

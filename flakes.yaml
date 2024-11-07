@@ -11,3 +11,9 @@ test/new-e2e/tests/containers:
   - TestECSSuite/TestCPU/metric___container.cpu.usage{^ecs_container_name:stress-ng$}
   - TestEKSSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
   - TestKindSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
+
+# TODO: https://datadoghq.atlassian.net/browse/OTEL-2192
+# To be removed once https://github.com/DataDog/datadog-agent/pull/30669 is merged.
+test/new-e2e/tests/otel/otlp-ingest:
+  - TestOTLPIngest
+  - TestOTLPIngestSampling/TestSampling

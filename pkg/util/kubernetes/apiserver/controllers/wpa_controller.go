@@ -12,7 +12,7 @@ import (
 	"math"
 	"time"
 
-	apis_v1alpha1 "github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
+	apis_v1alpha1 "github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 	"github.com/cenkalti/backoff"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -130,7 +130,10 @@ func (h *autoscalersController) enableWPA(wpaInformerFactory dynamic_informer.Dy
 
 	genericInformer := wpaInformerFactory.ForResource(gvrWPA)
 
-	h.wpaQueue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "wpa-autoscalers")
+	h.wpaQueue = workqueue.NewTypedRateLimitingQueueWithConfig(
+		workqueue.DefaultTypedItemBasedRateLimiter[string](),
+		workqueue.TypedRateLimitingQueueConfig[string]{Name: "wpa-autoscalers"},
+	)
 	h.wpaLister = genericInformer.Lister()
 	h.wpaListerSynced = genericInformer.Informer().HasSynced
 	if _, err := genericInformer.Informer().AddEventHandler(

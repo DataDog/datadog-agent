@@ -133,7 +133,7 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 			gc := newTestGenerateIDClient().generateID
 
 			factory := NewFactory(tc, gc)
-			fmp, err := factory.CreateMetricsProcessor(
+			fmp, err := factory.CreateMetrics(
 				context.Background(),
 				processortest.NewNopSettings(),
 				cfg,

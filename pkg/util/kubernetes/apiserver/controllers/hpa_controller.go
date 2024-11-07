@@ -58,8 +58,8 @@ type autoscalersController struct {
 	wpaListerSynced         cache.InformerSynced
 
 	// Autoscalers that need to be added to the cache.
-	hpaQueue workqueue.RateLimitingInterface
-	wpaQueue workqueue.RateLimitingInterface
+	hpaQueue workqueue.TypedRateLimitingInterface[string]
+	wpaQueue workqueue.TypedRateLimitingInterface[string]
 
 	eventRecorder record.EventRecorder
 

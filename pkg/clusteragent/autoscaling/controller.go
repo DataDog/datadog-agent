@@ -33,7 +33,7 @@ type Controller struct {
 	ID        string
 	Client    dynamic.Interface
 	Lister    cache.GenericLister
-	Workqueue workqueue.RateLimitingInterface
+	Workqueue workqueue.TypedRateLimitingInterface[string]
 	IsLeader  func() bool
 }
 
@@ -46,7 +46,7 @@ func NewController(
 	gvr schema.GroupVersionResource,
 	isLeader func() bool,
 	observable Observable,
-	workqueue workqueue.RateLimitingInterface,
+	workqueue workqueue.TypedRateLimitingInterface[string],
 ) (*Controller, error) {
 	mainInformer := informer.ForResource(gvr)
 	c := &Controller{
@@ -136,25 +136,19 @@ func (c *Controller) process() bool {
 	}
 
 	defer c.Workqueue.Done(key)
-	keyStr, ok := key.(string)
-	if !ok {
-		log.Errorf("Unexpected key format in workqueue, discarding item, expected string, got: %T", key)
-		return true
-	}
-
-	ns, name, err := cache.SplitMetaNamespaceKey(keyStr)
+	ns, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
-		log.Errorf("Could not split the key, discarding item with key: %s, err: %v", keyStr, err)
+		log.Errorf("Could not split the key, discarding item with key: %s, err: %v", key, err)
 	}
 
-	res := c.processor.Process(c.context, keyStr, ns, name)
+	res := c.processor.Process(c.context, key, ns, name)
 	if res.RequeueAfter > 0 {
-		c.Workqueue.Forget(keyStr)
-		c.Workqueue.AddAfter(keyStr, res.RequeueAfter)
+		c.Workqueue.Forget(key)
+		c.Workqueue.AddAfter(key, res.RequeueAfter)
 	} else if res.Requeue {
-		c.Workqueue.AddRateLimited(keyStr)
+		c.Workqueue.AddRateLimited(key)
 	} else {
-		c.Workqueue.Forget(keyStr)
+		c.Workqueue.Forget(key)
 	}
 
 	return true

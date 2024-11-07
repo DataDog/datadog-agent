@@ -23,8 +23,8 @@ import (
 )
 
 // ListImages lists existing images.
-func (f *RemoteRuntime) ListImages(_ context.Context, req *kubeapi.ListImagesRequest) (*kubeapi.ListImagesResponse, error) {
-	images, err := f.ImageService.ListImages(req.Filter)
+func (f *RemoteRuntime) ListImages(ctx context.Context, req *kubeapi.ListImagesRequest) (*kubeapi.ListImagesResponse, error) {
+	images, err := f.ImageService.ListImages(ctx, req.Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -37,8 +37,8 @@ func (f *RemoteRuntime) ListImages(_ context.Context, req *kubeapi.ListImagesReq
 // ImageStatus returns the status of the image. If the image is not
 // present, returns a response with ImageStatusResponse.Image set to
 // nil.
-func (f *RemoteRuntime) ImageStatus(_ context.Context, req *kubeapi.ImageStatusRequest) (*kubeapi.ImageStatusResponse, error) {
-	resp, err := f.ImageService.ImageStatus(req.Image, false)
+func (f *RemoteRuntime) ImageStatus(ctx context.Context, req *kubeapi.ImageStatusRequest) (*kubeapi.ImageStatusResponse, error) {
+	resp, err := f.ImageService.ImageStatus(ctx, req.Image, false)
 	if err != nil {
 		return nil, err
 	}
@@ -47,8 +47,8 @@ func (f *RemoteRuntime) ImageStatus(_ context.Context, req *kubeapi.ImageStatusR
 }
 
 // PullImage pulls an image with authentication config.
-func (f *RemoteRuntime) PullImage(_ context.Context, req *kubeapi.PullImageRequest) (*kubeapi.PullImageResponse, error) {
-	image, err := f.ImageService.PullImage(req.Image, req.Auth, req.SandboxConfig)
+func (f *RemoteRuntime) PullImage(ctx context.Context, req *kubeapi.PullImageRequest) (*kubeapi.PullImageResponse, error) {
+	image, err := f.ImageService.PullImage(ctx, req.Image, req.Auth, req.SandboxConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -61,8 +61,8 @@ func (f *RemoteRuntime) PullImage(_ context.Context, req *kubeapi.PullImageReque
 // RemoveImage removes the image.
 // This call is idempotent, and must not return an error if the image has
 // already been removed.
-func (f *RemoteRuntime) RemoveImage(_ context.Context, req *kubeapi.RemoveImageRequest) (*kubeapi.RemoveImageResponse, error) {
-	err := f.ImageService.RemoveImage(req.Image)
+func (f *RemoteRuntime) RemoveImage(ctx context.Context, req *kubeapi.RemoveImageRequest) (*kubeapi.RemoveImageResponse, error) {
+	err := f.ImageService.RemoveImage(ctx, req.Image)
 	if err != nil {
 		return nil, err
 	}
@@ -71,11 +71,11 @@ func (f *RemoteRuntime) RemoveImage(_ context.Context, req *kubeapi.RemoveImageR
 }
 
 // ImageFsInfo returns information of the filesystem that is used to store images.
-func (f *RemoteRuntime) ImageFsInfo(_ context.Context, _ *kubeapi.ImageFsInfoRequest) (*kubeapi.ImageFsInfoResponse, error) {
-	fsUsage, err := f.ImageService.ImageFsInfo()
+func (f *RemoteRuntime) ImageFsInfo(ctx context.Context, _ *kubeapi.ImageFsInfoRequest) (*kubeapi.ImageFsInfoResponse, error) {
+	fsUsage, err := f.ImageService.ImageFsInfo(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return &kubeapi.ImageFsInfoResponse{ImageFilesystems: fsUsage}, nil
+	return &kubeapi.ImageFsInfoResponse{ImageFilesystems: fsUsage.ImageFilesystems}, nil
 }

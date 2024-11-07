@@ -16,7 +16,6 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
@@ -102,9 +101,7 @@ func (c *converterFactory) Create(_ confmap.ConverterSettings) confmap.Converter
 }
 
 func newConfigProviderSettings(uris []string, converter confmap.Converter, enhanced bool) otelcol.ConfigProviderSettings {
-	converterFactories := []confmap.ConverterFactory{
-		expandconverter.NewFactory(),
-	}
+	converterFactories := []confmap.ConverterFactory{}
 
 	if enhanced {
 		converterFactories = append(converterFactories, &converterFactory{converter: converter})
@@ -141,7 +138,7 @@ func addFactories(reqs Requires, factories otelcol.Factories) {
 }
 
 var buildInfo = component.BuildInfo{
-	Version:     "v0.104.0",
+	Version:     "v0.111.0",
 	Command:     filepath.Base(os.Args[0]),
 	Description: "Datadog Agent OpenTelemetry Collector",
 }
