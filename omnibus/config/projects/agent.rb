@@ -180,6 +180,8 @@ end
 package :pkg do
   skip_packager BUILD_OCIRU
   identifier 'com.datadoghq.agent'
+  # This defines where the package will be installed in the target system
+  install_location "/opt/datadog-agent"
   unless ENV['SKIP_SIGN_MAC'] == 'true'
     signing_identity 'Developer ID Installer: Datadog, Inc. (JKFCB4CN7C)'
   end
