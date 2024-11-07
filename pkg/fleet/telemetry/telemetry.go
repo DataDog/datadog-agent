@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -88,6 +89,25 @@ func (t *Telemetry) Start(_ context.Context) error {
 	if t.site == "datad0g.com" {
 		env = "staging"
 	}
+
+	// Explicitly set the `DD_APPSEC_ENABLED` environment variable to `false`
+	// for this process if it was set to any truthy or invalid value. This
+	// prevents the tracer from attempting to start appsec features; which are
+	// not needed nor supported in this context.
+	// Starting appsec in the agent may trigger emission of an error
+	// The environment variable is usually not present, but can in certain cases
+	// be inherited from the login shell when the agent is started by the
+	// install script.
+	const appsecEnvVar = "DD_APPSEC_ENABLED"
+	if appsecEnv, envSet := os.LookupEnv(appsecEnvVar); envSet {
+		truthy, err := strconv.ParseBool(appsecEnv)
+		if truthy || err != nil {
+			os.Setenv(appsecEnvVar, "false")
+			// Restore the original value after the tracer is started...
+			defer os.Setenv(appsecEnvVar, appsecEnv)
+		}
+	}
+
 	tracer.Start(
 		tracer.WithService(t.service),
 		tracer.WithServiceVersion(version.AgentVersion),
@@ -95,6 +115,7 @@ func (t *Telemetry) Start(_ context.Context) error {
 		tracer.WithGlobalTag("site", t.site),
 		tracer.WithHTTPClient(t.client),
 		tracer.WithLogStartup(false),
+		tracer.WithLogger(agentLogger{}),
 	)
 	return nil
 }
@@ -222,4 +243,19 @@ func SpanContextFromContext(ctx context.Context) (ddtrace.SpanContext, bool) {
 		return nil, false
 	}
 	return span.Context(), true
+}
+
+// agentLogger is used to forward the logs from the tracer to the agent's own
+// logger. This avoids surfacing the tracer's logs in the agent's standard
+// output, which can be surfaced to customers when the agent is started by the
+// agent install script; and risks causing confusion.
+type agentLogger struct{}
+
+// Log prints the given message. Unfortunately, the tracer's logger interface
+// does not provide visibility into the log level of the message, so we are
+// forced to log all messages at an arbitrarily chosen level (DEBUG here).
+// The message is prefixed with a string that makes it easy to identify those
+// log messages if needed.
+func (agentLogger) Log(msg string) {
+	log.Debugf("[fleet/telemetry.tracer] %s", msg)
 }
