@@ -31,8 +31,7 @@ var metadataHelperFunc = helper.GetMetaData
 
 // CloudRun has helper functions for getting Google Cloud Run data
 type CloudRun struct {
-	spanNamespace        string
-	cloudRunFunctionMode bool
+	spanNamespace string
 }
 
 // GetTags returns a map of gcp-related tags.
@@ -57,7 +56,7 @@ func (c *CloudRun) GetTags() map[string]string {
 		tags["configuration_name"] = configName
 	}
 
-	if c.cloudRunFunctionMode {
+	if c.spanNamespace == cloudRunFunction {
 		tags = c.getFunctionTags(tags)
 	}
 
@@ -104,6 +103,6 @@ func isCloudRunService() bool {
 
 func isCloudRunFunction() bool {
 	_, cloudRunFunctionMode := os.LookupEnv(functionTargetEnvVar)
-	log.Debug(fmt.Sprintf("cloud function mode SET TO: %t", cloudRunFunctionMode))
+	log.Debug(fmt.Sprintf("cloud run namespace SET TO: %s", cloudRunFunction))
 	return cloudRunFunctionMode
 }

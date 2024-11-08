@@ -84,7 +84,7 @@ func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
 }
 
 func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
-	service := &CloudRun{cloudRunFunctionMode: true, spanNamespace: cloudRunFunction}
+	service := &CloudRun{spanNamespace: cloudRunFunction}
 
 	metadataHelperFunc = func(*helper.GCPConfig) *helper.GCPMetadata {
 		return &helper.GCPMetadata{
