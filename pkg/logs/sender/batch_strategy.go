@@ -150,10 +150,10 @@ func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *mess
 // flushBuffer sends all the messages that are stored in the buffer and forwards them
 // to the next stage of the pipeline.
 func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
-	s.utilization.Start()
 	if s.buffer.IsEmpty() {
 		return
 	}
+	s.utilization.Start()
 	messages := s.buffer.GetMessages()
 	s.buffer.Clear()
 	// Logging specifically for DBM pipelines, which seem to fail to send more often than other pipelines.
@@ -171,6 +171,7 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 	encodedPayload, err := s.contentEncoding.encode(serializedMessage)
 	if err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
+		s.utilization.Stop()
 		return
 	}
 

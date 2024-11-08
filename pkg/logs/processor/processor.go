@@ -119,7 +119,6 @@ func (p *Processor) Flush(ctx context.Context) {
 				return
 			}
 			msg := <-p.inputChan
-			p.pipelineMonitor.ReportComponentIngress(msg, "processor")
 			p.processMessage(msg)
 		}
 	}

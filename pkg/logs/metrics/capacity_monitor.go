@@ -60,10 +60,10 @@ func (i *CapacityMonitor) sample() {
 	i.samples++
 	i.avg.Add(float64(i.ingress - i.egress))
 	i.avgBytes.Add(float64(i.ingressBytes - i.egressBytes))
-	i.reportIfNeeded()
+	i.report()
 }
 
-func (i *CapacityMonitor) reportIfNeeded() {
+func (i *CapacityMonitor) report() {
 	TlmUtilizationItems.Set(float64(i.avg.Value()), i.name, i.instance)
 	TlmUtilizationBytes.Set(float64(i.avgBytes.Value()), i.name, i.instance)
 }

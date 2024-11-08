@@ -343,8 +343,6 @@ func (t *Tailer) forwardMessages() {
 		close(t.done)
 	}()
 	for output := range t.decoder.OutputChan {
-		// metrics.ReportComponentEgress(output, "decoder", strconv.Itoa(t.pipelineID))
-		// t.decoderMonitor.Stop()
 		offset := t.decodedOffset.Load() + int64(output.RawDataLen)
 		identifier := t.Identifier()
 		if t.didFileRotate.Load() {
@@ -366,13 +364,13 @@ func (t *Tailer) forwardMessages() {
 			continue
 		}
 
+		// XXX(remy): is it ok recreating a message like this here?
 		msg := message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
 		// Make the write to the output chan cancellable to be able to stop the tailer
 		// after a file rotation when it is stuck on it.
 		// We don't return directly to keep the same shutdown sequence that in the
 		// normal case.
 		select {
-		// XXX(remy): is it ok recreating a message like this here?
 		case t.outputChan <- msg:
 			t.PipelineMonitor.ReportComponentIngress(msg, "processor")
 		case <-t.forwardContext.Done():
