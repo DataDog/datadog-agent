@@ -62,3 +62,11 @@ validate_modules:
   script:
     - inv -e modules.validate
     - inv -e modules.validate-used-by-otel
+
+windows_validate_modules:
+  stage: lint
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  needs: []
+  script:
+    - inv -e modules.validate
+    - inv -e modules.validate-used-by-otel
