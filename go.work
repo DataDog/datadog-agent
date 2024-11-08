@@ -84,7 +84,7 @@ use (
 	pkg/proto
 	pkg/remoteconfig/state
 	pkg/security/secl
-	//pkg/security/seclwin
+	pkg/security/seclwin
 	pkg/serializer
 	pkg/status/health
 	pkg/tagger/types
@@ -95,7 +95,7 @@ use (
 	pkg/util/backoff
 	pkg/util/buf
 	pkg/util/cache
-	//pkg/util/cgroups
+	pkg/util/cgroups
 	pkg/util/common
 	pkg/util/containers/image
 	pkg/util/defaultpaths
