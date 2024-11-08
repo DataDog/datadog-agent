@@ -156,7 +156,7 @@ def for_each(
 @task
 def validate(ctx: Context, base_dir='.', fix_format=False):
     """
-    Lints each module.yml file.
+    Lints module configuration file.
 
     Args:
         fix_format: If True, will fix the format of the configuration files.
@@ -173,7 +173,8 @@ def validate(ctx: Context, base_dir='.', fix_format=False):
         config.base_dir = base_dir
 
         if not ctx.run(
-            f'diff -u {base_dir / Configuration.FILE_NAME} {Path(tmpdir) / Configuration.FILE_NAME}', warn=True
+            f'diff -u {base_dir / Configuration.FILE_NAME} {Path(tmpdir) / Configuration.FILE_NAME} --color=always',
+            warn=True,
         ):
             if fix_format:
                 print(f'{color_message("Info", Color.BLUE)}: Formatted module configuration file')
@@ -183,34 +184,23 @@ def validate(ctx: Context, base_dir='.', fix_format=False):
                     f'{color_message("Error", Color.RED)}: Configuration file is not formatted correctly, use `invoke modules.validate --fix-format` to fix it'
                 )
 
-    def validate_module(config, path):
-        assert (path / 'go.mod').is_file(), "Configuration is not next to a go.mod file"
+    def validate_module(module: GoModule, attributes: str | dict[str, object]):
+        assert (base_dir / module.path / 'go.mod').is_file(), "Configuration is not next to a go.mod file"
 
-        with open(config) as f:
-            config_attributes = yaml.safe_load(f)
-
-        assert config_attributes, "Configuration is empty, the file must be removed"
-
-        # Ignored module
-        if 'ignored' in config_attributes:
-            assert config_attributes['ignored'] is True, "`ignored` must appear only in ignored modules"
-            assert len(config_attributes) == 1, "`ignored` must be the only attribute in ignored modules"
-            assert str(path) in config.ignored_modules, "Configuration has not been recognized"
-
+        if isinstance(attributes, str):
+            assert attributes in ('ignored', 'default'), f"Configuration has an unknown value: {attributes}"
             return
 
-        # Classic module
+        # Verify attributes
         assert set(default_attributes).issuperset(
-            config_attributes
-        ), "Configuration contains unknown attributes ({set(config_attributes).difference(default_attributes)})"
-        assert str(path) in config.modules, "Configuration has not been recognized"
-        for key, value in config_attributes.items():
+            attributes
+        ), f"Configuration contains unknown attributes ({set(attributes).difference(default_attributes)})"
+        for key, value in attributes.items():
             assert (
-                config_attributes[key] != default_attributes[key]
+                attributes[key] != default_attributes[key]
             ), f"Configuration has a default value which must be removed for {key}: {value}"
 
         # Verify values
-        module = config.modules[str(path)]
         for target in module.targets:
             assert (base_dir / module.path / target).is_dir(), f"Configuration has an unknown target: {target}"
 
@@ -219,15 +209,21 @@ def validate(ctx: Context, base_dir='.', fix_format=False):
 
         assert module.condition in GoModule.CONDITIONS, f"Configuration has an unknown condition: {module.condition}"
 
-    errors = []
-    for config in glob(str(base_dir / '**/module.yml'), recursive=True):
-        config_path = Path(config)
-        path = config_path.parent
+    with open(base_dir / Configuration.FILE_NAME) as f:
+        config_attributes = yaml.safe_load(f)['modules']
 
+    config = Configuration.from_file(base_dir)
+    errors = []
+    for module in config.modules.values():
         try:
-            validate_module(config_path, path)
+            validate_module(module, config_attributes[module.path])
         except AssertionError as e:
-            errors.append((path, e))
+            errors.append((module.path, e))
+
+    # Backward check for go.mod (ensure there is a module for each go.mod)
+    for go_mod in glob(str(base_dir / '**/go.mod'), recursive=True):
+        path = Path(go_mod).parent.relative_to(base_dir).as_posix()
+        assert path in config.modules or path in config.ignored_modules, f"Configuration is missing a module for {path}"
 
     if errors:
         print(f'{color_message("ERROR", Color.RED)}: Some modules have invalid configurations:')
