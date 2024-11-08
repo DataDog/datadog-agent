@@ -9,7 +9,6 @@ package installer
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
