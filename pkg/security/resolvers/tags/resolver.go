@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -21,17 +20,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
-	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Event defines the tags event type
 type Event int
-
-// Listener is used to propagate tags events
-type Listener func(workload *cgroupModel.CacheEntry)
 
 const (
 	// WorkloadSelectorResolved is used to notify that a new cgroup with a resolved workload selector is ready
@@ -75,53 +69,9 @@ type Resolver interface {
 
 // DefaultResolver represents a default resolver based directly on the underlying tagger
 type DefaultResolver struct {
-	tagger               Tagger
-	listenersLock        sync.Mutex
-	listeners            map[Event][]Listener
-	workloadsWithoutTags chan *cgroupModel.CacheEntry
-	cgroupResolver       *cgroup.Resolver
-}
-
-// Start the resolver
-func (t *DefaultResolver) Start(ctx context.Context) error {
-	if err := t.cgroupResolver.RegisterListener(cgroup.CGroupCreated, t.checkTags); err != nil {
-		return err
-	}
-
-	go func() {
-		if err := t.tagger.Start(ctx); err != nil {
-			log.Errorf("failed to init tagger: %s", err)
-		}
-	}()
-
-	go func() {
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		delayerTick := time.NewTicker(10 * time.Second)
-		defer delayerTick.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-delayerTick.C:
-				select {
-				case workload := <-t.workloadsWithoutTags:
-					t.checkTags(workload)
-				default:
-				}
-
-			}
-		}
-	}()
-
-	go func() {
-		<-ctx.Done()
-		_ = t.tagger.Stop()
-	}()
-
-	return nil
+	tagger        Tagger
+	listenersLock sync.Mutex
+	listeners     map[Event][]Listener
 }
 
 // Resolve returns the tags for the given id
@@ -148,45 +98,28 @@ func (t *DefaultResolver) GetValue(id string, tag string) string {
 	return utils.GetTagValue(tag, t.Resolve(id))
 }
 
+// Start the resolver
+func (t *DefaultResolver) Start(ctx context.Context) error {
+	go func() {
+		if err := t.tagger.Start(ctx); err != nil {
+			log.Errorf("failed to init tagger: %s", err)
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+		_ = t.tagger.Stop()
+	}()
+
+	return nil
+}
+
 // Stop the resolver
 func (t *DefaultResolver) Stop() error {
 	return t.tagger.Stop()
 }
 
-// checkTags checks if the tags of a workload were properly set
-func (t *DefaultResolver) checkTags(workload *cgroupModel.CacheEntry) {
-	// check if the workload tags were found
-	if workload.NeedsTagsResolution() {
-		// this is a container, try to resolve its tags now
-		if err := t.fetchTags(workload); err != nil || workload.NeedsTagsResolution() {
-			// push to the workloadsWithoutTags chan so that its tags can be resolved later
-			select {
-			case t.workloadsWithoutTags <- workload:
-			default:
-			}
-			return
-		}
-	}
-
-	// notify listeners
-	t.listenersLock.Lock()
-	defer t.listenersLock.Unlock()
-	for _, l := range t.listeners[WorkloadSelectorResolved] {
-		l(workload)
-	}
-}
-
-// fetchTags fetches tags for the provided workload
-func (t *DefaultResolver) fetchTags(container *cgroupModel.CacheEntry) error {
-	newTags, err := t.ResolveWithErr(string(container.ContainerID))
-	if err != nil {
-		return fmt.Errorf("failed to resolve %s: %w", container.ContainerID, err)
-	}
-	container.SetTags(newTags)
-	return nil
-}
-
-// RegisterListener registers a CGroup event listener
+// RegisterListener registers a tags event listener
 func (t *DefaultResolver) RegisterListener(event Event, listener Listener) error {
 	t.listenersLock.Lock()
 	defer t.listenersLock.Unlock()
@@ -194,21 +127,18 @@ func (t *DefaultResolver) RegisterListener(event Event, listener Listener) error
 	if t.listeners != nil {
 		t.listeners[event] = append(t.listeners[event], listener)
 	} else {
-		return fmt.Errorf("a Listener was inserted before initialization")
+		return fmt.Errorf("a listener was inserted before initialization")
 	}
 	return nil
 }
 
-// NewResolver returns a new tags resolver
-func NewResolver(config *config.Config, telemetry telemetry.Component, cgroupsResolver *cgroup.Resolver) Resolver {
+// NewDefaultResolver returns a new default tags resolver
+func NewDefaultResolver(config *config.Config, telemetry telemetry.Component) *DefaultResolver {
 	ddConfig := pkgconfigsetup.Datadog()
-	workloadsWithoutTags := make(chan *cgroupModel.CacheEntry, 100)
 	listeners := make(map[Event][]Listener)
 	resolver := &DefaultResolver{
-		tagger:               &nullTagger{},
-		workloadsWithoutTags: workloadsWithoutTags,
-		listeners:            listeners,
-		cgroupResolver:       cgroupsResolver,
+		tagger:    &nullTagger{},
+		listeners: listeners,
 	}
 
 	if config.RemoteTaggerEnabled {
