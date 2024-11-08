@@ -83,5 +83,5 @@ windows_validate_modules:
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
       -e GOMODCACHE="c:\modcache"
-      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:$Env:DATADOG_AGENT_WINBUILDIMAGES "inv -e modules.validate"
+      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:$Env:DATADOG_AGENT_WINBUILDIMAGES powershell -Command "inv -e modules.validate"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }

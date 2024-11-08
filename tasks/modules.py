@@ -173,7 +173,7 @@ def validate(ctx: Context, base_dir='.', fix_format=False):
         config.base_dir = base_dir
 
         if not ctx.run(
-            f'diff -u {base_dir / Configuration.FILE_NAME} {Path(tmpdir) / Configuration.FILE_NAME} --color=always',
+            f'diff -u {base_dir / Configuration.FILE_NAME} {Path(tmpdir) / Configuration.FILE_NAME}',
             warn=True,
         ):
             if fix_format:
