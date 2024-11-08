@@ -13,7 +13,7 @@
     !reference [.on_system_probe_or_e2e_changes_or_manual]
   timeout: 3h
   variables:
-    AGENT_MAJOR_VERSION: 7
+    AGENT_MAJOR_VERSION: 6
     DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
     CHEF_VERSION: 14.15.6
 
@@ -25,6 +25,6 @@
     !reference [.manual]
   stage: functional_test
   variables:
-    AGENT_MAJOR_VERSION: 7
+    AGENT_MAJOR_VERSION: 6
     DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
     CHEF_VERSION: 14.15.6

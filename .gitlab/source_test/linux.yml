@@ -83,7 +83,8 @@ tests_deb-x64-py2:
     - .linux_x64
   rules:
     - !reference [.except_disable_unit_tests]
-    - !reference [.on_a6]
+    - !reference [.except_mergequeue]
+    - when: on_success
   variables:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
@@ -101,15 +102,6 @@ lint_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
-tests_flavor_iot_deb-x64:
-  extends:
-    - .rtloader_tests
-    - .linux_tests_with_upload
-    - .linux_x64
-  variables:
-    PYTHON_RUNTIMES: '3'
-    CONDA_ENV: ddpy3
-    FLAVORS: '--flavors iot'
 
 tests_flavor_heroku_deb-x64:
   extends:
@@ -135,7 +127,8 @@ tests_rpm-x64-py2:
   extends: .rtloader_tests
   rules:
     - !reference [.except_disable_unit_tests]
-    - !reference [.on_a6]
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
@@ -158,7 +151,8 @@ tests_deb-arm64-py2:
   extends: .rtloader_tests
   rules:
     - !reference [.except_disable_unit_tests]
-    - !reference [.on_a6]
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
@@ -185,7 +179,8 @@ tests_rpm-arm64-py2:
   extends: .rtloader_tests
   rules:
     - !reference [.except_disable_unit_tests]
-    - !reference [.on_a6]
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:

@@ -41,7 +41,9 @@
 # build agent6 py2 image
 docker_build_agent6:
   extends: .docker_build_job_definition_amd64
-  rules: !reference [.on_a6]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: agent_deb-x64-a6
       artifacts: false
@@ -53,7 +55,9 @@ docker_build_agent6:
 
 docker_build_agent6_arm64:
   extends: .docker_build_job_definition_arm64
-  rules: !reference [.on_all_builds_a6]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: agent_deb-arm64-a6
       artifacts: false
@@ -66,7 +70,9 @@ docker_build_agent6_arm64:
 # build agent6 py2 jmx image
 docker_build_agent6_jmx:
   extends: .docker_build_job_definition_amd64
-  rules: !reference [.on_a6]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: agent_deb-x64-a6
       artifacts: false
@@ -80,7 +86,9 @@ docker_build_agent6_jmx:
 # build agent6 py2 jmx image
 docker_build_agent6_jmx_arm64:
   extends: .docker_build_job_definition_arm64
-  rules: !reference [.on_all_builds_a6]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: agent_deb-arm64-a6
       artifacts: false
@@ -95,7 +103,9 @@ docker_build_agent6_jmx_arm64:
 # build agent6 jmx unified image (including python3)
 docker_build_agent6_py2py3_jmx:
   extends: .docker_build_job_definition_amd64
-  rules: !reference [.on_a6]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: agent_deb-x64-a6
       artifacts: false
@@ -105,71 +115,25 @@ docker_build_agent6_py2py3_jmx:
     TAG_SUFFIX: -6-py2py3-jmx
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
 
-# build agent7 image
-docker_build_agent7:
-  extends: .docker_build_job_definition_amd64
-  rules: !reference [.on_a7]
-  needs:
-    - job: agent_deb-x64-a7
-      artifacts: false
-  variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
-    BUILD_CONTEXT: Dockerfiles/agent
-    TAG_SUFFIX: -7
-    BUILD_ARG: --target test --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
-
-single_machine_performance-amd64-a7:
+single_machine_performance-amd64-a6:
   extends: .docker_publish_job_definition
   stage: container_build
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
-    - docker_build_agent7
+    - docker_build_agent6
   variables:
     IMG_REGISTRIES: internal-aws-smp
-    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
-    IMG_DESTINATIONS: 08450328-agent:${CI_COMMIT_SHA}-7-amd64
-
-docker_build_agent7_arm64:
-  extends: .docker_build_job_definition_arm64
-  rules: !reference [.on_a7]
-  needs:
-    - job: agent_deb-arm64-a7
-      artifacts: false
-  variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
-    BUILD_CONTEXT: Dockerfiles/agent
-    TAG_SUFFIX: -7
-    BUILD_ARG: --target test --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_arm64.deb
-
-# build agent7 jmx image
-docker_build_agent7_jmx:
-  extends: .docker_build_job_definition_amd64
-  rules: !reference [.on_a7]
-  needs:
-    - job: agent_deb-x64-a7
-      artifacts: false
-  variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
-    BUILD_CONTEXT: Dockerfiles/agent
-    TAG_SUFFIX: -7-jmx
-    BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
-
-docker_build_agent7_jmx_arm64:
-  extends: .docker_build_job_definition_arm64
-  rules: !reference [.on_a7]
-  needs:
-    - job: agent_deb-arm64-a7
-      artifacts: false
-  variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
-    BUILD_CONTEXT: Dockerfiles/agent
-    TAG_SUFFIX: -7-jmx
-    BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_arm64.deb
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-amd64
+    IMG_DESTINATIONS: 08450328-agent:${CI_COMMIT_SHA}-6-amd64
 
 # build the cluster-agent image
 docker_build_cluster_agent_amd64:
   extends: .docker_build_job_definition_amd64
-  rules: !reference [.on_tag_or_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: cluster_agent-build_amd64
       artifacts: false
@@ -181,7 +145,9 @@ docker_build_cluster_agent_amd64:
 
 docker_build_cluster_agent_arm64:
   extends: .docker_build_job_definition_arm64
-  rules: !reference [.on_tag_or_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: cluster_agent-build_arm64
       artifacts: false
@@ -194,7 +160,9 @@ docker_build_cluster_agent_arm64:
 # build the cws-instrumentation image
 docker_build_cws_instrumentation_amd64:
   extends: .docker_build_job_definition_amd64
-  rules: !reference [.on_tag_or_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: cws_instrumentation-build_amd64
       artifacts: false
@@ -204,7 +172,9 @@ docker_build_cws_instrumentation_amd64:
 
 docker_build_cws_instrumentation_arm64:
   extends: .docker_build_job_definition_arm64
-  rules: !reference [.on_tag_or_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: cws_instrumentation-build_arm64
       artifacts: false
