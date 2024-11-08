@@ -23,6 +23,8 @@ agent_integration_tests:
 
 docker_integration_tests:
   extends: .integration_tests_deb
+  # This job is not stable yet because of rate limit issues and micro vms beta status.
+  allow_failure: true
   script:
     - inv -e docker.test
     - inv -e docker.integration-tests
