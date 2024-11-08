@@ -21,8 +21,8 @@ import (
 
 	"github.com/DataDog/viper"
 	"github.com/mohae/deepcopy"
-	"github.com/spf13/afero"
 	"go.uber.org/atomic"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -390,25 +390,20 @@ func (c *ntmConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
-// SetFs assigns a filesystem to the config
-func (c *ntmConfig) SetFs(fs afero.Fs) {
-	c.Lock()
-	defer c.Unlock()
-	c.noimpl.SetFs(fs)
-}
-
 // IsSet checks if a key is set in the config
 func (c *ntmConfig) IsSet(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
-	return c.noimpl.IsSet(key)
+
+	return c.IsKnown(key)
 }
 
 // AllKeysLowercased returns all keys lower-cased
 func (c *ntmConfig) AllKeysLowercased() []string {
 	c.RLock()
 	defer c.RUnlock()
-	return c.noimpl.AllKeys()
+
+	return maps.Keys(c.knownKeys)
 }
 
 func (c *ntmConfig) leafAtPath(key string) LeafNode {
