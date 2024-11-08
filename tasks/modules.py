@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import tempfile
 from collections import defaultdict
 from contextlib import contextmanager
 from glob import glob
@@ -153,14 +154,34 @@ def for_each(
 
 
 @task
-def validate(_: Context, base_dir='.'):
+def validate(ctx: Context, base_dir='.', fix_format=False):
     """
     Lints each module.yml file.
+
+    Args:
+        fix_format: If True, will fix the format of the configuration files.
     """
 
     base_dir = Path(base_dir)
     config = Configuration.from_file(base_dir)
     default_attributes = GoModule.get_default_attributes()
+
+    # Verify format
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config.base_dir = Path(tmpdir)
+        config.to_file()
+        config.base_dir = base_dir
+
+        if not ctx.run(
+            f'diff -u {base_dir / Configuration.FILE_NAME} {Path(tmpdir) / Configuration.FILE_NAME}', warn=True
+        ):
+            if fix_format:
+                print(f'{color_message("Info", Color.BLUE)}: Formatted module configuration file')
+                config.to_file()
+            else:
+                raise Exit(
+                    f'{color_message("Error", Color.RED)}: Configuration file is not formatted correctly, use `invoke modules.validate --fix-format` to fix it'
+                )
 
     def validate_module(config, path):
         assert (path / 'go.mod').is_file(), "Configuration is not next to a go.mod file"

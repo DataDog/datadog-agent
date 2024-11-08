@@ -26,6 +26,10 @@ class Configuration:
     """Represents the top level configuration of the modules."""
 
     FILE_NAME: ClassVar[str] = 'modules.yml'
+    INFO_COMMENT: ClassVar[str] = """
+# This file contains the configuration of the modules.
+# See {file} for more information.
+"""
 
     # Where this file has been loaded from
     base_dir: Path
@@ -77,6 +81,10 @@ class Configuration:
         """Save the configuration to a yaml file at <base_dir/FILE_NAME>."""
 
         with open(self.base_dir / self.FILE_NAME, "w") as file:
+            prefix = 'datadog-agent/'
+            path = __file__[__file__.index(prefix) + len(prefix) :]
+            print(self.INFO_COMMENT.format(file=path).strip() + '\n', file=file)
+
             yaml.dump(self.to_dict(), file, Dumper=ConfigDumper)
 
 
