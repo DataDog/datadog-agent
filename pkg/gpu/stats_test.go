@@ -43,7 +43,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	pid := uint32(1)
 	streamID := uint64(120)
 	pidTgid := uint64(pid)<<32 + uint64(pid)
-	skeyKern := streamKey{pid: pid, stream: streamID}
+	skeyKern := streamKey{pid: pid, stream: streamID, gpuUUID: testutil.DefaultGpuUUID}
 	shmemSize := uint64(10)
 	streamHandlers[skeyKern] = &StreamHandler{
 		processEnded: false,
@@ -61,7 +61,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	}
 
 	allocSize := uint64(10)
-	skeyAlloc := streamKey{pid: pid, stream: 0}
+	skeyAlloc := streamKey{pid: pid, stream: 0, gpuUUID: testutil.DefaultGpuUUID}
 	streamHandlers[skeyAlloc] = &StreamHandler{
 		processEnded: false,
 		memAllocEvents: map[uint64]gpuebpf.CudaMemEvent{
@@ -100,7 +100,7 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 
 	pid := uint32(1)
 	streamID := uint64(120)
-	skeyKern := streamKey{pid: pid, stream: streamID}
+	skeyKern := streamKey{pid: pid, stream: streamID, gpuUUID: testutil.DefaultGpuUUID}
 	numThreads := uint64(5)
 	streamHandlers[skeyKern] = &StreamHandler{
 		processEnded: false,
@@ -115,7 +115,7 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	}
 
 	allocSize := uint64(10)
-	skeyAlloc := streamKey{pid: pid, stream: 0}
+	skeyAlloc := streamKey{pid: pid, stream: 0, gpuUUID: testutil.DefaultGpuUUID}
 	streamHandlers[skeyAlloc] = &StreamHandler{
 		processEnded: false,
 		allocations: []*memoryAllocation{
@@ -157,7 +157,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 
 	pid := uint32(1)
 	streamID := uint64(120)
-	skeyKern := streamKey{pid: pid, stream: streamID}
+	skeyKern := streamKey{pid: pid, stream: streamID, gpuUUID: testutil.DefaultGpuUUID}
 	pidTgid := uint64(pid)<<32 + uint64(pid)
 	numThreads := uint64(5)
 	shmemSize := uint64(10)
@@ -185,7 +185,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	}
 
 	allocSize := uint64(10)
-	skeyAlloc := streamKey{pid: pid, stream: 0}
+	skeyAlloc := streamKey{pid: pid, stream: 0, gpuUUID: testutil.DefaultGpuUUID}
 	streamHandlers[skeyAlloc] = &StreamHandler{
 		processEnded: false,
 		allocations: []*memoryAllocation{
