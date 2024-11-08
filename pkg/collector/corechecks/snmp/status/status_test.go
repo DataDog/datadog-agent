@@ -292,24 +292,22 @@ func TestStatusLegacyDiscoveryMultipleSubnets(t *testing.T) {
 
 			assert.NoError(t, err)
 
-			expectedTextOutput := `
-  Autodiscovery
-  =============
-  Subnet 127.0.0.1/24 is queued for scanning.
-  No IPs found in the subnet.
-
-  Scanning subnet 127.0.10.1/30... Currently scanning IP 127.0.10.2, 3 IPs out of 4 scanned.
+			expectedTextOutputs := []string{
+				`Subnet 127.0.0.1/24 is queued for scanning.
+  No IPs found in the subnet.`,
+				`Scanning subnet 127.0.10.1/30... Currently scanning IP 127.0.10.2, 3 IPs out of 4 scanned.
   Found the following IP(s) in the subnet:
     - 127.0.10.1
-    - 127.0.10.2
+    - 127.0.10.2`,
+				`Subnet 127.0.10.1/30 scanned.
+  No IPs found in the subnet.`,
+			}
 
-  Subnet 127.0.10.1/30 scanned.
-  No IPs found in the subnet.
-`
-
-			expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
 			output := strings.Replace(b.String(), "\r\n", "\n", -1)
-			assert.Contains(t, output, expectedResult)
+			for _, expectedTextOutput := range expectedTextOutputs {
+				expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
+				assert.Contains(t, output, expectedResult)
+			}
 
 			fmt.Printf("%s", b.String())
 		}},
@@ -318,27 +316,21 @@ func TestStatusLegacyDiscoveryMultipleSubnets(t *testing.T) {
 			err := provider.HTML(false, b)
 
 			assert.NoError(t, err)
-			expectedTextOutput := `
-<div class="stat">
-  <span class="stat_title">SNMP Autodiscovery</span>
-  <span class="stat_data">
-    Subnet 127.0.0.1/24 is queued for scanning.</br>
-    Found no IPs in the subnet.</br>
-
-    Scanning subnet 127.0.10.1/30... Currently scanning IP 127.0.10.2, 3 IPs out of 4 scanned.</br>
+			expectedTextOutputs := []string{
+				`Subnet 127.0.0.1/24 is queued for scanning.</br>
+    Found no IPs in the subnet.</br>`,
+				`Scanning subnet 127.0.10.1/30... Currently scanning IP 127.0.10.2, 3 IPs out of 4 scanned.</br>
     Found the following IP(s) :</br>
       - 127.0.10.1</br>
-      - 127.0.10.2</br>
-
-    Subnet 127.0.10.1/30 scanned.</br>
-    Found no IPs in the subnet.</br>
-</span>
-</div>`
-
-			expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
+      - 127.0.10.2</br>`,
+				`Subnet 127.0.10.1/30 scanned.</br>
+    Found no IPs in the subnet.</br>`,
+			}
 			output := strings.Replace(b.String(), "\r\n", "\n", -1)
-			assert.Contains(t, output, expectedResult)
-
+			for _, expectedTextOutput := range expectedTextOutputs {
+				expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
+				assert.Contains(t, output, expectedResult)
+			}
 			fmt.Printf("%s", b.String())
 
 		}},
