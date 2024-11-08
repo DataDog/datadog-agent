@@ -14,9 +14,9 @@ from invoke import Context, Exit, task
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.gomodules import (
     ConfigDumper,
+    Configuration,
     GoModule,
     get_default_modules,
-    list_default_modules,
 )
 
 AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
@@ -159,7 +159,7 @@ def validate(_: Context, base_dir='.'):
     """
 
     base_dir = Path(base_dir)
-    modules, ignored_modules = list_default_modules(base_dir=base_dir)
+    config = Configuration.from_file(base_dir)
     default_attributes = GoModule.get_default_attributes()
 
     def validate_module(config, path):
@@ -174,7 +174,7 @@ def validate(_: Context, base_dir='.'):
         if 'ignored' in config_attributes:
             assert config_attributes['ignored'] is True, "`ignored` must appear only in ignored modules"
             assert len(config_attributes) == 1, "`ignored` must be the only attribute in ignored modules"
-            assert str(path) in ignored_modules, "Configuration has not been recognized"
+            assert str(path) in config.ignored_modules, "Configuration has not been recognized"
 
             return
 
@@ -182,14 +182,14 @@ def validate(_: Context, base_dir='.'):
         assert set(default_attributes).issuperset(
             config_attributes
         ), "Configuration contains unknown attributes ({set(config_attributes).difference(default_attributes)})"
-        assert str(path) in modules, "Configuration has not been recognized"
+        assert str(path) in config.modules, "Configuration has not been recognized"
         for key, value in config_attributes.items():
             assert (
                 config_attributes[key] != default_attributes[key]
             ), f"Configuration has a default value which must be removed for {key}: {value}"
 
         # Verify values
-        module = modules[str(path)]
+        module = config.modules[str(path)]
         for target in module.targets:
             assert (base_dir / module.path / target).is_dir(), f"Configuration has an unknown target: {target}"
 
@@ -266,25 +266,6 @@ def get_module_by_path(path: Path) -> GoModule | None:
     return None
 
 
-def _print_modules(modules: dict[str, GoModule], details: bool, remove_defaults: bool):
-    """Print the module mapping to stdout.
-
-    Args:
-        details: If True, will show also the contents of each module (will list only the names otherwise).
-        remove_defaults: If True, will remove default values from the output.
-    """
-
-    if not details:
-        print("\n".join(sorted(modules.keys())))
-        return
-
-    modules_data = {path: module.to_dict(remove_defaults=remove_defaults) for path, module in modules.items()}
-    for module in modules_data.values():
-        del module["path"]
-
-    yaml.dump(modules_data, sys.stdout, Dumper=ConfigDumper)
-
-
 @task
 def edit(
     ctx,
@@ -312,21 +293,21 @@ def edit(
         Other arguments: All the fields to change for the module (except path), see GoModule for the list of available attributes.
     """
 
-    modules, ignored_modules = list_default_modules(Path(base_dir))
+    config = Configuration.from_file(Path(base_dir))
     config_path = Path(base_dir) / path / 'module.yml'
 
     # Ignore / unignore
     if ignore is not None:
         ignore = bool(ignore)
         if ignore:
-            assert path in modules, f'Module {path} is either ignored or not found'
+            assert path in config.modules, f'Module {path} is either ignored or not found'
 
             with open(config_path, 'w') as f:
                 f.write('ignored: true\n')
 
             print('Ignored module')
         else:
-            assert path in ignored_modules, f'Module {path} is not ignored'
+            assert path in config.ignored_modules, f'Module {path} is not ignored'
 
             # Set as default
             config_path.unlink()
@@ -335,7 +316,7 @@ def edit(
 
         return
 
-    module = modules.get(path)
+    module = config.modules.get(path)
     assert module, f'Module {path} is either ignored or not found'
 
     def tobool(s):
@@ -365,35 +346,40 @@ def edit(
 
 @task
 def show(_, path: str, remove_defaults: bool = False, base_dir: str = '.'):
-    """Show the module information for the given path."""
+    """Show the module information for the given path.
 
-    default_modules, ignored_modules = list_default_modules(Path(base_dir))
-    if path in ignored_modules:
+    Args:
+        remove_defaults: If True, will remove default values from the output.
+    """
+
+    config = Configuration.from_file(Path(base_dir))
+    if path in config.ignored_modules:
         print(f'Module {path} is ignored')
         return
 
-    module = default_modules.get(path)
+    module = config.modules.get(path)
 
     assert module, f'Module {path} not found'
 
-    _print_modules({path: module}, details=True, remove_defaults=remove_defaults)
+    yaml.dump(
+        {path: module.to_dict(remove_defaults=remove_defaults, remove_path=True)}, sys.stdout, Dumper=ConfigDumper
+    )
 
 
 @task
-def show_all(_, details: bool = False, remove_defaults: bool = True, base_dir: str = '.', ignored=False):
+def show_all(_, base_dir: str = '.', ignored=False):
     """Show the list of modules.
 
     Args:
-        details: If True, will show also the contents of each module (will list only the names otherwise).
-        remove_defaults: If True, will remove default values from the output.
         ignored: If True, will list ignored modules.
     """
 
-    modules, ignored_modules = list_default_modules(Path(base_dir))
+    config = Configuration.from_file(Path(base_dir))
 
     if ignored:
-        print('\n'.join(sorted(ignored_modules)))
+        names = config.ignored_modules
     else:
-        _print_modules(modules, details=details, remove_defaults=remove_defaults)
+        names = list(config.modules.keys())
 
-    print(len(modules), 'modules and', len(ignored_modules), 'ignored modules')
+    print('\n'.join(sorted(names)))
+    print(len(names), 'modules')

@@ -8,7 +8,6 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import lru_cache
-from glob import glob
 from pathlib import Path
 from typing import ClassVar
 
@@ -346,29 +345,6 @@ class GoModule:
 AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
 
 
-def list_default_modules(base_dir: Path | None = None) -> tuple[dict[str, GoModule], set[str]]:
-    """List all the module configurations of the repository.
-
-    Returns:
-        A tuple of (modules, ignored_module_paths).
-    """
-
-    modules = {}
-    ignored_modules = set()
-
-    for gomod_path in glob("**/go.mod", recursive=True, root_dir=base_dir):
-        module_data_dir = Path(gomod_path).parent
-
-        module = GoModule.from_file(module_data_dir, base_dir)
-        # Ignored module
-        if module is None:
-            ignored_modules.add(module_data_dir.as_posix())
-        else:
-            modules[module.path] = module
-
-    return modules, ignored_modules
-
-
 @lru_cache
 def get_default_modules(base_dir: Path | None = None) -> dict[str, GoModule]:
     """Load the default modules from all the module.yml files.
@@ -380,6 +356,4 @@ def get_default_modules(base_dir: Path | None = None) -> dict[str, GoModule]:
         base_dir: Root directory of the agent repository ('.' by default).
     """
 
-    modules, _ = list_default_modules(base_dir)
-
-    return modules
+    return Configuration.from_file(base_dir).modules
