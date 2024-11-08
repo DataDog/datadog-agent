@@ -7,19 +7,22 @@
 
 package sysprobe
 
-import "errors"
+import (
+	"errors"
+	"net/http"
+)
 
 // GetSystemProbeConntrackCached is a stub for unsupported OSes
-func GetSystemProbeConntrackCached(_ string) ([]byte, error) {
+func GetSystemProbeConntrackCached(_ *http.Client) ([]byte, error) {
 	return nil, errors.New("GetSystemProbeConntrackCached is not supported")
 }
 
 // GetSystemProbeConntrackHost is a stub for unsupported OSes
-func GetSystemProbeConntrackHost(_ string) ([]byte, error) {
+func GetSystemProbeConntrackHost(_ *http.Client) ([]byte, error) {
 	return nil, errors.New("GetSystemProbeConntrackHost is not supported")
 }
 
 // GetSystemProbeBTFLoaderInfo is a stub for unsupported OSes
-func GetSystemProbeBTFLoaderInfo(_ string) ([]byte, error) {
+func GetSystemProbeBTFLoaderInfo(_ *http.Client) ([]byte, error) {
 	return nil, errors.New("GetSystemProbeBTFLoaderInfo is not supported")
 }
