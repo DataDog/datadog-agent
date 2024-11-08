@@ -1238,6 +1238,7 @@ workflow:
 
 windows_validate_modules:
   needs: []
+  stage: lint
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
     - echo "inv -e modules.validate" > test.bat
