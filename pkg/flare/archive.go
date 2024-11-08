@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -149,11 +150,13 @@ func provideSystemProbe(fb flaretypes.FlareBuilder) error {
 	addSystemProbePlatformSpecificEntries(fb)
 
 	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
-		fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)                         //nolint:errcheck
-		fb.AddFileFromFunc(filepath.Join("system-probe", "system_probe_telemetry.log"), getSystemProbeTelemetry) // nolint:errcheck
-		fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_cached.log"), getSystemProbeConntrackCached) // nolint:errcheck
-		fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_host.log"), getSystemProbeConntrackHost)     // nolint:errcheck
-		fb.AddFileFromFunc(filepath.Join("system-probe", "ebpf_btf_loader.log"), getSystemProbeBTFLoaderInfo)    // nolint:errcheck
+		_ = fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "system_probe_telemetry.log"), getSystemProbeTelemetry)
+		if runtime.GOOS == "linux" {
+			_ = fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_cached.log"), getSystemProbeConntrackCached)
+			_ = fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_host.log"), getSystemProbeConntrackHost)
+			_ = fb.AddFileFromFunc(filepath.Join("system-probe", "ebpf_btf_loader.log"), getSystemProbeBTFLoaderInfo)
+		}
 	}
 	return nil
 }
@@ -260,24 +263,25 @@ func getSystemProbeStats() ([]byte, error) {
 }
 
 func getSystemProbeTelemetry() ([]byte, error) {
-	sysProbeHttpClient := sysprobeclient.Get(getSystemProbeSocketPath())
-	buf, err := sysprobe.GetSystemProbeTelemetry(sysProbeHttpClient)
+	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	buf, err := sysprobe.GetSystemProbeTelemetry(sysProbeClient)
 	if err != nil {
 		fmt.Println(err)
 	}
 	return buf, err
 }
+
 func getSystemProbeConntrackCached() ([]byte, error) {
-	sysProbeHttpClient := sysprobeclient.Get(getSystemProbeSocketPath())
-	return sysprobe.GetSystemProbeConntrackCached(sysProbeHttpClient)
+	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	return sysprobe.GetSystemProbeConntrackCached(sysProbeClient)
 }
 func getSystemProbeConntrackHost() ([]byte, error) {
-	sysProbeHttpClient := sysprobeclient.Get(getSystemProbeSocketPath())
-	return sysprobe.GetSystemProbeConntrackHost(sysProbeHttpClient)
+	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	return sysprobe.GetSystemProbeConntrackHost(sysProbeClient)
 }
 func getSystemProbeBTFLoaderInfo() ([]byte, error) {
-	sysProbeHttpClient := sysprobeclient.Get(getSystemProbeSocketPath())
-	return sysprobe.GetSystemProbeBTFLoaderInfo(sysProbeHttpClient)
+	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	return sysprobe.GetSystemProbeBTFLoaderInfo(sysProbeClient)
 }
 
 // getProcessAgentFullConfig fetches process-agent runtime config as YAML and returns it to be added to  process_agent_runtime_config_dump.yaml
