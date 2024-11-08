@@ -9,7 +9,6 @@ package diagnose
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"go.uber.org/fx"
 
@@ -26,15 +25,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
-	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -104,25 +100,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					InitHelper: common.GetWorkloadmetaInit(),
 				}),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
-				dualTaggerfx.Module(tagger.DualParams{
-					UseRemote: func(c config.Component) bool {
-						return pkgconfigsetup.IsCLCRunner(c) && c.GetBool("clc_runner_remote_tagger_enabled")
-					},
-				}, tagger.Params{}, tagger.RemoteParams{
-					RemoteTarget: func(config.Component) (string, error) {
-						target, err := utils.GetClusterAgentEndpoint()
-						if err != nil {
-							return "", err
-						}
-						return strings.TrimPrefix(target, "https://"), nil
-					},
-					RemoteTokenFetcher: func(c config.Component) func() (string, error) {
-						return func() (string, error) {
-							return security.GetClusterAgentAuthToken(c)
-						}
-					},
-					RemoteFilter: taggerTypes.NewFilterBuilder().Exclude(taggerTypes.KubernetesPodUID).Build(taggerTypes.HighCardinality),
-				}),
+				dualTaggerfx.Module(common.DualTaggerParams()),
 				autodiscoveryimpl.Module(),
 				compressionimpl.Module(),
 				diagnosesendermanagerimpl.Module(),
