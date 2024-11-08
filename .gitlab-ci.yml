@@ -1267,5 +1267,5 @@ windows_validate_modules:
       -e GO_TEST_SKIP_FLAKE="${GO_TEST_SKIP_FLAKE}"
       -e API_KEY_ORG2_SSM_NAME="${API_KEY_ORG2_SSM_NAME}"
       -e CODECOV_TOKEN_SSM_NAME="${CODECOV_TOKEN_SSM_NAME}"
-      datadog/agent-buildimages-windows_x64:ltsc2022
+      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\test.bat
