@@ -221,7 +221,8 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	probe := s.getProbe()
 
 	sampleArgs := testutil.SampleArgs{
-		WaitTimeSec:           5,
+		StartWaitTimeSec:      6, // default wait time for WaitForProgramsToBeTraced is 5 seconds, give margin to attach manually to avoid flakes
+		EndWaitTimeSec:        1, // We need the process to stay active a bit so we can inspect its environment variables, if it ends too quickly we get no information
 		CudaVisibleDevicesEnv: "1,2",
 		DeviceToSelect:        1,
 	}
