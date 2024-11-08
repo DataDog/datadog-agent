@@ -43,11 +43,11 @@ use (
 	comp/trace/compression/def
 	comp/trace/compression/impl-gzip
 	comp/trace/compression/impl-zstd
-	//internal/tools
-	//internal/tools/independent-lint
-	//internal/tools/modformatter
-	//internal/tools/modparser
-	//internal/tools/proto
+	internal/tools
+	internal/tools/independent-lint
+	internal/tools/modformatter
+	internal/tools/modparser
+	internal/tools/proto
 	pkg/aggregator/ckey
 	pkg/api
 	pkg/collector/check/defaults
