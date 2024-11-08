@@ -1736,7 +1736,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 
 	if p.probe.IsNetworkRawPacketEnabled() {
 		if err := p.setupRawPacketProgs(rs); err != nil {
-			return nil, err
+			seclog.Errorf("unable to load raw packet filter programs: %v", err)
 		}
 	}
 

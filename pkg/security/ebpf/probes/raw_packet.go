@@ -49,6 +49,7 @@ type RawPacketProgOpts struct {
 	sendEventLabel string
 	ctxSave        asm.Register
 	tailCallMapFd  int
+	nopInstLen     int
 }
 
 // DefaultRawPacketProgOpts default options
@@ -93,9 +94,19 @@ func BPFFilterToInsts(index int, filter string, opts RawPacketProgOpts) (asm.Ins
 		return nil, err
 	}
 
+	resultLabel := cbpfcOpts.ResultLabel
+
+	// used to test the max insts
+	for i := 0; i != opts.nopInstLen; i++ {
+		insts = append(insts,
+			asm.JEq.Imm(asm.R9, 0, opts.sendEventLabel).WithSymbol(resultLabel),
+		)
+		resultLabel = ""
+	}
+
 	// filter output
 	insts = append(insts,
-		asm.JNE.Imm(cbpfcOpts.Result, 0, opts.sendEventLabel).WithSymbol(cbpfcOpts.ResultLabel),
+		asm.JNE.Imm(cbpfcOpts.Result, 0, opts.sendEventLabel).WithSymbol(resultLabel),
 	)
 
 	return insts, nil
@@ -105,7 +116,7 @@ func rawPacketFiltersToProgs(rawPacketfilters []RawPacketFilter, opts RawPacketP
 	var (
 		progInsts   []asm.Instructions
 		currProg    uint32
-		maxProgSize = 200
+		maxProgSize = 4000
 		mErr        *multierror.Error
 	)
 
@@ -125,8 +136,6 @@ func rawPacketFiltersToProgs(rawPacketfilters []RawPacketFilter, opts RawPacketP
 			asm.LoadMapPtr(asm.R2, opts.tailCallMapFd),
 			asm.Mov.Imm(asm.R3, int32(TCRawPacketFilterKey+currProg+1)),
 			asm.FnTailCall.Call(),
-			//asm.Mov.Imm(asm.R0, 0),
-			//asm.Return(),
 		}
 
 		// max size exceeded, generate a new tail call
