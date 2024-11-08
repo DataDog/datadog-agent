@@ -15,11 +15,11 @@ import (
 )
 
 // GetProcStats returns a set of process stats by querying system-probe
-func GetProcStats(client *http.Client, pids []int32) (*model.ProcStatsWithPermByPID, error) {
+func GetProcStats(_ *http.Client, _ []int32) (*model.ProcStatsWithPermByPID, error) {
 	return nil, errors.New("unsupported platform")
 }
 
 // GetNetworkID fetches the network_id (vpc_id) from system-probe
-func GetNetworkID(client *http.Client) (string, error) {
+func GetNetworkID(_ *http.Client) (string, error) {
 	return "", errors.New("unsupported platform")
 }
