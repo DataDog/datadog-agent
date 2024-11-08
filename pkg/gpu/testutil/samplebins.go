@@ -8,13 +8,9 @@
 package testutil
 
 import (
-<<<<<<< HEAD
 	"bufio"
 	"fmt"
 	"io"
-=======
-	"fmt"
->>>>>>> 9b7b3279fc (Allow passing args to sample)
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -69,8 +65,8 @@ func (a *SampleArgs) getCLIArgs() []string {
 
 func RunSample(t *testing.T, name SampleName) (*exec.Cmd, error) {
 	args := SampleArgs{
-		StartWaitTimeSec: 5,
-		EndWaitTimeSec:   0,
+		StartWaitTimeSec:      5,
+		EndWaitTimeSec:        0,
 		CudaVisibleDevicesEnv: "",
 		DeviceToSelect:        0,
 	}
