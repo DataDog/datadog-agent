@@ -1074,3 +1074,6 @@ replace github.com/ProtonMail/go-crypto => github.com/ProtonMail/go-crypto v1.0.
 exclude go.opentelemetry.io/proto/otlp v1.1.0
 
 replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0-20240626205202-4ac4cee31f14
+
+// Remove once https://github.com/kubernetes/kube-state-metrics/pull/2553 is merged
+replace k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f => github.com/L3n41c/kube-state-metrics/v2 v2.13.1-0.20241108192007-8859a4289d92
