@@ -98,26 +98,27 @@ linters-settings:
             desc: "Not really forbidden to use, but it is usually imported by mistake instead of github.com/stretchr/testify/assert, and confusing since it actually has the behavior of github.com/stretchr/testify/require"
 
   errcheck:
+    ignore: "github.com/DataDog/datadog-agent/pkg/util/log:.*"
     exclude-functions:
       - (*github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warn
       - (*github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warnf
       - (*github.com/lxn/walk.NotifyIcon).Dispose
       - (*golang.org/x/sys/windows/svc/mgr.Mgr).Disconnect
-      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFile
-      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFileFromFunc
-      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFileWithoutScrubbing
-      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyDir
-      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyDirTo
-      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyDirToWithoutScrubbing
-      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyFile
-      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyFileTo
-      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).ChangeLogLevel
-      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Critical
-      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Criticalf
-      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Error
-      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Errorf
-      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warn
-      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warnf
+      - (github.com/DataDog/datadog-agent/comp/core/flare/types.FlareBuilder).AddFile
+      - (github.com/DataDog/datadog-agent/comp/core/flare/types.FlareBuilder).AddFileFromFunc
+      - (github.com/DataDog/datadog-agent/comp/core/flare/types.FlareBuilder).AddFileWithoutScrubbing
+      - (github.com/DataDog/datadog-agent/comp/core/flare/types.FlareBuilder).CopyDir
+      - (github.com/DataDog/datadog-agent/comp/core/flare/types.FlareBuilder).CopyDirTo
+      - (github.com/DataDog/datadog-agent/comp/core/flare/types.FlareBuilder).CopyDirToWithoutScrubbing
+      - (github.com/DataDog/datadog-agent/comp/core/flare/types.FlareBuilder).CopyFile
+      - (github.com/DataDog/datadog-agent/comp/core/flare/types.FlareBuilder).CopyFileTo
+      - (github.com/DataDog/datadog-agent/comp/core/log.Component).ChangeLogLevel
+      - (github.com/DataDog/datadog-agent/comp/core/log.Component).Critical
+      - (github.com/DataDog/datadog-agent/comp/core/log.Component).Criticalf
+      - (github.com/DataDog/datadog-agent/comp/core/log.Component).Error
+      - (github.com/DataDog/datadog-agent/comp/core/log.Component).Errorf
+      - (github.com/DataDog/datadog-agent/comp/core/log.Component).Warn
+      - (github.com/DataDog/datadog-agent/comp/core/log.Component).Warnf
       - (net/http.ResponseWriter).Write
       - fmt.Sscanf
       - github.com/cihub/seelog.Warnf
@@ -199,9 +200,9 @@ linters-settings:
       - name: time-naming
       - name: unexported-return
       - name: unreachable-code
-      - name: unused-parameter
-        arguments:
-          - allowRegex: "^_"
+      # - name: unused-parameter
+        # arguments:
+          # - allowRegex: "^_"
       - name: var-declaration
       - name: var-naming
       # non-default rules:
