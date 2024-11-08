@@ -59,7 +59,7 @@ func (n *nullTagger) Tag(_ types.EntityID, _ types.TagCardinality) ([]string, er
 	return nil, nil
 }
 
-func (n *nullTagger) RegisterListener(event Event, listener Listener) error {
+func (n *nullTagger) RegisterListener(_ Event, _ Listener) error {
 	return nil
 }
 

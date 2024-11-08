@@ -67,7 +67,7 @@ func NewResolver() (*Resolver, error) {
 }
 
 // Start starts the goroutine of the SBOM resolver
-func (cr *Resolver) Start(ctx context.Context) {
+func (cr *Resolver) Start(_ context.Context) {
 }
 
 // RegisterListener registers a CGroup event listener

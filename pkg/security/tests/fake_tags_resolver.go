@@ -63,7 +63,7 @@ func (fr *FakeResolver) GetValue(id string, tag string) string {
 }
 
 // RegisterListener registers a tags event listener
-func (fr *FakeResolver) RegisterListener(event tags.Event, listener tags.Listener) error {
+func (fr *FakeResolver) RegisterListener(_ tags.Event, _ tags.Listener) error {
 	return nil
 }
 
@@ -104,7 +104,7 @@ func (fmr *FakeMonoResolver) GetValue(id string, tag string) string {
 }
 
 // RegisterListener registers a tags event listener
-func (fmr *FakeMonoResolver) RegisterListener(event tags.Event, listener tags.Listener) error {
+func (fmr *FakeMonoResolver) RegisterListener(_ tags.Event, _ tags.Listener) error {
 	return nil
 }
 
