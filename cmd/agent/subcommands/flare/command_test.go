@@ -129,9 +129,11 @@ func (c *commandTestSuite) TestReadProfileData() {
 	mockConfig.SetWithoutSource("process_config.expvar_port", port)
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
 
-	mockSysProbeConfig := configmock.NewSystemProbe(t)
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
+	if runtime.GOOS != "darwin" {
+		mockSysProbeConfig := configmock.NewSystemProbe(t)
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
+	}
 
 	data, err := readProfileData(10)
 	require.NoError(t, err)
