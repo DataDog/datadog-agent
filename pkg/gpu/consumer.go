@@ -146,27 +146,30 @@ func (c *cudaEventConsumer) handleStreamEvent(header *gpuebpf.CudaEventHeader, d
 			return fmt.Errorf("Not enough data to parse kernel launch event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaKernelLaunch)
 
 		}
-		ckl := (*gpuebpf.CudaKernelLaunch)(data)
-		streamHandler.handleKernelLaunch(ckl)
+		streamHandler.handleKernelLaunch((*gpuebpf.CudaKernelLaunch)(data))
 	case gpuebpf.CudaEventTypeMemory:
 		if dataLen != gpuebpf.SizeofCudaMemEvent {
 			return fmt.Errorf("Not enough data to parse memory event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaMemEvent)
 
 		}
-		cme := (*gpuebpf.CudaMemEvent)(data)
-		streamHandler.handleMemEvent(cme)
+		streamHandler.handleMemEvent((*gpuebpf.CudaMemEvent)(data))
 	case gpuebpf.CudaEventTypeSync:
 		if dataLen != gpuebpf.SizeofCudaSync {
 			return fmt.Errorf("Not enough data to parse sync event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaSync)
 
 		}
-		cs := (*gpuebpf.CudaSync)(data)
-		streamHandler.handleSync(cs)
+		streamHandler.handleSync((*gpuebpf.CudaSync)(data))
 	default:
 		return fmt.Errorf("Unknown event type: %d", header.Type)
 	}
 
 	return nil
+}
+
+func getPidTidFromHeader(header *gpuebpf.CudaEventHeader) (uint32, uint32) {
+	tid := uint32(header.Pid_tgid & 0xFFFFFFFF)
+	pid := uint32(header.Pid_tgid >> 32)
+	return pid, tid
 }
 
 func (c *cudaEventConsumer) handleGlobalEvent(header *gpuebpf.CudaEventHeader, data unsafe.Pointer, dataLen int) error {
@@ -176,10 +179,9 @@ func (c *cudaEventConsumer) handleGlobalEvent(header *gpuebpf.CudaEventHeader, d
 			return fmt.Errorf("Not enough data to parse set device event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaSetDeviceEvent)
 
 		}
-		csde := (*gpuebpf.CudaSetDeviceEvent)(unsafe.Pointer(data))
+		csde := (*gpuebpf.CudaSetDeviceEvent)(data)
 
-		tid := uint32(header.Pid_tgid & 0xFFFFFFFF)
-		pid := uint32(header.Pid_tgid >> 32)
+		pid, tid := getPidTidFromHeader(header)
 		c.sysCtx.setDeviceSelection(int(pid), int(tid), csde.Device)
 	default:
 		return fmt.Errorf("Unknown event type: %d", header.Type)
@@ -199,13 +201,12 @@ func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
 }
 
 func (c *cudaEventConsumer) getStreamKey(header *gpuebpf.CudaEventHeader) streamKey {
-	pid := uint32(header.Pid_tgid >> 32)
-	tid := uint32(header.Pid_tgid & 0xFFFFFFFF)
+	pid, tid := getPidTidFromHeader(header)
 
 	key := streamKey{
 		pid:     pid,
 		stream:  header.Stream_id,
-		gpuUUID: "N/A",
+		gpuUUID: "",
 	}
 
 	gpuDevice, err := c.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid))

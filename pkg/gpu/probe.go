@@ -9,12 +9,13 @@ package gpu
 
 import (
 	"fmt"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"io"
 	"math"
 	"os"
 	"regexp"
+
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -48,9 +49,10 @@ var (
 type bpfMapName = string
 
 const (
-	cudaEventsMap     bpfMapName = "cuda_events"
-	cudaAllocCacheMap bpfMapName = "cuda_alloc_cache"
-	cudaSyncCacheMap  bpfMapName = "cuda_sync_cache"
+	cudaEventsMap         bpfMapName = "cuda_events"
+	cudaAllocCacheMap     bpfMapName = "cuda_alloc_cache"
+	cudaSyncCacheMap      bpfMapName = "cuda_sync_cache"
+	cudaSetDeviceCacheMap bpfMapName = "cuda_set_device_cache"
 )
 
 // probeFuncName stores the ebpf hook function name
@@ -240,12 +242,9 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 		*/
 
 		Maps: []*manager.Map{
-			{
-				Name: cudaAllocCacheMap,
-			},
-			{
-				Name: cudaSyncCacheMap,
-			},
+			{Name: cudaAllocCacheMap},
+			{Name: cudaSyncCacheMap},
+			{Name: cudaSetDeviceCacheMap},
 		}})
 
 	if opts.MapSpecEditors == nil {

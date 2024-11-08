@@ -53,7 +53,8 @@ type systemContext struct {
 	// be modified by the CUDA_VISIBLE_DEVICES environment variable later
 	selectedDeviceByPIDAndTID map[int]map[int]int32
 
-	// gpuDevices is the list of GPU devices on the system
+	// gpuDevices is the list of GPU devices on the system. Needs to be present to
+	// be able to compute the visible devices for a process
 	gpuDevices []nvml.Device
 
 	// visibleDevicesCache is a cache of visible devices for each process, to avoid
@@ -208,6 +209,8 @@ func (ctx *systemContext) cleanupOldEntries() {
 	}
 }
 
+// getCurrentActiveGpuDevice returns the active GPU device for a given process and thread, based on the
+// last selection (via cudaSetDevice) this thread made and the visible devices for the process.
 func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int) (nvml.Device, error) {
 	visibleDevices, ok := ctx.visibleDevicesCache[pid]
 	if !ok {
@@ -237,6 +240,7 @@ func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int) (nvml.Devi
 	return visibleDevices[selectedDeviceIndex], nil
 }
 
+// setDeviceSelection sets the selected device index for a given process and thread.
 func (ctx *systemContext) setDeviceSelection(pid int, tid int, deviceIndex int32) {
 	if _, ok := ctx.selectedDeviceByPIDAndTID[pid]; !ok {
 		ctx.selectedDeviceByPIDAndTID[pid] = make(map[int]int32)
