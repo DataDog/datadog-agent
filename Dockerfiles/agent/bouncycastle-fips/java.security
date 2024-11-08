@@ -1391,4 +1391,5 @@ jdk.io.permissionsUseCanonicalPath=false
 # jdk.tls.alpnCharset=UTF-8
 jdk.tls.alpnCharset=ISO_8859_1
 
-
+# Force BouncyCastle to operate in approved-only mode.
+org.bouncycastle.fips.approved_only=true
