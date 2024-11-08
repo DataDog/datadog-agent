@@ -1,6 +1,0 @@
-lint_targets:
-- .
-- ./examples
-targets:
-- ./pkg/runner
-- ./pkg/utils/e2e/client

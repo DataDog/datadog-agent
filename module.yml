@@ -1,9 +1,0 @@
-independent: false
-lint_targets:
-- ./pkg
-- ./cmd
-- ./comp
-targets:
-- ./pkg
-- ./cmd
-- ./comp

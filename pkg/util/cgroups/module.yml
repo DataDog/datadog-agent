@@ -1,2 +1,0 @@
-condition: is_linux
-used_by_otel: true
