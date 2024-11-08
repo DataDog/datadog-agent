@@ -65,7 +65,7 @@ validate_modules:
 
 windows_validate_modules:
   stage: lint
-  needs: ["go_deps", "go_tools_deps"]
+  needs: []
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
     - $ErrorActionPreference = "Stop"
