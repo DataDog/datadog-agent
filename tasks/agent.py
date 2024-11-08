@@ -529,11 +529,11 @@ RUN apt-get update && \
     apt-get install -y patchelf
 
 COPY bin/agent/agent                            /opt/datadog-agent/bin/agent/agent
-COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
+COPY dev/lib/libdatadog-agent-rtloader.so.2 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.2
 COPY dev/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 
 RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/bin/agent/agent
-RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
+RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.2
 RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 
 FROM golang:latest AS dlv
@@ -560,7 +560,7 @@ COPY --from=dlv /go/bin/dlv /usr/local/bin/dlv
 COPY --from=bash_completion /etc/bash.bashrc /etc/bash.bashrc
 COPY --from=src /usr/src/datadog-agent {os.getcwd()}
 COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent
-COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
+COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.2 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.2
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 {copy_extra_agents}
 RUN agent          completion bash > /usr/share/bash-completion/completions/agent
