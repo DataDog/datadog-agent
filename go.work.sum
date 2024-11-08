@@ -3221,6 +3221,7 @@ github.com/google/go-pkcs11 v0.3.0/go.mod h1:6eQoGcuNJpa7jnd5pMGdkSaQpNDYvPlXWMc
 github.com/google/go-replayers/grpcreplay v1.1.0/go.mod h1:qzAvJ8/wi57zq7gWqaE6AwLM6miiXUQwP1S+I9icmhk=
 github.com/google/go-replayers/httpreplay v1.1.1/go.mod h1:gN9GeLIs7l6NUoVaSSnv2RiqK1NiwAmD0MrKeC9IIks=
 github.com/google/go-replayers/httpreplay v1.2.0/go.mod h1:WahEFFZZ7a1P4VM1qEeHy+tME4bwyqPcwWbNlUI1Mcg=
+github.com/google/licenseclassifier v0.0.0-20200402202327-879cb1424de0 h1:OggOMmdI0JLwg1FkOKH9S7fVHF0oEm8PX6S8kAdpOps=
 github.com/google/licenseclassifier v0.0.0-20200402202327-879cb1424de0/go.mod h1:qsqn2hxC+vURpyBRygGUuinTO42MFRLcsmQ/P8v94+M=
 github.com/google/martian v2.1.1-0.20190517191504-25dcb96d9e51+incompatible h1:xmapqc1AyLoB+ddYT6r04bD9lIjlOqGaREovi0SzFaE=
 github.com/google/martian/v3 v3.1.0/go.mod h1:y5Zk1BBys9G+gd6Jrk0W3cC1+ELVxBWuIGO+w/tUAp0=
