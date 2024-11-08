@@ -45,5 +45,7 @@ int main(int argc, char **argv) {
 
     fprintf(stderr, "Done!\n");
 
+    sleep(2);
+
     return 0;
 }
