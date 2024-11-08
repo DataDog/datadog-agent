@@ -73,8 +73,7 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 
 	probe := s.getProbe()
 
-	cmd, err := testutil.RunSample(t, testutil.CudaSample)
-	require.NoError(t, err)
+	cmd := testutil.RunSample(t, testutil.CudaSample)
 
 	utils.WaitForProgramsToBeTraced(t, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 
@@ -116,8 +115,7 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 
 	probe := s.getProbe()
 
-	cmd, err := testutil.RunSample(t, testutil.CudaSample)
-	require.NoError(t, err)
+	cmd := testutil.RunSample(t, testutil.CudaSample)
 
 	utils.WaitForProgramsToBeTraced(t, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 
@@ -126,7 +124,6 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	require.Eventually(t, func() bool {
 		return !utils.IsProgramTraced(gpuAttacherName, cmd.Process.Pid)
 	}, 20*time.Second, 500*time.Millisecond, "process not stopped")
-	require.NoError(t, err)
 
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
@@ -149,8 +146,9 @@ func (s *probeTestSuite) TestDetectsContainer() {
 
 	probe := s.getProbe()
 
-	pid, cid, err := testutil.RunSampleInDocker(t, testutil.CudaSample, testutil.MinimalDockerImage)
-	require.NoError(t, err)
+	args := testutil.GetDefaultArgs()
+	args.EndWaitTimeSec = 1
+	pid, cid := testutil.RunSampleInDockerWithArgs(t, testutil.CudaSample, testutil.MinimalDockerImage, args)
 
 	utils.WaitForProgramsToBeTraced(t, gpuAttacherName, pid, utils.ManualTracingFallbackDisabled)
 
@@ -159,7 +157,6 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	require.Eventually(t, func() bool {
 		return !utils.IsProgramTraced(gpuAttacherName, pid)
 	}, 20*time.Second, 500*time.Millisecond, "process not stopped")
-	require.NoError(t, err)
 
 	// Check that the stream handlers have the correct container ID assigned
 	for key, handler := range probe.consumer.streamHandlers {

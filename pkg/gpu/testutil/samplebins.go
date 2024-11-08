@@ -85,7 +85,8 @@ func getBuiltSamplePath(t *testing.T, sample SampleName) string {
 	return builtBin
 }
 
-func getDefaultArgs() SampleArgs {
+// GetDefaultArgs returns the default arguments for the sample binary
+func GetDefaultArgs() SampleArgs {
 	return SampleArgs{
 		StartWaitTimeSec: 5,
 		EndWaitTimeSec:   0,
@@ -117,11 +118,12 @@ func runCommandAndPipeOutput(t *testing.T, command []string, args SampleArgs, lo
 	return cmd
 }
 
+// RunSample executes the sample binary and returns the command. Cleanup is configured automatically
 func RunSample(t *testing.T, name SampleName) *exec.Cmd {
-	return RunSampleWithArgs(t, name, getDefaultArgs())
+	return RunSampleWithArgs(t, name, GetDefaultArgs())
 }
 
-// RunSample executes the sample binary and returns the command. Cleanup is configured automatically
+// RunSample executes the sample binary with args and returns the command. Cleanup is configured automatically
 func RunSampleWithArgs(t *testing.T, name SampleName, args SampleArgs) *exec.Cmd {
 	builtBin := getBuiltSamplePath(t, name)
 
@@ -130,7 +132,7 @@ func RunSampleWithArgs(t *testing.T, name SampleName, args SampleArgs) *exec.Cmd
 
 // RunSampleInDocker executes the sample binary in a Docker container and returns the PID of the main container process, and the container ID
 func RunSampleInDocker(t *testing.T, name SampleName, image DockerImage) (int, string) {
-	return RunSampleInDockerWithArgs(t, name, image, getDefaultArgs())
+	return RunSampleInDockerWithArgs(t, name, image, GetDefaultArgs())
 }
 
 // RunSampleInDockerWithArgs executes the sample binary in a Docker container and returns the PID of the main container process, and the container ID
