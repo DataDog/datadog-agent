@@ -3,6 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// The Tagger is the central source of truth for client-side entity tagging.
+// It subscribes to workloadmeta to get updates for all the entity kinds
+// (containers, kubernetes pods, kubernetes nodes, etc.) and extracts the tags for each of them.
+// Tags are then stored in memory (by the TagStore) and can be queried by the tagger.Tag()
+// method.
+
 // Package taggerimpl contains the implementation of the tagger component.
 package taggerimpl
 
@@ -364,6 +370,9 @@ func (t *TaggerWrapper) ResetCaptureTagger() {
 // NOTE(remy): it is not needed to sort/dedup the tags anymore since after the
 // enrichment, the metric and its tags is sent to the context key generator, which
 // is taking care of deduping the tags while generating the context key.
+// This function is dupliacted in the remote tagger `impl-remote`.
+// When modifying this function make sure to update the copy `impl-remote` as well.
+// TODO: extract this function to a share function so it can be used in both implementations
 func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
 	cardinality := taggerCardinality(originInfo.Cardinality, t.dogstatsdCardinality, t.log)
 

@@ -4,6 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package dualimpl contains the implementation of the dual tagger.
+// The dualimpl allow clients to use either the remote tagger or the local based on
+// their configuration
 package dualimpl
 
 import (

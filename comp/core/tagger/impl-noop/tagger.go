@@ -15,7 +15,6 @@ package noopimpl
 
 import (
 	"context"
-	"fmt"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
@@ -67,7 +66,7 @@ func (n *noopTagger) GetEntity(types.EntityID) (*types.Entity, error) {
 }
 
 func (n *noopTagger) Subscribe(string, *types.Filter) (types.Subscription, error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, nil
 }
 
 func (n *noopTagger) GetEntityHash(types.EntityID, types.TagCardinality) string {
