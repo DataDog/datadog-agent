@@ -259,7 +259,7 @@ def test(
     test_run_name="",
     save_result_json=None,
     rerun_fails=None,
-    go_mod="mod",
+    go_mod="readonly",
     junit_tar="",
     only_modified_packages=False,
     only_impacted_packages=False,

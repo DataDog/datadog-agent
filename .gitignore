@@ -187,7 +187,7 @@ pkg/network/netlink/testdata/message_dump*
 cscope.out
 
 # Go workspace until we have proper support in the tooling
-go.work*
+# go.work*
 
 tools/windows/DatadogAgentInstaller/.vs/
 tools/windows/DatadogAgentInstaller/packages/
