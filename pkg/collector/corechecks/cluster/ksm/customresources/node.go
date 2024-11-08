@@ -10,14 +10,11 @@ package customresources
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/dynamic"
+	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/component-base/metrics"
@@ -25,19 +22,21 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 var descNodeLabelsDefaultLabels = []string{"node"}
 
 // NewExtendedNodeFactory returns a new Node metric family generator factory.
-func NewExtendedNodeFactory(client *dynamic.DynamicClient) customresource.RegistryFactory {
+func NewExtendedNodeFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &extendedNodeFactory{
-		client: client,
+		client: client.Cl,
 	}
 }
 
 type extendedNodeFactory struct {
-	client *dynamic.DynamicClient
+	client clientset.Interface
 }
 
 // Name is the name of the factory
@@ -46,11 +45,7 @@ func (f *extendedNodeFactory) Name() string {
 }
 
 func (f *extendedNodeFactory) CreateClient(_ *rest.Config) (interface{}, error) {
-	return f.client.Resource(schema.GroupVersionResource{
-		Group:    v1.GroupName,
-		Version:  v1.SchemeGroupVersion.Version,
-		Resource: "nodes",
-	}), nil
+	return f.client, nil
 }
 
 // MetricFamilyGenerators returns the extended node metric family generators
@@ -108,11 +103,7 @@ func (f *extendedNodeFactory) customResourceGenerator(resources v1.ResourceList)
 
 func wrapNodeFunc(f func(*v1.Node) *metric.Family) func(interface{}) *metric.Family {
 	return func(obj interface{}) *metric.Family {
-		node := &v1.Node{}
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(*unstructured.Unstructured).Object, node); err != nil {
-			log.Warnf("cannot decode object %q into v1.Node, err=%s, skipping", obj.(*unstructured.Unstructured).Object["apiVersion"], err)
-			return nil
-		}
+		node := obj.(*v1.Node)
 
 		metricFamily := f(node)
 
@@ -126,23 +117,26 @@ func wrapNodeFunc(f func(*v1.Node) *metric.Family) func(interface{}) *metric.Fam
 
 // ExpectedType returns the type expected by the factory
 func (f *extendedNodeFactory) ExpectedType() interface{} {
-	u := unstructured.Unstructured{}
-	u.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind("Node"))
-	return &u
+	return &v1.Node{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Node",
+			APIVersion: v1.SchemeGroupVersion.String(),
+		},
+	}
 }
 
 // ListWatch returns a ListerWatcher for v1.Node
 func (f *extendedNodeFactory) ListWatch(customResourceClient interface{}, _ string, fieldSelector string) cache.ListerWatcher {
-	client := customResourceClient.(dynamic.ResourceInterface)
+	client := customResourceClient.(clientset.Interface)
 	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.List(ctx, opts)
+			return client.CoreV1().Nodes().List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.Watch(ctx, opts)
+			return client.CoreV1().Nodes().Watch(ctx, opts)
 		},
 	}
 }
