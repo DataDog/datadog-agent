@@ -117,8 +117,9 @@ type EBPFProbe struct {
 	cancelFnc context.CancelFunc
 	wg        sync.WaitGroup
 
-	// TC Classifier
-	newTCNetDevices chan model.NetDevice
+	// TC Classifier & raw packets
+	newTCNetDevices           chan model.NetDevice
+	rawPacketFilterCollection *lib.Collection
 
 	// Ring
 	eventStream EventStream
@@ -360,14 +361,22 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 		return err
 	}
 
-	fields := rs.GetFieldValues("packet.filter")
-
-	var filters []string
-	for _, field := range fields {
-		filters = append(filters, field.Value.(string))
+	var rawPacketFilters []probes.RawPacketFilter
+	for id, rule := range rs.GetRules() {
+		for _, field := range rule.GetFieldValues("packet.filter") {
+			rawPacketFilters = append(rawPacketFilters, probes.RawPacketFilter{
+				RuleID:    id,
+				BPFFilter: field.Value.(string),
+			})
+		}
 	}
 
-	colSpec, err := probes.GetRawPacketTCFilterCollectionSpec(rawPacketEventMap.FD(), routerMap.FD(), filters)
+	// unload the previews one
+	if p.rawPacketFilterCollection != nil {
+		p.rawPacketFilterCollection.Close()
+	}
+
+	colSpec, err := probes.GetRawPacketTCFilterCollectionSpec(rawPacketEventMap.FD(), routerMap.FD(), rawPacketFilters)
 	if err != nil {
 		return err
 	}
@@ -376,6 +385,7 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 	if err != nil {
 		return fmt.Errorf("failed to load program: %w", err)
 	}
+	p.rawPacketFilterCollection = col
 
 	if len(col.Programs) == 0 {
 		return nil
@@ -1498,6 +1508,10 @@ func (p *EBPFProbe) Close() error {
 
 	// we wait until both the reorderer and the monitor are stopped
 	p.wg.Wait()
+
+	if p.rawPacketFilterCollection != nil {
+		p.rawPacketFilterCollection.Close()
+	}
 
 	ddebpf.RemoveNameMappings(p.Manager)
 	ebpftelemetry.UnregisterTelemetry(p.Manager)

@@ -17,8 +17,11 @@ import (
 	"github.com/cloudflare/cbpfc"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
+	"github.com/hashicorp/go-multierror"
 	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // GetTCProbes returns the list of TCProbes
@@ -88,12 +91,31 @@ const (
 	RawPacketCaptureSize = 256
 )
 
-type rawPacketProgOpts struct {
+// RawPacketProgOpts defines options
+type RawPacketProgOpts struct {
 	*cbpfc.EBPFOpts
 	sendEventLabel string
 }
 
-func bpfFilterToInsts(index int, filter string, opts rawPacketProgOpts) (asm.Instructions, error) {
+// DefaultRawPacketProgOpts default options
+var DefaultRawPacketProgOpts = RawPacketProgOpts{
+	EBPFOpts: &cbpfc.EBPFOpts{
+		PacketStart: asm.R1,
+		PacketEnd:   asm.R2,
+		Result:      asm.R3,
+		Working: [4]asm.Register{
+			asm.R4,
+			asm.R5,
+			asm.R6,
+			asm.R7,
+		},
+		StackOffset: 16, // adapt using the stack size used outside of the filter itself, ex: map_lookup
+	},
+	sendEventLabel: "send-event",
+}
+
+// BPFFilterToInsts compile a bpf filter expression
+func BPFFilterToInsts(index int, filter string, opts RawPacketProgOpts) (asm.Instructions, error) {
 	pcapBPF, err := pcap.CompileBPFFilter(layers.LinkTypeEthernet, 256, filter)
 	if err != nil {
 		return nil, err
@@ -103,8 +125,11 @@ func bpfFilterToInsts(index int, filter string, opts rawPacketProgOpts) (asm.Ins
 		bpfInsts[i] = bpf.RawInstruction{Op: ri.Code, Jt: ri.Jt, Jf: ri.Jf, K: ri.K}.Disassemble()
 	}
 
-	// make a copy so that we can modify the labels
-	cbpfcOpts := *opts.EBPFOpts
+	var cbpfcOpts cbpfc.EBPFOpts
+	if opts.EBPFOpts != nil {
+		// make a copy so that we can modify the labels
+		cbpfcOpts = *opts.EBPFOpts
+	}
 	cbpfcOpts.LabelPrefix = fmt.Sprintf("cbpfc-%d-", index)
 	cbpfcOpts.ResultLabel = fmt.Sprintf("check-result-%d", index)
 
@@ -121,8 +146,34 @@ func bpfFilterToInsts(index int, filter string, opts rawPacketProgOpts) (asm.Ins
 	return insts, nil
 }
 
+func rawPacketFiltersToInsts(rawPacketfilters []RawPacketFilter, opts RawPacketProgOpts) (asm.Instructions, *multierror.Error) {
+	var (
+		insts asm.Instructions
+		mErr  *multierror.Error
+	)
+
+	for i, rawPacketfilter := range rawPacketfilters {
+		filterInsts, err := BPFFilterToInsts(i, rawPacketfilter.BPFFilter, opts)
+		if err != nil {
+			mErr = multierror.Append(mErr, fmt.Errorf("unable to generate eBPF bitcode for rule `%s`: %s", rawPacketfilter.RuleID, err))
+			continue
+		}
+		insts = append(insts, filterInsts...)
+	}
+
+	return insts, mErr
+}
+
+// RawPacketFilter defines a raw packet filter
+type RawPacketFilter struct {
+	RuleID    eval.RuleID
+	BPFFilter string
+}
+
 // GetRawPacketTCFilterCollectionSpec returns a first tc filter
-func GetRawPacketTCFilterCollectionSpec(rawPacketEventMapFd, clsRouterMapFd int, filters []string) (*ebpf.CollectionSpec, error) {
+func GetRawPacketTCFilterCollectionSpec(rawPacketEventMapFd, clsRouterMapFd int, rawpPacketFilters []RawPacketFilter) (*ebpf.CollectionSpec, error) {
+	var mErr *multierror.Error
+
 	const (
 		ctxReg = asm.R9
 
@@ -131,21 +182,7 @@ func GetRawPacketTCFilterCollectionSpec(rawPacketEventMapFd, clsRouterMapFd int,
 		dataOffset = 164
 	)
 
-	opts := rawPacketProgOpts{
-		EBPFOpts: &cbpfc.EBPFOpts{
-			PacketStart: asm.R1,
-			PacketEnd:   asm.R2,
-			Result:      asm.R3,
-			Working: [4]asm.Register{
-				asm.R4,
-				asm.R5,
-				asm.R6,
-				asm.R7,
-			},
-			StackOffset: 16, // adapt using the stack size used outside of the filter itself, ex: map_lookup
-		},
-		sendEventLabel: "send-event",
-	}
+	opts := DefaultRawPacketProgOpts
 
 	// save ctx
 	insts := asm.Instructions{
@@ -172,14 +209,12 @@ func GetRawPacketTCFilterCollectionSpec(rawPacketEventMapFd, clsRouterMapFd int,
 		asm.Add.Imm(opts.PacketEnd, dataSize),
 	)
 
-	// load all the filters
-	for i, filter := range filters {
-		filterInsts, err := bpfFilterToInsts(i, filter, opts)
-		if err != nil {
-			return nil, err
-		}
-		insts = append(insts, filterInsts...)
+	// compile and convert
+	filterInsts, err := rawPacketFiltersToInsts(rawpPacketFilters, DefaultRawPacketProgOpts)
+	if err.ErrorOrNil() != nil {
+		mErr = multierror.Append(mErr, err)
 	}
+	insts = append(insts, filterInsts...)
 
 	// none of the filter matched
 	insts = append(insts,
@@ -206,7 +241,7 @@ func GetRawPacketTCFilterCollectionSpec(rawPacketEventMapFd, clsRouterMapFd int,
 		},
 	}
 
-	return colSpec, nil
+	return colSpec, mErr.ErrorOrNil()
 }
 
 // GetAllTCProgramFunctions returns the list of TC classifier sections
