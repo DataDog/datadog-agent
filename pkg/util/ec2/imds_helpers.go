@@ -33,11 +33,11 @@ const (
 	imdsV2
 )
 
-func (v ec2IMDSVersionConfig) enableV2() bool {
+func (v ec2IMDSVersionConfig) V2Allowed() bool {
 	return v == imdsAllVersions || v == imdsV2
 }
 
-func (v ec2IMDSVersionConfig) forceV2() bool {
+func (v ec2IMDSVersionConfig) V2Only() bool {
 	return v == imdsV2
 }
 
@@ -94,23 +94,23 @@ func useIMDSv2() ec2IMDSVersionConfig {
 func doHTTPRequest(ctx context.Context, url string, allowedIMDSVersions ec2IMDSVersionConfig, updateMetadataSource bool) (string, error) {
 	source := metadataSourceIMDSv1
 	headers := map[string]string{}
-	if allowedIMDSVersions.enableV2() {
+	if allowedIMDSVersions.V2Allowed() {
 		tokenValue, err := token.Get(ctx)
 		if err != nil {
-			if allowedIMDSVersions.forceV2() {
+			if allowedIMDSVersions.V2Only() {
 				return "", fmt.Errorf("could not fetch token from IMDSv2")
 			}
 			log.Warnf("ec2_prefer_imdsv2 is set to true in the configuration but the agent was unable to proceed: %s", err)
 		} else {
 			headers["X-aws-ec2-metadata-token"] = tokenValue
-			if !allowedIMDSVersions.forceV2() {
+			if !allowedIMDSVersions.V2Only() {
 				source = metadataSourceIMDSv2
 			}
 		}
 	}
 	res, err := httputils.Get(ctx, url, headers, time.Duration(pkgconfigsetup.Datadog().GetInt("ec2_metadata_timeout"))*time.Millisecond, pkgconfigsetup.Datadog())
 	// We don't want to register the source when we force imdsv2
-	if err == nil && !allowedIMDSVersions.forceV2() && updateMetadataSource {
+	if err == nil && !allowedIMDSVersions.V2Only() && updateMetadataSource {
 		setCloudProviderSource(source)
 	}
 	return res, err
