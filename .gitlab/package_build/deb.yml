@@ -63,9 +63,8 @@ agent_deb-x64-a6:
 agent_deb-arm64-a6:
   extends: .agent_build_common_deb
   rules:
-    - !reference [.on_all_builds]
-    - !reference [.on_packaging_change]
-    - !reference [.on_go-version_change]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
