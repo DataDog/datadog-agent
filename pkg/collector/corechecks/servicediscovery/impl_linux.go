@@ -53,7 +53,7 @@ func newLinuxImpl(ignoreCfg map[string]bool, containerProvider proccontainers.Co
 }
 
 func getDiscoveryServices(client *http.Client) (*model.ServicesResponse, error) {
-	url := sysprobeclient.URL(sysconfig.DiscoveryModule, "/services")
+	url := sysprobeclient.ModuleURL(sysconfig.DiscoveryModule, "/services")
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err

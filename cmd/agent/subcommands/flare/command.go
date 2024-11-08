@@ -256,15 +256,10 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 			},
 		}
 
-		//if !errors.Is(probeUtilErr, procnet.ErrNotImplemented) {
 		sysProbeGet := func() pprofGetter {
 			return func(path string) ([]byte, error) {
-				//if probeUtilErr != nil {
-				//	return nil, probeUtilErr
-				//}
-
 				var buf bytes.Buffer
-				pprofURL := sysprobeclient.URL("", "/debug/pprof"+path)
+				pprofURL := sysprobeclient.DebugURL("/pprof" + path)
 				req, err := http.NewRequest(http.MethodGet, pprofURL, &buf)
 				if err != nil {
 					return nil, err
@@ -281,7 +276,6 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 		}
 
 		agentCollectors["system-probe"] = serviceProfileCollector(sysProbeGet(), seconds)
-		//}
 	}
 
 	var errs error

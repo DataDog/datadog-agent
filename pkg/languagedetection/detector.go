@@ -171,7 +171,7 @@ func detectLanguage(client *http.Client, pids []int32) ([]languagemodels.Languag
 		return nil, err
 	}
 
-	url := sysprobeclient.URL(sysconfig.LanguageDetectionModule, "/detect")
+	url := sysprobeclient.ModuleURL(sysconfig.LanguageDetectionModule, "/detect")
 	req, err := http.NewRequest(http.MethodGet, url, bytes.NewBuffer(reqBytes))
 	if err != nil {
 		return nil, err

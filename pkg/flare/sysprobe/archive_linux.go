@@ -19,7 +19,7 @@ import (
 // GetSystemProbeConntrackCached queries conntrack/cached, which uses our conntracker implementation (typically ebpf)
 // to return the list of NAT'd connections
 func GetSystemProbeConntrackCached(client *http.Client) ([]byte, error) {
-	url := sysprobeclient.URL(sysconfig.NetworkTracerModule, "/debug/conntrack/cached")
+	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/debug/conntrack/cached")
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func GetSystemProbeConntrackCached(client *http.Client) ([]byte, error) {
 
 // GetSystemProbeConntrackHost queries conntrack/host, which uses netlink to return the list of NAT'd connections
 func GetSystemProbeConntrackHost(client *http.Client) ([]byte, error) {
-	url := sysprobeclient.URL(sysconfig.NetworkTracerModule, "/debug/conntrack/host")
+	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/debug/conntrack/host")
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -71,7 +71,7 @@ func GetSystemProbeConntrackHost(client *http.Client) ([]byte, error) {
 
 // GetSystemProbeBTFLoaderInfo queries ebpf_btf_loader_info which gets where the BTF data came from
 func GetSystemProbeBTFLoaderInfo(client *http.Client) ([]byte, error) {
-	url := sysprobeclient.URL("", "/debug/ebpf_btf_loader_info")
+	url := sysprobeclient.DebugURL("/ebpf_btf_loader_info")
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err

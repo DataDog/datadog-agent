@@ -200,7 +200,7 @@ func (c *ConnectionsCheck) Cleanup() {
 }
 
 func (c *ConnectionsCheck) register() error {
-	url := sysprobeclient.URL(sysconfig.NetworkTracerModule, "/register") + "?client_id=" + ProcessAgentClientID
+	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/register") + "?client_id=" + ProcessAgentClientID
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return err
@@ -218,7 +218,7 @@ func (c *ConnectionsCheck) register() error {
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
-	url := sysprobeclient.URL(sysconfig.NetworkTracerModule, "/connections") + "?client_id=" + ProcessAgentClientID
+	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/connections") + "?client_id=" + ProcessAgentClientID
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err

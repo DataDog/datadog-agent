@@ -9,6 +9,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -32,7 +33,7 @@ func init() {
 
 // ValidateSocketAddress validates that the sysprobe socket config option is of the correct format.
 func ValidateSocketAddress(sockAddress string) error {
-	if !strings.StartsWith(sockAddress, `\\.\pipe\`) {
+	if !strings.HasPrefix(sockAddress, `\\.\pipe\`) {
 		return fmt.Errorf(`named pipe must be of the form '\\.\pipe\<pipename>'`)
 	}
 	return nil

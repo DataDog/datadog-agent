@@ -50,7 +50,7 @@ func (p *LinuxPinger) Ping(host string) (*Result, error) {
 }
 
 func getPing(client *http.Client, clientID string, host string, count int, interval time.Duration, timeout time.Duration) (*Result, error) {
-	url := sysprobeclient.URL(sysconfig.PingModule, fmt.Sprintf("/ping/%s", host)) + fmt.Sprintf("?client_id=%s&count=%d&interval=%d&timeout=%d", clientID, count, interval, timeout)
+	url := sysprobeclient.ModuleURL(sysconfig.PingModule, fmt.Sprintf("/ping/%s", host)) + fmt.Sprintf("?client_id=%s&count=%d&interval=%d&timeout=%d", clientID, count, interval, timeout)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
