@@ -8,9 +8,12 @@
 package testutil
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -39,6 +42,36 @@ const (
 	MinimalDockerImage DockerImage = "alpine:3.20.3"
 )
 
+type SampleArgs struct {
+	// StartWaitTimeSec represents the time in seconds to wait before the binary starting the CUDA calls
+	StartWaitTimeSec int
+
+	// EndWaitTimeSec represents the time in seconds to wait before the binary stops after making the CUDA calls
+	// This is necessary because the mock CUDA calls are instant, which means that the binary will exit before the
+	// eBPF probe has a chance to read the events and inspect the binary. To make the behavior of the sample binary
+	// more predictable and avoid flakiness in the tests, we introduce a delay before the binary exits.
+	EndWaitTimeSec int
+}
+
+func (a *SampleArgs) getCLIArgs() []string {
+	return []string{
+		strconv.Itoa(int(a.StartWaitTimeSec)),
+		strconv.Itoa(int(a.EndWaitTimeSec)),
+	}
+}
+
+// redirectReaderToLog reads from the reader and logs the output with the given prefix
+func redirectReaderToLog(r io.Reader, prefix string) {
+	go func() {
+		scanner := bufio.NewScanner(r)
+		for scanner.Scan() {
+			log.Debugf("%s: %s", prefix, scanner.Text())
+		}
+		// Automatically exits when the scanner reaches EOF, that is, when the command finishes
+	}()
+}
+
+// RunSampleWithArgs executes the sample binary and returns the command. Cleanup is configured automatically
 func getBuiltSamplePath(t *testing.T, sample SampleName) string {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
@@ -52,43 +85,67 @@ func getBuiltSamplePath(t *testing.T, sample SampleName) string {
 	return builtBin
 }
 
-// RunSample executes the sample binary and returns the command. Cleanup is configured automatically
-func RunSample(t *testing.T, name SampleName) (*exec.Cmd, error) {
-	builtBin := getBuiltSamplePath(t, name)
-
-	log.Debugf("Running sample binary %s with command %v", name, builtBin)
-	cmd := exec.Command(builtBin)
-	t.Cleanup(func() {
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-	})
-	err := cmd.Start()
-	require.NoError(t, err)
-
-	return cmd, nil
+func getDefaultArgs() SampleArgs {
+	return SampleArgs{
+		StartWaitTimeSec: 5,
+		EndWaitTimeSec:   0,
+	}
 }
 
-// RunSampleInDocker executes the sample binary in a Docker container and returns the PID of the main container process, and the container ID
-func RunSampleInDocker(t *testing.T, name SampleName, image DockerImage) (int, string, error) {
-	builtBin := getBuiltSamplePath(t, name)
-	containerName := fmt.Sprintf("gpu-testutil-%s", utils.RandString(10))
-	mountArg := fmt.Sprintf("%s:%s", builtBin, builtBin)
+func runCommandAndPipeOutput(t *testing.T, command []string, args SampleArgs, logName string) *exec.Cmd {
+	command = append(command, args.getCLIArgs()...)
 
-	command := []string{"docker", "run", "--rm", "-v", mountArg, "--name", containerName, string(image), builtBin}
-
-	log.Debugf("Running sample binary %s with command %v", name, command)
 	cmd := exec.Command(command[0], command[1:]...)
 	t.Cleanup(func() {
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
 		}
 	})
-	err := cmd.Start()
+
+	stdout, err := cmd.StdoutPipe()
 	require.NoError(t, err)
+	stderr, err := cmd.StderrPipe()
+	require.NoError(t, err)
+
+	redirectReaderToLog(stdout, fmt.Sprintf("%s stdout", logName))
+	redirectReaderToLog(stderr, fmt.Sprintf("%s stderr", logName))
+
+	log.Debugf("Running command %v", command)
+	err = cmd.Start()
+	require.NoError(t, err)
+
+	return cmd
+}
+
+func RunSample(t *testing.T, name SampleName) *exec.Cmd {
+	return RunSampleWithArgs(t, name, getDefaultArgs())
+}
+
+// RunSample executes the sample binary and returns the command. Cleanup is configured automatically
+func RunSampleWithArgs(t *testing.T, name SampleName, args SampleArgs) *exec.Cmd {
+	builtBin := getBuiltSamplePath(t, name)
+
+	return runCommandAndPipeOutput(t, []string{builtBin}, args, string(name))
+}
+
+// RunSampleInDocker executes the sample binary in a Docker container and returns the PID of the main container process, and the container ID
+func RunSampleInDocker(t *testing.T, name SampleName, image DockerImage) (int, string) {
+	return RunSampleInDockerWithArgs(t, name, image, getDefaultArgs())
+}
+
+// RunSampleInDockerWithArgs executes the sample binary in a Docker container and returns the PID of the main container process, and the container ID
+func RunSampleInDockerWithArgs(t *testing.T, name SampleName, image DockerImage, args SampleArgs) (int, string) {
+	builtBin := getBuiltSamplePath(t, name)
+	containerName := fmt.Sprintf("gpu-testutil-%s", utils.RandString(10))
+	mountArg := fmt.Sprintf("%s:%s", builtBin, builtBin)
+
+	command := []string{"docker", "run", "--rm", "-v", mountArg, "--name", containerName, string(image), builtBin}
+
+	_ = runCommandAndPipeOutput(t, command, args, string(name))
 
 	var dockerPID int64
 	var dockerContainerID string
+	var err error
 	// The docker container might take a bit to start, so we retry until we get the PID
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		dockerPID, err = prototestutil.GetDockerPID(containerName)
@@ -102,5 +159,5 @@ func RunSampleInDocker(t *testing.T, name SampleName, image DockerImage) (int, s
 
 	log.Debugf("Sample binary %s running in Docker container %s (CID=%s) with PID %d", name, containerName, dockerContainerID, dockerPID)
 
-	return int(dockerPID), dockerContainerID, nil
+	return int(dockerPID), dockerContainerID
 }
