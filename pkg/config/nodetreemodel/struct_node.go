@@ -33,7 +33,7 @@ func (n *structNodeImpl) GetChild(key string) (Node, error) {
 	if inner.Kind() == reflect.Interface {
 		inner = inner.Elem()
 	}
-	return NewNode(inner.Interface(), model.SourceDefault)
+	return NewNodeTree(inner.Interface(), model.SourceDefault)
 }
 
 func (n *structNodeImpl) HasChild(name string) bool {

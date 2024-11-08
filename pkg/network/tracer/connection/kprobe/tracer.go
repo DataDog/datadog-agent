@@ -126,7 +126,7 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 		var m *manager.Manager
 		var closeFn func()
 		if err == nil {
-			m, closeFn, err = coreTracerLoader(cfg, mgrOpts, connCloseEventHandler, failedConnsHandler)
+			m, closeFn, err = coreTracerLoader(cfg, mgrOpts, connCloseEventHandler)
 			// if it is a verifier error, bail always regardless of
 			// whether a fallback is enabled in config
 			var ve *ebpf.VerifierError
@@ -147,7 +147,7 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 	}
 
 	if cfg.EnableRuntimeCompiler && (!cfg.EnableCORE || cfg.AllowRuntimeCompiledFallback) {
-		m, closeFn, err := rcTracerLoader(cfg, mgrOpts, connCloseEventHandler, failedConnsHandler)
+		m, closeFn, err := rcTracerLoader(cfg, mgrOpts, connCloseEventHandler)
 		if err == nil {
 			return m, closeFn, TracerTypeRuntimeCompiled, err
 		}
@@ -174,9 +174,9 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 	return m, closeFn, TracerTypePrebuilt, err
 }
 
-func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
 	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, &ebpftelemetry.ErrorsTelemetryModifier{})
-	if err := initManager(m, connCloseEventHandler, failedConnsHandler, runtimeTracer, config); err != nil {
+	if err := initManager(m, connCloseEventHandler, runtimeTracer, config); err != nil {
 		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)
 	}
 	ringbufferEnabled := false
@@ -274,7 +274,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	return m.Manager, closeProtocolClassifierSocketFilterFn, nil
 }
 
-func loadCORETracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+func loadCORETracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
 	var m *manager.Manager
 	var closeFn func()
 	var err error
@@ -285,21 +285,21 @@ func loadCORETracer(config *config.Config, mgrOpts manager.Options, connCloseEve
 		o.DefaultKprobeAttachMethod = mgrOpts.DefaultKprobeAttachMethod
 		o.DefaultKProbeMaxActive = mgrOpts.DefaultKProbeMaxActive
 		o.BypassEnabled = mgrOpts.BypassEnabled
-		m, closeFn, err = tracerLoaderFromAsset(ar, false, true, config, o, connCloseEventHandler, failedConnsHandler)
+		m, closeFn, err = tracerLoaderFromAsset(ar, false, true, config, o, connCloseEventHandler)
 		return err
 	})
 
 	return m, closeFn, err
 }
 
-func loadRuntimeCompiledTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+func loadRuntimeCompiledTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
 	buf, err := getRuntimeCompiledTracer(config)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer buf.Close()
 
-	return tracerLoaderFromAsset(buf, true, false, config, mgrOpts, connCloseEventHandler, failedConnsHandler)
+	return tracerLoaderFromAsset(buf, true, false, config, mgrOpts, connCloseEventHandler)
 }
 
 func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
@@ -318,7 +318,7 @@ func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connClos
 		config.CollectUDPv6Conns = false
 	}
 
-	return tracerLoaderFromAsset(buf, false, false, config, mgrOpts, connCloseEventHandler, nil)
+	return tracerLoaderFromAsset(buf, false, false, config, mgrOpts, connCloseEventHandler)
 }
 
 func isCORETracerSupported() error {

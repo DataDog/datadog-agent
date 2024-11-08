@@ -8,7 +8,6 @@
 package tests
 
 import (
-	"os/exec"
 	"testing"
 	"time"
 
@@ -19,32 +18,77 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-func TestSnapshotReplay(t *testing.T) {
+func TestSnapshot(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	ruleDef := &rules.RuleDefinition{
-		ID:         "test_rule_snapshot_replay",
-		Expression: "exec.comm in [\"testsuite\"]",
-	}
+	t.Run("host-event", func(t *testing.T) {
+		ruleDefs := []*rules.RuleDefinition{
+			{
+				ID:         "test_rule_snapshot_host",
+				Expression: `exec.comm in ["testsuite"]`,
+			},
+		}
 
-	gotEvent := atomic.NewBool(false)
+		gotEvent := atomic.NewBool(false)
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, withStaticOpts(testOpts{
-		snapshotRuleMatchHandler: func(testMod *testModule, e *model.Event, r *rules.Rule) {
-			assertTriggeredRule(t, r, "test_rule_snapshot_replay")
-			testMod.validateExecSchema(t, e)
-			gotEvent.Store(true)
-		},
-	}))
+		test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
+			snapshotRuleMatchHandler: func(testMod *testModule, e *model.Event, r *rules.Rule) {
+				assertTriggeredRule(t, r, "test_rule_snapshot_host")
+				testMod.validateExecSchema(t, e)
+				gotEvent.Store(true)
+			},
+		}))
 
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer test.Close()
 
-	if _, err := exec.Command("echo", "hello", "world").CombinedOutput(); err != nil {
-		t.Fatal(err)
-	}
+		assert.Eventually(t, func() bool { return gotEvent.Load() }, 10*time.Second, 100*time.Millisecond, "didn't get the event from snapshot")
+	})
 
-	assert.Eventually(t, func() bool { return gotEvent.Load() }, 10*time.Second, 100*time.Millisecond, "didn't get the event from snapshot")
+	t.Run("container-event", func(t *testing.T) {
+		ruleDefs := []*rules.RuleDefinition{
+			{
+				ID:         "test_rule_snapshot_container",
+				Expression: `exec.comm in ["sleep"] && process.argv in ["123"] && container.id != ""`,
+			},
+		}
+
+		dockerWrapper, err := newDockerCmdWrapper("/tmp", "/tmp", "ubuntu", "")
+		if err != nil {
+			t.Skip("Skipping created time in containers tests: Docker not available")
+			return
+		}
+
+		if _, err := dockerWrapper.start(); err != nil {
+			t.Fatal(err)
+		}
+		defer dockerWrapper.stop()
+
+		go func() {
+			cmd := dockerWrapper.Command("sh", []string{"-c", "sleep 123"}, nil)
+			_ = cmd.Run()
+		}()
+
+		// wait a bit so that the command is running and captured by the snapshot
+		time.Sleep(2 * time.Second)
+
+		gotEvent := atomic.NewBool(false)
+
+		test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
+			snapshotRuleMatchHandler: func(testMod *testModule, e *model.Event, r *rules.Rule) {
+				assertTriggeredRule(t, r, "test_rule_snapshot_container")
+				testMod.validateExecSchema(t, e)
+				gotEvent.Store(true)
+			},
+		}))
+
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer test.Close()
+
+		assert.Eventually(t, func() bool { return gotEvent.Load() }, 10*time.Second, 100*time.Millisecond, "didn't get the event from snapshot")
+	})
 }
