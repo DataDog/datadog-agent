@@ -26,7 +26,7 @@ func Setup(ctx context.Context, env *env.Env) error {
 	for _, url := range defaultPackages {
 		err = cmd.Install(ctx, url, nil)
 		if err != nil {
-			return fmt.Errorf("failed to install package %s: %v\n", url, err)
+			return fmt.Errorf("failed to install package %s: %w", url, err)
 		}
 	}
 	return nil
