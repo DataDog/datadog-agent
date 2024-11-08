@@ -26,7 +26,7 @@ func (t *dummyModifier) String() string {
 }
 
 // BeforeInit adds the patchPrintkNewline function to the manager
-func (t *dummyModifier) BeforeInit(_ *manager.Manager, _ names.ModuleName, _ *manager.Options, _ io.ReaderAt) error {
+func (t *dummyModifier) BeforeInit(_ *manager.Manager, _ names.ModuleName, _ *manager.Options) error {
 	return nil
 }
 
