@@ -1,4 +1,4 @@
-//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=readonlydonlydonlydonly -no_std_marshalers -build_tags linux $GOFILE
+//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=readonly -no_std_marshalers -build_tags linux $GOFILE
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.

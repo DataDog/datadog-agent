@@ -124,11 +124,11 @@ def deps_vendored(ctx, verbose=False):
     """
 
     print("vendoring dependencies")
-    with timed("go mod vendor"):
+    with timed("go work vendor"):
         verbosity = ' -v' if verbose else ''
 
-        ctx.run(f"go mod vendor{verbosity}")
-        ctx.run(f"go mod tidy{verbosity}")
+        ctx.run(f"go work vendor{verbosity}")
+        ctx.run(f"go worktidy{verbosity}")
 
         # "go mod vendor" doesn't copy files that aren't in a package: https://github.com/golang/go/issues/26366
         # This breaks when deps include other files that are needed (eg: .java files from gomobile): https://github.com/golang/go/issues/43736
