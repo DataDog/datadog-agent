@@ -17,6 +17,7 @@ import (
 	"go.uber.org/multierr"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
@@ -48,12 +49,12 @@ func readConfigSection(cfg config.Reader, section string) *confmap.Conf {
 	//
 	// `GetStringMap` it will fail to cast `interface{}` nil to
 	// `map[string]interface{}` nil; we use `Get` and cast manually.
-	rawVal := cfg.Get(section)
 	stringMap := map[string]interface{}{}
-	if val, ok := rawVal.(map[string]interface{}); ok {
-		// deep copy since `cfg.Get` returns a reference
-		stringMap = deepcopy.Copy(val).(map[string]interface{})
-	}
+	// NOTE: causes non-deterministic behavior in confmap.NewFromStringMap, don't do this!
+	//if val, ok := rawVal.(map[string]interface{}); ok {
+	//	// deep copy since `cfg.Get` returns a reference
+	//	stringMap = deepcopy.Copy(val).(map[string]interface{})
+	//}
 
 	// Step two works around https://github.com/spf13/viper/issues/1012
 	// we check every key manually, and if it belongs to the OTLP receiver section,
@@ -110,7 +111,27 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
 func IsEnabled(cfg config.Reader) bool {
-	return hasSection(cfg, coreconfig.OTLPReceiverSubSectionKey)
+	receiverOptions := []string{
+		coreconfig.OTLPReceiverSection,
+		coreconfig.OTLPReceiverGRPCEndpoint,
+		coreconfig.OTLPReceiverGRPCTransport,
+		coreconfig.OTLPReceiverGRPCMaxRecvMsgSize,
+		coreconfig.OTLPReceiverGRPCMaxConcurrentStreams,
+		coreconfig.OTLPReceiverGRPCReadBufferSize,
+		coreconfig.OTLPReceiverGRPCWriteBufferSize,
+		coreconfig.OTLPReceiverGRPCIncludeMetadata,
+		coreconfig.OTLPReceiverHTTPEndpoint,
+		coreconfig.OTLPReceiverHTTPMaxRequestBodySize,
+		coreconfig.OTLPReceiverHTTPIncludeMetadata,
+	}
+	for _, opt := range receiverOptions {
+		fmt.Println(opt)
+		fmt.Println(cfg.GetSource(opt))
+		if src := cfg.GetSource(opt).String(); src != model.SourceDefault.String() && src != model.SourceUnknown.String() {
+			return true
+		}
+	}
+	return false
 }
 
 // HasLogsSectionEnabled checks if OTLP logs are explicitly enabled in a given config.

@@ -11,20 +11,32 @@ import (
 
 // OTLP configuration paths.
 const (
-	OTLPSection               = "otlp_config"
-	OTLPTracesSubSectionKey   = "traces"
-	OTLPTracePort             = OTLPSection + "." + OTLPTracesSubSectionKey + ".internal_port"
-	OTLPTracesEnabled         = OTLPSection + "." + OTLPTracesSubSectionKey + ".enabled"
-	OTLPLogsSubSectionKey     = "logs"
-	OTLPLogsEnabled           = OTLPSection + "." + OTLPLogsSubSectionKey + ".enabled"
-	OTLPReceiverSubSectionKey = "receiver"
-	OTLPReceiverSection       = OTLPSection + "." + OTLPReceiverSubSectionKey
-	OTLPMetricsSubSectionKey  = "metrics"
-	OTLPMetrics               = OTLPSection + "." + OTLPMetricsSubSectionKey
-	OTLPMetricsEnabled        = OTLPSection + "." + OTLPMetricsSubSectionKey + ".enabled"
-	OTLPTagCardinalityKey     = OTLPMetrics + ".tag_cardinality"
-	OTLPDebugKey              = "debug"
-	OTLPDebug                 = OTLPSection + "." + OTLPDebugKey
+	OTLPSection                          = "otlp_config"
+	OTLPTracesSubSectionKey              = "traces"
+	OTLPTracePort                        = OTLPSection + "." + OTLPTracesSubSectionKey + ".internal_port"
+	OTLPTracesEnabled                    = OTLPSection + "." + OTLPTracesSubSectionKey + ".enabled"
+	OTLPLogsSubSectionKey                = "logs"
+	OTLPLogsEnabled                      = OTLPSection + "." + OTLPLogsSubSectionKey + ".enabled"
+	OTLPReceiverSubSectionKey            = "receiver"
+	OTLPReceiverSection                  = OTLPSection + "." + OTLPReceiverSubSectionKey
+	OTLPReceiverGRPCSection              = OTLPReceiverSection + ".protocols.grpc"
+	OTLPReceiverGRPCEndpoint             = OTLPReceiverGRPCSection + ".endpoint"
+	OTLPReceiverGRPCTransport            = OTLPReceiverGRPCSection + ".transport"
+	OTLPReceiverGRPCMaxRecvMsgSize       = OTLPReceiverGRPCSection + ".max_recv_msg_size_mib"
+	OTLPReceiverGRPCMaxConcurrentStreams = OTLPReceiverGRPCSection + ".max_concurrent_streams"
+	OTLPReceiverGRPCReadBufferSize       = OTLPReceiverGRPCSection + ".read_buffer_size"
+	OTLPReceiverGRPCWriteBufferSize      = OTLPReceiverGRPCSection + ".write_buffer_size"
+	OTLPReceiverGRPCIncludeMetadata      = OTLPReceiverGRPCSection + ".include_metadata"
+	OTLPReceiverHTTPSection              = OTLPReceiverSection + ".protocols.http"
+	OTLPReceiverHTTPEndpoint             = OTLPReceiverHTTPSection + ".endpoint"
+	OTLPReceiverHTTPMaxRequestBodySize   = OTLPReceiverHTTPSection + ".max_request_body_size"
+	OTLPReceiverHTTPIncludeMetadata      = OTLPReceiverHTTPSection + ".include_metadata"
+	OTLPMetricsSubSectionKey             = "metrics"
+	OTLPMetrics                          = OTLPSection + "." + OTLPMetricsSubSectionKey
+	OTLPMetricsEnabled                   = OTLPSection + "." + OTLPMetricsSubSectionKey + ".enabled"
+	OTLPTagCardinalityKey                = OTLPMetrics + ".tag_cardinality"
+	OTLPDebugKey                         = "debug"
+	OTLPDebug                            = OTLPSection + "." + OTLPDebugKey
 )
 
 // OTLP related configuration.
@@ -61,34 +73,34 @@ func OTLP(config pkgconfigmodel.Setup) {
 // We are missing TLS settings: since some of them need more work to work right they are not included here.
 func setupOTLPEnvironmentVariables(config pkgconfigmodel.Setup) {
 	// gRPC settings
-	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.endpoint")
-	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.transport")
-	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.max_recv_msg_size_mib")
-	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.max_concurrent_streams")
-	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.read_buffer_size")
-	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.write_buffer_size")
-	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.include_metadata")
+	config.BindEnv(OTLPReceiverGRPCEndpoint)
+	config.BindEnv(OTLPReceiverGRPCTransport)
+	config.BindEnvAndSetDefault(OTLPReceiverGRPCMaxRecvMsgSize, 4)
+	config.BindEnvAndSetDefault(OTLPReceiverGRPCMaxConcurrentStreams, 0)
+	config.BindEnvAndSetDefault(OTLPReceiverGRPCReadBufferSize, 0)
+	config.BindEnvAndSetDefault(OTLPReceiverGRPCWriteBufferSize, 0)
+	config.BindEnvAndSetDefault(OTLPReceiverGRPCIncludeMetadata, false)
 
 	// Traces settings
 	config.BindEnvAndSetDefault("otlp_config.traces.span_name_remappings", map[string]string{})
-	config.BindEnv("otlp_config.traces.span_name_as_resource_name")
+	config.BindEnvAndSetDefault("otlp_config.traces.span_name_as_resource_name", false)
 	config.BindEnvAndSetDefault("otlp_config.traces.probabilistic_sampler.sampling_percentage", 100.,
 		"DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
 
 	// HTTP settings
-	config.BindEnv(OTLPSection + ".receiver.protocols.http.endpoint")
-	config.BindEnv(OTLPSection + ".receiver.protocols.http.max_request_body_size")
-	config.BindEnv(OTLPSection + ".receiver.protocols.http.include_metadata")
+	config.BindEnv(OTLPReceiverHTTPEndpoint)
+	config.BindEnvAndSetDefault(OTLPReceiverHTTPMaxRequestBodySize, 0)
+	config.BindEnvAndSetDefault(OTLPReceiverHTTPIncludeMetadata, false)
 
 	// Metrics settings
-	config.BindEnv(OTLPSection + ".metrics.delta_ttl")
-	config.BindEnv(OTLPSection + ".metrics.resource_attributes_as_tags")
-	config.BindEnv(OTLPSection + ".metrics.instrumentation_library_metadata_as_tags")
-	config.BindEnv(OTLPSection + ".metrics.instrumentation_scope_metadata_as_tags")
+	config.BindEnvAndSetDefault(OTLPSection+".metrics.delta_ttl", 3600)
+	config.BindEnvAndSetDefault(OTLPSection+".metrics.resource_attributes_as_tags", false)
+	config.BindEnvAndSetDefault(OTLPSection+".metrics.instrumentation_library_metadata_as_tags", false)
+	config.BindEnvAndSetDefault(OTLPSection+".metrics.instrumentation_scope_metadata_as_tags", false)
 	config.BindEnv(OTLPSection + ".metrics.tag_cardinality")
 	config.BindEnv(OTLPSection + ".metrics.histograms.mode")
-	config.BindEnv(OTLPSection + ".metrics.histograms.send_count_sum_metrics")
-	config.BindEnv(OTLPSection + ".metrics.histograms.send_aggregation_metrics")
+	config.BindEnvAndSetDefault(OTLPSection+".metrics.histograms.send_count_sum_metrics", false)
+	config.BindEnvAndSetDefault(OTLPSection+".metrics.histograms.send_aggregation_metrics", false)
 	config.BindEnv(OTLPSection + ".metrics.sums.cumulative_monotonic_mode")
 	config.BindEnv(OTLPSection + ".metrics.sums.initial_cumulative_monotonic_value")
 	config.BindEnv(OTLPSection + ".metrics.summaries.mode")
