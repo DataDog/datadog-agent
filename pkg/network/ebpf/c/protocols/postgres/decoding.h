@@ -108,6 +108,23 @@ static int __always_inline skip_string(pktbuf_t pkt, int message_len) {
     return SKIP_STRING_FAILED;
 }
 
+// Return a pointer to the postgres telemetry record in the corresponding map.
+static __always_inline void* get_pg_msg_counts_map(pktbuf_t pkt) {
+    const __u32 zero = 0;
+
+    pktbuf_map_lookup_option_t pg_telemetry_lookup_opt[] = {
+        [PKTBUF_SKB] = {
+            .map = &postgres_plain_msg_count,
+            .key = (void*)&zero,
+        },
+        [PKTBUF_TLS] = {
+            .map = &postgres_tls_msg_count,
+            .key = (void*)&zero,
+        },
+    };
+    return pktbuf_map_lookup(pkt, pg_telemetry_lookup_opt);
+}
+
 // Reads the first message header and decides what to do based on the
 // message tag. If the message is a new query, it stores the query in the in-flight map.
 // If the message is a parse message, we tail call to the dedicated process_parse_message program.
@@ -199,9 +216,10 @@ static __always_inline void postgres_handle_parse_message(pktbuf_t pkt, conn_tup
 // This function handles multiple messages within a single packet, processing up to POSTGRES_MAX_MESSAGES_PER_TAIL_CALL
 // messages per call. When more messages exist beyond this limit, it uses tail call chaining (up to
 // POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES) to continue processing.
-static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tuple) {
+static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tuple, postgres_kernel_msg_count_t* pg_msg_counts) {
     const __u32 zero = 0;
     bool found_command_complete = false;
+    bool found_end_of_packet = false;
     struct pg_message_header header;
 
     postgres_tail_call_state_t *iteration_value = bpf_map_lookup_elem(&postgres_iterations, &zero);
@@ -214,7 +232,7 @@ static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tupl
         return 0;
     }
 
-    if (iteration_value->data_off != 0) {
+   if (iteration_value->data_off != 0) {
         pktbuf_set_offset(pkt, iteration_value->data_off);
     }
 
@@ -225,9 +243,11 @@ static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tupl
         return 0;
     }
 
+    __u8 messages_count = 0;
 #pragma unroll(POSTGRES_MAX_MESSAGES_PER_TAIL_CALL)
-    for (__u32 iteration = 0; iteration < POSTGRES_MAX_MESSAGES_PER_TAIL_CALL; ++iteration) {
+    for (; messages_count < POSTGRES_MAX_MESSAGES_PER_TAIL_CALL; ++messages_count) {
         if (!read_message_header(pkt, &header)) {
+            found_end_of_packet = true;
             break;
         }
         if (header.message_tag == POSTGRES_COMMAND_COMPLETE_MAGIC_BYTE) {
@@ -241,18 +261,23 @@ static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tupl
         pktbuf_advance(pkt, header.message_len + 1);
     }
 
-    if (found_command_complete) {
+    if (found_command_complete || (iteration_value->iteration == (POSTGRES_MAX_MESSAGES_PER_TAIL_CALL - 1))) {
+        // save messages counter in bucket, completion was found or this is the last iteration.
+        __u16 total_count = (iteration_value->iteration * POSTGRES_MAX_MESSAGES_PER_TAIL_CALL) + (__u16)messages_count;
+        __u8 bucket_idx = total_count / PG_KERNEL_MSG_COUNT_BUCKET_SIZE;
+        bucket_idx = (bucket_idx >= PG_KERNEL_MSG_COUNT_NUM_BUCKETS) ? (PG_KERNEL_MSG_COUNT_NUM_BUCKETS - 1) : bucket_idx;
+        __sync_fetch_and_add(&pg_msg_counts->pg_messages_count_buckets[bucket_idx], 1);
+
+        // stop iterating.
+        return 0;
+    }
+    if (found_end_of_packet) {
         return 0;
     }
     // We didn't find a command complete message, so we need to continue processing the packet.
     // We save the current data offset and increment the iteration counter.
     iteration_value->iteration += 1;
     iteration_value->data_off = pktbuf_data_offset(pkt);
-
-    // If the maximum number of tail calls has been reached, we can skip invoking the next tail call.
-    if (iteration_value->iteration >= POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES) {
-        return 0;
-    }
 
     pktbuf_tail_call_option_t handle_response_tail_call_array[] = {
         [PKTBUF_SKB] = {
@@ -315,7 +340,11 @@ int socket__postgres_handle_response(struct __sk_buff* skb) {
     normalize_tuple(&conn_tuple);
 
     pktbuf_t pkt = pktbuf_from_skb(skb, &skb_info);
-    handle_response(pkt, conn_tuple);
+    postgres_kernel_msg_count_t* pg_msg_counts = get_pg_msg_counts_map(pkt);
+    if (pg_msg_counts == NULL) {
+        return 0;
+    }
+    handle_response(pkt, conn_tuple, pg_msg_counts);
     return 0;
 }
 
@@ -406,10 +435,15 @@ int uprobe__postgres_tls_handle_response(struct pt_regs *ctx) {
         return 0;
     }
 
+    pktbuf_t pkt = pktbuf_from_tls(ctx, args);
+    postgres_kernel_msg_count_t* pg_msg_counts = get_pg_msg_counts_map(pkt);
+    if (pg_msg_counts == NULL) {
+        return 0;
+    }
+
     // Copying the tuple to the stack to handle verifier issues on kernel 4.14.
     conn_tuple_t tup = args->tup;
-    pktbuf_t pkt = pktbuf_from_tls(ctx, args);
-    handle_response(pkt, tup);
+    handle_response(pkt, tup, pg_msg_counts);
     return 0;
 }
 

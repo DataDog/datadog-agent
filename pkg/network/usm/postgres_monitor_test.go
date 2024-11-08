@@ -16,8 +16,10 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/jackc/pgx/v5/pgproto3"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -889,4 +891,144 @@ func createFragment(fragment []byte) [ebpf.BufferSize]byte {
 	var b [ebpf.BufferSize]byte
 	copy(b[:], fragment)
 	return b
+}
+
+func (s *postgresProtocolParsingSuite) TestKernelTelemetry() {
+	t := s.T()
+	tests := []struct {
+		name  string
+		isTLS bool
+	}{
+		{
+			name:  "without TLS",
+			isTLS: false,
+		},
+		{
+			name:  "with TLS",
+			isTLS: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, config.New()) {
+				t.Skip("GoTLS not supported for this setup")
+			}
+			testKernelMessagesCount(t, tt.isTLS)
+		})
+	}
+}
+
+// testKernelMessagesCount check postgres kernel messages count.
+func testKernelMessagesCount(t *testing.T, isTLS bool) {
+	serverHost := "127.0.0.1"
+	serverAddress := net.JoinHostPort(serverHost, postgresPort)
+	require.NoError(t, postgres.RunServer(t, serverHost, postgresPort, isTLS))
+	waitForPostgresServer(t, serverAddress, isTLS)
+
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
+	if isTLS {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid(), utils.ManualTracingFallbackEnabled)
+	}
+	pgClient := setupPGClient(t, serverAddress, isTLS)
+	defer func() {
+		_ = pgClient.RunQuery(dropTableQuery)
+		if pgClient != nil {
+			pgClient.Close()
+			pgClient = nil
+		}
+	}()
+
+	createLargeTable(t, pgClient, ebpf.MsgCountBucketSize*ebpf.MsgCountNumBuckets)
+	expectedBuckets := [ebpf.MsgCountNumBuckets]bool{}
+
+	for i := 0; i < ebpf.MsgCountNumBuckets; i++ {
+		testName := fmt.Sprintf("kernel messages count bucket[%d]", i)
+		t.Run(testName, func(t *testing.T) {
+
+			expectedBuckets[i] = true
+			cleanProtocolMaps(t, "postgres", monitor.ebpfProgram.Manager.Manager)
+
+			require.NoError(t, monitor.Resume())
+			runQueryForBucket(t, pgClient, i*ebpf.MsgCountBucketSize)
+			require.NoError(t, monitor.Pause())
+
+			validateKernel(t, monitor, isTLS, expectedBuckets)
+			expectedBuckets[i] = false
+		})
+	}
+}
+
+func setupPGClient(t *testing.T, serverAddress string, isTLS bool) *postgres.PGXClient {
+	pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+		ServerAddress: serverAddress,
+		EnableTLS:     isTLS,
+	})
+	require.NoError(t, err)
+	require.NoError(t, pg.Ping())
+	return pg
+}
+
+// createLargeTable It runs a postgres query to create a table large enough to retrieve long responses later.
+func createLargeTable(t *testing.T, pg *postgres.PGXClient, tableValuesCount int) {
+	require.NoError(t, pg.RunQuery(createTableQuery))
+	require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(0, tableValuesCount)...)))
+}
+
+// runQueryForBucket The client sends a SELECT query to postgres with the specified SQL row limit of <N>.
+// For each SELECT request of <N> rows, the TCP response packet from Postgres is expected to contain
+//
+//	4 + <N> postgres messages in the format:
+//
+// "Bind completion", "Row description", "data row" 1...N, "command completion", "ready for query".
+func runQueryForBucket(t *testing.T, pg *postgres.PGXClient, limitCount int) {
+	require.NoError(t, pg.RunQuery(generateSelectLimitQuery(limitCount)))
+}
+
+// validateKernel Checking telemetry data received for a postgres query
+func validateKernel(t *testing.T, monitor *Monitor, tls bool, expected [ebpf.MsgCountNumBuckets]bool) {
+	var actual *ebpf.PostgresKernelMsgCount
+	assert.Eventually(t, func() bool {
+		found, err := getKernelTelemetry(monitor, tls)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		actual = found
+		return compareMessagesCount(found, expected)
+	}, time.Second*2, time.Millisecond*100)
+	if t.Failed() {
+		t.Logf("\nexpected telemetry:\n %+v;\nactual telemetry:\n %+v", expected, actual)
+	}
+}
+
+// getKernelTelemetry returns statistics obtained from the kernel
+func getKernelTelemetry(monitor *Monitor, isTLS bool) (*ebpf.PostgresKernelMsgCount, error) {
+	pgKernelTelemetry := &ebpf.PostgresKernelMsgCount{}
+	var zero uint32
+
+	mapName := postgres.KernelTelemetryMapPlain
+	if isTLS {
+		mapName = postgres.KernelTelemetryMapTLS
+	}
+	mp, _, err := monitor.ebpfProgram.GetMap(mapName)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get %q map: %s", mapName, err)
+	}
+	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(pgKernelTelemetry)); err != nil {
+		return nil, fmt.Errorf("unable to lookup %q map: %s", mapName, err)
+	}
+	return pgKernelTelemetry, nil
+}
+
+// compareMessagesCount returns true if the expected bucket is non-empty
+// The first bucket is expected to have 4 - 6 hits,
+// in another buckets there may be 1 or 2 hits
+func compareMessagesCount(found *ebpf.PostgresKernelMsgCount, expected [ebpf.MsgCountNumBuckets]bool) bool {
+	for i := range expected {
+		if expected[i] && found.Messages_count_buckets[i] == 0 {
+			return false
+		}
+		if !expected[i] && found.Messages_count_buckets[i] > 0 {
+			return false
+		}
+	}
+	return true
 }

@@ -9,6 +9,7 @@ package postgres
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/cihub/seelog"
 
@@ -177,4 +178,62 @@ func (t *Telemetry) Log() {
 	if log.ShouldLog(seelog.DebugLvl) {
 		log.Debugf("postgres stats summary: %s", t.metricGroup.Summary())
 	}
+}
+
+// kernelTelemetry  provides empirical kernel statistics about the number of messages in each TCP packet
+type kernelTelemetry struct {
+	metricGroup       *libtelemetry.MetricGroup
+	msgCountBuckets   [ebpf.MsgCountNumBuckets]*libtelemetry.TLSAwareCounter // Postgres messages counters divided into buckets
+	msgCountPlainPrev ebpf.PostgresKernelMsgCount                            // the last observed counters of plain messages
+	msgCountTlsPrev   ebpf.PostgresKernelMsgCount                            // the last observed counters of TLS messages
+}
+
+// newKernelTelemetry this is the Postgres message counter store.
+func newKernelTelemetry() *kernelTelemetry {
+	metricGroup := libtelemetry.NewMetricGroup("usm.postgres", libtelemetry.OptStatsd)
+	kernelTel := &kernelTelemetry{
+		metricGroup: metricGroup,
+	}
+	kernelTel.createBuckets(metricGroup)
+
+	return kernelTel
+}
+
+// createBuckets creates metric counter for each kernel telemetry bucket.
+func (t *kernelTelemetry) createBuckets(metricGroup *libtelemetry.MetricGroup) {
+	for i := range t.msgCountBuckets {
+		t.msgCountBuckets[i] = libtelemetry.NewTLSAwareCounter(metricGroup, "messages_count_bucket_"+(strconv.Itoa(i+1)))
+	}
+}
+
+// update the Postgres message counter store with new counters from the kernel, return immediately if nothing to add.
+func (t *kernelTelemetry) update(kernCounts *ebpf.PostgresKernelMsgCount, isTLS bool) {
+	if kernCounts == nil {
+		return
+	}
+	if isEmpty(kernCounts) {
+		log.Debugf("postgres kernel telemetry empty.")
+		return
+	}
+
+	for i := range t.msgCountBuckets {
+		v := kernCounts.Messages_count_buckets[i]
+		t.msgCountBuckets[i].Set(int64(v), isTLS)
+	}
+	if isTLS {
+		t.msgCountTlsPrev = *kernCounts
+	} else {
+		t.msgCountPlainPrev = *kernCounts
+	}
+	s := t.metricGroup.Summary()
+	log.Debugf("postgres kernel telemetry, isTLS=%t, summary: %s", isTLS, s)
+}
+
+func isEmpty(p *ebpf.PostgresKernelMsgCount) bool {
+	for i := 0; i < ebpf.MsgCountNumBuckets; i++ {
+		if p.Messages_count_buckets[i] > 0 {
+			return false
+		}
+	}
+	return true
 }
