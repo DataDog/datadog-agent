@@ -577,6 +577,8 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv6() {
 	linkLocal, err := offsetguess.GetIPv6LinkLocalAddress()
 	require.NoError(t, err)
 
+	println(linkLocal[0].String())
+
 	remotePort := rand.Int()%5000 + 15000
 	remoteAddr := &net.UDPAddr{IP: net.ParseIP(offsetguess.InterfaceLocalMulticastIPv6), Port: remotePort}
 	conn, err := net.ListenUDP("udp6", linkLocal[0])
@@ -586,14 +588,21 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv6() {
 	bytesSent, err := conn.WriteTo(message, remoteAddr)
 	require.NoError(t, err)
 
-	connections := getConnections(t, tr)
-	outgoing := network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
-		return cs.DPort == uint16(remotePort)
-	})
+	println(remotePort)
 
-	require.Len(t, outgoing, 1)
-	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
-	assert.Equal(t, bytesSent, int(outgoing[0].Monotonic.SentBytes))
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		connections := getConnections(t, tr)
+		outgoing := network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
+			fmt.Printf("%+v\n", cs)
+			return cs.DPort == uint16(remotePort)
+		})
+		if !assert.Len(ct, outgoing, 1) {
+			return
+		}
+		assert.Equal(ct, remoteAddr.IP.String(), outgoing[0].Dest.String())
+		assert.Equal(ct, bytesSent, int(outgoing[0].Monotonic.SentBytes))
+	}, 3*time.Second, 100*time.Millisecond)
+
 }
 
 func (s *TracerSuite) TestGatewayLookupNotEnabled() {
@@ -1471,28 +1480,35 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	t.Logf("port: %d", assignedPort)
+
+	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
+		// use t instead of ct because getConnections uses require (not assert), and we get a better error message that way
+		connections := getConnections(t, tr)
+
+		incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		if assert.True(t, ok, "unable to find incoming connection") {
+			assert.Equal(t, network.INCOMING, incoming.Direction)
+
+			// make sure the inverse values are seen for the other message
+			assert.Equal(t, serverMessageSize, int(incoming.Monotonic.SentBytes), "incoming sent")
+			assert.Equal(t, clientMessageSize, int(incoming.Monotonic.RecvBytes), "incoming recv")
+			assert.True(t, incoming.IntraHost, "incoming intrahost")
+		}
+
+		outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		if assert.True(t, ok, "unable to find outgoing connection") {
+			assert.Equal(t, network.OUTGOING, outgoing.Direction)
+
+			assert.Equal(t, clientMessageSize, int(outgoing.Monotonic.SentBytes), "outgoing sent")
+			assert.Equal(t, serverMessageSize, int(outgoing.Monotonic.RecvBytes), "outgoing recv")
+			assert.True(t, outgoing.IntraHost, "outgoing intrahost")
+		}
+	}, 3*time.Second, 100*time.Millisecond)
+
+	// log the connections at the end in case the test failed
 	connections := getConnections(t, tr)
 	for _, c := range connections.Conns {
 		t.Log(c)
-	}
-
-	incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-	if assert.True(t, ok, "unable to find incoming connection") {
-		assert.Equal(t, network.INCOMING, incoming.Direction)
-
-		// make sure the inverse values are seen for the other message
-		assert.Equal(t, serverMessageSize, int(incoming.Monotonic.SentBytes), "incoming sent")
-		assert.Equal(t, clientMessageSize, int(incoming.Monotonic.RecvBytes), "incoming recv")
-		assert.True(t, incoming.IntraHost, "incoming intrahost")
-	}
-
-	outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	if assert.True(t, ok, "unable to find outgoing connection") {
-		assert.Equal(t, network.OUTGOING, outgoing.Direction)
-
-		assert.Equal(t, clientMessageSize, int(outgoing.Monotonic.SentBytes), "outgoing sent")
-		assert.Equal(t, serverMessageSize, int(outgoing.Monotonic.RecvBytes), "outgoing recv")
-		assert.True(t, outgoing.IntraHost, "outgoing intrahost")
 	}
 }
 
