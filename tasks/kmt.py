@@ -1175,7 +1175,7 @@ def test(
     packages=None,
     run: str | None = None,
     quick=False,
-    retry=2,
+    retry=0,
     run_count=1,
     ssh_key: str | None = None,
     verbose=True,
