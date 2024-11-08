@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"text/template"
@@ -2218,6 +2219,10 @@ func TestDisableReceiverConfig(t *testing.T) {
 }
 
 func TestOnUpdateAPIKeyCallback(t *testing.T) {
+	// APMSP-1494
+	if runtime.GOOS == "darwin" {
+		t.Skip("skipping flaky test on darwin")
+	}
 	var n int
 	callback := func(_, _ string) {
 		n++

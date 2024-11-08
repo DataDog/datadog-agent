@@ -1,10 +1,10 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.20.0 h1:e4XT2+v4vgZBCbp5JUbe0Z+PRegh+nsLMp4X+esht9E=
-github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.20.0/go.mod h1:66XlN7QpQKqIvw8e2UbCXV5X8wGnEw851nT9BjJ75dY=
-github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.20.0 h1:0OFAPO964qsj6BzKs/hbAkpO/IIHp7vN1klKrohzULA=
-github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.20.0/go.mod h1:IDaKpBfDtw8eWBLtXR14HB5dsXDxS4VRUR0OL5rlRT8=
+github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.21.0 h1:VS4NTqwczwezMVvI6A7xYR3ugPmMUJ4FcdFrsdnZI2I=
+github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.21.0/go.mod h1:66XlN7QpQKqIvw8e2UbCXV5X8wGnEw851nT9BjJ75dY=
+github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.21.0 h1:/Dp1WBvekdusS9Tw9pLE7RG04eluNktQ29arLS4SpGM=
+github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.21.0/go.mod h1:asNuwNy1O2HbadkcZVuqmFGonfEzXS/SBvOo8V1MJvQ=
 github.com/DataDog/sketches-go v1.4.4 h1:dF52vzXRFSPOj2IjXSWLvXq3jubL4CI69kwYjJ1w5Z8=
 github.com/DataDog/sketches-go v1.4.4/go.mod h1:XR0ns2RtEEF09mDKXiKZiQg+nfZStrq1ZuL1eezeZe0=
 github.com/DataDog/viper v1.13.5 h1:SZMcyMknYQN2jRY/40A16gUXexlNJOI8sDs1cWZnI64=

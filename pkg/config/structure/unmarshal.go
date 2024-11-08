@@ -63,7 +63,7 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 	if rawval == nil {
 		return nil
 	}
-	source, err := nodetreemodel.NewNode(rawval, cfg.GetSource(key))
+	source, err := nodetreemodel.NewNodeTree(rawval, cfg.GetSource(key))
 	if err != nil {
 		return err
 	}
@@ -77,8 +77,11 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 	case reflect.Struct:
 		return copyStruct(outValue, source, fs)
 	case reflect.Slice:
-		if arr, ok := source.(nodetreemodel.ArrayNode); ok {
-			return copyList(outValue, arr, fs)
+		if leaf, ok := source.(nodetreemodel.LeafNode); ok {
+			thing, _ := leaf.GetAny()
+			if arr, ok := thing.([]interface{}); ok {
+				return copyList(outValue, makeNodeArray(arr), fs)
+			}
 		}
 		if isEmptyString(source) {
 			if fs.convertEmptyStrNil {
@@ -234,22 +237,19 @@ func copyLeaf(target reflect.Value, source nodetreemodel.LeafNode, _ *featureSet
 	return fmt.Errorf("unsupported scalar type %v", target.Kind())
 }
 
-func copyList(target reflect.Value, source nodetreemodel.ArrayNode, fs *featureSet) error {
-	if source == nil {
+func copyList(target reflect.Value, sourceList []nodetreemodel.Node, fs *featureSet) error {
+	if sourceList == nil {
 		return fmt.Errorf("source value is not a list")
 	}
 	elemType := target.Type()
 	elemType = elemType.Elem()
-	numElems := source.Size()
+	numElems := len(sourceList)
 	results := reflect.MakeSlice(reflect.SliceOf(elemType), numElems, numElems)
 	for k := 0; k < numElems; k++ {
-		elemSource, err := source.Index(k)
-		if err != nil {
-			return err
-		}
+		elemSource := sourceList[k]
 		ptrOut := reflect.New(elemType)
 		outTarget := ptrOut.Elem()
-		err = copyAny(outTarget, elemSource, fs)
+		err := copyAny(outTarget, elemSource, fs)
 		if err != nil {
 			return err
 		}
@@ -275,14 +275,26 @@ func copyAny(target reflect.Value, source nodetreemodel.Node, fs *featureSet) er
 	} else if target.Kind() == reflect.Struct {
 		return copyStruct(target, source, fs)
 	} else if target.Kind() == reflect.Slice {
-		if arr, ok := source.(nodetreemodel.ArrayNode); ok {
-			return copyList(target, arr, fs)
+		if leaf, ok := source.(nodetreemodel.LeafNode); ok {
+			thing, _ := leaf.GetAny()
+			if arr, ok := thing.([]interface{}); ok {
+				return copyList(target, makeNodeArray(arr), fs)
+			}
 		}
 		return fmt.Errorf("can't copy into target: []T required, but source is not an array")
 	} else if target.Kind() == reflect.Invalid {
 		return fmt.Errorf("can't copy invalid value %s : %v", target, target.Kind())
 	}
 	return fmt.Errorf("unknown value to copy: %v", target.Type())
+}
+
+func makeNodeArray(vals []interface{}) []nodetreemodel.Node {
+	res := make([]nodetreemodel.Node, 0, len(vals))
+	for _, v := range vals {
+		node, _ := nodetreemodel.NewNodeTree(v, model.SourceUnknown)
+		res = append(res, node)
+	}
+	return res
 }
 
 func isEmptyString(source nodetreemodel.Node) bool {

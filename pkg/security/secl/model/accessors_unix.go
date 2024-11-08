@@ -60,6 +60,8 @@ func (m *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	switch field {
 	case "network.destination.ip":
 		return []eval.EventType{"dns", "imds"}
+	case "network.destination.is_public":
+		return []eval.EventType{"dns", "imds"}
 	case "network.destination.port":
 		return []eval.EventType{"dns", "imds"}
 	case "network.device.ifname":
@@ -71,6 +73,8 @@ func (m *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	case "network.size":
 		return []eval.EventType{"dns", "imds"}
 	case "network.source.ip":
+		return []eval.EventType{"dns", "imds"}
+	case "network.source.is_public":
 		return []eval.EventType{"dns", "imds"}
 	case "network.source.port":
 		return []eval.EventType{"dns", "imds"}
@@ -96,6 +100,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+		}, nil
+	case "bind.addr.is_public":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "bind.addr.port":
 		return &eval.IntEvaluator{
@@ -959,6 +972,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "connect.addr.is_public":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "connect.addr.port":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -994,6 +1016,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+		}, nil
+	case "connect.server.addr.is_public":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "connect.server.addr.port":
 		return &eval.IntEvaluator{
@@ -4111,6 +4142,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "network.destination.is_public":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Destination)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "network.destination.port":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -4164,6 +4204,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+		}, nil
+	case "network.source.is_public":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Source)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "network.source.port":
 		return &eval.IntEvaluator{
@@ -4502,6 +4551,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "packet.destination.is_public":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.RawPacket.NetworkContext.Destination)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "packet.destination.port":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -4565,6 +4623,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+		}, nil
+	case "packet.source.is_public":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.RawPacket.NetworkContext.Source)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "packet.source.port":
 		return &eval.IntEvaluator{
@@ -20547,6 +20614,7 @@ func (ev *Event) GetFields() []eval.Field {
 	return []eval.Field{
 		"bind.addr.family",
 		"bind.addr.ip",
+		"bind.addr.is_public",
 		"bind.addr.port",
 		"bind.retval",
 		"bpf.cmd",
@@ -20641,10 +20709,12 @@ func (ev *Event) GetFields() []eval.Field {
 		"chown.syscall.uid",
 		"connect.addr.family",
 		"connect.addr.ip",
+		"connect.addr.is_public",
 		"connect.addr.port",
 		"connect.retval",
 		"connect.server.addr.family",
 		"connect.server.addr.ip",
+		"connect.server.addr.is_public",
 		"connect.server.addr.port",
 		"container.created_at",
 		"container.id",
@@ -20963,12 +21033,14 @@ func (ev *Event) GetFields() []eval.Field {
 		"mprotect.retval",
 		"mprotect.vm_protection",
 		"network.destination.ip",
+		"network.destination.is_public",
 		"network.destination.port",
 		"network.device.ifname",
 		"network.l3_protocol",
 		"network.l4_protocol",
 		"network.size",
 		"network.source.ip",
+		"network.source.is_public",
 		"network.source.port",
 		"ondemand.arg1.str",
 		"ondemand.arg1.uint",
@@ -21006,6 +21078,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"open.syscall.mode",
 		"open.syscall.path",
 		"packet.destination.ip",
+		"packet.destination.is_public",
 		"packet.destination.port",
 		"packet.device.ifname",
 		"packet.filter",
@@ -21013,6 +21086,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"packet.l4_protocol",
 		"packet.size",
 		"packet.source.ip",
+		"packet.source.is_public",
 		"packet.source.port",
 		"packet.tls.version",
 		"process.ancestors.args",
@@ -21958,6 +22032,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Bind.AddrFamily), nil
 	case "bind.addr.ip":
 		return ev.Bind.Addr.IPNet, nil
+	case "bind.addr.is_public":
+		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr), nil
 	case "bind.addr.port":
 		return int(ev.Bind.Addr.Port), nil
 	case "bind.retval":
@@ -22150,6 +22226,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Connect.AddrFamily), nil
 	case "connect.addr.ip":
 		return ev.Connect.Addr.IPNet, nil
+	case "connect.addr.is_public":
+		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr), nil
 	case "connect.addr.port":
 		return int(ev.Connect.Addr.Port), nil
 	case "connect.retval":
@@ -22158,6 +22236,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Connect.AddrFamily), nil
 	case "connect.server.addr.ip":
 		return ev.Connect.Addr.IPNet, nil
+	case "connect.server.addr.is_public":
+		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr), nil
 	case "connect.server.addr.port":
 		return int(ev.Connect.Addr.Port), nil
 	case "container.created_at":
@@ -23010,6 +23090,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.MProtect.VMProtection, nil
 	case "network.destination.ip":
 		return ev.NetworkContext.Destination.IPNet, nil
+	case "network.destination.is_public":
+		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Destination), nil
 	case "network.destination.port":
 		return int(ev.NetworkContext.Destination.Port), nil
 	case "network.device.ifname":
@@ -23022,6 +23104,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.NetworkContext.Size), nil
 	case "network.source.ip":
 		return ev.NetworkContext.Source.IPNet, nil
+	case "network.source.is_public":
+		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Source), nil
 	case "network.source.port":
 		return int(ev.NetworkContext.Source.Port), nil
 	case "ondemand.arg1.str":
@@ -23096,6 +23180,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Open.SyscallContext), nil
 	case "packet.destination.ip":
 		return ev.RawPacket.NetworkContext.Destination.IPNet, nil
+	case "packet.destination.is_public":
+		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.RawPacket.NetworkContext.Destination), nil
 	case "packet.destination.port":
 		return int(ev.RawPacket.NetworkContext.Destination.Port), nil
 	case "packet.device.ifname":
@@ -23110,6 +23196,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.RawPacket.NetworkContext.Size), nil
 	case "packet.source.ip":
 		return ev.RawPacket.NetworkContext.Source.IPNet, nil
+	case "packet.source.is_public":
+		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.RawPacket.NetworkContext.Source), nil
 	case "packet.source.port":
 		return int(ev.RawPacket.NetworkContext.Source.Port), nil
 	case "packet.tls.version":
@@ -28650,6 +28738,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "bind", nil
 	case "bind.addr.ip":
 		return "bind", nil
+	case "bind.addr.is_public":
+		return "bind", nil
 	case "bind.addr.port":
 		return "bind", nil
 	case "bind.retval":
@@ -28838,6 +28928,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "connect", nil
 	case "connect.addr.ip":
 		return "connect", nil
+	case "connect.addr.is_public":
+		return "connect", nil
 	case "connect.addr.port":
 		return "connect", nil
 	case "connect.retval":
@@ -28845,6 +28937,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "connect.server.addr.family":
 		return "connect", nil
 	case "connect.server.addr.ip":
+		return "connect", nil
+	case "connect.server.addr.is_public":
 		return "connect", nil
 	case "connect.server.addr.port":
 		return "connect", nil
@@ -29482,6 +29576,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "mprotect", nil
 	case "network.destination.ip":
 		return "", nil
+	case "network.destination.is_public":
+		return "", nil
 	case "network.destination.port":
 		return "", nil
 	case "network.device.ifname":
@@ -29493,6 +29589,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "network.size":
 		return "", nil
 	case "network.source.ip":
+		return "", nil
+	case "network.source.is_public":
 		return "", nil
 	case "network.source.port":
 		return "", nil
@@ -29568,6 +29666,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "open", nil
 	case "packet.destination.ip":
 		return "packet", nil
+	case "packet.destination.is_public":
+		return "packet", nil
 	case "packet.destination.port":
 		return "packet", nil
 	case "packet.device.ifname":
@@ -29581,6 +29681,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "packet.size":
 		return "packet", nil
 	case "packet.source.ip":
+		return "packet", nil
+	case "packet.source.is_public":
 		return "packet", nil
 	case "packet.source.port":
 		return "packet", nil
@@ -31465,6 +31567,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "bind.addr.ip":
 		return reflect.Struct, nil
+	case "bind.addr.is_public":
+		return reflect.Bool, nil
 	case "bind.addr.port":
 		return reflect.Int, nil
 	case "bind.retval":
@@ -31653,6 +31757,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "connect.addr.ip":
 		return reflect.Struct, nil
+	case "connect.addr.is_public":
+		return reflect.Bool, nil
 	case "connect.addr.port":
 		return reflect.Int, nil
 	case "connect.retval":
@@ -31661,6 +31767,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "connect.server.addr.ip":
 		return reflect.Struct, nil
+	case "connect.server.addr.is_public":
+		return reflect.Bool, nil
 	case "connect.server.addr.port":
 		return reflect.Int, nil
 	case "container.created_at":
@@ -32297,6 +32405,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "network.destination.ip":
 		return reflect.Struct, nil
+	case "network.destination.is_public":
+		return reflect.Bool, nil
 	case "network.destination.port":
 		return reflect.Int, nil
 	case "network.device.ifname":
@@ -32309,6 +32419,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "network.source.ip":
 		return reflect.Struct, nil
+	case "network.source.is_public":
+		return reflect.Bool, nil
 	case "network.source.port":
 		return reflect.Int, nil
 	case "ondemand.arg1.str":
@@ -32383,6 +32495,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "packet.destination.ip":
 		return reflect.Struct, nil
+	case "packet.destination.is_public":
+		return reflect.Bool, nil
 	case "packet.destination.port":
 		return reflect.Int, nil
 	case "packet.device.ifname":
@@ -32397,6 +32511,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "packet.source.ip":
 		return reflect.Struct, nil
+	case "packet.source.is_public":
+		return reflect.Bool, nil
 	case "packet.source.port":
 		return reflect.Int, nil
 	case "packet.tls.version":
@@ -34293,6 +34409,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Bind.Addr.IPNet = rv
 		return nil
+	case "bind.addr.is_public":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Bind.Addr.IsPublic"}
+		}
+		ev.Bind.Addr.IsPublic = rv
+		return nil
 	case "bind.addr.port":
 		rv, ok := value.(int)
 		if !ok {
@@ -34959,6 +35082,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Connect.Addr.IPNet = rv
 		return nil
+	case "connect.addr.is_public":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.IsPublic"}
+		}
+		ev.Connect.Addr.IsPublic = rv
+		return nil
 	case "connect.addr.port":
 		rv, ok := value.(int)
 		if !ok {
@@ -34992,6 +35122,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.IPNet"}
 		}
 		ev.Connect.Addr.IPNet = rv
+		return nil
+	case "connect.server.addr.is_public":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.IsPublic"}
+		}
+		ev.Connect.Addr.IsPublic = rv
 		return nil
 	case "connect.server.addr.port":
 		rv, ok := value.(int)
@@ -37763,6 +37900,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.NetworkContext.Destination.IPNet = rv
 		return nil
+	case "network.destination.is_public":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Destination.IsPublic"}
+		}
+		ev.NetworkContext.Destination.IsPublic = rv
+		return nil
 	case "network.destination.port":
 		rv, ok := value.(int)
 		if !ok {
@@ -37813,6 +37957,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.IPNet"}
 		}
 		ev.NetworkContext.Source.IPNet = rv
+		return nil
+	case "network.source.is_public":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.IsPublic"}
+		}
+		ev.NetworkContext.Source.IsPublic = rv
 		return nil
 	case "network.source.port":
 		rv, ok := value.(int)
@@ -38075,6 +38226,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.RawPacket.NetworkContext.Destination.IPNet = rv
 		return nil
+	case "packet.destination.is_public":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RawPacket.NetworkContext.Destination.IsPublic"}
+		}
+		ev.RawPacket.NetworkContext.Destination.IsPublic = rv
+		return nil
 	case "packet.destination.port":
 		rv, ok := value.(int)
 		if !ok {
@@ -38132,6 +38290,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "RawPacket.NetworkContext.Source.IPNet"}
 		}
 		ev.RawPacket.NetworkContext.Source.IPNet = rv
+		return nil
+	case "packet.source.is_public":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RawPacket.NetworkContext.Source.IsPublic"}
+		}
+		ev.RawPacket.NetworkContext.Source.IsPublic = rv
 		return nil
 	case "packet.source.port":
 		rv, ok := value.(int)

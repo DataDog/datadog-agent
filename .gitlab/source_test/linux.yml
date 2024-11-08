@@ -50,11 +50,11 @@
 
 .upload_coverage:
   # Upload coverage files to Codecov. Never fail on coverage upload.
-  - CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CODECOV_TOKEN) || exit $?; export CODECOV_TOKEN
+  - CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CODECOV token) || exit $?; export CODECOV_TOKEN
   - inv -e coverage.upload-to-codecov $COVERAGE_CACHE_FLAG || true
 
 .linux_x64:
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
 
 tests_deb-x64-py3:
@@ -108,7 +108,7 @@ tests_rpm-x64-py3:
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     CONDA_ENV: ddpy3
@@ -121,7 +121,7 @@ tests_deb-arm64-py3:
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
     CONDA_ENV: ddpy3
@@ -133,7 +133,7 @@ tests_rpm-arm64-py3:
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
     CONDA_ENV: ddpy3

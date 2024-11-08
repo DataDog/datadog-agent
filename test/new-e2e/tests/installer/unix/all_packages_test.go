@@ -39,7 +39,7 @@ var (
 		e2eos.AmazonLinux2,
 		e2eos.Debian12,
 		e2eos.RedHat9,
-		e2eos.Fedora37,
+		e2eos.FedoraDefault,
 		e2eos.CentOS7,
 		e2eos.Suse15,
 	}
@@ -51,7 +51,7 @@ var (
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkipedFlavors{
 		{t: testInstaller},
 		{t: testAgent},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37, e2eos.Suse15}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.Suse15}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testUpgradeScenario},
 	}
 )
@@ -108,8 +108,7 @@ func TestPackages(t *testing.T) {
 			t.Run(suite.Name(), func(t *testing.T) {
 				t.Parallel()
 				// FIXME: Fedora currently has DNS issues
-				// Redhat 9 AMI currently not available incident-32072
-				if flavor.Flavor == e2eos.Fedora || flavor == e2eos.RedHat9 {
+				if flavor.Flavor == e2eos.Fedora {
 					flake.Mark(t)
 				}
 

@@ -58,8 +58,8 @@ type Config struct {
 	NVMLLibraryPath string
 }
 
-// NewConfig generates a new configuration for the GPU monitoring probe.
-func NewConfig() *Config {
+// New generates a new configuration for the GPU monitoring probe.
+func New() *Config {
 	spCfg := pkgconfigsetup.SystemProbe()
 	return &Config{
 		Config:                          *ebpf.NewConfig(),
