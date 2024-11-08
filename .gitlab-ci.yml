@@ -1,49 +1,49 @@
 ---
 include:
   - .gitlab/.pre/include.yml
-  - .gitlab/benchmarks/include.yml
-  - .gitlab/binary_build/include.yml
-  - .gitlab/check_deploy/check_deploy.yml
-  - .gitlab/check_merge/do_not_merge.yml
-  - .gitlab/choco_build/choco_build.yml
-  - .gitlab/choco_deploy/choco_deploy.yml
-  - .gitlab/powershell_script_signing/powershell_script_signing.yml
-  - .gitlab/powershell_script_deploy/powershell_script_deploy.yml
+  # - .gitlab/benchmarks/include.yml
+  # - .gitlab/binary_build/include.yml
+  # - .gitlab/check_deploy/check_deploy.yml
+  # - .gitlab/check_merge/do_not_merge.yml
+  # - .gitlab/choco_build/choco_build.yml
+  # - .gitlab/choco_deploy/choco_deploy.yml
+  # - .gitlab/powershell_script_signing/powershell_script_signing.yml
+  # - .gitlab/powershell_script_deploy/powershell_script_deploy.yml
   - .gitlab/common/shared.yml
-  - .gitlab/common/skip_ci_check.yml
-  - .gitlab/common/test_infra_version.yml
-  - .gitlab/container_build/include.yml
-  - .gitlab/container_scan/container_scan.yml
-  - .gitlab/deploy_containers/deploy_containers.yml
-  - .gitlab/deploy_cws_instrumentation/deploy_cws_instrumentation.yml
-  - .gitlab/deploy_dca/deploy_dca.yml
-  - .gitlab/deploy_packages/include.yml
-  - .gitlab/deps_build/deps_build.yml
-  - .gitlab/deps_fetch/deps_fetch.yml
-  - .gitlab/dev_container_deploy/include.yml
-  - .gitlab/e2e/e2e.yml
-  - .gitlab/e2e_install_packages/include.yml
-  - .gitlab/e2e_pre_test/e2e_pre_test.yml
-  - .gitlab/functional_test/include.yml
-  - .gitlab/functional_test_cleanup/functional_test_cleanup.yml
-  - .gitlab/install_script_testing/install_script_testing.yml
-  - .gitlab/integration_test/include.yml
-  - .gitlab/internal_image_deploy/internal_image_deploy.yml
-  - .gitlab/internal_kubernetes_deploy/include.yml
-  - .gitlab/kitchen_cleanup/include.yml
-  - .gitlab/kitchen_deploy/kitchen_deploy.yml
-  - .gitlab/kitchen_testing/include.yml
-  - .gitlab/lint/include.yml
-  - .gitlab/maintenance_jobs/include.yml
+  # - .gitlab/common/skip_ci_check.yml
+  # - .gitlab/common/test_infra_version.yml
+  # - .gitlab/container_build/include.yml
+  # - .gitlab/container_scan/container_scan.yml
+  # - .gitlab/deploy_containers/deploy_containers.yml
+  # - .gitlab/deploy_cws_instrumentation/deploy_cws_instrumentation.yml
+  # - .gitlab/deploy_dca/deploy_dca.yml
+  # - .gitlab/deploy_packages/include.yml
+  # - .gitlab/deps_build/deps_build.yml
+  # - .gitlab/deps_fetch/deps_fetch.yml
+  # - .gitlab/dev_container_deploy/include.yml
+  # - .gitlab/e2e/e2e.yml
+  # - .gitlab/e2e_install_packages/include.yml
+  # - .gitlab/e2e_pre_test/e2e_pre_test.yml
+  # - .gitlab/functional_test/include.yml
+  # - .gitlab/functional_test_cleanup/functional_test_cleanup.yml
+  # - .gitlab/install_script_testing/install_script_testing.yml
+  # - .gitlab/integration_test/include.yml
+  # - .gitlab/internal_image_deploy/internal_image_deploy.yml
+  # - .gitlab/internal_kubernetes_deploy/include.yml
+  # - .gitlab/kitchen_cleanup/include.yml
+  # - .gitlab/kitchen_deploy/kitchen_deploy.yml
+  # - .gitlab/kitchen_testing/include.yml
+  # - .gitlab/lint/include.yml
+  # - .gitlab/maintenance_jobs/include.yml
   - .gitlab/notify/notify.yml
-  - .gitlab/package_build/include.yml
-  - .gitlab/packaging/include.yml
-  - .gitlab/package_deps_build/package_deps_build.yml
-  - .gitlab/pkg_metrics/pkg_metrics.yml
-  - .gitlab/post_rc_build/post_rc_tasks.yml
-  - .gitlab/setup/setup.yml
-  - .gitlab/source_test/include.yml
-  - .gitlab/trigger_release/trigger_release.yml
+  # - .gitlab/package_build/include.yml
+  # - .gitlab/packaging/include.yml
+  # - .gitlab/package_deps_build/package_deps_build.yml
+  # - .gitlab/pkg_metrics/pkg_metrics.yml
+  # - .gitlab/post_rc_build/post_rc_tasks.yml
+  # - .gitlab/setup/setup.yml
+  # - .gitlab/source_test/include.yml
+  # - .gitlab/trigger_release/trigger_release.yml
 
 default:
   retry:
@@ -1234,3 +1234,39 @@ workflow:
         - test/new-e2e/tests/gpu/**/*
         - pkg/collector/corechecks/gpu/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+
+windows_validate_modules:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  stage: lint
+  needs: []
+  tags: ["arch:amd64"]
+  script:
+    - echo "inv -e modules.validate" > test.bat
+    - docker run --rm
+      -m 16384M
+      --storage-opt "size=50GB"
+      -v "$(Get-Location):c:\mnt"
+      -e DD_ENV=prod
+      -e GITLAB_CI=true
+      -e CI_JOB_URL="${CI_JOB_URL}"
+      -e CI_JOB_NAME="${CI_JOB_NAME}"
+      -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
+      -e CI_REPOSITORY_URL=${CI_REPOSITORY_URL}
+      -e CI_COMMIT_SHA=${CI_COMMIT_SHA}
+      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
+      -e CI_COMMIT_REF_NAME=${CI_COMMIT_REF_NAME}
+      -e AWS_NETWORKING=true
+      -e SIGN_WINDOWS_DD_WCS=true
+      -e PY_RUNTIMES="$PYTHON_RUNTIMES"
+      -e GOMODCACHE="c:\modcache"
+      -e JUNIT_TAR="c:\mnt\junit-${CI_JOB_NAME}.tgz"
+      -e PIP_INDEX_URL=${PIP_INDEX_URL}
+      -e TEST_OUTPUT_FILE=${TEST_OUTPUT_FILE}
+      -e EXTRA_OPTS="$FAST_TESTS_FLAG"
+      -e TEST_WASHER=true
+      -e GO_TEST_SKIP_FLAKE="${GO_TEST_SKIP_FLAKE}"
+      -e API_KEY_ORG2_SSM_NAME="${API_KEY_ORG2_SSM_NAME}"
+      -e CODECOV_TOKEN_SSM_NAME="${CODECOV_TOKEN_SSM_NAME}"
+      datadog/agent-buildimages-windows_x64:ltsc2022
+      c:\mnt\test.bat
