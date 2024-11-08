@@ -7,8 +7,6 @@
 package remoteconfig
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -17,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
 )
 
 // StartRCService creates a service for reading config from the remote configuration backend
@@ -39,6 +36,8 @@ func StartRCService(functionARN string) *remoteconfig.CoreAgentService {
 			remoteconfig.WithConfigRootOverride(config.GetString("site"), config.GetString("remote_configuration.config_root")),
 			remoteconfig.WithDirectorRootOverride(config.GetString("site"), config.GetString("remote_configuration.director_root")),
 			remoteconfig.WithRcKey(config.GetString("remote_configuration.key")),
+			remoteconfig.WithAgentPollLoopDisabled(),
+			remoteconfig.WithForceCacheBypass(),
 		}
 
 		if config.IsSet("remote_configuration.refresh_interval") {
@@ -53,16 +52,7 @@ func StartRCService(functionARN string) *remoteconfig.CoreAgentService {
 		if config.IsSet("remote_configuration.clients.cache_bypass_limit") {
 			options = append(options, remoteconfig.WithClientCacheBypassLimit(config.GetInt("remote_configuration.clients.cache_bypass_limit"), "remote_configuration.clients.cache_bypass_limit"))
 		}
-		tagsGetter := func() []string {
-			arn, parseErr := arn.Parse(functionARN)
-			if parseErr != nil {
-				log.Debugf("unable to parse function ARN: %v, not setting tags", functionARN)
-				return []string{}
-			}
-			tags := []string{fmt.Sprintf("aws_account_id:%s", arn.AccountID), fmt.Sprintf("region:%s", arn.Region)}
-			log.Debugf("setting RC service tags: %v", tags)
-			return tags
-		}
+
 		commonOpts := telemetry.Options{NoDoubleUnderscoreSep: true}
 		telemetryReporter := &rctelemetryreporterimpl.DdRcTelemetryReporter{
 			BypassRateLimitCounter: telemetry.NewCounterWithOpts(
@@ -86,7 +76,9 @@ func StartRCService(functionARN string) *remoteconfig.CoreAgentService {
 			"Remote Config",
 			baseRawURL,
 			functionARN,
-			tagsGetter,
+			func() []string {
+				return []string{}
+			},
 			telemetryReporter,
 			version.AgentVersion,
 			options...,
