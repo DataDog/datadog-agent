@@ -1,6 +1,11 @@
 #define BPF_NO_PRESERVE_ACCESS_INDEX
 #define BPF_NO_GLOBAL_DATA
 
+#ifdef COMPILE_RUNTIME
+#include "kconfig.h"
+#include <linux/ptrace.h>
+#endif
+
 #include "ktypes.h"
 #include "bpf_metadata.h"
 #include "bpf_helpers.h"
@@ -13,8 +18,6 @@
 #include "cgroup.h"
 
 #include "types.h"
-
-char __license[] SEC("license") = "GPL";
 
 BPF_RINGBUF_MAP(cuda_events, cuda_event_header_t);
 BPF_LRU_MAP(cuda_alloc_cache, __u64, cuda_alloc_request_args_t, 1024)
@@ -161,3 +164,5 @@ int BPF_URETPROBE(uretprobe__cudaStreamSynchronize) {
 
     return 0;
 }
+
+char __license[] SEC("license") = "GPL";
