@@ -8,7 +8,13 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-from tasks.libs.common.gomodules import AGENT_MODULE_PATH_PREFIX, GoModule, get_default_modules, list_default_modules
+from tasks.libs.common.gomodules import (
+    AGENT_MODULE_PATH_PREFIX,
+    Configuration,
+    GoModule,
+    get_default_modules,
+    list_default_modules,
+)
 
 """
 Here is an abstract of the go.mod file format:
@@ -342,3 +348,70 @@ class TestGoModulePath(unittest.TestCase):
             mod = next(iter(modules.values()))
             self.assertEqual(mod.path, 'pkg/my/module')
             self.assertEqual(mod.full_path(), str(Path(temp / 'pkg/my/module').resolve()))
+
+
+class TestGoModuleConfiguration(unittest.TestCase):
+    def test_from(self):
+        config = {
+            'modules': {
+                '.': {'targets': ['pkg/my/module'], 'lint_targets': ['pkg/my/module'], 'condition': 'always'},
+            }
+        }
+        modules = Configuration.from_dict(config).modules
+
+        self.assertEqual(len(modules), 1)
+        self.assertEqual(modules['.'].condition, 'always')
+
+    def test_from_default(self):
+        config = {
+            'modules': {
+                '.': {'targets': ['pkg/my/module'], 'lint_targets': ['pkg/my/module'], 'condition': 'always'},
+                'default': 'default',
+            }
+        }
+        modules = Configuration.from_dict(config).modules
+
+        self.assertEqual(len(modules), 2)
+        self.assertEqual(modules['default'].to_dict(), {'path': 'default'})
+        self.assertEqual(modules['default'].condition, GoModule('').condition)
+
+    def test_from_ignored(self):
+        config = {
+            'modules': {
+                '.': {'targets': ['pkg/my/module'], 'lint_targets': ['pkg/my/module'], 'condition': 'always'},
+                'ignored': 'ignored',
+            }
+        }
+        c = Configuration.from_dict(config)
+
+        self.assertEqual(len(c.modules), 1)
+        self.assertEqual(c.ignored_modules, {'ignored'})
+
+    def test_to(self):
+        c = Configuration(
+            base_dir=Path.cwd(), modules={'mod': GoModule('mod', condition='never')}, ignored_modules=set()
+        )
+        config = c.to_dict()
+
+        self.assertEqual(len(config['modules']), 1)
+        self.assertDictEqual(config['modules']['mod'], {'condition': 'never'})
+
+    def test_to_default(self):
+        c = Configuration(
+            base_dir=Path.cwd(),
+            modules={'mod': GoModule('mod', condition='never'), 'default': GoModule('default')},
+            ignored_modules=set(),
+        )
+        config = c.to_dict()
+
+        self.assertEqual(len(config['modules']), 2)
+        self.assertEqual(config['modules']['default'], 'default')
+
+    def test_to_ignored(self):
+        c = Configuration(
+            base_dir=Path.cwd(), modules={'mod': GoModule('mod', condition='never')}, ignored_modules={'ignored'}
+        )
+        config = c.to_dict()
+
+        self.assertEqual(len(config['modules']), 2)
+        self.assertEqual(config['modules']['ignored'], 'ignored')
