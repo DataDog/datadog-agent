@@ -36,7 +36,7 @@ class Configuration:
     ignored_modules: set[str]
 
     @staticmethod
-    def from_dict(data: dict[str, dict[str, object]], base_dir: Path | None = None) -> GoModule:
+    def from_dict(data: dict[str, dict[str, object]], base_dir: Path | None = None) -> Configuration:
         base_dir = base_dir or Path.cwd()
 
         modules = {}
@@ -65,7 +65,9 @@ class Configuration:
 
     def to_dict(self) -> dict[str, object]:
         modules_config = {}
-        modules_config.update({name: module.to_dict() or 'default' for name, module in self.modules.items()})
+        modules_config.update(
+            {name: module.to_dict(remove_path=True) or 'default' for name, module in self.modules.items()}
+        )
         modules_config.update({module: 'ignored' for module in self.ignored_modules})
 
         return {
@@ -203,11 +205,12 @@ class GoModule:
         self.base_dir = Path(self.base_dir) if isinstance(self.base_dir, str) else (self.base_dir or Path.cwd())
         self._dependencies = None
 
-    def to_dict(self, remove_defaults=True) -> dict[str, object]:
+    def to_dict(self, remove_defaults=True, remove_path=False) -> dict[str, object]:
         """Convert to dictionary.
 
         Args:
             remove_defaults: Remove default values from the dictionary.
+            remove_path: Remove the path from the dictionary.
         """
 
         attrs = {
@@ -220,6 +223,9 @@ class GoModule:
             "independent": self.independent,
             "used_by_otel": self.used_by_otel,
         }
+
+        if remove_path:
+            del attrs['path']
 
         if remove_defaults:
             default_attrs = GoModule.get_default_attributes()
@@ -241,8 +247,7 @@ class GoModule:
 
         assert full_path.is_dir(), f"Directory {dir_path} does not exist"
 
-        data = self.to_dict()
-        del data['path']
+        data = self.to_dict(remove_path=True)
 
         # Default attributes
         if not data:
