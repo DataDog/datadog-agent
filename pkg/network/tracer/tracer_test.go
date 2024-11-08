@@ -262,8 +262,8 @@ func (s *TracerSuite) TestTCPShortLived() {
 	assert.True(t, conn.IntraHost)
 
 	// Verify the short lived connection is accounting for both TCP_ESTABLISHED and TCP_CLOSED events
-	assert.Equal(t, uint32(1), m.TCPEstablished)
-	assert.Equal(t, uint32(1), m.TCPClosed)
+	assert.Equal(t, uint16(1), m.TCPEstablished)
+	assert.Equal(t, uint16(1), m.TCPClosed)
 
 	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
 	assert.False(t, ok)
@@ -660,57 +660,57 @@ func (s *TracerSuite) TestShouldExcludeEmptyStatsConnection() {
 func TestSkipConnectionDNS(t *testing.T) {
 	t.Run("CollectLocalDNS disabled", func(t *testing.T) {
 		tr := &Tracer{config: &config.Config{CollectLocalDNS: false}}
-		assert.True(t, tr.shouldSkipConnection(&network.ConnectionStats{
+		assert.True(t, tr.shouldSkipConnection(&network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("10.0.0.1"),
 			Dest:   util.AddressFromString("127.0.0.1"),
 			SPort:  1000, DPort: 53,
-		}))
+		}}))
 
-		assert.False(t, tr.shouldSkipConnection(&network.ConnectionStats{
+		assert.False(t, tr.shouldSkipConnection(&network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("10.0.0.1"),
 			Dest:   util.AddressFromString("127.0.0.1"),
 			SPort:  1000, DPort: 8080,
-		}))
+		}}))
 
-		assert.True(t, tr.shouldSkipConnection(&network.ConnectionStats{
+		assert.True(t, tr.shouldSkipConnection(&network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("::3f::45"),
 			Dest:   util.AddressFromString("::1"),
 			SPort:  53, DPort: 1000,
-		}))
+		}}))
 
-		assert.True(t, tr.shouldSkipConnection(&network.ConnectionStats{
+		assert.True(t, tr.shouldSkipConnection(&network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("::3f::45"),
 			Dest:   util.AddressFromString("::1"),
 			SPort:  53, DPort: 1000,
-		}))
+		}}))
 	})
 
 	t.Run("CollectLocalDNS disabled", func(t *testing.T) {
 		tr := &Tracer{config: &config.Config{CollectLocalDNS: true}}
 
-		assert.False(t, tr.shouldSkipConnection(&network.ConnectionStats{
+		assert.False(t, tr.shouldSkipConnection(&network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("10.0.0.1"),
 			Dest:   util.AddressFromString("127.0.0.1"),
 			SPort:  1000, DPort: 53,
-		}))
+		}}))
 
-		assert.False(t, tr.shouldSkipConnection(&network.ConnectionStats{
+		assert.False(t, tr.shouldSkipConnection(&network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("10.0.0.1"),
 			Dest:   util.AddressFromString("127.0.0.1"),
 			SPort:  1000, DPort: 8080,
-		}))
+		}}))
 
-		assert.False(t, tr.shouldSkipConnection(&network.ConnectionStats{
+		assert.False(t, tr.shouldSkipConnection(&network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("::3f::45"),
 			Dest:   util.AddressFromString("::1"),
 			SPort:  53, DPort: 1000,
-		}))
+		}}))
 
-		assert.False(t, tr.shouldSkipConnection(&network.ConnectionStats{
+		assert.False(t, tr.shouldSkipConnection(&network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("::3f::45"),
 			Dest:   util.AddressFromString("::1"),
 			SPort:  53, DPort: 1000,
-		}))
+		}}))
 	})
 }
 
@@ -1075,8 +1075,8 @@ func (s *TracerSuite) TestTCPEstablished() {
 	conn, ok := findConnection(laddr, raddr, connections)
 
 	require.True(t, ok)
-	assert.Equal(t, uint32(1), conn.Last.TCPEstablished)
-	assert.Equal(t, uint32(0), conn.Last.TCPClosed)
+	assert.Equal(t, uint16(1), conn.Last.TCPEstablished)
+	assert.Equal(t, uint16(0), conn.Last.TCPClosed)
 
 	c.Close()
 
@@ -1088,8 +1088,8 @@ func (s *TracerSuite) TestTCPEstablished() {
 	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
 
 	require.True(t, ok)
-	assert.Equal(t, uint32(0), conn.Last.TCPEstablished)
-	assert.Equal(t, uint32(1), conn.Last.TCPClosed)
+	assert.Equal(t, uint16(0), conn.Last.TCPEstablished)
+	assert.Equal(t, uint16(1), conn.Last.TCPClosed)
 }
 
 func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
@@ -1122,8 +1122,8 @@ func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
 	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
 
 	m := conn.Monotonic
-	assert.Equal(t, uint32(0), m.TCPEstablished)
-	assert.Equal(t, uint32(1), m.TCPClosed)
+	assert.Equal(t, uint16(0), m.TCPEstablished)
+	assert.Equal(t, uint16(1), m.TCPClosed)
 }
 
 func (s *TracerSuite) TestUnconnectedUDPSendIPv4() {
@@ -1378,7 +1378,7 @@ func (s *TracerSuite) TestTCPFailureConnectionResetNoData() {
 }
 
 // findFailedConnection is a utility function to find a failed connection based on specific TCP error codes
-func findFailedConnection(t *testing.T, local, remote string, conns *network.Connections, errorCode uint32) *network.ConnectionStats { // nolint:unused
+func findFailedConnection(t *testing.T, local, remote string, conns *network.Connections, errorCode uint16) *network.ConnectionStats { // nolint:unused
 	// Extract the address and port from the net.Addr types
 	localAddrPort, err := netip.ParseAddrPort(local)
 	if err != nil {
@@ -1401,9 +1401,48 @@ func findFailedConnection(t *testing.T, local, remote string, conns *network.Con
 }
 
 // for some failed connections we don't know the local addr/port so we need to search by remote addr only
-func findFailedConnectionByRemoteAddr(remoteAddr string, conns *network.Connections, errorCode uint32) *network.ConnectionStats {
+func findFailedConnectionByRemoteAddr(remoteAddr string, conns *network.Connections, errorCode uint16) *network.ConnectionStats {
 	failureFilter := func(cs network.ConnectionStats) bool {
 		return netip.MustParseAddrPort(remoteAddr) == netip.AddrPortFrom(cs.Dest.Addr, cs.DPort) && cs.TCPFailures[errorCode] > 0
 	}
 	return network.FirstConnection(conns, failureFilter)
+}
+
+func BenchmarkGetActiveConnections(b *testing.B) {
+	cfg := testConfig()
+	tr := setupTracer(b, cfg)
+	server := testutil.NewTCPServer(func(c net.Conn) {
+		io.Copy(io.Discard, c)
+		c.Close()
+	})
+	b.Cleanup(server.Shutdown)
+	require.NoError(b, server.Run())
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for range b.N {
+		c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+		require.NoError(b, err)
+		laddr, raddr := c.LocalAddr(), c.RemoteAddr()
+		c.Write([]byte("hello"))
+		connections := getConnections(b, tr)
+		conn, ok := findConnection(laddr, raddr, connections)
+
+		require.True(b, ok)
+		assert.Equal(b, uint32(1), conn.Last.TCPEstablished)
+		assert.Equal(b, uint32(0), conn.Last.TCPClosed)
+		c.Close()
+
+		// Wait for the connection to be sent from the perf buffer
+		require.Eventually(b, func() bool {
+			var ok bool
+			conn, ok = findConnection(laddr, raddr, getConnections(b, tr))
+			return ok
+		}, 3*time.Second, 10*time.Millisecond, "couldn't find connection")
+
+		require.True(b, ok)
+		assert.Equal(b, uint32(0), conn.Last.TCPEstablished)
+		assert.Equal(b, uint32(1), conn.Last.TCPClosed)
+	}
 }

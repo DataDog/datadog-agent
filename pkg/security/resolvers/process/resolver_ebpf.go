@@ -39,12 +39,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
-	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	stime "github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
 const (
@@ -344,6 +344,8 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	if err != nil {
 		return fmt.Errorf("snapshot failed for %d: couldn't parse container ID: %w", proc.Pid, err)
 	}
+
+	entry.ContainerID = containerID
 
 	entry.FileEvent.FileFields = *info
 	setPathname(&entry.FileEvent, pathnameStr)
@@ -911,7 +913,6 @@ func (p *EBPFResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Proces
 		return nil
 	}
 
-	var ppid uint32
 	proc, err := process.NewProcess(int32(pid))
 	if err != nil {
 		seclog.Tracef("unable to find pid: %d", pid)
@@ -929,24 +930,12 @@ func (p *EBPFResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Proces
 		return nil
 	}
 
-	entry, inserted := p.syncCache(proc, filledProc, model.ProcessCacheEntryFromProcFS)
-	if entry != nil {
-		// consider kworker processes with 0 as ppid
-		entry.IsKworker = filledProc.Ppid == 0 && filledProc.Pid != 1
-
-		ppid = uint32(filledProc.Ppid)
-
-		parent := p.resolveFromProcfs(ppid, maxDepth-1)
-		if inserted && parent != nil {
-			if parent.Equals(entry) {
-				entry.SetParentOfForkChild(parent)
-			} else {
-				entry.SetAncestor(parent)
-			}
-		}
+	ppid := uint32(filledProc.Ppid)
+	if ppid != 0 && p.entryCache[ppid] == nil {
+		p.resolveFromProcfs(ppid, maxDepth-1)
 	}
 
-	return entry
+	return p.newEntryFromProcfsAndSyncKernelMaps(proc, filledProc, model.ProcessCacheEntryFromProcFS)
 }
 
 // SetProcessArgs set arguments to cache entry
@@ -987,6 +976,10 @@ func (p *EBPFResolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, bool
 
 // SetProcessEnvs set envs to cache entry
 func (p *EBPFResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
+	if !p.opts.envsResolutionEnabled {
+		return
+	}
+
 	if entry, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		if pce.EnvsTruncated {
 			p.envsTruncated.Inc()
@@ -1219,8 +1212,8 @@ func (p *EBPFResolver) cacheFlush(ctx context.Context) {
 	}
 }
 
-// SyncCache snapshots /proc for the provided pid. This method returns true if it updated the process cache.
-func (p *EBPFResolver) SyncCache(proc *process.Process) bool {
+// SyncCache snapshots /proc for the provided pid.
+func (p *EBPFResolver) SyncCache(proc *process.Process) {
 	// Only a R lock is necessary to check if the entry exists, but if it exists, we'll update it, so a RW lock is
 	// required.
 	p.Lock()
@@ -1229,11 +1222,10 @@ func (p *EBPFResolver) SyncCache(proc *process.Process) bool {
 	filledProc, err := utils.GetFilledProcess(proc)
 	if err != nil {
 		seclog.Tracef("unable to get a filled process for %d: %v", proc.Pid, err)
-		return false
+		return
 	}
 
-	_, ret := p.syncCache(proc, filledProc, model.ProcessCacheEntryFromSnapshot)
-	return ret
+	p.newEntryFromProcfsAndSyncKernelMaps(proc, filledProc, model.ProcessCacheEntryFromSnapshot)
 }
 
 func (p *EBPFResolver) setAncestor(pce *model.ProcessCacheEntry) {
@@ -1243,35 +1235,30 @@ func (p *EBPFResolver) setAncestor(pce *model.ProcessCacheEntry) {
 	}
 }
 
-// syncCache snapshots /proc for the provided pid. This method returns true if it updated the process cache.
-func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.FilledProcess, source uint64) (*model.ProcessCacheEntry, bool) {
+// newEntryFromProcfsAndSyncKernelMaps snapshots /proc for the provided pid and sync the kernel maps
+func (p *EBPFResolver) newEntryFromProcfsAndSyncKernelMaps(proc *process.Process, filledProc *utils.FilledProcess, source uint64) *model.ProcessCacheEntry {
 	pid := uint32(proc.Pid)
 
-	// Check if an entry is already in cache for the given pid.
-	entry := p.entryCache[pid]
-	if entry != nil {
-		p.setAncestor(entry)
-
-		return entry, false
-	}
-
-	entry = p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})
-	entry.IsThread = true
+	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})
 
 	// update the cache entry
 	if err := p.enrichEventFromProc(entry, proc, filledProc); err != nil {
 		entry.Release()
 
 		seclog.Trace(err)
-		return nil, false
+		return nil
 	}
+
+	entry.IsKworker = filledProc.Ppid == 0 && filledProc.Pid != 1
 
 	parent := p.entryCache[entry.PPid]
 	if parent != nil {
 		if parent.Equals(entry) {
-			entry.SetParentOfForkChild(parent)
-		} else {
-			entry.SetAncestor(parent)
+			entry.SetForkParent(parent)
+		} else if prev := p.entryCache[pid]; prev != nil { // exec-exec
+			entry.SetExecParent(prev)
+		} else { // exec
+			entry.SetExecParent(parent)
 		}
 	}
 
@@ -1301,39 +1288,53 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 
 	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.FileEvent.PathnameStr, pid, entry.FileEvent.Inode)
 
-	return entry, true
+	return entry
 }
 
 // ToJSON return a json version of the cache
-func (p *EBPFResolver) ToJSON() ([]byte, error) {
+func (p *EBPFResolver) ToJSON(raw bool) ([]byte, error) {
 	dump := struct {
 		Entries []json.RawMessage
 	}{}
 
 	p.Walk(func(entry *model.ProcessCacheEntry) {
-		e := struct {
-			PID             uint32
-			PPID            uint32
-			Path            string
-			Inode           uint64
-			MountID         uint32
-			Source          string
-			ExecInode       uint64
-			IsThread        bool
-			IsParentMissing bool
-		}{
-			PID:             entry.Pid,
-			PPID:            entry.PPid,
-			Path:            entry.FileEvent.PathnameStr,
-			Inode:           entry.FileEvent.Inode,
-			MountID:         entry.FileEvent.MountID,
-			Source:          model.ProcessSourceToString(entry.Source),
-			ExecInode:       entry.ExecInode,
-			IsThread:        entry.IsThread,
-			IsParentMissing: entry.IsParentMissing,
+		var (
+			d   []byte
+			err error
+		)
+
+		if raw {
+			d, err = json.Marshal(entry)
+		} else {
+			e := struct {
+				PID             uint32
+				PPID            uint32
+				Path            string
+				Inode           uint64
+				MountID         uint32
+				Source          string
+				ExecInode       uint64
+				IsExec          bool
+				IsParentMissing bool
+				CGroup          string
+				ContainerID     string
+			}{
+				PID:             entry.Pid,
+				PPID:            entry.PPid,
+				Path:            entry.FileEvent.PathnameStr,
+				Inode:           entry.FileEvent.Inode,
+				MountID:         entry.FileEvent.MountID,
+				Source:          model.ProcessSourceToString(entry.Source),
+				ExecInode:       entry.ExecInode,
+				IsExec:          entry.IsExec,
+				IsParentMissing: entry.IsParentMissing,
+				CGroup:          string(entry.CGroup.CGroupID),
+				ContainerID:     string(entry.ContainerID),
+			}
+
+			d, err = json.Marshal(e)
 		}
 
-		d, err := json.Marshal(e)
 		if err == nil {
 			dump.Entries = append(dump.Entries, d)
 		}
@@ -1436,7 +1437,7 @@ func (p *EBPFResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
 	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver mount.ResolverInterface,
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
-	pathResolver spath.ResolverInterface, opts *ResolverOpts) (*EBPFResolver, error) {
+	pathResolver spath.ResolverInterface, envVarsResolver *envvars.Resolver, opts *ResolverOpts) (*EBPFResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint64, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
@@ -1471,7 +1472,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		userGroupResolver:         userGroupResolver,
 		timeResolver:              timeResolver,
 		pathResolver:              pathResolver,
-		envVarsResolver:           envvars.NewEnvVarsResolver(config),
+		envVarsResolver:           envVarsResolver,
 	}
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)

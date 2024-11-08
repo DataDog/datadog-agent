@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -27,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -145,7 +147,8 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "destination": {
         "hostname": "abc",
         "ip_address": "10.0.0.2",
-        "port": 80
+        "port": 80,
+		"reverse_dns_hostname": "hostname-10.0.0.2"
     },
     "hops": [
         {
@@ -179,7 +182,8 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "destination": {
         "hostname": "abc",
         "ip_address": "10.0.0.4",
-        "port": 80
+        "port": 80,
+		"reverse_dns_hostname": "hostname-10.0.0.4"
     },
     "hops": [
         {
@@ -762,4 +766,155 @@ func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {
 	// TEST STOP
 	app.RequireStop()
 	assert.False(b, npCollector.running)
+}
+
+func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
+	// GIVEN
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled": true,
+	}
+	_, npCollector := newTestNpCollector(t, agentConfigs)
+
+	stats := &teststatsd.Client{}
+	npCollector.statsdClient = stats
+	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+
+	// WHEN
+	// Destination, hop 1, hop 3, hop 4 are private IPs, hop 2 is a public IP
+	path := payload.NetworkPath{
+		Destination: payload.NetworkPathDestination{IPAddress: "10.0.0.41", Hostname: "dest-hostname"},
+		Hops: []payload.NetworkPathHop{
+			{IPAddress: "10.0.0.1", Reachable: true, Hostname: "hop1"},
+			{IPAddress: "1.1.1.1", Reachable: true, Hostname: "hop2"},
+			{IPAddress: "10.0.0.100", Reachable: true, Hostname: "hop3"},
+			{IPAddress: "10.0.0.41", Reachable: true, Hostname: "dest-hostname"},
+		},
+	}
+
+	npCollector.enrichPathWithRDNS(&path)
+
+	// THEN
+	assert.Equal(t, "hostname-10.0.0.41", path.Destination.ReverseDNSHostname) // private IP should be resolved
+	assert.Equal(t, "hostname-10.0.0.1", path.Hops[0].Hostname)
+	assert.Equal(t, "hop2", path.Hops[1].Hostname) // public IP should fall back to hostname from traceroute
+	assert.Equal(t, "hostname-10.0.0.100", path.Hops[2].Hostname)
+	assert.Equal(t, "hostname-10.0.0.41", path.Hops[3].Hostname)
+
+	// WHEN
+	// hop 3 is a private IP, others are public IPs or unknown hops which should not be resolved
+	path = payload.NetworkPath{
+		Destination: payload.NetworkPathDestination{IPAddress: "8.8.8.8", Hostname: "google.com"},
+		Hops: []payload.NetworkPathHop{
+			{IPAddress: "unknown-hop-1", Reachable: false, Hostname: "hop1"},
+			{IPAddress: "1.1.1.1", Reachable: true, Hostname: "hop2"},
+			{IPAddress: "10.0.0.100", Reachable: true, Hostname: "hop3"},
+			{IPAddress: "unknown-hop-4", Reachable: false, Hostname: "hop4"},
+		},
+	}
+
+	npCollector.enrichPathWithRDNS(&path)
+
+	// THEN
+	assert.Equal(t, "", path.Destination.ReverseDNSHostname)
+	assert.Equal(t, "hop1", path.Hops[0].Hostname)
+	assert.Equal(t, "hop2", path.Hops[1].Hostname) // public IP should fall back to hostname from traceroute
+	assert.Equal(t, "hostname-10.0.0.100", path.Hops[2].Hostname)
+	assert.Equal(t, "hop4", path.Hops[3].Hostname)
+
+	// GIVEN - no reverse DNS resolution
+	agentConfigs = map[string]any{
+		"network_path.connections_monitoring.enabled":           true,
+		"network_path.collector.reverse_dns_enrichment.enabled": false,
+	}
+	_, npCollector = newTestNpCollector(t, agentConfigs)
+
+	npCollector.statsdClient = stats
+	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+
+	// WHEN
+	// Destination, hop 1, hop 3, hop 4 are private IPs, hop 2 is a public IP
+	path = payload.NetworkPath{
+		Destination: payload.NetworkPathDestination{IPAddress: "10.0.0.41", Hostname: "dest-hostname"},
+		Hops: []payload.NetworkPathHop{
+			{IPAddress: "10.0.0.1", Reachable: true, Hostname: "hop1"},
+			{IPAddress: "1.1.1.1", Reachable: true, Hostname: "hop2"},
+			{IPAddress: "10.0.0.100", Reachable: true, Hostname: "hop3"},
+			{IPAddress: "10.0.0.41", Reachable: true, Hostname: "dest-hostname"},
+		},
+	}
+
+	npCollector.enrichPathWithRDNS(&path)
+
+	// THEN - no resolution should happen
+	assert.Equal(t, "", path.Destination.ReverseDNSHostname)
+	assert.Equal(t, "hop1", path.Hops[0].Hostname)
+	assert.Equal(t, "hop2", path.Hops[1].Hostname)
+	assert.Equal(t, "hop3", path.Hops[2].Hostname)
+	assert.Equal(t, "dest-hostname", path.Hops[3].Hostname)
+}
+
+func Test_npCollectorImpl_getReverseDNSResult(t *testing.T) {
+	// GIVEN
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled": true,
+	}
+	_, npCollector := newTestNpCollector(t, agentConfigs)
+
+	stats := &teststatsd.Client{}
+	npCollector.statsdClient = stats
+	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+
+	tts := []struct {
+		description string
+		ipAddr      string
+		results     map[string]rdnsquerier.ReverseDNSResult
+		expected    string
+	}{
+		{
+			description: "result not in map",
+			ipAddr:      "10.0.0.1",
+			results:     map[string]rdnsquerier.ReverseDNSResult{},
+			expected:    "",
+		},
+		{
+			description: "map is nil",
+			ipAddr:      "10.0.0.1",
+			results:     nil,
+			expected:    "",
+		},
+		{
+			description: "result is an error",
+			ipAddr:      "10.0.0.1",
+			results: map[string]rdnsquerier.ReverseDNSResult{
+				"10.0.0.1": {IP: "10.0.0.1", Hostname: "should-not-be-used", Err: errors.New("error")},
+			},
+			expected: "",
+		},
+		{
+			description: "result is blank",
+			ipAddr:      "10.0.0.1",
+			results: map[string]rdnsquerier.ReverseDNSResult{
+				"10.0.0.1": {IP: "10.0.0.1", Hostname: ""},
+			},
+			expected: "",
+		},
+		{
+			description: "result is valid",
+			ipAddr:      "10.0.0.1",
+			results: map[string]rdnsquerier.ReverseDNSResult{
+				"10.0.0.1": {IP: "10.0.0.1", Hostname: "valid-hostname"},
+			},
+			expected: "valid-hostname",
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.description, func(t *testing.T) {
+			// WHEN
+			result := npCollector.getReverseDNSResult(tt.ipAddr, tt.results)
+
+			// THEN
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

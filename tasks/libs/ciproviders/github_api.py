@@ -271,6 +271,22 @@ class GithubAPI:
 
         return [label.name for label in pr.get_labels()]
 
+    def update_review_complexity_labels(self, pr_id: int, new_label: str) -> None:
+        """
+        Updates the review complexity label of a pull request
+        """
+        pr = self.get_pr(pr_id)
+        already_there = False
+        for label in pr.get_labels():
+            if label.name.endswith(" review"):
+                if label.name == new_label:
+                    already_there = True
+                else:
+                    pr.remove_from_labels(label.name)
+
+        if not already_there:
+            pr.add_to_labels(new_label)
+
     def get_pr_files(self, pr_id: int) -> list[str]:
         """
         Returns the files involved in the PR
@@ -377,6 +393,33 @@ class GithubAPI:
             message=message,
             draft=draft,
         )
+
+    def get_codereview_complexity(self, pr_id: int) -> str:
+        """
+        Get the complexity of the code review for a given PR, taking into account the number of files, lines and comments.
+        """
+        pr = self._repository.get_pull(pr_id)
+        # Criteria are defined with the average of PR attributes (files, lines, comments) so that:
+        # - easy PRs are merged in less than 1 day
+        # - hard PRs are merged in more than 1 week
+        # More details about criteria definition: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4271079846/Code+Review+Experience+Improvement#Complexity-label
+        criteria = {
+            'easy': {'files': 4, 'lines': 150, 'comments': 1},
+            'hard': {'files': 12, 'lines': 650, 'comments': 9},
+        }
+        if (
+            pr.changed_files < criteria['easy']['files']
+            and pr.additions + pr.deletions < criteria['easy']['lines']
+            and pr.review_comments < criteria['easy']['comments']
+        ):
+            return 'short review'
+        elif (
+            pr.changed_files > criteria['hard']['files']
+            or pr.additions + pr.deletions > criteria['hard']['lines']
+            or pr.review_comments > criteria['hard']['comments']
+        ):
+            return 'long review'
+        return 'medium review'
 
 
 def get_github_teams(users):

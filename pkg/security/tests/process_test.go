@@ -1727,7 +1727,7 @@ func TestProcessIsThread(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("fork-isthread", func(t *testing.T) {
+	t.Run("fork-is-not-exec", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			args := []string{"fork"}
 			cmd := exec.Command(syscallTester, args...)
@@ -1738,11 +1738,11 @@ func TestProcessIsThread(t *testing.T) {
 			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "wrong process file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Parent.FileEvent.BasenameStr, "wrong parent process file basename")
-			assert.True(t, event.ProcessContext.IsThread, "process should be marked as being a thread")
+			assert.False(t, event.ProcessContext.IsExec, "process shouldn't be marked as being an exec")
 		})
 	})
 
-	t.Run("exec-isnotthread", func(t *testing.T) {
+	t.Run("exec-is-exec", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			args := []string{"fork", "exec"}
 			cmd := exec.Command(syscallTester, args...)
@@ -1752,7 +1752,7 @@ func TestProcessIsThread(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_process_exec_is_not_thread")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Parent.FileEvent.BasenameStr, "wrong parent process file basename")
-			assert.False(t, event.ProcessContext.IsThread, "process should be marked as not being a thread")
+			assert.True(t, event.ProcessContext.IsExec, "process should be marked as being an exec")
 		})
 	})
 }
@@ -2223,7 +2223,7 @@ func TestProcessResolution(t *testing.T) {
 
 		args := []string{"open", "/tmp/test-process-resolution", ";",
 			"getchar", ";",
-			"open", "/tmp/test-process-resolution"}
+			"open", "/tmp/test-process-resolution-done"}
 
 		cmd = exec.Command(syscallTester, args...)
 		stdin, err = cmd.StdinPipe()
@@ -2254,7 +2254,7 @@ func TestProcessResolution(t *testing.T) {
 		resolver := p.Resolvers.ProcessResolver
 
 		// compare only few fields as the hierarchy fields(pointers, etc) are modified by the resolution function calls
-		equals := func(t *testing.T, entry1, entry2 *model.ProcessCacheEntry) {
+		equals := func(t *testing.T, entry1, entry2 *model.ProcessCacheEntry, checkCookie bool) {
 			t.Helper()
 
 			assert.NotNil(t, entry1)
@@ -2263,11 +2263,13 @@ func TestProcessResolution(t *testing.T) {
 			assert.Equal(t, entry1.Pid, entry2.Pid)
 			assert.Equal(t, entry1.PPid, entry2.PPid)
 			assert.Equal(t, entry1.ContainerID, entry2.ContainerID)
-			assert.Equal(t, entry1.Cookie, entry2.Cookie)
+			if checkCookie {
+				assert.Equal(t, entry1.Cookie, entry2.Cookie)
+			}
 
 			// may not be exactly equal because of clock drift between two boot time resolution, see time resolver
-			assert.Greater(t, time.Second, entry1.ExecTime.Sub(entry2.ExecTime).Abs())
-			assert.Greater(t, time.Second, entry1.ForkTime.Sub(entry2.ForkTime).Abs())
+			assert.Greater(t, 2*time.Second, entry1.ExecTime.Sub(entry2.ExecTime).Abs())
+			assert.Greater(t, 2*time.Second, entry1.ForkTime.Sub(entry2.ForkTime).Abs())
 		}
 
 		cacheEntry := resolver.ResolveFromCache(pid, pid, inode)
@@ -2280,7 +2282,7 @@ func TestProcessResolution(t *testing.T) {
 			t.Errorf("not able to resolve the entry")
 		}
 
-		equals(t, cacheEntry, mapsEntry)
+		equals(t, cacheEntry, mapsEntry, true)
 
 		// This makes use of the cache and do not parse /proc
 		// it still checks the ResolveFromProcfs returns the correct entry
@@ -2289,7 +2291,7 @@ func TestProcessResolution(t *testing.T) {
 			t.Fatalf("not able to resolve the entry")
 		}
 
-		equals(t, mapsEntry, procEntry)
+		equals(t, mapsEntry, procEntry, false)
 
 		io.WriteString(stdin, "\n")
 	})

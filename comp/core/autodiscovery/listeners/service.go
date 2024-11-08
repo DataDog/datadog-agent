@@ -37,6 +37,7 @@ type service struct {
 	extraConfig     map[string]string
 	metricsExcluded bool
 	logsExcluded    bool
+	tagger          tagger.Component
 }
 
 var _ Service = &service{}
@@ -90,14 +91,14 @@ func (s *service) GetPorts(_ context.Context) ([]ContainerPort, error) {
 
 // GetTags returns the tags associated with the service.
 func (s *service) GetTags() ([]string, error) {
-	return tagger.Tag(taggercommon.BuildTaggerEntityID(s.entity.GetID()), tagger.ChecksCardinality())
+	return s.tagger.Tag(taggercommon.BuildTaggerEntityID(s.entity.GetID()), s.tagger.ChecksCardinality())
 }
 
 // GetTagsWithCardinality returns the tags with given cardinality.
 func (s *service) GetTagsWithCardinality(cardinality string) ([]string, error) {
 	checkCard, err := types.StringToTagCardinality(cardinality)
 	if err == nil {
-		return tagger.Tag(taggercommon.BuildTaggerEntityID(s.entity.GetID()), checkCard)
+		return s.tagger.Tag(taggercommon.BuildTaggerEntityID(s.entity.GetID()), checkCard)
 	}
 	log.Warnf("error converting cardinality %s to TagCardinality: %v", cardinality, err)
 	return s.GetTags()

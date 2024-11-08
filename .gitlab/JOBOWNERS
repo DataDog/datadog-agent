@@ -77,11 +77,11 @@ deploy_windows_testing*              @DataDog/agent-delivery
 kitchen_windows*                     @DataDog/windows-agent
 
 # Image build
-docker_build*                        @DataDog/container-integrations
+docker_build*                        @DataDog/agent-delivery
 
 # Image scan
-scan_*                               @DataDog/container-integrations
-dca_scan_*                           @DataDog/container-integrations
+scan_*                               @Datadog/agent-delivery
+dca_scan_*                           @Datadog/agent-delivery
 
 # Check deploy
 # Do not notify on these jobs, they're expected to fail on duplicate
@@ -89,24 +89,24 @@ dca_scan_*                           @DataDog/container-integrations
 check_already_deployed_version_*     @DataDog/do-not-notify
 
 # Dev container deploy
-dca_dev_branch*                        @DataDog/container-integrations
-dca_dev_master*                        @DataDog/container-integrations
+dca_dev_branch*                        @Datadog/agent-delivery
+dca_dev_master*                        @Datadog/agent-delivery
 cws_instrumentation_dev_branch*        @DataDog/agent-security
-dev_branch*                            @DataDog/container-integrations
-dev_master*                            @DataDog/container-integrations
-dev_nightly*                           @DataDog/container-integrations
+dev_branch*                            @Datadog/agent-delivery
+dev_master*                            @Datadog/agent-delivery
+dev_nightly*                           @Datadog/agent-delivery
 qa_agent*                              @DataDog/agent-devx-loops
 qa_cws_instrumentation*                @DataDog/agent-devx-loops
 qa_dca*                                @DataDog/agent-devx-loops
 qa_dogstatsd*                          @DataDog/agent-devx-loops
 
 # Internal image deploy
-docker_trigger_internal*                     @DataDog/container-integrations
-docker_trigger_cluster_agent_internal*       @DataDog/container-integrations
+docker_trigger_internal*                     @Datadog/agent-delivery
+docker_trigger_cluster_agent_internal*       @Datadog/agent-delivery
 docker_trigger_cws_instrumentation_internal* @DataDog/agent-security
 
 # Internal kubernetes deploy
-internal_kubernetes_deploy*            @DataDog/container-integrations
+internal_kubernetes_deploy*            @Datadog/agent-delivery
 
 # Deploy packages
 deploy_agent*                          @DataDog/agent-delivery
@@ -119,7 +119,7 @@ windows_bootstrapper_deploy             @DataDog/windows-agent
 qa_*_oci                               @DataDog/agent-delivery
 
 # Deploy containers
-deploy_containers*                     @DataDog/container-integrations
+deploy_containers*                     @Datadog/agent-delivery
 
 # Deploy CWS instrumentation
 deploy_containers-cws-instrumentation* @DataDog/agent-security
@@ -132,6 +132,8 @@ trigger_auto_staging_release           @DataDog/agent-delivery
 integration_tests_windows*    @DataDog/windows-agent
 integration_tests_otel        @DataDog/opentelemetry
 docker_image_build_otel       @DataDog/opentelemetry
+agent_integration_tests       @DataDog/container-integrations
+docker_integration_tests      @DataDog/container-integrations
 
 # Functional test
 kitchen_*_system_probe_windows*                @DataDog/windows-kernel-integrations

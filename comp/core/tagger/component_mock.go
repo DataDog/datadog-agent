@@ -19,7 +19,4 @@ type Mock interface {
 
 	// SetGlobalTags allows to set tags in store for the global entity
 	SetGlobalTags(low, orch, high, std []string)
-
-	// ResetTagger for testing only
-	ResetTagger()
 }

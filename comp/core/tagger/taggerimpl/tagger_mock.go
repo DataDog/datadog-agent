@@ -99,8 +99,3 @@ func (m *MockTaggerClient) SetGlobalTags(low, orch, high, std []string) {
 func SetupFakeTagger(t *testing.T) tagger.Mock {
 	return fxutil.Test[tagger.Mock](t, MockModule())
 }
-
-// ResetTagger resets the tagger
-func (m *MockTaggerClient) ResetTagger() {
-	tagger.UnlockGlobalTaggerClient()
-}
