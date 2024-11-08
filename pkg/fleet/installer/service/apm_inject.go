@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
@@ -122,37 +123,41 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	var err error
 
 	// Set up defaults for agent sockets
-	if err := a.configureSocketsEnv(ctx); err != nil {
-		return err
-	}
-	// Symlinks for sysvinit
-	if err := os.Symlink(envFilePath, "/etc/default/datadog-agent-trace"); err != nil && !os.IsExist(err) {
-		return fmt.Errorf("failed to symlink %s to /etc/default/datadog-agent-trace: %w", envFilePath, err)
-	}
-	if err := os.Symlink(envFilePath, "/etc/default/datadog-agent"); err != nil && !os.IsExist(err) {
-		return fmt.Errorf("failed to symlink %s to /etc/default/datadog-agent: %w", envFilePath, err)
-	}
-	systemdRunning, err := isSystemdRunning()
-	if err != nil {
-		return fmt.Errorf("failed to check if systemd is running: %w", err)
-	}
-	if systemdRunning {
-		if err := addSystemDEnvOverrides(ctx, agentUnit); err != nil {
-			return err
+	// This is only useful for agent <7.57.0 so it'll only be executed
+	// if we detect such an agent
+	var agentMinorVersion int
+	if a.envs.AgentMinorVersion != "" {
+		rawMinor := strings.Split(a.envs.AgentMinorVersion, ".")[0]
+		var err error
+		agentMinorVersion, err = strconv.Atoi(rawMinor)
+		if err != nil {
+			return fmt.Errorf("failed to parse agent minor version: %w", err)
 		}
-		if err := addSystemDEnvOverrides(ctx, agentExp); err != nil {
-			return err
+	} else if _, err := os.Stat("/usr/bin/datadog-agent"); err == nil {
+		cmd := exec.Command("/usr/bin/datadog-agent", "version")
+		output, err := cmd.Output()
+		if err != nil {
+			return fmt.Errorf("failed to execute datadog-agent version: %w", err)
 		}
-		if err := addSystemDEnvOverrides(ctx, traceAgentUnit); err != nil {
-			return err
+		parts := strings.Fields(string(output))
+		if len(parts) < 2 {
+			return fmt.Errorf("unexpected output from datadog-agent version: %s", output)
 		}
-		if err := addSystemDEnvOverrides(ctx, traceAgentExp); err != nil {
-			return err
+		parts = strings.Split(parts[1], ".")
+		if len(parts) < 2 {
+			return fmt.Errorf("unexpected version format: %s", parts[1])
 		}
-		if err := systemdReload(ctx); err != nil {
-			return err
+		agentMinorVersion, err = strconv.Atoi(parts[1])
+		if err != nil {
+			return fmt.Errorf("failed to parse agent minor version: %w", err)
 		}
 	}
+	if agentMinorVersion != 0 && agentMinorVersion < 57 {
+		if err := a.configureSocketsEnv(ctx); err != nil {
+			return err
+		}
+	}
+
 	if err := setupAppArmor(ctx); err != nil {
 		return err
 	}

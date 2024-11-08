@@ -45,10 +45,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	s.host.AssertPackageInstalledByInstaller("datadog-agent", "datadog-apm-inject", "datadog-apm-library-python")
 	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent", "datadog-apm-inject", "datadog-apm-library-python")
 	state := s.host.State()
-	state.AssertFileExists("/opt/datadog-packages/run/environment", 0644, "root", "root")
 	state.AssertSymlinkExists("/run/datadog-installer", "/opt/datadog-packages/run", "root", "root") // /run as /var/run points to /run, it's a limitation of the state packages
-	state.AssertSymlinkExists("/etc/default/datadog-agent", "/opt/datadog-packages/run/environment", "root", "root")
-	state.AssertSymlinkExists("/etc/default/datadog-agent-trace", "/opt/datadog-packages/run/environment", "root", "root")
 	state.AssertDirExists("/var/log/datadog/dotnet", 0777, "root", "root")
 	state.AssertFileExists("/etc/ld.so.preload", 0644, "root", "root")
 	state.AssertFileExists("/usr/bin/dd-host-install", 0755, "root", "root")
@@ -463,7 +460,8 @@ func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
 	if !found {
 		tracePayloads, _ := s.Env().FakeIntake.Client().GetTraces()
 		s.T().Logf("Traces received: %v", tracePayloads)
-		s.T().Logf("Server logs: %v", s.Env().RemoteHost.MustExecute("cat /tmp/server.log"))
+		s.T().Logf("Server logs: %v", s.Env().RemoteHost.MustExecute("cat /tmp/server.log || true"))
+		s.T().Logf("Docker server logs (if any): %v", s.Env().RemoteHost.MustExecute("docker logs python-app || true"))
 		s.T().Logf("Trace Agent logs: %v", s.Env().RemoteHost.MustExecute("cat /var/log/datadog/trace-agent.log"))
 	}
 }
