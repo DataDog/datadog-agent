@@ -107,9 +107,6 @@ func (c *cudaEventConsumer) Start() {
 				}
 
 				header := (*gpuebpf.CudaEventHeader)(unsafe.Pointer(&batchData.Data[0]))
-
-				log.Debugf("Processing CUDA event: %+v", header)
-
 				dataPtr := unsafe.Pointer(&batchData.Data[0])
 
 				var err error
