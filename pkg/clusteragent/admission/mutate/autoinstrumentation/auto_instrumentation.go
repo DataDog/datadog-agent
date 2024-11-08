@@ -644,13 +644,11 @@ func initContainerResourceRequirements(pod *corev1.Pod, conf initResourceRequire
 				switch k {
 				case corev1.ResourceMemory:
 					if minimumMemoryLimit.Cmp(maxPodLim) == 1 {
-						log.Debugf("The memory limit is too low to acceptable for the datadog library container: %v required: %v", maxPodLim.String(), minimumMemoryLimit.String())
 						decision.skipInjection = true
 						insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), minimumMemoryLimit.String())
 					}
 				case corev1.ResourceCPU:
 					if minimumCPULimit.Cmp(maxPodLim) == 1 {
-						log.Debugf("The cpu limit is too low to acceptable for the datadog library init-container: %v required: %v", maxPodLim.String(), minimumCPULimit.String())
 						decision.skipInjection = true
 						insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), minimumCPULimit.String())
 					}
@@ -665,6 +663,7 @@ func initContainerResourceRequirements(pod *corev1.Pod, conf initResourceRequire
 		}
 	}
 	if decision.skipInjection {
+		log.Debug(insufficientResourcesMessage)
 		decision.message = insufficientResourcesMessage
 	}
 	return requirements, decision
