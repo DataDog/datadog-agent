@@ -310,7 +310,6 @@ IGNORED_MODULE_PATHS = [
     # Test files
     Path("./test/integration/serverless/recorder-extension"),
     Path("./test/integration/serverless/src"),
-    Path("./comp/otelcol/ddflareextension/impl"),
 ]
 
 MAIN_TEMPLATE = """package main
