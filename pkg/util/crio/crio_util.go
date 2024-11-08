@@ -28,7 +28,7 @@ type ClientItf interface {
 	Close() error
 	RuntimeMetadata(context.Context) (*v1.VersionResponse, error)
 	GetAllContainers(context.Context) ([]*v1.Container, error)
-	GetContainerStatus(context.Context, string) (*v1.ContainerStatus, error)
+	GetContainerStatus(context.Context, string) (*v1.ContainerStatusResponse, error)
 	GetContainerImage(ctx context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error)
 	GetPodStatus(context.Context, string) (*v1.PodSandboxStatus, error)
 }
@@ -111,16 +111,16 @@ func (c *Client) GetAllContainers(ctx context.Context) ([]*v1.Container, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
-	return containersResponse.Containers, nil
+	return containersResponse.GetContainers(), nil
 }
 
 // GetContainerStatus retrieves the status of a specific container.
-func (c *Client) GetContainerStatus(ctx context.Context, containerID string) (*v1.ContainerStatus, error) {
-	containerStatusResponse, err := c.runtimeClient.ContainerStatus(ctx, &v1.ContainerStatusRequest{ContainerId: containerID})
+func (c *Client) GetContainerStatus(ctx context.Context, containerID string) (*v1.ContainerStatusResponse, error) {
+	containerStatusResponse, err := c.runtimeClient.ContainerStatus(ctx, &v1.ContainerStatusRequest{ContainerId: containerID, Verbose: true})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get container status for ID %s: %w", containerID, err)
 	}
-	return containerStatusResponse.Status, nil
+	return containerStatusResponse, nil
 }
 
 // GetContainerImage retrieves the image status of a specific imageSpec.
@@ -129,10 +129,10 @@ func (c *Client) GetContainerImage(ctx context.Context, imageSpec *v1.ImageSpec)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch image status for spec %s: %w", imageSpec.Image, err)
 	}
-	if imageStatusResponse.Image == nil {
+	if imageStatusResponse.GetImage() == nil {
 		return nil, fmt.Errorf("image not found for spec %s", imageSpec.Image)
 	}
-	return imageStatusResponse.Image, nil
+	return imageStatusResponse.GetImage(), nil
 }
 
 // GetPodStatus retrieves the status of a specific pod sandbox.
@@ -141,5 +141,5 @@ func (c *Client) GetPodStatus(ctx context.Context, podSandboxID string) (*v1.Pod
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pod status for pod ID %s: %w", podSandboxID, err)
 	}
-	return podSandboxStatusResponse.Status, nil
+	return podSandboxStatusResponse.GetStatus(), nil
 }
