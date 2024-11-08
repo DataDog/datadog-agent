@@ -66,7 +66,6 @@ type Modifier interface {
 	fmt.Stringer
 	// BeforeInit is called before the ebpf.Manager.InitWithOptions call
 	// names.ModuleName refers to the name associated with Manager instance.
-	// The io.ReaderAt is a reader for the eBPF bytecode.
 	BeforeInit(*manager.Manager, names.ModuleName, *manager.Options) error
 
 	// AfterInit is called after the ebpf.Manager.InitWithOptions call
@@ -86,7 +85,7 @@ func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) e
 		}
 	}
 
-	if err := m.Manager.InitWithOptions(bytecode, *opts); err != nil {
+	if err := m.Manager.InitWithOptions(nil, *opts); err != nil {
 		return err
 	}
 
