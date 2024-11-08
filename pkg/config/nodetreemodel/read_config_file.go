@@ -16,26 +16,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func (c *ntmConfig) mergeAllLayers() error {
-	root := newInnerNodeImpl()
-
-	treeList := []InnerNode{
-		c.defaults,
-		c.file,
-	}
-
-	// TODO: handle all configuration sources
-	for _, tree := range treeList {
-		err := root.Merge(tree)
-		if err != nil {
-			return err
-		}
-	}
-
-	c.root = root
-	return nil
-}
-
 func (c *ntmConfig) getConfigFile() string {
 	if c.configFile == "" {
 		return "datadog.yaml"
@@ -151,7 +131,7 @@ func loadYamlInto(defaults InnerNode, dest InnerNode, data map[string]interface{
 				// Both default and dest have a child but they conflict in type. This should never happen.
 				warnings = append(warnings, "invalid tree: default and dest tree don't have the same layout")
 			} else {
-				dest.InsertChildNode(key, newLeafNodeImpl(value, model.SourceFile))
+				dest.InsertChildNode(key, newLeafNode(value, model.SourceFile))
 			}
 			continue
 		}
@@ -165,7 +145,7 @@ func loadYamlInto(defaults InnerNode, dest InnerNode, data map[string]interface{
 		defaultNext, _ := defaultNode.(InnerNode)
 
 		if !dest.HasChild(key) {
-			destInner := newInnerNodeImpl()
+			destInner := newInnerNode(nil)
 			warnings = append(warnings, loadYamlInto(defaultNext, destInner, mapString, curPath)...)
 			dest.InsertChildNode(key, destInner)
 			continue

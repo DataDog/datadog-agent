@@ -75,7 +75,7 @@ func getMeta(ctx context.Context, conf model.Reader) *Meta {
 		HostnameResolutionVersion: 1,
 	}
 
-	legacyResolutionHostnameData, _ := hostname.GetWithProviderLegacyResolution(ctx)
+	legacyResolutionHostnameData, _ := hostname.GetWithLegacyResolutionProvider(ctx)
 	if legacyResolutionHostnameData.Hostname != hostnameData.Hostname {
 		m.LegacyResolutionHostname = legacyResolutionHostnameData.Hostname
 	}

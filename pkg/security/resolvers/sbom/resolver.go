@@ -242,7 +242,7 @@ func (r *Resolver) Start(ctx context.Context) error {
 				if err := retry.Do(func() error {
 					return r.analyzeWorkload(sbom)
 				}, retry.Attempts(maxSBOMGenerationRetries), retry.Delay(200*time.Millisecond)); err != nil {
-					seclog.Errorf("%s", err.Error())
+					seclog.Warnf("%s", err.Error())
 				}
 			}
 		}
