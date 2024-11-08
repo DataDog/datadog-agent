@@ -93,15 +93,15 @@ build do
             unless heroku_target?
               if ENV.has_key?('SYSTEM_PROBE_BIN') and not ENV['SYSTEM_PROBE_BIN'].empty?
                 move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "#{output_config_dir}/etc/datadog-agent"
+                # SElinux policies aren't generated when system-probe isn't built
+                # Move SELinux policy
+                if debian_target? || redhat_target?
+                  move "#{install_dir}/etc/datadog-agent/selinux", "#{output_config_dir}/etc/datadog-agent/selinux"
+                end
               end
               move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "#{output_config_dir}/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/runtime-security.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/compliance.d", "#{output_config_dir}/etc/datadog-agent"
-
-              # Move SELinux policy
-              if debian_target? || redhat_target?
-                move "#{install_dir}/etc/datadog-agent/selinux", "#{output_config_dir}/etc/datadog-agent/selinux"
-              end
             end
 
             if ot_target?
