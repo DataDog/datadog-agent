@@ -18,7 +18,7 @@ import (
 
 // GetSystemProbeTelemetry queries the telemetry endpoint from system-probe.
 func GetSystemProbeTelemetry(client *http.Client) ([]byte, error) {
-	url := sysprobeclient.URL("", "/telemetry")
+	url := sysprobeclient.URL("/telemetry")
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err

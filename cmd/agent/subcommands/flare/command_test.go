@@ -36,7 +36,11 @@ type commandTestSuite struct {
 
 func (c *commandTestSuite) SetupSuite() {
 	t := c.T()
-	c.sysprobeSocketPath = path.Join(t.TempDir(), "sysprobe.sock")
+	if runtime.GOOS == "windows" {
+		c.sysprobeSocketPath = systemProbeTestPipeName
+	} else {
+		c.sysprobeSocketPath = path.Join(t.TempDir(), "sysprobe.sock")
+	}
 }
 
 // startTestServers starts test servers from a clean state to ensure no cache responses are used.
@@ -127,11 +131,7 @@ func (c *commandTestSuite) TestReadProfileData() {
 
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
-	if runtime.GOOS == "windows" {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", u.Host)
-	} else {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
-	}
+	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 
 	data, err := readProfileData(10)
 	require.NoError(t, err)
@@ -197,11 +197,7 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
-	if runtime.GOOS == "windows" {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", u.Host)
-	} else {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
-	}
+	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 
 	data, err := readProfileData(10)
 	require.Error(t, err)

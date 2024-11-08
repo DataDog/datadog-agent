@@ -5,6 +5,7 @@
 
 //go:build linux || windows
 
+// Package net contains functions for process-agent to interact with system-probe
 package net
 
 import (
@@ -32,7 +33,7 @@ func GetProcStats(client *http.Client, pids []int32) (*model.ProcStatsWithPermBy
 		return nil, err
 	}
 
-	url := sysprobeclient.URL(sysconfig.ProcessModule, "/stats")
+	url := sysprobeclient.ModuleURL(sysconfig.ProcessModule, "/stats")
 	req, err := http.NewRequest("POST", url, bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, err
@@ -66,7 +67,7 @@ func GetProcStats(client *http.Client, pids []int32) (*model.ProcStatsWithPermBy
 
 // GetNetworkID fetches the network_id (vpc_id) from system-probe
 func GetNetworkID(client *http.Client) (string, error) {
-	url := sysprobeclient.URL(sysconfig.NetworkTracerModule, "/network_id")
+	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/network_id")
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)

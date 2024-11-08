@@ -34,7 +34,7 @@ func GetStatus(stats map[string]interface{}, socketPath string) {
 }
 
 func getStats(client *http.Client) (map[string]interface{}, error) {
-	url := sysprobeclient.URL("", "/debug/stats")
+	url := sysprobeclient.DebugURL("/stats")
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err

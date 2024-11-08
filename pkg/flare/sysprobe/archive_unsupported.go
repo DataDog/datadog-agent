@@ -8,9 +8,12 @@
 // Package sysprobe contains flare logic that only imports pkg/process/net when the process build tag is included
 package sysprobe
 
-import "errors"
+import (
+	"errors"
+	"net/http"
+)
 
 // GetSystemProbeTelemetry is not supported without the process agent
-func GetSystemProbeTelemetry(_socketPath string) ([]byte, error) {
+func GetSystemProbeTelemetry(_ *http.Client) ([]byte, error) {
 	return nil, errors.New("GetSystemProbeTelemetry not supported on builds without the process agent")
 }

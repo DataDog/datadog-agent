@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
@@ -45,7 +46,7 @@ func get(socketPath string) *http.Client {
 // GetCheck returns data unmarshalled from JSON to T, from the specified module at the /<module>/check endpoint.
 func GetCheck[T any](client *http.Client, module types.ModuleName) (T, error) {
 	var data T
-	req, err := http.NewRequest("GET", URL(module, "/check"), nil)
+	req, err := http.NewRequest("GET", ModuleURL(module, "/check"), nil)
 	if err != nil {
 		return data, err
 	}
@@ -68,11 +69,32 @@ func GetCheck[T any](client *http.Client, module types.ModuleName) (T, error) {
 	return data, err
 }
 
-// URL constructs a system-probe URL given the specified module and endpoint.
-// Do not include any query parameters here.
-func URL(module types.ModuleName, endpoint string) string {
-	sysurl, _ := url.JoinPath("http://sysprobe", string(module), endpoint)
-	return sysurl
+func constructURL(module string, endpoint string) string {
+	u, _ := url.Parse("http://sysprobe")
+	if module != "" {
+		u = u.JoinPath(module)
+	}
+	path, query, found := strings.Cut(endpoint, "?")
+	u = u.JoinPath(path)
+	if found {
+		u.RawQuery = query
+	}
+	return u.String()
+}
+
+// URL constructs a system-probe URL for a module-less endpoint.
+func URL(endpoint string) string {
+	return constructURL("", endpoint)
+}
+
+// DebugURL constructs a system-probe URL for the debug module and endpoint.
+func DebugURL(endpoint string) string {
+	return constructURL("debug", endpoint)
+}
+
+// ModuleURL constructs a system-probe ModuleURL given the specified module and endpoint.
+func ModuleURL(module types.ModuleName, endpoint string) string {
+	return constructURL(string(module), endpoint)
 }
 
 // ReadAllResponseBody reads the entire HTTP response body as a byte slice

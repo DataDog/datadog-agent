@@ -55,7 +55,7 @@ func getTraceroute(client *http.Client, clientID string, host string, port uint1
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
-	url := sysprobeclient.URL(sysconfig.TracerouteModule, "/traceroute/"+host) + fmt.Sprintf("?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s", clientID, port, maxTTL, timeout, protocol)
+	url := sysprobeclient.ModuleURL(sysconfig.TracerouteModule, "/traceroute/"+host) + fmt.Sprintf("?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s", clientID, port, maxTTL, timeout, protocol)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
