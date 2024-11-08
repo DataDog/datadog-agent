@@ -198,7 +198,7 @@ installer-arm64-oci:
 
 windows-installer-amd64:
   stage: package_build
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  tags: ["runner:windows-docker", "windowsversion:2022"]
   needs: ["go_mod_tidy_check", "go_deps"]
   rules:
     - !reference [.except_mergequeue]
@@ -226,7 +226,7 @@ windows-installer-amd64:
       -e S3_OMNIBUS_CACHE_BUCKET="$S3_OMNIBUS_CACHE_BUCKET"
       -e USE_S3_CACHING="$USE_S3_CACHING"
       -e API_KEY_ORG2=${API_KEY_ORG2}
-      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\buildinstaller.bat
   after_script:
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'

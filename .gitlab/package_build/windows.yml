@@ -1,7 +1,7 @@
 ---
 .windows_msi_base:
   stage: package_build
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  tags: ["runner:windows-docker", "windowsversion:2022"]
   needs: ["go_mod_tidy_check", "go_deps"]
   script:
     - $ErrorActionPreference = 'Stop'
@@ -36,7 +36,7 @@
       -e BUNDLE_MIRROR__RUBYGEMS__ORG=${BUNDLE_MIRROR__RUBYGEMS__ORG}
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
       -e API_KEY_ORG2=${API_KEY_ORG2}
-      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\buildwin.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - get-childitem omnibus\pkg
@@ -71,7 +71,7 @@ windows_zip_agent_binaries_x64-a7:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  tags: ["runner:windows-docker", "windowsversion:2022"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     ARCH: "x64"
@@ -108,7 +108,7 @@ windows_zip_agent_binaries_x64-a7:
       -e BUNDLE_MIRROR__RUBYGEMS__ORG=${BUNDLE_MIRROR__RUBYGEMS__ORG}
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
       -e API_KEY_ORG2=${API_KEY_ORG2}
-      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\buildwin.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - get-childitem omnibus\pkg

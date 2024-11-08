@@ -7,7 +7,7 @@ windows_choco_offline_7_x64:
   rules:
     !reference [.manual]
   stage: choco_and_install_script_build
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  tags: ["runner:windows-docker", "windowsversion:2022"]
   needs: ["windows_msi_and_bosh_zip_x64-a7"]
   variables:
     ARCH: "x64"
@@ -15,7 +15,7 @@ windows_choco_offline_7_x64:
     - $ErrorActionPreference = "Stop"
     - Get-ChildItem omnibus\pkg
     - copy omnibus\pkg\*.msi .\chocolatey\tools-offline\
-    - docker run --rm -v "$(Get-Location):c:\mnt" registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES} c:\mnt\tasks\winbuildscripts\chocopack.bat offline
+    - docker run --rm -v "$(Get-Location):c:\mnt" registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES} c:\mnt\tasks\winbuildscripts\chocopack.bat offline
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - copy build-out\*.nupkg omnibus\pkg
   artifacts:
@@ -28,7 +28,7 @@ windows_choco_online_7_x64:
   rules:
     !reference [.on_deploy_stable_or_beta_repo_branch]
   stage: choco_and_install_script_build
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  tags: ["runner:windows-docker", "windowsversion:2022"]
   needs: ["deploy_packages_windows-x64-7"]
   variables:
     ARCH: "x64"
@@ -45,7 +45,7 @@ windows_choco_online_7_x64:
       -v "$(Get-Location):c:\mnt"
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e BUCKET_BRANCH="$BUCKET_BRANCH"
-      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\chocopack.bat online c:\mnt\temp
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - Remove-Item -Path "temp\" -Recurse -Force
