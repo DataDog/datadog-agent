@@ -55,6 +55,7 @@ type Telemetry struct {
 	samplingRules []tracer.SamplingRule
 }
 
+// Option is a functional option for telemetry.
 type Option func(*Telemetry)
 
 // NewTelemetry creates a new telemetry instance
