@@ -98,8 +98,17 @@ func (e *ebpfTelemetry) fill(maps []names.MapName, mn names.ModuleName, mapErrMa
 		return err
 	}
 
-	e.mapErrMapsByModule[mn] = mapErrMap
-	e.helperErrMapsByModule[mn] = helperErrMap
+	if _, ok := e.mapErrMapsByModule[mn]; ok {
+		return fmt.Errorf("eBPF map for map-operation errors for module %s already exists", mn.String())
+	} else {
+		e.mapErrMapsByModule[mn] = mapErrMap
+	}
+
+	if _, ok := e.helperErrMapsByModule[mn]; ok {
+		return fmt.Errorf("eBPF map for helper-operation errors for module %s already exists", mn.String())
+	} else {
+		e.helperErrMapsByModule[mn] = helperErrMap
+	}
 
 	e.initialized = true
 

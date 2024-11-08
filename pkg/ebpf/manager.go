@@ -67,7 +67,7 @@ type Modifier interface {
 	// BeforeInit is called before the ebpf.Manager.InitWithOptions call
 	// names.ModuleName refers to the name associated with Manager instance.
 	// The io.ReaderAt is a reader for the eBPF bytecode.
-	BeforeInit(*manager.Manager, names.ModuleName, *manager.Options, io.ReaderAt) error
+	BeforeInit(*manager.Manager, names.ModuleName, *manager.Options) error
 
 	// AfterInit is called after the ebpf.Manager.InitWithOptions call
 	AfterInit(*manager.Manager, names.ModuleName, *manager.Options) error
@@ -75,9 +75,13 @@ type Modifier interface {
 
 // InitWithOptions is a wrapper around ebpf-manager.Manager.InitWithOptions
 func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) error {
+	if err := m.LoadELF(bytecode); err != nil {
+		return fmt.Errorf("failed to load elf from reader: %w", err)
+	}
+
 	for _, mod := range m.EnabledModifiers {
 		log.Tracef("Running %s manager modifier BeforeInit", mod)
-		if err := mod.BeforeInit(m.Manager, m.Name, opts, bytecode); err != nil {
+		if err := mod.BeforeInit(m.Manager, m.Name, opts); err != nil {
 			return fmt.Errorf("error running %s manager modifier: %w", mod, err)
 		}
 	}

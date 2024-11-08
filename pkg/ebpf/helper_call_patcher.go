@@ -9,7 +9,6 @@ package ebpf
 
 import (
 	"fmt"
-	"io"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/asm"
@@ -51,7 +50,7 @@ type helperCallRemover struct {
 	helpers []asm.BuiltinFunc
 }
 
-func (h *helperCallRemover) BeforeInit(m *manager.Manager, _ names.ModuleName, _ *manager.Options, _ io.ReaderAt) error {
+func (h *helperCallRemover) BeforeInit(m *manager.Manager, _ names.ModuleName, _ *manager.Options) error {
 	m.InstructionPatchers = append(m.InstructionPatchers, func(m *manager.Manager) error {
 		progs, err := m.GetProgramSpecs()
 		if err != nil {

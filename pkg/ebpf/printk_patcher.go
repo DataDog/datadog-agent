@@ -9,7 +9,6 @@ package ebpf
 
 import (
 	"errors"
-	"io"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -219,7 +218,7 @@ func (t *PrintkPatcherModifier) String() string {
 }
 
 // BeforeInit adds the patchPrintkNewline function to the manager
-func (t *PrintkPatcherModifier) BeforeInit(m *manager.Manager, _ names.ModuleName, _ *manager.Options, _ io.ReaderAt) error {
+func (t *PrintkPatcherModifier) BeforeInit(m *manager.Manager, _ names.ModuleName, _ *manager.Options) error {
 	m.InstructionPatchers = append(m.InstructionPatchers, patchPrintkNewline)
 	return nil
 }

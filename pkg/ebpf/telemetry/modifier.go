@@ -9,11 +9,9 @@ package telemetry
 
 import (
 	"fmt"
-	"io"
 	"slices"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
@@ -38,7 +36,7 @@ func (t *ErrorsTelemetryModifier) String() string {
 // BeforeInit sets up the manager to handle eBPF telemetry.
 // It will patch the instructions of all the manager probes and `undefinedProbes` provided.
 // Constants are replaced for map error and helper error keys with their respective values.
-func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, module names.ModuleName, opts *manager.Options, bytecode io.ReaderAt) error {
+func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, module names.ModuleName, opts *manager.Options) error {
 	activateBPFTelemetry, err := ebpfTelemetrySupported()
 	if err != nil {
 		return err
@@ -67,19 +65,24 @@ func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, module names.Mo
 	}
 
 	if activateBPFTelemetry {
-		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bytecode)
+		ebpfMaps, err := m.GetMapSpecs()
 		if err != nil {
-			return fmt.Errorf("failed to load collection spec for module %s: %w", module.String(), err)
+			return fmt.Errorf("failed to get map specs from manager: %w", err)
+		}
+
+		ebpfPrograms, err := m.GetProgramSpecs()
+		if err != nil {
+			return fmt.Errorf("failed to get program specs from manager: %w", err)
 		}
 
 		opts.MapSpecEditors[mapErrTelemetryMapName] = manager.MapSpecEditor{
-			MaxEntries: uint32(len(collectionSpec.Maps)),
+			MaxEntries: uint32(len(ebpfMaps)),
 			EditorFlag: manager.EditMaxEntries,
 		}
 		log.Tracef("module %s maps %d", module.String(), opts.MapSpecEditors[mapErrTelemetryMapName].MaxEntries)
 
 		opts.MapSpecEditors[helperErrTelemetryMapName] = manager.MapSpecEditor{
-			MaxEntries: uint32(len(collectionSpec.Programs)),
+			MaxEntries: uint32(len(ebpfPrograms)),
 			EditorFlag: manager.EditMaxEntries,
 		}
 		log.Tracef("module %s probes %d", module.String(), opts.MapSpecEditors[helperErrTelemetryMapName].MaxEntries)
