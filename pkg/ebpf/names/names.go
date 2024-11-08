@@ -14,6 +14,9 @@ import (
 	"github.com/cilium/ebpf"
 )
 
+// MapName represents a name of a map derived from an object representing
+// an eBPF map. It should be used in places where we want guarantees that
+// we are working with a valid map name.
 type MapName struct {
 	n string
 }
@@ -26,6 +29,9 @@ func NewMapNameFromManagerMap(m *manager.Map) MapName {
 	return MapName{n: m.Name}
 }
 
+// ProgramName represents a name of a map derived from an object representing
+// an eBPF program. It should be used in places where we want guarantees that
+// we are working with a valid program name.
 type ProgramName struct {
 	n string
 }
@@ -50,6 +56,7 @@ func NewModuleName(mn string) ModuleName {
 	return ModuleName{n: mn}
 }
 
+// ResourceName represents the name of any eBPF resources.
 type ResourceName interface {
 	Name() string
 }
