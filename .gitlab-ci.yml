@@ -1237,10 +1237,8 @@ workflow:
 
 
 windows_validate_modules:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  stage: lint
   needs: []
-  tags: ["arch:amd64"]
+  tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
     - echo "inv -e modules.validate" > test.bat
     - docker run --rm
