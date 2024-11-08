@@ -130,7 +130,7 @@ func getResourceLimits(containerStatus *v1.ContainerStatus, info map[string]stri
 		RuntimeSpec struct {
 			Linux struct {
 				Resources struct {
-					Cpu struct {
+					CPU struct {
 						Quota  int64 `json:"quota"`
 						Period int64 `json:"period"`
 					} `json:"cpu"`
@@ -147,8 +147,8 @@ func getResourceLimits(containerStatus *v1.ContainerStatus, info map[string]stri
 		return nil, nil
 	}
 
-	cpuPeriod := float64(parsedInfo.RuntimeSpec.Linux.Resources.Cpu.Period)
-	cpuQuota := float64(parsedInfo.RuntimeSpec.Linux.Resources.Cpu.Quota)
+	cpuPeriod := float64(parsedInfo.RuntimeSpec.Linux.Resources.CPU.Period)
+	cpuQuota := float64(parsedInfo.RuntimeSpec.Linux.Resources.CPU.Quota)
 	memLimitInBytes := uint64(parsedInfo.RuntimeSpec.Linux.Resources.Memory.LimitInBytes)
 
 	var cpuLimit *float64
@@ -233,7 +233,7 @@ func generateUnsetEvent(seenID workloadmeta.EntityID) workloadmeta.CollectorEven
 func extractPortsFromAnnotations(annotations map[string]string) []workloadmeta.ContainerPort {
 	var wmContainerPorts []workloadmeta.ContainerPort
 
-	if annotations == nil || len(annotations) == 0 {
+	if len(annotations) == 0 {
 		log.Warn("Annotations are nil or empty")
 		return wmContainerPorts
 	}
