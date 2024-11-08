@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -139,15 +140,14 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
 	require.NotNil(t, stats)
-	require.NotEmpty(t, stats.ProcessStats)
-	require.Contains(t, stats.ProcessStats, uint32(cmd.Process.Pid))
+	require.NotEmpty(t, stats.MetricsMap)
 
-	pidStats := stats.ProcessStats[uint32(cmd.Process.Pid)]
-	require.Contains(t, pidStats.StatsPerDevice, testutil.DefaultGpuUUID)
-	devStats := pidStats.StatsPerDevice[testutil.DefaultGpuUUID]
+	metricKey := model.Key{PID: uint32(cmd.Process.Pid), DeviceUUID: testutil.DefaultGpuUUID}
+	require.Contains(t, stats.MetricsMap, metricKey)
 
-	require.Greater(t, devStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
-	require.Equal(t, devStats.Memory.MaxBytes, uint64(110))
+	metrics := stats.MetricsMap[metricKey]
+	require.Greater(t, metrics.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
+	require.Equal(t, metrics.Memory.MaxBytes, uint64(110))
 }
 
 func (s *probeTestSuite) TestMultiGPUSupport() {
@@ -184,13 +184,10 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
 	require.NotNil(t, stats)
-	require.NotEmpty(t, stats.ProcessStats)
-	require.Contains(t, stats.ProcessStats, uint32(cmd.Process.Pid))
+	metricKey := model.Key{PID: uint32(cmd.Process.Pid), DeviceUUID: selectedGPU}
+	require.Contains(t, stats.MetricsMap, metricKey)
 
-	pidStats := stats.ProcessStats[uint32(cmd.Process.Pid)]
-	require.Contains(t, pidStats.StatsPerDevice, selectedGPU)
-	devStats := pidStats.StatsPerDevice[selectedGPU]
-
-	require.Greater(t, devStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
-	require.Equal(t, devStats.Memory.MaxBytes, uint64(110))
+	metrics := stats.MetricsMap[metricKey]
+	require.Greater(t, metrics.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
+	require.Equal(t, metrics.Memory.MaxBytes, uint64(110))
 }

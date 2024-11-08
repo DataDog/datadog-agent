@@ -38,11 +38,11 @@ const (
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	config       *CheckConfig            // config for the check
-	sysProbeUtil processnet.SysProbeUtil // sysProbeUtil is used to communicate with system probe
-	activePIDs   map[uint32]bool         // activePIDs is a set of PIDs that have been seen in the current check run
-	collectors   []nvidia.Collector      // collectors for NVML metrics
-	nvmlLib      nvml.Interface          // NVML library interface
+	config        *CheckConfig            // config for the check
+	sysProbeUtil  processnet.SysProbeUtil // sysProbeUtil is used to communicate with system probe
+	activeMetrics map[model.Key]bool      // activeMetrics is a set of metrics that have been seen in the current check run
+	collectors    []nvidia.Collector      // collectors for NVML metrics
+	nvmlLib       nvml.Interface          // NVML library interface
 }
 
 // Factory creates a new check factory
@@ -52,9 +52,9 @@ func Factory() optional.Option[func() check.Check] {
 
 func newCheck() check.Check {
 	return &Check{
-		CheckBase:  core.NewCheckBase(CheckName),
-		config:     &CheckConfig{},
-		activePIDs: make(map[uint32]bool),
+		CheckBase:     core.NewCheckBase(CheckName),
+		config:        &CheckConfig{},
+		activeMetrics: make(map[model.Key]bool),
 	}
 }
 
@@ -145,40 +145,42 @@ func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
 		return fmt.Errorf("gpu check raw data has incorrect type: %T", stats)
 	}
 
-	// Set all PIDs to inactive, so we can remove the ones that we don't see
+	// Set all metrics to inactive, so we can remove the ones that we don't see
 	// and send the final metrics
-	for pid := range m.activePIDs {
-		m.activePIDs[pid] = false
+	for key := range m.activeMetrics {
+		m.activeMetrics[key] = false
 	}
 
-	for pid, pidStats := range stats.ProcessStats {
-		// Per-PID metrics are subject to change due to high cardinality
-		tags := []string{fmt.Sprintf("pid:%d", pid)}
+	for key, metrics := range stats.MetricsMap {
+		tags := getTagsForKey(key)
+		snd.Gauge(metricNameUtil, metrics.UtilizationPercentage, "", tags)
+		snd.Gauge(metricNameMemory, float64(metrics.Memory.CurrentBytes), "", tags)
+		snd.Gauge(metricNameMaxMem, float64(metrics.Memory.MaxBytes), "", tags)
 
-		for device, devStats := range pidStats.StatsPerDevice {
-			devTags := append(tags, fmt.Sprintf("gpu_uuid:%s", device))
-
-			snd.Gauge(metricNameUtil, devStats.UtilizationPercentage, "", devTags)
-			snd.Gauge(metricNameMemory, float64(devStats.Memory.CurrentBytes), "", devTags)
-			snd.Gauge(metricNameMaxMem, float64(devStats.Memory.MaxBytes), "", devTags)
-		}
-
-		m.activePIDs[pid] = true
+		m.activeMetrics[key] = true
 	}
 
 	// Remove the PIDs that we didn't see in this check
-	for pid, active := range m.activePIDs {
+	for key, active := range m.activeMetrics {
 		if !active {
-			tags := []string{fmt.Sprintf("pid:%d", pid)}
+			tags := getTagsForKey(key)
 			snd.Gauge(metricNameMemory, 0, "", tags)
 			snd.Gauge(metricNameMaxMem, 0, "", tags)
 			snd.Gauge(metricNameUtil, 0, "", tags)
 
-			delete(m.activePIDs, pid)
+			delete(m.activeMetrics, key)
 		}
 	}
 
 	return nil
+}
+
+func getTagsForKey(key model.Key) []string {
+	// Per-PID metrics are subject to change due to high cardinality
+	return []string{
+		fmt.Sprintf("pid:%d", key.PID),
+		fmt.Sprintf("gpu_uuid:%s", key.DeviceUUID),
+	}
 }
 
 func (m *Check) emitNvmlMetrics(snd sender.Sender) error {

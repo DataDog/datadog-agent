@@ -7,25 +7,29 @@
 // the gpu core agent check
 package model
 
-// MemoryStats contains the memory stats for a given memory type
-type MemoryStats struct {
+// MemoryMetrics contains the memory stats for a given memory type
+type MemoryMetrics struct {
 	CurrentBytes uint64 `json:"current_bytes"`
 	MaxBytes     uint64 `json:"max_bytes"`
 }
 
 // DeviceStats contains the GPU stats for a given device and process
-type DeviceStats struct {
-	UtilizationPercentage float64     `json:"utilization_percentage"`
-	Memory                MemoryStats `json:"memory"`
+type Metrics struct {
+	UtilizationPercentage float64       `json:"utilization_percentage"`
+	Memory                MemoryMetrics `json:"memory"`
 }
 
-// ProcessStats contains the GPU stats for a given PID
-type ProcessStats struct {
-	StatsPerDevice map[string]DeviceStats `json:"device_stats"`
+// Key is the key used to identify a GPUStats object
+type Key struct {
+	// PID is the process ID
+	PID uint32 `json:"pid"`
+
+	// DeviceUUID is the UUID of the device
+	DeviceUUID string `json:"device_uuid"`
 }
 
 // GPUStats contains the past and current data for all streams, including kernel spans and allocations.
 // This is the data structure that is sent to the agent
 type GPUStats struct {
-	ProcessStats map[uint32]ProcessStats `json:"process_stats"`
+	MetricsMap map[Key]Metrics `json:"metrics_map"`
 }

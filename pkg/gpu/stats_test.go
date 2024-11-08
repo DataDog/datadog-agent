@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -78,18 +79,16 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	checkKtime := ktime + int64(checkDuration)
 	stats := statsGen.getStats(checkKtime)
 	require.NotNil(t, stats)
-	require.Contains(t, stats.ProcessStats, pid)
+	metricsKey := model.Key{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
+	require.Contains(t, stats.MetricsMap, metricsKey)
 
-	pidStats := stats.ProcessStats[pid]
-	require.Contains(t, pidStats.StatsPerDevice, testutil.DefaultGpuUUID)
-	devStats := pidStats.StatsPerDevice[testutil.DefaultGpuUUID]
-
-	require.Equal(t, allocSize*2, devStats.Memory.CurrentBytes)
-	require.Equal(t, allocSize*2, devStats.Memory.MaxBytes)
+	metrics := stats.MetricsMap[metricsKey]
+	require.Equal(t, allocSize*2, metrics.Memory.CurrentBytes)
+	require.Equal(t, allocSize*2, metrics.Memory.MaxBytes)
 
 	// defined kernel is using only 1 core for 9 of the 10 seconds
 	expectedUtil := 1.0 / testutil.DefaultGpuCores * 0.9
-	require.Equal(t, expectedUtil, devStats.UtilizationPercentage)
+	require.Equal(t, expectedUtil, metrics.UtilizationPercentage)
 }
 
 func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
@@ -133,20 +132,18 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	checkKtime := ktime + int64(checkDuration)
 	stats := statsGen.getStats(checkKtime)
 	require.NotNil(t, stats)
-	require.Contains(t, stats.ProcessStats, pid)
+	metricsKey := model.Key{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
+	require.Contains(t, stats.MetricsMap, metricsKey)
 
-	pidStats := stats.ProcessStats[pid]
-	require.Contains(t, pidStats.StatsPerDevice, testutil.DefaultGpuUUID)
-	devStats := pidStats.StatsPerDevice[testutil.DefaultGpuUUID]
-
-	require.Equal(t, uint64(0), devStats.Memory.CurrentBytes)
-	require.Equal(t, allocSize, devStats.Memory.MaxBytes)
+	metrics := stats.MetricsMap[metricsKey]
+	require.Equal(t, uint64(0), metrics.Memory.CurrentBytes)
+	require.Equal(t, allocSize, metrics.Memory.MaxBytes)
 
 	// numThreads / DefaultGpuCores is the utilization for the
 	threadSecondsUsed := float64(numThreads) * float64(endKtime-startKtime) / 1e9
 	threadSecondsAvailable := float64(testutil.DefaultGpuCores) * checkDuration.Seconds()
 	expectedUtil := threadSecondsUsed / threadSecondsAvailable
-	require.InDelta(t, expectedUtil, devStats.UtilizationPercentage, 0.001)
+	require.InDelta(t, expectedUtil, metrics.UtilizationPercentage, 0.001)
 }
 
 func TestGetStatsWithPastAndCurrentData(t *testing.T) {
@@ -211,14 +208,12 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	checkKtime := ktime + int64(checkDuration)
 	stats := statsGen.getStats(checkKtime)
 	require.NotNil(t, stats)
-	require.Contains(t, stats.ProcessStats, pid)
+	metricsKey := model.Key{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
+	require.Contains(t, stats.MetricsMap, metricsKey)
 
-	pidStats := stats.ProcessStats[pid]
-	require.Contains(t, pidStats.StatsPerDevice, testutil.DefaultGpuUUID)
-	devStats := pidStats.StatsPerDevice[testutil.DefaultGpuUUID]
-
-	require.Equal(t, allocSize+shmemSize, devStats.Memory.CurrentBytes)
-	require.Equal(t, allocSize*2+shmemSize, devStats.Memory.MaxBytes)
+	metrics := stats.MetricsMap[metricsKey]
+	require.Equal(t, allocSize+shmemSize, metrics.Memory.CurrentBytes)
+	require.Equal(t, allocSize*2+shmemSize, metrics.Memory.MaxBytes)
 
 	// numThreads / DefaultGpuCores is the utilization for the
 	threadSecondsUsed := float64(numThreads) * float64(endKtime-startKtime) / 1e9
@@ -226,5 +221,5 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	expectedUtilKern1 := threadSecondsUsed / threadSecondsAvailable
 	expectedUtilKern2 := 1.0 / testutil.DefaultGpuCores * 0.9
 	expectedUtil := expectedUtilKern1 + expectedUtilKern2
-	require.InDelta(t, expectedUtil, devStats.UtilizationPercentage, 0.001)
+	require.InDelta(t, expectedUtil, metrics.UtilizationPercentage, 0.001)
 }
