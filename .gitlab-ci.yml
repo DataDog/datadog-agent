@@ -1241,7 +1241,6 @@ windows_validate_modules:
   stage: lint
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
-    - echo "inv -e modules.validate" > test.bat
     - docker run --rm
       -m 16384M
       --storage-opt "size=50GB"
@@ -1268,4 +1267,4 @@ windows_validate_modules:
       -e API_KEY_ORG2_SSM_NAME="${API_KEY_ORG2_SSM_NAME}"
       -e CODECOV_TOKEN_SSM_NAME="${CODECOV_TOKEN_SSM_NAME}"
       registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_x64${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
-      c:\mnt\test.bat
+      powershell -Command "inv -e modules.validate"
