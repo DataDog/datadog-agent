@@ -62,6 +62,11 @@ func (fr *FakeResolver) GetValue(id string, tag string) string {
 	return utils.GetTagValue(tag, fr.Resolve(id))
 }
 
+// RegisterListener registers a tags event listener
+func (fr *FakeResolver) RegisterListener(event tags.Event, listener tags.Listener) error {
+	return nil
+}
+
 // NewFakeResolverDifferentImageNames returns a new tags resolver
 func NewFakeResolverDifferentImageNames() tags.Resolver {
 	return &FakeResolver{}
@@ -96,6 +101,11 @@ func (fmr *FakeMonoResolver) ResolveWithErr(id string) ([]string, error) {
 // GetValue return the tag value for the given id and tag name
 func (fmr *FakeMonoResolver) GetValue(id string, tag string) string {
 	return utils.GetTagValue(tag, fmr.Resolve(id))
+}
+
+// RegisterListener registers a tags event listener
+func (fmr *FakeMonoResolver) RegisterListener(event tags.Event, listener tags.Listener) error {
+	return nil
 }
 
 // NewFakeMonoResolver returns a new tags resolver
@@ -177,6 +187,11 @@ func (fmr *FakeManualResolver) ResolveWithErr(id string) ([]string, error) {
 // GetValue return the tag value for the given id and tag name
 func (fmr *FakeManualResolver) GetValue(id string, tag string) string {
 	return utils.GetTagValue(tag, fmr.Resolve(id))
+}
+
+// RegisterListener registers a tags event listener
+func (fmr *FakeManualResolver) RegisterListener(_ tags.Event, _ tags.Listener) error {
+	return nil
 }
 
 // NewFakeManualResolver returns a new tags resolver
