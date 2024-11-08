@@ -1267,4 +1267,4 @@ windows_validate_modules:
       -e API_KEY_ORG2_SSM_NAME="${API_KEY_ORG2_SSM_NAME}"
       -e CODECOV_TOKEN_SSM_NAME="${CODECOV_TOKEN_SSM_NAME}"
       registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_x64${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
-      powershell -Command "dir ; dir c:\\ ; dir c:\\mnt ; cd c:\\mnt\\datadog-agent ; inv -e modules.validate"
+      powershell -Command "cd c:\\mnt ; inv -e modules.validate"
