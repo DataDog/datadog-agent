@@ -5,6 +5,7 @@
 
 //go:build !linux && !windows
 
+// Package net contains functions for process-agent to interact with system-probe
 package net
 
 import (
