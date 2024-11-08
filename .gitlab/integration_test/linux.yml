@@ -4,7 +4,7 @@
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["docker-in-docker:amd64"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
@@ -23,6 +23,8 @@ agent_integration_tests:
 
 docker_integration_tests:
   extends: .integration_tests_deb
+  # This job is not stable yet because of rate limit issues and micro vms beta status.
+  allow_failure: true
   script:
     - inv -e docker.test
     - inv -e docker.integration-tests

@@ -94,20 +94,21 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 	return comptracecfg.LoadConfigFile(l.Path, c, l.Tagger)
 }
 
-// ServerlessTraceAgentParams represents the parameters needed to start the trace agent
-type ServerlessTraceAgentParams struct {
-	Enabled         bool
-	LoadConfig      Load
-	LambdaSpanChan  chan<- *pb.Span
-	ColdStartSpanID uint64
-	RCService       *remoteconfig.CoreAgentService
+// StartServerlessTraceAgentArgs are the arguments for the StartServerlessTraceAgent method
+type StartServerlessTraceAgentArgs struct {
+	Enabled               bool
+	LoadConfig            Load
+	LambdaSpanChan        chan<- *pb.Span
+	ColdStartSpanID       uint64
+	AzureContainerAppTags string
+	RCService             *remoteconfig.CoreAgentService
 }
 
 // Start starts the agent
 //
 //nolint:revive // TODO(SERV) Fix revive linter
-func StartServerlessTraceAgent(params *ServerlessTraceAgentParams) ServerlessTraceAgent {
-	if params.Enabled {
+func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTraceAgent {
+	if args.Enabled {
 		// Set the serverless config option which will be used to determine if
 		// hostname should be resolved. Skipping hostname resolution saves >1s
 		// in load time between gRPC calls and agent commands.
@@ -116,22 +117,23 @@ func StartServerlessTraceAgent(params *ServerlessTraceAgentParams) ServerlessTra
 		// Turn off apm_sampling as it's not supported and generates debug logs
 		pkgconfigsetup.Datadog().Set("remote_configuration.apm_sampling.enabled", false, model.SourceAgentRuntime)
 
-		tc, confErr := params.LoadConfig.Load()
+		tc, confErr := args.LoadConfig.Load()
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)
 		} else {
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
+			tc.AzureContainerAppTags = args.AzureContainerAppTags
 			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
 			ta.SpanModifier = &spanModifier{
-				coldStartSpanId: params.ColdStartSpanID,
-				lambdaSpanChan:  params.LambdaSpanChan,
+				coldStartSpanId: args.ColdStartSpanID,
+				lambdaSpanChan:  args.LambdaSpanChan,
 				ddOrigin:        getDDOrigin(),
 			}
 
 			ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
-			startTraceAgentConfigEndpoint(params.RCService, tc)
+			startTraceAgentConfigEndpoint(args.RCService, tc)
 			go ta.Run()
 			return &serverlessTraceAgent{
 				ta:     ta,

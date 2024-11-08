@@ -19,9 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	minimumCPULimit    int64 = 50                // 0.05 core, otherwise copying + library initialization is going to take forever
-	minimumMemoryLimit int64 = 100 * 1024 * 1024 // 100 MB (recommended minimum by Alpine)
+var (
+	minimumCPULimit    resource.Quantity = resource.MustParse("0.05")  // 0.05 core, otherwise copying + library initialization is going to take forever
+	minimumMemoryLimit resource.Quantity = resource.MustParse("100Mi") // 100 MB (recommended minimum by Alpine)
 )
 
 // webhookConfig use to store options from the config.Component for the autoinstrumentation webhook
