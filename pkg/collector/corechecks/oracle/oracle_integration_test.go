@@ -341,7 +341,7 @@ func buildConnectionString(connectionConfig config.ConnectionConfig) string {
 			connectionConfig.Username, connectionConfig.Password, protocolString, connectionConfig.Server,
 			connectionConfig.Port, connectionConfig.ServiceName, walletString)
 	} else {
-		connectionOptions := map[string]string{"TIMEOUT": DB_TIMEOUT}
+		connectionOptions := map[string]string{"TIMEOUT": connectionConfig.QueryTimeoutString()}
 		if connectionConfig.Protocol == "TCPS" {
 			connectionOptions["SSL"] = "TRUE"
 			if connectionConfig.Wallet != "" {
