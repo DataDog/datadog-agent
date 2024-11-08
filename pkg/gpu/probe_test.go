@@ -139,26 +139,15 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
 }
 
-func TestProbeCanGenerateStatsInContainer(t *testing.T) {
-	if err := config.CheckGPUSupported(); err != nil {
-		t.Skipf("minimum kernel version not met, %v", err)
-	}
+func (s *probeTestSuite) TestDetectsContainer() {
+	t := s.T()
 
 	procMon := monitor.GetProcessMonitor()
 	require.NotNil(t, procMon)
 	require.NoError(t, procMon.Initialize(false))
 	t.Cleanup(procMon.Stop)
 
-	cfg := config.NewConfig()
-	cfg.InitialProcessSync = false
-	cfg.BPFDebug = true
-
-	nvmlMock := testutil.GetBasicNvmlMock()
-
-	probe, err := NewProbe(cfg, ProbeDependencies{NvmlLib: nvmlMock})
-	require.NoError(t, err)
-	require.NotNil(t, probe)
-	t.Cleanup(probe.Close)
+	probe := s.getProbe()
 
 	pid, cid, err := testutil.RunSampleInDocker(t, testutil.CudaSample, testutil.MinimalDockerImage)
 	require.NoError(t, err)
