@@ -7,7 +7,6 @@
 package ebpf
 
 import (
-	"io"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
