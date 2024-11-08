@@ -20,8 +20,8 @@ import (
 	helpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,17 +39,7 @@ type testDependencies struct {
 }
 
 func TestRemoteAgentCreation(t *testing.T) {
-	testDeps := fxutil.Test[testDependencies](t, fx.Options(
-		config.MockModule(),
-	))
-	lc := compdef.NewTestLifecycle(t)
-
-	deps := dependencies{
-		Config:    testDeps.Config,
-		Lifecycle: lc,
-	}
-
-	provides := NewComponent(deps)
+	provides, lc := buildComponent(t)
 
 	assert.NotNil(t, provides.Comp)
 	assert.NotNil(t, provides.FlareProvider)
@@ -63,7 +53,7 @@ func TestRemoteAgentCreation(t *testing.T) {
 }
 
 func TestGetRegisteredAgents(t *testing.T) {
-	provides := buildComponent(t)
+	provides, _ := buildComponent(t)
 	component := provides.Comp
 
 	registrationData := &remoteagent.RegistrationData{
@@ -82,7 +72,7 @@ func TestGetRegisteredAgents(t *testing.T) {
 }
 
 func TestGetRegisteredAgentStatuses(t *testing.T) {
-	provides := buildComponent(t)
+	provides, _ := buildComponent(t)
 	component := provides.Comp
 
 	remoteAgentServer := &testRemoteAgentServer{
@@ -112,7 +102,7 @@ func TestGetRegisteredAgentStatuses(t *testing.T) {
 }
 
 func TestFlareProvider(t *testing.T) {
-	provides := buildComponent(t)
+	provides, _ := buildComponent(t)
 	component := provides.Comp
 	flareProvider := provides.FlareProvider
 
@@ -145,7 +135,7 @@ func TestFlareProvider(t *testing.T) {
 }
 
 func TestStatusProvider(t *testing.T) {
-	provides := buildComponent(t)
+	provides, _ := buildComponent(t)
 	component := provides.Comp
 	statusProvider := provides.Status
 
@@ -191,17 +181,14 @@ func TestStatusProvider(t *testing.T) {
 	require.Equal(t, "test_value", registeredAgentStatuses[0].MainSection["test_key"])
 }
 
-func buildComponent(t *testing.T) Provides {
-	mockedDeps := fxutil.Test[testDependencies](t, fx.Options(
-		config.MockModule(),
-	))
-
+func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle) {
+	lc := compdef.NewTestLifecycle(t)
 	deps := dependencies{
-		Config:    mockedDeps.Config,
-		Lifecycle: compdef.NewTestLifecycle(t),
+		Config:    configmock.New(t),
+		Lifecycle: lc,
 	}
 
-	return NewComponent(deps)
+	return NewComponent(deps), lc
 }
 
 type testRemoteAgentServer struct {

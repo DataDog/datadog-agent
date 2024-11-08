@@ -44,18 +44,18 @@ type Provides struct {
 
 // NewComponent creates a new remoteagent component
 func NewComponent(deps dependencies) Provides {
-	c := newRemoteAgent(deps)
+	ra := newRemoteAgent(deps)
 
 	return Provides{
-		Comp:          c,
-		FlareProvider: flaretypes.NewProvider(c.(*RemoteAgent).fillFlare),
-		Status:        status.NewInformationProvider(remoteagentStatus.GetProvider(c)),
+		Comp:          ra,
+		FlareProvider: flaretypes.NewProvider(ra.fillFlare),
+		Status:        status.NewInformationProvider(remoteagentStatus.GetProvider(ra)),
 	}
 }
 
-func newRemoteAgent(deps dependencies) remoteagent.Component {
+func newRemoteAgent(deps dependencies) *remoteAgent {
 	shutdownChan := make(chan struct{})
-	comp := &RemoteAgent{
+	comp := &remoteAgent{
 		conf:         deps.Config,
 		agentMap:     make(map[string]*remoteAgentDetails),
 		shutdownChan: shutdownChan,
@@ -75,9 +75,9 @@ func newRemoteAgent(deps dependencies) remoteagent.Component {
 	return comp
 }
 
-// RemoteAgent is the main registry for remote agents. It tracks which remote agents are currently registered, when
+// remoteAgent is the main registry for remote agents. It tracks which remote agents are currently registered, when
 // they were last seen, and handles collecting status and flare data from them on request.
-type RemoteAgent struct {
+type remoteAgent struct {
 	conf         config.Component
 	agentMap     map[string]*remoteAgentDetails
 	agentMapMu   sync.Mutex
@@ -89,7 +89,7 @@ type RemoteAgent struct {
 // If the remote agent is not present in the registry, it is added. If a remote agent with the same ID is already
 // present, the API endpoint and display name are checked: if they are the same, then the "last seen" time of the remote
 // agent is updated, otherwise the remote agent is removed and replaced with the incoming one.
-func (ra *RemoteAgent) RegisterRemoteAgent(registration *remoteagent.RegistrationData) (uint32, error) {
+func (ra *remoteAgent) RegisterRemoteAgent(registration *remoteagent.RegistrationData) (uint32, error) {
 	recommendedRefreshInterval := uint32(ra.conf.GetDuration("remote_agent.recommended_refresh_interval"))
 
 	ra.agentMapMu.Lock()
@@ -136,7 +136,7 @@ func (ra *RemoteAgent) RegisterRemoteAgent(registration *remoteagent.Registratio
 }
 
 // Start starts the remote agent registry, which periodically checks for idle remote agents and deregisters them.
-func (ra *RemoteAgent) start() {
+func (ra *remoteAgent) start() {
 	remoteAgentIdleTimeout := ra.conf.GetDuration("remote_agent.idle_timeout")
 
 	go func() {
@@ -171,12 +171,12 @@ func (ra *RemoteAgent) start() {
 	}()
 }
 
-func (ra *RemoteAgent) getQueryTimeout() time.Duration {
+func (ra *remoteAgent) getQueryTimeout() time.Duration {
 	return ra.conf.GetDuration("remote_agent.query_timeout")
 }
 
 // GetRegisteredAgents returns the list of registered remote agents.
-func (ra *RemoteAgent) GetRegisteredAgents() []*remoteagent.RegisteredAgent {
+func (ra *remoteAgent) GetRegisteredAgents() []*remoteagent.RegisteredAgent {
 	ra.agentMapMu.Lock()
 	defer ra.agentMapMu.Unlock()
 
@@ -192,7 +192,7 @@ func (ra *RemoteAgent) GetRegisteredAgents() []*remoteagent.RegisteredAgent {
 }
 
 // GetRegisteredAgentStatuses returns the status of all registered remote agents.
-func (ra *RemoteAgent) GetRegisteredAgentStatuses() []*remoteagent.StatusData {
+func (ra *remoteAgent) GetRegisteredAgentStatuses() []*remoteagent.StatusData {
 	queryTimeout := ra.getQueryTimeout()
 
 	ra.agentMapMu.Lock()
@@ -269,7 +269,7 @@ collect:
 	return agentStatuses
 }
 
-func (ra *RemoteAgent) fillFlare(builder flarebuilder.FlareBuilder) error {
+func (ra *remoteAgent) fillFlare(builder flarebuilder.FlareBuilder) error {
 	queryTimeout := ra.getQueryTimeout()
 
 	ra.agentMapMu.Lock()
@@ -340,6 +340,11 @@ collect:
 }
 
 func newRemoteAgentClient(registration *remoteagent.RegistrationData) (pb.RemoteAgentClient, error) {
+	// NOTE: we're using InsecureSkipVerify because the gRPC server only
+	// persists its TLS certs in memory, and we currently have no
+	// infrastructure to make them available to clients. This is NOT
+	// equivalent to grpc.WithInsecure(), since that assumes a non-TLS
+	// connection.
 	tlsCreds := credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: true,
 	})
