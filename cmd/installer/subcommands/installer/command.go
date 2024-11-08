@@ -49,8 +49,11 @@ const (
 	envAgentDistChannel            = "DD_AGENT_DIST_CHANNEL"
 	envRemoteUpdates               = "DD_REMOTE_UPDATES"
 	envHTTPProxy                   = "HTTP_PROXY"
+	envhttpProxy                   = "http_proxy"
 	envHTTPSProxy                  = "HTTPS_PROXY"
+	envhttpsProxy                  = "https_proxy"
 	envNoProxy                     = "NO_PROXY"
+	envnoProxy                     = "no_proxy"
 )
 
 // BootstrapCommand returns the bootstrap command.
@@ -169,8 +172,11 @@ func newBootstrapperCmd(operation string) *bootstrapperCmd {
 	cmd.span.SetTag("env.DD_AGENT_DIST_CHANNEL", os.Getenv(envAgentDistChannel))
 	cmd.span.SetTag("env.DD_REMOTE_UPDATES", os.Getenv(envRemoteUpdates))
 	cmd.span.SetTag("env.HTTP_PROXY", redactURL(os.Getenv(envHTTPProxy)))
+	cmd.span.SetTag("env.http_proxy", redactURL(os.Getenv(envhttpProxy)))
 	cmd.span.SetTag("env.HTTPS_PROXY", redactURL(os.Getenv(envHTTPSProxy)))
+	cmd.span.SetTag("env.https_proxy", redactURL(os.Getenv(envhttpsProxy)))
 	cmd.span.SetTag("env.NO_PROXY", os.Getenv(envNoProxy))
+	cmd.span.SetTag("env.no_proxy", os.Getenv(envnoProxy))
 	return &bootstrapperCmd{
 		cmd: cmd,
 	}
