@@ -13,7 +13,6 @@ from tasks.libs.common.gomodules import (
     Configuration,
     GoModule,
     get_default_modules,
-    list_default_modules,
 )
 
 """
@@ -232,13 +231,12 @@ class TestGoModuleSerialization(unittest.TestCase):
 
     def test_ignored_modules(self):
         # Ensure ignored modules are not loaded
-        _, ignored_modules = list_default_modules()
-        modules = set(get_default_modules())
+        config = Configuration.from_file()
 
         # Ensure there are ignored modules
-        self.assertGreater(len(ignored_modules), 0)
-        self.assertGreater(len(modules), 0)
-        self.assertTrue(ignored_modules.isdisjoint(modules))
+        self.assertGreater(len(config.ignored_modules), 0)
+        self.assertGreater(len(config.modules), 0)
+        self.assertTrue(config.ignored_modules.isdisjoint(config.modules))
 
     def test_get_default_modules_base(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -254,10 +252,7 @@ class TestGoModuleSerialization(unittest.TestCase):
                 )
                 for (path, condition, used_by_otel) in zip(paths, conditions, used_by_otel, strict=True)
             }
-            for module in modules.values():
-                (tmpdir / module.path).mkdir(parents=True, exist_ok=True)
-                module.to_file(base_dir=tmpdir)
-                (tmpdir / module.path / 'go.mod').touch()
+            Configuration(base_dir=tmpdir, modules=modules, ignored_modules=set()).to_file()
 
             # Load modules
             modules_loaded = get_default_modules(base_dir=Path(tmpdir))
@@ -302,52 +297,6 @@ class TestGoModuleSerialization(unittest.TestCase):
             module = GoModule.from_file(path, base_dir=tmpdir)
 
             self.assertIsNone(module)
-
-
-class TestGoModulePath(unittest.TestCase):
-    def assert_path_equal(self, path1: Path | str, path2: Path | str):
-        path1 = path1 if isinstance(path1, Path) else Path(path1)
-        path2 = path2 if isinstance(path2, Path) else Path(path2)
-
-        self.assertEqual(path1.absolute().as_posix(), path2.absolute().as_posix())
-
-    def test_parse_path_default(self):
-        module_path, base_dir, dir_path, full_path = GoModule.parse_path(dir_path='pkg/my/module')
-        self.assert_path_equal(module_path, 'pkg/my/module')
-        self.assert_path_equal(base_dir, '.')
-        self.assert_path_equal(dir_path, Path('pkg/my/module'))
-        self.assert_path_equal(full_path, Path('./pkg/my/module'))
-
-    def test_parse_path_base(self):
-        module_path, base_dir, dir_path, full_path = GoModule.parse_path(dir_path='pkg/my/module', base_dir='../agent6')
-        self.assert_path_equal(module_path, 'pkg/my/module')
-        self.assert_path_equal(base_dir, '../agent6')
-        self.assert_path_equal(dir_path, Path('pkg/my/module'))
-        self.assert_path_equal(full_path, Path('../agent6/pkg/my/module'))
-
-    def test_full_path(self):
-        module = GoModule('pkg/my/module')
-
-        self.assertEqual(module.full_path(), str(Path('pkg/my/module').resolve()))
-
-    def test_full_path_base(self):
-        module = GoModule('pkg/my/module', base_dir='/tmp')
-
-        self.assertEqual(module.full_path(), str(Path('/tmp/pkg/my/module').resolve()))
-
-    def test_load_modules_path(self):
-        with tempfile.TemporaryDirectory() as temp:
-            temp = Path(temp)
-            (temp / 'pkg/my/module').mkdir(parents=True, exist_ok=True)
-            (temp / 'pkg/my/module' / 'go.mod').touch()
-            with open(temp / 'pkg/my/module' / 'module.yml', 'w') as f:
-                print('independent: true', file=f)
-
-            modules = get_default_modules(base_dir=temp)
-            self.assertEqual(len(modules), 1)
-            mod = next(iter(modules.values()))
-            self.assertEqual(mod.path, 'pkg/my/module')
-            self.assertEqual(mod.full_path(), str(Path(temp / 'pkg/my/module').resolve()))
 
 
 class TestGoModuleConfiguration(unittest.TestCase):
