@@ -97,79 +97,8 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		return nil, err
 	}
 
-<<<<<<< HEAD
-	var probe *Probe
-	filename := "gpu.o"
-	if cfg.BPFDebug {
-		filename = "gpu-debug.o"
-	}
-	err = ddebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
-		var err error
-		probe, err = startGPUProbe(buf, opts, deps, cfg)
-		if err != nil {
-			return fmt.Errorf("cannot start GPU monitoring probe: %s", err)
-		}
-		log.Debugf("started GPU monitoring probe")
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("loading asset: %s", err)
-	}
-
-	return probe, nil
-}
-
-func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, deps ProbeDependencies, cfg *Config) (*Probe, error) {
-	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
-		Maps: []*manager.Map{
-			{Name: cudaAllocCacheMap},
-		}}, "gpu", &ebpftelemetry.ErrorsTelemetryModifier{})
-
-	if opts.MapSpecEditors == nil {
-		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
-	}
-
-	// Ring buffer size has to be a multiple of the page size, and we want to have at least 4096 bytes
-	pagesize := os.Getpagesize()
-	ringbufSize := pagesize
-	minRingbufSize := 4096
-	if minRingbufSize > ringbufSize {
-		ringbufSize = (minRingbufSize/pagesize + 1) * pagesize
-	}
-
-	opts.MapSpecEditors[cudaEventMap] = manager.MapSpecEditor{
-		Type:       ebpf.RingBuf,
-		MaxEntries: uint32(ringbufSize),
-		KeySize:    0,
-		ValueSize:  0,
-		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
-	}
-
-	attachCfg := uprobes.AttacherConfig{
-		Rules: []*uprobes.AttachRule{
-			{
-				LibraryNameRegex: regexp.MustCompile(`libcudart\.so`),
-				Targets:          uprobes.AttachToExecutable | uprobes.AttachToSharedLibraries,
-				ProbesSelector: []manager.ProbesSelector{
-					&manager.AllOf{
-						Selectors: []manager.ProbesSelector{
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__cudaLaunchKernel"}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__cudaMalloc"}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uretprobe__cudaMalloc"}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__cudaStreamSynchronize"}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uretprobe__cudaStreamSynchronize"}},
-							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__cudaFree"}},
-						},
-					},
-				},
-			},
-		},
-		EbpfConfig:         &cfg.Config,
-		PerformInitialScan: cfg.InitialProcessSync,
-=======
 	if !cfg.EnableRuntimeCompiler && !cfg.EnableCORE {
 		return nil, fmt.Errorf("%s probe supports CO-RE or Runtime Compilation modes, but none of them are enabled", sysconfig.GPUMonitoringModule)
->>>>>>> main
 	}
 
 	attachCfg := getAttacherConfig(cfg)
@@ -316,7 +245,7 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 			{
 				Name: cudaSyncCacheMap,
 			},
-		}})
+		}}, "gpu", &ebpftelemetry.ErrorsTelemetryModifier{})
 
 	if opts.MapSpecEditors == nil {
 		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
