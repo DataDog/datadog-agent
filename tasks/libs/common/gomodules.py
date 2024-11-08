@@ -81,7 +81,7 @@ class Configuration:
         """Save the configuration to a yaml file at <base_dir/FILE_NAME>."""
 
         with open(self.base_dir / self.FILE_NAME, "w") as file:
-            prefix = 'datadog-agent/'
+            prefix = os.sep + 'datadog-agent' + os.sep
             path = __file__[__file__.index(prefix) + len(prefix) :]
             print(self.INFO_COMMENT.format(file=path).strip() + '\n', file=file)
 
