@@ -100,7 +100,7 @@ func (t *Telemetry) Start(_ context.Context) error {
 		// the default. If it is, then the tracer will try to use the socket
 		// if it exists -- and it always exists for newer agents.
 		// If the agent address is the socket, the tracer overrides WithHTTPClient to use it.
-		tracer.WithAgentAddr("localhost:8126"),
+		tracer.WithAgentAddr("192.0.2.42:12345"), // 192.0.2.0/24 is reserved
 	)
 	return nil
 }
