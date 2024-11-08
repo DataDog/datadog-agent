@@ -8,6 +8,7 @@
 package agentimpl
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -48,6 +49,7 @@ func (a *logAgent) SetUpLaunchers(processingRules []*config.ProcessingRule) {
 		fileWildcardSelectionMode,
 		a.flarecontroller,
 		a.tagger)
+	fmt.Printf("WACK configSources: %p \n", a.configSources)
 	fileLauncher.Start(a.configSources, pipelineProvider, auditor, a.tracker)
 	lnchrs.AddLauncher(fileLauncher)
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)

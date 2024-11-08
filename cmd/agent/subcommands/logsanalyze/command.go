@@ -48,7 +48,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			cliParams.LogConfigPath = args[0]
 			fmt.Println("andrewq1", cliParams.LogConfigPath)
 			return fxutil.OneShot(runLogsAnalyze,
-				fx.Provide(sources.NewConfigSources),
+				fx.Provide(func() launchers.SourceProvider {
+					cs := sources.NewConfigSources()
+					var lsp launchers.SourceProvider = cs
+					return lsp
+				}),
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
@@ -63,7 +67,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // runLogsAnalyze handles the logs check operation.
-func runLogsAnalyze(cliParams *CliParams) error {
+func runLogsAnalyze(cliParams *CliParams, configSources launchers.SourceProvider) error {
 	// Check if the provided log config file exists
 	// if _, err := os.Stat(cliParams.LogConfigPath); os.IsNotExist(err) {
 	// 	return fmt.Errorf("log config file %s does not exist", cliParams.LogConfigPath)
@@ -77,13 +81,14 @@ func runLogsAnalyze(cliParams *CliParams) error {
 	//send paths to source provider
 	// Add log config source
 	fmt.Println("andrewq command.go 1")
-	if err := cliParams.ConfigSource.AddFileSource(cliParams.LogConfigPath); err != nil {
+	fmt.Printf("WACK2 configSources: %p \n", configSources)
+	if err := configSources.AddFileSource(cliParams.LogConfigPath); err != nil {
 		return fmt.Errorf("failed to add log config source: %w", err)
 	}
 
 	fmt.Println("andrewq command.go 2")
 	// Add core config source
-	if err := cliParams.ConfigSource.AddFileSource(cliParams.CoreConfigPath); err != nil {
+	if err := configSources.AddFileSource(cliParams.CoreConfigPath); err != nil {
 		return fmt.Errorf("failed to add core config source: %w", err)
 	}
 	fmt.Println("andrewq command.go 3, added both log files")
