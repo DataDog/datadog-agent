@@ -41,7 +41,7 @@ class TestModules(unittest.TestCase):
     def load_go_mod(self, module_path: str) -> Any:
         """Loads the go.mod file as a JSON object"""
         go_mod_path = os.path.join(module_path, "go.mod")
-        res = subprocess.run(["go", "mod", "edit", "-json", go_mod_path], capture_output=True)
+        res = subprocess.run(["go", "readonly", "edit", "-json", go_mod_path], capture_output=True)
         self.assertEqual(res.returncode, 0)
 
         return json.loads(res.stdout)

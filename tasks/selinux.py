@@ -26,7 +26,7 @@ def compile_system_probe_policy_file(
     policy_filename = os.path.splitext(te_file)[0]
 
     # Compute the .mod module name
-    temp_module_name = ".".join([policy_filename, "mod"])
+    temp_module_name = ".".join([policy_filename, "readonly"])
 
     # Compute the .pp packaged module name
     output_module_name = ".".join([os.path.join(output_directory, os.path.basename(policy_filename)), "pp"])

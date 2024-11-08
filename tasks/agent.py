@@ -140,7 +140,7 @@ def build(
     major_version='7',
     exclude_rtloader=False,
     include_sds=False,
-    go_mod="mod",
+    go_mod="readonly",
     windows_sysprobe=False,
     cmake_options='',
     bundle=None,
@@ -584,7 +584,7 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 
 
 @task
-def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout=""):
+def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
     """
     Run integration tests for the Agent
     """
@@ -596,7 +596,7 @@ def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeou
         return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, timeout=timeout)
 
 
-def _windows_integration_tests(ctx, race=False, go_mod="mod", timeout=""):
+def _windows_integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
     test_args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(get_default_build_tags(build="test")),
@@ -634,7 +634,7 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", timeout=""):
             ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
 
 
-def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout=""):
+def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
     test_args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(get_default_build_tags(build="test")),

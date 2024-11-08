@@ -27,7 +27,7 @@ def build(
     flavor=AgentFlavor.base.name,
     incremental_build=False,
     major_version='7',
-    go_mod="mod",
+    go_mod="readonly",
     bundle=True,
 ):
     """

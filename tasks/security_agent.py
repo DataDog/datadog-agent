@@ -57,7 +57,7 @@ def build(
     incremental_build=True,
     install_path=None,
     major_version='7',
-    go_mod="mod",
+    go_mod="readonly",
     skip_assets=False,
     static=False,
     bundle=True,

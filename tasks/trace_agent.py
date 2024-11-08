@@ -22,7 +22,7 @@ def build(
     flavor=AgentFlavor.base.name,
     install_path=None,
     major_version='7',
-    go_mod="mod",
+    go_mod="readonly",
     bundle=False,
 ):
     """
@@ -88,7 +88,7 @@ def build(
 
 
 @task
-def integration_tests(ctx, race=False, go_mod="mod", timeout="10m"):
+def integration_tests(ctx, race=False, go_mod="readonly", timeout="10m"):
     """
     Run integration tests for trace agent
     """
