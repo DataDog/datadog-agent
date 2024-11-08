@@ -1073,9 +1073,10 @@ def kmt_sysprobe_prepare(
                         # copy command
                         implicit=[testdata_folder],
                         rule="cbin",
-                        variables={
-                            "cc": "clang",
-                        },
+                        # helper binaries need to be compiled statically to avoid problems with
+                        # libc not being found in target VMs/containers (motivating case: running
+                        # these binaries in alpine docker images, which has musl instead of lib)
+                        variables={"cc": "clang", "cflags": "-static"},
                     )
 
     info("[+] Compiling tests...")

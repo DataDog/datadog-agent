@@ -1071,7 +1071,7 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
             source = Path(pkg) / "testdata" / f"{cbin}.c"
             if not is_windows and source.is_file():
                 binary = Path(target_path) / cbin
-                ctx.run(f"clang -o {binary} {source}")
+                ctx.run(f"clang -static -o {binary} {source}")
 
     gopath = os.getenv("GOPATH")
     copy_files = [
