@@ -154,10 +154,14 @@ func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
 	for pid, pidStats := range stats.ProcessStats {
 		// Per-PID metrics are subject to change due to high cardinality
 		tags := []string{fmt.Sprintf("pid:%d", pid)}
-		snd.Gauge(metricNameUtil, pidStats.UtilizationPercentage, "", tags)
 
-		snd.Gauge(metricNameMemory, float64(pidStats.Memory.CurrentBytes), "", tags)
-		snd.Gauge(metricNameMaxMem, float64(pidStats.Memory.MaxBytes), "", tags)
+		for device, devStats := range pidStats.StatsPerDevice {
+			devTags := append(tags, fmt.Sprintf("gpu_uuid:%s", device))
+
+			snd.Gauge(metricNameUtil, devStats.UtilizationPercentage, "", devTags)
+			snd.Gauge(metricNameMemory, float64(devStats.Memory.CurrentBytes), "", devTags)
+			snd.Gauge(metricNameMaxMem, float64(devStats.Memory.MaxBytes), "", devTags)
+		}
 
 		m.activePIDs[pid] = true
 	}
