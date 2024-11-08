@@ -6,14 +6,14 @@
 //go:build !zlib && !zstd
 
 // Package compressionimpl provides a set of functions for compressing with zlib / zstd
-package compressionimpl
+package fx_noop
 
 import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	strategy_noop "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/impl-noop"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
