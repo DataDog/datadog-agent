@@ -9,8 +9,8 @@ __attribute__((always_inline)) struct raw_packet_event_t *get_raw_packet_event()
     return bpf_map_lookup_elem(&raw_packet_event, &key);
 }
 
-SEC("classifier/raw_packet")
-int classifier_raw_packet(struct __sk_buff *skb) {
+SEC("classifier/raw_packet_sender")
+int classifier_raw_packet_sender(struct __sk_buff *skb) {
     struct packet_t *pkt = get_packet();
     if (pkt == NULL) {
         // should never happen

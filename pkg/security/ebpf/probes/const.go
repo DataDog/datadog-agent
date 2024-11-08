@@ -84,10 +84,10 @@ const (
 	TCDNSRequestParserKey
 	// TCIMDSRequestParserKey is the key to the IMDS request program
 	TCIMDSRequestParserKey
-	// TCRawPacketParserKey is the key to the raw packet program
-	TCRawPacketParserKey
 	// TCRawPacketFilterKey  is the key to the raw packet filter program
 	TCRawPacketFilterKey
+	// TCRawPacketParserSenderKey is the key to the raw packet sender program
+	TCRawPacketParserSenderKey
 )
 
 const (

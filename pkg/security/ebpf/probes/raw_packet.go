@@ -115,8 +115,8 @@ type RawPacketFilter struct {
 	BPFFilter string
 }
 
-// GetRawPacketTCFilterCollectionSpec returns a first tc filter
-func GetRawPacketTCFilterCollectionSpec(rawPacketEventMapFd, clsRouterMapFd int, rawpPacketFilters []RawPacketFilter) (*ebpf.CollectionSpec, error) {
+// RawPacketTCFiltersToCollectionSpec returns a collection spec from raw packet filters definitions
+func RawPacketTCFiltersToCollectionSpec(rawPacketEventMapFd, clsRouterMapFd int, rawpPacketFilters []RawPacketFilter) (*ebpf.CollectionSpec, error) {
 	var mErr *multierror.Error
 
 	const (
@@ -170,7 +170,7 @@ func GetRawPacketTCFilterCollectionSpec(rawPacketEventMapFd, clsRouterMapFd int,
 	insts = append(insts,
 		asm.Mov.Reg(asm.R1, ctxReg).WithSymbol(opts.sendEventLabel),
 		asm.LoadMapPtr(asm.R2, clsRouterMapFd),
-		asm.Mov.Imm(asm.R3, int32(TCRawPacketParserKey)),
+		asm.Mov.Imm(asm.R3, int32(TCRawPacketParserSenderKey)),
 		asm.FnTailCall.Call(),
 		asm.Mov.Imm(asm.R0, 0),
 		asm.Return(),

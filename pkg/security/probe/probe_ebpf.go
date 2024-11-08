@@ -376,7 +376,8 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 		p.rawPacketFilterCollection.Close()
 	}
 
-	colSpec, err := probes.GetRawPacketTCFilterCollectionSpec(rawPacketEventMap.FD(), routerMap.FD(), rawPacketFilters)
+	// compile the filters
+	colSpec, err := probes.RawPacketTCFiltersToCollectionSpec(rawPacketEventMap.FD(), routerMap.FD(), rawPacketFilters)
 	if err != nil {
 		return err
 	}

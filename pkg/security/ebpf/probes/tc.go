@@ -115,9 +115,9 @@ func getTCTailCallRoutes() []manager.TailCallRoute {
 		},
 		{
 			ProgArrayName: "classifier_router",
-			Key:           TCRawPacketParserKey,
+			Key:           TCRawPacketParserSenderKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "classifier_raw_packet",
+				EBPFFuncName: "classifier_raw_packet_sender",
 			},
 		},
 	}
