@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // systemContext holds certain attributes about the system that are used by the GPU probe.
@@ -133,6 +134,8 @@ func (ctx *systemContext) fillDeviceInfo() error {
 		}
 
 		ctx.maxGpuThreadsPerDevice[i] = maxThreads
+
+		ctx.gpuDevices = append(ctx.gpuDevices, dev)
 	}
 	return nil
 }
