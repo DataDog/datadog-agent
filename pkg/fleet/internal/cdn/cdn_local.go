@@ -19,8 +19,8 @@ type cdnLocal struct {
 	dirPath string
 }
 
-// newLocal creates a new local CDN.
-func newLocal(env *env.Env) (CDN, error) {
+// newCDNLocal creates a new local CDN.
+func newCDNLocal(env *env.Env) (CDN, error) {
 	return &cdnLocal{
 		dirPath: env.CDNLocalDirPath,
 	}, nil
@@ -62,6 +62,11 @@ func (c *cdnLocal) Get(_ context.Context, pkg string) (cfg Config, err error) {
 	switch pkg {
 	case "datadog-agent":
 		cfg, err = newAgentConfig(orderConfig, layers...)
+		if err != nil {
+			return nil, err
+		}
+	case "datadog-apm-inject":
+		cfg, err = newAPMConfig([]string{}, orderConfig, layers...)
 		if err != nil {
 			return nil, err
 		}

@@ -226,7 +226,7 @@ def gen_config_from_ci_pipeline(
         if test_job.status == "failed" and job.component == vmconfig_template:
             vm_arch = test_job.arch
             if use_local_if_possible and vm_arch == local_arch:
-                vm_arch = local_arch
+                vm_arch = "local"
 
             results = test_job.get_test_results()
             for test, result in results.items():
@@ -1175,7 +1175,7 @@ def test(
     packages=None,
     run: str | None = None,
     quick=False,
-    retry=2,
+    retry=0,
     run_count=1,
     ssh_key: str | None = None,
     verbose=True,

@@ -344,15 +344,13 @@ func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAge
 
 func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon, tagger tagger.Component, rcService *remoteconfig.CoreAgentService) {
 	defer wg.Done()
-	traceAgent := trace.StartServerlessTraceAgent(
-		&trace.ServerlessTraceAgentParams{
-			Enabled:         pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
-			LoadConfig:      &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
-			LambdaSpanChan:  lambdaSpanChan,
-			ColdStartSpanID: coldStartSpanId,
-			RCService:       rcService,
-		},
-	)
+	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
+		Enabled:         pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
+		LoadConfig:      &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
+		LambdaSpanChan:  lambdaSpanChan,
+		ColdStartSpanID: coldStartSpanId,
+		RCService:       rcService,
+	})
 	serverlessDaemon.SetTraceAgent(traceAgent)
 }
 

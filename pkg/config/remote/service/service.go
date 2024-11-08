@@ -251,6 +251,7 @@ type options struct {
 	apiKey                         string
 	traceAgentEnv                  string
 	databaseFileName               string
+	databaseFilePath               string
 	configRootOverride             string
 	directorRootOverride           string
 	clientCacheBypassLimit         int
@@ -267,6 +268,7 @@ var defaultOptions = options{
 	apiKey:                         "",
 	traceAgentEnv:                  "",
 	databaseFileName:               "remote-config.db",
+	databaseFilePath:               "",
 	configRootOverride:             "",
 	directorRootOverride:           "",
 	clientCacheBypassLimit:         defaultCacheBypassLimit,
@@ -289,6 +291,11 @@ func WithTraceAgentEnv(env string) func(s *options) {
 // WithDatabaseFileName sets the service database file name
 func WithDatabaseFileName(fileName string) func(s *options) {
 	return func(s *options) { s.databaseFileName = fileName }
+}
+
+// WithDatabasePath sets the service database path
+func WithDatabasePath(path string) func(s *options) {
+	return func(s *options) { s.databaseFilePath = path }
 }
 
 // WithConfigRootOverride sets the service config root override
@@ -430,7 +437,11 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		return nil, err
 	}
 
-	dbPath := path.Join(cfg.GetString("run_path"), options.databaseFileName)
+	databaseFilePath := cfg.GetString("run_path")
+	if options.databaseFilePath != "" {
+		databaseFilePath = options.databaseFilePath
+	}
+	dbPath := path.Join(databaseFilePath, options.databaseFileName)
 	db, err := openCacheDB(dbPath, agentVersion, authKeys.apiKey)
 	if err != nil {
 		return nil, err

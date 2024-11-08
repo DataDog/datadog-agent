@@ -66,6 +66,9 @@ type discovery struct {
 	// cache maps pids to data that should be cached between calls to the endpoint.
 	cache map[int32]*serviceInfo
 
+	// ignorePids processes to be excluded from discovery
+	ignorePids map[int32]struct{}
+
 	// privilegedDetector is used to detect the language of a process.
 	privilegedDetector privileged.LanguageDetector
 
@@ -85,6 +88,7 @@ func newDiscovery() *discovery {
 		config:             newConfig(),
 		mux:                &sync.RWMutex{},
 		cache:              make(map[int32]*serviceInfo),
+		ignorePids:         make(map[int32]struct{}),
 		privilegedDetector: privileged.NewLanguageDetector(),
 		scrubber:           procutil.NewDefaultDataScrubber(),
 	}
@@ -112,6 +116,7 @@ func (s *discovery) Close() {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	clear(s.cache)
+	clear(s.ignorePids)
 }
 
 // handleStatusEndpoint is the handler for the /status endpoint.
@@ -328,6 +333,46 @@ type parsingContext struct {
 	netNsInfo map[uint32]*namespaceInfo
 }
 
+// addIgnoredPid store excluded pid.
+func (s *discovery) addIgnoredPid(pid int32) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	s.ignorePids[pid] = struct{}{}
+}
+
+// shouldIgnorePid returns true if process should be excluded from handling.
+func (s *discovery) shouldIgnorePid(pid int32) bool {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	_, found := s.ignorePids[pid]
+	return found
+}
+
+// shouldIgnoreService returns true if the service should be excluded from handling.
+func (s *discovery) shouldIgnoreService(name string) bool {
+	if len(s.config.ignoreServices) == 0 {
+		return false
+	}
+	_, found := s.config.ignoreServices[name]
+
+	return found
+}
+
+// cleanIgnoredPids removes dead PIDs from the list of ignored processes.
+func (s *discovery) cleanIgnoredPids(alivePids map[int32]struct{}) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	for pid := range s.ignorePids {
+		if _, alive := alivePids[pid]; alive {
+			continue
+		}
+		delete(s.ignorePids, pid)
+	}
+}
+
 // getServiceInfo gets the service information for a process using the
 // servicedetector module.
 func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) {
@@ -406,7 +451,11 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		return nil
 	}
 
+	if s.shouldIgnorePid(proc.Pid) {
+		return nil
+	}
 	if s.shouldIgnoreComm(proc) {
+		s.addIgnoredPid(proc.Pid)
 		return nil
 	}
 
@@ -490,6 +539,10 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	name := info.ddServiceName
 	if name == "" {
 		name = info.generatedName
+	}
+	if s.shouldIgnoreService(name) {
+		s.addIgnoredPid(proc.Pid)
+		return nil
 	}
 
 	return &model.Service{
@@ -583,6 +636,7 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 	}
 
 	s.cleanCache(alivePids)
+	s.cleanIgnoredPids(alivePids)
 
 	if err = s.updateServicesCPUStats(services); err != nil {
 		return nil, err
