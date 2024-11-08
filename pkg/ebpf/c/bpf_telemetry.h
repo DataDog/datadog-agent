@@ -14,6 +14,10 @@
 #define STR(x) #x
 #define MK_KEY(key) STR(key##_telemetry_key)
 
+// max entries for telemetry maps is set to 0, because these are modified by the loader
+// according to the number of maps and programs being loaded. Setting a value of 0 acts
+// as a load-time check that this modification is correctly performed, because the kernel
+// disallows loading maps with max entries set to 0
 BPF_HASH_MAP(map_err_telemetry_map, unsigned long, map_err_telemetry_t, 0)
 BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 0)
 
