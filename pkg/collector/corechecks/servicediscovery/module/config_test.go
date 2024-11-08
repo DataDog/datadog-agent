@@ -93,3 +93,63 @@ func TestConfigIgnoredComms(t *testing.T) {
 		assert.True(t, found)
 	})
 }
+
+func TestConfigIgnoredServices(t *testing.T) {
+	tests := []struct {
+		name     string   // the name of the test.
+		services []string // list of services to test
+	}{
+		{
+			name:     "empty list of services",
+			services: []string{},
+		},
+		{
+			name: "non-empty list of services",
+			services: []string{
+				"datadog-agent",
+				"another-agent",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mockSystemProbe := mock.NewSystemProbe(t)
+			require.NotEmpty(t, mockSystemProbe)
+
+			servicesStr := strings.Join(test.services, "   ") // intentionally multiple spaces for sensitivity testing
+			mockSystemProbe.SetWithoutSource("discovery.ignored_services", servicesStr)
+
+			discovery := newDiscovery()
+			require.NotEmpty(t, discovery)
+
+			require.Equal(t, len(discovery.config.ignoreServices), len(test.services))
+
+			for _, service := range test.services {
+				_, found := discovery.config.ignoreServices[service]
+				assert.True(t, found)
+			}
+		})
+	}
+
+	t.Run("check default number of services", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		discovery := newDiscovery()
+		require.NotEmpty(t, discovery)
+
+		assert.Equal(t, len(discovery.config.ignoreServices), 4)
+	})
+
+	t.Run("check services in env variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_DISCOVERY_IGNORED_SERVICES", "service1 service2")
+
+		discovery := newDiscovery()
+		require.NotEmpty(t, discovery)
+
+		_, found := discovery.config.ignoreServices["service1"]
+		assert.True(t, found)
+		_, found = discovery.config.ignoreServices["service2"]
+		assert.True(t, found)
+	})
+}

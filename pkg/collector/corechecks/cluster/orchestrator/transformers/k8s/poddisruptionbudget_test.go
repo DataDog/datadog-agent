@@ -298,7 +298,29 @@ func TestExtractPodDisruptionBudget(t *testing.T) {
 			if tc.expect == nil {
 				assert.Nil(t, got)
 			} else {
-				assert.Equal(t, tc.expect, got)
+				if tc.expect.Metadata == nil {
+					assert.Nil(t, got.Metadata)
+				} else if assert.NotNil(t, got.Metadata) {
+					assert.Equal(t, tc.expect.Metadata.Name, got.Metadata.Name)
+					assert.Equal(t, tc.expect.Metadata.Namespace, got.Metadata.Namespace)
+					assert.Equal(t, tc.expect.Metadata.Uid, got.Metadata.Uid)
+					assert.Equal(t, tc.expect.Metadata.CreationTimestamp, got.Metadata.CreationTimestamp)
+					assert.Equal(t, tc.expect.Metadata.DeletionTimestamp, got.Metadata.DeletionTimestamp)
+					assert.ElementsMatch(t, tc.expect.Metadata.Labels, got.Metadata.Labels)
+					assert.ElementsMatch(t, tc.expect.Metadata.Annotations, got.Metadata.Annotations)
+					if tc.expect.Metadata.OwnerReferences == nil {
+						assert.Nil(t, got.Metadata.OwnerReferences)
+					} else {
+						if assert.NotNil(t, got.Metadata.OwnerReferences) {
+							assert.ElementsMatch(t, tc.expect.Metadata.OwnerReferences, got.Metadata.OwnerReferences)
+						}
+					}
+					assert.Equal(t, tc.expect.Metadata.ResourceVersion, got.Metadata.ResourceVersion)
+					assert.ElementsMatch(t, tc.expect.Metadata.Finalizers, got.Metadata.Finalizers)
+				}
+				assert.Equal(t, tc.expect.Spec, got.Spec)
+				assert.Equal(t, tc.expect.Status, got.Status)
+				assert.ElementsMatch(t, tc.expect.Tags, got.Tags)
 			}
 		})
 	}

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __GPU_TYPES_H
+#define __GPU_TYPES_H
 
 #include "ktypes.h"
 
@@ -47,3 +48,5 @@ typedef struct {
     __u64 size;
     void **devPtr;
 } cuda_alloc_request_args_t;
+
+#endif
