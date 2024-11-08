@@ -345,6 +345,8 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 		return fmt.Errorf("snapshot failed for %d: couldn't parse container ID: %w", proc.Pid, err)
 	}
 
+	entry.ContainerID = containerID
+
 	entry.FileEvent.FileFields = *info
 	setPathname(&entry.FileEvent, pathnameStr)
 
@@ -911,7 +913,6 @@ func (p *EBPFResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Proces
 		return nil
 	}
 
-	var ppid uint32
 	proc, err := process.NewProcess(int32(pid))
 	if err != nil {
 		seclog.Tracef("unable to find pid: %d", pid)
@@ -929,24 +930,12 @@ func (p *EBPFResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Proces
 		return nil
 	}
 
-	entry, inserted := p.syncCache(proc, filledProc, model.ProcessCacheEntryFromProcFS)
-	if entry != nil {
-		// consider kworker processes with 0 as ppid
-		entry.IsKworker = filledProc.Ppid == 0 && filledProc.Pid != 1
-
-		ppid = uint32(filledProc.Ppid)
-
-		parent := p.resolveFromProcfs(ppid, maxDepth-1)
-		if inserted && parent != nil {
-			if parent.Equals(entry) {
-				entry.SetForkParent(parent)
-			} else {
-				entry.SetExecParent(parent)
-			}
-		}
+	ppid := uint32(filledProc.Ppid)
+	if ppid != 0 && p.entryCache[ppid] == nil {
+		p.resolveFromProcfs(ppid, maxDepth-1)
 	}
 
-	return entry
+	return p.newEntryFromProcfsAndSyncKernelMaps(proc, filledProc, model.ProcessCacheEntryFromProcFS)
 }
 
 // SetProcessArgs set arguments to cache entry
@@ -1223,8 +1212,8 @@ func (p *EBPFResolver) cacheFlush(ctx context.Context) {
 	}
 }
 
-// SyncCache snapshots /proc for the provided pid. This method returns true if it updated the process cache.
-func (p *EBPFResolver) SyncCache(proc *process.Process) bool {
+// SyncCache snapshots /proc for the provided pid.
+func (p *EBPFResolver) SyncCache(proc *process.Process) {
 	// Only a R lock is necessary to check if the entry exists, but if it exists, we'll update it, so a RW lock is
 	// required.
 	p.Lock()
@@ -1233,11 +1222,10 @@ func (p *EBPFResolver) SyncCache(proc *process.Process) bool {
 	filledProc, err := utils.GetFilledProcess(proc)
 	if err != nil {
 		seclog.Tracef("unable to get a filled process for %d: %v", proc.Pid, err)
-		return false
+		return
 	}
 
-	_, ret := p.syncCache(proc, filledProc, model.ProcessCacheEntryFromSnapshot)
-	return ret
+	p.newEntryFromProcfsAndSyncKernelMaps(proc, filledProc, model.ProcessCacheEntryFromSnapshot)
 }
 
 func (p *EBPFResolver) setAncestor(pce *model.ProcessCacheEntry) {
@@ -1247,33 +1235,29 @@ func (p *EBPFResolver) setAncestor(pce *model.ProcessCacheEntry) {
 	}
 }
 
-// syncCache snapshots /proc for the provided pid. This method returns true if it updated the process cache.
-func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.FilledProcess, source uint64) (*model.ProcessCacheEntry, bool) {
+// newEntryFromProcfsAndSyncKernelMaps snapshots /proc for the provided pid and sync the kernel maps
+func (p *EBPFResolver) newEntryFromProcfsAndSyncKernelMaps(proc *process.Process, filledProc *utils.FilledProcess, source uint64) *model.ProcessCacheEntry {
 	pid := uint32(proc.Pid)
 
-	// Check if an entry is already in cache for the given pid.
-	entry := p.entryCache[pid]
-	if entry != nil {
-		p.setAncestor(entry)
-
-		return entry, false
-	}
-
-	entry = p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})
+	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})
 
 	// update the cache entry
 	if err := p.enrichEventFromProc(entry, proc, filledProc); err != nil {
 		entry.Release()
 
 		seclog.Trace(err)
-		return nil, false
+		return nil
 	}
+
+	entry.IsKworker = filledProc.Ppid == 0 && filledProc.Pid != 1
 
 	parent := p.entryCache[entry.PPid]
 	if parent != nil {
 		if parent.Equals(entry) {
 			entry.SetForkParent(parent)
-		} else {
+		} else if prev := p.entryCache[pid]; prev != nil { // exec-exec
+			entry.SetExecParent(prev)
+		} else { // exec
 			entry.SetExecParent(parent)
 		}
 	}
@@ -1304,7 +1288,7 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 
 	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.FileEvent.PathnameStr, pid, entry.FileEvent.Inode)
 
-	return entry, true
+	return entry
 }
 
 // ToJSON return a json version of the cache

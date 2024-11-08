@@ -702,6 +702,13 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, config extractedPodLib
 		return err
 	}
 
+	if err := injector.mutatePod(pod); err != nil {
+		// setting the language tag to `injector` because this injection is not related to a specific supported language
+		metrics.LibInjectionErrors.Inc("injector", strconv.FormatBool(autoDetected), injectionType)
+		lastError = err
+		log.Errorf("Cannot inject library injector into pod %s: %s", mutatecommon.PodString(pod), err)
+	}
+
 	for _, lib := range config.libs {
 		injected := false
 		langStr := string(lib.lang)
@@ -712,7 +719,7 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, config extractedPodLib
 		if err := lib.podMutator(w.config.version, libRequirementOptions{
 			containerMutators:     containerMutators,
 			initContainerMutators: initContainerMutators,
-			podMutators:           []podMutator{configInjector.podMutator(lib.lang), injector},
+			podMutators:           []podMutator{configInjector.podMutator(lib.lang)},
 		}).mutatePod(pod); err != nil {
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
 			lastError = err
