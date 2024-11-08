@@ -66,7 +66,7 @@ func (a *SampleArgs) getCLIArgs() []string {
 func RunSample(t *testing.T, name SampleName) (*exec.Cmd, error) {
 	args := SampleArgs{
 		StartWaitTimeSec:      5,
-		EndWaitTimeSec:        0,
+		EndWaitTimeSec:        1, // We need the process to stay active a bit so we can inspect its environment variables, if it ends too quickly we get no information
 		CudaVisibleDevicesEnv: "",
 		DeviceToSelect:        0,
 	}
