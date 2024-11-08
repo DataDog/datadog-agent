@@ -65,8 +65,8 @@ enum TC_TAIL_CALL_KEYS
     DNS_REQUEST,
     DNS_REQUEST_PARSER,
     IMDS_REQUEST,
-    RAW_PACKET,
     RAW_PACKET_FILTER,
+    // reserved keys for raw packet filter tail calls
 };
 
 #define DNS_MAX_LENGTH 256

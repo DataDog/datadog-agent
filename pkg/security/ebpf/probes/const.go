@@ -85,9 +85,10 @@ const (
 	// TCIMDSRequestParserKey is the key to the IMDS request program
 	TCIMDSRequestParserKey
 	// TCRawPacketFilterKey  is the key to the raw packet filter program
+	// reserve 5 tail calls for the filtering
 	TCRawPacketFilterKey
 	// TCRawPacketParserSenderKey is the key to the raw packet sender program
-	TCRawPacketParserSenderKey
+	TCRawPacketParserSenderKey = TCRawPacketFilterKey + RawPacketFilterMaxTailCall // reserved key for filter tail calls
 )
 
 const (
