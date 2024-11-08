@@ -1074,3 +1074,6 @@ replace github.com/ProtonMail/go-crypto => github.com/ProtonMail/go-crypto v1.0.
 exclude go.opentelemetry.io/proto/otlp v1.1.0
 
 replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0-20240626205202-4ac4cee31f14
+
+// Remove once https://github.com/kubernetes-sigs/custom-metrics-apiserver/pull/184 is merged
+replace sigs.k8s.io/custom-metrics-apiserver v1.30.0 => github.com/L3n41c/custom-metrics-apiserver v0.0.0-20241014100211-ccded82d0da2
