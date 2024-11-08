@@ -1,0 +1,397 @@
+modules:
+  .:
+    independent: false
+    lint_targets:
+    - ./pkg
+    - ./cmd
+    - ./comp
+    path: .
+    targets:
+    - ./pkg
+    - ./cmd
+    - ./comp
+  comp/api/api/def:
+    path: comp/api/api/def
+    used_by_otel: true
+  comp/api/authtoken:
+    path: comp/api/authtoken
+    used_by_otel: true
+  comp/core/config:
+    path: comp/core/config
+    used_by_otel: true
+  comp/core/flare/builder:
+    path: comp/core/flare/builder
+    used_by_otel: true
+  comp/core/flare/types:
+    path: comp/core/flare/types
+    used_by_otel: true
+  comp/core/hostname/hostnameinterface:
+    path: comp/core/hostname/hostnameinterface
+    used_by_otel: true
+  comp/core/log/def:
+    path: comp/core/log/def
+    used_by_otel: true
+  comp/core/log/impl:
+    path: comp/core/log/impl
+    used_by_otel: true
+  comp/core/log/impl-trace:
+    path: comp/core/log/impl-trace
+  comp/core/log/mock:
+    path: comp/core/log/mock
+    used_by_otel: true
+  comp/core/secrets:
+    path: comp/core/secrets
+    used_by_otel: true
+  comp/core/status:
+    path: comp/core/status
+    used_by_otel: true
+  comp/core/status/statusimpl:
+    path: comp/core/status/statusimpl
+  comp/core/tagger/types:
+    path: comp/core/tagger/types
+    used_by_otel: true
+  comp/core/tagger/utils:
+    path: comp/core/tagger/utils
+    used_by_otel: true
+  comp/core/telemetry:
+    path: comp/core/telemetry
+    used_by_otel: true
+  comp/def:
+    path: comp/def
+    used_by_otel: true
+  comp/forwarder/defaultforwarder:
+    path: comp/forwarder/defaultforwarder
+    used_by_otel: true
+  comp/forwarder/orchestrator/orchestratorinterface:
+    path: comp/forwarder/orchestrator/orchestratorinterface
+    used_by_otel: true
+  comp/logs/agent/config:
+    path: comp/logs/agent/config
+    used_by_otel: true
+  comp/netflow/payload:
+    path: comp/netflow/payload
+  comp/otelcol/collector-contrib/def:
+    path: comp/otelcol/collector-contrib/def
+    used_by_otel: true
+  comp/otelcol/collector-contrib/impl:
+    path: comp/otelcol/collector-contrib/impl
+    used_by_otel: true
+  comp/otelcol/converter/def:
+    path: comp/otelcol/converter/def
+    used_by_otel: true
+  comp/otelcol/converter/impl:
+    path: comp/otelcol/converter/impl
+    used_by_otel: true
+  comp/otelcol/ddflareextension/def:
+    path: comp/otelcol/ddflareextension/def
+    used_by_otel: true
+  comp/otelcol/ddflareextension/impl:
+    path: comp/otelcol/ddflareextension/impl
+    used_by_otel: true
+  comp/otelcol/logsagentpipeline:
+    path: comp/otelcol/logsagentpipeline
+    used_by_otel: true
+  comp/otelcol/logsagentpipeline/logsagentpipelineimpl:
+    path: comp/otelcol/logsagentpipeline/logsagentpipelineimpl
+    used_by_otel: true
+  comp/otelcol/otlp/components/exporter/datadogexporter:
+    path: comp/otelcol/otlp/components/exporter/datadogexporter
+    used_by_otel: true
+  comp/otelcol/otlp/components/exporter/logsagentexporter:
+    path: comp/otelcol/otlp/components/exporter/logsagentexporter
+    used_by_otel: true
+  comp/otelcol/otlp/components/exporter/serializerexporter:
+    path: comp/otelcol/otlp/components/exporter/serializerexporter
+    used_by_otel: true
+  comp/otelcol/otlp/components/metricsclient:
+    path: comp/otelcol/otlp/components/metricsclient
+    used_by_otel: true
+  comp/otelcol/otlp/components/processor/infraattributesprocessor:
+    path: comp/otelcol/otlp/components/processor/infraattributesprocessor
+    used_by_otel: true
+  comp/otelcol/otlp/components/statsprocessor:
+    path: comp/otelcol/otlp/components/statsprocessor
+    used_by_otel: true
+  comp/otelcol/otlp/testutil:
+    path: comp/otelcol/otlp/testutil
+    used_by_otel: true
+  comp/serializer/compression:
+    path: comp/serializer/compression
+    used_by_otel: true
+  comp/trace/agent/def:
+    path: comp/trace/agent/def
+    used_by_otel: true
+  comp/trace/compression/def:
+    path: comp/trace/compression/def
+    used_by_otel: true
+  comp/trace/compression/impl-gzip:
+    path: comp/trace/compression/impl-gzip
+    used_by_otel: true
+  comp/trace/compression/impl-zstd:
+    path: comp/trace/compression/impl-zstd
+    used_by_otel: true
+  internal/tools:
+    condition: never
+    independent: false
+    path: internal/tools
+    should_tag: false
+  internal/tools/independent-lint:
+    condition: never
+    independent: false
+    path: internal/tools/independent-lint
+    should_tag: false
+  internal/tools/modformatter:
+    condition: never
+    independent: false
+    path: internal/tools/modformatter
+    should_tag: false
+  internal/tools/modparser:
+    condition: never
+    independent: false
+    path: internal/tools/modparser
+    should_tag: false
+  internal/tools/modparser/testdata/badformat: ignored
+  internal/tools/modparser/testdata/match: ignored
+  internal/tools/modparser/testdata/nomatch: ignored
+  internal/tools/modparser/testdata/patchgoversion: ignored
+  internal/tools/proto:
+    condition: never
+    independent: false
+    path: internal/tools/proto
+    should_tag: false
+  pkg/aggregator/ckey:
+    path: pkg/aggregator/ckey
+    used_by_otel: true
+  pkg/api:
+    path: pkg/api
+    used_by_otel: true
+  pkg/collector/check/defaults:
+    path: pkg/collector/check/defaults
+    used_by_otel: true
+  pkg/config/env:
+    path: pkg/config/env
+    used_by_otel: true
+  pkg/config/mock:
+    path: pkg/config/mock
+    used_by_otel: true
+  pkg/config/model:
+    path: pkg/config/model
+    used_by_otel: true
+  pkg/config/nodetreemodel:
+    path: pkg/config/nodetreemodel
+    used_by_otel: true
+  pkg/config/remote:
+    path: pkg/config/remote
+  pkg/config/setup:
+    path: pkg/config/setup
+    used_by_otel: true
+  pkg/config/structure:
+    path: pkg/config/structure
+    used_by_otel: true
+  pkg/config/teeconfig:
+    path: pkg/config/teeconfig
+    used_by_otel: true
+  pkg/config/utils:
+    path: pkg/config/utils
+    used_by_otel: true
+  pkg/errors:
+    path: pkg/errors
+  pkg/gohai:
+    importable: false
+    path: pkg/gohai
+  pkg/linters/components/pkgconfigusage:
+    independent: false
+    path: pkg/linters/components/pkgconfigusage
+    should_tag: false
+  pkg/logs/auditor:
+    path: pkg/logs/auditor
+    used_by_otel: true
+  pkg/logs/client:
+    path: pkg/logs/client
+    used_by_otel: true
+  pkg/logs/diagnostic:
+    path: pkg/logs/diagnostic
+    used_by_otel: true
+  pkg/logs/message:
+    path: pkg/logs/message
+    used_by_otel: true
+  pkg/logs/metrics:
+    path: pkg/logs/metrics
+    used_by_otel: true
+  pkg/logs/pipeline:
+    path: pkg/logs/pipeline
+    used_by_otel: true
+  pkg/logs/processor:
+    path: pkg/logs/processor
+    used_by_otel: true
+  pkg/logs/sds:
+    path: pkg/logs/sds
+    used_by_otel: true
+  pkg/logs/sender:
+    path: pkg/logs/sender
+    used_by_otel: true
+  pkg/logs/sources:
+    path: pkg/logs/sources
+    used_by_otel: true
+  pkg/logs/status/statusinterface:
+    path: pkg/logs/status/statusinterface
+    used_by_otel: true
+  pkg/logs/status/utils:
+    path: pkg/logs/status/utils
+    used_by_otel: true
+  pkg/logs/util/testutils:
+    path: pkg/logs/util/testutils
+    used_by_otel: true
+  pkg/metrics:
+    path: pkg/metrics
+    used_by_otel: true
+  pkg/networkdevice/profile:
+    path: pkg/networkdevice/profile
+  pkg/obfuscate:
+    path: pkg/obfuscate
+    used_by_otel: true
+  pkg/orchestrator/model:
+    path: pkg/orchestrator/model
+    used_by_otel: true
+  pkg/process/procutil/resources: ignored
+  pkg/process/util/api:
+    path: pkg/process/util/api
+    used_by_otel: true
+  pkg/proto:
+    path: pkg/proto
+    used_by_otel: true
+  pkg/remoteconfig/state:
+    path: pkg/remoteconfig/state
+    used_by_otel: true
+  pkg/security/secl:
+    path: pkg/security/secl
+  pkg/security/seclwin:
+    condition: never
+    path: pkg/security/seclwin
+  pkg/serializer:
+    path: pkg/serializer
+    used_by_otel: true
+  pkg/status/health:
+    path: pkg/status/health
+    used_by_otel: true
+  pkg/tagger/types:
+    path: pkg/tagger/types
+    used_by_otel: true
+  pkg/tagset:
+    path: pkg/tagset
+    used_by_otel: true
+  pkg/telemetry:
+    path: pkg/telemetry
+    used_by_otel: true
+  pkg/trace:
+    path: pkg/trace
+    used_by_otel: true
+  pkg/trace/stats/oteltest:
+    path: pkg/trace/stats/oteltest
+    used_by_otel: true
+  pkg/util/backoff:
+    path: pkg/util/backoff
+    used_by_otel: true
+  pkg/util/buf:
+    path: pkg/util/buf
+    used_by_otel: true
+  pkg/util/cache:
+    path: pkg/util/cache
+  pkg/util/cgroups:
+    condition: is_linux
+    path: pkg/util/cgroups
+    used_by_otel: true
+  pkg/util/common:
+    path: pkg/util/common
+    used_by_otel: true
+  pkg/util/containers/image:
+    path: pkg/util/containers/image
+    used_by_otel: true
+  pkg/util/defaultpaths:
+    path: pkg/util/defaultpaths
+    used_by_otel: true
+  pkg/util/executable:
+    path: pkg/util/executable
+    used_by_otel: true
+  pkg/util/filesystem:
+    path: pkg/util/filesystem
+    used_by_otel: true
+  pkg/util/flavor:
+    path: pkg/util/flavor
+  pkg/util/fxutil:
+    path: pkg/util/fxutil
+    used_by_otel: true
+  pkg/util/grpc:
+    path: pkg/util/grpc
+  pkg/util/hostname/validate:
+    path: pkg/util/hostname/validate
+    used_by_otel: true
+  pkg/util/http:
+    path: pkg/util/http
+    used_by_otel: true
+  pkg/util/json:
+    path: pkg/util/json
+    used_by_otel: true
+  pkg/util/log:
+    path: pkg/util/log
+    used_by_otel: true
+  pkg/util/log/setup:
+    path: pkg/util/log/setup
+    used_by_otel: true
+  pkg/util/optional:
+    path: pkg/util/optional
+    used_by_otel: true
+  pkg/util/pointer:
+    path: pkg/util/pointer
+    used_by_otel: true
+  pkg/util/scrubber:
+    path: pkg/util/scrubber
+    used_by_otel: true
+  pkg/util/sort:
+    path: pkg/util/sort
+    used_by_otel: true
+  pkg/util/startstop:
+    path: pkg/util/startstop
+    used_by_otel: true
+  pkg/util/statstracker:
+    path: pkg/util/statstracker
+    used_by_otel: true
+  pkg/util/system:
+    path: pkg/util/system
+    used_by_otel: true
+  pkg/util/system/socket:
+    path: pkg/util/system/socket
+    used_by_otel: true
+  pkg/util/testutil:
+    path: pkg/util/testutil
+    used_by_otel: true
+  pkg/util/uuid:
+    path: pkg/util/uuid
+  pkg/util/winutil:
+    path: pkg/util/winutil
+    used_by_otel: true
+  pkg/version:
+    path: pkg/version
+    used_by_otel: true
+  tasks/unit_tests/testdata/go_mod_formatter/invalid_package: ignored
+  tasks/unit_tests/testdata/go_mod_formatter/valid_package: ignored
+  test/fakeintake:
+    path: test/fakeintake
+  test/integration/serverless/recorder-extension: ignored
+  test/integration/serverless/src: ignored
+  test/new-e2e:
+    lint_targets:
+    - .
+    - ./examples
+    path: test/new-e2e
+    targets:
+    - ./pkg/runner
+    - ./pkg/utils/e2e/client
+  test/otel:
+    path: test/otel
+    used_by_otel: true
+  tools/retry_file_dump:
+    condition: never
+    independent: false
+    path: tools/retry_file_dump
+    should_tag: false
