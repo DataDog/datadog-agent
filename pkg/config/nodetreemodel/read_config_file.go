@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
 )
 
@@ -25,6 +26,10 @@ func (c *ntmConfig) getConfigFile() string {
 
 // ReadInConfig wraps Viper for concurrent access
 func (c *ntmConfig) ReadInConfig() error {
+	if !c.isReady() {
+		return log.Errorf("attempt to ReadInConfig before config is constructed")
+	}
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -44,6 +49,10 @@ func (c *ntmConfig) ReadInConfig() error {
 
 // ReadConfig wraps Viper for concurrent access
 func (c *ntmConfig) ReadConfig(in io.Reader) error {
+	if !c.isReady() {
+		return log.Errorf("attempt to ReadConfig before config is constructed")
+	}
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -71,8 +80,6 @@ func (c *ntmConfig) readConfigurationContent(content []byte) error {
 		return err
 	}
 	c.warnings = append(c.warnings, loadYamlInto(c.defaults, c.file, obj, "")...)
-	// Mark the config as ready
-	c.ready.Store(true)
 	return nil
 }
 
