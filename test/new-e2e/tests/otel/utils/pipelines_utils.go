@@ -329,15 +329,9 @@ func TestHosts(s OTelTestSuite) {
 
 // TestSampling tests that APM stats are correct when using probabilistic sampling
 func TestSampling(s OTelTestSuite, computeTopLevelBySpanKind bool) {
-	ctx := context.Background()
-	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	require.NoError(s.T(), err)
-	numTraces := 10
+	SetupSampleTraces(s)
 
-	s.T().Log("Starting telemetrygen")
-	createTelemetrygenJob(ctx, s, "traces", []string{"--traces", fmt.Sprint(numTraces)})
-
-	TestAPMStats(s, numTraces, computeTopLevelBySpanKind)
+	TestAPMStats(s, 10, computeTopLevelBySpanKind)
 }
 
 // TestAPMStats checks that APM stats are received with the correct number of hits per traces given
@@ -391,8 +385,8 @@ func TestPrometheusMetrics(s OTelTestSuite) {
 	s.T().Log("Got otelcol_datadog_trace_agent_trace_writer_spans", traceAgentMetrics)
 }
 
-// TestSpanReceiverV2 tests that APM stats are correct when using probabilistic sampling
-func TestSpanReceiverV2(s OTelTestSuite) {
+// SetupSampleTraces flushes the intake server and starts a telemetrygen job to generate traces
+func SetupSampleTraces(s OTelTestSuite) {
 	ctx := context.Background()
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)

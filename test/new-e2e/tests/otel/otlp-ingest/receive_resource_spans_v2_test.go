@@ -6,19 +6,21 @@
 package otlpingest
 
 import (
+	"testing"
+
+	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	"testing"
 )
 
-type otelIngestSpanReceiverV2TestSuite struct {
+type otlpIngestSpanReceiverV2TestSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
-func TestOTelIngestSpanReceiverV2(t *testing.T) {
+func TestOTLPIngestSpanReceiverV2(t *testing.T) {
 	values := `
 datadog:
   otlp:
@@ -39,14 +41,14 @@ agents:
           value: 'enable_receive_resource_spans_v2'
 `
 	t.Parallel()
-	e2e.Run(t, &otelIngestSpanReceiverV2TestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
+	e2e.Run(t, &otlpIngestSpanReceiverV2TestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
 }
 
-func (s *otelIngestSpanReceiverV2TestSuite) SetupSuite() {
+func (s *otlpIngestSpanReceiverV2TestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.TestSpanReceiverV2(s)
+	utils.SetupSampleTraces(s)
 }
 
-func (s *otelIngestSpanReceiverV2TestSuite) TestTracesWithSpanReceiverV2() {
+func (s *otlpIngestSpanReceiverV2TestSuite) TestTracesWithSpanReceiverV2() {
 	utils.TestTracesWithSpanReceiverV2(s)
 }

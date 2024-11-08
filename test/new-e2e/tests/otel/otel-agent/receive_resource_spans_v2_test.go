@@ -6,12 +6,14 @@
 package otelagent
 
 import (
+	"testing"
+
+	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	"testing"
 )
 
 type otelAgentSpanReceiverV2TestSuite struct {
@@ -39,7 +41,7 @@ agents:
 
 func (s *otelAgentSpanReceiverV2TestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.TestSpanReceiverV2(s)
+	utils.SetupSampleTraces(s)
 }
 
 func (s *otelAgentSpanReceiverV2TestSuite) TestTracesWithSpanReceiverV2() {
