@@ -16,30 +16,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func (c *ntmConfig) mergeAllLayers() error {
-	root := newInnerNode(nil)
-
-	treeList := []InnerNode{
-		c.defaults,
-		c.file,
-		c.envs,
-	}
-
-	// TODO: handle all configuration sources
-	for _, tree := range treeList {
-		if tree == nil {
-			continue
-		}
-		err := root.Merge(tree)
-		if err != nil {
-			return err
-		}
-	}
-
-	c.root = root
-	return nil
-}
-
 func (c *ntmConfig) getConfigFile() string {
 	if c.configFile == "" {
 		return "datadog.yaml"

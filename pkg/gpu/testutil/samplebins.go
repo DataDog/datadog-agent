@@ -8,8 +8,12 @@
 package testutil
 
 import (
+	"bufio"
+	"fmt"
+	"io"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -26,8 +30,45 @@ const (
 	CudaSample SampleName = "cudasample"
 )
 
-// RunSample executes the sample binary and returns the command. Cleanup is configured automatically
+type SampleArgs struct {
+	// StartWaitTimeSec represents the time in seconds to wait before the binary starting the CUDA calls
+	StartWaitTimeSec int
+
+	// EndWaitTimeSec represents the time in seconds to wait before the binary stops after making the CUDA calls
+	// This is necessary because the mock CUDA calls are instant, which means that the binary will exit before the
+	// eBPF probe has a chance to read the events and inspect the binary. To make the behavior of the sample binary
+	// more predictable and avoid flakiness in the tests, we introduce a delay before the binary exits.
+	EndWaitTimeSec int
+}
+
+func (a *SampleArgs) getCLIArgs() []string {
+	return []string{
+		strconv.Itoa(int(a.StartWaitTimeSec)),
+		strconv.Itoa(int(a.EndWaitTimeSec)),
+	}
+}
+
 func RunSample(t *testing.T, name SampleName) (*exec.Cmd, error) {
+	args := SampleArgs{
+		StartWaitTimeSec: 5,
+		EndWaitTimeSec:   0,
+	}
+	return RunSampleWithArgs(t, name, args)
+}
+
+// redirectReaderToLog reads from the reader and logs the output with the given prefix
+func redirectReaderToLog(r io.Reader, prefix string) {
+	go func() {
+		scanner := bufio.NewScanner(r)
+		for scanner.Scan() {
+			log.Debugf("%s: %s", prefix, scanner.Text())
+		}
+		// Automatically exits when the scanner reaches EOF, that is, when the command finishes
+	}()
+}
+
+// RunSampleWithArgs executes the sample binary and returns the command. Cleanup is configured automatically
+func RunSampleWithArgs(t *testing.T, name SampleName, args SampleArgs) (*exec.Cmd, error) {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
@@ -37,12 +78,23 @@ func RunSample(t *testing.T, name SampleName) (*exec.Cmd, error) {
 	builtBin, err := buildCBinary(sourceFile, binaryFile)
 	require.NoError(t, err)
 
-	cmd := exec.Command(builtBin)
+	cliArgs := args.getCLIArgs()
+	cmd := exec.Command(builtBin, cliArgs...)
 	t.Cleanup(func() {
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
 		}
 	})
+
+	stdout, err := cmd.StdoutPipe()
+	require.NoError(t, err)
+	stderr, err := cmd.StderrPipe()
+	require.NoError(t, err)
+
+	redirectReaderToLog(stdout, fmt.Sprintf("%s stdout", name))
+	redirectReaderToLog(stderr, fmt.Sprintf("%s stderr", name))
+
+	log.Debugf("Running sample binary %s with args=%v", name, args.getCLIArgs())
 	err = cmd.Start()
 	require.NoError(t, err)
 

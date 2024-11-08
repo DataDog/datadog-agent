@@ -132,7 +132,7 @@ func (n *innerNode) SetAt(key []string, value interface{}, source model.Source) 
 		}
 
 		if leaf, ok := node.(LeafNode); ok {
-			if leaf.Source().IsGreaterOrEqualThan(source) {
+			if source.IsGreaterOrEqualThan(leaf.Source()) {
 				n.children[part] = newLeafNode(value, source)
 				return true, nil
 			}
