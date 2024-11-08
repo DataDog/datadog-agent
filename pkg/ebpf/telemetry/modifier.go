@@ -79,13 +79,13 @@ func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, module names.Mo
 			MaxEntries: uint32(len(ebpfMaps)),
 			EditorFlag: manager.EditMaxEntries,
 		}
-		log.Tracef("module %s maps %d", module.String(), opts.MapSpecEditors[mapErrTelemetryMapName].MaxEntries)
+		log.Tracef("module %s maps %d", module.Name(), opts.MapSpecEditors[mapErrTelemetryMapName].MaxEntries)
 
 		opts.MapSpecEditors[helperErrTelemetryMapName] = manager.MapSpecEditor{
 			MaxEntries: uint32(len(ebpfPrograms)),
 			EditorFlag: manager.EditMaxEntries,
 		}
-		log.Tracef("module %s probes %d", module.String(), opts.MapSpecEditors[helperErrTelemetryMapName].MaxEntries)
+		log.Tracef("module %s probes %d", module.Name(), opts.MapSpecEditors[helperErrTelemetryMapName].MaxEntries)
 
 		h := keyHash()
 		for _, ebpfMap := range m.Maps {

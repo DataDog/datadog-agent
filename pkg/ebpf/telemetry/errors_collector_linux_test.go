@@ -32,24 +32,16 @@ type MockMapName struct {
 	n string
 }
 
-func (m *MockMapName) String() string {
+func (m *MockMapName) Name() string {
 	return m.n
-}
-
-func (m *MockMapName) Type() names.ResourceType {
-	return names.MapType
 }
 
 type MockProgramName struct {
 	n string
 }
 
-func (m *MockProgramName) String() string {
+func (m *MockProgramName) Name() string {
 	return m.n
-}
-
-func (m *MockProgramName) Type() names.ResourceType {
-	return names.ProgramType
 }
 
 type mockErrorsTelemetry struct {

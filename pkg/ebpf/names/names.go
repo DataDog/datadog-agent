@@ -14,23 +14,12 @@ import (
 	"github.com/cilium/ebpf"
 )
 
-type ResourceType int
-
-const (
-	MapType ResourceType = iota
-	ProgramType
-)
-
 type MapName struct {
 	n string
 }
 
-func (m *MapName) String() string {
+func (m *MapName) Name() string {
 	return m.n
-}
-
-func (m *MapName) Type() ResourceType {
-	return MapType
 }
 
 func NewMapNameFromManagerMap(m *manager.Map) MapName {
@@ -41,12 +30,8 @@ type ProgramName struct {
 	n string
 }
 
-func (p *ProgramName) String() string {
+func (p *ProgramName) Name() string {
 	return p.n
-}
-
-func (p *ProgramName) Type() ResourceType {
-	return ProgramType
 }
 
 func NewProgramNameFromProgramSpec(spec *ebpf.ProgramSpec) ProgramName {
@@ -57,7 +42,7 @@ type ModuleName struct {
 	n string
 }
 
-func (mn *ModuleName) String() string {
+func (mn *ModuleName) Name() string {
 	return mn.n
 }
 
@@ -66,6 +51,5 @@ func NewModuleName(mn string) ModuleName {
 }
 
 type ResourceName interface {
-	String() string
-	Type() ResourceType
+	Name() string
 }

@@ -90,7 +90,7 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 				}
 				delta := float64(errCount - e.lastValues[key])
 				if delta > 0 {
-					e.mapOpsErrors.WithLabelValues(tKey.resourceName.String(), errStr, tKey.moduleName.String()).Add(delta)
+					e.mapOpsErrors.WithLabelValues(tKey.resourceName.Name(), errStr, tKey.moduleName.Name()).Add(delta)
 				}
 				e.lastValues[key] = errCount
 			}
@@ -110,7 +110,7 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 					}
 					delta := float64(errCount - e.lastValues[key])
 					if delta > 0 {
-						e.helperErrors.WithLabelValues(helperName, tKey.resourceName.String(), errStr, tKey.moduleName.String()).Add(delta)
+						e.helperErrors.WithLabelValues(helperName, tKey.resourceName.Name(), errStr, tKey.moduleName.Name()).Add(delta)
 					}
 					e.lastValues[key] = errCount
 				}

@@ -51,7 +51,7 @@ func (k *telemetryKey) bytes() []byte {
 }
 
 func (k *telemetryKey) String() string {
-	return fmt.Sprintf("%s,%s", k.resourceName.String(), k.moduleName.String())
+	return fmt.Sprintf("%s,%s", k.resourceName.Name(), k.moduleName.Name())
 }
 
 // ebpfErrorsTelemetry interface allows easy mocking for UTs without a need to initialize the whole ebpf sub-system and execute ebpf maps APIs
@@ -99,13 +99,13 @@ func (e *ebpfTelemetry) fill(maps []names.MapName, mn names.ModuleName, mapErrMa
 	}
 
 	if _, ok := e.mapErrMapsByModule[mn]; ok {
-		return fmt.Errorf("eBPF map for map-operation errors for module %s already exists", mn.String())
+		return fmt.Errorf("eBPF map for map-operation errors for module %s already exists", mn.Name())
 	} else {
 		e.mapErrMapsByModule[mn] = mapErrMap
 	}
 
 	if _, ok := e.helperErrMapsByModule[mn]; ok {
-		return fmt.Errorf("eBPF map for helper-operation errors for module %s already exists", mn.String())
+		return fmt.Errorf("eBPF map for helper-operation errors for module %s already exists", mn.Name())
 	} else {
 		e.helperErrMapsByModule[mn] = helperErrMap
 	}
