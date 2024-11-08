@@ -26,6 +26,7 @@ var GPUUUIDs = []string{
 // DefaultGpuUUID is the UUID for the default device returned by the mock
 var DefaultGpuUUID = GPUUUIDs[0]
 
+// GetDeviceMock returns a mock of the nvml.Device with the given UUID.
 func GetDeviceMock(uuid string) *nvmlmock.Device {
 	return &nvmlmock.Device{
 		GetNumGpuCoresFunc: func() (int, nvml.Return) {
