@@ -135,6 +135,7 @@ build do
 
   # System-probe
   sysprobe_support = (not heroku_target?) && (linux_target? || (windows_target? && do_windows_sysprobe != ""))
+                      && ENV.has_key?('SYSTEM_PROBE_BIN') and not ENV['SYSTEM_PROBE_BIN'].empty?
   if sysprobe_support
     if windows_target?
       command "invoke -e system-probe.build", env: env
