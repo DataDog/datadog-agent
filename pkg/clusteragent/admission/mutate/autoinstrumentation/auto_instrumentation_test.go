@@ -47,6 +47,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 		expectedSecurityContext *corev1.SecurityContext
 		wantErr                 bool
 		config                  func(c model.Config)
+		expectedLdPreload       string
 	}{
 		{
 			name: "no libs, no injection",
@@ -194,6 +195,30 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				c.SetWithoutSource("apm_config.instrumentation.injector_image_tag", "0.16-1")
 			},
 		},
+		{
+			name:                  "with already set LD_PRELOAD",
+			pod:                   common.FakePodWithEnvValue("python-pod", "LD_PRELOAD", "/foo/bar"),
+			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0.16-1",
+			expectedSecurityContext: &corev1.SecurityContext{
+				Privileged: pointer.Ptr(false),
+			},
+			expectedLangsDetected: "python",
+			libInfo: extractedPodLibInfo{
+				languageDetection: &libInfoLanguageDetection{
+					libs: []libInfo{
+						python.defaultLibInfo(commonRegistry, "python-pod-container"),
+					},
+				},
+				libs: []libInfo{
+					java.libInfo("", "gcr.io/datadoghq/dd-lib-python-init:v1"),
+				},
+				source: libInfoSourceSingleStepLangaugeDetection,
+			},
+			config: func(c model.Config) {
+				c.SetWithoutSource("apm_config.instrumentation.injector_image_tag", "0.16-1")
+			},
+			expectedLdPreload: "/foo/bar:/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
+		},
 	}
 
 	for _, tt := range tests {
@@ -329,7 +354,12 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				SubPath:   "opt/datadog/apm/library",
 			}, mounts[2], "expected the second container volume mount to be the language libraries")
 
-			requireEnv(t, "LD_PRELOAD", true, "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so")
+			if tt.expectedLdPreload != "" {
+				requireEnv(t, "LD_PRELOAD", true, tt.expectedLdPreload)
+			} else {
+				requireEnv(t, "LD_PRELOAD", true, "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so")
+			}
+
 			requireEnv(t, "DD_INJECT_SENDER_TYPE", true, "k8s")
 
 			requireEnv(t, "DD_INSTRUMENTATION_INSTALL_TYPE", true, tt.expectedInstallType)

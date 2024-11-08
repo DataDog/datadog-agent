@@ -1317,6 +1317,11 @@
           "property_doc_link": "common-ipportcontext-ip-doc"
         },
         {
+          "name": "bind.addr.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
           "name": "bind.addr.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
@@ -1821,6 +1826,11 @@
           "property_doc_link": "common-ipportcontext-ip-doc"
         },
         {
+          "name": "connect.addr.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
           "name": "connect.addr.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
@@ -1839,6 +1849,11 @@
           "name": "connect.server.addr.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "connect.server.addr.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
         },
         {
           "name": "connect.server.addr.port",
@@ -1895,6 +1910,11 @@
           "property_doc_link": "common-ipportcontext-ip-doc"
         },
         {
+          "name": "network.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
           "name": "network.destination.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
@@ -1923,6 +1943,11 @@
           "name": "network.source.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
         },
         {
           "name": "network.source.port",
@@ -2827,6 +2852,11 @@
           "property_doc_link": "common-ipportcontext-ip-doc"
         },
         {
+          "name": "network.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
           "name": "network.destination.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
@@ -2855,6 +2885,11 @@
           "name": "network.source.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
         },
         {
           "name": "network.source.port",
@@ -3699,6 +3734,11 @@
           "property_doc_link": "common-ipportcontext-ip-doc"
         },
         {
+          "name": "packet.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
           "name": "packet.destination.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
@@ -3732,6 +3772,11 @@
           "name": "packet.source.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "packet.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
         },
         {
           "name": "packet.source.port",
@@ -8374,6 +8419,24 @@
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.is_public",
+      "link": "common-ipportcontext-is_public-doc",
+      "type": "bool",
+      "definition": "Whether the IP address belongs to a public network",
+      "prefixes": [
+        "bind.addr",
+        "connect.addr",
+        "connect.server.addr",
+        "network.destination",
+        "network.source",
+        "packet.destination",
+        "packet.source"
       ],
       "constants": "",
       "constants_link": "",

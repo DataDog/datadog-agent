@@ -27,9 +27,10 @@ func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, map[streamKey]*Str
 	ktime, err := ddebpf.NowNanoseconds()
 	require.NoError(t, err)
 
-	// Align mock time with boot time for consistent time resolution
 	streamHandlers := make(map[streamKey]*StreamHandler)
-	statsGen := newStatsGenerator(sysCtx, ktime, streamHandlers)
+	statsGen := newStatsGenerator(sysCtx, streamHandlers)
+	statsGen.lastGenerationKTime = ktime
+	statsGen.currGenerationKTime = ktime
 	require.NotNil(t, statsGen)
 
 	return statsGen, streamHandlers, ktime
