@@ -8,6 +8,7 @@
 package agentimpl
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -21,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
+
+var configSources *sources.ConfigSources
 
 func (a *logAgent) SetUpLaunchers(processingRules []*config.ProcessingRule) {
 	health := health.RegisterLiveness("logs-agent")
@@ -49,8 +52,9 @@ func (a *logAgent) SetUpLaunchers(processingRules []*config.ProcessingRule) {
 		fileWildcardSelectionMode,
 		a.flarecontroller,
 		a.tagger)
-	sourceProvider := sources.NewConfigSources()
-	fileLauncher.Start(sourceProvider, pipelineProvider, auditor, a.tracker)
+	configSources = sources.NewConfigSources()
+	fmt.Println("WACK1 configSources instantiated ", configSources)
+	fileLauncher.Start(configSources, pipelineProvider, auditor, a.tracker)
 	lnchrs.AddLauncher(fileLauncher)
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.auditor = auditor
@@ -59,5 +63,11 @@ func (a *logAgent) SetUpLaunchers(processingRules []*config.ProcessingRule) {
 	a.launchers = lnchrs
 	a.health = health
 	a.diagnosticMessageReceiver = diagnosticMessageReceiver
+}
 
+// AddFileSource uses the instantiated SourceProvider to add a source.
+func AddFileSource(path string) error {
+	fmt.Println("WACK2 configSources is ", configSources)
+	err := configSources.AddFileSource(path)
+	return err
 }

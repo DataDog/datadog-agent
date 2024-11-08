@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -25,8 +25,6 @@ type CliParams struct {
 
 	// CoreConfigPath represents the path to the core configuration file.
 	CoreConfigPath string
-
-	ConfigSource *sources.ConfigSources
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -34,7 +32,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &CliParams{
 		GlobalParams:   globalParams,
 		CoreConfigPath: defaultCoreConfigPath, // Set default path
-		ConfigSource:   sources.NewConfigSources(),
 	}
 
 	cmd := &cobra.Command{
@@ -64,25 +61,17 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // runLogsAnalyze handles the logs check operation.
 func runLogsAnalyze(cliParams *CliParams) error {
 	// Check if the provided log config file exists
-	// if _, err := os.Stat(cliParams.LogConfigPath); os.IsNotExist(err) {
-	// 	return fmt.Errorf("log config file %s does not exist", cliParams.LogConfigPath)
-	// }
-
-	// // Check if the core config file exists, using default or user-specified path
-	// if _, err := os.Stat(cliParams.CoreConfigPath); os.IsNotExist(err) {
-	// 	return fmt.Errorf("core config file %s does not exist", cliParams.CoreConfigPath)
-	// }
 
 	//send paths to source provider
 	// Add log config source
 	fmt.Println("andrewq command.go 1")
-	if err := cliParams.ConfigSource.AddFileSource(cliParams.LogConfigPath); err != nil {
+	if err := agentimpl.AddFileSource(cliParams.LogConfigPath); err != nil {
 		return fmt.Errorf("failed to add log config source: %w", err)
 	}
 
 	fmt.Println("andrewq command.go 2")
 	// Add core config source
-	if err := cliParams.ConfigSource.AddFileSource(cliParams.CoreConfigPath); err != nil {
+	if err := agentimpl.AddFileSource(cliParams.CoreConfigPath); err != nil {
 		return fmt.Errorf("failed to add core config source: %w", err)
 	}
 	fmt.Println("andrewq command.go 3, added both log files")

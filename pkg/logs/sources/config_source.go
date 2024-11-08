@@ -99,6 +99,8 @@ func (s *ConfigSources) AddSource(source *LogSource) {
 	streamsForType := s.addedByType[source.Config.Type]
 	s.mu.Unlock()
 
+	fmt.Println("WACK streamsForType:", streamsForType)
+
 	for _, stream := range streams {
 		stream <- source
 	}
