@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/docker/cli/cli/connhelper"
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
@@ -94,11 +93,11 @@ func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands 
 	docker.t.Logf("Executing command `%s`", scrubbedCommand)
 
 	context := context.Background()
-	execConfig := types.ExecConfig{Cmd: commands, AttachStderr: true, AttachStdout: true}
+	execConfig := container.ExecOptions{Cmd: commands, AttachStderr: true, AttachStdout: true}
 	execCreateResp, err := docker.client.ContainerExecCreate(context, containerName, execConfig)
 	require.NoError(docker.t, err)
 
-	execAttachResp, err := docker.client.ContainerExecAttach(context, execCreateResp.ID, types.ExecStartCheck{})
+	execAttachResp, err := docker.client.ContainerExecAttach(context, execCreateResp.ID, container.ExecStartOptions{})
 	require.NoError(docker.t, err)
 	defer execAttachResp.Close()
 
