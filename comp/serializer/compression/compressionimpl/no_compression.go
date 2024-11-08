@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
-	strategy_noop "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy-none"
+	strategy_noop "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/impl-noop"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

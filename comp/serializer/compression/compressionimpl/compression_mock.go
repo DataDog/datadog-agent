@@ -10,7 +10,7 @@ package compressionimpl
 import (
 	"go.uber.org/fx"
 
-	strategy_noop "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy-none"
+	strategy_noop "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/impl-noop"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )

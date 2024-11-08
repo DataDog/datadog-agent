@@ -9,9 +9,9 @@
 package compressionimpl
 
 import (
-	strategy_zlib "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy-zlib"
-	strategy_zstd "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy-zstd"
-	strategy_noop "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy-none"
+	strategy_zlib "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/impl-zlib"
+	strategy_zstd "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/impl-zstd"
+	strategy_noop "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/impl-noop"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"

@@ -12,8 +12,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	strategy_zlib "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy-zlib"
-	strategy_noop "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy-none"
+	strategy_zlib "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/impl-zlib"
+	strategy_noop "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/impl-noop"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
