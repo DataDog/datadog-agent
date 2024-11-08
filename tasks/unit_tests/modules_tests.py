@@ -199,30 +199,6 @@ class TestGoModuleSerialization(unittest.TestCase):
         self.assertEqual(module2.condition, module.condition)
         self.assertEqual(module2.used_by_otel, module.used_by_otel)
 
-    def test_from_to_file(self):
-        path = 'pkg/my/module'
-        module = GoModule(
-            path=path,
-            targets=['.'],
-            lint_targets=['.'],
-            condition='always',
-            should_tag=True,
-            importable=True,
-            independent=True,
-            used_by_otel=True,
-        )
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            (Path(tmpdir) / path).mkdir(parents=True, exist_ok=True)
-
-            module.to_file(base_dir=Path(tmpdir))
-            module2 = GoModule.from_file(path, base_dir=Path(tmpdir))
-
-        # Remove temp file prefix
-        self.assertEqual(module2.path, module.path)
-        self.assertEqual(module2.condition, module.condition)
-        self.assertEqual(module2.used_by_otel, module.used_by_otel)
-
     def test_get_default_modules(self):
         # Ensure modules are loaded
         modules = get_default_modules()
@@ -254,49 +230,12 @@ class TestGoModuleSerialization(unittest.TestCase):
             }
             Configuration(base_dir=tmpdir, modules=modules, ignored_modules=set()).to_file()
 
+            self.assertTrue((Path(tmpdir) / Configuration.FILE_NAME).is_file())
+
             # Load modules
             modules_loaded = get_default_modules(base_dir=Path(tmpdir))
 
-            # Reset base_dir which differs from both collections
-            for module in modules_loaded.values():
-                module.base_dir = Path.cwd()
-
             self.assertDictEqual(modules, modules_loaded)
-
-    def test_module_default(self):
-        """
-        If no `module.yml` file is present, a default module should be created.
-        """
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmpdir = Path(tmpdir)
-            path = 'pkg/my/module'
-            (tmpdir / path).mkdir(parents=True, exist_ok=True)
-
-            module = GoModule.from_file(path, base_dir=tmpdir)
-            default_module = GoModule(path=path)
-
-            self.assertEqual(module.path, path)
-            self.assertEqual(module.condition, default_module.condition)
-            self.assertEqual(module.should_tag, default_module.should_tag)
-            self.assertEqual(module.targets, default_module.targets)
-
-    def test_module_ignored(self):
-        """
-        If no `module.yml` file is present, a default module should be created.
-        """
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmpdir = Path(tmpdir)
-            path = 'pkg/my/module'
-            (tmpdir / path).mkdir(parents=True, exist_ok=True)
-
-            with open(tmpdir / path / 'module.yml', 'w') as f:
-                f.write('ignored: true\n')
-
-            module = GoModule.from_file(path, base_dir=tmpdir)
-
-            self.assertIsNone(module)
 
 
 class TestGoModuleConfiguration(unittest.TestCase):

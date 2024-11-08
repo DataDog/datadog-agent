@@ -134,10 +134,9 @@ class GoModule:
     independent: bool = True
     lint_targets: list[str] | None = None
     used_by_otel: bool = False
-    base_dir: Path | None = None
 
     @staticmethod
-    def from_dict(path: str, data: dict[str, object], base_dir: Path | None = None) -> GoModule:
+    def from_dict(path: str, data: dict[str, object]) -> GoModule:
         default = GoModule.get_default_attributes()
 
         return GoModule(
@@ -149,54 +148,7 @@ class GoModule:
             importable=data.get("importable", default["importable"]),
             independent=data.get("independent", default["independent"]),
             used_by_otel=data.get("used_by_otel", default["used_by_otel"]),
-            base_dir=base_dir,
         )
-
-    @staticmethod
-    def parse_path(dir_path: str | Path, base_dir: Path | None = None) -> tuple[str, Path, Path, Path]:
-        """Returns path components for a module.
-
-        Here is the path:
-            <base_dir>/<dir_path>/module.yml
-            ---------------------            -> full_path
-                       ----------            -> module_path (contains only '/')
-        """
-
-        base_dir = base_dir or Path.cwd()
-        dir_path = Path(dir_path) if isinstance(dir_path, str) else dir_path
-        module_path = dir_path.as_posix()
-        full_path = base_dir / (dir_path if isinstance(dir_path, Path) else Path(dir_path))
-
-        return module_path, base_dir, dir_path, full_path
-
-    @staticmethod
-    def from_file(dir_path: str | Path, base_dir: Path | None = None) -> GoModule:
-        """Load from a module.yml file.
-
-        The absolute full path is '<base_dir>/<dir_path>/module.yml'.
-        """
-
-        module_path, base_dir, dir_path, full_path = GoModule.parse_path(dir_path, base_dir)
-
-        assert full_path.is_dir(), f"Directory {full_path} does not exist"
-
-        config_path = full_path / 'module.yml'
-        if config_path.is_file():
-            with open(config_path) as file:
-                data = yaml.safe_load(file)
-
-                assert (
-                    data is not None
-                ), f"Invalid {config_path}, this file must contain either `ignored: true` or a configuration. This file must be deleted to indicate the default module configuration"
-
-                # Skip this module
-                if 'ignored' in data and data['ignored']:
-                    return None
-
-                return GoModule.from_dict(module_path, data, base_dir=base_dir)
-        else:
-            # Default attributes
-            return GoModule.from_dict(module_path, {}, base_dir=base_dir)
 
     @staticmethod
     def get_default_attributes() -> dict[str, object]:
@@ -209,7 +161,6 @@ class GoModule:
         self.targets = self.targets or ["."]
         self.lint_targets = self.lint_targets or self.targets
 
-        self.base_dir = Path(self.base_dir) if isinstance(self.base_dir, str) else (self.base_dir or Path.cwd())
         self._dependencies = None
 
     def to_dict(self, remove_defaults=True, remove_path=False) -> dict[str, object]:
@@ -242,27 +193,6 @@ class GoModule:
                     del attrs[key]
 
         return attrs
-
-    def to_file(self, base_dir: Path | None = None):
-        """Save the module to a module.yml file.
-
-        Args:
-            base_dir: Root directory of the agent repository.
-        """
-
-        _, base_dir, dir_path, full_path = GoModule.parse_path(self.path, base_dir)
-
-        assert full_path.is_dir(), f"Directory {dir_path} does not exist"
-
-        data = self.to_dict(remove_path=True)
-
-        # Default attributes
-        if not data:
-            (full_path / 'module.yml').unlink(missing_ok=True)
-            return
-
-        with open(full_path / 'module.yml', "w") as file:
-            yaml.dump(data, file, Dumper=ConfigDumper)
 
     def verify_condition(self) -> bool:
         """Verify that the module condition is met."""
@@ -317,7 +247,7 @@ class GoModule:
 
     def full_path(self):
         """Return the absolute path of the Go module."""
-        return str((self.base_dir / self.path).resolve())
+        return str(self.path)
 
     def go_mod_path(self):
         """Return the absolute path of the Go module go.mod file."""
