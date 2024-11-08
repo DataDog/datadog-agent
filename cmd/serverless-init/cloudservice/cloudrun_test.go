@@ -35,12 +35,14 @@ func TestGetCloudRunTags(t *testing.T) {
 	tags := service.GetTags()
 
 	assert.Equal(t, map[string]string{
-		"container_id": "test_container",
-		"gcr.region":   "test_region",
-		"region":       "test_region",
-		"origin":       "cloudrun",
-		"project_id":   "test_project",
-		"_dd.origin":   "cloudrun",
+		"container_id":     "test_container",
+		"gcr.container_id": "test_container",
+		"gcr.region":       "test_region",
+		"region":           "test_region",
+		"origin":           "cloudrun",
+		"project_id":       "test_project",
+		"gcr.project_id":   "test_project",
+		"_dd.origin":       "cloudrun",
 	}, tags)
 }
 
@@ -71,10 +73,12 @@ func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
 
 	assert.Equal(t, map[string]string{
 		"container_id":      "test_container",
+		"gcr.container_id":  "test_container",
 		"region":            "test_region",
 		"gcr.region":        "test_region",
 		"origin":            "cloudrun",
 		"project_id":        "test_project",
+		"gcr.project_id":    "test_project",
 		"service_name":      "test_service",
 		"gcr.service_name":  "test_service",
 		"gcr.revision_name": "test_revision",
@@ -113,10 +117,12 @@ func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
 
 	assert.Equal(t, map[string]string{
 		"container_id":                  "test_container",
+		"gcrfx.container_id":            "test_container",
 		"region":                        "test_region",
 		"gcrfx.region":                  "test_region",
 		"origin":                        "cloudrun",
 		"project_id":                    "test_project",
+		"gcrfx.project_id":              "test_project",
 		"service_name":                  "test_service",
 		"gcrfx.service_name":            "test_service",
 		"revision_name":                 "test_revision",

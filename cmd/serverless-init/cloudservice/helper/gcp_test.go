@@ -164,9 +164,11 @@ func TestTagMap(t *testing.T) {
 		},
 	}
 	tagMap := metadata.TagMap("test.")
-	assert.Equal(t, 4, len(tagMap))
+	assert.Equal(t, 6, len(tagMap))
 	assert.Equal(t, "myprojectid", tagMap["project_id"])
+	assert.Equal(t, "myprojectid", tagMap["test.project_id"])
 	assert.Equal(t, "mylocation", tagMap["location"])
 	assert.Equal(t, "mylocation", tagMap["test.location"])
 	assert.Equal(t, "f45ab", tagMap["container_id"])
+	assert.Equal(t, "f45ab", tagMap["test.container_id"])
 }
