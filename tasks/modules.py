@@ -13,8 +13,8 @@ from invoke import Context, Exit, task
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.gomodules import (
+    ConfigDumper,
     GoModule,
-    GoModuleDumper,
     get_default_modules,
     list_default_modules,
 )
@@ -282,7 +282,7 @@ def _print_modules(modules: dict[str, GoModule], details: bool, remove_defaults:
     for module in modules_data.values():
         del module["path"]
 
-    yaml.dump(modules_data, sys.stdout, Dumper=GoModuleDumper)
+    yaml.dump(modules_data, sys.stdout, Dumper=ConfigDumper)
 
 
 @task

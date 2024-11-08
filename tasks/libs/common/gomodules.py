@@ -15,11 +15,68 @@ from typing import ClassVar
 import yaml
 
 
-class GoModuleDumper(yaml.SafeDumper):
+class ConfigDumper(yaml.SafeDumper):
     """SafeDumper that ignores aliases. (no references for readability)"""
 
     def ignore_aliases(self, _):  # noqa
         return True
+
+
+@dataclass
+class Configuration:
+    """Represents the top level configuration of the modules."""
+
+    FILE_NAME: ClassVar[str] = 'modules.yml'
+
+    # Where this file has been loaded from
+    base_dir: Path
+    # All GoModule to be taken into account (module.path: module)
+    modules: dict[str, GoModule]
+    # Name of each ignored module (not within `modules`)
+    ignored_modules: set[str]
+
+    @staticmethod
+    def from_dict(data: dict[str, dict[str, object]], base_dir: Path | None = None) -> GoModule:
+        base_dir = base_dir or Path.cwd()
+
+        modules = {}
+        ignored_modules = set()
+
+        for name, module_data in data.get('modules', {}).items():
+            if module_data == 'ignored':
+                ignored_modules.add(name)
+            elif module_data == 'default':
+                modules[name] = GoModule.from_dict(name, {})
+            else:
+                modules[name] = GoModule.from_dict(name, module_data)
+
+        return Configuration(base_dir, modules, ignored_modules)
+
+    @classmethod
+    def from_file(cls, base_dir: Path | None = None) -> Configuration:
+        """Load the configuration from a yaml file."""
+
+        base_dir = base_dir or Path.cwd()
+
+        with open(base_dir / cls.FILE_NAME) as file:
+            data = yaml.safe_load(file)
+
+        return Configuration.from_dict(data)
+
+    def to_dict(self) -> dict[str, object]:
+        modules_config = {}
+        modules_config.update({name: module.to_dict() or 'default' for name, module in self.modules.items()})
+        modules_config.update({module: 'ignored' for module in self.ignored_modules})
+
+        return {
+            'modules': modules_config,
+        }
+
+    def to_file(self):
+        """Save the configuration to a yaml file at <base_dir/FILE_NAME>."""
+
+        with open(self.base_dir / self.FILE_NAME, "w") as file:
+            yaml.dump(self.to_dict(), file, Dumper=ConfigDumper)
 
 
 @dataclass
@@ -193,7 +250,7 @@ class GoModule:
             return
 
         with open(full_path / 'module.yml', "w") as file:
-            yaml.dump(data, file, Dumper=GoModuleDumper)
+            yaml.dump(data, file, Dumper=ConfigDumper)
 
     def verify_condition(self) -> bool:
         """Verify that the module condition is met."""
