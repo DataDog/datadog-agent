@@ -91,7 +91,9 @@ build do
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
             unless heroku_target?
-              move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "#{output_config_dir}/etc/datadog-agent"
+              if ENV.has_key?('SYSTEM_PROBE_BIN') and not ENV['SYSTEM_PROBE_BIN'].empty?
+                move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "#{output_config_dir}/etc/datadog-agent"
+              end
               move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "#{output_config_dir}/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/runtime-security.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/compliance.d", "#{output_config_dir}/etc/datadog-agent"
