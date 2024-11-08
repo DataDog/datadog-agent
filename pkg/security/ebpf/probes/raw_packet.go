@@ -66,7 +66,7 @@ var DefaultRawPacketProgOpts = RawPacketProgOpts{
 		},
 		StackOffset: 16, // adapt using the stack size used outside of the filter itself, ex: map_lookup
 	},
-	sendEventLabel: "send-event",
+	sendEventLabel: "send_event",
 	ctxSave:        asm.R9,
 }
 
@@ -96,7 +96,7 @@ func BPFFilterToInsts(index int, filter string, opts RawPacketProgOpts) (asm.Ins
 
 	resultLabel := cbpfcOpts.ResultLabel
 
-	// used to test the max insts
+	// add nop insts, used to test the max insts and artificially generate tail calls
 	for i := 0; i != opts.nopInstLen; i++ {
 		insts = append(insts,
 			asm.JEq.Imm(asm.R9, 0, opts.sendEventLabel).WithSymbol(resultLabel),
@@ -104,7 +104,7 @@ func BPFFilterToInsts(index int, filter string, opts RawPacketProgOpts) (asm.Ins
 		resultLabel = ""
 	}
 
-	// filter output
+	// filter result
 	insts = append(insts,
 		asm.JNE.Imm(cbpfcOpts.Result, 0, opts.sendEventLabel).WithSymbol(resultLabel),
 	)
@@ -179,11 +179,7 @@ func RawPacketTCFiltersToCollectionSpec(rawPacketEventMapFd, clsRouterMapFd int,
 	opts := DefaultRawPacketProgOpts
 	opts.tailCallMapFd = clsRouterMapFd
 
-	// save ctx
-	headerInsts := asm.Instructions{}
-
-	// load raw event
-	headerInsts = append(headerInsts,
+	headerInsts := append(asm.Instructions{},
 		// save ctx
 		asm.Mov.Reg(opts.ctxSave, asm.R1),
 		// load raw event
@@ -210,7 +206,7 @@ func RawPacketTCFiltersToCollectionSpec(rawPacketEventMapFd, clsRouterMapFd int,
 		asm.Return(),
 	}
 
-	// compile and convert
+	// compile and convert to eBPF progs
 	progs, err := rawPacketFiltersToProgs(rawpPacketFilters, opts, headerInsts, senderInsts)
 	if err.ErrorOrNil() != nil {
 		mErr = multierror.Append(mErr, err)
