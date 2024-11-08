@@ -598,14 +598,6 @@ github.com/tklauser/go-sysconf
 github.com/tklauser/numcpus
 github.com/twmb/murmur3
 go.etcd.io/bbolt
-go.opencensus.io
-go.opencensus.io/internal
-go.opencensus.io/metric/metricdata
-go.opencensus.io/metric/metricproducer
-go.opencensus.io/resource
-go.opencensus.io/trace
-go.opencensus.io/trace/internal
-go.opencensus.io/trace/tracestate
 go.opentelemetry.io/collector/client
 go.opentelemetry.io/collector/component
 go.opentelemetry.io/collector/component/componentprofiles

@@ -98,6 +98,6 @@ func StartRCService(functionARN string) *remoteconfig.CoreAgentService {
 		configService.Start()
 		return configService
 	}
-	log.Debug("Remote configuration configuration is disabled, did not create service")
+	log.Debug("Remote Config is disabled, did not create service")
 	return nil
 }
