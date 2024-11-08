@@ -2365,10 +2365,10 @@ func toggleDefaultPayloads(config pkgconfigmodel.Config) {
 	// Disables metric data submission (including Custom Metrics) so that hosts stop showing up in Datadog.
 	// Used namely for Error Tracking Standalone where it is not needed.
 	if !config.GetBool("core_agent.enabled") {
-		config.BindEnvAndSetDefault("enable_payloads.events", false)
-		config.BindEnvAndSetDefault("enable_payloads.series", false)
-		config.BindEnvAndSetDefault("enable_payloads.service_checks", false)
-		config.BindEnvAndSetDefault("enable_payloads.sketches", false)
+		config.Set("enable_payloads.events", false, pkgconfigmodel.SourceAgentRuntime)
+		config.Set("enable_payloads.series", false, pkgconfigmodel.SourceAgentRuntime)
+		config.Set("enable_payloads.service_checks", false, pkgconfigmodel.SourceAgentRuntime)
+		config.Set("enable_payloads.sketches", false, pkgconfigmodel.SourceAgentRuntime)
 	}
 }
 
