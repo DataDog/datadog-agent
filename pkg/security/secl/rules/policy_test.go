@@ -1028,7 +1028,7 @@ func TestPolicySchema(t *testing.T) {
 		},
 	}
 
-	fs := os.DirFS("../../../../pkg/security/tests/schemas")
+	fs := os.DirFS("../../../../pkg/security/secl/schemas")
 	schemaLoader := gojsonschema.NewReferenceLoaderFileSystem("file:///policy.schema.json", http.FS(fs))
 
 	for _, test := range tests {
