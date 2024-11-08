@@ -45,13 +45,14 @@ type GCPMetadata struct {
 }
 
 // TagMap returns the container's metadata in a map
-func (metadata *GCPMetadata) TagMap() map[string]string {
+func (metadata *GCPMetadata) TagMap(namespace string) map[string]string {
 	tagMap := map[string]string{}
 	if metadata.ContainerID != nil {
 		tagMap[metadata.ContainerID.TagName] = metadata.ContainerID.Value
 	}
 	if metadata.Region != nil {
 		tagMap[metadata.Region.TagName] = metadata.Region.Value
+		tagMap[namespace+metadata.Region.TagName] = metadata.Region.Value
 	}
 	if metadata.ProjectID != nil {
 		tagMap[metadata.ProjectID.TagName] = metadata.ProjectID.Value

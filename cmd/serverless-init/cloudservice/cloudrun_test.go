@@ -13,7 +13,7 @@ import (
 )
 
 func TestGetCloudRunTags(t *testing.T) {
-	service := &CloudRun{}
+	service := &CloudRun{spanNamespace: cloudRunService}
 
 	metadataHelperFunc = func(*helper.GCPConfig) *helper.GCPMetadata {
 		return &helper.GCPMetadata{
@@ -36,6 +36,7 @@ func TestGetCloudRunTags(t *testing.T) {
 
 	assert.Equal(t, map[string]string{
 		"container_id": "test_container",
+		"gcr.region":   "test_region",
 		"region":       "test_region",
 		"origin":       "cloudrun",
 		"project_id":   "test_project",
@@ -44,7 +45,7 @@ func TestGetCloudRunTags(t *testing.T) {
 }
 
 func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
-	service := &CloudRun{}
+	service := &CloudRun{spanNamespace: cloudRunService}
 
 	metadataHelperFunc = func(*helper.GCPConfig) *helper.GCPMetadata {
 		return &helper.GCPMetadata{
@@ -69,18 +70,21 @@ func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
 	tags := service.GetTags()
 
 	assert.Equal(t, map[string]string{
-		"container_id":  "test_container",
-		"region":        "test_region",
-		"origin":        "cloudrun",
-		"project_id":    "test_project",
-		"service_name":  "test_service",
-		"revision_name": "test_revision",
-		"_dd.origin":    "cloudrun",
+		"container_id":      "test_container",
+		"region":            "test_region",
+		"gcr.region":        "test_region",
+		"origin":            "cloudrun",
+		"project_id":        "test_project",
+		"service_name":      "test_service",
+		"gcr.service_name":  "test_service",
+		"gcr.revision_name": "test_revision",
+		"revision_name":     "test_revision",
+		"_dd.origin":        "cloudrun",
 	}, tags)
 }
 
 func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
-	service := &CloudRun{cloudRunFunctionMode: true}
+	service := &CloudRun{cloudRunFunctionMode: true, spanNamespace: cloudRunFunction}
 
 	metadataHelperFunc = func(*helper.GCPConfig) *helper.GCPMetadata {
 		return &helper.GCPMetadata{
@@ -108,15 +112,19 @@ func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
 	tags := service.GetTags()
 
 	assert.Equal(t, map[string]string{
-		"container_id":            "test_container",
-		"region":                  "test_region",
-		"origin":                  "cloudrun",
-		"project_id":              "test_project",
-		"service_name":            "test_service",
-		"revision_name":           "test_revision",
-		"configuration_name":      "test_config",
-		"_dd.origin":              "cloudrun",
-		"function_target":         "test_target",
-		"function_signature_type": "test_signature",
+		"container_id":                  "test_container",
+		"region":                        "test_region",
+		"gcrfx.region":                  "test_region",
+		"origin":                        "cloudrun",
+		"project_id":                    "test_project",
+		"service_name":                  "test_service",
+		"gcrfx.service_name":            "test_service",
+		"revision_name":                 "test_revision",
+		"gcrfx.revision_name":           "test_revision",
+		"configuration_name":            "test_config",
+		"gcrfx.configuration_name":      "test_config",
+		"_dd.origin":                    "cloudrun",
+		"gcrfx.function_target":         "test_target",
+		"gcrfx.function_signature_type": "test_signature",
 	}, tags)
 }
