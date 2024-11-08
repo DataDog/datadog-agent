@@ -16,7 +16,6 @@ type notImplementedMethods interface {
 	SetFs(afero.Fs)
 	IsSet(string) bool
 	AllKeys() []string
-	SetEnvKeyTransformer(string, func(data string) interface{})
 	GetStringSliceE(string) ([]string, error)
 	GetStringMapE(string) (map[string]interface{}, error)
 	GetStringMapStringE(string) (map[string]string, error)
@@ -38,10 +37,6 @@ func (n *notImplMethodsImpl) IsSet(string) bool {
 func (n *notImplMethodsImpl) AllKeys() []string {
 	n.logErrorNotImplemented("AllKeys")
 	return nil
-}
-
-func (n *notImplMethodsImpl) SetEnvKeyTransformer(string, func(data string) interface{}) {
-	n.logErrorNotImplemented("SetEnvKeyTransformer")
 }
 
 func (n *notImplMethodsImpl) GetStringSliceE(string) ([]string, error) {

@@ -52,6 +52,7 @@ const (
 	kafkaPort             = "9092"
 	kafkaTLSPort          = "9093"
 	kafkaSuccessErrorCode = 0
+	ubuntuPlatform        = "ubuntu"
 )
 
 // testContext shares the context of a given test.
@@ -98,6 +99,19 @@ type kafkaParsingValidationWithErrorCodes struct {
 type groupInfo struct {
 	numSets int
 	msgs    []Message
+}
+
+// isUnsupportedUbuntu checks if the test is running on an unsupported Ubuntu version.
+// As of now, we don’t support Kafka TLS with Ubuntu 24.10, so this function identifies
+// if the current platform and version match this unsupported configuration.
+func isUnsupportedUbuntu(t *testing.T) bool {
+	platform, err := kernel.Platform()
+	require.NoError(t, err)
+	platformVersion, err := kernel.PlatformVersion()
+	require.NoError(t, err)
+	arch := kernel.Arch()
+
+	return platform == ubuntuPlatform && platformVersion == "24.10" && arch == "x86"
 }
 
 func skipTestIfKernelNotSupported(t *testing.T) {
@@ -155,6 +169,9 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 		t.Run(name, func(t *testing.T) {
 			if mode && !gotlsutils.GoTLSSupported(t, config.New()) {
 				t.Skip("GoTLS not supported for this setup")
+			}
+			if mode && isUnsupportedUbuntu(t) {
+				t.Skip("Kafka TLS not supported on Ubuntu 24.10")
 			}
 			for _, version := range versions {
 				t.Run(versionName(version), func(t *testing.T) {
@@ -1250,6 +1267,9 @@ func (s *KafkaProtocolParsingSuite) TestKafkaFetchRaw() {
 		if !gotlsutils.GoTLSSupported(t, config.New()) {
 			t.Skip("GoTLS not supported for this setup")
 		}
+		if isUnsupportedUbuntu(t) {
+			t.Skip("Kafka TLS not supported on Ubuntu 24.10")
+		}
 
 		for _, version := range versions {
 			t.Run(fmt.Sprintf("api%d", version), func(t *testing.T) {
@@ -1475,6 +1495,9 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProduceRaw() {
 	t.Run("with TLS", func(t *testing.T) {
 		if !gotlsutils.GoTLSSupported(t, config.New()) {
 			t.Skip("GoTLS not supported for this setup")
+		}
+		if isUnsupportedUbuntu(t) {
+			t.Skip("Kafka TLS not supported on Ubuntu 24.10")
 		}
 
 		for _, version := range versions {

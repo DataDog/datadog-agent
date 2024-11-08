@@ -1234,7 +1234,11 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts, telemetry t
 		hostname = "unknown"
 	}
 
-	p.fieldHandlers = &FieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname}
+	fh, err := NewFieldHandlers(config, p.Resolvers, hostname)
+	if err != nil {
+		return nil, err
+	}
+	p.fieldHandlers = fh
 
 	p.event = p.NewEvent()
 
