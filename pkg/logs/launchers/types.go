@@ -44,4 +44,6 @@ type SourceProvider interface {
 
 	// GetAddedForType returns channels containing the new added sources matching the provided type.
 	GetAddedForType(sourceType string) chan *sources.LogSource
+
+	AddFileSource(path string) error
 }

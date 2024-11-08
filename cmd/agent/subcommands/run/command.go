@@ -135,6 +135,8 @@ import (
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
+	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
@@ -387,6 +389,11 @@ func getSharedFxOption() fx.Option {
 				return optional.NewOption[logsagentpipeline.Component](la)
 			}
 			return optional.NewNoneOption[logsagentpipeline.Component]()
+		}),
+		fx.Provide(func() launchers.SourceProvider {
+			cs := sources.NewConfigSources()
+			var lsp launchers.SourceProvider = cs
+			return lsp
 		}),
 		otelcol.Bundle(),
 		rctelemetryreporterimpl.Module(),

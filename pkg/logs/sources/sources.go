@@ -6,6 +6,7 @@
 package sources
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,6 +38,10 @@ func NewLogSources() *LogSources {
 		addedByType:   make(map[string][]chan *LogSource),
 		removedByType: make(map[string][]chan *LogSource),
 	}
+}
+
+func (s *LogSources) AddFileSource(path string) error {
+	return fmt.Errorf("TODO")
 }
 
 // AddSource adds a new source.

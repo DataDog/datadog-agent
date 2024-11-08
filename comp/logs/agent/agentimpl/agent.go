@@ -82,6 +82,7 @@ type dependencies struct {
 	WMeta              optional.Option[workloadmeta.Component]
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 	Tagger             tagger.Component
+	ConfigSources      launchers.SourceProvider
 }
 
 type provides struct {
@@ -103,6 +104,7 @@ type logAgent struct {
 	inventoryAgent inventoryagent.Component
 	hostname       hostname.Component
 	tagger         tagger.Component
+	configSources  launchers.SourceProvider
 
 	sources                   *sources.LogSources
 	services                  *service.Services
@@ -141,6 +143,7 @@ func newLogsAgent(deps dependencies) provides {
 			inventoryAgent: deps.InventoryAgent,
 			hostname:       deps.Hostname,
 			started:        atomic.NewUint32(status.StatusNotStarted),
+			configSources:  deps.ConfigSources,
 
 			sources:            sources.NewLogSources(),
 			services:           service.NewServices(),

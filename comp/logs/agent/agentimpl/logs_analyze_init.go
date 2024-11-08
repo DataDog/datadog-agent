@@ -18,7 +18,6 @@ import (
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
@@ -49,8 +48,7 @@ func (a *logAgent) SetUpLaunchers(processingRules []*config.ProcessingRule) {
 		fileWildcardSelectionMode,
 		a.flarecontroller,
 		a.tagger)
-	sourceProvider := sources.NewConfigSources()
-	fileLauncher.Start(sourceProvider, pipelineProvider, auditor, a.tracker)
+	fileLauncher.Start(a.configSources, pipelineProvider, auditor, a.tracker)
 	lnchrs.AddLauncher(fileLauncher)
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.auditor = auditor

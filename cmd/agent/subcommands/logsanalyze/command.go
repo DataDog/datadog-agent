@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -26,7 +27,7 @@ type CliParams struct {
 	// CoreConfigPath represents the path to the core configuration file.
 	CoreConfigPath string
 
-	ConfigSource *sources.ConfigSources
+	ConfigSource launchers.SourceProvider
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -34,7 +35,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &CliParams{
 		GlobalParams:   globalParams,
 		CoreConfigPath: defaultCoreConfigPath, // Set default path
-		ConfigSource:   sources.NewConfigSources(),
 	}
 
 	cmd := &cobra.Command{
@@ -48,6 +48,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			cliParams.LogConfigPath = args[0]
 			fmt.Println("andrewq1", cliParams.LogConfigPath)
 			return fxutil.OneShot(runLogsAnalyze,
+				fx.Provide(sources.NewConfigSources),
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
