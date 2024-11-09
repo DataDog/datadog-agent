@@ -382,11 +382,15 @@ func (p *WindowsProbe) Setup() error {
 func (p *WindowsProbe) Stop() {
 	if p.fimSession != nil || p.auditSession != nil {
 		if p.fimSession != nil {
-			_ = p.fimSession.StopTracing()
+			if err := p.fimSession.StopTracing(); err != nil {
+				log.Errorf("Error stopping tracing %v", err)
+			}
 		}
 		if p.auditSession != nil {
 			log.Info("Calling stoptracing on audit session")
-			_ = p.auditSession.StopTracing()
+			if err := p.auditSession.StopTracing(); err != nil {
+				log.Errorf("Error stopping tracing audit %v", err)
+			}
 		}
 		p.fimwg.Wait()
 	}
