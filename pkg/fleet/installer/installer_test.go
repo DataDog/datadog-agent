@@ -204,3 +204,23 @@ func latestModTimeFS(fsys fs.FS, dirPath string) (time.Time, error) {
 
 	return latestTime, nil
 }
+
+func TestPurge(t *testing.T) {
+	s := fixtures.NewServer(t)
+	rootPath := t.TempDir()
+	installer := newTestPackageManager(t, s, rootPath, t.TempDir())
+
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
+	assert.NoError(t, err)
+	r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
+
+	state, err := r.GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
+
+	installer.Purge(testCtx)
+	assert.NoFileExists(t, filepath.Join(rootPath, "packages.db"), "purge should remove the packages database")
+	assert.NoDirExists(t, rootPath, "purge should remove the packages directory")
+	assert.Nil(t, installer.db, "purge should close the packages database")
+	assert.Nil(t, installer.cdn, "purge should close the CDN client")
+}

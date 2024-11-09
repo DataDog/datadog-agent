@@ -143,7 +143,7 @@ func (h *Host) DeletePath(path string) {
 func (h *Host) WaitForUnitActive(units ...string) {
 	for _, unit := range units {
 		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
-		require.NoError(h.t, err, "unit %s did not become active", unit)
+		require.NoError(h.t, err, "unit %s did not become active. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
 	}
 }
 
@@ -151,7 +151,8 @@ func (h *Host) WaitForUnitActive(units ...string) {
 func (h *Host) WaitForUnitActivating(units ...string) {
 	for _, unit := range units {
 		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! grep -q \"Active: activating\" <(sudo systemctl status $unit) && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
-		require.NoError(h.t, err, "unit %s did not become active", unit)
+		require.NoError(h.t, err, "unit %s did not become activating. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
+
 	}
 }
 

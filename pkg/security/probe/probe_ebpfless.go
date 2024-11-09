@@ -694,7 +694,11 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 		hostname = "unknown"
 	}
 
-	p.fieldHandlers = &EBPFLessFieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname}
+	fh, err := NewEBPFLessFieldHandlers(config, p.Resolvers, hostname)
+	if err != nil {
+		return nil, err
+	}
+	p.fieldHandlers = fh
 
 	p.event = p.NewEvent()
 

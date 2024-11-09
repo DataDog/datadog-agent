@@ -30,6 +30,14 @@ func (ev *Event) GetBindAddrIp() net.IPNet {
 	return ev.Bind.Addr.IPNet
 }
 
+// GetBindAddrIsPublic returns the value of the field, resolving if necessary
+func (ev *Event) GetBindAddrIsPublic() bool {
+	if ev.GetEventType().String() != "bind" {
+		return false
+	}
+	return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr)
+}
+
 // GetBindAddrPort returns the value of the field, resolving if necessary
 func (ev *Event) GetBindAddrPort() uint16 {
 	if ev.GetEventType().String() != "bind" {
@@ -896,6 +904,78 @@ func (ev *Event) GetChownSyscallUid() int {
 		return 0
 	}
 	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chown.SyscallContext)
+}
+
+// GetConnectAddrFamily returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectAddrFamily() uint16 {
+	if ev.GetEventType().String() != "connect" {
+		return uint16(0)
+	}
+	return ev.Connect.AddrFamily
+}
+
+// GetConnectAddrIp returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectAddrIp() net.IPNet {
+	if ev.GetEventType().String() != "connect" {
+		return net.IPNet{}
+	}
+	return ev.Connect.Addr.IPNet
+}
+
+// GetConnectAddrIsPublic returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectAddrIsPublic() bool {
+	if ev.GetEventType().String() != "connect" {
+		return false
+	}
+	return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
+}
+
+// GetConnectAddrPort returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectAddrPort() uint16 {
+	if ev.GetEventType().String() != "connect" {
+		return uint16(0)
+	}
+	return ev.Connect.Addr.Port
+}
+
+// GetConnectRetval returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectRetval() int64 {
+	if ev.GetEventType().String() != "connect" {
+		return int64(0)
+	}
+	return ev.Connect.SyscallEvent.Retval
+}
+
+// GetConnectServerAddrFamily returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectServerAddrFamily() uint16 {
+	if ev.GetEventType().String() != "connect" {
+		return uint16(0)
+	}
+	return ev.Connect.AddrFamily
+}
+
+// GetConnectServerAddrIp returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectServerAddrIp() net.IPNet {
+	if ev.GetEventType().String() != "connect" {
+		return net.IPNet{}
+	}
+	return ev.Connect.Addr.IPNet
+}
+
+// GetConnectServerAddrIsPublic returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectServerAddrIsPublic() bool {
+	if ev.GetEventType().String() != "connect" {
+		return false
+	}
+	return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
+}
+
+// GetConnectServerAddrPort returns the value of the field, resolving if necessary
+func (ev *Event) GetConnectServerAddrPort() uint16 {
+	if ev.GetEventType().String() != "connect" {
+		return uint16(0)
+	}
+	return ev.Connect.Addr.Port
 }
 
 // GetContainerCreatedAt returns the value of the field, resolving if necessary
@@ -4391,6 +4471,11 @@ func (ev *Event) GetNetworkDestinationIp() net.IPNet {
 	return ev.NetworkContext.Destination.IPNet
 }
 
+// GetNetworkDestinationIsPublic returns the value of the field, resolving if necessary
+func (ev *Event) GetNetworkDestinationIsPublic() bool {
+	return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Destination)
+}
+
 // GetNetworkDestinationPort returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkDestinationPort() uint16 {
 	return ev.NetworkContext.Destination.Port
@@ -4419,6 +4504,11 @@ func (ev *Event) GetNetworkSize() uint32 {
 // GetNetworkSourceIp returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkSourceIp() net.IPNet {
 	return ev.NetworkContext.Source.IPNet
+}
+
+// GetNetworkSourceIsPublic returns the value of the field, resolving if necessary
+func (ev *Event) GetNetworkSourceIsPublic() bool {
+	return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Source)
 }
 
 // GetNetworkSourcePort returns the value of the field, resolving if necessary
@@ -4762,6 +4852,14 @@ func (ev *Event) GetPacketDestinationIp() net.IPNet {
 	return ev.RawPacket.NetworkContext.Destination.IPNet
 }
 
+// GetPacketDestinationIsPublic returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketDestinationIsPublic() bool {
+	if ev.GetEventType().String() != "packet" {
+		return false
+	}
+	return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.RawPacket.NetworkContext.Destination)
+}
+
 // GetPacketDestinationPort returns the value of the field, resolving if necessary
 func (ev *Event) GetPacketDestinationPort() uint16 {
 	if ev.GetEventType().String() != "packet" {
@@ -4816,6 +4914,14 @@ func (ev *Event) GetPacketSourceIp() net.IPNet {
 		return net.IPNet{}
 	}
 	return ev.RawPacket.NetworkContext.Source.IPNet
+}
+
+// GetPacketSourceIsPublic returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketSourceIsPublic() bool {
+	if ev.GetEventType().String() != "packet" {
+		return false
+	}
+	return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.RawPacket.NetworkContext.Source)
 }
 
 // GetPacketSourcePort returns the value of the field, resolving if necessary

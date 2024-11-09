@@ -77,7 +77,7 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	})
 	builder.SetFamily(uint64(formatFamily(conn.Family)))
 	builder.SetType(uint64(formatType(conn.Type)))
-	builder.SetIsLocalPortEphemeral(uint64(formatEphemeralType(conn.SPortIsEphemeral())))
+	builder.SetIsLocalPortEphemeral(uint64(formatEphemeralType(conn.SPortIsEphemeral)))
 	builder.SetLastBytesSent(conn.Last.SentBytes)
 	builder.SetLastBytesReceived(conn.Last.RecvBytes)
 	builder.SetLastPacketsSent(conn.Last.SentPackets)
@@ -112,7 +112,7 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	if len(conn.TCPFailures) > 0 {
 		builder.AddTcpFailuresByErrCode(func(w *model.Connection_TcpFailuresByErrCodeEntryBuilder) {
 			for k, v := range conn.TCPFailures {
-				w.SetKey(k)
+				w.SetKey(uint32(k))
 				w.SetValue(v)
 			}
 		})

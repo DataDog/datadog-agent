@@ -7,7 +7,12 @@
 
 package config
 
+import "github.com/DataDog/datadog-agent/pkg/config/model"
+
 // ProcessEventDataStreamSupported returns true if process event data stream is supported
 func ProcessEventDataStreamSupported() bool {
 	return false
+}
+
+func allowPrebuiltEbpfFallback(_ model.Config) {
 }

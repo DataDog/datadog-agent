@@ -269,7 +269,7 @@ type ConnectionStats struct {
 	}
 	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
 	// TCPFailures stores the number of failures for a POSIX error code
-	TCPFailures map[uint32]uint32
+	TCPFailures map[uint16]uint32
 
 	ConnectionTuple
 
@@ -285,15 +285,11 @@ type ConnectionStats struct {
 	ProtocolStack   protocols.Stack
 
 	// keep these fields last because they are 1 byte each and otherwise inflate the struct size due to alignment
-	Direction ConnectionDirection
-	IntraHost bool
-	IsAssured bool
-	IsClosed  bool
-}
-
-// SPortIsEphemeral returns whether the source port is in the ephemeral range
-func (c *ConnectionStats) SPortIsEphemeral() EphemeralPortType {
-	return IsPortInEphemeralRange(c.Family, c.Type, c.SPort)
+	Direction        ConnectionDirection
+	SPortIsEphemeral EphemeralPortType
+	IntraHost        bool
+	IsAssured        bool
+	IsClosed         bool
 }
 
 // Via has info about the routing decision for a flow
