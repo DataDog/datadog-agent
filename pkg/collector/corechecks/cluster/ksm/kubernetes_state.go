@@ -62,9 +62,9 @@ const (
 )
 
 var extendedCollectors = map[string]string{
-	"jobs":  "jobs_extended",
-	"nodes": "nodes_extended",
-	"pods":  "pods_extended",
+	"jobs":  "batch/v1, Resource=jobs_extended",
+	"nodes": "core/v1, Resource=nodes_extended",
+	"pods":  "core/v1, Resource=pods_extended",
 }
 
 var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
@@ -337,8 +337,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	builder.WithKubeClient(c.InformerCl)
 
-	builder.WithVPAClient(c.VPAInformerClient)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	k.cancel = cancel
 	builder.WithContext(ctx)
@@ -442,6 +440,7 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		customresources.NewAPIServiceFactory(c),
 		customresources.NewExtendedNodeFactory(c),
 		customresources.NewExtendedPodFactory(c),
+		customresources.NewVerticalPodAutoscalerFactory(c),
 	}
 
 	factories = manageResourcesReplacement(c, factories, resources)
