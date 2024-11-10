@@ -571,34 +571,32 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	eventType := event.GetType()
 
 	bucket, exists := rs.eventRuleBuckets[eventType]
-	if !exists {
-		return false
-	}
-
-	// Since logger is an interface this call cannot be inlined, requiring to pass the trace call arguments
-	// through the heap. To improve this situation we first check if we actually need to call the function.
-	if rs.logger.IsTracing() {
-		rs.logger.Tracef("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
-	}
-
 	result := false
 
-	for _, rule := range bucket.rules {
-		utils.PprofDoWithoutContext(rule.GetPprofLabels(), func() {
-			if rule.GetEvaluator().Eval(ctx) {
+	if exists {
+		// Since logger is an interface this call cannot be inlined, requiring to pass the trace call arguments
+		// through the heap. To improve this situation we first check if we actually need to call the function.
+		if rs.logger.IsTracing() {
+			rs.logger.Tracef("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
+		}
 
-				if rs.logger.IsTracing() {
-					rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
+		for _, rule := range bucket.rules {
+			utils.PprofDoWithoutContext(rule.GetPprofLabels(), func() {
+				if rule.GetEvaluator().Eval(ctx) {
+
+					if rs.logger.IsTracing() {
+						rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
+					}
+
+					if err := rs.runSetActions(event, ctx, rule); err != nil {
+						rs.logger.Errorf("Error while executing Set actions: %s", err)
+					}
+
+					rs.NotifyRuleMatch(rule, event)
+					result = true
 				}
-
-				if err := rs.runSetActions(event, ctx, rule); err != nil {
-					rs.logger.Errorf("Error while executing Set actions: %s", err)
-				}
-
-				rs.NotifyRuleMatch(rule, event)
-				result = true
-			}
-		})
+			})
+		}
 	}
 
 	// no-op in the general case, only used to collect events in functional tests
