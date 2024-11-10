@@ -358,6 +358,11 @@ func (p *WindowsProbe) reconfigureProvider() error {
 		p.auditSession.ConfigureProvider(p.auditguid, func(cfg *etw.ProviderConfiguration) {
 			cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
 		})
+
+		if err := p.auditSession.EnableProvider(p.auditguid); err != nil {
+			log.Warnf("Error enabling provider %v", err)
+			return err
+		}
 	}
 
 	if err := p.fimSession.EnableProvider(p.fileguid); err != nil {
