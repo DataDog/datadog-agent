@@ -101,7 +101,8 @@ func (p pythonDetector) deducePackageName(fp string, fn string) (string, bool) {
 
 }
 
-// findNearestTopLevel returns the top level dir the contains a .py file starting walking up from fp
+// findNearestTopLevel returns the top level dir the contains a .py file starting walking up from fp.
+// If fp is a file, it returns the filename without the extension.
 func (p pythonDetector) findNearestTopLevel(fp string) string {
 	up := path.Dir(fp)
 	current := fp
