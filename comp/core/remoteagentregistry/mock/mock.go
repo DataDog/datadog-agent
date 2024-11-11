@@ -5,17 +5,16 @@
 
 //go:build test
 
-// Package mock provides a mock for the remoteagent component
+// Package mock provides a mock for the remoteagentregistry component
 package mock
 
 import (
 	"testing"
 
-	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 )
 
-// Mock returns a mock for remoteagent component.
-func Mock(_ *testing.T) remoteagent.Component {
-	// TODO: Implement the remoteagent mock
+// Mock returns a mock for remoteagentregistry component.
+func Mock(_ *testing.T) remoteagentregistry.Component {
 	return nil
 }

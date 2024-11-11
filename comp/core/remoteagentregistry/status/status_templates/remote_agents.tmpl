@@ -2,12 +2,13 @@
 No remote agents registered
 {{ else }}
 {{ len .registeredAgents }} remote agent(s) registered:
-{{ range $agent := .registeredAgents }}
+{{- range $agent := .registeredAgents }}
+
   {{ $agent.DisplayName }}
   {{ printDashes $agent.DisplayName "-" }}
   Last seen: {{ formatUnixTime $agent.LastSeenUnix }} ({{ formatUnixTimeSince $agent.LastSeenUnix }})
-{{ end }}
 {{- end }}
+{{ end }}
 
 {{- with .registeredAgentStatuses }}
 {{- range $agentStatus := . }}
@@ -21,10 +22,10 @@ No remote agents registered
 {{- if .MainSection }}
 {{- range $key, $value := .MainSection }}
 {{ $key }}: {{ $value }}
-{{- end }}
+{{ end }}
 {{- end }}
 {{- if .NamedSections }}
-{{ range $sectionName, $section := .NamedSections }}
+{{- range $sectionName, $section := .NamedSections }}
   {{ $sectionName }}
   {{ printDashes $sectionName "-" }}
 {{- range $key, $value := $section }}
@@ -34,4 +35,4 @@ No remote agents registered
 {{- end }}
 {{- end }}
 {{- end }}
-{{- end }}
+{{- end -}}

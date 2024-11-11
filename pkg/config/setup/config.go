@@ -1024,9 +1024,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_interval", time.Duration(0))
 
 	// Remote agents
-	config.BindEnvAndSetDefault("remote_agent.idle_timeout", time.Duration(30*time.Second))
-	config.BindEnvAndSetDefault("remote_agent.query_timeout", time.Duration(3*time.Second))
-	config.BindEnvAndSetDefault("remote_agent.recommended_refresh_interval", time.Duration(10*time.Second))
+	config.BindEnvAndSetDefault("remote_agent_registry.idle_timeout", time.Duration(30*time.Second))
+	config.BindEnvAndSetDefault("remote_agent_registry.query_timeout", time.Duration(3*time.Second))
+	config.BindEnvAndSetDefault("remote_agent_registry.recommended_refresh_interval", time.Duration(10*time.Second))
 }
 
 func agent(config pkgconfigmodel.Setup) {

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package remoteagentimpl implements the remoteagent component interface
-package remoteagentimpl
+// Package remoteagentregistryimpl implements the remoteagentregistry component interface
+package remoteagentregistryimpl
 
 import (
 	"context"
@@ -16,10 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
-	raproto "github.com/DataDog/datadog-agent/comp/core/remoteagent/proto"
-	remoteagentStatus "github.com/DataDog/datadog-agent/comp/core/remoteagent/status"
-	util "github.com/DataDog/datadog-agent/comp/core/remoteagent/util"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
+	raproto "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/proto"
+	remoteagentregistryStatus "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/status"
+	util "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/util"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -29,39 +29,39 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-// Requires defines the dependencies for the remoteagent component
-type dependencies struct {
+// Requires defines the dependencies for the remoteagentregistry component
+type Requires struct {
 	Config    config.Component
 	Lifecycle compdef.Lifecycle
 }
 
-// Provides defines the output of the remoteagent component
+// Provides defines the output of the remoteagentregistry component
 type Provides struct {
-	Comp          remoteagent.Component
+	Comp          remoteagentregistry.Component
 	FlareProvider flaretypes.Provider
 	Status        status.InformationProvider
 }
 
 // NewComponent creates a new remoteagent component
-func NewComponent(deps dependencies) Provides {
-	ra := newRemoteAgent(deps)
+func NewComponent(reqs Requires) Provides {
+	ra := newRemoteAgent(reqs)
 
 	return Provides{
 		Comp:          ra,
 		FlareProvider: flaretypes.NewProvider(ra.fillFlare),
-		Status:        status.NewInformationProvider(remoteagentStatus.GetProvider(ra)),
+		Status:        status.NewInformationProvider(remoteagentregistryStatus.GetProvider(ra)),
 	}
 }
 
-func newRemoteAgent(deps dependencies) *remoteAgent {
+func newRemoteAgent(reqs Requires) *remoteAgentRegistry {
 	shutdownChan := make(chan struct{})
-	comp := &remoteAgent{
-		conf:         deps.Config,
+	comp := &remoteAgentRegistry{
+		conf:         reqs.Config,
 		agentMap:     make(map[string]*remoteAgentDetails),
 		shutdownChan: shutdownChan,
 	}
 
-	deps.Lifecycle.Append(compdef.Hook{
+	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: func(context.Context) error {
 			go comp.start()
 			return nil
@@ -75,9 +75,9 @@ func newRemoteAgent(deps dependencies) *remoteAgent {
 	return comp
 }
 
-// remoteAgent is the main registry for remote agents. It tracks which remote agents are currently registered, when
+// remoteAgentRegistry is the main registry for remote agents. It tracks which remote agents are currently registered, when
 // they were last seen, and handles collecting status and flare data from them on request.
-type remoteAgent struct {
+type remoteAgentRegistry struct {
 	conf         config.Component
 	agentMap     map[string]*remoteAgentDetails
 	agentMapMu   sync.Mutex
@@ -89,8 +89,8 @@ type remoteAgent struct {
 // If the remote agent is not present in the registry, it is added. If a remote agent with the same ID is already
 // present, the API endpoint and display name are checked: if they are the same, then the "last seen" time of the remote
 // agent is updated, otherwise the remote agent is removed and replaced with the incoming one.
-func (ra *remoteAgent) RegisterRemoteAgent(registration *remoteagent.RegistrationData) (uint32, error) {
-	recommendedRefreshInterval := uint32(ra.conf.GetDuration("remote_agent.recommended_refresh_interval"))
+func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregistry.RegistrationData) (uint32, error) {
+	recommendedRefreshInterval := uint32(ra.conf.GetDuration("remote_agent_registry.recommended_refresh_interval").Seconds())
 
 	ra.agentMapMu.Lock()
 	defer ra.agentMapMu.Unlock()
@@ -105,8 +105,10 @@ func (ra *remoteAgent) RegisterRemoteAgent(registration *remoteagent.Registratio
 	agentID := util.SanitizeAgentID(registration.AgentID)
 	entry, ok := ra.agentMap[agentID]
 	if !ok {
-		// We've got a brand new remote agent, so do a sanity check by trying to connect to their gRPC endpoint and if
-		// that works, add them to the registry.
+		// We've got a brand new remote agent, so add them to the registry.
+		//
+		// This won't try and connect to the given gRPC endpoint immediately, but will instead surface any errors with
+		// connecting when we try to query the remote agent for status or flare data.
 		details, err := newRemoteAgentDetails(registration)
 		if err != nil {
 			return 0, err
@@ -136,8 +138,8 @@ func (ra *remoteAgent) RegisterRemoteAgent(registration *remoteagent.Registratio
 }
 
 // Start starts the remote agent registry, which periodically checks for idle remote agents and deregisters them.
-func (ra *remoteAgent) start() {
-	remoteAgentIdleTimeout := ra.conf.GetDuration("remote_agent.idle_timeout")
+func (ra *remoteAgentRegistry) start() {
+	remoteAgentIdleTimeout := ra.conf.GetDuration("remote_agent_registry.idle_timeout")
 
 	go func() {
 		log.Info("Remote Agent registry started.")
@@ -171,18 +173,18 @@ func (ra *remoteAgent) start() {
 	}()
 }
 
-func (ra *remoteAgent) getQueryTimeout() time.Duration {
-	return ra.conf.GetDuration("remote_agent.query_timeout")
+func (ra *remoteAgentRegistry) getQueryTimeout() time.Duration {
+	return ra.conf.GetDuration("remote_agent_registry.query_timeout")
 }
 
 // GetRegisteredAgents returns the list of registered remote agents.
-func (ra *remoteAgent) GetRegisteredAgents() []*remoteagent.RegisteredAgent {
+func (ra *remoteAgentRegistry) GetRegisteredAgents() []*remoteagentregistry.RegisteredAgent {
 	ra.agentMapMu.Lock()
 	defer ra.agentMapMu.Unlock()
 
-	agents := make([]*remoteagent.RegisteredAgent, 0, len(ra.agentMap))
+	agents := make([]*remoteagentregistry.RegisteredAgent, 0, len(ra.agentMap))
 	for _, details := range ra.agentMap {
-		agents = append(agents, &remoteagent.RegisteredAgent{
+		agents = append(agents, &remoteagentregistry.RegisteredAgent{
 			DisplayName:  details.displayName,
 			LastSeenUnix: details.lastSeen.Unix(),
 		})
@@ -192,14 +194,14 @@ func (ra *remoteAgent) GetRegisteredAgents() []*remoteagent.RegisteredAgent {
 }
 
 // GetRegisteredAgentStatuses returns the status of all registered remote agents.
-func (ra *remoteAgent) GetRegisteredAgentStatuses() []*remoteagent.StatusData {
+func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []*remoteagentregistry.StatusData {
 	queryTimeout := ra.getQueryTimeout()
 
 	ra.agentMapMu.Lock()
 
 	agentsLen := len(ra.agentMap)
-	statusMap := make(map[string]*remoteagent.StatusData, agentsLen)
-	agentStatuses := make([]*remoteagent.StatusData, 0, agentsLen)
+	statusMap := make(map[string]*remoteagentregistry.StatusData, agentsLen)
+	agentStatuses := make([]*remoteagentregistry.StatusData, 0, agentsLen)
 
 	// Return early if we have no registered remote agents.
 	if agentsLen == 0 {
@@ -210,14 +212,14 @@ func (ra *remoteAgent) GetRegisteredAgentStatuses() []*remoteagent.StatusData {
 	// We preload the status map with a response that indicates timeout, since we want to ensure there's an entry for
 	// every registered remote agent even if we don't get a response back (whether good or bad) from them.
 	for agentID, details := range ra.agentMap {
-		statusMap[agentID] = &remoteagent.StatusData{
+		statusMap[agentID] = &remoteagentregistry.StatusData{
 			AgentID:       agentID,
 			DisplayName:   details.displayName,
 			FailureReason: fmt.Sprintf("Timed out after waiting %s for response.", queryTimeout),
 		}
 	}
 
-	data := make(chan *remoteagent.StatusData, agentsLen)
+	data := make(chan *remoteagentregistry.StatusData, agentsLen)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -229,7 +231,7 @@ func (ra *remoteAgent) GetRegisteredAgentStatuses() []*remoteagent.StatusData {
 			// We push any errors into "failure reason" which ends up getting shown in the status details.
 			resp, err := details.client.GetStatusDetails(ctx, &pb.GetStatusDetailsRequest{}, grpc.WaitForReady(true))
 			if err != nil {
-				data <- &remoteagent.StatusData{
+				data <- &remoteagentregistry.StatusData{
 					AgentID:       agentID,
 					DisplayName:   displayName,
 					FailureReason: fmt.Sprintf("Failed to query for status: %v", err),
@@ -269,13 +271,13 @@ collect:
 	return agentStatuses
 }
 
-func (ra *remoteAgent) fillFlare(builder flarebuilder.FlareBuilder) error {
+func (ra *remoteAgentRegistry) fillFlare(builder flarebuilder.FlareBuilder) error {
 	queryTimeout := ra.getQueryTimeout()
 
 	ra.agentMapMu.Lock()
 
 	agentsLen := len(ra.agentMap)
-	flareMap := make(map[string]*remoteagent.FlareData, agentsLen)
+	flareMap := make(map[string]*remoteagentregistry.FlareData, agentsLen)
 
 	// Return early if we have no registered remote agents.
 	if agentsLen == 0 {
@@ -283,7 +285,7 @@ func (ra *remoteAgent) fillFlare(builder flarebuilder.FlareBuilder) error {
 		return nil
 	}
 
-	data := make(chan *remoteagent.FlareData, agentsLen)
+	data := make(chan *remoteagentregistry.FlareData, agentsLen)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -339,7 +341,7 @@ collect:
 	return nil
 }
 
-func newRemoteAgentClient(registration *remoteagent.RegistrationData) (pb.RemoteAgentClient, error) {
+func newRemoteAgentClient(registration *remoteagentregistry.RegistrationData) (pb.RemoteAgentClient, error) {
 	// NOTE: we're using InsecureSkipVerify because the gRPC server only
 	// persists its TLS certs in memory, and we currently have no
 	// infrastructure to make them available to clients. This is NOT
@@ -369,7 +371,7 @@ type remoteAgentDetails struct {
 	client      pb.RemoteAgentClient
 }
 
-func newRemoteAgentDetails(registration *remoteagent.RegistrationData) (*remoteAgentDetails, error) {
+func newRemoteAgentDetails(registration *remoteagentregistry.RegistrationData) (*remoteAgentDetails, error) {
 	client, err := newRemoteAgentClient(registration)
 	if err != nil {
 		return nil, err

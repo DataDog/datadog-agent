@@ -10,14 +10,14 @@ import (
 	"embed"
 	"io"
 
-	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
 
 // populateStatus populates the status stats
-func populateStatus(ac remoteagent.Component, stats map[string]interface{}) {
-	stats["registeredAgents"] = ac.GetRegisteredAgents()
-	stats["registeredAgentStatuses"] = ac.GetRegisteredAgentStatuses()
+func populateStatus(registry remoteagentregistry.Component, stats map[string]interface{}) {
+	stats["registeredAgents"] = registry.GetRegisteredAgents()
+	stats["registeredAgentStatuses"] = registry.GetRegisteredAgentStatuses()
 }
 
 //go:embed status_templates
@@ -25,18 +25,18 @@ var templatesFS embed.FS
 
 // Provider provides the functionality to populate the status output
 type Provider struct {
-	remoteAgent remoteagent.Component
+	registry remoteagentregistry.Component
 }
 
 // GetProvider returns status.Provider
-func GetProvider(remoteAgent remoteagent.Component) status.Provider {
-	return Provider{remoteAgent: remoteAgent}
+func GetProvider(registry remoteagentregistry.Component) status.Provider {
+	return Provider{registry: registry}
 }
 
 func (p Provider) getStatusInfo() map[string]interface{} {
 	stats := make(map[string]interface{})
 
-	populateStatus(p.remoteAgent, stats)
+	populateStatus(p.registry, stats)
 
 	return stats
 }
@@ -53,7 +53,7 @@ func (p Provider) Section() string {
 
 // JSON populates the status map
 func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
-	populateStatus(p.remoteAgent, stats)
+	populateStatus(p.registry, stats)
 
 	return nil
 }

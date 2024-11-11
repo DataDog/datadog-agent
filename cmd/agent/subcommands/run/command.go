@@ -66,7 +66,7 @@ import (
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	lsof "github.com/DataDog/datadog-agent/comp/core/lsof/fx"
-	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx"
+	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"

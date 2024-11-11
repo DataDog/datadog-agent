@@ -7,13 +7,13 @@
 package proto
 
 import (
-	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 // ProtobufToRemoteAgentRegistration converts the protobuf representation of a remote agent registration to the internal type.
-func ProtobufToRemoteAgentRegistration(in *pb.RegisterRemoteAgentRequest) *remoteagent.RegistrationData {
-	return &remoteagent.RegistrationData{
+func ProtobufToRemoteAgentRegistration(in *pb.RegisterRemoteAgentRequest) *remoteagentregistry.RegistrationData {
+	return &remoteagentregistry.RegistrationData{
 		AgentID:     in.Id,
 		DisplayName: in.DisplayName,
 		APIEndpoint: in.ApiEndpoint,
@@ -22,16 +22,16 @@ func ProtobufToRemoteAgentRegistration(in *pb.RegisterRemoteAgentRequest) *remot
 }
 
 // ProtobufToFlareData converts the protobuf representation of flare data to the internal type.
-func ProtobufToFlareData(agentID string, resp *pb.GetFlareFilesResponse) *remoteagent.FlareData {
-	return &remoteagent.FlareData{
+func ProtobufToFlareData(agentID string, resp *pb.GetFlareFilesResponse) *remoteagentregistry.FlareData {
+	return &remoteagentregistry.FlareData{
 		AgentID: agentID,
 		Files:   resp.Files,
 	}
 }
 
 // ProtobufToStatusData converts the protobuf representation of status data to the internal type.
-func ProtobufToStatusData(agentID string, displayName string, resp *pb.GetStatusDetailsResponse) *remoteagent.StatusData {
-	return &remoteagent.StatusData{
+func ProtobufToStatusData(agentID string, displayName string, resp *pb.GetStatusDetailsResponse) *remoteagentregistry.StatusData {
+	return &remoteagentregistry.StatusData{
 		AgentID:       agentID,
 		DisplayName:   displayName,
 		MainSection:   protobufToStatusSection(resp.MainSection),
@@ -39,12 +39,12 @@ func ProtobufToStatusData(agentID string, displayName string, resp *pb.GetStatus
 	}
 }
 
-func protobufToStatusSection(statusSection *pb.StatusSection) remoteagent.StatusSection {
+func protobufToStatusSection(statusSection *pb.StatusSection) remoteagentregistry.StatusSection {
 	return statusSection.Fields
 }
 
-func protobufToNamedSections(namedSections map[string]*pb.StatusSection) map[string]remoteagent.StatusSection {
-	sections := make(map[string]remoteagent.StatusSection, len(namedSections))
+func protobufToNamedSections(namedSections map[string]*pb.StatusSection) map[string]remoteagentregistry.StatusSection {
+	sections := make(map[string]remoteagentregistry.StatusSection, len(namedSections))
 
 	for name, section := range namedSections {
 		sections[name] = protobufToStatusSection(section)

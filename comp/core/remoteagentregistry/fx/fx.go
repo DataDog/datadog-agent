@@ -7,8 +7,8 @@
 package fx
 
 import (
-	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
-	remoteagentimpl "github.com/DataDog/datadog-agent/comp/core/remoteagent/impl"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
+	remoteagentregistryimpl "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -16,8 +16,8 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			remoteagentimpl.NewComponent,
+			remoteagentregistryimpl.NewComponent,
 		),
-		fxutil.ProvideOptional[remoteagent.Component](),
+		fxutil.ProvideOptional[remoteagentregistry.Component](),
 	)
 }

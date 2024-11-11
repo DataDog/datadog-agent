@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package remoteagentimpl
+package remoteagentregistryimpl
 
 import (
 	"context"
@@ -16,27 +16,21 @@ import (
 	"strconv"
 	"testing"
 
-	config "github.com/DataDog/datadog-agent/comp/core/config"
 	helpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
+	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
-
-type testDependencies struct {
-	fx.In
-	Config config.Component
-}
 
 func TestRemoteAgentCreation(t *testing.T) {
 	provides, lc := buildComponent(t)
@@ -50,6 +44,30 @@ func TestRemoteAgentCreation(t *testing.T) {
 	ctx := context.Background()
 	assert.NoError(t, lc.Start(ctx))
 	assert.NoError(t, lc.Stop(ctx))
+}
+
+func TestRecommendedRefreshInterval(t *testing.T) {
+	expected_refresh_interval_secs := uint32(27)
+	config := configmock.New(t)
+	config.SetWithoutSource("remote_agent_registry.recommended_refresh_interval", fmt.Sprintf("%ds", expected_refresh_interval_secs))
+
+	provides, _ := buildComponentWithConfig(t, config)
+	component := provides.Comp
+
+	registrationData := &remoteagent.RegistrationData{
+		AgentID:     "test-agent",
+		DisplayName: "Test Agent",
+		APIEndpoint: "localhost:1234",
+		AuthToken:   "",
+	}
+
+	actual_refresh_interval_secs, err := component.RegisterRemoteAgent(registrationData)
+	require.NoError(t, err)
+	require.Equal(t, expected_refresh_interval_secs, actual_refresh_interval_secs)
+
+	agents := component.GetRegisteredAgents()
+	require.Len(t, agents, 1)
+	require.Equal(t, "Test Agent", agents[0].DisplayName)
 }
 
 func TestGetRegisteredAgents(t *testing.T) {
@@ -182,13 +200,17 @@ func TestStatusProvider(t *testing.T) {
 }
 
 func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle) {
+	return buildComponentWithConfig(t, configmock.New(t))
+}
+
+func buildComponentWithConfig(t *testing.T, config configmodel.Config) (Provides, *compdef.TestLifecycle) {
 	lc := compdef.NewTestLifecycle(t)
-	deps := dependencies{
-		Config:    configmock.New(t),
+	reqs := Requires{
+		Config:    config,
 		Lifecycle: lc,
 	}
 
-	return NewComponent(deps), lc
+	return NewComponent(reqs), lc
 }
 
 type testRemoteAgentServer struct {

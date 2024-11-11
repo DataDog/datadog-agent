@@ -19,8 +19,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
-	raproto "github.com/DataDog/datadog-agent/comp/core/remoteagent/proto"
+	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
+	raproto "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/proto"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
