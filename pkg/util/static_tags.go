@@ -13,6 +13,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -70,19 +71,49 @@ func GetStaticTagsSlice(ctx context.Context) []string {
 	return tags
 }
 
-// GetStaticTags is similar to GetStaticTagsSlice, but returning a map[string]string containing
+// GetStaticTags is similar to GetStaticTagsSlice, but returning a map[string][]string containing
 // <key>:<value> pairs for tags.  Tags not matching this pattern are omitted.
-func GetStaticTags(ctx context.Context) map[string]string {
+func GetStaticTags(ctx context.Context) map[string][]string {
 	tags := GetStaticTagsSlice(ctx)
 	if tags == nil {
 		return nil
 	}
+	return sliceToMap(tags)
+}
 
-	rv := make(map[string]string, len(tags))
+// GetExtraGlobalEnvTags is similar to GetStaticTags, but returning a map[string][]string containing
+// <key>:<value> pairs for global environment tags not included in GetStaticTags.
+// This includes DD_TAGS and DD_EXTRA_TAGS when not running in Fargate, and
+// includes DD_CLUSTER_CHECKS_EXTRA_TAGS and DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS when on Cluster Agent
+func GetExtraGlobalEnvTags() map[string][]string {
+
+	tags := []string{}
+
+	// DD_TAGS / DD_EXTRA_TAGS
+	if !fargate.IsFargateInstance() {
+		tags = append(tags, configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)...)
+	}
+
+	// DD_CLUSTER_CHECKS_EXTRA_TAGS / DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		tags = append(tags, configUtils.GetConfiguredDCATags(pkgconfigsetup.Datadog())...)
+	}
+
+	if tags == nil {
+		return nil
+	}
+	return sliceToMap(tags)
+}
+
+func sliceToMap(tags []string) map[string][]string {
+	rv := make(map[string][]string, len(tags))
 	for _, t := range tags {
 		tagParts := strings.SplitN(t, ":", 2)
 		if len(tagParts) == 2 {
-			rv[tagParts[0]] = tagParts[1]
+			if _, ok := rv[tagParts[0]]; !ok {
+				rv[tagParts[0]] = []string{}
+			}
+			rv[tagParts[0]] = append(rv[tagParts[0]], tagParts[1])
 		}
 	}
 	return rv

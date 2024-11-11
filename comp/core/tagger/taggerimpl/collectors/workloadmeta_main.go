@@ -57,7 +57,7 @@ type WorkloadMetaCollector struct {
 	containerEnvAsTags    map[string]string
 	containerLabelsAsTags map[string]string
 
-	staticTags                    map[string]string
+	staticTags                    map[string][]string // for ECS and EKS Fargate
 	k8sResourcesAnnotationsAsTags map[string]map[string]string
 	k8sResourcesLabelsAsTags      map[string]map[string]string
 	globContainerLabels           map[string]glob.Glob
@@ -103,19 +103,28 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context) {
 		// to read it, for the instances where we are running in an environment where hostname cannot be detected.
 		if cluster := clustername.GetClusterNameTagValue(ctx, ""); cluster != "" {
 			if c.staticTags == nil {
-				c.staticTags = make(map[string]string, 1)
+				c.staticTags = make(map[string][]string, 1)
 			}
-			c.staticTags[clusterTagNamePrefix] = cluster
+			if _, exists := c.staticTags[clusterTagNamePrefix]; !exists {
+				c.staticTags[clusterTagNamePrefix] = []string{}
+			}
+			c.staticTags[clusterTagNamePrefix] = append(c.staticTags[clusterTagNamePrefix], cluster)
 		}
 	}
-	if len(c.staticTags) > 0 {
-		tags := taglist.NewTagList()
+	// These are the missing global tags that should only be applied to the internal global entity
+	// Whereas the static tags are applied to containers and pods directly as well.
+	extraGlobalTags := util.GetExtraGlobalEnvTags()
 
-		for tag, value := range c.staticTags {
-			tags.AddLow(tag, value)
+	for _, tags := range []map[string][]string{c.staticTags, extraGlobalTags} {
+		tagList := taglist.NewTagList()
+
+		for tagKey, valueList := range tags {
+			for _, value := range valueList {
+				tagList.AddLow(tagKey, value)
+			}
 		}
 
-		low, orch, high, standard := tags.Compute()
+		low, orch, high, standard := tagList.Compute()
 		c.tagProcessor.ProcessTagInfo([]*types.TagInfo{
 			{
 				Source:               staticSource,
