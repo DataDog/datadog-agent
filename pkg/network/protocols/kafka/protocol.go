@@ -332,11 +332,11 @@ func (p *protocol) processKafka(events []EbpfTx) {
 }
 
 func (p *protocol) setupInFlightMapCleaner(mgr *manager.Manager) error {
-	inFlightMap, _, err := mgr.GetMap(inFlightMap)
+	kafkaInFlight, _, err := mgr.GetMap(inFlightMap)
 	if err != nil {
 		return err
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[KafkaTransactionKey, KafkaTransaction](inFlightMap, 1024, inFlightMap, "usm_monitor")
+	mapCleaner, err := ddebpf.NewMapCleaner[KafkaTransactionKey, KafkaTransaction](kafkaInFlight, 1024, inFlightMap, "usm_monitor")
 	if err != nil {
 		return err
 	}
