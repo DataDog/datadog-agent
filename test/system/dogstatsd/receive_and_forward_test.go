@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	log "github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -72,7 +73,7 @@ func TestReceiveAndForward(t *testing.T) {
 
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			strategy := compressionimpl.NewCompressor(mockConfig)
+			strategy := compressionfx.NewCompressor(mockConfig)
 
 			sc := []servicecheck.ServiceCheck{}
 			decompressedBody, err := strategy.Decompress([]byte(requests[0]))
