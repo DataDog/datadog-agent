@@ -10,6 +10,7 @@ package server
 import (
 	"fmt"
 	"net"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -18,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
@@ -47,6 +47,9 @@ func TestNewServer(t *testing.T) {
 }
 
 func TestUDSReceiverDisabled(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("UDS isn't supported on windows")
+	}
 	cfg := make(map[string]interface{})
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 	cfg["dogstatsd_no_aggregation_pipeline"] = true // another test may have turned it off
@@ -96,280 +99,6 @@ func TestNoRaceOriginTagMaps(t *testing.T) {
 	close(sync)
 	for i := 0; i < N; i++ {
 		<-done
-	}
-}
-
-func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMock) {
-	// Test metric
-	_, err := conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-	require.NoError(t, err, "cannot write to DSD socket")
-
-	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
-	require.Len(t, samples, 1)
-	require.Len(t, timedSamples, 0)
-	sample := samples[0]
-	assert.NotNil(t, sample)
-	assert.Equal(t, sample.Name, "daemon")
-	assert.EqualValues(t, sample.Value, 666.0)
-	assert.Equal(t, sample.Mtype, metrics.GaugeType)
-	assert.ElementsMatch(t, sample.Tags, []string{"sometag1:somevalue1", "sometag2:somevalue2"})
-	demux.Reset()
-
-	_, err = conn.Write([]byte("daemon:666|c|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
-	require.NoError(t, err, "cannot write to DSD socket")
-	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
-	require.Len(t, samples, 1)
-	require.Len(t, timedSamples, 0)
-	sample = samples[0]
-	assert.NotNil(t, sample)
-	assert.Equal(t, sample.Name, "daemon")
-	assert.EqualValues(t, sample.Value, 666.0)
-	assert.Equal(t, metrics.CounterType, sample.Mtype)
-	assert.Equal(t, 0.5, sample.SampleRate)
-	demux.Reset()
-
-	_, err = conn.Write([]byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
-	require.NoError(t, err, "cannot write to DSD socket")
-	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
-	require.Len(t, samples, 1)
-	require.Len(t, timedSamples, 0)
-	sample = samples[0]
-	assert.NotNil(t, sample)
-	assert.Equal(t, sample.Name, "daemon")
-	assert.EqualValues(t, sample.Value, 666.0)
-	assert.Equal(t, metrics.HistogramType, sample.Mtype)
-	assert.Equal(t, 0.5, sample.SampleRate)
-	demux.Reset()
-
-	_, err = conn.Write([]byte("daemon:666|ms|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
-	require.NoError(t, err, "cannot write to DSD socket")
-	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
-	require.Len(t, samples, 1)
-	require.Len(t, timedSamples, 0)
-	sample = samples[0]
-	assert.NotNil(t, sample)
-	assert.Equal(t, sample.Name, "daemon")
-	assert.EqualValues(t, sample.Value, 666.0)
-	assert.Equal(t, metrics.HistogramType, sample.Mtype)
-	assert.Equal(t, 0.5, sample.SampleRate)
-	demux.Reset()
-
-	_, err = conn.Write([]byte("daemon_set:abc|s|#sometag1:somevalue1,sometag2:somevalue2"))
-	require.NoError(t, err, "cannot write to DSD socket")
-	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
-	require.Len(t, samples, 1)
-	require.Len(t, timedSamples, 0)
-	sample = samples[0]
-	assert.NotNil(t, sample)
-	assert.Equal(t, sample.Name, "daemon_set")
-	assert.Equal(t, sample.RawValue, "abc")
-	assert.Equal(t, sample.Mtype, metrics.SetType)
-	demux.Reset()
-
-	// multi-metric packet
-	_, err = conn.Write([]byte("daemon1:666|c\ndaemon2:1000|c"))
-	require.NoError(t, err, "cannot write to DSD socket")
-	samples, timedSamples = demux.WaitForNumberOfSamples(2, 0, time.Second*2)
-	require.Len(t, samples, 2)
-	require.Len(t, timedSamples, 0)
-	sample1 := samples[0]
-	assert.NotNil(t, sample1)
-	assert.Equal(t, sample1.Name, "daemon1")
-	assert.EqualValues(t, sample1.Value, 666.0)
-	assert.Equal(t, sample1.Mtype, metrics.CounterType)
-	sample2 := samples[1]
-	assert.NotNil(t, sample2)
-	assert.Equal(t, sample2.Name, "daemon2")
-	assert.EqualValues(t, sample2.Value, 1000.0)
-	assert.Equal(t, sample2.Mtype, metrics.CounterType)
-	demux.Reset()
-
-	// multi-value packet
-	_, err = conn.Write([]byte("daemon1:666:123|c\ndaemon2:1000|c"))
-	require.NoError(t, err, "cannot write to DSD socket")
-	samples, timedSamples = demux.WaitForNumberOfSamples(3, 0, time.Second*2)
-	require.Len(t, samples, 3)
-	require.Len(t, timedSamples, 0)
-	sample1 = samples[0]
-	assert.NotNil(t, sample1)
-	assert.Equal(t, sample1.Name, "daemon1")
-	assert.EqualValues(t, sample1.Value, 666.0)
-	assert.Equal(t, sample1.Mtype, metrics.CounterType)
-	sample2 = samples[1]
-	assert.NotNil(t, sample2)
-	assert.Equal(t, sample2.Name, "daemon1")
-	assert.EqualValues(t, sample2.Value, 123.0)
-	assert.Equal(t, sample2.Mtype, metrics.CounterType)
-	sample3 := samples[2]
-	assert.NotNil(t, sample3)
-	assert.Equal(t, sample3.Name, "daemon2")
-	assert.EqualValues(t, sample3.Value, 1000.0)
-	assert.Equal(t, sample3.Mtype, metrics.CounterType)
-	demux.Reset()
-
-	// multi-value packet with skip empty
-	_, err = conn.Write([]byte("daemon1::666::123::::|c\ndaemon2:1000|c"))
-	require.NoError(t, err, "cannot write to DSD socket")
-	samples, timedSamples = demux.WaitForNumberOfSamples(3, 0, time.Second*2)
-	require.Len(t, samples, 3)
-	require.Len(t, timedSamples, 0)
-	sample1 = samples[0]
-	assert.NotNil(t, sample1)
-	assert.Equal(t, sample1.Name, "daemon1")
-	assert.EqualValues(t, sample1.Value, 666.0)
-	assert.Equal(t, sample1.Mtype, metrics.CounterType)
-	sample2 = samples[1]
-	assert.NotNil(t, sample2)
-	assert.Equal(t, sample2.Name, "daemon1")
-	assert.EqualValues(t, sample2.Value, 123.0)
-	assert.Equal(t, sample2.Mtype, metrics.CounterType)
-	sample3 = samples[2]
-	assert.NotNil(t, sample3)
-	assert.Equal(t, sample3.Name, "daemon2")
-	assert.EqualValues(t, sample3.Value, 1000.0)
-	assert.Equal(t, sample3.Mtype, metrics.CounterType)
-	demux.Reset()
-
-	//	// slightly malformed multi-metric packet, should still be parsed in whole
-	_, err = conn.Write([]byte("daemon1:666|c\n\ndaemon2:1000|c\n"))
-	require.NoError(t, err, "cannot write to DSD socket")
-	samples, timedSamples = demux.WaitForNumberOfSamples(2, 0, time.Second*2)
-	require.Len(t, samples, 2)
-	require.Len(t, timedSamples, 0)
-	sample1 = samples[0]
-	assert.NotNil(t, sample1)
-	assert.Equal(t, sample1.Name, "daemon1")
-	assert.EqualValues(t, sample1.Value, 666.0)
-	assert.Equal(t, sample1.Mtype, metrics.CounterType)
-	sample2 = samples[1]
-	assert.NotNil(t, sample2)
-	assert.Equal(t, sample2.Name, "daemon2")
-	assert.EqualValues(t, sample2.Value, 1000.0)
-	assert.Equal(t, sample2.Mtype, metrics.CounterType)
-	demux.Reset()
-
-	// Test erroneous metric
-	_, err = conn.Write([]byte("daemon1:666a|g\ndaemon2:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-	require.NoError(t, err, "cannot write to DSD socket")
-	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
-	require.Len(t, samples, 1)
-	require.Len(t, timedSamples, 0)
-	sample = samples[0]
-	assert.NotNil(t, sample)
-	assert.Equal(t, sample.Name, "daemon2")
-	demux.Reset()
-
-	// Test empty metric
-	_, err = conn.Write([]byte("daemon1:|g\ndaemon2:666|g|#sometag1:somevalue1,sometag2:somevalue2\ndaemon3: :1:|g"))
-	require.NoError(t, err, "cannot write to DSD socket")
-	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
-	require.Len(t, samples, 1)
-	require.Len(t, timedSamples, 0)
-	sample = samples[0]
-	assert.NotNil(t, sample)
-	assert.Equal(t, sample.Name, "daemon2")
-	demux.Reset()
-
-	// Late gauge
-	_, err = conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2|T1658328888"))
-	require.NoError(t, err, "cannot write to DSD socket")
-	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
-	require.Len(t, samples, 0)
-	require.Len(t, timedSamples, 1)
-	sample = timedSamples[0]
-	require.NotNil(t, sample)
-	assert.Equal(t, sample.Mtype, metrics.GaugeType)
-	assert.Equal(t, sample.Name, "daemon")
-	assert.Equal(t, sample.Timestamp, float64(1658328888))
-	demux.Reset()
-
-	// Late count
-	_, err = conn.Write([]byte("daemon:666|c|#sometag1:somevalue1,sometag2:somevalue2|T1658328888"))
-	require.NoError(t, err, "cannot write to DSD socket")
-	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
-	require.Len(t, samples, 0)
-	require.Len(t, timedSamples, 1)
-	sample = timedSamples[0]
-	require.NotNil(t, sample)
-	assert.Equal(t, sample.Mtype, metrics.CounterType)
-	assert.Equal(t, sample.Name, "daemon")
-	assert.Equal(t, sample.Timestamp, float64(1658328888))
-	demux.Reset()
-
-	// Late metric and a normal one
-	_, err = conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2|T1658328888\ndaemon2:666|c"))
-	require.NoError(t, err, "cannot write to DSD socket")
-	samples, timedSamples = demux.WaitForNumberOfSamples(1, 1, time.Second*2)
-	require.Len(t, samples, 1)
-	require.Len(t, timedSamples, 1)
-	sample = timedSamples[0]
-	require.NotNil(t, sample)
-	assert.Equal(t, sample.Name, "daemon")
-	assert.Equal(t, sample.Mtype, metrics.GaugeType)
-	assert.Equal(t, sample.Timestamp, float64(1658328888))
-	sample = samples[0]
-	require.NotNil(t, sample)
-	assert.Equal(t, sample.Name, "daemon2")
-	demux.Reset()
-
-	// Test Service Check
-	// ------------------
-
-	eventOut, serviceOut := demux.GetEventsAndServiceChecksChannels()
-
-	_, err = conn.Write([]byte("_sc|agent.up|0|d:12345|h:localhost|m:this is fine|#sometag1:somevalyyue1,sometag2:somevalue2"))
-	require.NoError(t, err, "cannot write to DSD socket")
-	select {
-	case res := <-serviceOut:
-		assert.NotNil(t, res)
-	case <-time.After(2 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
-
-	// Test erroneous Service Check
-	_, err = conn.Write([]byte("_sc|agen.down\n_sc|agent.up|0|d:12345|h:localhost|m:this is fine|#sometag1:somevalyyue1,sometag2:somevalue2"))
-	require.NoError(t, err, "cannot write to DSD socket")
-	select {
-	case res := <-serviceOut:
-		assert.Equal(t, 1, len(res))
-		serviceCheck := res[0]
-		assert.NotNil(t, serviceCheck)
-		assert.Equal(t, serviceCheck.CheckName, "agent.up")
-	case <-time.After(2 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
-
-	// Test Event
-	// ----------
-
-	_, err = conn.Write([]byte("_e{10,10}:test title|test\\ntext|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"))
-	require.NoError(t, err, "cannot write to DSD socket")
-	select {
-	case res := <-eventOut:
-		event := res[0]
-		assert.NotNil(t, event)
-		assert.ElementsMatch(t, event.Tags, []string{"tag1", "tag2:test"})
-	case <-time.After(2 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
-
-	// Test erroneous Events
-	_, err = conn.Write(
-		[]byte("_e{0,9}:|test text\n" +
-			"_e{-5,2}:abc\n" +
-			"_e{11,10}:test title2|test\\ntext|" +
-			"t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test",
-		),
-	)
-	require.NoError(t, err, "cannot write to DSD socket")
-	select {
-	case res := <-eventOut:
-		assert.Equal(t, 1, len(res))
-		event := res[0]
-		assert.NotNil(t, event)
-		assert.Equal(t, event.Title, "test title2")
-	case <-time.After(2 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
 	}
 }
 

@@ -29,8 +29,198 @@ import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// Run through all of the major metric types and verify both the default and the timestamped flows
+func TestMetricTypes(t *testing.T) {
+	cfg := make(map[string]interface{})
+	cfg["dogstatsd_port"] = listeners.RandomPortName
+	deps := fulfillDepsWithConfigOverride(t, cfg)
+
+	scenarios := []struct {
+		name  string
+		input []byte
+		test  *tMetricSample
+	}{
+		{
+			name:  "Test Gauge",
+			input: []byte("daemon:666|g|@0.5|#sometag1:somevalue1,sometag2:somevalue2"),
+			test:  defaultMetric().withType(metrics.GaugeType).withSampleRate(0.5),
+		},
+		{
+			name:  "Test Counter",
+			input: []byte("daemon:666|c|@0.5|#sometag1:somevalue1,sometag2:somevalue2"),
+			test:  defaultMetric().withType(metrics.CounterType).withSampleRate(0.5),
+		},
+		{
+			name:  "Test Histogram",
+			input: []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"),
+			test:  defaultMetric().withType(metrics.HistogramType).withSampleRate(0.5),
+		},
+		{
+			name:  "Test Timing",
+			input: []byte("daemon:666|ms|@0.5|#sometag1:somevalue1,sometag2:somevalue2"),
+			test:  defaultMetric().withType(metrics.HistogramType).withSampleRate(0.5)},
+		{
+			name:  "Test Set",
+			input: []byte("daemon:abc|s|@0.5|#sometag1:somevalue1,sometag2:somevalue2"),
+			test:  defaultMetric().withType(metrics.SetType).withSampleRate(0.5).withValue(0).withRawValue("abc"),
+		},
+	}
+
+	for _, s := range scenarios {
+		t.Run(s.name, func(t *testing.T) {
+			runTestMetrics(t, deps, s.input, []*tMetricSample{s.test}, []*tMetricSample{})
+
+			timedInput := append(s.input, []byte("|T1658328888\n")...)
+			s.test.withTimestamp(1658328888)
+			runTestMetrics(t, deps, timedInput, []*tMetricSample{}, []*tMetricSample{s.test})
+		})
+	}
+}
+
+func TestMetricPermutations(t *testing.T) {
+	cfg := make(map[string]interface{})
+	cfg["dogstatsd_port"] = listeners.RandomPortName
+	deps := fulfillDepsWithConfigOverride(t, cfg)
+
+	packet1Test := defaultMetric().withTags(nil).withType(metrics.CounterType)
+	packet1AltTest := defaultMetric().withValue(123.0).withTags(nil).withType(metrics.CounterType)
+	packet2Test := defaultMetric().withName("daemon2").withValue(1000.0).withType(metrics.CounterType)
+
+	scenarios := []struct {
+		name  string
+		input []byte
+		tests []*tMetricSample
+	}{
+		{
+			name:  "Base multi-metric packet",
+			input: []byte("daemon:666|c\ndaemon2:1000|c|#sometag1:somevalue1,sometag2:somevalue2"),
+			tests: []*tMetricSample{packet1Test, packet2Test},
+		},
+		{
+			name:  "Multi-value packet",
+			input: []byte("daemon:666:123|c\ndaemon2:1000|c|#sometag1:somevalue1,sometag2:somevalue2"),
+			tests: []*tMetricSample{packet1Test, packet1AltTest, packet2Test},
+		},
+		{
+			name:  "Multi-value packet with skip empty",
+			input: []byte("daemon::666::123::::|c\ndaemon2:1000|c|#sometag1:somevalue1,sometag2:somevalue2"),
+			tests: []*tMetricSample{packet1Test, packet1AltTest, packet2Test},
+		},
+		{
+			name:  "Malformed packet",
+			input: []byte("daemon:666|c\n\ndaemon2:1000|c|#sometag1:somevalue1,sometag2:somevalue2\n"),
+			tests: []*tMetricSample{packet1Test, packet2Test},
+		},
+		{
+			name:  "Malformed metric",
+			input: []byte("daemon:666a|g\ndaemon2:1000|c|#sometag1:somevalue1,sometag2:somevalue2"),
+			tests: []*tMetricSample{packet2Test},
+		},
+		{
+			name:  "Empty metric",
+			input: []byte("daemon:|g\ndaemon2:1000|c|#sometag1:somevalue1,sometag2:somevalue2\ndaemon3: :1:|g"),
+			tests: []*tMetricSample{packet2Test},
+		},
+	}
+
+	for _, s := range scenarios {
+		t.Run(s.name, func(t *testing.T) {
+			runTestMetrics(t, deps, s.input, s.tests, []*tMetricSample{})
+		})
+	}
+}
+
+func runTestMetrics(t *testing.T, deps serverDeps, input []byte, expTests []*tMetricSample, expTimeTests []*tMetricSample) {
+	s := deps.Server.(*server)
+
+	var b batcherMock
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	s.parsePackets(&b, parser, genTestPackets(input), metrics.MetricSampleBatch{})
+
+	samples := b.samples
+	timedSamples := b.lateSamples
+
+	assert.Equal(t, len(expTests), len(samples))
+	assert.Equal(t, len(expTimeTests), len(timedSamples))
+
+	for idx, samp := range samples {
+		expTests[idx].testMetric(t, samp)
+	}
+	for idx, tSamp := range timedSamples {
+		expTimeTests[idx].testMetric(t, tSamp)
+	}
+}
+
+func TestEvents(t *testing.T) {
+	cfg := make(map[string]interface{})
+	cfg["dogstatsd_port"] = listeners.RandomPortName
+
+	deps := fulfillDepsWithConfigOverride(t, cfg)
+	s := deps.Server.(*server)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	var b batcherMock
+
+	input1 := defaultEventInput
+	test1 := defaultEvent()
+	input2 := []byte("_e{11,15}:test titled|test\\ntextntext|t:info|d:12346|p:normal|h:some.otherhost|k:aggKeyAlt|s:source investigation|#tag1,tag2:test,tag3:resolved")
+	test2 := tEvent{
+		Title:          "test titled",
+		Text:           "test\ntextntext",
+		Tags:           []string{"tag1", "tag2:test", "tag3:resolved"},
+		Host:           "some.otherhost",
+		Ts:             12346,
+		AlertType:      event.AlertTypeInfo,
+		Priority:       event.PriorityNormal,
+		AggregationKey: "aggKeyAlt",
+		SourceTypeName: "source investigation",
+	}
+
+	s.parsePackets(&b, parser, genTestPackets(input1, input2), metrics.MetricSampleBatch{})
+
+	assert.Equal(t, 2, len(b.events))
+
+	test1.testEvent(t, b.events[0])
+	test2.testEvent(t, b.events[1])
+
+	b.clear()
+	// Test incomplete Events
+	input := []byte("_e{0,9}:|test text\n" +
+		string(defaultEventInput) + "\n" +
+		"_e{-5,2}:abc\n",
+	)
+
+	s.parsePackets(&b, parser, genTestPackets(input), metrics.MetricSampleBatch{})
+	assert.Equal(t, 1, len(b.events))
+	defaultEvent().testEvent(t, b.events[0])
+}
+
+func TestServiceChecks(t *testing.T) {
+	cfg := make(map[string]interface{})
+	cfg["dogstatsd_port"] = listeners.RandomPortName
+
+	deps := fulfillDepsWithConfigOverride(t, cfg)
+	s := deps.Server.(*server)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	var b batcherMock
+
+	s.parsePackets(&b, parser, genTestPackets(defaultServiceInput), metrics.MetricSampleBatch{})
+
+	assert.Equal(t, 1, len(b.serviceChecks))
+	defaultServiceCheck().testService(t, b.serviceChecks[0])
+
+	b.clear()
+
+	// Test incomplete Service Check
+	input := append([]byte("_sc|agen.down\n"), defaultServiceInput...)
+	s.parsePackets(&b, parser, genTestPackets(input), metrics.MetricSampleBatch{})
+
+	assert.Equal(t, 1, len(b.serviceChecks))
+	defaultServiceCheck().testService(t, b.serviceChecks[0])
+}
 
 func TestHistToDist(t *testing.T) {
 	cfg := make(map[string]interface{})
