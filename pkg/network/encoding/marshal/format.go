@@ -13,6 +13,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -120,9 +121,10 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 
 	httpStaticTags, httpDynamicTags := httpEncoder.GetHTTPAggregationsAndTags(conn, builder)
 	http2StaticTags, http2DynamicTags := http2Encoder.WriteHTTP2AggregationsAndTags(conn, builder)
+	tlsDynamicTags := tls.GetTLSDynamicTags(&conn.TLSTags)
 
 	staticTags := httpStaticTags | http2StaticTags
-	dynamicTags := mergeDynamicTags(httpDynamicTags, http2DynamicTags)
+	dynamicTags := mergeDynamicTags(httpDynamicTags, http2DynamicTags, tlsDynamicTags)
 
 	staticTags |= kafkaEncoder.WriteKafkaAggregations(conn, builder)
 	staticTags |= postgresEncoder.WritePostgresAggregations(conn, builder)

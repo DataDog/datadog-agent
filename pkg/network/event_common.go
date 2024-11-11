@@ -18,6 +18,7 @@ import (
 	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
@@ -283,6 +284,7 @@ type ConnectionStats struct {
 	RTTVar          uint32
 	StaticTags      uint64
 	ProtocolStack   protocols.Stack
+	TLSTags         ebpf.TLSTags
 
 	// keep these fields last because they are 1 byte each and otherwise inflate the struct size due to alignment
 	Direction        ConnectionDirection

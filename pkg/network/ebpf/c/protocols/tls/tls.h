@@ -3,7 +3,7 @@
 
 #include "ktypes.h"
 #include "bpf_builtins.h"
-#include "ip.h"
+#include "tracer/tracer.h"
 
 #define ETH_HLEN 14  // Ethernet header length
 
@@ -30,22 +30,6 @@ typedef struct {
     __u16 length;
 } __attribute__((packed)) tls_record_header_t;
 
-// TLS enhanced tags structures
-typedef struct {
-    __u16 offered_versions[6];
-    __u8 num_offered_versions;
-} tls_client_tags_t;
-
-typedef struct {
-    __u16 version;
-    __u16 cipher_suite;
-} tls_server_tags_t;
-
-typedef struct {
-    tls_client_tags_t client_tags;
-    tls_server_tags_t server_tags;
-} tls_enhanced_tags_t;
-
 #define TLS_HANDSHAKE_CLIENT_HELLO 0x01
 #define TLS_HANDSHAKE_SERVER_HELLO 0x02
 
@@ -61,6 +45,31 @@ static __always_inline bool is_valid_tls_version(__u16 version) {
             return true;
         default:
             return false;
+    }
+}
+
+static __always_inline void set_tls_offered_version(tls_info_t *tls_info, __u16 version) {
+    switch (version) {
+        case TLS_VERSION10:
+            tls_info->offered_versions |= 0x01; // Bit 0
+            break;
+        case TLS_VERSION11:
+            tls_info->offered_versions |= 0x02; // Bit 1
+            break;
+        case TLS_VERSION12:
+            tls_info->offered_versions |= 0x04; // Bit 2
+            break;
+        case TLS_VERSION13:
+            tls_info->offered_versions |= 0x08; // Bit 3
+            break;
+        case SSL_VERSION20:
+            tls_info->offered_versions |= 0x10; // Bit 4
+            break;
+        case SSL_VERSION30:
+            tls_info->offered_versions |= 0x20; // Bit 5
+            break;
+        default:
+            break;
     }
 }
 
@@ -107,7 +116,7 @@ static __always_inline bool is_tls(struct __sk_buff *skb, __u64 nh_off, tls_reco
 }
 
 // parse_client_hello reads the ClientHello message from the TLS handshake and populates select tags
-static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offset, __u32 skb_len, tls_enhanced_tags_t *tags) {
+static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offset, __u32 skb_len, tls_info_t *tags) {
     // Move offset past handshake type (1 byte)
     offset += 1;
 
@@ -132,8 +141,7 @@ static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offse
     offset += 2;
 
     // Store client_version in tags (in case supported_versions extension is absent)
-    tags->client_tags.offered_versions[0] = client_version;
-    tags->client_tags.num_offered_versions = 1;
+    set_tls_offered_version(tags, client_version);
 
     // Skip Random (32 bytes)
     offset += 32;
@@ -230,10 +238,8 @@ static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offse
                     return -1;
                 sv_version = bpf_ntohs(sv_version);
                 offset += 2;
-
-                tags->client_tags.offered_versions[num_versions] = sv_version;
+                set_tls_offered_version(tags, sv_version);
             }
-            tags->client_tags.num_offered_versions = num_versions;
         } else {
             // Skip other extensions
             offset += extension_length;
@@ -246,7 +252,7 @@ static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offse
 }
 
 // Function to parse ServerHello message
-static __always_inline int parse_server_hello(struct __sk_buff *skb, __u64 offset, __u32 skb_len, tls_enhanced_tags_t *tags) {
+static __always_inline int parse_server_hello(struct __sk_buff *skb, __u64 offset, __u32 skb_len, tls_info_t *tags) {
     // Move offset past handshake type (1 byte)
     offset += 1;
 
@@ -273,7 +279,7 @@ static __always_inline int parse_server_hello(struct __sk_buff *skb, __u64 offse
     // Set the version here and try to get the "real" version from the extensions
     // Note: In TLS 1.3, the server_version field is set to 0x0303 (TLS 1.2)
     // The actual version is embedded in the supported_versions extension
-    tags->server_tags.version = server_version;
+    tags->chosen_version = server_version;
     offset += 2;
 
     // Skip Random (32 bytes)
@@ -299,7 +305,7 @@ static __always_inline int parse_server_hello(struct __sk_buff *skb, __u64 offse
     offset += 1;
 
     // Store parsed data into tags
-    tags->server_tags.cipher_suite = cipher_suite;
+    tags->cipher_suite = cipher_suite;
 
     // Check if there are extensions
     if (offset < handshake_end) {
@@ -356,7 +362,7 @@ static __always_inline int parse_server_hello(struct __sk_buff *skb, __u64 offse
                 selected_version = bpf_ntohs(selected_version);
                 offset += 2;
 
-                tags->server_tags.version = selected_version;
+                tags->chosen_version = selected_version;
             } else {
                 // Skip other extensions
                 offset += extension_length;
@@ -370,7 +376,7 @@ static __always_inline int parse_server_hello(struct __sk_buff *skb, __u64 offse
 }
 
 // Function to parse the TLS payload and update tls_enhanced_tags_t
-static __always_inline int parse_tls_payload(struct __sk_buff *skb, __u64 nh_off, tls_record_header_t *tls_hdr, tls_enhanced_tags_t *tags) {
+static __always_inline int parse_tls_payload(struct __sk_buff *skb, __u64 nh_off, tls_record_header_t *tls_hdr, tls_info_t *tags) {
     // At this point, tls_hdr has already been validated and filled by is_tls()
     __u64 offset = nh_off + sizeof(tls_record_header_t);
 

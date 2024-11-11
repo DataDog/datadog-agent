@@ -1470,8 +1470,8 @@ func (s *TracerSuite) TestTLSClassification() {
 		validation      func(t *testing.T, tr *Tracer)
 	}
 	tests := make([]tlsTest, 0)
-	//for _, scenario := range []uint16{tls.VersionTLS10, tls.VersionTLS11, tls.VersionTLS12, tls.VersionTLS13} {
-	for _, scenario := range []uint16{tls.VersionTLS12} {
+	for _, scenario := range []uint16{tls.VersionTLS10, tls.VersionTLS11, tls.VersionTLS12, tls.VersionTLS13} {
+		//for _, scenario := range []uint16{tls.VersionTLS12} {
 		scenario := scenario
 		tests = append(tests, tlsTest{
 			name: strings.Replace(tls.VersionName(scenario), " ", "-", 1),

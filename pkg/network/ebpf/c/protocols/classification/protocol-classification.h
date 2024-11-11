@@ -176,7 +176,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
 
         // Parse TLS payload
-        tls_enhanced_tags_t *tags = get_or_create_tls_enhanced_tags(&skb_tup);
+        tls_info_t *tags = get_or_create_tls_enhanced_tags(&skb_tup);
         if (tags) {
             // Parse the TLS payload and update the tags
             int ret = parse_tls_payload(skb, skb_info.data_off, &tls_hdr, tags);

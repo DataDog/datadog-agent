@@ -763,6 +763,8 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		Encryption:  protocols.Encryption(s.Protocol_stack.Encryption),
 	}
 
+	stats.TLSTags = s.Tls_tags
+
 	if t.Type() == netebpf.TCP {
 		stats.Type = network.TCP
 	} else {
