@@ -1,3 +1,8 @@
+// This is a dummy CUDA runtime library that can be used to test the GPU monitoring code without
+// having a real CUDA runtime library installed.
+// This binary should be run using the pkg/gpu/testutil/samplebins.go:RunSample* methods, which
+// call the binary with the correct arguments and environment variables to test the agent.
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
