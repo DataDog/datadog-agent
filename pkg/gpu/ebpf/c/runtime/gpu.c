@@ -196,11 +196,7 @@ int BPF_URETPROBE(uretprobe__cudaSetDevice) {
         return 0;
     }
 
-    event.header.pid_tgid = bpf_get_current_pid_tgid();
-    event.header.stream_id = (uint64_t)0;
-    event.header.type = cuda_set_device;
-    event.header.ktime_ns = bpf_ktime_get_ns();
-    event.device = *device;
+    fill_header(&event.header, 0, cuda_set_device);
 
     log_debug("cudaSetDevice: EMIT pid_tgid=%llu, device=%d", event.header.pid_tgid, *device);
     bpf_ringbuf_output(&cuda_events, &event, sizeof(event), 0);
