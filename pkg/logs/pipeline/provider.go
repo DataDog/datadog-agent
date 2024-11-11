@@ -72,7 +72,7 @@ func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, diagn
 }
 
 // NewProcessorOnlyProvider returns a new Provider with only the processor
-func NewProcessorOnlyProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, cfg pkgconfigmodel.Reader, endpoints *config.Endpoints, hostname hostnameinterface.Component) Provider {
+func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, cfg pkgconfigmodel.Reader, hostname hostnameinterface.Component) Provider {
 	strategyInput := make(chan *message.Message, config.ChanSize)
 	encoder := processor.JSONServerlessEncoder
 	inputChan := make(chan *message.Message, config.ChanSize)
