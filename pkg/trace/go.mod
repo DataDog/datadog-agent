@@ -38,7 +38,7 @@ require (
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	go.opentelemetry.io/collector/component v0.111.0
 	go.opentelemetry.io/collector/consumer v0.111.0
-	go.opentelemetry.io/collector/pdata v1.17.0
+	go.opentelemetry.io/collector/pdata v1.19.0
 	go.opentelemetry.io/collector/processor v0.111.0
 	go.opentelemetry.io/collector/semconv v0.111.0
 	go.opentelemetry.io/otel v1.31.0
@@ -47,7 +47,7 @@ require (
 	golang.org/x/sys v0.26.0
 	golang.org/x/time v0.7.0
 	google.golang.org/grpc v1.67.1
-	google.golang.org/protobuf v1.34.2
+	google.golang.org/protobuf v1.35.1
 	gopkg.in/ini.v1 v1.67.0
 	k8s.io/apimachinery v0.25.5
 )
