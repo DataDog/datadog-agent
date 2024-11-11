@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
-	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	procmontestutil "github.com/DataDog/datadog-agent/pkg/process/monitor/testutil"

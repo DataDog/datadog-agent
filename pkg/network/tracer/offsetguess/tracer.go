@@ -1161,10 +1161,6 @@ func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, e
 		return nil, o.err
 	}
 
-	if o.err = IsTracerOffsetGuessingSupported(); o.err != nil {
-		return nil, o.err
-	}
-
 	_, udpv6Enabled := getIpv6Configuration(cfg)
 	_cfg := *cfg
 	_cfg.CollectUDPv6Conns = udpv6Enabled
@@ -1181,12 +1177,6 @@ func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, e
 	}
 	defer offsetBuf.Close()
 	o.offsets, o.err = RunOffsetGuessing(cfg, offsetBuf, NewTracerOffsetGuesser)
-	return o.offsets, o.err
-}
-
-// OffsetNoTrigger returns the current offsets and error without triggering
-// offset guessing like Offsets(). Only used for testing purposes
-func (o *tracerOffsets) OffsetsNoTrigger() ([]manager.ConstantEditor, error) {
 	return o.offsets, o.err
 }
 

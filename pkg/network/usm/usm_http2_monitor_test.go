@@ -44,7 +44,6 @@ import (
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
-	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )

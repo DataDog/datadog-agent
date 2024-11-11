@@ -38,7 +38,7 @@ func skipPrebuiltEbpfConntrackerTestOnUnsupportedKernel(t *testing.T) {
 	}
 }
 
-func TestEbpfConntrackerDoesNotTriggerTracerOffsetGuessing(t *testing.T) {
+func TestEbpfConntrackerLoadTriggersOffsetGuessing(t *testing.T) {
 	skipPrebuiltEbpfConntrackerTestOnUnsupportedKernel(t)
 
 	offsetguess.TracerOffsets.Reset()
@@ -51,9 +51,9 @@ func TestEbpfConntrackerDoesNotTriggerTracerOffsetGuessing(t *testing.T) {
 	require.NotNil(t, conntracker)
 	t.Cleanup(conntracker.Close)
 
-	offsets, err := offsetguess.TracerOffsets.OffsetsNoTrigger()
+	offsets, err := offsetguess.TracerOffsets.Offsets(cfg)
 	require.NoError(t, err)
-	require.Empty(t, offsets)
+	require.NotEmpty(t, offsets)
 }
 
 func TestEbpfConntrackerSkipsLoadOnOlderKernels(t *testing.T) {

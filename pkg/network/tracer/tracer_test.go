@@ -65,7 +65,7 @@ type TracerSuite struct {
 }
 
 func TestTracerSuite(t *testing.T) {
-	ebpftest.TestBuildModes(t, supportedBuildModes(t), "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, ebpftest.SupportedBuildModes(), "", func(t *testing.T) {
 		suite.Run(t, new(TracerSuite))
 	})
 }

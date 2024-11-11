@@ -86,10 +86,7 @@ var (
 	tracerLoaderFromAsset     = loadTracerFromAsset
 	tracerOffsetGuesserRunner = offsetguess.TracerOffsets.Offsets
 
-	// ErrCORETracerNotSupported is the error returned when the CO-RE tracer is not supported
-	ErrCORETracerNotSupported = errors.New("CO-RE tracer not supported on this platform")
-	// ErrPrecompiledTracerNotSupported is the error returned when the pre-compiled tracer is not supported
-	ErrPrecompiledTracerNotSupported = errors.New("pre-compiled tracer not supported on this platform")
+	errCORETracerNotSupported = errors.New("CO-RE tracer not supported on this platform")
 )
 
 // ClassificationSupported returns true if the current kernel version supports the classification feature.
@@ -120,18 +117,9 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 
 	mgrOpts.DefaultKprobeAttachMethod = kprobeAttachMethod
 
-	prebuiltSupported := true
-	if err := IsPrecompiledTracerSupported(); err != nil {
-		if !errors.Is(err, ErrPrecompiledTracerNotSupported) {
-			return nil, nil, TracerTypeCORE, fmt.Errorf("error determining if pre-compiled tracer is supported: %w", err)
-		}
-
-		prebuiltSupported = false
-	}
-
 	if cfg.EnableCORE {
-		err := IsCORETracerSupported()
-		if err != nil && !errors.Is(err, ErrCORETracerNotSupported) {
+		err := isCORETracerSupported()
+		if err != nil && !errors.Is(err, errCORETracerNotSupported) {
 			return nil, nil, TracerTypeCORE, fmt.Errorf("error determining if CO-RE tracer is supported: %w", err)
 		}
 
@@ -173,10 +161,6 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 
 	if prebuilt.IsDeprecated() {
 		log.Warn("using deprecated prebuilt network tracer")
-	}
-
-	if !prebuiltSupported {
-		return nil, nil, TracerTypePrebuilt, fmt.Errorf("error loading pre-compiled network tracer: %w", ErrPrecompiledTracerNotSupported)
 	}
 
 	offsets, err := tracerOffsetGuesserRunner(cfg)
@@ -337,9 +321,7 @@ func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connClos
 	return tracerLoaderFromAsset(buf, false, false, config, mgrOpts, connCloseEventHandler)
 }
 
-// IsCORETracerSupported returns ErrCORETracerNotSupported if the CORE
-// network tracer is not supported on this platform, nil otherwise
-func IsCORETracerSupported() error {
+func isCORETracerSupported() error {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return err
@@ -360,16 +342,5 @@ func IsCORETracerSupported() error {
 		return nil
 	}
 
-	return ErrCORETracerNotSupported
-}
-
-// IsPrecompiledTracerSupported returns whether the pre-compiled
-// tracer is supported on this platform
-func IsPrecompiledTracerSupported() error {
-	err := offsetguess.IsTracerOffsetGuessingSupported()
-	if err == offsetguess.ErrTracerOffsetGuessingNotSupported {
-		return ErrPrecompiledTracerNotSupported
-	}
-
-	return err
+	return errCORETracerNotSupported
 }
