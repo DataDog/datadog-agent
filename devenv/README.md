@@ -84,6 +84,6 @@ Two third party files are used and adapted:
 ## Run and debug with VSCode (Linux/Mac)
 
 1. Open the workspace in VSCode
-2. Install the [Go VSCode extension](https://marketplace.visualstudio.com/items?itemName=golang.Go)
-- See `.vscode/tasks.json.template` for an example of available tasks.
-- See `.vscode/launch.json.template` for an example launch configuration.
+2. Configure VS Code using `inv vscode.setup` (this will install extensions and create the `.vscode/{tasks,launch,settings,extensions}.json` files)
+
+You can see `.vscode/*.json.template` files for example configurations.

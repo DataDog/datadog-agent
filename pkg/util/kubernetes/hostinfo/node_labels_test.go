@@ -11,7 +11,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	model "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	k "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 
@@ -35,7 +36,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 		ctx                context.Context
 		currentClusterName string
 		mockClientFunc     func(*kubeUtilMock)
-		mockConfFunc       func(conf *config.MockConfig)
+		mockConfFunc       func(conf model.Config)
 		nodeLabels         map[string]string
 		want               string
 		wantErr            bool
@@ -67,7 +68,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			mockClientFunc: func(ku *kubeUtilMock) {
 				ku.On("GetNodename").Return("node-name", nil)
 			},
-			mockConfFunc: func(conf *config.MockConfig) {
+			mockConfFunc: func(conf model.Config) {
 				conf.SetWithoutSource("kubernetes_node_label_as_cluster_name", "custom-label")
 			},
 			nodeLabels: map[string]string{
@@ -82,7 +83,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			mockClientFunc: func(ku *kubeUtilMock) {
 				ku.On("GetNodename").Return("node-name", nil)
 			},
-			mockConfFunc: func(conf *config.MockConfig) {
+			mockConfFunc: func(conf model.Config) {
 				conf.SetWithoutSource("kubernetes_node_label_as_cluster_name", "custom-label")
 			},
 			nodeLabels: map[string]string{
@@ -124,7 +125,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			mockClientFunc: func(ku *kubeUtilMock) {
 				ku.On("GetNodename").Return("node-name", nil)
 			},
-			mockConfFunc: func(conf *config.MockConfig) {
+			mockConfFunc: func(conf model.Config) {
 				conf.SetWithoutSource("kubernetes_node_label_as_cluster_name", "custom-label")
 			},
 			currentClusterName: "bar",
@@ -143,7 +144,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 				tt.mockClientFunc(ku)
 			}
 
-			mockConfig := config.Mock(t)
+			mockConfig := configmock.New(t)
 			if tt.mockConfFunc != nil {
 				tt.mockConfFunc(mockConfig)
 			}
@@ -151,7 +152,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			nodeInfo := &NodeInfo{
 				client:              ku,
 				getClusterAgentFunc: clusteragent.GetClusterAgentClient,
-				apiserverNodeLabelsFunc: func(ctx context.Context, nodeName string) (map[string]string, error) {
+				apiserverNodeLabelsFunc: func(context.Context, string) (map[string]string, error) {
 					return tt.nodeLabels, nil
 				},
 			}

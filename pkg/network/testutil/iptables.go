@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,16 +42,26 @@ func IptablesSave(tb testing.TB) []byte {
 
 // IptablesRestore restores iptables state from a file
 func IptablesRestore(tb testing.TB, state []byte) {
-	cmd := exec.Command("iptables-restore", "--counters")
-	cmd.Stdin = bytes.NewReader(state)
-	assert.NoError(tb, cmd.Run())
+	var restoreErr error
+	// The attempt mechanism is necessary because we noticed that iptables-restore fails with error code 4 when it can't acquire the lock.
+	// We can't rely on the --wait flag as it's not available on older versions of iptables.
+	for attempt := 0; attempt < 3; attempt++ {
+		cmd := exec.Command("iptables-restore", "--counters")
+		cmd.Stdin = bytes.NewReader(state)
+		restoreErr = cmd.Run()
+
+		// If no error occurs, return early.
+		if restoreErr == nil {
+			return
+		}
+		time.Sleep(time.Second)
+	}
+	assert.NoError(tb, restoreErr)
 }
 
-// Ip6tablesSave saves the current iptables state to a file
+// IP6tablesSave saves the current iptables state to a file
 // and returns its path
-//
-//nolint:revive // TODO(NET) Fix revive linter
-func Ip6tablesSave(tb testing.TB) {
+func IP6tablesSave(tb testing.TB) {
 	cmd := exec.Command("ip6tables-save")
 	state, err := cmd.Output()
 	require.NoError(tb, err)
@@ -66,14 +77,12 @@ func Ip6tablesSave(tb testing.TB) {
 	require.NoError(tb, err)
 	fullState := append(state, natState...)
 	tb.Cleanup(func() {
-		Ip6tablesRestore(tb, fullState)
+		IP6tablesRestore(tb, fullState)
 	})
 }
 
-// Ip6tablesRestore restores iptables state from a file
-//
-//nolint:revive // TODO(NET) Fix revive linter
-func Ip6tablesRestore(tb testing.TB, state []byte) {
+// IP6tablesRestore restores iptables state from a file
+func IP6tablesRestore(tb testing.TB, state []byte) {
 	cmd := exec.Command("ip6tables-restore", "--counters")
 	cmd.Stdin = bytes.NewReader(state)
 	assert.NoError(tb, cmd.Run())

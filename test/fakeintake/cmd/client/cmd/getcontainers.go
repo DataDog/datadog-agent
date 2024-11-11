@@ -19,7 +19,7 @@ func NewGetContainersCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
 		Use:   "containers",
 		Short: "Get containers",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			ctr, err := (*cl).GetContainers()
 			if err != nil {
 				return err

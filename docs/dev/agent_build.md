@@ -5,18 +5,18 @@
 You can decide at build time which components of the Agent you want to find in
 the final artifact. By default, all the components are picked up, so if you want
 to replicate the same configuration of the Agent distributed via system packages,
-all you have to do is `invoke agent.build`.
+all you have to do is `deva agent.build`.
 
 To pick only certain components you have to invoke the task like this:
 
 ```
-invoke agent.build --build-include=zstd,etcd,python
+deva agent.build --build-include=zstd,etcd,python
 ```
 
 Conversely, if you want to exclude something:
 
 ```
-invoke agent.build --build-exclude=systemd,python
+deva agent.build --build-exclude=systemd,python
 ```
 
 This is the complete list of the available components:
@@ -49,9 +49,8 @@ Also note that the trace agent needs to be built and run separately. For more in
 
 ## Additional details
 
-We use `pkg-config` to make compilers and linkers aware of Python. If you need
-to adjust the build for your specific configuration, add or edit the files within
-the `pkg-config` folder.
+We use `pkg-config` to make compilers and linkers aware of Python. The required .pc files are
+provided automatically when building python through omnibus.
 
 By default, the Agent combines multiple functionalities into a single binary to reduce
 the space used on disk. The `DD_BUNDLED_AGENT` environment variable is used to select
@@ -68,13 +67,13 @@ into the Agent binary. For instance, to override the defaults and bundle only th
 and the security Agents:
 
 ```
-invoke agent.build --bundle process-agent --bundle security-agent
+deva agent.build --bundle process-agent --bundle security-agent
 ```
 
 To disable bundling entirely:
 
 ```
-invoke agent.build --bundle agent
+deva agent.build --bundle agent
 ```
 
 One binary per Agent can still be built by using its own invoke task and passing the
@@ -89,7 +88,7 @@ One binary per Agent can still be built by using its own invoke task and passing
 So to build the process Agent as a standalone self contained executable:
 
 ```
-invoke process-agent.build --no-bundle
+deva process-agent.build --no-bundle
 ```
 
 
@@ -108,7 +107,7 @@ COPY agent /opt/datadog-agent/bin/agent/agent
 
 For this to work properly, two things are important:
 - Your change needs to be done on top of the `<AGENT_VERSION>` tag from the DataDog repository.
-- You need to run the invoke task with the proper embedded path `inv -e agent.build -e /opt/datadog-agent/embedded`.
+- You need to run the invoke task with the proper embedded path `deva -e agent.build -e /opt/datadog-agent/embedded`.
 
 **Note**: This makes `invoke` install the build's artifacts in the `/opt/datadog-agent/embedded` folder. Make sure the folder exists and the current user has write permissions.
 

@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -35,8 +36,8 @@ func (m *testDaemon) Stop(ctx context.Context) error {
 	return args.Error(0)
 }
 
-func (m *testDaemon) Install(ctx context.Context, url string) error {
-	args := m.Called(ctx, url)
+func (m *testDaemon) Install(ctx context.Context, url string, installArgs []string) error {
+	args := m.Called(ctx, url, installArgs)
 	return args.Error(0)
 }
 
@@ -55,6 +56,21 @@ func (m *testDaemon) PromoteExperiment(ctx context.Context, pkg string) error {
 	return args.Error(0)
 }
 
+func (m *testDaemon) StartConfigExperiment(ctx context.Context, url string, hash string) error {
+	args := m.Called(ctx, url, hash)
+	return args.Error(0)
+}
+
+func (m *testDaemon) StopConfigExperiment(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
+func (m *testDaemon) PromoteConfigExperiment(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
 func (m *testDaemon) GetPackage(pkg string, version string) (Package, error) {
 	args := m.Called(pkg, version)
 	return args.Get(0).(Package), args.Error(1)
@@ -63,6 +79,20 @@ func (m *testDaemon) GetPackage(pkg string, version string) (Package, error) {
 func (m *testDaemon) GetState() (map[string]repository.State, error) {
 	args := m.Called()
 	return args.Get(0).(map[string]repository.State), args.Error(1)
+}
+
+func (m *testDaemon) GetRemoteConfigState() *pbgo.ClientUpdater {
+	args := m.Called()
+	return args.Get(0).(*pbgo.ClientUpdater)
+}
+
+func (m *testDaemon) GetAPMInjectionStatus() (APMInjectionStatus, error) {
+	args := m.Called()
+	return args.Get(0).(APMInjectionStatus), args.Error(1)
+}
+
+func (m *testDaemon) SetCatalog(catalog catalog) {
+	m.Called(catalog)
 }
 
 type testLocalAPI struct {
@@ -103,6 +133,8 @@ func TestAPIStatus(t *testing.T) {
 		},
 	}
 	api.i.On("GetState").Return(installerState, nil)
+	api.i.On("GetRemoteConfigState").Return(&pbgo.ClientUpdater{}, nil)
+	api.i.On("GetAPMInjectionStatus").Return(APMInjectionStatus{}, nil)
 
 	resp, err := api.c.Status()
 
@@ -122,7 +154,7 @@ func TestAPIInstall(t *testing.T) {
 		URL:     "oci://example.com/test-package@5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
 	}
 	api.i.On("GetPackage", testPackage.Name, testPackage.Version).Return(testPackage, nil)
-	api.i.On("Install", mock.Anything, testPackage.URL).Return(nil)
+	api.i.On("Install", mock.Anything, testPackage.URL, []string(nil)).Return(nil)
 
 	err := api.c.Install(testPackage.Name, testPackage.Version)
 

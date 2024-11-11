@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -36,13 +36,16 @@ type Provider struct {
 	filter                *containers.Filter
 	config                *common.KubeletConfig
 	store                 workloadmeta.Component
+	tagger                tagger.Component
 	defaultRateFilterList []*regexp.Regexp
 }
 
 // NewProvider is created by filter, config and workloadmeta
 func NewProvider(filter *containers.Filter,
 	config *common.KubeletConfig,
-	store workloadmeta.Component) *Provider {
+	store workloadmeta.Component,
+	tagger tagger.Component,
+) *Provider {
 	defaultRateFilterList := []*regexp.Regexp{
 		regexp.MustCompile("diskio[.]io_service_bytes[.]stats[.]total"),
 		regexp.MustCompile("network[.].._bytes"),
@@ -53,6 +56,7 @@ func NewProvider(filter *containers.Filter,
 		filter:                filter,
 		config:                config,
 		store:                 store,
+		tagger:                tagger,
 		defaultRateFilterList: defaultRateFilterList,
 	}
 }
@@ -149,7 +153,8 @@ func (p *Provider) processPodStats(sender sender.Sender,
 		return
 	}
 
-	podTags, _ := tagger.Tag(kubelet.PodUIDToTaggerEntityName(podStats.PodRef.UID),
+	entityID := types.NewEntityID(types.KubernetesPodUID, podStats.PodRef.UID)
+	podTags, _ := p.tagger.Tag(entityID,
 		types.OrchestratorCardinality)
 
 	if len(podTags) == 0 {
@@ -220,7 +225,7 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 			podStats.PodRef.Namespace) {
 			continue
 		}
-		tags, err := tagger.Tag(containers.BuildTaggerEntityName(ctr.ID), types.HighCardinality)
+		tags, err := p.tagger.Tag(types.NewEntityID(types.ContainerID, ctr.ID), types.HighCardinality)
 		if err != nil || len(tags) == 0 {
 			log.Debugf("Tags not found for container: %s/%s/%s:%s - no metrics will be sent",
 				podStats.PodRef.Namespace, podStats.PodRef.Name, containerName, ctr.ID)

@@ -48,7 +48,7 @@ func (f *providerFixture) runGetExternalMetric(t *testing.T) {
 		datadogMetricProvider.store.Set(datadogMetric.ddm.ID, datadogMetric.ddm, "utest")
 	}
 
-	externalMetrics, err := datadogMetricProvider.getExternalMetric(f.queryNamespace, labels.Set(f.querySelector).AsSelector(), provider.ExternalMetricInfo{Metric: f.queryMetricName})
+	externalMetrics, err := datadogMetricProvider.getExternalMetric(f.queryNamespace, labels.Set(f.querySelector).AsSelector(), provider.ExternalMetricInfo{Metric: f.queryMetricName}, time.Now())
 	if err != nil {
 		assert.Equal(t, f.expectedError, err)
 		assert.Nil(t, externalMetrics)
@@ -103,6 +103,24 @@ func TestGetExternalMetrics(t *testing.T) {
 					Value:        resource.MustParse(fmt.Sprintf("%v", 42.0)),
 				},
 			},
+		},
+		{
+			desc: "Test DatadogMetric is valid but old returns error",
+			storeContent: []ddmWithQuery{
+				{
+					ddm: model.DatadogMetricInternal{
+						ID:       "ns/metric0",
+						DataTime: defaultUpdateTime.Add(-time.Hour),
+						Valid:    true,
+						Error:    nil,
+						Value:    42.0,
+					},
+					query: "query-metric0",
+				},
+			},
+			queryMetricName:         "datadogmetric@ns:metric0",
+			expectedExternalMetrics: nil,
+			expectedError:           fmt.Errorf("DatadogMetric is stale, last updated: %v. Check datadog-cluster-agent logs for errors", defaultUpdateTime.Add(-time.Hour)),
 		},
 		{
 			desc: "Test DatadogMetric is invalid",

@@ -14,7 +14,7 @@ struct mount_ref_t {
     s32 counter;
 };
 
- struct mount_fields_t {
+struct mount_fields_t {
     struct path_key_t root_key;
     struct path_key_t mountpoint_key;
     dev_t device;

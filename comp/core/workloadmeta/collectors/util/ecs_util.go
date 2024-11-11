@@ -9,12 +9,13 @@ package util
 
 import (
 	"context"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -44,7 +45,7 @@ func ParseV4Task(task v3or4.Task, seen map[workloadmeta.EntityID]struct{}) []wor
 	taskID := arnParts[len(arnParts)-1]
 
 	taskContainers, containerEvents := ParseV4TaskContainers(task, seen)
-	region, awsAccountID := parseRegionAndAWSAccountID(task.TaskARN)
+	region, awsAccountID := ParseRegionAndAWSAccountID(task.TaskARN)
 
 	entity := &workloadmeta.ECSTask{
 		EntityID: entityID,
@@ -230,8 +231,8 @@ func parseTime(fieldOwner, fieldName, fieldValue string) *time.Time {
 	return &result
 }
 
-// parseRegionAndAWSAccountID parses the region and AWS account ID from a task ARN.
-func parseRegionAndAWSAccountID(taskARN string) (string, int) {
+// ParseRegionAndAWSAccountID parses the region and AWS account ID from a task ARN.
+func ParseRegionAndAWSAccountID(taskARN string) (string, int) {
 	arnParts := strings.Split(taskARN, ":")
 	if len(arnParts) < 5 {
 		return "", 0
@@ -264,4 +265,19 @@ func parseClusterName(cluster string) string {
 		return cluster
 	}
 	return parts[1]
+}
+
+// ecsAgentRegexp is a regular expression to match ECS agent versions
+// \d+(?:\.\d+){0,2} for versions like 1.32.0, 1.3 and 1
+// (-\w+)? for optional pre-release tags like -beta
+var ecsAgentVersionRegexp = regexp.MustCompile(`\bv(\d+(?:\.\d+){0,2}(?:-\w+)?)\b`)
+
+// ParseECSAgentVersion parses the ECS agent version from the version string
+// Instance metadata returns the version in the format `Amazon ECS Agent - v1.30.0 (02ff320c)`
+func ParseECSAgentVersion(s string) string {
+	match := ecsAgentVersionRegexp.FindStringSubmatch(s)
+	if len(match) > 1 {
+		return match[1]
+	}
+	return ""
 }

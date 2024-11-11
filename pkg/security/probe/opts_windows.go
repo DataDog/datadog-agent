@@ -14,8 +14,14 @@ import (
 
 // Opts defines some probe options
 type Opts struct {
+	// DontDiscardRuntime do not discard the runtime. Mostly used by functional tests
+	DontDiscardRuntime bool
+
 	// StatsdClient to be used for probe stats
 	StatsdClient statsd.ClientInterface
+
+	// EnvsVarResolutionEnabled defines if environment variables resolution is enabled
+	EnvsVarResolutionEnabled bool
 
 	// this option for test purposes only; should never be true in main code
 	disableProcmon bool

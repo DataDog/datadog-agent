@@ -2,6 +2,11 @@
 # deploy containers stage
 # Contains jobs which deploy Agent 6 & 7 to staging repositories and to Dockerhub / GCR.
 
+# Notes: this defines a child pipline of the datadog-agent repository. Therefore:
+# - Only blocks defined in this file or the included files below can be used.
+#   In particular, blocks defined in the main .gitlab-ci.yml are unavailable.
+# - Dependencies / needs on jobs not defined in this file or the included files cannot be made.
+
 stages:
   - deploy_containers
 
@@ -20,8 +25,7 @@ include:
   stage: deploy_containers
   dependencies: []
   before_script:
-    - source /root/.bashrc
-    - if [[ "$VERSION" == "" ]]; then export VERSION="$(inv agent.version --major-version 7 --url-safe --pipeline-id $PARENT_PIPELINE_ID)"; fi
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(inv agent.version --major-version 7 --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
     - export IMG_BASE_SRC="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     - export IMG_LINUX_SOURCES="${IMG_BASE_SRC}-7${JMX}-amd64,${IMG_BASE_SRC}-7${JMX}-arm64"
     - export IMG_WINDOWS_SOURCES="${IMG_BASE_SRC}-7${JMX}-win1809${FLAVOR}-amd64,${IMG_BASE_SRC}-7${JMX}-winltsc2022${FLAVOR}-amd64"
@@ -41,11 +45,29 @@ include:
           - "-servercore"
           - "-linux"
 
+.deploy_containers-a7-base-ot:
+  extends: .docker_publish_job_definition
+  stage: deploy_containers
+  dependencies: []
+  before_script:
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)-ot-beta" || exit $?; fi
+    - export IMG_SOURCES="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta${JMX}-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta${JMX}-arm64"
+    - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${JMX}"
 
 deploy_containers-a7:
   extends: .deploy_containers-a7_external
   rules:
     !reference [.manual_on_deploy_auto_on_rc]
+
+deploy_containers-a7-ot:
+  extends: .deploy_containers-a7-base-ot
+  rules:
+    !reference [.manual_on_deploy_auto_on_rc-ot]
+  parallel:
+    matrix:
+      - JMX:
+          - ""
+          - "-jmx"
 
 deploy_containers-a7-rc:
   extends: .deploy_containers-a7_external
@@ -54,6 +76,18 @@ deploy_containers-a7-rc:
   variables:
     VERSION: 7-rc
 
+deploy_containers-a7-ot-rc:
+  extends: .deploy_containers-a7-base-ot
+  rules:
+    !reference [.on_rc-ot]
+  variables:
+    VERSION: 7-ot-beta-rc
+  parallel:
+    matrix:
+      - JMX:
+          - ""
+          - "-jmx"
+
 deploy_containers-dogstatsd:
   extends: .docker_publish_job_definition
   stage: deploy_containers
@@ -61,8 +95,7 @@ deploy_containers-dogstatsd:
     !reference [.manual_on_deploy_auto_on_rc]
   dependencies: []
   before_script:
-    - source /root/.bashrc
-    - export VERSION="$(inv agent.version --major-version 7 --url-safe --pipeline-id $PARENT_PIPELINE_ID)"
+    - VERSION="$(inv agent.version --major-version 7 --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_SOURCES="${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64"
     - export IMG_DESTINATIONS="${DSD_REPOSITORY}:${VERSION}"
 
@@ -80,6 +113,26 @@ deploy_containers-a7_internal-rc:
     !reference [.on_internal_rc]
   variables:
     VERSION: 7-rc
+
+
+deploy_containers-a7-ot_internal:
+  extends: .deploy_containers-a7-base-ot
+  rules:
+    !reference [.on_internal_final-ot]
+  variables:
+    JMX: "-jmx"
+
+deploy_containers-a7-ot_internal-rc:
+  extends: .deploy_containers-a7-base-ot
+  rules:
+    !reference [.on_internal_rc-ot]
+  variables:
+    VERSION: 7-ot-beta-rc
+  parallel:
+    matrix:
+      - JMX:
+          - ""
+          - "-jmx"
 
 
 #
@@ -107,7 +160,6 @@ deploy_containers_latest-a7:
         IMG_SOURCES: "%BASE%-win1809-servercore-amd64,%BASE%-winltsc2022-servercore-amd64"
         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-jmx,${AGENT_REPOSITORY}:latest-servercore-jmx
 
-
 deploy_containers_latest-a7_internal:
   extends: .docker_publish_job_definition
   stage: deploy_containers
@@ -120,7 +172,6 @@ deploy_containers_latest-a7_internal:
         IMG_SOURCES: "%BASE%-amd64,%BASE%-arm64,%BASE%-win1809-amd64,%BASE%-winltsc2022-amd64"
         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-jmx
 
-
 deploy_containers_latest-dogstatsd:
   extends: .docker_publish_job_definition
   stage: deploy_containers
@@ -130,3 +181,18 @@ deploy_containers_latest-dogstatsd:
   variables:
     IMG_SOURCES: ${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
     IMG_DESTINATIONS: ${DSD_REPOSITORY}:7,${DSD_REPOSITORY}:latest
+
+deploy_containers_latest-a7-ot:
+  extends: .deploy_containers-a7-base-ot
+  stage: deploy_containers
+  rules:
+    !reference [.on_final-ot]
+  dependencies: []
+  variables:
+    VERSION: 7-ot-beta
+  parallel:
+    matrix:
+      - JMX:
+          - ""
+          - "-jmx"
+

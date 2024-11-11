@@ -20,11 +20,11 @@ type address struct {
 	Port uint16
 }
 
-// key represents a (client, server, table name) tuple.
+// key represents a (client, server, parameters: table name or runtime parameter) tuple.
 type key struct {
-	Client    address
-	Server    address
-	TableName string
+	Client     address
+	Server     address
+	Parameters string
 }
 
 // Stats consolidates request count and latency information for a certain status code
@@ -39,12 +39,12 @@ type Stats struct {
 // matching a (client, server, table name, operation) tuple
 type RequestSummary struct {
 	key
-	ByOperation map[postgres.Operation]Stats
+	ByOperation map[string]Stats
 }
 
 // Postgres returns a debug-friendly representation of map[postgres.Key]postgres.RequestStats
 func Postgres(stats map[postgres.Key]*postgres.RequestStat) []RequestSummary {
-	resMap := make(map[key]map[postgres.Operation]Stats)
+	resMap := make(map[key]map[string]Stats)
 	for k, requestStat := range stats {
 		clientAddr := formatIP(k.SrcIPLow, k.SrcIPHigh)
 		serverAddr := formatIP(k.DstIPLow, k.DstIPHigh)
@@ -58,15 +58,15 @@ func Postgres(stats map[postgres.Key]*postgres.RequestStat) []RequestSummary {
 				IP:   serverAddr.String(),
 				Port: k.DstPort,
 			},
-			TableName: k.TableName,
+			Parameters: k.Parameters,
 		}
 		if _, ok := resMap[tempKey]; !ok {
-			resMap[tempKey] = make(map[postgres.Operation]Stats)
+			resMap[tempKey] = make(map[string]Stats)
 		}
-		if _, ok := resMap[tempKey][k.Operation]; !ok {
-			resMap[tempKey][k.Operation] = Stats{}
+		if _, ok := resMap[tempKey][k.Operation.String()]; !ok {
+			resMap[tempKey][k.Operation.String()] = Stats{}
 		}
-		currentStats := resMap[tempKey][k.Operation]
+		currentStats := resMap[tempKey][k.Operation.String()]
 		currentStats.Count += requestStat.Count
 		if currentStats.FirstLatencySample == 0 {
 			currentStats.FirstLatencySample = requestStat.FirstLatencySample
@@ -81,7 +81,7 @@ func Postgres(stats map[postgres.Key]*postgres.RequestStat) []RequestSummary {
 			}
 		}
 
-		resMap[tempKey][k.Operation] = currentStats
+		resMap[tempKey][k.Operation.String()] = currentStats
 	}
 
 	all := make([]RequestSummary, 0, len(resMap))

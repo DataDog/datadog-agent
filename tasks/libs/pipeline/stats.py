@@ -5,7 +5,7 @@ from datetime import datetime
 
 from invoke import Exit
 
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo, get_pipeline
 from tasks.libs.common.datadog_api import create_count, create_gauge
 from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.types.types import FailedJobType
@@ -51,7 +51,7 @@ def compute_failed_jobs_series(project_name: str):
         print("Found exception when generating statistics:")
         print(e)
         traceback.print_exc(limit=-1)
-        raise Exit(code=1)
+        raise Exit(code=1) from e
 
     timestamp = int(datetime.now().timestamp())
     series = []
@@ -108,7 +108,7 @@ def get_failed_jobs_stats(project_name, pipeline_id):
     # }
     job_failure_stats = Counter()
 
-    failed_jobs = get_failed_jobs(project_name, pipeline_id)
+    failed_jobs = get_failed_jobs(get_pipeline(project_name, pipeline_id))
 
     # This stores the reason why a pipeline ultimately failed.
     # The goal is to have a statistic of the number of pipelines that fail

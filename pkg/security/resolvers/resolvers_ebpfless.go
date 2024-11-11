@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
@@ -31,12 +32,12 @@ type EBPFLessResolvers struct {
 }
 
 // NewEBPFLessResolvers creates a new instance of EBPFLessResolvers
-func NewEBPFLessResolvers(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, opts Opts) (*EBPFLessResolvers, error) {
+func NewEBPFLessResolvers(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, opts Opts, telemetry telemetry.Component) (*EBPFLessResolvers, error) {
 	var tagsResolver tags.Resolver
 	if opts.TagsResolver != nil {
 		tagsResolver = opts.TagsResolver
 	} else {
-		tagsResolver = tags.NewResolver(config.Probe)
+		tagsResolver = tags.NewResolver(config.Probe, telemetry)
 	}
 
 	processOpts := process.NewResolverOpts()

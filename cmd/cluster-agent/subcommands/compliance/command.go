@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -29,7 +29,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	bundleParams := core.BundleParams{
 		ConfigParams: config.NewClusterAgentParams(""),
-		LogParams:    logimpl.ForOneShot(command.LoggerName, command.DefaultLogLevel, true),
+		LogParams:    log.ForOneShot(command.LoggerName, command.DefaultLogLevel, true),
 	}
 
 	complianceCmd.AddCommand(check.ClusterAgentCommands(bundleParams)...)

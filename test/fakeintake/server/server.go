@@ -15,6 +15,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -24,10 +25,13 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -59,11 +63,16 @@ type Option func(*Server)
 
 // Server is a struct implementing a fakeintake server
 type Server struct {
-	server    http.Server
-	ready     chan bool
-	clock     clock.Clock
-	retention time.Duration
-	shutdown  chan struct{}
+	uuid               uuid.UUID
+	server             http.Server
+	ready              chan bool
+	clock              clock.Clock
+	retention          time.Duration
+	shutdown           chan struct{}
+	dddevForward       bool
+	forwardEndpoint    string
+	logForwardEndpoint string
+	apiKey             string
 
 	urlMutex sync.RWMutex
 	url      string
@@ -89,7 +98,10 @@ func NewServer(options ...Option) *Server {
 		server: http.Server{
 			Addr: "0.0.0.0:0",
 		},
-		storeDriver: "memory",
+		storeDriver:     "memory",
+		forwardEndpoint: "https://app.datadoghq.com",
+		// Source: https://docs.datadoghq.com/api/latest/logs/
+		logForwardEndpoint: "https://agent-http-intake.logs.datadoghq.com",
 	}
 
 	for _, opt := range options {
@@ -111,6 +123,7 @@ func NewServer(options ...Option) *Server {
 	)
 
 	mux := http.NewServeMux()
+
 	mux.HandleFunc("/", fi.handleDatadogRequest)
 	mux.HandleFunc("/fakeintake/payloads", fi.handleGetPayloads)
 	mux.HandleFunc("/fakeintake/health", fi.handleFakeHealth)
@@ -130,7 +143,12 @@ func NewServer(options ...Option) *Server {
 		Registry:          registry,
 	}))
 
-	fi.server.Handler = mux
+	fi.server.Handler = func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Fakeintake-ID", fi.uuid.String())
+			next.ServeHTTP(w, r)
+		})
+	}(mux)
 
 	return fi
 }
@@ -198,6 +216,48 @@ func WithRetention(retention time.Duration) Option {
 	}
 }
 
+// WithDDDevForward enable forwarding payload to dddev
+func WithDDDevForward() Option {
+	return func(fi *Server) {
+		apiKey, ok := os.LookupEnv("DD_API_KEY")
+		if fi.apiKey == "" && !ok {
+			log.Println("DD_API_KEY is not set, cannot forward to DDDev")
+			return
+		}
+		if fi.apiKey == "" {
+			fi.apiKey = apiKey
+		}
+		fi.dddevForward = true
+	}
+}
+
+// WihDDDevAPIKey sets the API key to use when forwarding to DDDev, useful for testing
+//
+//nolint:unused // this function is used in the tests
+func withDDDevAPIKey(apiKey string) Option {
+	return func(fi *Server) {
+		fi.apiKey = apiKey
+	}
+}
+
+// withForwardEndpoint sets the endpoint to forward the payload to, useful for testing
+//
+//nolint:unused // this function is used in the tests
+func withForwardEndpoint(endpoint string) Option {
+	return func(fi *Server) {
+		fi.forwardEndpoint = endpoint
+	}
+}
+
+// withLogForwardEndpoint sets the endpoint to forward the log payload to, useful for testing
+//
+//nolint:unused // this function is used in the tests
+func withLogForwardEndpoint(endpoint string) Option {
+	return func(fi *Server) {
+		fi.logForwardEndpoint = endpoint
+	}
+}
+
 // Start Starts a fake intake server in a separate go-routine
 // Notifies when ready to the ready channel
 func (fi *Server) Start() {
@@ -209,6 +269,7 @@ func (fi *Server) Start() {
 		return
 	}
 	fi.shutdown = make(chan struct{})
+
 	go fi.listenRoutine()
 	go fi.cleanUpPayloadsRoutine()
 }
@@ -242,8 +303,6 @@ func (fi *Server) Stop() error {
 	if err != nil {
 		return err
 	}
-
-	fi.setURL("")
 	return nil
 }
 
@@ -296,7 +355,7 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	log.Printf("Handling Datadog %s request to %s, header %v", req.Method, req.URL.Path, req.Header)
+	log.Printf("Handling Datadog %s request to %s, header %v", req.Method, req.URL.Path, redactHeader(req.Header))
 
 	switch req.Method {
 	case http.MethodPost:
@@ -304,6 +363,7 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		if err == nil {
 			return
 		}
+
 	case http.MethodGet:
 		fallthrough
 	case http.MethodHead:
@@ -319,6 +379,42 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 	writeHTTPResponse(w, response)
 }
 
+func (fi *Server) forwardRequestToDDDev(req *http.Request, payload []byte) error {
+	forwardEndpoint := fi.forwardEndpoint
+
+	if req.URL.Path == "/api/v2/logs" || req.URL.Path == "/v1/input" {
+		forwardEndpoint = fi.logForwardEndpoint
+	}
+
+	url := forwardEndpoint + req.URL.Path
+
+	proxyReq, err := http.NewRequest(req.Method, url, bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+
+	proxyReq.Header = make(http.Header)
+	for h, val := range req.Header {
+		if strings.ToLower(h) == "dd-api-key" {
+			continue
+		}
+		proxyReq.Header[h] = val
+	}
+
+	proxyReq.Header["DD-API-KEY"] = []string{fi.apiKey}
+
+	client := &http.Client{}
+	res, err := client.Do(proxyReq)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusAccepted {
+		return fmt.Errorf("unexpected status code %d", res.StatusCode)
+	}
+
+	return nil
+}
 func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Request) error {
 	if req.Body == nil {
 		response := buildErrorResponse(errors.New("invalid request, nil body"))
@@ -332,14 +428,21 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 		writeHTTPResponse(w, response)
 		return nil
 	}
-
+	if fi.dddevForward {
+		err := fi.forwardRequestToDDDev(req, payload)
+		if err != nil {
+			log.Printf("Error forwarding request on endpoint %v to DDDev: %v", req.URL.Path, err)
+		}
+	}
 	encoding := req.Header.Get("Content-Encoding")
 	if req.URL.Path == "/support/flare" || encoding == "" {
 		encoding = req.Header.Get("Content-Type")
 	}
+	contentType := req.Header.Get("Content-Type")
 
-	err = fi.store.AppendPayload(req.URL.Path, payload, encoding, fi.clock.Now().UTC())
+	err = fi.store.AppendPayload(req.URL.Path, payload, encoding, contentType, fi.clock.Now().UTC())
 	if err != nil {
+		log.Printf("Error adding payload to store: %v", err)
 		response := buildErrorResponse(err)
 		writeHTTPResponse(w, response)
 		return nil

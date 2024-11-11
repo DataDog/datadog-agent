@@ -13,12 +13,12 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 )
 
 // GetMetadata returns metadata about the kubelet runtime such as the kubelet_version.
 func GetMetadata() (map[string]string, error) {
-	if !config.IsFeaturePresent(config.Kubernetes) {
+	if !env.IsFeaturePresent(env.Kubernetes) {
 		return nil, errors.New("kubelet feature deactivated")
 	}
 

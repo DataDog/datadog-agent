@@ -104,3 +104,18 @@ class Version:
             new_version.rc = 0
 
         return new_version
+
+    def previous_rc_version(self):
+        if self.patch is None or self.rc is None or self.rc == 0:
+            raise RuntimeError("Cannot determine the previous version of incomplete or non-rc version")
+        previous = self.clone()
+        if previous.rc == 1:
+            previous.devel = True
+        previous.rc -= 1
+        return previous
+
+    def qa_label(self):
+        return f"{self._safe_value('major')}.{self._safe_value('minor')}.{self._safe_value('patch')}-qa"
+
+    def tag_pattern(self):
+        return f"{self._safe_value('major')}.{self._safe_value('minor')}.{self._safe_value('patch')}*"

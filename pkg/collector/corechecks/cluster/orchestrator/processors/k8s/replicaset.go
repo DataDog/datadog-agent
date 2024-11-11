@@ -96,7 +96,7 @@ func (h *ReplicaSetHandlers) ResourceVersion(ctx processors.ProcessorContext, re
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ReplicaSetHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*appsv1.ReplicaSet)
-	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
+	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }
 
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before

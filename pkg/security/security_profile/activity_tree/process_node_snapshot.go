@@ -26,6 +26,7 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -49,8 +50,6 @@ func (pn *ProcessNode) snapshot(owner Owner, stats *Stats, newEvent func() *mode
 	// snapshot files
 	if owner.IsEventTypeValid(model.FileOpenEventType) {
 		pn.snapshotAllFiles(p, stats, newEvent, reducer)
-	} else {
-		pn.snapshotMemoryMappedFiles(p, stats, newEvent, reducer)
 	}
 
 	// snapshot sockets
@@ -69,6 +68,12 @@ func (pn *ProcessNode) snapshotAllFiles(p *process.Process, stats *Stats, newEve
 	if err != nil {
 		seclog.Warnf("error while listing files (pid: %v): %s", p.Pid, err)
 	}
+
+	// filter out fd corresponding to anon inodes, pipes, sockets, etc. when snapshotting process opened files
+	// the goal is to avoid sampling opened files for processes that mostly open files not present on the filesystem
+	fileFDs = slices.DeleteFunc(fileFDs, func(fd process.OpenFilesStat) bool {
+		return !strings.HasPrefix(fd.Path, "/")
+	})
 
 	var (
 		isSampling = false
@@ -108,16 +113,6 @@ func (pn *ProcessNode) snapshotAllFiles(p *process.Process, stats *Stats, newEve
 	pn.addFiles(files, stats, newEvent, reducer)
 }
 
-func (pn *ProcessNode) snapshotMemoryMappedFiles(p *process.Process, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer) {
-	// list the mmaped files of the process
-	mmapedFiles, err := getMemoryMappedFiles(p.Pid, pn.Process.FileEvent.PathnameStr)
-	if err != nil {
-		seclog.Warnf("error while listing memory maps (pid: %v): %s", p.Pid, err)
-	}
-
-	pn.addFiles(mmapedFiles, stats, newEvent, reducer)
-}
-
 func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer) {
 	// list the mmaped files of the process
 	slices.Sort(files)
@@ -135,6 +130,16 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 
 		evt := newEvent()
 		fullPath := filepath.Join(utils.ProcRootPath(pn.Process.Pid), f)
+		if evt.ProcessContext == nil {
+			evt.ProcessContext = &model.ProcessContext{}
+		}
+		if evt.ContainerContext == nil {
+			evt.ContainerContext = &model.ContainerContext{}
+		}
+		evt.ProcessContext.Process = pn.Process
+		evt.CGroupContext.CGroupID = containerutils.CGroupID(pn.Process.CGroup.CGroupID)
+		evt.CGroupContext.CGroupFlags = pn.Process.CGroup.CGroupFlags
+		evt.ContainerContext.ContainerID = containerutils.ContainerID(pn.Process.ContainerID)
 
 		var fileStats unix.Statx_t
 		if err := unix.Statx(unix.AT_FDCWD, fullPath, 0, unix.STATX_ALL, &fileStats); err != nil {
@@ -186,6 +191,9 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 			evt.Open.File.SetPathnameStr(f)
 		}
 		evt.Open.File.SetBasenameStr(path.Base(evt.Open.File.PathnameStr))
+
+		evt.FieldHandlers.ResolvePackageName(evt, &evt.Open.File)
+		evt.FieldHandlers.ResolvePackageVersion(evt, &evt.Open.File)
 
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs
 

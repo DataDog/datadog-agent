@@ -302,6 +302,7 @@ kubelet_container_log_filesystem_used_bytes{container="security-agent",namespace
 kubelet_container_log_filesystem_used_bytes{container="stress-ng-25",namespace="workload-stress-ng",pod="stress-ng-25-69b4b7b476-p559w",uid="8c1e866e-b1e8-463d-8a36-c9bc176ca9f9"} 28672
 kubelet_container_log_filesystem_used_bytes{container="system-probe",namespace="datadog-agent-helm",pod="datadog-agent-linux-z9zbm",uid="b279b6c5-5aa8-4167-9c2e-94b695201503"} 3.715072e+06
 kubelet_container_log_filesystem_used_bytes{container="trace-agent",namespace="datadog-agent-helm",pod="datadog-agent-linux-z9zbm",uid="b279b6c5-5aa8-4167-9c2e-94b695201503"} 4.227072e+06
+kubelet_container_log_filesystem_used_bytes{container="demo-app",namespace="default",pod="demo-app-success-c485bc67b-klj45",uid="b279b6c5-5aa8-4167-9c2e-94b695201503"} 5.227072e+06
 # HELP kubelet_containers_per_pod_count [ALPHA] The number of containers per pod.
 # TYPE kubelet_containers_per_pod_count histogram
 kubelet_containers_per_pod_count_bucket{le="1"} 28

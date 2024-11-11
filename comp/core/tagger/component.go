@@ -16,6 +16,7 @@ package tagger
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -23,21 +24,38 @@ import (
 
 // team: container-platform
 
+// ReplayTagger interface represent the tagger use for replaying dogstatsd events.
+type ReplayTagger interface {
+	Component
+
+	// LoadState loads the state of the replay tagger from a list of entities.
+	LoadState(state []types.Entity)
+}
+
 // Component is the component type.
 type Component interface {
 	Start(ctx context.Context) error
 	Stop() error
-	Tag(entity string, cardinality types.TagCardinality) ([]string, error)
-	AccumulateTagsFor(entity string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error
-	Standard(entity string) ([]string, error)
+	ReplayTagger() ReplayTagger
+	GetTaggerTelemetryStore() *telemetry.Store
+	// LegacyTag has the same behaviour as the Tag method, but it receives the entity id as a string and parses it.
+	// If possible, avoid using this function, and use the Tag method instead.
+	// This function exists in order not to break backward compatibility with rtloader and python
+	// integrations using the tagger
+	LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error)
+	Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error)
+	AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error
+	Standard(entityID types.EntityID) ([]string, error)
 	List() types.TaggerListResponse
-	GetEntity(entityID string) (*types.Entity, error)
-	Subscribe(cardinality types.TagCardinality) chan []types.EntityEvent
-	Unsubscribe(ch chan []types.EntityEvent)
-	GetEntityHash(entity string, cardinality types.TagCardinality) string
+	GetEntity(entityID types.EntityID) (*types.Entity, error)
+	// subscriptionID is used for logging and debugging purposes
+	Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error)
+	GetEntityHash(entityID types.EntityID, cardinality types.TagCardinality) string
 	AgentTags(cardinality types.TagCardinality) ([]string, error)
 	GlobalTags(cardinality types.TagCardinality) ([]string, error)
 	SetNewCaptureTagger(newCaptureTagger Component)
 	ResetCaptureTagger()
 	EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo)
+	ChecksCardinality() types.TagCardinality
+	DogstatsdCardinality() types.TagCardinality
 }

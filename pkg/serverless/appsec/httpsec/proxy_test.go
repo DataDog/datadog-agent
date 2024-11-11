@@ -71,7 +71,7 @@ func TestProxyLifecycleProcessor(t *testing.T) {
 				},
 			},
 		}
-		spanModifier(chunk, chunk.Spans[0])
+		spanModifier.ModifySpan(chunk, chunk.Spans[0])
 		return chunk
 	}
 

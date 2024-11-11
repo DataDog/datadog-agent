@@ -11,8 +11,11 @@ package command
 import (
 	"errors"
 	"flag"
+	"os"
 	"strings"
+	"time"
 
+	"github.com/kouhin/envflag"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
@@ -26,8 +29,8 @@ const (
 	loggerName = "OTELCOL"
 )
 
-// MakeRootCommand is the root command for the trace-agent
-// Please note that the trace-agent can be launched directly
+// MakeRootCommand is the root command for the otel-agent
+// Please note that the otel-agent can be launched directly
 // by the root command, unlike other agents that are managed
 // with subcommands.
 func MakeRootCommand() *cobra.Command {
@@ -59,16 +62,36 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 	flagSet := flags(featuregate.GlobalRegistry(), globalParams)
 	otelAgentCmd.PersistentFlags().AddGoFlagSet(flagSet)
 
+	// Support these environment variables
+	ef := envflag.NewEnvFlag(flagSet, 2,
+		map[string]string{ // User-defined env-flag map
+			"DD_SYNC_DELAY":  "sync-delay",
+			"DD_SYNC_TO":     "sync-to",
+			"DD_CORE_CONFIG": "core-config",
+		},
+		true, // show env variable key in usage
+		true, // show env variable value in usage
+	)
+
+	if err := ef.Parse(os.Args[1:]); err != nil {
+		panic(err)
+	}
+
 	return &otelAgentCmd
 }
 
 const configFlag = "config"
+const coreConfigFlag = "core-config"
+const syncDelayFlag = "sync-delay"
+const syncTimeoutFlag = "sync-to"
 
 func flags(reg *featuregate.Registry, cfgs *subcommands.GlobalParams) *flag.FlagSet {
 	flagSet := new(flag.FlagSet)
-
 	flagSet.Var(cfgs, configFlag, "Locations to the config file(s), note that only a"+
 		" single location can be set per flag entry e.g. `--config=file:/path/to/first --config=file:path/to/second`.")
+	flagSet.StringVar(&cfgs.CoreConfPath, coreConfigFlag, "", "Location to the Datadog Agent config file.")
+	flagSet.DurationVar(&cfgs.SyncDelay, syncDelayFlag, 0, "Delay before first config sync.")
+	flagSet.DurationVar(&cfgs.SyncTimeout, syncTimeoutFlag, 3*time.Second, "Timeout for sync requests.")
 
 	flagSet.Func("set",
 		"Set arbitrary component config property. The component has to be defined in the config file and the flag"+

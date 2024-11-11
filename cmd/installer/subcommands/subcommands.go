@@ -22,6 +22,7 @@ func InstallerSubcommands() []command.SubcommandFactory {
 	return []command.SubcommandFactory{
 		withDatadogAgent(daemon.Commands),
 		withRoot(installer.Commands),
+		installer.UnprivilegedCommands,
 	}
 }
 
@@ -53,7 +54,7 @@ func withPersistentPreRunE(factory command.SubcommandFactory, f func(*command.Gl
 	return func(global *command.GlobalParams) []*cobra.Command {
 		commands := factory(global)
 		for _, cmd := range commands {
-			cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+			cmd.PersistentPreRunE = func(_ *cobra.Command, _ []string) error {
 				return f(global)
 			}
 		}

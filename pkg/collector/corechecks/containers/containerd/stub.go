@@ -9,7 +9,8 @@
 package containerd
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -20,6 +21,6 @@ const (
 )
 
 // Factory is used to create register the check and initialize it.
-func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+func Factory(workloadmeta.Component, tagger.Component) optional.Option[func() check.Check] {
 	return optional.NewNoneOption[func() check.Check]()
 }

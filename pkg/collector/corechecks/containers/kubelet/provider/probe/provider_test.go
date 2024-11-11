@@ -20,9 +20,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
@@ -98,11 +101,13 @@ func TestProvider_Provide(t *testing.T) {
 			value: 281049,
 			tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:fluentbit-gke-45gvm", "kube_container_name:fluentbit"},
 		},
+		/* Excluded container is not expected, see containers.Filter in the test
 		{
 			name:  common.KubeletMetricsPrefix + "liveness_probe.success.total",
 			value: 281049,
 			tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:fluentbit-gke-45gvm", "kube_container_name:fluentbit-gke"},
 		},
+		*/
 		{
 			name:  common.KubeletMetricsPrefix + "liveness_probe.success.total",
 			value: 1686298,
@@ -259,24 +264,24 @@ func TestProvider_Provide(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var err error
 
-			store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				core.MockBundle(),
 				fx.Supply(context.Background()),
-				collectors.GetCatalog(),
-				fx.Supply(workloadmeta.NewParams()),
-				workloadmeta.MockModuleV2(),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
 			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
 			mockSender.SetupAcceptAll()
 
 			fakeTagger := taggerimpl.SetupFakeTagger(t)
-			defer fakeTagger.ResetTagger()
+
 			for entity, tags := range probeTags {
-				fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
+				prefix, id, _ := taggercommon.ExtractPrefixAndID(entity)
+				entityID := taggertypes.NewEntityID(prefix, id)
+				fakeTagger.SetTags(entityID, "foo", tags, nil, nil, nil)
 			}
 
-			err = commontesting.StorePopulatedFromFile(store, tt.podsFile, common.NewPodUtils())
+			err = commontesting.StorePopulatedFromFile(store, tt.podsFile, common.NewPodUtils(fakeTagger))
 			if err != nil {
 				t.Errorf("unable to populate store from file at: %s, err: %v", tt.podsFile, err)
 			}
@@ -305,10 +310,11 @@ func TestProvider_Provide(t *testing.T) {
 			p, err := NewProvider(
 				&containers.Filter{
 					Enabled:         true,
-					NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
+					NameExcludeList: []*regexp.Regexp{regexp.MustCompile("fluentbit-gke")},
 				},
 				config,
 				store,
+				fakeTagger,
 			)
 			assert.NoError(t, err)
 

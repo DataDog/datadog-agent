@@ -5,3 +5,4 @@
 -r requirements_docs.txt
 
 python-gitlab==4.4.0
+debugpy==1.8.2

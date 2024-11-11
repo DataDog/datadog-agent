@@ -34,7 +34,7 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
 }
 
-__maybe_unused static __always_inline void submit_event(void *ctx, int cpu, void *event_data, size_t data_size) {
+__maybe_unused static __always_inline void submit_closed_conn_event(void *ctx, int cpu, void *event_data, size_t data_size) {
     __u64 ringbuffers_enabled = 0;
     LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
     if (ringbuffers_enabled > 0) {
@@ -44,7 +44,7 @@ __maybe_unused static __always_inline void submit_event(void *ctx, int cpu, void
     }
 }
 
-static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
+static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk, __u16 tcp_failure_reason) {
     u32 cpu = bpf_get_smp_processor_id();
     // Will hold the full connection data to send through the perf or ring buffer
     conn_t conn = { .tup = *tup };
@@ -64,12 +64,16 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         conn.tup.pid = 0;
         retrans = bpf_map_lookup_elem(&tcp_retransmits, &(conn.tup));
         if (retrans) {
-            conn.tcp_retransmits = *retrans;
+            conn.tcp_stats.retransmits = *retrans;
             bpf_map_delete_elem(&tcp_retransmits, &(conn.tup));
         }
         conn.tup.pid = tup->pid;
 
         conn.tcp_stats.state_transitions |= (1 << TCP_CLOSE);
+        conn.tcp_stats.failure_reason = tcp_failure_reason;
+        if (tcp_failure_reason) {
+            increment_telemetry_count(tcp_failed_connect);
+        }
     }
 
     cst = bpf_map_lookup_elem(&conn_stats, &(conn.tup));
@@ -128,7 +132,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     // We send the connection outside of a batch anyway. This is likely not as
     // frequent of a case to cause performance issues and avoid cases where
     // we drop whole connections, which impacts things USM connection matching.
-    submit_event(ctx, cpu, &conn, sizeof(conn_t));
+    submit_closed_conn_event(ctx, cpu, &conn, sizeof(conn_t));
     if (is_tcp) {
         increment_telemetry_count(unbatched_tcp_close);
     }
@@ -137,8 +141,6 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     }
 }
 
-
-// This function is used to flush the conn_close_batch to the perf or ring buffer.
 static __always_inline void flush_conn_close_if_full(void *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
@@ -154,7 +156,7 @@ static __always_inline void flush_conn_close_if_full(void *ctx) {
     batch_ptr->len = 0;
     batch_ptr->id++;
 
-    submit_event(ctx, cpu, &batch_copy, sizeof(batch_t));
+    submit_closed_conn_event(ctx, cpu, &batch_copy, sizeof(batch_t));
 }
 
 #endif // __TRACER_EVENTS_H

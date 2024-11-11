@@ -634,7 +634,7 @@ func (c *Check) StatementMetrics() (int, error) {
 				c.fqtEmitted.Set(queryRow.QuerySignature, "1", cache.DefaultExpiration)
 			}
 
-			if c.config.ExecutionPlans.Enabled && sendPlan {
+			if c.config.ExecutionPlans.Enabled && sendPlan && statementMetricRow.PlanHashValue != 0 {
 				if (i+1)%10 == 0 && time.Since(start).Seconds() >= float64(c.config.QueryMetrics.MaxRunTime) {
 					sendPlan = false
 				}
@@ -868,8 +868,10 @@ func (c *Check) StatementMetrics() (int, error) {
 
 	sender.EventPlatformEvent(payloadBytes, "dbm-metrics")
 	sendMetricWithDefaultTags(c, gauge, "dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()))
+	TlmOracleStatementMetricsLatency.Observe(float64(time.Since(start).Milliseconds()))
 	if c.config.ExecutionPlans.Enabled {
 		sendMetricWithDefaultTags(c, gauge, "dd.oracle.plan_errors.count", float64(planErrors))
+		TlmOracleStatementMetricsErrorCount.Add(float64(planErrors))
 	}
 	sender.Commit()
 

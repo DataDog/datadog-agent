@@ -13,8 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/gosnmp/gosnmp"
 	"github.com/mitchellh/mapstructure"
@@ -129,12 +129,14 @@ func buildConfig(conf config.Component, hnService hostname.Component) (*TrapsCon
 }
 
 // testOptions provides several fx options that multiple tests need
-var testOptions = fx.Options(
-	fx.Provide(buildConfig),
-	hostnameimpl.MockModule(),
-	fx.Replace(hostnameimpl.MockHostname(mockedHostname)),
-	logimpl.MockModule(),
-)
+func testOptions(t *testing.T) fx.Option {
+	return fx.Options(
+		fx.Provide(buildConfig),
+		hostnameimpl.MockModule(),
+		fx.Replace(hostnameimpl.MockHostname(mockedHostname)),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+	)
+}
 
 func TestFullConfig(t *testing.T) {
 	deps := fxutil.Test[struct {
@@ -142,7 +144,7 @@ func TestFullConfig(t *testing.T) {
 		Config *TrapsConfig
 		Logger log.Component
 	}](t,
-		testOptions,
+		testOptions(t),
 		withConfig(t, &TrapsConfig{
 			Port:             1234,
 			Users:            usersV3,
@@ -207,7 +209,7 @@ func TestMinimalConfig(t *testing.T) {
 		Logger log.Component
 	}](t,
 		config.MockModule(),
-		testOptions,
+		testOptions(t),
 	)
 	config := deps.Config
 	logger := deps.Logger
@@ -229,7 +231,7 @@ func TestMinimalConfig(t *testing.T) {
 
 func TestDefaultUsers(t *testing.T) {
 	config := fxutil.Test[*TrapsConfig](t,
-		testOptions,
+		testOptions(t),
 		withConfig(t, &TrapsConfig{
 			CommunityStrings: []string{"public"},
 			StopTimeout:      11,
@@ -252,7 +254,7 @@ func TestBuildAuthoritativeEngineID(t *testing.T) {
 
 func TestNamespaceIsNormalized(t *testing.T) {
 	config := fxutil.Test[*TrapsConfig](t,
-		testOptions,
+		testOptions(t),
 		withConfig(t, &TrapsConfig{
 			Namespace: "><\n\r\tfoo",
 		}, ""),
@@ -272,7 +274,7 @@ func TestInvalidNamespace(t *testing.T) {
 
 func TestNamespaceSetGlobally(t *testing.T) {
 	config := fxutil.Test[*TrapsConfig](t,
-		testOptions,
+		testOptions(t),
 		withConfig(t, nil, "foo"),
 	)
 	assert.Equal(t, "foo", config.Namespace)
@@ -280,7 +282,7 @@ func TestNamespaceSetGlobally(t *testing.T) {
 
 func TestNamespaceSetBothGloballyAndLocally(t *testing.T) {
 	config := fxutil.Test[*TrapsConfig](t,
-		testOptions,
+		testOptions(t),
 		withConfig(t,
 			&TrapsConfig{Namespace: "bar"},
 			"foo"),

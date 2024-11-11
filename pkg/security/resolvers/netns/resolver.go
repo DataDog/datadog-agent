@@ -210,7 +210,7 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 		tcResolver: tcResolver,
 	}
 
-	lru, err := simplelru.NewLRU(1024, func(key uint32, value *NetworkNamespace) {
+	lru, err := simplelru.NewLRU(1024, func(_ uint32, value *NetworkNamespace) {
 		nr.flushNetworkNamespace(value)
 		tcResolver.FlushNetworkNamespaceID(value.nsID, manager)
 	})
@@ -413,6 +413,17 @@ func (nr *Resolver) Start(ctx context.Context) error {
 	return nil
 }
 
+func (nr *Resolver) manualFlushNamespaces() {
+	probesCount := nr.tcResolver.FlushInactiveProbes(nr.manager, nr.IsLazyDeletionInterface)
+
+	// There is a possible race condition if we lose all network device creations but do notice the new network
+	// namespace: we will create a handle that will never be flushed by `nr.probe.flushInactiveNamespaces()`.
+	// To detect this race, compute the list of namespaces that are in cache, but for which we do not have any
+	// device. Defer a snapshot process for each of those namespaces, and delete them if the snapshot yields
+	// no new device.
+	nr.preventNetworkNamespaceDrift(probesCount)
+}
+
 func (nr *Resolver) flushNamespaces(ctx context.Context) {
 	ticker := time.NewTicker(flushNamespacesPeriod)
 	defer ticker.Stop()
@@ -422,14 +433,7 @@ func (nr *Resolver) flushNamespaces(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			probesCount := nr.tcResolver.FlushInactiveProbes(nr.manager, nr.IsLazyDeletionInterface)
-
-			// There is a possible race condition if we lose all network device creations but do notice the new network
-			// namespace: we will create a handle that will never be flushed by `nr.probe.flushInactiveNamespaces()`.
-			// To detect this race, compute the list of namespaces that are in cache, but for which we do not have any
-			// device. Defer a snapshot process for each of those namespaces, and delete them if the snapshot yields
-			// no new device.
-			nr.preventNetworkNamespaceDrift(probesCount)
+			nr.manualFlushNamespaces()
 		}
 	}
 }
@@ -547,6 +551,16 @@ func (nr *Resolver) SendStats() error {
 	return nil
 }
 
+// Close closes this resolver and frees all the resources
+func (nr *Resolver) Close() {
+	if nr.networkNamespaces != nil {
+		nr.Lock()
+		nr.networkNamespaces.Purge()
+		nr.Unlock()
+	}
+	nr.manualFlushNamespaces()
+}
+
 func newTmpFile(prefix string) (*os.File, error) {
 	f, err := os.CreateTemp("/tmp", prefix)
 	if err != nil {
@@ -643,7 +657,7 @@ func (nr *Resolver) DumpNetworkNamespaces(params *api.DumpNetworkNamespaceParams
 	dumpFile, err := newTmpFile("network-namespace-dump-*.json")
 	if err != nil {
 		resp.Error = fmt.Sprintf("couldn't create temporary file: %v", err)
-		seclog.Warnf(resp.Error)
+		seclog.Warnf("%s", err.Error())
 		return resp
 	}
 	defer dumpFile.Close()
@@ -653,13 +667,13 @@ func (nr *Resolver) DumpNetworkNamespaces(params *api.DumpNetworkNamespaceParams
 	encoder := json.NewEncoder(dumpFile)
 	if err = encoder.Encode(dump); err != nil {
 		resp.Error = fmt.Sprintf("couldn't encode list of network namespace: %v", err)
-		seclog.Warnf(resp.Error)
+		seclog.Warnf("%s", err.Error())
 		return resp
 	}
 
 	if err = dumpFile.Close(); err != nil {
 		resp.Error = fmt.Sprintf("could not close file [%s]: %s", dumpFile.Name(), err)
-		seclog.Warnf(resp.Error)
+		seclog.Warnf("%s", err.Error())
 		return resp
 	}
 
@@ -667,7 +681,7 @@ func (nr *Resolver) DumpNetworkNamespaces(params *api.DumpNetworkNamespaceParams
 	graphFile, err := newTmpFile("network-namespace-graph-*.dot")
 	if err != nil {
 		resp.Error = fmt.Sprintf("couldn't create temporary file: %v", err)
-		seclog.Warnf(resp.Error)
+		seclog.Warnf("%s", err.Error())
 		return resp
 	}
 	defer graphFile.Close()
@@ -676,13 +690,13 @@ func (nr *Resolver) DumpNetworkNamespaces(params *api.DumpNetworkNamespaceParams
 	// generate dot graph
 	if err = nr.generateGraph(dump, graphFile); err != nil {
 		resp.Error = fmt.Sprintf("couldn't generate dot graph: %v", err)
-		seclog.Warnf(resp.Error)
+		seclog.Warnf("%s", err.Error())
 		return resp
 	}
 
 	if err = graphFile.Close(); err != nil {
 		resp.Error = fmt.Sprintf("could not close file [%s]: %s", graphFile.Name(), err)
-		seclog.Warnf(resp.Error)
+		seclog.Warnf("%s", err.Error())
 		return resp
 	}
 

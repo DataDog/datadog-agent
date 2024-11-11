@@ -32,6 +32,7 @@ extern void getHostname(char **);
 extern bool getTracemallocEnabled();
 extern void getVersion(char **);
 extern void headers(char **);
+extern void sendLog(char *, char *);
 extern void setCheckMetadata(char*, char*, char*);
 extern void setExternalHostTags(char*, char*, char**);
 extern void writePersistentCache(char*, char*);
@@ -39,6 +40,8 @@ extern char* readPersistentCache(char*);
 extern char* obfuscateSQL(char*, char*, char**);
 extern char* obfuscateSQLExecPlan(char*, bool, char**);
 extern double getProcessStartTime();
+extern char* obfuscateMongoDBString(char*, char**);
+extern void emitAgentTelemetry(char*, char*, double, char*);
 
 
 static void initDatadogAgentTests(rtloader_t *rtloader) {
@@ -50,6 +53,7 @@ static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_get_version_cb(rtloader, getVersion);
    set_headers_cb(rtloader, headers);
    set_log_cb(rtloader, doLog);
+   set_send_log_cb(rtloader, sendLog);
    set_set_check_metadata_cb(rtloader, setCheckMetadata);
    set_set_external_tags_cb(rtloader, setExternalHostTags);
    set_write_persistent_cache_cb(rtloader, writePersistentCache);
@@ -57,6 +61,8 @@ static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_obfuscate_sql_cb(rtloader, obfuscateSQL);
    set_obfuscate_sql_exec_plan_cb(rtloader, obfuscateSQLExecPlan);
    set_get_process_start_time_cb(rtloader, getProcessStartTime);
+   set_obfuscate_mongodb_string_cb(rtloader, obfuscateMongoDBString);
+   set_emit_agent_telemetry_cb(rtloader, emitAgentTelemetry);
 }
 */
 import "C"
@@ -186,6 +192,17 @@ func getTracemallocEnabled() C.bool {
 func doLog(msg *C.char, level C.int) {
 	data := []byte(fmt.Sprintf("[%d]%s", int(level), C.GoString(msg)))
 	os.WriteFile(tmpfile.Name(), data, 0644)
+}
+
+//export sendLog
+func sendLog(logLine, checkID *C.char) {
+	line := C.GoString(logLine)
+	cid := C.GoString(checkID)
+
+	f, _ := os.OpenFile(tmpfile.Name(), os.O_APPEND|os.O_RDWR|os.O_CREATE, 0666)
+	defer f.Close()
+
+	f.WriteString(strings.Join([]string{line, cid}, ","))
 }
 
 //export setCheckMetadata
@@ -326,4 +343,40 @@ var processStartTime = float64(time.Now().Unix())
 //export getProcessStartTime
 func getProcessStartTime() float64 {
 	return processStartTime
+}
+
+//export obfuscateMongoDBString
+func obfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
+	switch C.GoString(cmd) {
+	case "{\"find\": \"customer\"}":
+		return (*C.char)(helpers.TrackedCString("{\"find\": \"customer\"}"))
+	case "":
+		*errResult = (*C.char)(helpers.TrackedCString("Empty MongoDB command"))
+		return nil
+	default:
+		*errResult = (*C.char)(helpers.TrackedCString("unknown test case"))
+		return nil
+	}
+}
+
+//export emitAgentTelemetry
+func emitAgentTelemetry(check *C.char, metric *C.char, value C.double, metricType *C.char) {
+	checkName := C.GoString(check)
+	metricName := C.GoString(metric)
+	metricValue := float64(value)
+	metricTypeStr := C.GoString(metricType)
+
+	// Check that arguments passed over the bridge successfully
+	if checkName != "test_check" {
+		panic(fmt.Sprintf("unexpected check name: %s", checkName))
+	}
+	if metricName != "test_metric" {
+		panic(fmt.Sprintf("unexpected metric name: %s", metricName))
+	}
+	if metricTypeStr != "gauge" && metricTypeStr != "counter" && metricTypeStr != "histogram" {
+		panic(fmt.Sprintf("unexpected metric type: %s", metricTypeStr))
+	}
+	if fmt.Sprintf("%.1f", metricValue) != "1.0" {
+		panic(fmt.Sprintf("unexpected metric value: %f", metricValue))
+	}
 }

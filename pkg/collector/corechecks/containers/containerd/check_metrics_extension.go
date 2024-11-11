@@ -10,8 +10,9 @@ package containerd
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -65,6 +66,6 @@ func (cext *containerdCustomMetricsExtension) Process(tags []string, container *
 }
 
 // PostProcess is called once during each check run, after all calls to `Process`
-func (cext *containerdCustomMetricsExtension) PostProcess() {
+func (cext *containerdCustomMetricsExtension) PostProcess(tagger.Component) {
 	// Nothing to do here
 }

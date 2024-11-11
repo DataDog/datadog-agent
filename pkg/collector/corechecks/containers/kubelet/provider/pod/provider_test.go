@@ -24,12 +24,15 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	commontesting "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common/testing"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -98,6 +101,7 @@ type ProviderTestSuite struct {
 	testServer   *httptest.Server
 	mockSender   *mocksender.MockSender
 	kubeUtil     kubelet.KubeUtilInterface
+	tagger       tagger.Component
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
@@ -106,16 +110,18 @@ func (suite *ProviderTestSuite) SetupTest() {
 
 	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))
 	mockSender.SetupAcceptAll()
 	suite.mockSender = mockSender
 
 	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
-	defer fakeTagger.ResetTagger()
+
 	for entity, tags := range commontesting.CommonTags {
-		fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
+		prefix, id, _ := taggercommon.ExtractPrefixAndID(entity)
+		entityID := taggertypes.NewEntityID(prefix, id)
+		fakeTagger.SetTags(entityID, "foo", tags, nil, nil, nil)
 	}
 
 	suite.dummyKubelet = newDummyKubelet()
@@ -139,13 +145,16 @@ func (suite *ProviderTestSuite) SetupTest() {
 		},
 	}
 
+	suite.tagger = fakeTagger
+
 	suite.provider = &Provider{
 		config: config,
 		filter: &containers.Filter{
 			Enabled:         true,
 			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
 		},
-		podUtils: common.NewPodUtils(),
+		podUtils: common.NewPodUtils(fakeTagger),
+		tagger:   fakeTagger,
 	}
 }
 

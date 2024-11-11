@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
@@ -32,17 +32,17 @@ func TestSNMPListener(t *testing.T) {
 		Workers: 1,
 	}
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
 
-	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
+	worker = func(_ *SNMPListener, jobs <-chan snmpJob) {
 		for {
 			job := <-jobs
 			testChan <- job
 		}
 	}
 
-	l, err := NewSNMPListener(&config.Listeners{})
+	l, err := NewSNMPListener(ServiceListernerDeps{})
 	assert.Equal(t, nil, err)
 	l.Listen(newSvc, delSvc)
 
@@ -80,10 +80,10 @@ func TestSNMPListenerSubnets(t *testing.T) {
 		listenerConfig.Configs = append(listenerConfig.Configs, snmpConfig)
 	}
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
 
-	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
+	worker = func(_ *SNMPListener, jobs <-chan snmpJob) {
 		for {
 			job := <-jobs
 			testChan <- job
@@ -93,7 +93,7 @@ func TestSNMPListenerSubnets(t *testing.T) {
 	snmpListenerConfig, err := snmp.NewListenerConfig()
 	assert.Equal(t, nil, err)
 
-	services := map[string]Service{}
+	services := map[string]*SNMPService{}
 	l := &SNMPListener{
 		services: services,
 		stop:     make(chan bool),
@@ -131,17 +131,17 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 		Workers: 1,
 	}
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
 
-	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
+	worker = func(_ *SNMPListener, jobs <-chan snmpJob) {
 		for {
 			job := <-jobs
 			testChan <- job
 		}
 	}
 
-	l, err := NewSNMPListener(&config.Listeners{})
+	l, err := NewSNMPListener(ServiceListernerDeps{})
 	assert.Equal(t, nil, err)
 	l.Listen(newSvc, delSvc)
 

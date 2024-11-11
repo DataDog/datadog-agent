@@ -73,7 +73,7 @@ func eventForRelease(rel *release, text string, tags []string) event.Event {
 		Title:          eventTitle,
 		Text:           text,
 		Ts:             time.Now().Unix(),
-		Priority:       event.EventPriorityNormal,
+		Priority:       event.PriorityNormal,
 		SourceTypeName: CheckName,
 		EventType:      CheckName,
 		AggregationKey: fmt.Sprintf("helm_release:%s", rel.namespacedName()),
@@ -115,10 +115,10 @@ func textForChangedStatus(previousRelStatus string, updatedRelease *release) str
 		updatedRelease.Info.Status)
 }
 
-func alertType(releaseStatus string) event.EventAlertType {
+func alertType(releaseStatus string) event.AlertType {
 	if releaseStatus == helmStatusFailed {
-		return event.EventAlertTypeError
+		return event.AlertTypeError
 	}
 
-	return event.EventAlertTypeInfo
+	return event.AlertTypeInfo
 }

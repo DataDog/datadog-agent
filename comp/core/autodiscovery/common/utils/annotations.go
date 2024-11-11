@@ -23,6 +23,7 @@ const (
 	logsConfigPath          = "logs"
 	checksPath              = "checks"
 	checkIDPath             = "check.id"
+	checkTagCardinality     = "check_tag_cardinality"
 )
 
 // ExtractTemplatesFromMap looks for autodiscovery configurations in a given
@@ -37,7 +38,7 @@ func ExtractTemplatesFromMap(key string, input map[string]string, prefix string)
 	}
 	configs = append(configs, checksConfigs...)
 
-	logsConfigs, err := extractLogsTemplatesFromMap(key, input, prefix)
+	logsConfigs, err := extractLogsTemplatesFromMap(configs, key, input, prefix)
 	if err != nil {
 		errors = append(errors, fmt.Errorf("could not extract logs config: %v", err))
 	}
@@ -76,16 +77,28 @@ func extractCheckTemplatesFromMap(key string, input map[string]string, prefix st
 	}
 	// ParseBool returns `true` only on success cases
 	ignoreAdTags, _ := strconv.ParseBool(input[prefix+ignoreAutodiscoveryTags])
-	return BuildTemplates(key, checkNames, initConfigs, instances, ignoreAdTags), nil
+
+	cardinality := input[prefix+checkTagCardinality]
+
+	return BuildTemplates(key, checkNames, initConfigs, instances, ignoreAdTags, cardinality), nil
 }
 
 // extractLogsTemplatesFromMap returns the logs configuration from a given map,
 // if none are found return an empty list.
-func extractLogsTemplatesFromMap(key string, input map[string]string, prefix string) ([]integration.Config, error) {
+func extractLogsTemplatesFromMap(configs []integration.Config, key string, input map[string]string, prefix string) ([]integration.Config, error) {
 	value, found := input[prefix+logsConfigPath]
 	if !found {
 		return []integration.Config{}, nil
 	}
+	logCheckName := ""
+	if len(configs) >= 1 {
+		// Consider the first check name as the log check name, even if it's empty
+		// It's possible to have different names in different configs, and it would mean that one attached multiple integrations
+		// to a single container (e.g. redis + nginx). We expect we won't encounter this most of the time,
+		// but if it happens it means we're tagging the wrong integration name.
+		logCheckName = configs[0].Name
+	}
+
 	var data interface{}
 	err := json.Unmarshal([]byte(value), &data)
 	if err != nil {
@@ -94,7 +107,7 @@ func extractLogsTemplatesFromMap(key string, input map[string]string, prefix str
 	switch data.(type) {
 	case []interface{}:
 		logsConfig, _ := json.Marshal(data)
-		return []integration.Config{{LogsConfig: logsConfig, ADIdentifiers: []string{key}}}, nil
+		return []integration.Config{{Name: logCheckName, LogsConfig: logsConfig, ADIdentifiers: []string{key}}}, nil
 	default:
 		return []integration.Config{}, fmt.Errorf("invalid format, expected an array, got: '%v'", data)
 	}
@@ -157,8 +170,8 @@ func ParseJSONValue(value string) ([][]integration.Data, error) {
 
 // BuildTemplates returns check configurations configured according to the
 // passed in AD identifier, check names, init, instance configs and their
-// `ignoreAutoDiscoveryTags` field.
-func BuildTemplates(adID string, checkNames []string, initConfigs, instances [][]integration.Data, ignoreAutodiscoveryTags bool) []integration.Config {
+// `ignoreAutoDiscoveryTags`, `CheckTagCardinality` fields.
+func BuildTemplates(adID string, checkNames []string, initConfigs, instances [][]integration.Data, ignoreAutodiscoveryTags bool, checkCard string) []integration.Config {
 	templates := make([]integration.Config, 0)
 
 	// sanity checks
@@ -183,6 +196,7 @@ func BuildTemplates(adID string, checkNames []string, initConfigs, instances [][
 				Instances:               []integration.Data{instance},
 				ADIdentifiers:           []string{adID},
 				IgnoreAutodiscoveryTags: ignoreAutodiscoveryTags,
+				CheckTagCardinality:     checkCard,
 			})
 		}
 	}
@@ -287,7 +301,8 @@ func extractTemplatesFromMapWithV2(entityName string, annotations map[string]str
 	}
 
 	if actualPrefix != "" {
-		c, err := extractLogsTemplatesFromMap(entityName, annotations, actualPrefix)
+		c, err := extractLogsTemplatesFromMap(configs, entityName, annotations, actualPrefix)
+
 		if err != nil {
 			errors = append(errors, fmt.Errorf("could not extract logs config: %v", err))
 		} else {

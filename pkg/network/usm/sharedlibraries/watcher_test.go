@@ -26,20 +26,26 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
+	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	procmontestutil "github.com/DataDog/datadog-agent/pkg/process/monitor/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func launchProcessMonitor(t *testing.T) {
+func launchProcessMonitor(t *testing.T, useEventStream bool) {
 	pm := monitor.GetProcessMonitor()
 	t.Cleanup(pm.Stop)
-	require.NoError(t, pm.Initialize())
+	require.NoError(t, pm.Initialize(useEventStream))
+	if useEventStream {
+		eventmonitortestutil.StartEventMonitor(t, procmontestutil.RegisterProcessMonitorEventConsumer)
+	}
 }
 
 type SharedLibrarySuite struct {
@@ -47,12 +53,24 @@ type SharedLibrarySuite struct {
 }
 
 func TestSharedLibrary(t *testing.T) {
-	if !http.TLSSupported(config.New()) {
+	if !usmconfig.TLSSupported(config.New()) {
 		t.Skip("shared library tracing not supported for this platform")
 	}
 
-	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}), "", func(t *testing.T) {
-		suite.Run(t, new(SharedLibrarySuite))
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	if !prebuilt.IsDeprecated() {
+		modes = append(modes, ebpftest.Prebuilt)
+	}
+
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+		t.Run("netlink", func(t *testing.T) {
+			launchProcessMonitor(t, false)
+			suite.Run(t, new(SharedLibrarySuite))
+		})
+		t.Run("event stream", func(t *testing.T) {
+			launchProcessMonitor(t, true)
+			suite.Run(t, new(SharedLibrarySuite))
+		})
 	})
 }
 
@@ -74,7 +92,6 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	require.NoError(t, err)
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
-	launchProcessMonitor(t)
 
 	// create files
 	command1, err := fileopener.OpenFromAnotherProcess(t, fooPath1)
@@ -132,7 +149,6 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDAndRootNamespace()
 	require.NoError(t, err)
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
-	launchProcessMonitor(t)
 
 	time.Sleep(10 * time.Millisecond)
 	// simulate a slow (1 second) : open, write, close of the file
@@ -181,7 +197,6 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 	require.NoError(t, err)
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
-	launchProcessMonitor(t)
 
 	command1, err := fileopener.OpenFromAnotherProcess(t, fooPath1, fooPath2)
 	require.NoError(t, err)
@@ -228,7 +243,6 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	require.NoError(t, err)
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
-	launchProcessMonitor(t)
 
 	command1, err := fileopener.OpenFromAnotherProcess(t, fooPath1, fooPath2)
 	require.NoError(t, err)
@@ -301,7 +315,6 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
-	launchProcessMonitor(t)
 
 	require.Eventually(t, func() bool {
 		return registerRecorder.CallsForPathID(fooPathID1) == 1 &&

@@ -6,6 +6,8 @@
 // Package common holds common related files
 package common
 
+import "fmt"
+
 // EventTypeMetadata is used to iterate over the model from the event types
 type EventTypeMetadata struct {
 	Doc    string
@@ -67,12 +69,17 @@ type StructField struct {
 	Alias            string
 	AliasPrefix      string
 	GettersOnly      bool
+	Ref              string
+	RestrictedTo     []string
+	IsIterator       bool
 }
 
 // GetEvaluatorType returns the evaluator type name
 func (sf *StructField) GetEvaluatorType() string {
 	var evaluatorType string
-	if sf.ReturnType == "int" {
+	if sf.IsLength && sf.IsIterator {
+		evaluatorType = "eval.IntEvaluator"
+	} else if sf.ReturnType == "int" {
 		evaluatorType = "eval.IntEvaluator"
 		if sf.Iterator != nil || sf.IsArray {
 			evaluatorType = "eval.IntArrayEvaluator"
@@ -149,6 +156,6 @@ func (sf *StructField) GetCacheName() string {
 	case "bool":
 		return "BoolCache"
 	default:
-		panic("no cache name defined for this return type")
+		panic(fmt.Sprintf("no cache name defined for return type '%s'", sf.ReturnType))
 	}
 }

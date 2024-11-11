@@ -7,6 +7,27 @@
 #include "helpers/filesystem.h"
 #include "helpers/utils.h"
 
+static __attribute__((always_inline)) void cache_file(struct dentry *dentry, u32 mount_id) {
+    u32 flags = 0;
+    u64 inode = get_dentry_ino(dentry);
+    if (is_overlayfs(dentry)) {
+        set_overlayfs_ino(dentry, &inode, &flags);
+    }
+
+    struct file_t entry = {
+        .path_key = {
+            .ino = inode,
+            .mount_id = mount_id,
+        },
+        .flags = flags,
+    };
+
+    fill_file(dentry, &entry);
+
+    // why not inode + mount id ?
+    bpf_map_update_elem(&exec_file_cache, &inode, &entry, BPF_ANY);
+}
+
 // used by both snapshot and process resolver fallback
 HOOK_ENTRY("security_inode_getattr")
 int hook_security_inode_getattr(ctx_t *ctx) {
@@ -31,23 +52,7 @@ int hook_security_inode_getattr(ctx_t *ctx) {
         dentry = get_path_dentry(path);
     }
 
-    u32 flags = 0;
-    u64 inode = get_dentry_ino(dentry);
-    if (is_overlayfs(dentry)) {
-        set_overlayfs_ino(dentry, &inode, &flags);
-    }
-
-    struct file_t entry = {
-        .path_key = {
-            .ino = inode,
-            .mount_id = mount_id,
-        },
-        .flags = flags,
-    };
-
-    fill_file(dentry, &entry);
-
-    bpf_map_update_elem(&exec_file_cache, &inode, &entry, BPF_NOEXIST);
+    cache_file(dentry, mount_id);
 
     return 0;
 }
@@ -101,12 +106,15 @@ int hook_path_get(ctx_t *ctx) {
         return 0;
     }
     bpf_probe_read(&route.port, sizeof(route.port), &sk->__sk_common.skc_num);
+    // Calling htons is necessary to support snapshotted bound port. Without it, we're can't properly route incoming
+    // traffic to the relevant process.
+    route.port = htons(route.port);
 
     // save pid route
     u32 pid = *procfs_pid;
     bpf_map_update_elem(&flow_pid, &route, &pid, BPF_ANY);
 
-#ifdef DEBUG
+#if defined(DEBUG_NETNS)
     bpf_printk("path_get netns: %u", route.netns);
     bpf_printk("         skc_num:%d", htons(route.port));
     bpf_printk("         skc_rcv_saddr:%x", route.addr[0]);
@@ -142,7 +150,7 @@ int hook_proc_fd_link(ctx_t *ctx) {
     u8 key = 0;
     bpf_map_update_elem(&fd_link_pid, &key, &pid, BPF_ANY);
 
-#ifdef DEBUG
+#if defined(DEBUG_NETNS)
     bpf_printk("proc_fd_link pid:%d", pid);
 #endif
     return 0;

@@ -10,7 +10,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/sbom/types"
 
 	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 )
@@ -26,19 +27,6 @@ type Report interface {
 	ID() string
 }
 
-// ScanOptions defines the scan options
-type ScanOptions struct {
-	Analyzers        []string
-	CheckDiskUsage   bool
-	MinAvailableDisk uint64
-	Timeout          time.Duration
-	WaitAfter        time.Duration
-	Fast             bool
-	NoCache          bool // Caching doesn't really provide any value when scanning filesystem as the filesystem has to be walked to compute the keys
-	CollectFiles     bool
-	UseMount         bool
-}
-
 // ScanOptionsFromConfig loads the scanning options from the configuration
 func ScanOptionsFromConfig(cfg config.Component, containers bool) (scanOpts ScanOptions) {
 	if containers {
@@ -48,8 +36,7 @@ func ScanOptionsFromConfig(cfg config.Component, containers bool) (scanOpts Scan
 		scanOpts.WaitAfter = time.Duration(cfg.GetInt("sbom.container_image.scan_interval")) * time.Second
 		scanOpts.Analyzers = cfg.GetStringSlice("sbom.container_image.analyzers")
 		scanOpts.UseMount = cfg.GetBool("sbom.container_image.use_mount")
-	} else {
-		scanOpts.NoCache = true
+		scanOpts.OverlayFsScan = cfg.GetBool("sbom.container_image.overlayfs_direct_scan")
 	}
 
 	if len(scanOpts.Analyzers) == 0 {
@@ -60,11 +47,10 @@ func ScanOptionsFromConfig(cfg config.Component, containers bool) (scanOpts Scan
 }
 
 // ScanRequest defines the scan request interface
-type ScanRequest interface {
-	Collector() string
-	Type(ScanOptions) string
-	ID() string
-}
+type ScanRequest = types.ScanRequest
+
+// ScanOptions defines the scan options
+type ScanOptions = types.ScanOptions
 
 // ScanResult defines the scan result
 type ScanResult struct {

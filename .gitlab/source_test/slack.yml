@@ -2,13 +2,15 @@
 # Check that each team in CODEOWNERS has its slack notification channel filled in the GITHUB_SLACK_MAP
 slack_teams_channels_check:
   stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: []
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   script:
-    - source /root/.bashrc
-    - python3 -m pip install codeowners -c tasks/libs/requirements-notifications.txt
+    # Python 3.12 changes default behavior how packages are installed.
+    # In particular, --break-system-packages command line option is 
+    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
+    - python3 -m pip install codeowners -c tasks/libs/requirements-notifications.txt --break-system-packages
     - inv -e notify.check-teams

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ``LimitRange`` and ``StorageClass`` resources are now collected by the orchestrator check.

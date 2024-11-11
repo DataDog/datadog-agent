@@ -17,20 +17,32 @@ import (
 )
 
 // NetworkPathCollectorType represent the source of the network path data e.g. network_path_integration
+// TODO: DEPRECATED in favour of Path.Origin
 type NetworkPathCollectorType string
 
 // CollectorTypeNetworkPathIntegration correspond to the Network Path Integration source type
 const CollectorTypeNetworkPathIntegration NetworkPathCollectorType = "network_path_integration"
 
+// CollectorTypeNetworkPathCollector correspond to the Network Path Collector source type
+const CollectorTypeNetworkPathCollector NetworkPathCollectorType = "network_path_collector"
+
 // SubmitNetworkPathTelemetry submits Network Path related telemetry
-func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.NetworkPath, pathSource NetworkPathCollectorType, checkDuration time.Duration, checkInterval time.Duration, tags []string) {
+func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.NetworkPath, checkDuration time.Duration, checkInterval time.Duration, tags []string) {
 	destPortTag := "unspecified"
 	if path.Destination.Port > 0 {
 		destPortTag = strconv.Itoa(int(path.Destination.Port))
 	}
+	var pathSource NetworkPathCollectorType
+	if path.Origin == payload.PathOriginNetworkTraffic {
+		pathSource = CollectorTypeNetworkPathCollector
+	} else {
+		pathSource = CollectorTypeNetworkPathIntegration
+	}
 	newTags := append(utils.CopyStrings(tags), []string{
 		"collector:" + string(pathSource),
-		"protocol:udp", // TODO: Update to protocol from config when we support tcp/icmp
+		"origin:" + string(path.Origin),
+		"protocol:" + string(path.Protocol),
+		"destination_ip:" + path.Destination.IPAddress,
 		"destination_hostname:" + path.Destination.Hostname,
 		"destination_port:" + destPortTag,
 	}...)
@@ -46,10 +58,10 @@ func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.N
 	sender.Gauge("datadog.network_path.path.monitored", float64(1), newTags)
 	if len(path.Hops) > 0 {
 		lastHop := path.Hops[len(path.Hops)-1]
-		if lastHop.Success {
+		if lastHop.Reachable {
 			sender.Gauge("datadog.network_path.path.hops", float64(len(path.Hops)), newTags)
 		}
-		sender.Gauge("datadog.network_path.path.reachable", float64(utils.BoolToFloat64(lastHop.Success)), newTags)
-		sender.Gauge("datadog.network_path.path.unreachable", float64(utils.BoolToFloat64(!lastHop.Success)), newTags)
+		sender.Gauge("datadog.network_path.path.reachable", float64(utils.BoolToFloat64(lastHop.Reachable)), newTags)
+		sender.Gauge("datadog.network_path.path.unreachable", float64(utils.BoolToFloat64(!lastHop.Reachable)), newTags)
 	}
 }

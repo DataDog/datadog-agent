@@ -6,22 +6,11 @@
 package checks
 
 import (
-	"testing"
-	"time"
-
 	payload "github.com/DataDog/agent-payload/v5/process"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-func parseRFC3339Time(t *testing.T, s string) time.Time {
-	t.Helper()
-	parsed, err := time.Parse(time.RFC3339Nano, s)
-	require.NoError(t, err)
-	return parsed
-}
 
 // FmtProcessEvents formats process lifecyle events to be sent in an agent payload
 func FmtProcessEvents(events []*model.ProcessEvent) []*payload.ProcessEvent {

@@ -24,18 +24,24 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -63,6 +69,7 @@ type Dependencies struct {
 	// lifecycle.
 	Tagger       tagger.Component
 	WorkloadMeta workloadmeta.Component
+	NpCollector  npcollector.Component
 	Checks       []types.CheckComponent `group:"check"`
 }
 
@@ -77,12 +84,19 @@ func nextGroupID() func() int32 {
 // Commands returns a slice of subcommands for the `check` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	checkAllowlist := []string{"process", "rtprocess", "container", "rtcontainer", "connections", "process_discovery", "process_events"}
-	return []*cobra.Command{MakeCommand(globalParams, "check", checkAllowlist)}
+	return []*cobra.Command{MakeCommand(func() *command.GlobalParams {
+		return &command.GlobalParams{
+			ConfFilePath:         globalParams.ConfFilePath,
+			ExtraConfFilePath:    globalParams.ExtraConfFilePath,
+			SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
+			FleetPoliciesDirPath: globalParams.FleetPoliciesDirPath,
+		}
+	}, "check", checkAllowlist)}
 }
 
-func MakeCommand(globalParams *command.GlobalParams, name string, allowlist []string) *cobra.Command {
+func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, allowlist []string) *cobra.Command {
 	cliParams := &CliParams{
-		GlobalParams: globalParams,
+		GlobalParams: globalParamsGetter(),
 	}
 
 	checkCmd := &cobra.Command{
@@ -90,28 +104,37 @@ func MakeCommand(globalParams *command.GlobalParams, name string, allowlist []st
 		Short: "Run a specific check and print the results. Choose from: " + strings.Join(allowlist, ", "),
 
 		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.checkName = args[0]
 
 			if !slices.Contains(allowlist, cliParams.checkName) {
 				return fmt.Errorf("invalid check '%s'", cliParams.checkName)
 			}
 
-			bundleParams := command.GetCoreBundleParamsForOneShot(globalParams)
+			bundleParams := command.GetCoreBundleParamsForOneShot(globalParamsGetter())
 
 			// Disable logging if `--json` is specified. This way the check command will output proper json.
 			if cliParams.checkOutputJSON {
-				bundleParams.LogParams = logimpl.ForOneShot(string(command.LoggerName), "off", true)
+				bundleParams.LogParams = log.ForOneShot(string(command.LoggerName), "off", true)
 			}
 
 			return fxutil.OneShot(RunCheckCmd,
 				fx.Supply(cliParams, bundleParams),
 				core.Bundle(),
 				// Provide workloadmeta module
-				workloadmeta.Module(),
+
+				// Provide eventplatformimpl module
+				eventplatformreceiverimpl.Module(),
+				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+
+				// Provide rdnsquerier module
+				rdnsquerierfx.Module(),
+
+				// Provide npcollector module
+				npcollectorimpl.Module(),
 				// Provide the corresponding workloadmeta Params to configure the catalog
-				collectors.GetCatalog(),
-				fx.Provide(func(config config.Component) workloadmeta.Params {
+				wmcatalog.GetCatalog(),
+				workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
 
 					var catalog workloadmeta.AgentType
 					if config.GetBool("process_config.remote_workloadmeta") {
@@ -133,6 +156,13 @@ func MakeCommand(globalParams *command.GlobalParams, name string, allowlist []st
 					return tagger.NewTaggerParams()
 				}),
 				processComponent.Bundle(),
+				// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
+				// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
+				// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
+				// we can include the tagger as part of the workloadmeta component.
+				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
+					proccontainers.InitSharedContainerProvider(wmeta, tagger)
+				}),
 			)
 		},
 		SilenceUsage: true,
@@ -166,10 +196,12 @@ func RunCheckCmd(deps Dependencies) error {
 		names = append(names, ch.Name())
 
 		_, processModuleEnabled := deps.Syscfg.SysProbeObject().EnabledModules[sysconfig.ProcessModule]
+		_, networkTracerModuleEnabled := deps.Syscfg.SysProbeObject().EnabledModules[sysconfig.NetworkTracerModule]
 		cfg := &checks.SysProbeConfig{
-			MaxConnsPerMessage:   deps.Syscfg.SysProbeObject().MaxConnsPerMessage,
-			SystemProbeAddress:   deps.Syscfg.SysProbeObject().SocketAddress,
-			ProcessModuleEnabled: processModuleEnabled,
+			MaxConnsPerMessage:         deps.Syscfg.SysProbeObject().MaxConnsPerMessage,
+			SystemProbeAddress:         deps.Syscfg.SysProbeObject().SocketAddress,
+			ProcessModuleEnabled:       processModuleEnabled,
+			NetworkTracerModuleEnabled: networkTracerModuleEnabled,
 		}
 
 		if !matchingCheck(deps.CliParams.checkName, ch) {
@@ -201,6 +233,8 @@ func runCheck(log log.Component, cliParams *CliParams, ch checks.Check) error {
 
 	options := &checks.RunOptions{
 		RunStandard: true,
+		// disable chunking for all manual checks
+		NoChunking: true,
 	}
 
 	if cliParams.checkName == checks.RTName(ch.Name()) {

@@ -25,7 +25,7 @@ const ddAgentServiceName = "datadogagent"
 func commandContext(ctx context.Context, name string, arg ...string) (*exec.Cmd, func(), error) {
 	cmd := exec.CommandContext(ctx, name, arg...)
 	done := func() {}
-	localSystem, err := getLocalSystemSID()
+	localSystem, err := winutil.GetLocalSystemSID()
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not query Local System SID: %s", err)
 	}

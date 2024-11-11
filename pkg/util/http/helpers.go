@@ -8,6 +8,7 @@ package http
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -76,4 +77,13 @@ func Put(ctx context.Context, URL string, headers map[string]string, body []byte
 	}
 
 	return parseResponse(res, "PUT", URL)
+}
+
+// SetJSONError writes a server error as JSON with the correct http error code
+func SetJSONError(w http.ResponseWriter, err error, errorCode int) {
+	body, _ := json.Marshal(map[string]string{"error": err.Error()})
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(errorCode)
+	fmt.Fprintln(w, string(body))
 }

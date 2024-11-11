@@ -8,7 +8,6 @@ package stats
 import (
 	"fmt"
 	"math/rand"
-	"sort"
 	"testing"
 	"time"
 
@@ -17,11 +16,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
+	"github.com/golang/protobuf/proto"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
-	"github.com/golang/protobuf/proto"
-	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -29,14 +29,17 @@ var (
 )
 
 func NewTestConcentrator(now time.Time) *Concentrator {
-	statsChan := make(chan *pb.StatsPayload)
 	cfg := config.AgentConfig{
 		BucketInterval: time.Duration(testBucketInterval),
 		AgentVersion:   "0.99.0",
 		DefaultEnv:     "env",
 		Hostname:       "hostname",
 	}
-	return NewConcentrator(&cfg, statsChan, now, &statsd.NoOpClient{})
+	return NewTestConcentratorWithCfg(now, &cfg)
+}
+
+func NewTestConcentratorWithCfg(now time.Time, cfg *config.AgentConfig) *Concentrator {
+	return NewConcentrator(cfg, noopStatsWriter{}, now, &statsd.NoOpClient{})
 }
 
 // getTsInBucket gives a timestamp in ns which is `offset` buckets late
@@ -102,7 +105,7 @@ func assertCountsEqual(t *testing.T, expected []*pb.ClientGroupedStats, actual [
 
 func TestNewConcentratorPeerTags(t *testing.T) {
 	statsd := &statsd.NoOpClient{}
-	t.Run("nothing enabled", func(t *testing.T) {
+	t.Run("no peer tags", func(t *testing.T) {
 		assert := assert.New(t)
 		cfg := config.AgentConfig{
 			BucketInterval: time.Duration(testBucketInterval),
@@ -111,79 +114,9 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			Hostname:       "hostname",
 		}
 		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.False(c.peerTagsAggregation)
 		assert.Nil(c.peerTagKeys)
 	})
-	t.Run("deprecated peer service flag set", func(t *testing.T) {
-		assert := assert.New(t)
-		cfg := config.AgentConfig{
-			BucketInterval:         time.Duration(testBucketInterval),
-			AgentVersion:           "0.99.0",
-			DefaultEnv:             "env",
-			Hostname:               "hostname",
-			PeerServiceAggregation: true,
-		}
-		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.True(c.peerTagsAggregation)
-		assert.Equal(defaultPeerTags, c.peerTagKeys)
-	})
-	t.Run("deprecated peer service flag set + peer tags", func(t *testing.T) {
-		assert := assert.New(t)
-		cfg := config.AgentConfig{
-			BucketInterval:         time.Duration(testBucketInterval),
-			AgentVersion:           "0.99.0",
-			DefaultEnv:             "env",
-			Hostname:               "hostname",
-			PeerServiceAggregation: true,
-			PeerTags:               []string{"zz_tag"},
-		}
-		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.True(c.peerTagsAggregation)
-		assert.Equal(append(defaultPeerTags, "zz_tag"), c.peerTagKeys)
-	})
-	t.Run("deprecated peer service flag set + new peer tags aggregation flag", func(t *testing.T) {
-		assert := assert.New(t)
-		cfg := config.AgentConfig{
-			BucketInterval:         time.Duration(testBucketInterval),
-			AgentVersion:           "0.99.0",
-			DefaultEnv:             "env",
-			Hostname:               "hostname",
-			PeerServiceAggregation: true,
-			PeerTagsAggregation:    true,
-		}
-		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.True(c.peerTagsAggregation)
-		assert.Equal(defaultPeerTags, c.peerTagKeys)
-	})
-	t.Run("deprecated peer service flag set + new peer tags aggregation flag + peer tags", func(t *testing.T) {
-		assert := assert.New(t)
-		cfg := config.AgentConfig{
-			BucketInterval:         time.Duration(testBucketInterval),
-			AgentVersion:           "0.99.0",
-			DefaultEnv:             "env",
-			Hostname:               "hostname",
-			PeerServiceAggregation: true,
-			PeerTagsAggregation:    true,
-			PeerTags:               []string{"zz_tag"},
-		}
-		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.True(c.peerTagsAggregation)
-		assert.Equal(append(defaultPeerTags, "zz_tag"), c.peerTagKeys)
-	})
-	t.Run("new peer tags aggregation flag", func(t *testing.T) {
-		assert := assert.New(t)
-		cfg := config.AgentConfig{
-			BucketInterval:      time.Duration(testBucketInterval),
-			AgentVersion:        "0.99.0",
-			DefaultEnv:          "env",
-			Hostname:            "hostname",
-			PeerTagsAggregation: true,
-		}
-		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.True(c.peerTagsAggregation)
-		assert.Equal(defaultPeerTags, c.peerTagKeys)
-	})
-	t.Run("new peer tags aggregation flag + peer tags", func(t *testing.T) {
+	t.Run("with peer tags", func(t *testing.T) {
 		assert := assert.New(t)
 		cfg := config.AgentConfig{
 			BucketInterval:      time.Duration(testBucketInterval),
@@ -194,8 +127,7 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			PeerTags:            []string{"zz_tag"},
 		}
 		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.True(c.peerTagsAggregation)
-		assert.Equal(append(defaultPeerTags, "zz_tag"), c.peerTagKeys)
+		assert.Equal(cfg.ConfiguredPeerTags(), c.peerTagKeys)
 	})
 }
 
@@ -210,9 +142,9 @@ func TestTracerHostname(t *testing.T) {
 	traceutil.ComputeTopLevel(spans)
 	testTrace := toProcessedTrace(spans, "none", "tracer-hostname", "", "", "")
 	c := NewTestConcentrator(now)
-	c.addNow(testTrace, "")
+	c.addNow(testTrace, "", nil)
 
-	stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+	stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
 	assert.Equal("tracer-hostname", stats.Stats[0].Hostname)
 }
 
@@ -239,9 +171,9 @@ func TestConcentratorOldestTs(t *testing.T) {
 		// Running cold, all spans in the past should end up in the current time bucket.
 		flushTime := now.UnixNano()
 		c := NewTestConcentrator(now)
-		c.addNow(testTrace, "")
+		c.addNow(testTrace, "", nil)
 
-		for i := 0; i < c.bufferLen; i++ {
+		for i := 0; i < c.spanConcentrator.bufferLen; i++ {
 			stats := c.flushNow(flushTime, false)
 			if !assert.Equal(0, len(stats.Stats), "We should get exactly 0 Bucket") {
 				t.FailNow()
@@ -276,10 +208,10 @@ func TestConcentratorOldestTs(t *testing.T) {
 	t.Run("hot", func(t *testing.T) {
 		flushTime := now.UnixNano()
 		c := NewTestConcentrator(now)
-		c.oldestTs = alignTs(flushTime, c.bsize) - int64(c.bufferLen-1)*c.bsize
-		c.addNow(testTrace, "")
+		c.spanConcentrator.oldestTs = alignTs(flushTime, c.bsize) - int64(c.spanConcentrator.bufferLen-1)*c.bsize
+		c.addNow(testTrace, "", nil)
 
-		for i := 0; i < c.bufferLen-1; i++ {
+		for i := 0; i < c.spanConcentrator.bufferLen-1; i++ {
 			stats := c.flushNow(flushTime, false)
 			if !assert.Equal(0, len(stats.Stats), "We should get exactly 0 Bucket") {
 				t.FailNow()
@@ -343,7 +275,7 @@ func TestConcentratorStatsTotals(t *testing.T) {
 
 	// update oldestTs as it running for quite some time, to avoid the fact that at startup
 	// it only allows recent stats.
-	c.oldestTs = alignedNow - int64(c.bufferLen)*c.bsize
+	c.spanConcentrator.oldestTs = alignedNow - int64(c.spanConcentrator.bufferLen)*c.bsize
 
 	// Build that simply have spans spread over time windows.
 	spans := []*pb.Span{
@@ -358,8 +290,8 @@ func TestConcentratorStatsTotals(t *testing.T) {
 	traceutil.ComputeTopLevel(spans)
 	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
 
-	t.Run("ok", func(t *testing.T) {
-		c.addNow(testTrace, "")
+	t.Run("ok", func(_ *testing.T) {
+		c.addNow(testTrace, "", nil)
 
 		var duration uint64
 		var hits uint64
@@ -367,7 +299,7 @@ func TestConcentratorStatsTotals(t *testing.T) {
 		var topLevelHits uint64
 
 		flushTime := now.UnixNano()
-		for i := 0; i <= c.bufferLen; i++ {
+		for i := 0; i <= c.spanConcentrator.bufferLen; i++ {
 			stats := c.flushNow(flushTime, false)
 
 			if len(stats.Stats) == 0 {
@@ -399,7 +331,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 
 	// update oldestTs as it running for quite some time, to avoid the fact that at startup
 	// it only allows recent stats.
-	c.oldestTs = alignedNow - int64(c.bufferLen)*c.bsize
+	c.spanConcentrator.oldestTs = alignedNow - int64(c.spanConcentrator.bufferLen)*c.bsize
 
 	// Build a trace with stats which should cover 3 time buckets.
 	spans := []*pb.Span{
@@ -562,16 +494,16 @@ func TestConcentratorStatsCounts(t *testing.T) {
 	traceutil.ComputeTopLevel(spans)
 	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
 
-	c.addNow(testTrace, "")
+	c.addNow(testTrace, "", nil)
 
 	// flush every testBucketInterval
 	flushTime := now.UnixNano()
-	for i := 0; i <= c.bufferLen+2; i++ {
+	for i := 0; i <= c.spanConcentrator.bufferLen+2; i++ {
 		t.Run(fmt.Sprintf("flush-%d", i), func(t *testing.T) {
 			assert := assert.New(t)
 			stats := c.flushNow(flushTime, false)
 
-			expectedFlushedTs := alignTs(flushTime, c.bsize) - int64(c.bufferLen)*testBucketInterval
+			expectedFlushedTs := alignTs(flushTime, c.bsize) - int64(c.spanConcentrator.bufferLen)*testBucketInterval
 			if len(expectedCountValByKeyByTime[expectedFlushedTs]) == 0 {
 				// That's a flush for which we expect no data
 				return
@@ -610,8 +542,8 @@ func TestRootTag(t *testing.T) {
 	traceutil.ComputeTopLevel(spans)
 	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
 	c := NewTestConcentrator(now)
-	c.computeStatsBySpanKind = true
-	c.addNow(testTrace, "")
+	c.spanConcentrator.computeStatsBySpanKind = true
+	c.addNow(testTrace, "", nil)
 
 	expected := []*pb.ClientGroupedStats{
 		{
@@ -650,7 +582,7 @@ func TestRootTag(t *testing.T) {
 		},
 	}
 
-	stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+	stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
 	assertCountsEqual(t, expected, stats.Stats[0].Stats[0].Stats)
 }
 
@@ -660,15 +592,15 @@ func generateDistribution(t *testing.T, now time.Time, generator func(i int) int
 	alignedNow := alignTs(now.UnixNano(), c.bsize)
 	// update oldestTs as it running for quite some time, to avoid the fact that at startup
 	// it only allows recent stats.
-	c.oldestTs = alignedNow - int64(c.bufferLen)*c.bsize
+	c.spanConcentrator.oldestTs = alignedNow - int64(c.spanConcentrator.bufferLen)*c.bsize
 	// Build a trace with stats representing the distribution given by the generator
 	spans := []*pb.Span{}
 	for i := 0; i < 100; i++ {
 		spans = append(spans, testSpan(now, uint64(i)+1, 0, generator(i), 0, "A1", "resource1", 0, nil))
 	}
 	traceutil.ComputeTopLevel(spans)
-	c.addNow(toProcessedTrace(spans, "none", "", "", "", ""), "")
-	stats := c.flushNow(now.UnixNano()+c.bsize*int64(c.bufferLen), false)
+	c.addNow(toProcessedTrace(spans, "none", "", "", "", ""), "", nil)
+	stats := c.flushNow(now.UnixNano()+c.bsize*int64(c.spanConcentrator.bufferLen), false)
 	expectedFlushedTs := alignedNow
 	assert.Len(stats.Stats, 1)
 	assert.Len(stats.Stats[0].Stats, 1)
@@ -688,7 +620,7 @@ func TestDistributions(t *testing.T) {
 	now := time.Now()
 	testQuantiles := []float64{0.1, 0.5, 0.95, 0.99, 1}
 	t.Run("constant", func(t *testing.T) {
-		constantDistribution := generateDistribution(t, now, func(i int) int64 { return 42 })
+		constantDistribution := generateDistribution(t, now, func(_ int) int64 { return 42 })
 		expectedConstant := []float64{42, 42, 42, 42, 42}
 		for i, q := range testQuantiles {
 			actual, err := constantDistribution.GetValueAtQuantile(q)
@@ -719,9 +651,9 @@ func TestIgnoresPartialSpans(t *testing.T) {
 	testTrace := toProcessedTrace(spans, "none", "tracer-hostname", "", "", "")
 
 	c := NewTestConcentrator(now)
-	c.addNow(testTrace, "")
+	c.addNow(testTrace, "", nil)
 
-	stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+	stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
 	assert.Empty(stats.GetStats())
 }
 
@@ -733,22 +665,43 @@ func TestForceFlush(t *testing.T) {
 	traceutil.ComputeTopLevel(spans)
 	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
 	c := NewTestConcentrator(now)
-	c.addNow(testTrace, "")
+	c.addNow(testTrace, "", nil)
 
-	assert.Len(c.buckets, 1)
+	assert.Len(c.spanConcentrator.buckets, 1)
 
 	// ts=0 so that flushNow always considers buckets not old enough to be flushed
 	ts := int64(0)
 
 	// Without force flush, flushNow should skip the bucket
 	stats := c.flushNow(ts, false)
-	assert.Len(c.buckets, 1)
+	assert.Len(c.spanConcentrator.buckets, 1)
 	assert.Len(stats.GetStats(), 0)
 
 	// With force flush, flushNow should flush buckets regardless of the age
 	stats = c.flushNow(ts, true)
-	assert.Len(c.buckets, 0)
+	assert.Len(c.spanConcentrator.buckets, 0)
 	assert.Len(stats.GetStats(), 1)
+}
+
+func TestWithContainerTags(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+
+	ctags := []string{"container_id:test_cid", "kube_container_name:k8s_container"}
+	spans := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, map[string]string{"container_id": "cid", "kube_container_name": "k8s_container"})}
+	traceutil.ComputeTopLevel(spans)
+	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+	conf := config.New()
+	conf.Hostname = "host"
+	conf.DefaultEnv = "env"
+	conf.Features["enable_cid_stats"] = struct{}{}
+	conf.BucketInterval = time.Duration(testBucketInterval)
+	c := NewTestConcentratorWithCfg(now, conf)
+	c.addNow(testTrace, "cid", ctags)
+
+	stats := c.flushNow(time.Now().Unix(), true)
+	assert.Len(stats.GetStats(), 1)
+	assert.ElementsMatch(stats.Stats[0].Tags, ctags)
 }
 
 func TestPeerTags(t *testing.T) {
@@ -773,27 +726,26 @@ func TestPeerTags(t *testing.T) {
 		Meta:     map[string]string{"span.kind": "client", "db.instance": "i-1234", "db.system": "postgres", "region": "us1"},
 		Metrics:  map[string]float64{"_dd.measured": 1.0},
 	}
-	t.Run("not configured", func(t *testing.T) {
+	t.Run("not configured", func(_ *testing.T) {
 		spans := []*pb.Span{sp, sp2}
 		traceutil.ComputeTopLevel(spans)
 		testTrace := toProcessedTrace(spans, "none", "", "", "", "")
 		c := NewTestConcentrator(now)
-		c.addNow(testTrace, "")
-		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+		c.addNow(testTrace, "", nil)
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
 		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
 		for _, st := range stats.Stats[0].Stats[0].Stats {
 			assert.Nil(st.PeerTags)
 		}
 	})
-	t.Run("configured", func(t *testing.T) {
+	t.Run("configured", func(_ *testing.T) {
 		spans := []*pb.Span{sp, sp2}
 		traceutil.ComputeTopLevel(spans)
 		testTrace := toProcessedTrace(spans, "none", "", "", "", "")
 		c := NewTestConcentrator(now)
 		c.peerTagKeys = []string{"db.instance", "db.system", "peer.service"}
-		c.peerTagsAggregation = true
-		c.addNow(testTrace, "")
-		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+		c.addNow(testTrace, "", nil)
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
 		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
 		for _, st := range stats.Stats[0].Stats[0].Stats {
 			if st.Name == "postgres.query" {
@@ -850,13 +802,13 @@ func TestComputeStatsThroughSpanKindCheck(t *testing.T) {
 		Duration: 75,
 		Meta:     map[string]string{"span.kind": "client"},
 	}
-	t.Run("disabled", func(t *testing.T) {
+	t.Run("disabled", func(_ *testing.T) {
 		spans := []*pb.Span{sp, topLevelInternalSpan, measuredInternalSpan, clientSpan}
 		traceutil.ComputeTopLevel(spans)
 		testTrace := toProcessedTrace(spans, "none", "", "", "", "")
 		c := NewTestConcentrator(now)
-		c.addNow(testTrace, "")
-		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+		c.addNow(testTrace, "", nil)
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
 		assert.Len(stats.Stats[0].Stats[0].Stats, 3)
 		opNames := make(map[string]struct{}, 3)
 		for _, s := range stats.Stats {
@@ -868,14 +820,14 @@ func TestComputeStatsThroughSpanKindCheck(t *testing.T) {
 		}
 		assert.Equal(map[string]struct{}{"http.server.request": {}, "internal.op1": {}, "internal.op2": {}}, opNames)
 	})
-	t.Run("enabled", func(t *testing.T) {
+	t.Run("enabled", func(_ *testing.T) {
 		spans := []*pb.Span{sp, topLevelInternalSpan, measuredInternalSpan, clientSpan}
 		traceutil.ComputeTopLevel(spans)
 		testTrace := toProcessedTrace(spans, "none", "", "", "", "")
 		c := NewTestConcentrator(now)
-		c.computeStatsBySpanKind = true
-		c.addNow(testTrace, "")
-		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+		c.spanConcentrator.computeStatsBySpanKind = true
+		c.addNow(testTrace, "", nil)
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
 		assert.Len(stats.Stats[0].Stats[0].Stats, 4)
 		opNames := make(map[string]struct{}, 4)
 		for _, s := range stats.Stats {
@@ -916,9 +868,8 @@ func TestVersionData(t *testing.T) {
 	traceutil.ComputeTopLevel(spans)
 	testTrace := toProcessedTrace(spans, "none", "", "v1.0.1", "abc", "abc123")
 	c := NewTestConcentrator(now)
-	c.peerTagsAggregation = true
-	c.addNow(testTrace, "")
-	stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+	c.addNow(testTrace, "", nil)
+	stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
 	assert.Len(stats.Stats[0].Stats[0].Stats, 2)
 	for _, st := range stats.Stats {
 		assert.Equal("v1.0.1", st.Version)
@@ -931,109 +882,151 @@ func TestComputeStatsForSpanKind(t *testing.T) {
 	assert := assert.New(t)
 
 	type testCase struct {
-		s   *pb.Span
-		res bool
+		kind string
+		res  bool
 	}
 
 	for _, tc := range []testCase{
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "server"}},
+			"server",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "consumer"}},
+			"consumer",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "client"}},
+			"client",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "producer"}},
+			"producer",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "internal"}},
+			"internal",
 			false,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "SERVER"}},
+			"SERVER",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "CONSUMER"}},
+			"CONSUMER",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "CLIENT"}},
+			"CLIENT",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "PRODUCER"}},
+			"PRODUCER",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "INTERNAL"}},
+			"INTERNAL",
 			false,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "SErVER"}},
+			"SErVER",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "COnSUMER"}},
+			"COnSUMER",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "CLiENT"}},
+			"CLiENT",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "PRoDUCER"}},
+			"PRoDUCER",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "INtERNAL"}},
+			"INtERNAL",
 			false,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": ""}},
+			"",
 			false,
 		},
 		{
-			&pb.Span{Meta: map[string]string{}},
+			"",
 			false,
 		},
 	} {
-		assert.Equal(tc.res, computeStatsForSpanKind(tc.s))
+		assert.Equal(tc.res, computeStatsForSpanKind(tc.kind))
 	}
 }
 
-func TestPreparePeerTags(t *testing.T) {
-	type testCase struct {
-		input  []string
-		output []string
+// BenchmarkConcentrator measures the performance of adding spans to the concentrator
+// Half of provided spans will not need stats calculation (this is to ensure improvements that reduce cost of unmeasured spans are included)
+func BenchmarkConcentrator(b *testing.B) {
+	cfg := &config.AgentConfig{
+		BucketInterval:         10 * time.Second,
+		AgentVersion:           "0.99.0",
+		DefaultEnv:             "env",
+		Hostname:               "hostname",
+		ComputeStatsBySpanKind: true,
 	}
-
-	for _, tc := range []testCase{
-		{
-			input:  nil,
-			output: nil,
-		},
-		{
-			input:  []string{},
-			output: nil,
-		},
-		{
-			input:  []string{"zz_tag", "peer.service", "some.other.tag", "db.name", "db.instance"},
-			output: []string{"db.name", "db.instance", "peer.service", "some.other.tag", "zz_tag"},
-		},
-		{
-			input:  append([]string{"zz_tag"}, defaultPeerTags...),
-			output: append(defaultPeerTags, "zz_tag"),
-		},
-	} {
-		sort.Strings(tc.output)
-		assert.Equal(t, tc.output, preparePeerTags(tc.input...))
+	sp := &pb.Span{
+		ParentID: 0,
+		SpanID:   1,
+		Service:  "myservice",
+		Name:     "http.server.request",
+		Resource: "GET /users",
+		Duration: 500,
+	}
+	unmeasuredSpan := &pb.Span{
+		ParentID: 1,
+		SpanID:   555, // technically this isn't okay but it's fine for this test
+		Service:  "myservice",
+		Name:     "MyInternalSpan",
+		Resource: "someWork",
+		Duration: 345,
+	}
+	// Even though span.kind = internal is an ineligible case, we should still compute stats based on the top_level flag.
+	// This is a case that should rarely (if ever) come up in practice though.
+	topLevelInternalSpan := &pb.Span{
+		ParentID: sp.SpanID,
+		SpanID:   2,
+		Service:  "myservice",
+		Name:     "internal.op1",
+		Resource: "compute_1",
+		Duration: 25,
+		Metrics:  map[string]float64{"_top_level": 1.0},
+		Meta:     map[string]string{"span.kind": "internal"},
+	}
+	// Even though span.kind = internal is an ineligible case, we should still compute stats based on the measured flag.
+	measuredInternalSpan := &pb.Span{
+		ParentID: sp.SpanID,
+		SpanID:   3,
+		Service:  "myservice",
+		Name:     "internal.op2",
+		Resource: "compute_2",
+		Duration: 25,
+		Metrics:  map[string]float64{"_dd.measured": 1.0},
+		Meta:     map[string]string{"span.kind": "internal"},
+	}
+	// client is an eligible span.kind for stats computation.
+	clientSpan := &pb.Span{
+		ParentID: sp.SpanID,
+		SpanID:   4,
+		Service:  "myservice",
+		Name:     "postgres.query",
+		Resource: "SELECT user_id from users WHERE user_name = ?",
+		Duration: 75,
+		Meta:     map[string]string{"span.kind": "client"},
+	}
+	spans := []*pb.Span{sp, unmeasuredSpan, unmeasuredSpan, unmeasuredSpan, unmeasuredSpan, topLevelInternalSpan, measuredInternalSpan, clientSpan}
+	traceutil.ComputeTopLevel(spans)
+	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+	// Ignore the overhead of flushing and we finish within a single bucket so no need to "start"
+	c := NewTestConcentratorWithCfg(time.Now(), cfg)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		c.addNow(testTrace, "", nil)
 	}
 }

@@ -18,7 +18,6 @@ func SystemPaths() []string {
 	// Ignoring paths while creating the snapshot reduces the snapshot size by >90%
 	return []string{
 		`C:\Windows\assembly\`,
-		`C:\Windows\Microsoft.NET\assembly\`,
 		`C:\windows\AppReadiness\`,
 		`C:\Windows\Temp\`,
 		`C:\Windows\Prefetch\`,
@@ -38,6 +37,8 @@ func SystemPaths() []string {
 		`c:\windows\ServiceProfiles\NetworkService\AppData\`,
 		`C:\Windows\System32\Tasks\`,
 		`C:\Windows\System32\spp\`,
+		`C:\Windows\SystemTemp\`,
+		`C:\Windows\Microsoft.NET\`,
 	}
 }
 
@@ -45,9 +46,13 @@ func SystemPaths() []string {
 func AssertDoesNotRemoveSystemFiles(t *testing.T, host *components.RemoteHost, beforeInstall *windowsCommon.FileSystemSnapshot) {
 	t.Run("does not change system files", func(tt *testing.T) {
 		afterUninstall, err := windowsCommon.NewFileSystemSnapshot(host, SystemPaths())
-		assert.NoError(tt, err)
+		if !assert.NoError(tt, err) {
+			return
+		}
 		result, err := beforeInstall.CompareSnapshots(afterUninstall)
-		assert.NoError(tt, err)
+		if !assert.NoError(tt, err) {
+			return
+		}
 
 		// Since the result of this test can depend on Windows behavior unrelated to the agent,
 		// we mark it as flaky so it doesn't block PRs.
@@ -56,4 +61,44 @@ func AssertDoesNotRemoveSystemFiles(t *testing.T, host *components.RemoteHost, b
 		flake.Mark(tt)
 		assert.Empty(tt, result, "should not remove system files")
 	})
+}
+
+// SystemPathsForPermissionsValidation returns paths that we should ensure permissions are not
+// changed on by our installer.
+//
+// Paths were chosen because they are in the directory tree of our installed files.
+//
+// This test is a result of a bug in Windows MSI.DLL (reported, fix in progress).
+// See https://github.com/oleg-shilo/wixsharp/issues/1336
+func SystemPathsForPermissionsValidation() []string {
+	return []string{
+		`C:\`,
+		`C:\Program Files\`,
+		`C:\ProgramData\`,
+	}
+}
+
+// SnapshotPermissionsForPaths returns a map of paths to their SDDL permissions
+func SnapshotPermissionsForPaths(host *components.RemoteHost, paths []string) (map[string]string, error) {
+	permissions := make(map[string]string)
+	for _, path := range paths {
+		perms, err := windowsCommon.GetSecurityInfoForPath(host, path)
+		if err != nil {
+			return nil, err
+		}
+		permissions[path] = perms.SDDL
+	}
+	return permissions, nil
+}
+
+// AssertDoesNotChangePathPermissions checks that the permissions on the paths in the snapshot are not changed
+// by comparing their SDDL strings
+func AssertDoesNotChangePathPermissions(t *testing.T, host *components.RemoteHost, beforeInstall map[string]string) {
+	t.Helper()
+	for path, sddl := range beforeInstall {
+		perms, err := windowsCommon.GetSecurityInfoForPath(host, path)
+		if assert.NoError(t, err) {
+			assert.Equal(t, sddl, perms.SDDL, "%s permissions should not have changed", path)
+		}
+	}
 }

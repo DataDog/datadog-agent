@@ -20,8 +20,7 @@ import (
 
 // ProtectedFile represents a symlink to a sealed ram-backed file
 type ProtectedFile interface {
-	Close() error
-	Reader() io.Reader
+	io.ReadSeekCloser
 	Name() string
 }
 
@@ -104,6 +103,10 @@ func (m *ramBackedFile) Name() string {
 	return m.symlink
 }
 
-func (m *ramBackedFile) Reader() io.Reader {
-	return m.file
+func (m *ramBackedFile) Seek(offset int64, whence int) (int64, error) {
+	return m.file.Seek(offset, whence)
+}
+
+func (m *ramBackedFile) Read(p []byte) (n int, err error) {
+	return m.file.Read(p)
 }

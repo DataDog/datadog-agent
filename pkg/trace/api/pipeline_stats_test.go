@@ -86,7 +86,7 @@ func TestPipelineStatsEndpoint(t *testing.T) {
 func TestPipelineStatsProxyHandler(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		var called bool
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 			v := req.Header.Get("X-Datadog-Additional-Tags")
 			tags := strings.Split(v, ",")
 			m := make(map[string]string)
@@ -119,7 +119,7 @@ func TestPipelineStatsProxyHandler(t *testing.T) {
 	})
 
 	t.Run("proxy_code", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusAccepted)
 		}))
 		conf := newTestReceiverConfig()
@@ -135,7 +135,7 @@ func TestPipelineStatsProxyHandler(t *testing.T) {
 
 	t.Run("ok_fargate", func(t *testing.T) {
 		var called bool
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 			v := req.Header.Get("X-Datadog-Additional-Tags")
 			if !strings.Contains(v, "orchestrator:fargate_orchestrator") {
 				t.Fatalf("invalid X-Datadog-Additional-Tags header, fargate env should contain '%s' tag: %q", "orchestrator", v)

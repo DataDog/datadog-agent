@@ -14,9 +14,11 @@ import (
 
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	serverlessStreamLogs "github.com/DataDog/datadog-agent/pkg/serverless/streamlogs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -24,6 +26,9 @@ import (
 const (
 	// The maximum number of logs that will be buffered during the init phase before the first invocation
 	maxBufferedLogs = 2000
+
+	// Bottlecap Failover
+	bottlecapFailoverReasonEnvVar = "DD_EXTENSION_FAILOVER_REASON"
 )
 
 // Tags contains the actual array of Tags (useful for passing it via reference)
@@ -200,6 +205,11 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 				continue
 			}
 
+			// Don't collect stream-logs output
+			if serverlessStreamLogs.Is(message.stringRecord) {
+				continue
+			}
+
 			isErrorLog := message.logType == logTypeFunction && serverlessMetrics.ContainsOutOfMemoryLog(message.stringRecord)
 			if message.objectRecord.requestID != "" {
 				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, lc.arn, message.objectRecord.requestID, isErrorLog)
@@ -255,16 +265,17 @@ func (lc *LambdaLogsCollector) processMessage(
 		message.stringRecord = createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, message)
 	}
 
+	proactiveInit := false
+	coldStart := false
+	// Only run this block if the LC thinks we're in a cold start
+	if lc.lastRequestID == lc.coldstartRequestID {
+		coldStartTags := lc.executionContext.GetColdStartTagsForRequestID(lc.lastRequestID)
+		proactiveInit = coldStartTags.IsProactiveInit
+		coldStart = coldStartTags.IsColdStart
+	}
+	tags := tags.AddColdStartTag(lc.extraTags.Tags, coldStart, proactiveInit)
+
 	if lc.enhancedMetricsEnabled {
-		proactiveInit := false
-		coldStart := false
-		// Only run this block if the LC thinks we're in a cold start
-		if lc.lastRequestID == lc.coldstartRequestID {
-			coldStartTags := lc.executionContext.GetColdStartTagsForRequestID(lc.lastRequestID)
-			proactiveInit = coldStartTags.IsProactiveInit
-			coldStart = coldStartTags.IsColdStart
-		}
-		tags := tags.AddColdStartTag(lc.extraTags.Tags, coldStart, proactiveInit)
 		//nolint:revive // TODO(SERV) Fix revive linter
 		outOfMemoryRequestId := ""
 
@@ -273,6 +284,7 @@ func (lc *LambdaLogsCollector) processMessage(
 				outOfMemoryRequestId = lc.lastRequestID
 			}
 		}
+
 		if message.logType == logTypePlatformReport {
 			memorySize := message.objectRecord.reportLogItem.memorySizeMB
 			memoryUsed := message.objectRecord.reportLogItem.maxMemoryUsedMB
@@ -310,11 +322,36 @@ func (lc *LambdaLogsCollector) processMessage(
 				})
 			lc.invocationEndTime = message.time
 			lc.executionContext.UpdateEndTime(message.time)
+
+			// The state is saved when a shutdown event is received. A shutdown event can occur before the
+			// runtimeDone log message is received so we save the state again to properly store the end time
+			if lc.executionContext.IsStateSaved() {
+				err := lc.executionContext.SaveCurrentExecutionContext()
+				if err != nil {
+					log.Warnf("Unable to save the current state. Failed with: %s", err)
+				}
+			}
 		}
 		if outOfMemoryRequestId != "" {
 			lc.lastOOMRequestID = outOfMemoryRequestId
 			lc.executionContext.UpdateOutOfMemoryRequestID(lc.lastOOMRequestID)
 			serverlessMetrics.GenerateOutOfMemoryEnhancedMetrics(message.time, tags, lc.demux)
+		}
+	}
+
+	// Bottlecap Failover
+	if message.logType == logTypeExtension {
+		var r map[string]interface{}
+		if strings.HasPrefix(message.stringRecord, fmt.Sprintf("{\"%s\"", bottlecapFailoverReasonEnvVar)) {
+			err := json.Unmarshal([]byte(message.stringRecord), &r)
+
+			if err == nil {
+				if reason, exist := r[bottlecapFailoverReasonEnvVar]; exist {
+					tags = append(tags, fmt.Sprintf("reason:%v", reason))
+					serverlessMetrics.SendFailoverReasonMetric(tags, lc.demux)
+					message.stringRecord = "" // Avoid sending the log to the intake
+				}
+			}
 		}
 	}
 

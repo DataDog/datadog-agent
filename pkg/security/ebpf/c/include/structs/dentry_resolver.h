@@ -10,9 +10,9 @@ struct path_key_t {
 };
 
 struct path_leaf_t {
-  struct path_key_t parent;
-  char name[DR_MAX_SEGMENT_LENGTH + 1];
-  u16 len;
+    struct path_key_t parent;
+    char name[DR_MAX_SEGMENT_LENGTH + 1];
+    u16 len;
 };
 
 struct dr_erpc_state_t {
@@ -31,13 +31,21 @@ struct dr_erpc_stats_t {
 
 struct dentry_resolver_input_t {
     struct path_key_t key;
+    struct path_key_t original_key;
     struct dentry *dentry;
-    u64 discarder_type;
-    s64 sysretval;
+    u64 discarder_event_type;
+    union {
+        s64 sysretval;
+        struct {
+            u32 cgroup_write_pid;
+            u32 cgroup_flags;
+        } cgroup_write_ctx;
+    };
     int callback;
     int ret;
     int iteration;
     u32 flags;
+    u64 type;
 };
 
 #endif

@@ -11,7 +11,8 @@ package subcommands
 // A pointer to this type is passed to SubcommandFactory's, but its contents
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
-	ConfPath   string
-	ConfigName string
-	LoggerName string
+	ConfPath             string
+	ConfigName           string
+	LoggerName           string
+	FleetPoliciesDirPath string
 }

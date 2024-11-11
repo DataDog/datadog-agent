@@ -11,9 +11,21 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// GetFileInode returns the inode number of a file
+func GetFileInode(path string) (uint64, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+
+	// We are on linux, casting in safe
+	return fi.Sys().(*syscall.Stat_t).Ino, nil
+}
 
 // CountProcessesFileDescriptors returns the sum of open file descriptors for all given PIDs.
 // Failed PIDs are silently skipped.

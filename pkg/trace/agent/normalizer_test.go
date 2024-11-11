@@ -242,14 +242,14 @@ func TestNormalizeComponent2Name(t *testing.T) {
 		a := &Agent{conf: config.New()}
 		a.conf.Features = map[string]struct{}{"component2name": {}}
 
-		t.Run("with", func(t *testing.T) {
+		t.Run("with", func(_ *testing.T) {
 			s := newTestSpan()
 			s.Meta["component"] = "component"
 			assert.NoError(a.normalize(ts, s))
 			assert.Equal(s.Name, "component")
 		})
 
-		t.Run("without", func(t *testing.T) {
+		t.Run("without", func(_ *testing.T) {
 			s := newTestSpan()
 			assert.Empty(s.Meta["component"])
 			assert.NoError(a.normalize(ts, s))
@@ -257,7 +257,7 @@ func TestNormalizeComponent2Name(t *testing.T) {
 		})
 	})
 
-	t.Run("off", func(t *testing.T) {
+	t.Run("off", func(_ *testing.T) {
 		s := newTestSpan()
 		s.Meta["component"] = "component"
 		assert.NoError(a.normalize(ts, s))

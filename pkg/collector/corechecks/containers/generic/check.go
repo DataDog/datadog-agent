@@ -12,7 +12,8 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -41,22 +42,24 @@ type ContainerCheck struct {
 	instance  *ContainerConfig
 	processor Processor
 	store     workloadmeta.Component
+	tagger    tagger.Component
 }
 
 // Factory returns a new check factory
-func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+func Factory(store workloadmeta.Component, tagger tagger.Component) optional.Option[func() check.Check] {
 	return optional.NewOption(func() check.Check {
 		return &ContainerCheck{
 			CheckBase: core.NewCheckBase(CheckName),
 			instance:  &ContainerConfig{},
 			store:     store,
+			tagger:    tagger,
 		}
 	})
 }
 
 // Configure parses the check configuration and init the check
-func (c *ContainerCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
+func (c *ContainerCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -65,7 +68,7 @@ func (c *ContainerCheck) Configure(senderManager sender.SenderManager, integrati
 	if err != nil {
 		return err
 	}
-	c.processor = NewProcessor(metrics.GetProvider(optional.NewOption(c.store)), NewMetadataContainerAccessor(c.store), GenericMetricsAdapter{}, LegacyContainerFilter{OldFilter: filter, Store: c.store})
+	c.processor = NewProcessor(metrics.GetProvider(optional.NewOption(c.store)), NewMetadataContainerAccessor(c.store), GenericMetricsAdapter{}, LegacyContainerFilter{OldFilter: filter, Store: c.store}, c.tagger)
 	return c.instance.Parse(config)
 }
 

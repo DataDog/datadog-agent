@@ -10,6 +10,7 @@ package events
 import (
 	"math"
 	"os"
+	"slices"
 	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -18,6 +19,7 @@ import (
 	"github.com/cilium/ebpf/features"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -78,6 +80,11 @@ func setupPerfMap(proto string, m *manager.Manager) {
 			RecordGetter:  handler.RecordGetter,
 		},
 	}
+	// The map appears as we list it in the Protocol struct.
+	m.Maps = slices.DeleteFunc(m.Maps, func(currentMap *manager.Map) bool {
+		return currentMap.Name == mapName
+	})
+
 	m.PerfMaps = append(m.PerfMaps, pm)
 	removeRingBufferHelperCalls(m)
 	setHandler(proto, handler)
@@ -90,11 +97,15 @@ func setupPerfRing(proto string, m *manager.Manager, o *manager.Options, numCPUs
 	rb := &manager.RingBuffer{
 		Map: manager.Map{Name: mapName},
 		RingBufferOptions: manager.RingBufferOptions{
-			RingBufferSize: ringBufferSize,
-			RecordHandler:  handler.RecordHandler,
-			RecordGetter:   handler.RecordGetter,
+			RecordHandler: handler.RecordHandler,
+			RecordGetter:  handler.RecordGetter,
 		},
 	}
+
+	// The map appears as we list it in the Protocol struct.
+	m.Maps = slices.DeleteFunc(m.Maps, func(currentMap *manager.Map) bool {
+		return currentMap.Name == mapName
+	})
 
 	o.MapSpecEditors[mapName] = manager.MapSpecEditor{
 		Type:       ebpf.RingBuf,
@@ -149,7 +160,7 @@ func removeRingBufferHelperCalls(m *manager.Manager) {
 	// Once we have access to the `ddebpf.Manager`, add this modifier to its list of
 	// `EnabledModifiers` and let it control the execution of the callbacks
 	patcher := ddebpf.NewHelperCallRemover(asm.FnRingbufOutput)
-	err := patcher.BeforeInit(m, nil)
+	err := patcher.BeforeInit(m, names.NewModuleName("usm"), nil)
 
 	if err != nil {
 		// Our production code is actually loading on all Kernels we test on CI

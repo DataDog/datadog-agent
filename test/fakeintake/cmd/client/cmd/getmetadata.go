@@ -19,7 +19,7 @@ func NewGetMetadataCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
 		Use:   "metadata",
 		Short: "Get metadata",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			metadata, err := (*cl).GetMetadata()
 			if err != nil {
 				return err

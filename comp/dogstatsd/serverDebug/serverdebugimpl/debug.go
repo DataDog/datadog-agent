@@ -20,16 +20,18 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
-	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
-	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 // Module defines the fx options for this component.
@@ -41,7 +43,7 @@ func Module() fxutil.Module {
 type dependencies struct {
 	fx.In
 
-	Log    logComponent.Component
+	Log    log.Component
 	Config configComponent.Component
 }
 
@@ -56,7 +58,7 @@ type metricStat struct {
 
 type serverDebugImpl struct {
 	sync.Mutex
-	log     logComponent.Component
+	log     log.Component
 	enabled *atomic.Bool
 	Stats   map[ckey.ContextKey]metricStat `json:"stats"`
 	// counting number of metrics processed last X seconds
@@ -74,7 +76,7 @@ type serverDebugImpl struct {
 
 // NewServerlessServerDebug creates a new instance of serverDebug.Component
 func NewServerlessServerDebug() serverdebug.Component {
-	return newServerDebugCompat(logComponentImpl.NewTemporaryLoggerWithoutInit(), config.Datadog)
+	return newServerDebugCompat(logComponentImpl.NewTemporaryLoggerWithoutInit(), pkgconfigsetup.Datadog())
 }
 
 // newServerDebug creates a new instance of a ServerDebug
@@ -82,9 +84,9 @@ func newServerDebug(deps dependencies) serverdebug.Component {
 	return newServerDebugCompat(deps.Log, deps.Config)
 }
 
-func newServerDebugCompat(log logComponent.Component, cfg config.Reader) serverdebug.Component {
+func newServerDebugCompat(l log.Component, cfg model.Reader) serverdebug.Component {
 	sd := &serverDebugImpl{
-		log:     log,
+		log:     l,
 		enabled: atomic.NewBool(false),
 		Stats:   make(map[ckey.ContextKey]metricStat),
 		metricsCounts: metricsCountBuckets{
@@ -277,19 +279,19 @@ func (d *serverDebugImpl) disableMetricsStats() {
 }
 
 // build a local dogstatsd logger and bubbling up any errors
-func (d *serverDebugImpl) getDogstatsdDebug(cfg config.Reader) slog.LoggerInterface {
+func (d *serverDebugImpl) getDogstatsdDebug(cfg model.Reader) slog.LoggerInterface {
 
 	var dogstatsdLogger slog.LoggerInterface
 
 	// Configuring the log file path
 	logFile := cfg.GetString("dogstatsd_log_file")
 	if logFile == "" {
-		logFile = commonpath.DefaultDogstatsDLogFile
+		logFile = defaultpaths.DogstatsDLogFile
 	}
 
 	// Set up dogstatsdLogger
 	if cfg.GetBool("dogstatsd_logging_enabled") {
-		logger, e := config.SetupDogstatsdLogger(logFile)
+		logger, e := pkglogsetup.SetupDogstatsdLogger(logFile, pkgconfigsetup.Datadog())
 		if e != nil {
 			// use component logger instead of global logger.
 			d.log.Errorf("Unable to set up Dogstatsd logger: %v. || Please reach out to Datadog support at https://docs.datadoghq.com/help/ ", e)

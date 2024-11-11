@@ -6,7 +6,7 @@
 package server
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"

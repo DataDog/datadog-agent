@@ -7,15 +7,17 @@ package http
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestGet(t *testing.T) {
@@ -26,7 +28,7 @@ func TestGet(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	c := configmock.New(t)
 	res, err := Get(context.Background(), ts.URL, nil, 5*time.Second, c)
 
 	require.NoError(t, err)
@@ -42,7 +44,7 @@ func TestGetHeader(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	c := configmock.New(t)
 	res, err := Get(context.Background(), ts.URL, map[string]string{"header": "value"}, 5*time.Second, c)
 
 	require.NoError(t, err)
@@ -58,7 +60,7 @@ func TestGetTimeout(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	c := configmock.New(t)
 	_, err := Get(context.Background(), ts.URL, map[string]string{"header": "value"}, 100*time.Millisecond, c)
 
 	require.Error(t, err)
@@ -72,8 +74,31 @@ func TestGetError(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	c := configmock.New(t)
 	_, err := Get(context.Background(), ts.URL, map[string]string{"header": "value"}, 5*time.Second, c)
 
 	require.Error(t, err)
+}
+
+func TestSetJSONError(t *testing.T) {
+	w := httptest.NewRecorder()
+	err := errors.New("some error")
+	errorCode := http.StatusInternalServerError
+
+	SetJSONError(w, err, errorCode)
+
+	res := w.Result()
+	defer res.Body.Close()
+
+	assert.Equal(t, "application/json", res.Header.Get("Content-Type"))
+
+	// Verify the response body
+	expectedBody := "{\"error\":\"some error\"}\n"
+
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	assert.EqualValues(t, []byte(expectedBody), body)
+
+	// Verify the response status code
+	assert.Equal(t, errorCode, res.StatusCode)
 }

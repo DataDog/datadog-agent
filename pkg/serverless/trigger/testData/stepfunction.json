@@ -1,0 +1,19 @@
+{
+  "Execution": {
+    "Id": "arn:aws:states:sa-east-1:425362996713:execution:invokeJavaLambda:c0ca8d0f-a3af-4c42-bfd4-b3b100e77f01",
+    "Input": {},
+    "StartTime": "2024-08-29T21:48:55.187Z",
+    "Name": "c0ca8d0f-a3af-4c42-bfd4-b3b100e77f01",
+    "RoleArn": "arn:aws:iam::425362996713:role/new-extension-test-java-dev-InvokeJavaLambdaRole-LtJmnJReIOTS",
+    "RedriveCount": 0
+  },
+  "StateMachine": {
+    "Id": "arn:aws:states:sa-east-1:425362996713:stateMachine:invokeJavaLambda",
+    "Name": "invokeJavaLambda"
+  },
+  "State": {
+    "Name": "invoker",
+    "EnteredTime": "2024-08-29T21:48:55.275Z",
+    "RetryCount": 0
+  }
+}

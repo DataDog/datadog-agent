@@ -35,5 +35,20 @@
             "mode": "test",
             "program": "${fileDirname}"
         },
+        {
+            "name": "Remote Debug Tasks",
+            "type": "debugpy",
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 5678
+            },
+            "pathMappings": [
+                {
+                    "localRoot": "${workspaceFolder}",
+                    "remoteRoot": "."
+                }
+            ]
+        },
     ]
 }

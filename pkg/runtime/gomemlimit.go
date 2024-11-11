@@ -12,6 +12,6 @@ import (
 )
 
 // SetGoMemLimit configures Go memory limit based on cgroups. Only supported on Linux.
-func SetGoMemLimit(isContainerized bool) (int64, error) { //nolint:revive // TODO fix revive unused-parameter
+func SetGoMemLimit(_ bool) (int64, error) {
 	return 0, errors.New("unsupported")
 }

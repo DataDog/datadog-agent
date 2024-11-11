@@ -18,9 +18,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
@@ -89,16 +93,15 @@ type ProviderTestSuite struct {
 	provider   *Provider
 	mockSender *mocksender.MockSender
 	store      workloadmeta.Component
+	tagger     tagger.Component
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
 	var err error
 
-	store := fxutil.Test[workloadmeta.Mock](suite.T(), fx.Options(
+	store := fxutil.Test[workloadmetamock.Mock](suite.T(), fx.Options(
 		core.MockBundle(),
-		collectors.GetCatalog(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))
@@ -106,12 +109,15 @@ func (suite *ProviderTestSuite) SetupTest() {
 	suite.mockSender = mockSender
 
 	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
-	defer fakeTagger.ResetTagger()
-	for entity, tags := range commontesting.CommonTags {
-		fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
-	}
 
-	podUtils := common.NewPodUtils()
+	for entity, tags := range commontesting.CommonTags {
+		prefix, id, _ := taggercommon.ExtractPrefixAndID(entity)
+		entityID := taggertypes.NewEntityID(prefix, id)
+		fakeTagger.SetTags(entityID, "foo", tags, nil, nil, nil)
+	}
+	suite.tagger = fakeTagger
+
+	podUtils := common.NewPodUtils(fakeTagger)
 
 	podsFile := "../../testdata/pods.json"
 	err = commontesting.StorePopulatedFromFile(store, podsFile, podUtils)
@@ -137,6 +143,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 		config,
 		store,
 		podUtils,
+		fakeTagger,
 	)
 	assert.NoError(suite.T(), err)
 	suite.provider = p
@@ -265,7 +272,7 @@ func (suite *ProviderTestSuite) TestIgnoreMetrics() {
 		ignoreMetrics = oldIgnore
 	})
 	// since we updated ignoreMetrics, we need to recreate the provider
-	suite.provider, _ = NewProvider(suite.provider.filter, suite.provider.Config, suite.provider.store, suite.provider.podUtils)
+	suite.provider, _ = NewProvider(suite.provider.filter, suite.provider.Config, suite.provider.store, suite.provider.podUtils, suite.tagger)
 
 	response := commontesting.NewEndpointResponse(
 		"../../testdata/cadvisor_metrics_pre_1_16.txt", 200, nil)

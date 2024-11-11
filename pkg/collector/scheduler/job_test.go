@@ -34,7 +34,7 @@ func TestBucket_RemoveJob(t *testing.T) {
 	// Add a check with a finalizer to the bucket, then remove it
 	finalized := make(chan struct{}, 1)
 	checkWithFinalizer := &TestJobCheck{id: "withFinalizer"}
-	runtime.SetFinalizer(checkWithFinalizer, func(c *TestJobCheck) {
+	runtime.SetFinalizer(checkWithFinalizer, func(*TestJobCheck) {
 		finalized <- struct{}{}
 	})
 	bucket.addJob(checkWithFinalizer)

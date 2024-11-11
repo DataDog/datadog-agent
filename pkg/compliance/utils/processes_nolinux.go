@@ -14,12 +14,12 @@ type ContainerID string
 
 // GetProcessContainerID returns the container ID associated with the given
 // process ID. Returns an empty string if no container found.
-func GetProcessContainerID(_ int32) (ContainerID, bool) { //nolint:revive // TODO fix revive unused-parameter
+func GetProcessContainerID(_ int32) (ContainerID, bool) {
 	return "", false
 }
 
 // GetProcessRootPath returns the process root path of the given PID.
-func GetProcessRootPath(_ int32) (string, bool) { //nolint:revive // TODO fix revive unused-parameter
+func GetProcessRootPath(_ int32) (string, bool) {
 	return "", false
 }
 

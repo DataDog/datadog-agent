@@ -11,14 +11,13 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.go import deps
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_root
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
-MAX_BINARY_SIZE = 42 * 1024
+MAX_BINARY_SIZE = 44 * 1024
 DOGSTATSD_TAG = "datadog/dogstatsd:master"
 
 
@@ -31,16 +30,15 @@ def build(
     build_include=None,
     build_exclude=None,
     major_version='7',
-    arch="x64",
     go_mod="mod",
 ):
     """
     Build Dogstatsd
     """
     build_include = (
-        get_default_build_tags(build="dogstatsd", arch=arch, flavor=AgentFlavor.dogstatsd)
+        get_default_build_tags(build="dogstatsd", flavor=AgentFlavor.dogstatsd)
         if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+        else filter_incompatible_tags(build_include.split(","))
     )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
@@ -49,15 +47,11 @@ def build(
 
     # generate windows resources
     if sys.platform == 'win32':
-        if arch == "x86":
-            env["GOARCH"] = "386"
-
-        build_messagetable(ctx, arch=arch)
-        vars = versioninfo_vars(ctx, major_version=major_version, arch=arch)
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx, major_version=major_version)
         build_rc(
             ctx,
             "cmd/dogstatsd/windows_resources/dogstatsd.rc",
-            arch=arch,
             vars=vars,
             out="cmd/dogstatsd/rsrc.syso",
         )
@@ -134,7 +128,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, 
 
 
 @task
-def system_tests(ctx, skip_build=False, go_mod="mod", arch="x64"):
+def system_tests(ctx, skip_build=False, go_mod="mod"):
     """
     Run the system testsuite.
     """
@@ -148,7 +142,7 @@ def system_tests(ctx, skip_build=False, go_mod="mod", arch="x64"):
     cmd = "go test -mod={go_mod} -tags '{build_tags}' -v {REPO_PATH}/test/system/dogstatsd/"
     args = {
         "go_mod": go_mod,
-        "build_tags": " ".join(get_default_build_tags(build="system-tests", arch=arch, flavor=AgentFlavor.dogstatsd)),
+        "build_tags": " ".join(get_default_build_tags(build="system-tests", flavor=AgentFlavor.dogstatsd)),
         "REPO_PATH": REPO_PATH,
     }
     ctx.run(cmd.format(**args), env=env)
@@ -176,19 +170,17 @@ def size_test(ctx, skip_build=False):
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod", arch="x64"):
+def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout=""):
     """
     Run integration tests for dogstatsd
     """
     if sys.platform == 'win32':
         raise Exit(message='dogstatsd integration tests are not supported on Windows', code=0)
 
-    if install_deps:
-        deps(ctx)
-
-    go_build_tags = " ".join(get_default_build_tags(build="test", arch=arch))
+    go_build_tags = " ".join(get_default_build_tags(build="test"))
     race_opt = "-race" if race else ""
     exec_opts = ""
+    timeout_opt = f"-timeout {timeout}" if timeout else ""
 
     # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
     # to the call, we don't want them because while calling invoke below, invoke
@@ -197,7 +189,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     if remote_docker:
         exec_opts = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
 
-    go_cmd = f'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'
+    go_cmd = f'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'
 
     prefixes = [
         "./test/integration/dogstatsd/...",

@@ -10,14 +10,18 @@ package python
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"unsafe"
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -34,9 +38,7 @@ import (
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
 */
-import (
-	"C"
-)
+import "C"
 
 // GetVersion exposes the version of the agent to Python checks.
 //
@@ -60,6 +62,18 @@ func GetHostname(hostname **C.char) {
 	*hostname = TrackedCString(goHostname)
 }
 
+// GetHostTags exposes the tags of the agent host to Python checks.
+//
+//export GetHostTags
+func GetHostTags(hostTags **C.char) {
+	tags := hosttags.Get(context.Background(), true, pkgconfigsetup.Datadog())
+	tagsBytes, err := json.Marshal(tags)
+	if err != nil {
+		log.Warnf("Error getting host tags: %v. Invalid tags: %v", err, tags)
+	}
+	*hostTags = TrackedCString(string(tagsBytes))
+}
+
 // GetClusterName exposes the current clustername (if it exists) of the agent to Python checks.
 //
 //export GetClusterName
@@ -74,7 +88,7 @@ func GetClusterName(clusterName **C.char) {
 //
 //export TracemallocEnabled
 func TracemallocEnabled() C.bool {
-	return C.bool(config.Datadog.GetBool("tracemalloc_debug"))
+	return C.bool(pkgconfigsetup.Datadog().GetBool("tracemalloc_debug"))
 }
 
 // Headers returns a basic set of HTTP headers that can be used by clients in Python checks.
@@ -99,12 +113,12 @@ func Headers(yamlPayload **C.char) {
 //export GetConfig
 func GetConfig(key *C.char, yamlPayload **C.char) {
 	goKey := C.GoString(key)
-	if !config.Datadog.IsSet(goKey) {
+	if !pkgconfigsetup.Datadog().IsSet(goKey) {
 		*yamlPayload = nil
 		return
 	}
 
-	value := config.Datadog.Get(goKey)
+	value := pkgconfigsetup.Datadog().Get(goKey)
 	data, err := yaml.Marshal(value)
 	if err != nil {
 		log.Errorf("could not convert configuration value '%v' to YAML: %s", value, err)
@@ -203,6 +217,28 @@ func ReadPersistentCache(key *C.char) *C.char {
 	return TrackedCString(data)
 }
 
+// SendLog submits a log for one check instance.
+// Indirectly used by the C function `send_log` that's mapped to `datadog_agent.send_log`.
+//
+//export SendLog
+func SendLog(logLine, checkID *C.char) {
+	line := C.GoString(logLine)
+	cid := C.GoString(checkID)
+
+	cc, err := getCheckContext()
+	if err != nil {
+		log.Errorf("Log submission failed: %s", err)
+	}
+
+	lr, ok := cc.logReceiver.Get()
+	if !ok {
+		log.Error("Log submission failed: no receiver")
+		return
+	}
+
+	lr.SendLog(line, cid)
+}
+
 var (
 	// one obfuscator instance is shared across all python checks. It is not threadsafe but that is ok because
 	// the GIL is always locked when calling c code from python which means that the exported functions in this file
@@ -212,12 +248,12 @@ var (
 )
 
 // lazyInitObfuscator initializes the obfuscator the first time it is used. We can't initialize during the package init
-// because the obfuscator depends on config.Datadog and it isn't guaranteed to be initialized during package init, but
+// because the obfuscator depends on pkgconfigsetup.Datadog and it isn't guaranteed to be initialized during package init, but
 // will definitely be initialized by the time one of the python checks runs
 func lazyInitObfuscator() *obfuscate.Obfuscator {
 	obfuscatorLoader.Do(func() {
 		var cfg obfuscate.Config
-		if err := config.Datadog.UnmarshalKey("apm_config.obfuscation", &cfg); err != nil {
+		if err := pkgconfigsetup.Datadog().UnmarshalKey("apm_config.obfuscation", &cfg); err != nil {
 			log.Errorf("Failed to unmarshal apm_config.obfuscation: %s", err.Error())
 			cfg = obfuscate.Config{}
 		}
@@ -226,6 +262,9 @@ func lazyInitObfuscator() *obfuscate.Obfuscator {
 		}
 		if !cfg.SQLExecPlanNormalize.Enabled {
 			cfg.SQLExecPlanNormalize = defaultSQLPlanNormalizeSettings
+		}
+		if !cfg.Mongo.Enabled {
+			cfg.Mongo = defaultMongoObfuscateSettings
 		}
 		obfuscator = obfuscate.NewObfuscator(cfg)
 	})
@@ -284,6 +323,11 @@ type sqlConfig struct {
 	// By default, identifier quotation is removed during normalization.
 	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
 	KeepIdentifierQuotation bool `json:"keep_identifier_quotation"`
+
+	// KeepJSONPath specifies whether to keep JSON paths following JSON operators in SQL statements in obfuscation.
+	// By default, JSON paths are treated as literals and are obfuscated to ?, e.g. "data::jsonb -> 'name'" -> "data::jsonb -> ?".
+	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
+	KeepJSONPath bool `json:"keep_json_path" yaml:"keep_json_path"`
 }
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
@@ -318,6 +362,7 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 		KeepPositionalParameter:       sqlOpts.KeepPositionalParameter,
 		KeepTrailingSemicolon:         sqlOpts.KeepTrailingSemicolon,
 		KeepIdentifierQuotation:       sqlOpts.KeepIdentifierQuotation,
+		KeepJSONPath:                  sqlOpts.KeepJSONPath,
 	})
 	if err != nil {
 		// memory will be freed by caller
@@ -526,7 +571,166 @@ var defaultSQLPlanObfuscateSettings = obfuscate.JSONConfig{
 	ObfuscateSQLValues: defaultSQLPlanNormalizeSettings.ObfuscateSQLValues,
 }
 
+// defaultMongoObfuscateSettings are the default JSON obfuscator settings for obfuscating mongodb commands
+var defaultMongoObfuscateSettings = obfuscate.JSONConfig{
+	Enabled: true,
+	KeepValues: []string{
+		"find",
+		"sort",
+		"projection",
+		"skip",
+		"batchSize",
+		"$db",
+		"getMore",
+		"collection",
+		"delete",
+		"findAndModify",
+		"insert",
+		"ordered",
+		"update",
+		"aggregate",
+		"comment",
+	},
+}
+
 //export getProcessStartTime
 func getProcessStartTime() float64 {
-	return float64(config.StartTime.Unix())
+	return float64(pkgconfigsetup.StartTime.Unix())
+}
+
+// ObfuscateMongoDBString obfuscates the MongoDB query
+//
+//export ObfuscateMongoDBString
+func ObfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
+	if C.GoString(cmd) == "" {
+		// memory will be freed by caller
+		*errResult = TrackedCString("Empty MongoDB command")
+		return nil
+	}
+	obfuscatedMongoDBString := lazyInitObfuscator().ObfuscateMongoDBString(
+		C.GoString(cmd),
+	)
+	if obfuscatedMongoDBString == "" {
+		// memory will be freed by caller
+		*errResult = TrackedCString("Failed to obfuscate MongoDB command")
+		return nil
+	}
+	// memory will be freed by caller
+	return TrackedCString(obfuscatedMongoDBString)
+}
+
+var (
+	telemetryMap  = map[string]any{}
+	telemetryLock = sync.Mutex{}
+)
+
+func lazyInitTelemetryHistogram(checkName string, metricName string) telemetry.Histogram {
+	var key = checkName + "." + metricName
+	telemetryLock.Lock()
+	defer telemetryLock.Unlock()
+
+	histogram, ok := telemetryMap[key]
+	if !ok {
+		histogram = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
+			checkName,
+			metricName,
+			nil,
+			fmt.Sprintf("Histogram of %s for Python check %s", metricName, checkName),
+			[]float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000},
+			telemetry.DefaultOptions,
+		)
+		telemetryMap[key] = histogram
+	}
+	switch t := histogram.(type) {
+	default:
+		// Somehow the same metric was emitted with a different type
+		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %s when histogram was expected", metricName, checkName, t)
+		return nil
+	case telemetry.Histogram:
+		return t
+	}
+}
+
+func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Counter {
+	var key = checkName + "." + metricName
+	telemetryLock.Lock()
+	defer telemetryLock.Unlock()
+
+	counter, ok := telemetryMap[key]
+	if !ok {
+		counter = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+			checkName,
+			metricName,
+			nil,
+			fmt.Sprintf("Counter of %s for Python check %s", metricName, checkName),
+			telemetry.DefaultOptions,
+		)
+		telemetryMap[key] = counter
+	}
+	switch t := counter.(type) {
+	default:
+		// Somehow the same metric was emitted with a different type
+		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %s when counter was expected", metricName, checkName, t)
+		return nil
+	case telemetry.Counter:
+		return t
+	}
+}
+
+func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge {
+	var key = checkName + "." + metricName
+	telemetryLock.Lock()
+	defer telemetryLock.Unlock()
+
+	gauge, ok := telemetryMap[key]
+	if !ok {
+		gauge = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
+			checkName,
+			metricName,
+			nil,
+			fmt.Sprintf("Gauge of %s for Python check %s", metricName, checkName),
+			telemetry.DefaultOptions,
+		)
+		telemetryMap[key] = gauge
+	}
+	switch t := gauge.(type) {
+	default:
+		// Somehow the same metric was emitted with a different type
+		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %s when gauge was expected", metricName, checkName, t)
+		return nil
+	case telemetry.Gauge:
+		return t
+	}
+}
+
+// EmitAgentTelemetry records a telemetry data point for a Python integration
+// NB: Cross-org agent telemetry needs to be enabled for each metric in
+// comp/core/agenttelemetry/impl/config.go defaultProfiles
+//
+//export EmitAgentTelemetry
+func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.double, metricType *C.char) {
+	goCheckName := C.GoString(checkName)
+	goMetricName := C.GoString(metricName)
+	goMetricValue := float64(metricValue)
+	goMetricType := C.GoString(metricType)
+
+	switch goMetricType {
+	case "counter":
+		counter := lazyInitTelemetryCounter(goCheckName, goMetricName)
+		if counter != nil {
+			counter.Add(goMetricValue)
+		}
+	case "histogram":
+		histogram := lazyInitTelemetryHistogram(goCheckName, goMetricName)
+		if histogram != nil {
+			histogram.Observe(goMetricValue)
+		}
+	case "gauge":
+		gauge := lazyInitTelemetryGauge(goCheckName, goMetricName)
+		if gauge != nil {
+			gauge.Add(goMetricValue)
+		}
+	default:
+		log.Warnf("EmitAgentTelemetry: unsupported metric type %s requested by %s for %s", goMetricType, goCheckName, goMetricName)
+	}
 }

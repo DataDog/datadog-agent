@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	waf "github.com/DataDog/go-libddwaf/v2"
+	waf "github.com/DataDog/go-libddwaf/v3"
 	json "github.com/json-iterator/go"
 )
 

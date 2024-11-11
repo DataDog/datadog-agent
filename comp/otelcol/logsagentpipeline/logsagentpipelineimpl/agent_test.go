@@ -7,13 +7,14 @@ package logsagentpipelineimpl
 
 import (
 	"context"
-	"go.uber.org/fx"
 	"testing"
 	"time"
 
+	"go.uber.org/fx"
+
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -65,7 +66,7 @@ func (suite *AgentTestSuite) TearDownTest() {
 func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) *Agent {
 	deps := fxutil.Test[testDeps](suite.T(), fx.Options(
 		configComponent.MockModule(),
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 	))
 
@@ -122,7 +123,7 @@ func (suite *AgentTestSuite) TestAgentTcp() {
 }
 
 func (suite *AgentTestSuite) TestAgentHttp() {
-	server := http.NewTestServer(200, pkgconfigsetup.Datadog)
+	server := http.NewTestServer(200, pkgconfigsetup.Datadog())
 	defer server.Stop()
 	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
 
@@ -174,11 +175,12 @@ func TestAgentTestSuite(t *testing.T) {
 }
 
 func TestBuildEndpoints(t *testing.T) {
-	config := fxutil.Test[configComponent.Component](t, fx.Options(
+	deps := fxutil.Test[testDeps](t, fx.Options(
 		configComponent.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 	))
 
-	endpoints, err := buildEndpoints(config)
+	endpoints, err := buildEndpoints(deps.Config, deps.Log)
 	assert.Nil(t, err)
 	assert.Equal(t, "agent-intake.logs.datadoghq.com", endpoints.Main.Host)
 }

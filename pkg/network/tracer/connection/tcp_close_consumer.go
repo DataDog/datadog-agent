@@ -85,10 +85,10 @@ func (c *tcpCloseConsumer) extractConn(data []byte) {
 	ct := (*netebpf.Conn)(unsafe.Pointer(&data[0]))
 	conn := c.buffer.Next()
 	populateConnStats(conn, &ct.Tup, &ct.Conn_stats, c.ch)
-	updateTCPStats(conn, &ct.Tcp_stats, ct.Tcp_retransmits)
+	updateTCPStats(conn, &ct.Tcp_stats)
 }
 
-func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
+func (c *tcpCloseConsumer) Start(callback func(*network.ConnectionStats)) {
 	if c == nil {
 		return
 	}
@@ -135,7 +135,10 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 
 				closeConsumerTelemetry.perfReceived.Add(float64(c.buffer.Len()))
 				closedCount += uint64(c.buffer.Len())
-				callback(c.buffer.Connections())
+				conns := c.buffer.Connections()
+				for i := range conns {
+					callback(&conns[i])
+				}
 				c.buffer.Reset()
 				batchData.Done()
 			// lost events only occur when using perf buffers
@@ -148,7 +151,10 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 			case request := <-c.requests:
 				oneTimeBuffer := network.NewConnectionBuffer(32, 32)
 				c.batchManager.GetPendingConns(oneTimeBuffer)
-				callback(oneTimeBuffer.Connections())
+				conns := oneTimeBuffer.Connections()
+				for i := range conns {
+					callback(&conns[i])
+				}
 				close(request)
 
 				closedCount += uint64(oneTimeBuffer.Len())

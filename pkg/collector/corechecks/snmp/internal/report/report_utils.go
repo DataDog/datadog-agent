@@ -212,3 +212,7 @@ func isInterfaceTableMetric(oid string) bool {
 	oid = strings.TrimPrefix(oid, ".")
 	return strings.HasPrefix(oid, ifTablePrefix) || strings.HasPrefix(oid, ifXTablePrefix)
 }
+
+func addInternalResourceTag(tags []string, resource string) []string {
+	return append(tags, "dd.internal.resource:"+resource)
+}

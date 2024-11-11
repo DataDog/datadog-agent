@@ -2,31 +2,19 @@ import os
 
 from invoke import task
 
-from tasks.libs.common.utils import get_version_numeric_only, get_win_py_runtime_var
+from tasks.libs.releasing.version import get_version_numeric_only
 
 MESSAGESTRINGS_MC_PATH = "pkg/util/winutil/messagestrings/messagestrings.mc"
-
-
-def arch_to_windres_target(
-    arch='x64',
-):
-    if arch == 'x86':
-        return 'pe-ie86'
-    elif arch == 'x64':
-        return 'pe-x86-64'
-    else:
-        raise Exception(f"Unsupported architecture: {arch}")
 
 
 @task
 def build_messagetable(
     ctx,
-    arch='x64',
 ):
     """
     Build the header and resource for the MESSAGETABLE shared between agent binaries.
     """
-    windres_target = arch_to_windres_target(arch)
+    windres_target = 'pe-x86-64'
 
     messagefile = MESSAGESTRINGS_MC_PATH
 
@@ -36,14 +24,14 @@ def build_messagetable(
     command = f"windmc --target {windres_target} -r {root} -h {root} {messagefile}"
     ctx.run(command)
 
-    build_rc(ctx, f'{root}/messagestrings.rc', arch=arch)
+    build_rc(ctx, f'{root}/messagestrings.rc')
 
 
-def build_rc(ctx, rc_file, arch='x64', vars=None, out=None):
+def build_rc(ctx, rc_file, vars=None, out=None):
     if vars is None:
         vars = {}
 
-    windres_target = arch_to_windres_target(arch)
+    windres_target = 'pe-x86-64'
 
     if out is None:
         root = os.path.dirname(rc_file)
@@ -58,20 +46,14 @@ def build_rc(ctx, rc_file, arch='x64', vars=None, out=None):
     ctx.run(command)
 
 
-def versioninfo_vars(
-    ctx,
-    major_version='7',
-    python_runtimes='3',
-    arch='x64',
-):
-    py_runtime_var = get_win_py_runtime_var(python_runtimes)
+def versioninfo_vars(ctx, major_version='7'):
     ver = get_version_numeric_only(ctx, major_version=major_version)
     build_maj, build_min, build_patch = ver.split(".")
 
     return {
-        f'{py_runtime_var}': 1,
+        'PY3_RUNTIME': 1,
         'MAJ_VER': build_maj,
         'MIN_VER': build_min,
         'PATCH_VER': build_patch,
-        f'BUILD_ARCH_{arch}': 1,
+        'BUILD_ARCH_x64': 1,
     }

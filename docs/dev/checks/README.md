@@ -146,7 +146,7 @@ class MyCheck(AgentCheck):
 
 1. Place the configuration file `hello_world.yaml` in the `dev/dist/conf.d/` folder.
 1. Place your Python code in the `dev/dist/` folder.
-1. Run `inv agent.build` as usual. This step copies the contents
+1. Run `deva agent.build` as usual. This step copies the contents
    of `dev/dist` into `bin/agent/dist`, which is where the Agent looks
    for your code.
 
@@ -184,12 +184,12 @@ correctly.
        `python3` bins.
 1. Activate the virtualenv (OS-dependent)
 1. `python3 -m pip install '/path/to/integrations-core/datadog_checks_base[deps]'`
-1. `PYTHONPATH="$PWD/venv/lib/python3.10/site-packages:$PYTHONPATH" inv agent.run`
+1. `PYTHONPATH="$PWD/venv/lib/python3.10/site-packages:$PYTHONPATH" deva agent.run`
 
 
 #### Example for user install
 1. `python3 -m pip install --user '/path/to//integrations-core/datadog_checks_base[deps]'`
-1. `PYTHONPATH="$HOME/.local/lib/python3.10/site-packages:$PYTHONPATH" inv agent.run`
+1. `PYTHONPATH="$HOME/.local/lib/python3.10/site-packages:$PYTHONPATH" deva agent.run`
 
 #### Getting the right `PYTHONPATH`
 You want the `site-packages` directory that the `datadog_checks_base` got
@@ -266,7 +266,7 @@ depending on your configuration) from the `PATH` that is used to run the Agent.
 > in `pkg/collector/python/init.go`.
 
 ### "Could not initialize Python"
-Out of the box, after an `inv agent.build`, you may see the following error on
+Out of the box, after an `deva agent.build`, you may see the following error on
 Linux when trying to run the resulting `agent` binary:
 
 `Could not initialize Python: could not load runtime python for version 3: Unable to open three library: libdatadog-agent-three.so: cannot open shared object file: No such file or directory`

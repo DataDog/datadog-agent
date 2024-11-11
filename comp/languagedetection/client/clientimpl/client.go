@@ -12,16 +12,15 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	clientComp "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"go.uber.org/fx"
@@ -50,7 +49,7 @@ type dependencies struct {
 
 	Lc           fx.Lifecycle
 	Config       config.Component
-	Log          logComponent.Component
+	Log          log.Component
 	Telemetry    telemetry.Component
 	Workloadmeta workloadmeta.Component
 
@@ -67,7 +66,7 @@ type languageDetectionClient interface {
 type client struct {
 	ctx    context.Context
 	cancel context.CancelFunc
-	logger logComponent.Component
+	logger log.Component
 	store  workloadmeta.Component
 
 	// mutex protecting UpdatedPodDetails and currentBatch
@@ -150,19 +149,15 @@ func (c *client) stop(_ context.Context) error {
 func (c *client) run() {
 	defer c.logger.Info("Shutting down language detection client")
 
-	filterParams := workloadmeta.FilterParams{
-		Kinds: []workloadmeta.Kind{
-			workloadmeta.KindKubernetesPod, // Subscribe to pod events to clean up the current batch when a pod is deleted
-			workloadmeta.KindProcess,       // Subscribe to process events to populate the current batch
-		},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeAll,
-	}
+	filter := workloadmeta.NewFilterBuilder().
+		AddKind(workloadmeta.KindProcess).
+		AddKind(workloadmeta.KindKubernetesPod).
+		Build()
 
 	eventCh := c.store.Subscribe(
 		subscriber,
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&filterParams),
+		filter,
 	)
 	defer c.store.Unsubscribe(eventCh)
 
@@ -230,7 +225,7 @@ func (c *client) startStreaming() {
 			cancel()
 			err := health.Deregister()
 			if err != nil {
-				log.Warnf("error de-registering health check: %s", err)
+				c.logger.Warnf("error de-registering health check: %s", err)
 			}
 			return
 		case healthDeadline := <-health.C:

@@ -8,12 +8,11 @@ package agent
 import (
 	"testing"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
@@ -23,16 +22,13 @@ import (
 
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t,
-		Bundle(),
+		Bundle(jmxloggerimpl.NewDefaultParams()),
 		core.MockBundle(),
 		compressionimpl.MockModule(),
 		defaultforwarder.MockModule(),
 		orchestratorimpl.MockModule(),
 		eventplatformimpl.MockModule(),
-		demultiplexerimpl.Module(),
-		fx.Supply(demultiplexerimpl.NewDefaultParams()),
-		fx.Supply(jmxloggerimpl.NewDefaultParams()),
-		workloadmeta.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
 }

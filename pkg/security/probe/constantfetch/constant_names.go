@@ -30,13 +30,19 @@ const (
 	OffsetNameFileFpath                 = "file_f_path_offset"
 	OffsetNameMountMntID                = "mount_id_offset"
 
+	// inode times
+	OffsetNameInodeCtimeSec  = "inode_ctime_sec_offset"
+	OffsetNameInodeCtimeNsec = "inode_ctime_nsec_offset"
+	OffsetNameInodeMtimeSec  = "inode_mtime_sec_offset"
+	OffsetNameInodeMtimeNsec = "inode_mtime_nsec_offset"
+
+	// rename
+	OffsetNameRenameStructOldDentry = "vfs_rename_src_dentry_offset"
+	OffsetNameRenameStructNewDentry = "vfs_rename_target_dentry_offset"
+
 	// tracepoints
 	OffsetNameSchedProcessForkParentPid = "sched_process_fork_parent_pid_offset"
 	OffsetNameSchedProcessForkChildPid  = "sched_process_fork_child_pid_offset"
-	OffsetNameSysMmapOff                = "sys_enter_mmap_off_offset"
-	OffsetNameSysMmapLen                = "sys_enter_mmap_len_offset"
-	OffsetNameSysMmapProt               = "sys_enter_mmap_prot_offset"
-	OffsetNameSysMmapFlags              = "sys_enter_mmap_flags_offset"
 
 	// bpf offsets
 	OffsetNameBPFMapStructID                  = "bpf_map_id_offset"

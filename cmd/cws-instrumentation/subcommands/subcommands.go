@@ -10,6 +10,7 @@ package subcommands
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/command"
+	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/healthcmd"
 	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/injectcmd"
 	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/setupcmd"
 	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/tracecmd"
@@ -22,5 +23,6 @@ func CWSInjectorSubcommands() []command.SubcommandFactory {
 		setupcmd.Command,
 		injectcmd.Command,
 		tracecmd.Command,
+		healthcmd.Command,
 	}
 }

@@ -63,7 +63,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -212,10 +212,10 @@ func (i *InventoryPayload) GetAsJSON() ([]byte, error) {
 func (i *InventoryPayload) fillFlare(fb flaretypes.FlareBuilder) error {
 	path := filepath.Join("metadata", "inventory", i.FlareFileName)
 	if !i.Enabled {
-		fb.AddFile(path, []byte("inventory metadata is disabled"))
+		fb.AddFile(path, []byte("inventory metadata is disabled")) //nolint:errcheck
 		return nil
 	}
 
-	fb.AddFileFromFunc(path, i.GetAsJSON)
+	fb.AddFileFromFunc(path, i.GetAsJSON) //nolint:errcheck
 	return nil
 }

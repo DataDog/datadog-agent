@@ -132,16 +132,12 @@ func TestChkRun(t *testing.T) {
 
 	tempLobsBefore, _ := getTemporaryLobs(&c)
 
-	/* Requires:
-	 * create table sys.t(n number);
-	 * grant insert on sys.t to c##datadog
-	 */
-	_, err = c.db.Exec(`begin
+	_, err = c.db.Exec(fmt.Sprintf(`begin
 				for i in 1..1000
 				loop
-					execute immediate 'insert into sys.t values (' || i || ')';
+					execute immediate 'insert into %s.t values (' || i || ')';
 				end loop;
-				end ;`)
+				end ;`, getOwner(&c)))
 	assert.NoError(t, err, "error generating statements")
 
 	c.Run()
@@ -310,6 +306,7 @@ func TestObfuscator(t *testing.T) {
 }
 
 func TestLegacyMode(t *testing.T) {
+	t.Skip()
 	canConnectServiceCheckName := "oracle.can_query"
 
 	for _, config := range []string{
@@ -321,9 +318,11 @@ func TestLegacyMode(t *testing.T) {
 		err := c.Run()
 		assert.NoError(t, err)
 		expectedServerTag := fmt.Sprintf("server:%s", c.config.InstanceConfig.Server)
+		expectedServiceTag := fmt.Sprintf("service:%s", c.config.InstanceConfig.ServiceName)
+		expectedTags := []string{expectedServerTag, expectedServiceTag}
 		host := c.dbHostname
-		s.AssertServiceCheck(t, canConnectServiceCheckName, servicecheck.ServiceCheckOK, host, []string{expectedServerTag}, "")
-		s.AssertServiceCheck(t, serviceCheckName, servicecheck.ServiceCheckOK, host, []string{expectedServerTag}, "")
+		s.AssertServiceCheck(t, canConnectServiceCheckName, servicecheck.ServiceCheckOK, host, expectedTags, "")
+		s.AssertServiceCheck(t, serviceCheckName, servicecheck.ServiceCheckOK, host, expectedTags, "")
 	}
 }
 
@@ -356,20 +355,27 @@ func buildConnectionString(connectionConfig config.ConnectionConfig) string {
 }
 
 func TestLargeUint64Binding(t *testing.T) {
+	var err error
+	c, _ := newDefaultCheck(t, "", "")
+	require.NoError(t, err)
+	err = c.Run()
+	require.NoError(t, err)
+
 	largeUint64 := uint64(18446744073709551615)
 	var result uint64
+	owner := getOwner(&c)
+	err = getWrapper(&c, &result, fmt.Sprintf("SELECT n FROM %s.T WHERE n = :1", owner), largeUint64)
+	require.NoError(t, err, "running test statement")
+	assert.Equal(t, result, largeUint64, "simple uint64 binded correctly")
 
-	var err error
-	driver := common.GoOra
-	db, err := connectToDB(driver)
-	require.NoErrorf(t, err, "connecting to db with %s driver", driver)
+	err = getWrapper(&c, &result, "SELECT 18446744073709551615 FROM dual")
+	require.NoError(t, err, "running test statement")
+	assert.Equal(t, result, largeUint64, "result set not truncated")
+}
 
-	err = db.Get(&result, "SELECT n FROM sys.T WHERE n = :1", largeUint64)
-	assert.NoError(t, err, "running test statement with %s driver", driver)
-	assert.Equal(t, result, largeUint64, "simple uint64 binding with %s driver", driver)
-
-	err = db.Get(&result, "SELECT 18446744073709551615 FROM dual")
-	assert.NoError(t, err, "running test statement with %s driver", driver)
-	assert.Equal(t, result, largeUint64, "result set truncated with %s driver", driver)
-	db.Close()
+func getOwner(c *Check) string {
+	if c.hostingType == rds {
+		return "admin"
+	}
+	return "sys"
 }

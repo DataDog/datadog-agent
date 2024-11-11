@@ -114,8 +114,8 @@ type PerFlowData struct {
 	AddressFamily            uint16
 	Protocol                 uint16
 	Flags                    uint32
-	LocalAddress             [16]uint8
-	RemoteAddress            [16]uint8
+	LocalAddress             [16]byte
+	RemoteAddress            [16]byte
 	PacketsOut               uint64
 	MonotonicSentBytes       uint64
 	TransportBytesOut        uint64
@@ -157,6 +157,18 @@ const (
 
 	FlowClosedMask         = 0x10
 	TCPFlowEstablishedMask = 0x20
+)
+
+type ConnectionStatus uint32
+
+const (
+	ConnectionStatusUnknown     ConnectionStatus = 0x0
+	ConnectionStatusAttempted   ConnectionStatus = 0x1
+	ConnectionStatusEstablished ConnectionStatus = 0x2
+	ConnectionStatusACKRST      ConnectionStatus = 0x3
+	ConnectionStatusTimeout     ConnectionStatus = 0x4
+	ConnectionStatusSentRst     ConnectionStatus = 0x5
+	ConnectionStatusRecvRst     ConnectionStatus = 0x6
 )
 
 const (

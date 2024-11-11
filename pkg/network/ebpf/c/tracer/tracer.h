@@ -10,15 +10,18 @@
 #define true 1
 #define false 0
 
-typedef enum
-{
+// TCP Failures
+#define TCP_CONN_FAILED_RESET 104
+#define TCP_CONN_FAILED_TIMEOUT 110
+#define TCP_CONN_FAILED_REFUSED 111
+
+typedef enum {
     CONN_DIRECTION_UNKNOWN = 0b00,
     CONN_DIRECTION_INCOMING = 0b01,
     CONN_DIRECTION_OUTGOING = 0b10,
 } conn_direction_t;
 
-typedef enum
-{
+typedef enum {
     PACKET_COUNT_NONE = 0,
     PACKET_COUNT_ABSOLUTE = 1,
     PACKET_COUNT_INCREMENT = 2,
@@ -54,8 +57,7 @@ typedef struct {
 } conn_stats_ts_t;
 
 // Connection flags
-typedef enum
-{
+typedef enum {
     CONN_L_INIT = 1 << 0, // initial/first message sent
     CONN_R_INIT = 1 << 1, // reply received for initial message from remote
     CONN_ASSURED = 1 << 2 // "3-way handshake" complete, i.e. response to initial reply sent
@@ -64,17 +66,19 @@ typedef enum
 typedef struct {
     __u32 rtt;
     __u32 rtt_var;
+    __u32 retransmits;
 
     // Bit mask containing all TCP state transitions tracked by our tracer
     __u16 state_transitions;
+    __u16 failure_reason;
 } tcp_stats_t;
 
 // Full data for a tcp connection
 typedef struct {
     conn_tuple_t tup;
-    conn_stats_ts_t conn_stats;
+    // move tcp_stats here to align conn_stats on a cacheline boundary
     tcp_stats_t tcp_stats;
-    __u32 tcp_retransmits;
+    conn_stats_ts_t conn_stats;
 } conn_t;
 
 // Must match the number of conn_t objects embedded in the batch_t struct
@@ -104,6 +108,16 @@ typedef struct {
     __u64 udp_sends_processed;
     __u64 udp_sends_missed;
     __u64 udp_dropped_conns;
+    __u64 double_flush_attempts_close;
+    __u64 double_flush_attempts_done;
+    __u64 unsupported_tcp_failures;
+    __u64 tcp_done_missing_pid;
+    __u64 tcp_connect_failed_tuple;
+    __u64 tcp_done_failed_tuple;
+    __u64 tcp_finish_connect_failed_tuple;
+    __u64 tcp_close_target_failures;
+    __u64 tcp_done_connection_flush;
+    __u64 tcp_close_connection_flush;
 } telemetry_t;
 
 typedef struct {
@@ -135,5 +149,15 @@ typedef struct {
         struct flowi6 *fl6;
     };
 } ip_make_skb_args_t;
+
+typedef struct {
+    struct sock *sk;
+    conn_tuple_t tup;
+} skp_conn_tuple_t;
+
+typedef struct {
+    __u64 pid_tgid;
+    __u64 timestamp;
+} pid_ts_t;
 
 #endif

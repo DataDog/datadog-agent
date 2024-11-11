@@ -18,9 +18,10 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,7 +35,7 @@ type TaskWithContainers struct {
 }
 
 // ExtractECSTask returns the protobuf model corresponding to an ECS Task resource.
-func ExtractECSTask(task TaskWithContainers) *model.ECSTask {
+func ExtractECSTask(task TaskWithContainers, tagger tagger.Component) *model.ECSTask {
 	if task.Task == nil {
 		return nil
 	}
@@ -56,7 +57,8 @@ func ExtractECSTask(task TaskWithContainers) *model.ECSTask {
 		Containers:              extractECSContainer(task.Containers),
 	}
 
-	tags, err := tagger.Tag(fmt.Sprintf("ecs_task://%s", task.Task.EntityID.ID), types.HighCardinality)
+	entityID := types.NewEntityID(types.ECSTask, task.Task.EntityID.ID)
+	tags, err := tagger.Tag(entityID, types.HighCardinality)
 	if err != nil {
 		log.Debugf("Could not retrieve tags for task: %s", err.Error())
 	}
@@ -140,7 +142,7 @@ func extractTimestamp(t time.Time) int64 {
 	return t.Unix()
 }
 
-func extractExitCode(exitCode *uint32) *model.ECSContainerExitCode {
+func extractExitCode(exitCode *int64) *model.ECSContainerExitCode {
 	if exitCode == nil {
 		return nil
 	}

@@ -12,15 +12,20 @@ import (
 	"context"
 	"encoding/json"
 	"runtime"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type testPackageManager struct {
@@ -30,6 +35,11 @@ type testPackageManager struct {
 func (m *testPackageManager) IsInstalled(ctx context.Context, pkg string) (bool, error) {
 	args := m.Called(ctx, pkg)
 	return args.Bool(0), args.Error(1)
+}
+
+func (m *testPackageManager) AvailableDiskSpace() (uint64, error) {
+	args := m.Called()
+	return args.Get(0).(uint64), args.Error(1)
 }
 
 func (m *testPackageManager) State(pkg string) (repository.State, error) {
@@ -42,8 +52,18 @@ func (m *testPackageManager) States() (map[string]repository.State, error) {
 	return args.Get(0).(map[string]repository.State), args.Error(1)
 }
 
-func (m *testPackageManager) Install(ctx context.Context, url string) error {
-	args := m.Called(ctx, url)
+func (m *testPackageManager) ConfigState(pkg string) (repository.State, error) {
+	args := m.Called(pkg)
+	return args.Get(0).(repository.State), args.Error(1)
+}
+
+func (m *testPackageManager) ConfigStates() (map[string]repository.State, error) {
+	args := m.Called()
+	return args.Get(0).(map[string]repository.State), args.Error(1)
+}
+
+func (m *testPackageManager) Install(ctx context.Context, url string, installArgs []string) error {
+	args := m.Called(ctx, url, installArgs)
 	return args.Error(0)
 }
 
@@ -71,18 +91,51 @@ func (m *testPackageManager) PromoteExperiment(ctx context.Context, pkg string) 
 	return args.Error(0)
 }
 
+func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, url string, hash string) error {
+	args := m.Called(ctx, url, hash)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) RemoveConfigExperiment(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) PromoteConfigExperiment(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
 func (m *testPackageManager) GarbageCollect(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
 }
 
-type testRemoteConfigClient struct {
-	listeners map[string][]client.Handler
+func (m *testPackageManager) InstrumentAPMInjector(ctx context.Context, method string) error {
+	args := m.Called(ctx, method)
+	return args.Error(0)
 }
 
-func newTestRemoteConfigClient() *testRemoteConfigClient {
+func (m *testPackageManager) UninstrumentAPMInjector(ctx context.Context, method string) error {
+	args := m.Called(ctx, method)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) Close() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+type testRemoteConfigClient struct {
+	sync.Mutex
+	t         *testing.T
+	listeners map[string][]func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))
+}
+
+func newTestRemoteConfigClient(t *testing.T) *testRemoteConfigClient {
 	return &testRemoteConfigClient{
-		listeners: make(map[string][]client.Handler),
+		t:         t,
+		listeners: make(map[string][]func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))),
 	}
 }
 
@@ -93,13 +146,21 @@ func (c *testRemoteConfigClient) Close() {
 }
 
 func (c *testRemoteConfigClient) Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
-	c.listeners[product] = append(c.listeners[product], client.Handler(fn))
+	c.Lock()
+	defer c.Unlock()
+	c.listeners[product] = append(c.listeners[product], fn)
 }
 
-func (c *testRemoteConfigClient) SetUpdaterPackagesState(_ []*pbgo.PackageState) {
+func (c *testRemoteConfigClient) SetInstallerState(_ *pbgo.ClientUpdater) {
+}
+
+func (c *testRemoteConfigClient) GetInstallerState() *pbgo.ClientUpdater {
+	return nil
 }
 
 func (c *testRemoteConfigClient) SubmitCatalog(catalog catalog) {
+	c.Lock()
+	defer c.Unlock()
 	rawCatalog, err := json.Marshal(catalog)
 	if err != nil {
 		panic(err)
@@ -113,7 +174,19 @@ func (c *testRemoteConfigClient) SubmitCatalog(catalog catalog) {
 	}
 }
 
+func (c *testRemoteConfigClient) subscribedToRequests() bool {
+	c.Lock()
+	defer c.Unlock()
+	_, ok := c.listeners[state.ProductUpdaterTask]
+	return ok
+}
+
 func (c *testRemoteConfigClient) SubmitRequest(request remoteAPIRequest) {
+	// wait for the client to subscribe to the requests after the catalog has been applied
+	require.Eventually(c.t, c.subscribedToRequests, 1*time.Second, 10*time.Millisecond)
+
+	c.Lock()
+	defer c.Unlock()
 	rawTask, err := json.Marshal(request)
 	if err != nil {
 		panic(err)
@@ -133,13 +206,20 @@ type testInstaller struct {
 	pm  *testPackageManager
 }
 
-func newTestInstaller() *testInstaller {
+func newTestInstaller(t *testing.T) *testInstaller {
 	pm := &testPackageManager{}
+	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
 	pm.On("States").Return(map[string]repository.State{}, nil)
-	rcc := newTestRemoteConfigClient()
+	pm.On("ConfigStates").Return(map[string]repository.State{}, nil)
+	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
+	env := &env.Env{RemoteUpdates: true}
+	cdn, err := cdn.New(env, t.TempDir())
+	require.NoError(t, err)
+	daemon := newDaemon(rc, pm, env, cdn)
+	require.NoError(t, err)
 	i := &testInstaller{
-		daemonImpl: newDaemon(rc, pm, true),
+		daemonImpl: daemon,
 		rcc:        rcc,
 		pm:         pm,
 	}
@@ -152,13 +232,13 @@ func (i *testInstaller) Stop() {
 }
 
 func TestInstall(t *testing.T) {
-	i := newTestInstaller()
+	i := newTestInstaller(t)
 	defer i.Stop()
 
 	testURL := "oci://example.com/test-package:1.0.0"
-	i.pm.On("Install", mock.Anything, testURL).Return(nil).Once()
+	i.pm.On("Install", mock.Anything, testURL, []string(nil)).Return(nil).Once()
 
-	err := i.Install(context.Background(), testURL)
+	err := i.Install(context.Background(), testURL, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -167,7 +247,7 @@ func TestInstall(t *testing.T) {
 }
 
 func TestStartExperiment(t *testing.T) {
-	i := newTestInstaller()
+	i := newTestInstaller(t)
 	defer i.Stop()
 
 	testURL := "oci://example.com/test-package:1.0.0"
@@ -182,7 +262,7 @@ func TestStartExperiment(t *testing.T) {
 }
 
 func TestStopExperiment(t *testing.T) {
-	i := newTestInstaller()
+	i := newTestInstaller(t)
 	defer i.Stop()
 
 	pkg := "test-package"
@@ -197,7 +277,7 @@ func TestStopExperiment(t *testing.T) {
 }
 
 func TestPromoteExperiment(t *testing.T) {
-	i := newTestInstaller()
+	i := newTestInstaller(t)
 	defer i.Stop()
 
 	pkg := "test-package"
@@ -212,7 +292,7 @@ func TestPromoteExperiment(t *testing.T) {
 }
 
 func TestUpdateCatalog(t *testing.T) {
-	i := newTestInstaller()
+	i := newTestInstaller(t)
 	defer i.Stop()
 
 	testPackage := Package{
@@ -235,15 +315,12 @@ func TestUpdateCatalog(t *testing.T) {
 }
 
 func TestRemoteRequest(t *testing.T) {
-	i := newTestInstaller()
+	i := newTestInstaller(t)
 	defer i.Stop()
 
 	testStablePackage := Package{
-		Name:     "test-package",
-		Version:  "0.0.1",
-		URL:      "oci://example.com/test-package@sha256:2fa082d512a120a814e32ddb80454efce56595b5c84a37cc1a9f90cf9cc7ba85",
-		Platform: runtime.GOOS,
-		Arch:     runtime.GOARCH,
+		Name:    "test-package",
+		Version: "0.0.1",
 	}
 	testExperimentPackage := Package{
 		Name:     "test-package",
@@ -265,10 +342,11 @@ func TestRemoteRequest(t *testing.T) {
 		ID:            "test-request-1",
 		Method:        methodStartExperiment,
 		Package:       testExperimentPackage.Name,
-		ExpectedState: expectedState{Stable: testStablePackage.Version},
+		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version, StableConfig: testStablePackage.Version},
 		Params:        versionParamsJSON,
 	}
 	i.pm.On("State", testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
+	i.pm.On("ConfigState", testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
 	i.pm.On("InstallExperiment", mock.Anything, testExperimentPackage.URL).Return(nil).Once()
 	i.rcc.SubmitRequest(testRequest)
 	i.requestsWG.Wait()
@@ -277,9 +355,10 @@ func TestRemoteRequest(t *testing.T) {
 		ID:            "test-request-2",
 		Method:        methodStopExperiment,
 		Package:       testExperimentPackage.Name,
-		ExpectedState: expectedState{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version},
+		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version, StableConfig: testStablePackage.Version},
 	}
 	i.pm.On("State", testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version}, nil).Once()
+	i.pm.On("ConfigState", testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
 	i.pm.On("RemoveExperiment", mock.Anything, testExperimentPackage.Name).Return(nil).Once()
 	i.rcc.SubmitRequest(testRequest)
 	i.requestsWG.Wait()
@@ -288,9 +367,10 @@ func TestRemoteRequest(t *testing.T) {
 		ID:            "test-request-3",
 		Method:        methodPromoteExperiment,
 		Package:       testExperimentPackage.Name,
-		ExpectedState: expectedState{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version},
+		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version, StableConfig: testStablePackage.Version},
 	}
 	i.pm.On("State", testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version}, nil).Once()
+	i.pm.On("ConfigState", testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
 	i.pm.On("PromoteExperiment", mock.Anything, testExperimentPackage.Name).Return(nil).Once()
 	i.rcc.SubmitRequest(testRequest)
 	i.requestsWG.Wait()

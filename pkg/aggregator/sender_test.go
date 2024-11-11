@@ -18,7 +18,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -57,7 +58,7 @@ func testDemux(log log.Component, hostname hostname.Component) *AgentDemultiplex
 	opts.DontStartForwarders = true
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname))
-	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, eventPlatformForwarder, compressionimpl.NewMockCompressor(), defaultHostname)
+	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, eventPlatformForwarder, compressionimpl.NewMockCompressor(), nooptagger.NewTaggerClient(), defaultHostname)
 	return demux
 }
 
@@ -371,6 +372,21 @@ func TestSenderPopulatingMetricSampleSource(t *testing.T) {
 			checkID:              "uptime:1",
 			expectedMetricSource: metrics.MetricSourceUptime,
 		},
+		{
+			name:                 "checkid http_check:1 should have MetricSourceHTTPCheck",
+			checkID:              "http_check:1",
+			expectedMetricSource: metrics.MetricSourceHTTPCheck,
+		},
+		{
+			name:                 "checkid postgres:1 should have MetricSourcePostgres",
+			checkID:              "postgres:1",
+			expectedMetricSource: metrics.MetricSourcePostgres,
+		},
+		{
+			name:                 "checkid tls:1 should have MetricSourceTLS",
+			checkID:              "tls:1",
+			expectedMetricSource: metrics.MetricSourceTLS,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -513,10 +529,10 @@ func TestCheckSenderInterface(t *testing.T) {
 		Title:          "Something happened",
 		Text:           "Description of the event",
 		Ts:             12,
-		Priority:       event.EventPriorityLow,
+		Priority:       event.PriorityLow,
 		Host:           "my-hostname",
 		Tags:           []string{"foo", "bar"},
-		AlertType:      event.EventAlertTypeInfo,
+		AlertType:      event.AlertTypeInfo,
 		AggregationKey: "event_agg_key",
 		SourceTypeName: "docker",
 	}
@@ -637,10 +653,10 @@ func TestCheckSenderHostname(t *testing.T) {
 				Title:          "Something happened",
 				Text:           "Description of the event",
 				Ts:             12,
-				Priority:       event.EventPriorityLow,
+				Priority:       event.PriorityLow,
 				Host:           tc.submittedHostname,
 				Tags:           []string{"foo", "bar"},
-				AlertType:      event.EventAlertTypeInfo,
+				AlertType:      event.AlertTypeInfo,
 				AggregationKey: "event_agg_key",
 				SourceTypeName: "docker",
 			}

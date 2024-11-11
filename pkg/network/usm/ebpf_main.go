@@ -13,17 +13,16 @@ import (
 	"io"
 	"math"
 	"slices"
-	"time"
 	"unsafe"
 
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
 	"golang.org/x/sys/unix"
 
-	manager "github.com/DataDog/ebpf-manager"
-
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -34,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -49,7 +49,7 @@ var (
 		http2.Spec,
 		kafka.Spec,
 		postgres.Spec,
-		javaTLSSpec,
+		redis.Spec,
 		// opensslSpec is unique, as we're modifying its factory during runtime to allow getting more parameters in the
 		// factory.
 		opensslSpec,
@@ -88,9 +88,7 @@ type ebpfProgram struct {
 	enabledProtocols  []*protocols.ProtocolSpec
 	disabledProtocols []*protocols.ProtocolSpec
 
-	// Used for connection_protocol data expiration
-	mapCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper]
-	buildMode  buildmode.Type
+	buildMode buildmode.Type
 }
 
 func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfProgram, error) {
@@ -98,6 +96,8 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		Maps: []*manager.Map{
 			{Name: protocols.TLSDispatcherProgramsMap},
 			{Name: protocols.ProtocolDispatcherProgramsMap},
+			{Name: protocols.ProtocolDispatcherClassificationPrograms},
+			{Name: protocols.TLSProtocolDispatcherClassificationPrograms},
 			{Name: connectionStatesMap},
 			{Name: sockFDLookupArgsMap},
 			{Name: tupleByPidFDMap},
@@ -152,7 +152,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 	}
 
 	program := &ebpfProgram{
-		Manager:               ddebpf.NewManager(mgr, &ebpftelemetry.ErrorsTelemetryModifier{}),
+		Manager:               ddebpf.NewManager(mgr, "usm", &ebpftelemetry.ErrorsTelemetryModifier{}),
 		cfg:                   c,
 		connectionProtocolMap: connectionProtocolMap,
 	}
@@ -185,7 +185,7 @@ func (e *ebpfProgram) Init() error {
 			return nil
 		}
 
-		if !e.cfg.AllowRuntimeCompiledFallback && !e.cfg.AllowPrecompiledFallback {
+		if !e.cfg.AllowRuntimeCompiledFallback && !e.cfg.AllowPrebuiltFallback {
 			return fmt.Errorf("co-re load failed: %w", err)
 		}
 		log.Warnf("co-re load failed. attempting fallback: %s", err)
@@ -198,10 +198,14 @@ func (e *ebpfProgram) Init() error {
 			return nil
 		}
 
-		if !e.cfg.AllowPrecompiledFallback {
+		if !e.cfg.AllowPrebuiltFallback {
 			return fmt.Errorf("runtime compilation failed: %w", err)
 		}
 		log.Warnf("runtime compilation failed: attempting fallback: %s", err)
+	}
+
+	if prebuilt.IsDeprecated() {
+		log.Warn("using deprecated prebuilt USM monitor")
 	}
 
 	e.buildMode = buildmode.Prebuilt
@@ -223,12 +227,6 @@ func (e *ebpfProgram) Start() error {
 		}
 		e.connectionProtocolMap = m
 	}
-	mapCleaner, err := e.setupMapCleaner()
-	if err != nil {
-		log.Errorf("error creating map cleaner: %s", err)
-	} else {
-		e.mapCleaner = mapCleaner
-	}
 
 	e.enabledProtocols = e.executePerProtocol(e.enabledProtocols, "pre-start",
 		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PreStart(m) },
@@ -239,7 +237,7 @@ func (e *ebpfProgram) Start() error {
 		return errNoProtocols
 	}
 
-	err = e.Manager.Start()
+	err := e.Manager.Start()
 	if err != nil {
 		return err
 	}
@@ -268,14 +266,22 @@ func (e *ebpfProgram) Start() error {
 
 // Close stops the ebpf program and cleans up all resources.
 func (e *ebpfProgram) Close() error {
-	e.mapCleaner.Stop()
+	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
+	var err error
+	// We need to stop the perf maps and ring buffers before stopping the protocols, as we need to stop sending events
+	// to them. If we don't do this, we might send events on closed channels which will panic.
+	for _, pm := range e.PerfMaps {
+		err = errors.Join(err, pm.Stop(manager.CleanAll))
+	}
+	for _, rb := range e.RingBuffers {
+		err = errors.Join(err, rb.Stop(manager.CleanAll))
+	}
 	stopProtocolWrapper := func(protocol protocols.Protocol, m *manager.Manager) error {
 		protocol.Stop(m)
 		return nil
 	}
 	e.executePerProtocol(e.enabledProtocols, "stop", stopProtocolWrapper, nil)
-	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
-	return e.Stop(manager.CleanAll)
+	return errors.Join(err, e.Stop(manager.CleanAll))
 }
 
 func (e *ebpfProgram) initCORE() error {
@@ -421,7 +427,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 
 	options.DefaultKProbeMaxActive = maxActive
 	options.DefaultKprobeAttachMethod = kprobeAttachMethod
-	options.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
+	options.BypassEnabled = e.cfg.BypassEnabled
 
 	supported, notSupported := e.getProtocolsForBuildMode()
 	cleanup := e.configureManagerWithSupportedProtocols(supported)
@@ -433,6 +439,10 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		for _, pm := range e.PerfMaps {
 			pm.TelemetryEnabled = true
 			ebpftelemetry.ReportPerfMapTelemetry(pm)
+		}
+		for _, rb := range e.RingBuffers {
+			rb.TelemetryEnabled = true
+			ebpftelemetry.ReportRingBufferTelemetry(rb)
 		}
 	}
 
@@ -467,23 +477,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	}
 
 	return err
-}
-
-const connProtoTTL = 3 * time.Minute
-const connProtoCleaningInterval = 5 * time.Minute
-
-func (e *ebpfProgram) setupMapCleaner() (*ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper], error) {
-	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper](e.connectionProtocolMap, 1024)
-	if err != nil {
-		return nil, err
-	}
-
-	ttl := connProtoTTL.Nanoseconds()
-	mapCleaner.Clean(connProtoCleaningInterval, nil, nil, func(now int64, key netebpf.ConnTuple, val netebpf.ProtocolStackWrapper) bool {
-		return (now - int64(val.Updated)) > ttl
-	})
-
-	return mapCleaner, nil
 }
 
 func getAssetName(module string, debug bool) string {

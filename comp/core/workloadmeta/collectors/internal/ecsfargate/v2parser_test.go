@@ -16,7 +16,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 )
@@ -51,6 +51,7 @@ func TestPullWithTaskCollectionEnabledWithV2Parser(t *testing.T) {
 		switch entity := event.Entity.(type) {
 		case *workloadmeta.ECSTask:
 			require.Equal(t, "us-east-1", entity.Region)
+			require.Equal(t, 123457279990, entity.AWSAccountID)
 			require.Equal(t, "ecs-cluster", entity.ClusterName)
 			require.Equal(t, "my-redis", entity.Family)
 			require.Equal(t, "1", entity.Version)

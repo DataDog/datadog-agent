@@ -37,13 +37,16 @@ ALL_TAGS = {
     "oracle",
     "orchestrator",
     "otlp",
+    "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
     "podman",
     "process",
     "python",
+    "remotewmonly",  # used when you want to use only the remote workloadmeta store without importing all dependencies of local collectors
     "sds",
     "serverless",
     "systemd",
     "trivy",
+    "wmi",
     "zk",
     "zlib",
     "zstd",
@@ -99,9 +102,6 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
     }
 )
 
-# AGENTLESS_SCANNER_TAGS lists the tags needed when building the agentless-scanner
-AGENTLESS_SCANNER_TAGS = {""}
-
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
 CLUSTER_AGENT_TAGS = {"clusterchecks", "datadog.no_waf", "kubeapiserver", "orchestrator", "zlib", "zstd", "ec2", "gce"}
 
@@ -140,7 +140,7 @@ SECURITY_AGENT_TAGS = {
 SERVERLESS_TAGS = {"serverless", "otlp"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
-SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"linux_bpf", "npm"}).difference({"python", "systemd"})
+SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"linux_bpf", "npm", "pcap", "remotewmonly"}).difference({"python", "systemd"})
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
 TRACE_AGENT_TAGS = {"docker", "containerd", "datadog.no_waf", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman"}
@@ -163,7 +163,7 @@ AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 ### Tag exclusion lists
 
 # List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "podman", "trivy"}
+LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "pcap", "podman", "trivy"}
 
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDE_TAGS = {"linux_bpf"}
@@ -171,14 +171,11 @@ WINDOWS_EXCLUDE_TAGS = {"linux_bpf"}
 # List of tags to always remove when building on Darwin/macOS
 DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "cri"}
 
-# List of tags to always remove when building on Windows 32-bits
-WINDOWS_32BIT_EXCLUDE_TAGS = {"docker", "kubeapiserver", "kubelet", "orchestrator"}
-
 # Unit test build tags
 UNIT_TEST_TAGS = {"test"}
 
 # List of tags to always remove when running unit tests
-UNIT_TEST_EXCLUDE_TAGS = {"datadog.no_waf"}
+UNIT_TEST_EXCLUDE_TAGS = {"datadog.no_waf", "pcap"}
 
 # Build type: maps flavor to build tags map
 build_tags = {
@@ -219,20 +216,13 @@ build_tags = {
         "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
     },
-    AgentFlavor.agentless_scanner: {
-        "dogstatsd": AGENTLESS_SCANNER_TAGS,
-        "system-tests": AGENT_TAGS,
-        "lint": AGENTLESS_SCANNER_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
-        "unit-tests": AGENTLESS_SCANNER_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
-    },
 }
 
 
 def compute_build_tags_for_flavor(
     build: str,
-    arch: str,
-    build_include: list[str],
-    build_exclude: list[str],
+    build_include: str | None,
+    build_exclude: str | None,
     flavor: AgentFlavor = AgentFlavor.base,
     include_sds: bool = False,
 ):
@@ -246,9 +236,9 @@ def compute_build_tags_for_flavor(
     Then, remove from these the provided list of tags to exclude.
     """
     build_include = (
-        get_default_build_tags(build=build, arch=arch, flavor=flavor)
+        get_default_build_tags(build=build, flavor=flavor)
         if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+        else filter_incompatible_tags(build_include.split(","))
     )
 
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
@@ -262,9 +252,9 @@ def compute_build_tags_for_flavor(
 
 
 @task
-def print_default_build_tags(_, build="agent", arch="x64", flavor=AgentFlavor.base.name):
+def print_default_build_tags(_, build="agent", flavor=AgentFlavor.base.name, platform: str | None = None):
     """
-    Build the default list of tags based on the build type and current platform.
+    Build the default list of tags based on the build type and platform.
     Prints as comma separated list suitable for go tooling (eg, gopls, govulncheck)
 
     The container integrations are currently only supported on Linux, disabling on
@@ -278,25 +268,26 @@ def print_default_build_tags(_, build="agent", arch="x64", flavor=AgentFlavor.ba
         print(f"'{flavor}' does not correspond to an agent flavor. Options: {flavorOptions}")
         exit(1)
 
-    print(",".join(sorted(get_default_build_tags(build, arch, flavor))))
+    print(",".join(sorted(get_default_build_tags(build=build, flavor=flavor, platform=platform))))
 
 
-def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base, platform=sys.platform):
+def get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform: str | None = None):
     """
     Build the default list of tags based on the build type and current platform.
 
     The container integrations are currently only supported on Linux, disabling on
     the Windows and Darwin builds.
     """
-    include = build_tags.get(flavor).get(build)
+    platform = platform or sys.platform
+    include = build_tags[flavor].get(build)
     if include is None:
         print("Warning: unrecognized build type, no build tags included.", file=sys.stderr)
         include = set()
 
-    return sorted(filter_incompatible_tags(include, arch=arch, platform=platform))
+    return sorted(filter_incompatible_tags(include, platform=platform))
 
 
-def filter_incompatible_tags(include, arch="x64", platform=sys.platform):
+def filter_incompatible_tags(include, platform=sys.platform):
     """
     Filter out tags incompatible with the platform.
     include can be a list or a set.
@@ -307,13 +298,11 @@ def filter_incompatible_tags(include, arch="x64", platform=sys.platform):
         exclude = exclude.union(LINUX_ONLY_TAGS)
 
     if platform == "win32":
+        include = include.union(["wmi"])
         exclude = exclude.union(WINDOWS_EXCLUDE_TAGS)
 
     if platform == "darwin":
         exclude = exclude.union(DARWIN_EXCLUDED_TAGS)
-
-    if platform == "win32" and arch == "x86":
-        exclude = exclude.union(WINDOWS_32BIT_EXCLUDE_TAGS)
 
     return get_build_tags(include, exclude)
 
@@ -382,3 +371,27 @@ def _compute_build_size(ctx, build_exclude=None, flavor=AgentFlavor.base):
 
     statinfo = os.stat('bin/agent/agent')
     return statinfo.st_size
+
+
+def compute_config_build_tags(targets="all", build_include=None, build_exclude=None, flavor=AgentFlavor.base.name):
+    flavor = AgentFlavor[flavor]
+
+    if targets == "all":
+        targets = build_tags[flavor].keys()
+    else:
+        targets = targets.split(",")
+        if not set(targets).issubset(build_tags[flavor]):
+            print("Must choose valid targets. Valid targets are:")
+            print(f'{", ".join(build_tags[flavor].keys())}')
+            exit(1)
+
+    if build_include is None:
+        build_include = []
+        for target in targets:
+            build_include.extend(get_default_build_tags(build=target, flavor=flavor))
+    else:
+        build_include = filter_incompatible_tags(build_include.split(","))
+
+    build_exclude = [] if build_exclude is None else build_exclude.split(",")
+    use_tags = get_build_tags(build_include, build_exclude)
+    return use_tags

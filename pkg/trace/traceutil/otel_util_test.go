@@ -162,6 +162,12 @@ func TestGetOTelSpanType(t *testing.T) {
 		expected string
 	}{
 		{
+			name:     "override with span.type attr",
+			spanKind: ptrace.SpanKindInternal,
+			rattrs:   map[string]string{"span.type": "my-type"},
+			expected: "my-type",
+		},
+		{
 			name:     "web span",
 			spanKind: ptrace.SpanKindServer,
 			expected: "web",
@@ -251,26 +257,42 @@ func TestGetOTelService(t *testing.T) {
 
 func TestGetOTelResource(t *testing.T) {
 	for _, tt := range []struct {
-		name      string
-		rattrs    map[string]string
-		sattrs    map[string]string
-		normalize bool
-		expected  string
+		name       string
+		rattrs     map[string]string
+		sattrs     map[string]string
+		normalize  bool
+		expectedV1 string
+		expectedV2 string
 	}{
 		{
-			name:     "resource not set",
-			expected: "span_name",
+			name:       "resource not set",
+			expectedV1: "span_name",
+			expectedV2: "span_name",
 		},
 		{
-			name:     "normal resource",
-			sattrs:   map[string]string{"resource.name": "res"},
-			expected: "res",
+			name:       "normal resource",
+			sattrs:     map[string]string{"resource.name": "res"},
+			expectedV1: "res",
+			expectedV2: "res",
 		},
 		{
-			name:      "truncate long resource",
-			sattrs:    map[string]string{"resource.name": strings.Repeat("a", MaxResourceLen+1)},
-			normalize: true,
-			expected:  strings.Repeat("a", MaxResourceLen),
+			name:       "HTTP request method resource",
+			sattrs:     map[string]string{"http.request.method": "GET"},
+			expectedV1: "GET",
+			expectedV2: "GET",
+		},
+		{
+			name:       "HTTP method and route resource",
+			sattrs:     map[string]string{semconv.AttributeHTTPMethod: "GET", semconv.AttributeHTTPRoute: "/"},
+			expectedV1: "GET /",
+			expectedV2: "GET",
+		},
+		{
+			name:       "truncate long resource",
+			sattrs:     map[string]string{"resource.name": strings.Repeat("a", MaxResourceLen+1)},
+			normalize:  true,
+			expectedV1: strings.Repeat("a", MaxResourceLen),
+			expectedV2: strings.Repeat("a", MaxResourceLen),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -283,8 +305,8 @@ func TestGetOTelResource(t *testing.T) {
 			for k, v := range tt.rattrs {
 				res.Attributes().PutStr(k, v)
 			}
-			actual := GetOTelResource(span, res)
-			assert.Equal(t, tt.expected, actual)
+			assert.Equal(t, tt.expectedV1, GetOTelResourceV1(span, res))
+			assert.Equal(t, tt.expectedV2, GetOTelResourceV2(span, res))
 		})
 	}
 }
@@ -347,6 +369,13 @@ func TestGetOTelOperationName(t *testing.T) {
 			normalize: true,
 			expected:  strings.Repeat("a", MaxNameLen),
 		},
+		{
+			name:                   "operation name retrieved from span name, then remapped",
+			sattrs:                 map[string]string{"operation.name": "op"},
+			spanNameRemappings:     map[string]string{"op": "test_result"},
+			spanNameAsResourceName: true,
+			expected:               "test_result",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			span := ptrace.NewSpan()
@@ -361,7 +390,7 @@ func TestGetOTelOperationName(t *testing.T) {
 			}
 			lib := pcommon.NewInstrumentationScope()
 			lib.SetName(tt.libname)
-			actual := GetOTelOperationName(span, res, lib, tt.spanNameAsResourceName, tt.spanNameRemappings, tt.normalize)
+			actual := GetOTelOperationNameV1(span, res, lib, tt.spanNameAsResourceName, tt.spanNameRemappings, tt.normalize)
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
@@ -417,6 +446,9 @@ func TestGetOTelStatusCode(t *testing.T) {
 	assert.Equal(t, uint32(0), GetOTelStatusCode(span))
 	span.Attributes().PutInt(semconv.AttributeHTTPStatusCode, 200)
 	assert.Equal(t, uint32(200), GetOTelStatusCode(span))
+	span.Attributes().Remove(semconv.AttributeHTTPStatusCode)
+	span.Attributes().PutInt("http.response.status_code", 404)
+	assert.Equal(t, uint32(404), GetOTelStatusCode(span))
 }
 
 func TestGetOTelContainerTags(t *testing.T) {
@@ -425,5 +457,7 @@ func TestGetOTelContainerTags(t *testing.T) {
 	res.Attributes().PutStr(semconv.AttributeContainerName, "cname")
 	res.Attributes().PutStr(semconv.AttributeContainerImageName, "ciname")
 	res.Attributes().PutStr(semconv.AttributeContainerImageTag, "citag")
-	assert.Contains(t, GetOTelContainerTags(res.Attributes()), "container_id:cid", "container_name:cname", "image_name:ciname", "image_tag:citag")
+	res.Attributes().PutStr("az", "my-az")
+	assert.Contains(t, GetOTelContainerTags(res.Attributes(), []string{"az", semconv.AttributeContainerID, semconv.AttributeContainerName, semconv.AttributeContainerImageName, semconv.AttributeContainerImageTag}), "container_id:cid", "container_name:cname", "image_name:ciname", "image_tag:citag", "az:my-az")
+	assert.Contains(t, GetOTelContainerTags(res.Attributes(), []string{"az"}), "az:my-az")
 }

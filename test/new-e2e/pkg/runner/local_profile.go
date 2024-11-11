@@ -10,15 +10,16 @@ import (
 	"os"
 	"os/user"
 	"path"
-	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 )
 
-const (
-	defaultLocalEnvironments string = "aws/agent-sandbox"
-)
+var defaultLocalEnvironments = map[string]string{
+	"aws": "agent-sandbox",
+	"az":  "agent-sandbox",
+	"gcp": "agent-sandbox",
+}
 
 // NewLocalProfile creates a new local profile
 func NewLocalProfile() (Profile, error) {
@@ -40,10 +41,12 @@ func NewLocalProfile() (Profile, error) {
 		store = parameters.NewCascadingStore(envValueStore)
 	}
 	// inject default params
-	environments, err := store.GetWithDefault(parameters.Environments, defaultLocalEnvironments)
+	environments, err := store.GetWithDefault(parameters.Environments, "")
 	if err != nil {
 		return nil, err
 	}
+	environments = mergeEnvironments(environments, defaultLocalEnvironments)
+
 	outputDir := getLocalOutputDir()
 	return localProfile{baseProfile: newProfile("e2elocal", strings.Split(environments, " "), store, nil, outputDir)}, nil
 }
@@ -114,28 +117,4 @@ func (p localProfile) NamePrefix() string {
 // AllowDevMode returns if DevMode is allowed
 func (p localProfile) AllowDevMode() bool {
 	return true
-}
-
-// GetOutputDir extends baseProfile.GetOutputDir to create a symlink to the latest run
-func (p localProfile) GetOutputDir() (string, error) {
-	outDir, err := p.baseProfile.GetOutputDir()
-	if err != nil {
-		return "", err
-	}
-
-	// Create a symlink to the latest run for user convenience
-	latestLink := filepath.Join(filepath.Dir(outDir), "latest")
-	// Remove the symlink if it already exists
-	if _, err := os.Lstat(latestLink); err == nil {
-		err = os.Remove(latestLink)
-		if err != nil {
-			return "", err
-		}
-	}
-	err = os.Symlink(outDir, latestLink)
-	if err != nil {
-		return "", err
-	}
-
-	return outDir, nil
 }

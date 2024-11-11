@@ -7,7 +7,10 @@ class AgentFlavor(enum.Enum):
     iot = 2
     heroku = 3
     dogstatsd = 4
-    agentless_scanner = 5
+    ot = 5
 
     def is_iot(self):
         return self == type(self).iot
+
+    def is_ot(self):
+        return self == type(self).ot

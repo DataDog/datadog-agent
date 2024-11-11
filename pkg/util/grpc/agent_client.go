@@ -41,13 +41,13 @@ func getGRPCClientConn(ctx context.Context, ipcAddress string, cmdPort string, o
 	target := net.JoinHostPort(ipcAddress, cmdPort)
 
 	log.Debugf("attempting to create grpc agent client connection to: %s", target)
-	return grpc.DialContext(ctx, target, opts...)
+	return grpc.DialContext(ctx, target, opts...) //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 }
 
 // defaultAgentClientDialOpts default dial options to the main agent which blocks and retries based on the backoffConfig
 var defaultAgentClientDialOpts = []grpc.DialOption{
 	grpc.WithConnectParams(grpc.ConnectParams{Backoff: defaultBackoffConfig}),
-	grpc.WithBlock(),
+	grpc.WithBlock(), //nolint:staticcheck // TODO (ASC) fix grpc.WithBlock is deprecated
 }
 
 // GetDDAgentClient creates a pb.AgentClient for IPC with the main agent via gRPC. This call is blocking by default, so

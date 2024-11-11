@@ -21,7 +21,7 @@ func Run(opts ...fx.Option) error {
 		return fxAppTestOverride(func() {}, opts)
 	}
 
-	opts = append(opts, FxLoggingOption(), fx.Provide(newFxLifecycleAdapter))
+	opts = append(opts, FxAgentBase())
 	// Temporarily increase timeout for all fxutil.Run calls until we can better characterize our
 	// start time requirements. Prepend to opts so individual calls can override the timeout.
 	opts = append(
@@ -29,6 +29,10 @@ func Run(opts ...fx.Option) error {
 		opts...,
 	)
 	app := fx.New(opts...)
+
+	if err := app.Err(); err != nil {
+		return err
+	}
 
 	startCtx, cancel := context.WithTimeout(context.Background(), app.StartTimeout())
 	defer cancel()

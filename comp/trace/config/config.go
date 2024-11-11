@@ -16,9 +16,12 @@ import (
 	"gopkg.in/yaml.v2"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -26,10 +29,18 @@ import (
 
 // team: agent-apm
 
-type dependencies struct {
+const (
+	apiKeyConfigKey          = "api_key"
+	apmConfigAPIKeyConfigKey = "apm_config.api_key" // deprecated setting
+)
+
+// Dependencies defines the trace config component deps.
+// These include the core config configuration and component config params.
+type Dependencies struct {
 	fx.In
 	Params Params
 	Config coreconfig.Component
+	Tagger tagger.Component
 }
 
 // cfg implements the Component.
@@ -42,10 +53,15 @@ type cfg struct {
 	coreConfig coreconfig.Component
 
 	// warnings are the warnings generated during setup
-	warnings *pkgconfig.Warnings
+	warnings *model.Warnings
+
+	// UpdateAPIKeyFn is the callback func for API Key updates
+	updateAPIKeyFn func(oldKey, newKey string)
 }
 
-func newConfig(deps dependencies) (Component, error) {
+// NewConfig is the default constructor for the component, it returns
+// a component instance and an error.
+func NewConfig(deps Dependencies) (Component, error) {
 	tracecfg, err := setupConfig(deps, "")
 
 	if err != nil {
@@ -59,12 +75,50 @@ func newConfig(deps dependencies) (Component, error) {
 		AgentConfig: tracecfg,
 		coreConfig:  deps.Config,
 	}
-	c.SetMaxMemCPU(pkgconfig.IsContainerized())
+	c.SetMaxMemCPU(env.IsContainerized())
+
+	c.coreConfig.OnUpdate(func(setting string, oldValue, newValue any) {
+		log.Debugf("OnUpdate: %s", setting)
+		if setting != apiKeyConfigKey {
+			return
+		}
+
+		if c.coreConfig.IsSet(apmConfigAPIKeyConfigKey) {
+			// apm_config.api_key is deprecated. Since it overrides core api_key values during config setup,
+			// if used, core API Key refresh is skipped. TODO: check usage of apm_config.api_key and remove it.
+			log.Warn("cannot refresh api_key on trace-agent while `apm_config.api_key` is set. `apm_config.api_key` is deprecated, use core `api_key` instead")
+			return
+		}
+		oldAPIKey, ok1 := oldValue.(string)
+		newAPIKey, ok2 := newValue.(string)
+		if ok1 && ok2 {
+			log.Debugf("Updating API key in trace-agent config, replacing `%s` with `%s`", scrubber.HideKeyExceptLastFiveChars(oldAPIKey), scrubber.HideKeyExceptLastFiveChars(newAPIKey))
+			// Update API Key on config, and propagate the signal to registered listeners
+			newAPIKey = pkgconfigutils.SanitizeAPIKey(newAPIKey)
+			c.updateAPIKey(oldAPIKey, newAPIKey)
+		}
+	})
 
 	return &c, nil
 }
 
-func (c *cfg) Warnings() *pkgconfig.Warnings {
+func (c *cfg) updateAPIKey(oldKey, newKey string) {
+	// Update API Key on config, and propagate the signal to registered listeners
+	c.UpdateAPIKey(newKey)
+	if c.updateAPIKeyFn != nil {
+		c.updateAPIKeyFn(oldKey, newKey)
+	}
+}
+
+// OnUpdateAPIKey registers a callback for API Key changes, only 1 callback can be used at a time
+func (c *cfg) OnUpdateAPIKey(callback func(oldKey, newKey string)) {
+	if c.updateAPIKeyFn != nil {
+		log.Error("OnUpdateAPIKey has already been configured. Only 1 callback can be used at a time.")
+	}
+	c.updateAPIKeyFn = callback
+}
+
+func (c *cfg) Warnings() *model.Warnings {
 	return c.warnings
 }
 
@@ -90,11 +144,10 @@ func (c *cfg) SetHandler() http.Handler {
 				if lvl == "warning" {
 					lvl = "warn"
 				}
-				if err := pkgconfig.ChangeLogLevel(lvl); err != nil {
+				if err := pkgconfigutils.SetLogLevel(lvl, pkgconfigsetup.Datadog(), model.SourceAgentRuntime); err != nil {
 					httpError(w, http.StatusInternalServerError, err)
 					return
 				}
-				pkgconfig.Datadog.Set("log_level", lvl, model.SourceAgentRuntime)
 				log.Infof("Switched log level to %s", lvl)
 			default:
 				log.Infof("Unsupported config change requested (key: %q).", key)

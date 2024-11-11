@@ -1,10 +1,9 @@
-using System.Collections.Generic;
-using System.ServiceProcess;
 using AutoFixture;
-using Datadog.CustomActions;
+using Datadog.AgentCustomActions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Moq;
+using System.Collections.Generic;
 
 namespace CustomActions.Tests.InstallState
 {
@@ -15,17 +14,20 @@ namespace CustomActions.Tests.InstallState
         public Mock<IRegistryServices> RegistryServices { get; } = new();
         public Mock<IServiceController> ServiceController { get; } = new();
 
+        public Mock<INativeMethods> NativeMethods { get; } = new();
+
         public InstallStateTestSetup()
         {
             ServiceController.SetupGet(s => s.Services).Returns(new WindowsService[] { });
         }
 
-        public InstallStateCustomActions Create()
+        public ReadInstallStateCA Create()
         {
-            return new InstallStateCustomActions(
+            return new ReadInstallStateCA(
                 Session.Object,
                 RegistryServices.Object,
-                ServiceController.Object);
+                ServiceController.Object,
+                NativeMethods.Object);
         }
 
         public InstallStateTestSetup WithRegistryKey(Registries registry, string path, Dictionary<string, object> keys)

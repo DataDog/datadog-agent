@@ -17,12 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-// EventHandler represents an handler for the events sent by the probe
-type EventHandler interface{}
-
-// CustomEventHandler represents an handler for the custom events sent by the probe
-type CustomEventHandler interface{}
-
 // PlatformProbe represents the no-op platform probe on unsupported platforms
 type PlatformProbe struct {
 }
@@ -30,6 +24,7 @@ type PlatformProbe struct {
 // Probe represents the runtime security probe
 type Probe struct {
 	Config *config.Config
+	Opts   Opts
 }
 
 // Origin returns origin
@@ -47,14 +42,18 @@ func (p *Probe) AddCustomEventHandler(_ model.EventType, _ CustomEventHandler) e
 	return nil
 }
 
-// NewEvaluationSet returns a new evaluation set with rule sets tagged by the passed-in tag values for the "ruleset" tag key
-func (p *Probe) NewEvaluationSet(_ map[eval.EventType]bool, _ []string) (*rules.EvaluationSet, error) {
-	return nil, nil
+// NewRuleSet returns a new ruleset
+func (p *Probe) NewRuleSet(_ map[eval.EventType]bool) *rules.RuleSet {
+	return nil
 }
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *Probe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	return nil, nil
+}
+
+// OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
+func (p *Probe) OnNewRuleSetLoaded(_ *rules.RuleSet) {
 }
 
 // OnNewDiscarder is called when a new discarder is found. We currently don't generate discarders on Windows.
@@ -74,6 +73,11 @@ func (p *Probe) GetEventTags(_ string) []string {
 // IsNetworkEnabled returns whether network is enabled
 func (p *Probe) IsNetworkEnabled() bool {
 	return p.Config.Probe.NetworkEnabled
+}
+
+// IsNetworkRawPacketEnabled returns whether network raw packet is enabled
+func (p *Probe) IsNetworkRawPacketEnabled() bool {
+	return p.IsNetworkEnabled() && p.Config.Probe.NetworkRawPacketEnabled
 }
 
 // IsActivityDumpEnabled returns whether activity dump is enabled
@@ -98,3 +102,6 @@ func (p *Probe) RefreshUserCache(_ string) error {
 
 // HandleActions executes the actions of a triggered rule
 func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {}
+
+// EnableEnforcement sets the enforcement mode
+func (p *Probe) EnableEnforcement(_ bool) {}

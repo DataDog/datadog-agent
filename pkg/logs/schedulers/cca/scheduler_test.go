@@ -15,9 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -25,10 +29,13 @@ import (
 func setup(t *testing.T) (scheduler *Scheduler, ac autodiscovery.Component, spy *schedulers.MockSourceManager) {
 	ac = fxutil.Test[autodiscovery.Mock](t,
 		fx.Supply(autodiscoveryimpl.MockParams{}),
+		secretsimpl.MockModule(),
 		autodiscoveryimpl.MockModule(),
-		workloadmeta.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
-		core.MockBundle())
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		core.MockBundle(),
+		fx.Supply(tagger.NewFakeTaggerParams()),
+		fx.Provide(taggerimpl.NewMock),
+	)
 	scheduler = New(ac).(*Scheduler)
 	spy = &schedulers.MockSourceManager{}
 	return
@@ -36,7 +43,7 @@ func setup(t *testing.T) (scheduler *Scheduler, ac autodiscovery.Component, spy 
 
 func TestNothingWhenNoConfig(t *testing.T) {
 	scheduler, _, spy := setup(t)
-	config := coreConfig.Mock(t)
+	config := configmock.New(t)
 	config.SetWithoutSource("logs_config.container_collect_all", false)
 
 	scheduler.Start(spy)
@@ -46,7 +53,7 @@ func TestNothingWhenNoConfig(t *testing.T) {
 
 func TestAfterACStarts(t *testing.T) {
 	scheduler, ac, spy := setup(t)
-	config := coreConfig.Mock(t)
+	config := configmock.New(t)
 	config.SetWithoutSource("logs_config.container_collect_all", true)
 
 	scheduler.Start(spy)

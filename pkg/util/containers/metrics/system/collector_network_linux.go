@@ -105,8 +105,14 @@ func collectNetworkStats(procPath string, pid int) (*provider.ContainerNetworkSt
 	convertField(&totalPktRcvd, &netStats.PacketsRcvd)
 	convertField(&totalPktSent, &netStats.PacketsSent)
 
-	// This requires to run as ~root, that's why it's fine to silently fail
-	if inode, err := systemutils.GetProcessNamespaceInode(procPath, strconv.Itoa(pid), "net"); err == nil {
+	// Previously we were using <procPath>/<pid>/ns/net to get the inode of the network namespace
+	// and identify if the process was using the host network namespace or not and group containers by network namespace.
+	// Unfortunately reading symlink targets from /proc/<pid>/ns/net requires either:
+	// - Same effective UID/GID than taret and to have the same set (or larger) of capabilities than the target.
+	// - CAP_SYS_PTRACE capability (technically PTRACE_MODE_READ, but no dedicated capability for that).
+	//
+	// Now we are using inode of /proc/<pid>net/dev to achieve the same goal. Luckily, there seem to be one per network namespace.
+	if inode, err := systemutils.GetProcessNetDevInode(procPath, pid); err == nil {
 		netStats.NetworkIsolationGroupID = &inode
 		netStats.UsingHostNetwork = systemutils.IsProcessHostNetwork(procPath, inode)
 	}

@@ -16,7 +16,7 @@ import (
 
 	payload "github.com/DataDog/agent-payload/v5/process"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -24,7 +24,7 @@ import (
 )
 
 // NewProcessEventsCheck returns an instance of the ProcessEventsCheck.
-func NewProcessEventsCheck(config ddconfig.Reader) *ProcessEventsCheck {
+func NewProcessEventsCheck(config pkgconfigmodel.Reader) *ProcessEventsCheck {
 	return &ProcessEventsCheck{
 		config: config,
 	}
@@ -34,7 +34,7 @@ func NewProcessEventsCheck(config ddconfig.Reader) *ProcessEventsCheck {
 type ProcessEventsCheck struct {
 	initMutex sync.Mutex
 
-	config ddconfig.Reader
+	config pkgconfigmodel.Reader
 
 	store    events.Store
 	listener *events.SysProbeListener

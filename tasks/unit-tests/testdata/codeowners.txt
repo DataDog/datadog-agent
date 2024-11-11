@@ -1,4 +1,0 @@
-/.*                                     @DataDog/agent-platform
-/*.md                                   @DataDog/agent-platform @DataDog/documentation
-/.gitlab/                               @DataDog/agent-platform
-/.gitlab/security.yml                   @DataDog/agent-security

@@ -1,6 +1,6 @@
 name "python3"
 
-default_version "3.11.8"
+default_version "3.12.6"
 
 if ohai["platform"] != "windows"
 
@@ -15,11 +15,12 @@ if ohai["platform"] != "windows"
   dependency "libyaml"
 
   source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-         :sha256 => "d3019a613b9e8761d260d9ebe3bd4df63976de30464e5c0189566e1ae3f61889"
+         :sha256 => "85a4c1be906d20e5c5a69f2466b00da769c221d6a684acfd3a514dbf5bf10a66"
 
   relative_path "Python-#{version}"
 
   python_configure_options = [
+    "--without-readline",  # Disables readline support
     "--with-ensurepip=yes" # We upgrade pip later, in the pip3 software definition
   ]
 
@@ -53,7 +54,6 @@ if ohai["platform"] != "windows"
 
     delete "#{install_dir}/embedded/lib/python#{major}.#{minor}/test"
     block do
-      FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/lib-dynload/readline.*"))
       FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/distutils/command/wininst-*.exe"))
     end
   end
@@ -63,7 +63,7 @@ else
 
   # note that starting with 3.7.3 on Windows, the zip should be created without the built-in pip
   source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-amd64.zip",
-         :sha256 => "8b016ed2f94cfc027fed172cbf1f6043f64519c6e9ad70b4565635192228b2b6".downcase
+         :sha256 => "045d20a659fe80041b6fd508b77f250b03330347d64f128b392b88e68897f5a0".downcase
 
   vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
   build do

@@ -4,6 +4,7 @@
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
 flavor = ENV['AGENT_FLAVOR']
+output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
 
 if flavor.nil? || flavor == 'base'
   name 'agent'
@@ -38,11 +39,14 @@ if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR") && !BUILD_OCIRU
 end
 
 if windows_target?
+  if ot_target?
+    raise UnknownPlatform
+  end
+
   # Note: this is the path used by Omnibus to build the agent, the final install
   # dir will be determined by the Windows installer. This path must not contain
   # spaces because Omnibus doesn't quote the Git commands it launches.
   INSTALL_DIR = 'C:/opt/datadog-agent/'
-  PYTHON_2_EMBEDDED_DIR = format('%s/embedded2', INSTALL_DIR)
   PYTHON_3_EMBEDDED_DIR = format('%s/embedded3', INSTALL_DIR)
 else
   INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
@@ -51,7 +55,6 @@ end
 install_dir INSTALL_DIR
 
 if windows_target?
-  python_2_embedded PYTHON_2_EMBEDDED_DIR
   python_3_embedded PYTHON_3_EMBEDDED_DIR
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
@@ -82,7 +85,7 @@ else
   end
 
   if debian_target?
-    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.3.1)'
+    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.4.0)'
   end
 
   if osx_target?
@@ -95,6 +98,23 @@ else
   else
     conflict 'datadog-iot-agent'
   end
+end
+
+do_build = false
+do_package = false
+
+if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
+  dependency "package-artifact"
+  do_package = true
+  skip_healthcheck true
+else
+  do_build = true
+end
+
+# For now we build and package in the same stage for heroku
+if heroku_target?
+  do_build = true
+  do_package = true
 end
 
 # build_version is computed by an invoke command/function.
@@ -119,7 +139,7 @@ description 'Datadog Monitoring Agent
 
 # .deb specific flags
 package :deb do
-  skip_packager BUILD_OCIRU
+  skip_packager !do_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   license 'Apache License Version 2.0'
@@ -138,7 +158,7 @@ end
 
 # .rpm specific flags
 package :rpm do
-  skip_packager BUILD_OCIRU
+  skip_packager !do_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   dist_tag ''
@@ -188,7 +208,7 @@ package :msi do
 end
 
 package :xz do
-  skip_packager !BUILD_OCIRU
+  skip_packager (!do_build && !BUILD_OCIRU)
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
 end
@@ -197,89 +217,78 @@ end
 # Dependencies
 # ------------------------------------
 
-# Datadog agent
-dependency 'datadog-agent'
+if do_build
+  # Datadog agent
+  dependency 'datadog-agent'
 
-# System-probe
-if linux_target? && !heroku_target?
-  dependency 'system-probe'
-end
+  # System-probe
+  if linux_target? && !heroku_target?
+    dependency 'system-probe'
+  end
 
-if osx_target?
-  dependency 'datadog-agent-mac-app'
-end
+  if osx_target?
+    dependency 'datadog-agent-mac-app'
+  end
 
-if with_python_runtime? "2"
-  dependency 'pylint2'
-  dependency 'datadog-agent-integrations-py2'
-end
-
-if with_python_runtime? "3"
   dependency 'datadog-agent-integrations-py3'
-end
 
-if linux_target?
-  dependency 'datadog-security-agent-policies'
-end
-
-# Include traps db file in snmp.d/traps_db/
-dependency 'snmp-traps'
-
-# Additional software
-if windows_target?
-  if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
-    dependency 'datadog-windows-filter-driver'
-  end
-  if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-    dependency 'datadog-windows-apminject'
-  end
-  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
-    dependency 'datadog-windows-procmon-driver'
-    ## this is a duplicate of the above dependency in linux
+  if linux_target?
     dependency 'datadog-security-agent-policies'
   end
+
+  # Include traps db file in snmp.d/traps_db/
+  dependency 'snmp-traps'
+
+  # Additional software
+  if windows_target?
+    if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
+      dependency 'datadog-windows-filter-driver'
+    end
+    if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
+      dependency 'datadog-windows-apminject'
+    end
+    if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+      dependency 'datadog-windows-procmon-driver'
+      ## this is a duplicate of the above dependency in linux
+      dependency 'datadog-security-agent-policies'
+    end
+  end
+
+  # this dependency puts few files out of the omnibus install dir and move them
+  # in the final destination. This way such files will be listed in the packages
+  # manifest and owned by the package manager. This is the only point in the build
+  # process where we operate outside the omnibus install dir, thus the need of
+  # the `extra_package_file` directive.
+  # This must be the last dependency in the project.
+  dependency 'datadog-agent-finalize'
+  dependency 'datadog-cf-finalize'
+  # Special csae for heroku which does build & packaging in a single step
+  if do_package
+    dependency "init-scripts-agent"
+  end
+elsif do_package
+  dependency "package-artifact"
+  dependency "init-scripts-agent"
 end
 
-# this dependency puts few files out of the omnibus install dir and move them
-# in the final destination. This way such files will be listed in the packages
-# manifest and owned by the package manager. This is the only point in the build
-# process where we operate outside the omnibus install dir, thus the need of
-# the `extra_package_file` directive.
-# This must be the last dependency in the project.
-dependency 'datadog-agent-finalize'
-dependency 'datadog-cf-finalize'
-
 if linux_target?
-  extra_package_file '/etc/init/datadog-agent.conf'
-  extra_package_file '/etc/init/datadog-agent-process.conf'
-  extra_package_file '/etc/init/datadog-agent-sysprobe.conf'
-  extra_package_file '/etc/init/datadog-agent-trace.conf'
-  extra_package_file '/etc/init/datadog-agent-security.conf'
-  systemd_directory = "/usr/lib/systemd/system"
-  if debian_target?
-    systemd_directory = "/lib/systemd/system"
-
-    extra_package_file "/etc/init.d/datadog-agent"
-    extra_package_file "/etc/init.d/datadog-agent-process"
-    extra_package_file "/etc/init.d/datadog-agent-trace"
-    extra_package_file "/etc/init.d/datadog-agent-security"
-  end
-  extra_package_file "#{systemd_directory}/datadog-agent.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-process.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-sysprobe.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-trace.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-security.service"
-  extra_package_file '/etc/datadog-agent/'
+  extra_package_file "#{output_config_dir}/etc/datadog-agent/"
   extra_package_file '/usr/bin/dd-agent'
   extra_package_file '/var/log/datadog/'
 end
 
 # all flavors use the same package scripts
 if linux_target?
-  if debian_target?
-    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-deb"
-  else
-    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-rpm"
+  if do_build && !do_package
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/agent-deb"
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/agent-rpm"
+  end
+  if do_package
+    if debian_target?
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-deb"
+    else
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-rpm"
+    end
   end
 elsif osx_target?
     package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-dmg"
@@ -327,14 +336,6 @@ if windows_target?
       "#{install_dir}\\bin\\agent\\ddtray.exe",
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
     ]
-    if with_python_runtime? "2"
-      BINARIES_TO_SIGN.concat([
-        "#{install_dir}\\bin\\agent\\libdatadog-agent-two.dll",
-        "#{install_dir}\\embedded2\\python.exe",
-        "#{install_dir}\\embedded2\\python27.dll",
-        "#{install_dir}\\embedded2\\pythonw.exe"
-      ])
-    end
 
     BINARIES_TO_SIGN.each do |bin|
       sign_file bin
@@ -347,6 +348,6 @@ if linux_target? or windows_target?
   # the stripper will drop the symbols in a `.debug` folder in the installdir
   # we want to make sure that directory is not in the main build, while present
   # in the debug package.
-  strip_build true
+  strip_build windows_target? || do_build
   debug_path ".debug"  # the strip symbols will be in here
 end

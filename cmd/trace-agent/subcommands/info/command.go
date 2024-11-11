@@ -17,6 +17,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -40,11 +41,12 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 func runTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) error {
 	return fxutil.OneShot(fct,
 		config.Module(),
-		fx.Supply(coreconfig.NewAgentParams(params.ConfPath)),
+		fx.Supply(coreconfig.NewAgentParams(params.ConfPath, coreconfig.WithFleetPoliciesDirPath(params.FleetPoliciesDirPath))),
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 		fx.Supply(secrets.NewEnabledParams()),
 		coreconfig.Module(),
 		secretsimpl.Module(),
+		nooptagger.Module(),
 		// TODO: (component)
 		// fx.Supply(logimpl.ForOneShot(params.LoggerName, "off", true)),
 		// log.Module(),

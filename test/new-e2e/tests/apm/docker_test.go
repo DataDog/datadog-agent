@@ -7,7 +7,6 @@ package apm
 
 import (
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -28,7 +27,7 @@ type DockerFakeintakeSuite struct {
 func dockerSuiteOpts(tr transport, opts ...awsdocker.ProvisionerOption) []e2e.SuiteOption {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awsdocker.Provisioner(opts...)),
-		e2e.WithStackName(fmt.Sprintf("apm-docker-suite-%s-%v", tr, os.Getenv("CI_PIPELINE_ID"))),
+		e2e.WithStackName(fmt.Sprintf("apm-docker-suite-%s", tr)),
 	}
 	return options
 }
@@ -69,7 +68,7 @@ func TestDockerFakeintakeSuiteUDS(t *testing.T) {
 
 // TestDockerFakeintakeSuiteTCP runs basic Trace Agent tests over the TCP transport
 func TestDockerFakeintakeSuiteTCP(t *testing.T) {
-	options := dockerSuiteOpts(uds, awsdocker.WithAgentOptions(
+	options := dockerSuiteOpts(tcp, awsdocker.WithAgentOptions(
 		dockerAgentOptions(tcp)...,
 	))
 	e2e.Run(t, &DockerFakeintakeSuite{transport: tcp}, options...)
@@ -147,10 +146,12 @@ func (s *DockerFakeintakeSuite) TestStatsForService() {
 	s.Require().NoError(err)
 
 	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
+	addSpanTags := "peer.hostname:foo,span.kind:client"
+	expectPeerTag := "peer.hostname:foo"
 	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
-	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
+	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport, addSpanTags: addSpanTags})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		testStatsForService(s.T(), c, service, s.Env().FakeIntake)
+		testStatsForService(s.T(), c, service, expectPeerTag, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding stats")
 }
 
@@ -170,6 +171,33 @@ func (s *DockerFakeintakeSuite) TestBasicTrace() {
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
+}
+
+func (s *DockerFakeintakeSuite) TestTPS() {
+	agentTPS := 2.
+
+	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithAgentOptions(
+		append(dockerAgentOptions(s.transport),
+			dockeragentparams.WithAgentServiceEnvVariable(
+				"DD_APM_TARGET_TPS",
+				pulumi.Float64(agentTPS)),
+		)...)))
+
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-tps-trace-%s", s.transport)
+
+	// Run Trace Generator
+	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+
+	s.T().Log("Waiting for traces.")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		testTPS(c, s.Env().FakeIntake, agentTPS)
+	}, 2*time.Minute, 10*time.Second, "Failed to test TargetTPS")
 }
 
 func (s *DockerFakeintakeSuite) TestProbabilitySampler() {

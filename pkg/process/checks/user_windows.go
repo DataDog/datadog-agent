@@ -8,7 +8,7 @@
 package checks
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // On Windows the LookupIdProbe does nothing since we get the user info from the process itself.
@@ -19,6 +19,6 @@ type LookupIdProbe struct{}
 // NewLookupIDProbe returns a new LookupIdProbe
 //
 //nolint:revive // TODO(PROC) Fix revive linter
-func NewLookupIDProbe(config.Reader) *LookupIdProbe {
+func NewLookupIDProbe(pkgconfigmodel.Reader) *LookupIdProbe {
 	return &LookupIdProbe{}
 }

@@ -12,18 +12,21 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	processCommand "github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/check"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	processCommand.OneShotLogParams = logimpl.ForOneShot(string(command.LoggerName), "info", true)
+	processCommand.OneShotLogParams = log.ForOneShot(string(command.LoggerName), "info", true)
 	checkAllowlist := []string{"process", "rtprocess", "container", "rtcontainer", "process_discovery"}
-	cmd := check.MakeCommand(
-		&processCommand.GlobalParams{
+	cmd := check.MakeCommand(func() *processCommand.GlobalParams {
+		return &processCommand.GlobalParams{
 			ConfFilePath:         globalParams.ConfFilePath,
+			ExtraConfFilePath:    globalParams.ExtraConfFilePath,
 			SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
-		},
+			FleetPoliciesDirPath: globalParams.FleetPoliciesDirPath,
+		}
+	},
 		"processchecks",
 		checkAllowlist,
 	)

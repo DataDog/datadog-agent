@@ -223,8 +223,17 @@ func TestJsonEncoder(t *testing.T) {
 }
 
 func TestEncoderToValidUTF8(t *testing.T) {
+	// valid utf-8
+	assert.Equal(t, "", toValidUtf8(nil))
+	assert.Equal(t, "", toValidUtf8([]byte("")))
+	assert.Equal(t, "a", toValidUtf8([]byte("a")))
+	assert.Equal(t, "abc", toValidUtf8([]byte("abc")))
+	assert.Equal(t, "Hello, 世界", toValidUtf8([]byte("Hello, 世界")))
+
+	// invalid utf-8
 	assert.Equal(t, "a�z", toValidUtf8([]byte("a\xfez")))
 	assert.Equal(t, "a��z", toValidUtf8([]byte("a\xc0\xafz")))
 	assert.Equal(t, "a���z", toValidUtf8([]byte("a\xed\xa0\x80z")))
 	assert.Equal(t, "a����z", toValidUtf8([]byte("a\xf0\x8f\xbf\xbfz")))
+	assert.Equal(t, "世界����z 世界", toValidUtf8([]byte("世界\xf0\x8f\xbf\xbfz 世界")))
 }

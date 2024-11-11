@@ -13,30 +13,37 @@ import (
         "{{.}}"
     {{end}}
     "reflect"
+	"math"
 
 	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
-func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
-	switch field {
-	{{range $Name, $Field := .Iterators}}
-	case "{{$Name}}":
-		return &{{$Field.ReturnType}}{}, nil
-	{{end}}
-	}
-
-	return nil, &eval.ErrIteratorNotSupported{Field: field}
-}
+// to always require the math package
+var _ = math.MaxUint16
 
 func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
 		{{range $Name, $Exists := .EventTypes}}
-			{{- if ne $Name "*"}}
+			{{- if ne $Name ""}}
 			eval.EventType("{{$Name}}"),
 			{{end -}}
 		{{end}}
 	}
+}
+
+func (m *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
+	switch field {
+	{{range $Name, $Field := .Fields}}
+	{{- if $Field.RestrictedTo }}
+	case "{{$Name}}":
+		return {{ $Field | GetFieldRestrictions }}
+	{{end}}
+	{{end}}
+	}
+
+	return nil
 }
 
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
@@ -46,12 +53,19 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		{{continue}}
 	{{end}}
 
+	{{if $Field.Ref}}
+	{{$Ref := index $.Fields $Field.Ref}}
+		{{if $Ref}}
+			{{$Field = $Ref}}
+		{{end}}
+	{{end}}
+
 	case "{{$Name}}":
 		return &{{$Field.GetEvaluatorType}}{
 			{{- if $Field.OpOverrides}}
 			OpOverrides: {{$Field.OpOverrides}},
 			{{- end}}
-			{{- if $Field.Iterator}}
+			{{- if and $Field.Iterator (not $Field.IsIterator) }}
 				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {
 					{{if $Field.Handler}}
 						ev := ctx.Event.(*Event)
@@ -67,13 +81,62 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					iterator := &{{$Field.Iterator.ReturnType}}{}
 
+					if regID != "" {
+						value := iterator.At(ctx, regID, ctx.Registers[regID])
+						if value == nil {
+							return results
+						}
+
+						{{if $Field.Iterator.IsOrigTypePtr}}
+							element := value
+						{{else}}
+							element := *value
+						{{end}}
+
+						{{range $Check := $Checks}}
+							{{if $Field.Iterator.Name | HasPrefix $Check}}
+								{{$SubName := $Field.Iterator.Name | TrimPrefix $Check}}
+								{{$Check = $SubName | printf "element%s"}}
+								if !{{$Check}}() {
+									return append(results, {{$Field.GetDefaultScalarReturnValue}})
+								}
+							{{end}}
+						{{end}}
+
+						{{$SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}
+
+						{{$Return := $SubName | printf "element%s"}}
+						{{if $Field.Handler }}
+							{{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
+							{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
+							{{$Return = print "ev.FieldHandlers." $Handler "(ev, &element" $SubName ")"}}
+						{{end}}
+
+						{{if eq $Field.ReturnType "int"}}
+							{{if $Field.IsLength}}
+								result := len({{".length" | TrimSuffix $Return}})
+							{{else}}
+								result := int({{$Return}})
+							{{end}}
+						{{else}}
+							result := {{$Return}}
+						{{end}}
+
+						{{if not $Field.GetArrayPrefix}}
+						results = append(results, result)
+						{{else}}
+						results = append(results, result...)
+						{{end}}
+
+						return results
+					}
+
 					value := iterator.Front(ctx)
 					for value != nil {
 						{{if $Field.Iterator.IsOrigTypePtr}}
-							element := (*{{$Field.Iterator.OrigType}})(value)
+							element := value
 						{{else}}
-							elementPtr := (*{{$Field.Iterator.OrigType}})(value)
-							element := *elementPtr
+							element := *value
 						{{end}}
 
 						{{range $Check := $Checks}}
@@ -99,9 +162,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 						{{if eq $Field.ReturnType "int"}}
 							{{if $Field.IsLength}}
-							result := len({{".length" | TrimSuffix $Return}})
+								result := len({{".length" | TrimSuffix $Return}})
 							{{else}}
-							result := int({{$Return}})
+								result := int({{$Return}})
 							{{end}}
 						{{else}}
 							result := {{$Return}}
@@ -123,7 +186,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			{{- else}}
 				{{- $ReturnType := $Field.ReturnType}}
 				EvalFnc: func(ctx *eval.Context) {{$Field.GetArrayPrefix}}{{$ReturnType}} {
-					ev := ctx.Event.(*Event)
+					{{- if not (and $Field.IsLength $Field.IsIterator)}}
+						ev := ctx.Event.(*Event)
+					{{end}}
 
 					{{$Return := $Field.Name | printf "ev.%s"}}
 
@@ -162,7 +227,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 								return int({{$Return}})
 							{{- else}}
 								{{- if $Field.IsLength }}
-									{{$Return = ".length" | TrimSuffix $Return | printf "len(%s)"}}
+									{{- if $Field.IsIterator}}
+										iterator := &{{$Field.Iterator.ReturnType}}{}
+										{{$Return = "iterator.Len(ctx)"}}
+									{{else}}
+										{{$Return = ".length" | TrimSuffix $Return | printf "len(%s)"}}
+									{{end}}
 								{{end}}
 								return {{$Return}}
 							{{end -}}
@@ -214,8 +284,15 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			{{continue}}
 		{{end}}
 
+		{{if $Field.Ref}}
+		{{$Ref := index $.Fields $Field.Ref}}
+			{{if $Ref}}
+				{{$Field = $Ref}}
+			{{end}}
+		{{end}}
+
 		case "{{$Name}}":
-		{{if $Field.Iterator}}
+		{{- if and $Field.Iterator (not $Field.IsLength)}}
 			var values []{{$Field.ReturnType}}
 
 			ctx := eval.NewContext(ev)
@@ -225,10 +302,9 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			for ptr != nil {
 				{{if $Field.Iterator.IsOrigTypePtr}}
-					element := (*{{$Field.Iterator.OrigType}})(ptr)
+					element := ptr
 				{{else}}
-					elementPtr := (*{{$Field.Iterator.OrigType}})(ptr)
-					element := *elementPtr
+					element := *ptr
 				{{end}}
 
 				{{$SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}
@@ -241,7 +317,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 				{{end}}
 
 				{{if $Field.IsLength}}
-				{{$Return = ".length" | TrimSuffix $Return}}
+					{{$Return = ".length" | TrimSuffix $Return}}
 				{{end}}
 
 				{{if and (eq $Field.ReturnType "int") (ne $Field.OrigType "int")}}
@@ -276,7 +352,13 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			{{end}}
 
 			{{if $Field.IsLength}}
-			{{$Return = ".length" | TrimSuffix $Field.Name | printf "len(ev.%s)"}}
+				{{- if $Field.IsIterator}}
+					ctx := eval.NewContext(ev)
+					iterator := &{{$Field.Iterator.ReturnType}}{}
+					{{$Return = "iterator.Len(ctx)"}}
+				{{else}}
+					{{$Return = ".length" | TrimSuffix $Return | printf "len(%s)"}}
+				{{end}}
 			{{end}}
 			{{if $Field.Handler}}
 				{{$Ptr := "&"}}
@@ -366,13 +448,20 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			{{continue}}
 		{{end}}
 
+		{{if $Field.Ref}}
+		{{$Ref := index $.Fields $Field.Ref}}
+			{{if $Ref}}
+				{{$Field = $Ref}}
+			{{end}}
+		{{end}}
+
 		{{$FieldName := $Field.Name | printf "ev.%s"}}
 		case "{{$Name}}":
 			{{- $Field | NewField $.AllFields}}
 			{{if $Field.IsLength}}
 				return &eval.ErrFieldReadOnly{Field: "{{$Name}}"}
 			{{else}}
-			{{- if eq $Field.OrigType "string"}}
+			{{- if eq $Field.BasicType "string"}}
 				{{- if $Field.IsArray}}
 					switch rv := value.(type) {
 						case string:
@@ -387,7 +476,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 					if !ok {
 						return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
 					}
+					{{- if ne $Field.OrigType "string" }}
+					{{$FieldName}} = {{$Field.OrigType}}(rv)
+					{{else}}
 					{{$FieldName}} = rv
+					{{end}}
 				{{end}}
 				return nil
 			{{else if eq $Field.BasicType "int"}}
@@ -407,6 +500,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 					if !ok {
 						return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
 					}
+					{{- if eq $Field.OrigType "uint16" }}
+					if rv < 0 || rv > math.MaxUint16 {
+						return &eval.ErrValueOutOfRange{Field: "{{$Field.Name}}"}
+					}
+					{{- end }}
 					{{$FieldName}} = {{$Field.OrigType}}(rv)
 				{{end}}
 				return nil

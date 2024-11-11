@@ -86,7 +86,7 @@ func TestRunnerWithRealTime(t *testing.T) {
 					RunCheck:       runCheck,
 				},
 				newTicker:  func(time.Duration) *time.Ticker { return ticker },
-				stopTicker: func(t *time.Ticker) {},
+				stopTicker: func(_ *time.Ticker) {},
 			}
 
 			var wg sync.WaitGroup
@@ -129,10 +129,10 @@ func TestRunnerWithRealTime_ReconfigureInterval(t *testing.T) {
 			ExitChan:       exitChan,
 			RtIntervalChan: rtIntervalChan,
 			RtEnabled:      func() bool { return true },
-			RunCheck:       func(options RunOptions) {},
+			RunCheck:       func(_ RunOptions) {},
 		},
 		newTicker:  func(time.Duration) *time.Ticker { return ticker },
-		stopTicker: func(t *time.Ticker) {},
+		stopTicker: func(_ *time.Ticker) {},
 	}
 
 	var wg sync.WaitGroup

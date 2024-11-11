@@ -9,7 +9,6 @@ package ksm
 
 import (
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -20,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 )
 
@@ -311,7 +310,7 @@ func TestProcessMetrics(t *testing.T) {
 			},
 			metricsToGet: []ksmstore.DDMetricsFam{},
 			metricTransformers: map[string]metricTransformerFunc{
-				"kube_pod_status_phase": func(s sender.Sender, n string, m ksmstore.DDMetric, h string, t []string, c time.Time) {
+				"kube_pod_status_phase": func(s sender.Sender, _ string, _ ksmstore.DDMetric, _ string, _ []string, _ time.Time) {
 					s.Gauge("kube_pod_status_phase_transformed", 1, "", []string{"transformed:tag"})
 				},
 			},
@@ -1644,7 +1643,7 @@ func TestKSMCheckInitTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			conf := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+			conf := configmock.New(t)
 			conf.SetWithoutSource("tags", tt.tagsInConfig)
 
 			k := &KSMCheck{

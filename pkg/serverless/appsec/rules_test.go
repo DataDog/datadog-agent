@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/appsec-internal-go/appsec"
-	waf "github.com/DataDog/go-libddwaf/v2"
+	waf "github.com/DataDog/go-libddwaf/v3"
 
 	"github.com/stretchr/testify/require"
 )

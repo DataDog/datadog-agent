@@ -16,7 +16,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	model "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 type testCase struct {
@@ -78,8 +80,8 @@ func testConfigValue(t *testing.T, configEndpoint *configEndpoint, server *httpt
 
 func TestConfigEndpoint(t *testing.T) {
 	t.Run("core_config", func(t *testing.T) {
-		_, server, configEndpoint := getConfigServer(t, authorizedConfigPathsCore)
-		for configName := range authorizedConfigPathsCore {
+		_, server, configEndpoint := getConfigServer(t, api.AuthorizedConfigPathsCore)
+		for configName := range api.AuthorizedConfigPathsCore {
 			testConfigValue(t, configEndpoint, server, configName, http.StatusOK)
 		}
 	})
@@ -92,7 +94,7 @@ func TestConfigEndpoint(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			configName := "my.config.value"
-			authorizedConfigPaths := authorizedSet{}
+			authorizedConfigPaths := api.AuthorizedSet{}
 			if testCase.authorized {
 				authorizedConfigPaths[configName] = struct{}{}
 			}
@@ -107,7 +109,7 @@ func TestConfigEndpoint(t *testing.T) {
 
 	t.Run("authorized_not_marshallable", func(t *testing.T) {
 		configName := "my.config.value"
-		cfg, server, configEndpoint := getConfigServer(t, authorizedSet{configName: {}})
+		cfg, server, configEndpoint := getConfigServer(t, api.AuthorizedSet{configName: {}})
 		cfg.SetWithoutSource(configName, make(chan int))
 		cfg.SetKnown(configName)
 		testConfigValue(t, configEndpoint, server, configName, http.StatusInternalServerError)
@@ -122,7 +124,7 @@ func TestConfigEndpoint(t *testing.T) {
 		{"authorized_nested_prefix_rule_child_two", childConfigNameTwo, http.StatusOK},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			cfg, server, configEndpoint := getConfigServer(t, authorizedSet{parentConfigName: struct{}{}})
+			cfg, server, configEndpoint := getConfigServer(t, api.AuthorizedSet{parentConfigName: struct{}{}})
 
 			cfg.SetWithoutSource(childConfigNameOne, "child1_value")
 			cfg.SetKnown(childConfigNameOne)
@@ -137,7 +139,7 @@ func TestConfigEndpoint(t *testing.T) {
 		parentConfigName := "root.parent"
 		childConfigName := parentConfigName + ".child"
 
-		cfg, server, configEndpoint := getConfigServer(t, authorizedSet{childConfigName: struct{}{}})
+		cfg, server, configEndpoint := getConfigServer(t, api.AuthorizedSet{childConfigName: struct{}{}})
 
 		cfg.SetWithoutSource(childConfigName, "child_value")
 		cfg.SetKnown(childConfigName)
@@ -151,32 +153,32 @@ func TestConfigListEndpoint(t *testing.T) {
 	testCases := []struct {
 		name              string
 		configValues      map[string]interface{}
-		authorizedConfigs authorizedSet
+		authorizedConfigs api.AuthorizedSet
 	}{
 		{
 			"empty_config",
 			map[string]interface{}{"some.config": "some_value"},
-			authorizedSet{},
+			api.AuthorizedSet{},
 		},
 		{
 			"single_config",
 			map[string]interface{}{"some.config": "some_value", "my.config.value": "some_value"},
-			authorizedSet{"my.config.value": {}},
+			api.AuthorizedSet{"my.config.value": {}},
 		},
 		{
 			"multiple_configs",
 			map[string]interface{}{"my.config.value": "some_value", "my.other.config.value": 12.5},
-			authorizedSet{"my.config.value": {}, "my.other.config.value": {}},
+			api.AuthorizedSet{"my.config.value": {}, "my.other.config.value": {}},
 		},
 		{
 			"missing_config",
 			map[string]interface{}{"my.config.value": "some_value"},
-			authorizedSet{"my.config.value": {}, "my.other.config.value": {}},
+			api.AuthorizedSet{"my.config.value": {}, "my.other.config.value": {}},
 		},
 		{
 			"prefix_rule",
 			map[string]interface{}{"my.config.value": "some_value"},
-			authorizedSet{"my.config": {}},
+			api.AuthorizedSet{"my.config": {}},
 		},
 	}
 
@@ -230,10 +232,10 @@ func checkExpvars(t *testing.T, beforeVars, afterVars expvals, configName string
 	require.EqualValues(t, beforeVars, afterVars)
 }
 
-func getConfigServer(t *testing.T, authorizedConfigPaths map[string]struct{}) (*config.MockConfig, *httptest.Server, *configEndpoint) {
+func getConfigServer(t *testing.T, authorizedConfigPaths map[string]struct{}) (model.Config, *httptest.Server, *configEndpoint) {
 	t.Helper()
 
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	configEndpointMux, configEndpoint := getConfigEndpoint(cfg, authorizedConfigPaths, t.Name())
 	server := httptest.NewServer(configEndpointMux)
 	t.Cleanup(server.Close)

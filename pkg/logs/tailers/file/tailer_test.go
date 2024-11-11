@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -45,6 +45,7 @@ func (suite *TailerTestSuite) SetupTest() {
 
 	suite.testPath = filepath.Join(suite.testDir, "tailer.log")
 	f, err := os.Create(suite.testPath)
+	suite.NotNil(f)
 	suite.Nil(err)
 	suite.testFile = f
 	suite.outputChan = make(chan *message.Message, chanSize)
@@ -101,11 +102,11 @@ func (suite *TailerTestSuite) TestStopAfterFileRotationWhenStuck() {
 	}
 }
 
-func (suite *TailerTestSuite) TestTialerTimeDurationConfig() {
+func (suite *TailerTestSuite) TestTailerTimeDurationConfig() {
 	// To satisfy the suite level tailer
 	suite.tailer.StartFromBeginning()
 
-	coreConfig.Datadog.SetWithoutSource("logs_config.close_timeout", 42)
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.close_timeout", 42)
 	sleepDuration := 10 * time.Millisecond
 	info := status.NewInfoRegistry()
 
@@ -351,6 +352,38 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 	}, tags)
 }
 
+func (suite *TailerTestSuite) TestTruncatedTag() {
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.max_message_size_bytes", 3)
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.tag_truncated_logs", true)
+	defer pkgconfigsetup.Datadog().SetWithoutSource("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
+	defer pkgconfigsetup.Datadog().SetWithoutSource("logs_config.tag_truncated_logs", false)
+
+	source := sources.NewLogSource("", &config.LogsConfig{
+		Type: config.FileType,
+		Path: suite.testPath,
+	})
+	sleepDuration := 10 * time.Millisecond
+	info := status.NewInfoRegistry()
+
+	tailerOptions := &TailerOptions{
+		OutputChan:    suite.outputChan,
+		File:          NewFile(suite.testPath, source, true),
+		SleepDuration: sleepDuration,
+		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
+		Info:          info,
+	}
+
+	suite.tailer = NewTailer(tailerOptions)
+	suite.tailer.StartFromBeginning()
+
+	_, err := suite.testFile.WriteString("1234\n")
+	suite.Nil(err)
+
+	msg := <-suite.outputChan
+	tags := msg.Tags()
+	suite.Contains(tags, message.TruncatedReasonTag("single_line"))
+}
+
 func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
 	lines := "Jul 12, 2021 12:55:15 PM test message 1\n"
 	lines += "Jul 12, 2021 12:55:15 PM test message 2\n"
@@ -390,6 +423,31 @@ func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
 
 	expectedRegex := regexp.MustCompile(`^[A-Za-z_]+ \d+, \d+ \d+:\d+:\d+ (AM|PM)`)
 	suite.Equal(suite.tailer.GetDetectedPattern(), expectedRegex)
+}
+
+// Unit test to see if agent would panic when tailer's file path is empty.
+func (suite *TailerTestSuite) TestDidRotateNilFullpath() {
+	suite.tailer.StartFromBeginning()
+
+	sleepDuration := 10 * time.Millisecond
+	info := status.NewInfoRegistry()
+
+	tailerOptions := &TailerOptions{
+		OutputChan:    suite.outputChan,
+		File:          NewFile(suite.testPath, suite.source.UnderlyingSource(), false),
+		SleepDuration: sleepDuration,
+		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
+		Info:          info,
+	}
+
+	tailer := NewTailer(tailerOptions)
+	tailer.fullpath = ""
+	tailer.StartFromBeginning()
+
+	suite.NotPanics(func() {
+		_, err := suite.tailer.DidRotate()
+		suite.Nil(err)
+	}, "Agent should not have panicked due to empty file path")
 }
 
 func toInt(str string) int {

@@ -204,6 +204,10 @@ type ContainerRootFSConfig struct {
 	// based on an image with this ID.
 	// This conflicts with Rootfs.
 	RootfsImageID string `json:"rootfsImageID,omitempty"`
+	// RootfsImageName is the (normalized) name of the image used to create
+	// the container. If the container was created from a Rootfs, this will
+	// be empty.
+	RootfsImageName string `json:"rootfsImageName,omitempty"`
 }
 
 // ContainerSecurityConfig is an embedded sub-config providing security configuration

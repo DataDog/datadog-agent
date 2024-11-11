@@ -30,7 +30,7 @@ type probe struct {
 
 func (p *probe) Close() {}
 
-func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, error) { //nolint:revive // TODO fix revive unused-parameter
+func (p *probe) StatsForPIDs(_ []int32, _ time.Time) (map[int32]*Stats, error) {
 	procs, err := process.AllProcesses()
 	if err != nil {
 		return nil, err
@@ -38,7 +38,7 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 	return ConvertAllFilledProcessesToStats(procs), nil
 }
 
-func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Process, error) { //nolint:revive // TODO fix revive unused-parameter
+func (p *probe) ProcessesByPID(_ time.Time, _ bool) (map[int32]*Process, error) {
 	procs, err := process.AllProcesses()
 	if err != nil {
 		return nil, err
@@ -46,6 +46,6 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 	return ConvertAllFilledProcesses(procs), nil
 }
 
-func (p *probe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, error) { //nolint:revive // TODO fix revive unused-parameter
+func (p *probe) StatsWithPermByPID(_ []int32) (map[int32]*StatsWithPerm, error) {
 	return nil, fmt.Errorf("StatsWithPermByPID is not implemented in this environment")
 }

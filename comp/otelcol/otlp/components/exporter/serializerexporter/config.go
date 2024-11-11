@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 )
@@ -17,8 +18,8 @@ import (
 // ExporterConfig defines configuration for the serializer exporter.
 type ExporterConfig struct {
 	// squash ensures fields are correctly decoded in embedded struct
-	exporterhelper.TimeoutSettings `mapstructure:",squash"`
-	exporterhelper.QueueSettings   `mapstructure:",squash"`
+	exporterhelper.TimeoutConfig `mapstructure:",squash"`
+	exporterhelper.QueueConfig   `mapstructure:",squash"`
 
 	Metrics MetricsConfig `mapstructure:"metrics"`
 
@@ -31,6 +32,10 @@ var _ component.Config = (*ExporterConfig)(nil)
 type MetricsConfig struct {
 	// Enabled reports whether Metrics should be enabled.
 	Enabled bool `mapstructure:"enabled"`
+
+	// TCPAddr.Endpoint is the host of the Datadog intake server to send metrics to.
+	// If unset, the value is obtained from the Site.
+	confignet.TCPAddrConfig `mapstructure:",squash"`
 
 	// DeltaTTL defines the time that previous points of a cumulative monotonic
 	// metric are kept in memory to calculate deltas
@@ -244,7 +249,7 @@ type MetricsExporterConfig struct {
 
 // Validate configuration
 func (e *ExporterConfig) Validate() error {
-	return e.QueueSettings.Validate()
+	return e.QueueConfig.Validate()
 }
 
 var _ confmap.Unmarshaler = (*ExporterConfig)(nil)

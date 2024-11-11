@@ -96,7 +96,7 @@ func (h *JobHandlers) ResourceVersion(ctx processors.ProcessorContext, resource,
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *JobHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*batchv1.Job)
-	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
+	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }
 
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before

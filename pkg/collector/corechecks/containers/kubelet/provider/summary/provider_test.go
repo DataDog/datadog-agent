@@ -19,9 +19,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
@@ -331,9 +336,11 @@ func TestProvider_Provide(t *testing.T) {
 			mockSender.SetupAcceptAll()
 
 			fakeTagger := taggerimpl.SetupFakeTagger(t)
-			defer fakeTagger.ResetTagger()
+
 			for entity, tags := range entityTags {
-				fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
+				prefix, id, _ := taggercommon.ExtractPrefixAndID(entity)
+				entityID := taggertypes.NewEntityID(prefix, id)
+				fakeTagger.SetTags(entityID, "foo", tags, nil, nil, nil)
 			}
 			store := creatFakeStore(t)
 			kubeletMock := mock.NewKubeletMock()
@@ -358,6 +365,7 @@ func TestProvider_Provide(t *testing.T) {
 				},
 				config,
 				store,
+				fakeTagger,
 			)
 			assert.NoError(t, err)
 
@@ -378,13 +386,12 @@ func TestProvider_Provide(t *testing.T) {
 	}
 }
 
-func creatFakeStore(t *testing.T) workloadmeta.Mock {
-	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		logimpl.MockModule(),
+func creatFakeStore(t *testing.T) workloadmetamock.Mock {
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		configcomp.MockModule(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	podEntityID := workloadmeta.EntityID{

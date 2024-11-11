@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import datetime
 import io
 import json
 import os
 import re
 import tarfile
+import urllib.parse
 import xml.etree.ElementTree as ET
 from typing import TYPE_CHECKING, overload
 
@@ -15,7 +17,7 @@ from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 if TYPE_CHECKING:
     from typing import Literal
 
-    from tasks.kernel_matrix_testing.types import Arch, Component, StackOutput, VMConfig
+    from tasks.kernel_matrix_testing.types import Component, KMTArchName, StackOutput, VMConfig
 
 
 class KMTJob:
@@ -27,6 +29,9 @@ class KMTJob:
 
     def __str__(self):
         return f"<KMTJob: {self.name}>"
+
+    def refresh(self) -> None:
+        self.job = self.gitlab.jobs.get(self.id)
 
     @property
     def id(self) -> int:
@@ -41,7 +46,7 @@ class KMTJob:
         return self.job.name
 
     @property
-    def arch(self) -> Arch:
+    def arch(self) -> KMTArchName:
         return "x86_64" if "x64" in self.name else "arm64"
 
     @property
@@ -90,7 +95,10 @@ class KMTJob:
         try:
             res = self.gitlab.jobs.get(self.id, lazy=True).artifact(file)
 
-            return res.content
+            if not isinstance(res, bytes):
+                raise RuntimeError(f"Expected binary data, got {type(res)}")
+
+            return res
         except Exception as e:
             if ignore_not_found:
                 return None
@@ -156,6 +164,30 @@ class KMTSetupEnvJob(KMTJob):
         return self.artifact_file(vm_log_path)
 
 
+def get_test_results_from_tarfile(tar: tarfile.TarFile) -> dict[str, bool | None]:
+    reports: list[ET.ElementTree] = []
+    for member in tar.getmembers():
+        filename = os.path.basename(member.name)
+        if filename.endswith(".xml"):
+            data = tar.extractfile(member)
+            if data is not None:
+                reports.append(ET.parse(data))
+
+    results: dict[str, bool | None] = {}
+    for report in reports:
+        for testsuite in report.findall(".//testsuite"):
+            pkgname = testsuite.get("name")
+
+            for testcase in report.findall(".//testcase"):
+                name = testcase.get("name")
+                if name is not None:
+                    failed = len(testcase.findall(".//failure")) > 0
+                    skipped = len(testcase.findall(".//skipped")) > 0
+                    results[f"{pkgname}:{name}"] = None if skipped else not failed
+
+    return results
+
+
 class KMTTestRunJob(KMTJob):
     """Represent a kmt_test_* job, with properties that allow extracting data from
     the job name and output artifacts
@@ -180,43 +212,18 @@ class KMTTestRunJob(KMTJob):
     def vmset(self) -> str:
         return self.vars[1]
 
-    def get_junit_reports(self) -> list[ET.ElementTree]:
-        """Return the XML data from all JUnit reports in this job. Does not fail if the file is not found."""
-        junit_archive_name = f"junit-{self.arch}-{self.distro}-{self.vmset}.tar.gz"
-        junit_archive = self.artifact_file_binary(f"test/kitchen/{junit_archive_name}", ignore_not_found=True)
-        if junit_archive is None:
-            return []
-
-        bytearr = io.BytesIO(junit_archive)
-        tar = tarfile.open(fileobj=bytearr)
-
-        reports: list[ET.ElementTree] = []
-        for member in tar.getmembers():
-            filename = os.path.basename(member.name)
-            if filename.endswith(".xml"):
-                data = tar.extractfile(member)
-                if data is not None:
-                    reports.append(ET.parse(data))
-
-        return reports
-
     def get_test_results(self) -> dict[str, bool | None]:
         """Return a dictionary with the results of all tests in this job, indexed by "package_name:testname".
         The values are True if test passed, False if failed, None if skipped.
         """
-        results: dict[str, bool | None] = {}
-        for report in self.get_junit_reports():
-            for testsuite in report.findall(".//testsuite"):
-                pkgname = testsuite.get("name")
+        junit_archive_name = f"junit-{self.arch}-{self.distro}-{self.vmset}.tar.gz"
+        junit_archive = self.artifact_file_binary(f"test/kitchen/{junit_archive_name}", ignore_not_found=True)
+        if junit_archive is None:
+            return {}
 
-                for testcase in report.findall(".//testcase"):
-                    name = testcase.get("name")
-                    if name is not None:
-                        failed = len(testcase.findall(".//failure")) > 0
-                        skipped = len(testcase.findall(".//skipped")) > 0
-                        results[f"{pkgname}:{name}"] = None if skipped else not failed
-
-        return results
+        bytearr = io.BytesIO(junit_archive)
+        tar = tarfile.open(fileobj=bytearr)
+        return get_test_results_from_tarfile(tar)
 
 
 def get_all_jobs_for_pipeline(pipeline_id: int | str) -> tuple[list[KMTSetupEnvJob], list[KMTTestRunJob]]:
@@ -245,3 +252,47 @@ def get_all_jobs_for_pipeline(pipeline_id: int | str) -> tuple[list[KMTSetupEnvJ
                 break
 
     return setup_jobs, test_jobs
+
+
+def get_kmt_dashboard_links() -> None | list:
+    stage = os.environ.get("CI_JOB_STAGE")
+    pipeline = os.environ.get("CI_PIPELINE_ID")
+    branch = os.environ.get("CI_COMMIT_REF_NAME")
+    pipeline_start = os.environ.get("CI_PIPELINE_CREATED_AT")
+
+    # Check we're running in Gitlab CI
+    if pipeline_start is None or branch is None or pipeline is None or stage is None:
+        return None
+
+    # Check this is a KMT job
+    if "kernel_matrix_testing" not in stage:
+        return None
+
+    try:
+        pipeline_start_date = datetime.datetime.fromisoformat(pipeline_start)
+    except Exception:
+        print(f"Error: Could not parse pipeline start date {pipeline_start}")
+        return None
+
+    dashboard_end = pipeline_start_date + datetime.timedelta(hours=4)
+
+    query_args = {
+        "fromUser": "false",
+        "refresh_mode": "paused",
+        "tpl_var_ci.pipeline.id[0]": pipeline,
+        "tpl_var_git-branch[0]": branch,
+        "from_ts": int(pipeline_start_date.timestamp()) * 1000,
+        "to_ts": int(dashboard_end.timestamp()) * 1000,
+        "live": "false",
+    }
+
+    url = f"https://app.datadoghq.com/dashboard/zs9-uia-gsg?{urllib.parse.urlencode(query_args)}"
+
+    return [
+        {
+            "external_link": {
+                "label": "KMT: Pipeline dashboard",
+                "url": url,
+            }
+        }
+    ]

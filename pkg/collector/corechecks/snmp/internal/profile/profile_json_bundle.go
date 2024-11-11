@@ -85,7 +85,7 @@ func loadGzipFile(filePath string) ([]byte, error) {
 	return io.ReadAll(gzipReader)
 }
 
-// getProfileBundleFilePath returns the expected location of the gzipped profiles bundle, based on config.Datadog.
+// getProfileBundleFilePath returns the expected location of the gzipped profiles bundle, based on config.Datadog().
 func getProfileBundleFilePath() string {
 	return getProfileConfdRoot(filepath.Join(userProfilesFolder, profilesJSONGzipFile))
 }

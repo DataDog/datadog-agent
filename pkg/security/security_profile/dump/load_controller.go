@@ -22,7 +22,7 @@ import (
 
 var (
 	// TracedEventTypesReductionOrder is the order by which event types are reduced
-	TracedEventTypesReductionOrder = []model.EventType{model.BindEventType, model.DNSEventType, model.SyscallsEventType, model.FileOpenEventType}
+	TracedEventTypesReductionOrder = []model.EventType{model.BindEventType, model.IMDSEventType, model.DNSEventType, model.SyscallsEventType, model.FileOpenEventType}
 
 	absoluteMinimumDumpTimeout = 10 * time.Second
 )
@@ -85,9 +85,9 @@ func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
 func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *ActivityDump {
 	newDump := NewActivityDump(ad.adm)
 	newDump.Metadata.ContainerID = ad.Metadata.ContainerID
-	newDump.Metadata.Comm = ad.Metadata.Comm
 	newDump.Metadata.DifferentiateArgs = ad.Metadata.DifferentiateArgs
 	newDump.Tags = ad.Tags
+	newDump.selector = ad.selector
 
 	// copy storage requests
 	for _, reqList := range ad.StorageRequests {
@@ -102,7 +102,7 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 	}
 
 	// compute the duration it took to reach the dump size threshold
-	timeToThreshold := ad.End.Sub(ad.Start)
+	timeToThreshold := time.Since(ad.Start)
 
 	// set new load parameters
 	newDump.SetTimeout(ad.LoadConfig.Timeout - timeToThreshold)

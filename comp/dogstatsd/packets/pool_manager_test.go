@@ -9,12 +9,16 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func countPoolSize(p *PoolManager) int {
+func countPoolSize(p *PoolManager[Packet]) int {
 
 	i := 0
-	p.refs.Range(func(key, value interface{}) bool {
+	p.refs.Range(func(_, _ interface{}) bool {
 		i++
 
 		return true
@@ -24,9 +28,10 @@ func countPoolSize(p *PoolManager) int {
 }
 
 func TestPoolManager(t *testing.T) {
-
-	pool := NewPool(1024)
-	manager := NewPoolManager(pool)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
+	pool := NewPool(1024, packetsTelemetryStore)
+	manager := NewPoolManager[Packet](pool)
 
 	// passthru mode by default
 	assert.True(t, manager.IsPassthru())
@@ -56,18 +61,21 @@ func TestPoolManager(t *testing.T) {
 }
 
 func BenchmarkPoolManagerPassthru(b *testing.B) {
-	pool := NewPool(1024)
-	manager := NewPoolManager(pool)
+	telemetryComponent := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
+	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
+	pool := NewPool(1024, packetsTelemetryStore)
+	manager := NewPoolManager[Packet](pool)
 
 	for i := 0; i < b.N; i++ {
 		packet := pool.Get()
 		manager.Put(packet)
 	}
 }
-
 func BenchmarkPoolManagerNoPassthru(b *testing.B) {
-	pool := NewPool(1024)
-	manager := NewPoolManager(pool)
+	telemetryComponent := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
+	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
+	pool := NewPool(1024, packetsTelemetryStore)
+	manager := NewPoolManager[Packet](pool)
 
 	for i := 0; i < b.N; i++ {
 		packet := pool.Get()
@@ -77,7 +85,9 @@ func BenchmarkPoolManagerNoPassthru(b *testing.B) {
 }
 
 func BenchmarkSyncPool(b *testing.B) {
-	pool := NewPool(1024)
+	telemetryComponent := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
+	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
+	pool := NewPool(1024, packetsTelemetryStore)
 
 	for i := 0; i < b.N; i++ {
 		packet := pool.Get()

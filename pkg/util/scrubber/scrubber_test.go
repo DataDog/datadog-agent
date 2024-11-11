@@ -6,6 +6,7 @@
 package scrubber
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -94,4 +95,12 @@ func TestScrubLine(t *testing.T) {
 	})
 	res := scrubber.ScrubLine("https://foo:bar@example.com")
 	require.Equal(t, "https://foo:********@example.com", res)
+}
+
+func TestScrubBig(t *testing.T) {
+	scrubber := New()
+	content := bytes.Repeat([]byte("a"), 1000000)
+
+	_, err := scrubber.ScrubBytes(content)
+	require.NoError(t, err)
 }

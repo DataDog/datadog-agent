@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -37,6 +38,7 @@ type Check struct {
 	core.CheckBase
 	config        *CheckConfig
 	lastCheckTime time.Time
+	telemetryComp telemetryComp.Component
 }
 
 // Run executes the check
@@ -52,10 +54,11 @@ func (c *Check) Run() error {
 		DestHostname: c.config.DestHostname,
 		DestPort:     c.config.DestPort,
 		MaxTTL:       c.config.MaxTTL,
-		TimeoutMs:    c.config.TimeoutMs,
+		Timeout:      c.config.Timeout,
+		Protocol:     c.config.Protocol,
 	}
 
-	tr, err := traceroute.New(cfg)
+	tr, err := traceroute.New(cfg, c.telemetryComp)
 	if err != nil {
 		return fmt.Errorf("failed to initialize traceroute: %w", err)
 	}
@@ -64,10 +67,18 @@ func (c *Check) Run() error {
 		return fmt.Errorf("failed to trace path: %w", err)
 	}
 	path.Namespace = c.config.Namespace
+	path.Origin = payload.PathOriginNetworkPathIntegration
 
 	// Add tags to path
-	commonTags := append(utils.GetCommonAgentTags(), c.config.Tags...)
-	path.Tags = commonTags
+	path.Source.Service = c.config.SourceService
+	path.Destination.Service = c.config.DestinationService
+	path.Tags = c.config.Tags
+
+	// Perform reverse DNS lookup
+	path.Destination.ReverseDNSHostname = traceroute.GetHostname(path.Destination.IPAddress)
+	for i := range path.Hops {
+		path.Hops[i].Hostname = traceroute.GetHostname(path.Hops[i].IPAddress)
+	}
 
 	// send to EP
 	err = c.SendNetPathMDToEP(senderInstance, path)
@@ -75,7 +86,8 @@ func (c *Check) Run() error {
 		return fmt.Errorf("failed to send network path metadata: %w", err)
 	}
 
-	c.submitTelemetry(metricSender, path, commonTags, startTime)
+	metricTags := append(utils.GetCommonAgentTags(), c.config.Tags...)
+	c.submitTelemetry(metricSender, path, metricTags, startTime)
 
 	senderInstance.Commit()
 	return nil
@@ -100,7 +112,7 @@ func (c *Check) submitTelemetry(metricSender metricsender.MetricSender, path pay
 	c.lastCheckTime = startTime
 	checkDuration := time.Since(startTime)
 
-	telemetry.SubmitNetworkPathTelemetry(metricSender, path, telemetry.CollectorTypeNetworkPathIntegration, checkDuration, checkInterval, metricTags)
+	telemetry.SubmitNetworkPathTelemetry(metricSender, path, checkDuration, checkInterval, metricTags)
 }
 
 // Interval returns the scheduling time for the check
@@ -113,7 +125,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	// Must be called before c.CommonConfigure
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
-	err := c.CommonConfigure(senderManager, integrationConfigDigest, rawInitConfig, rawInstance, source)
+	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
 	if err != nil {
 		return fmt.Errorf("common configure failed: %s", err)
 	}
@@ -127,12 +139,11 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
-}
-
-func newCheck() check.Check {
-	return &Check{
-		CheckBase: core.NewCheckBase(CheckName),
-	}
+func Factory(telemetry telemetryComp.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return &Check{
+			CheckBase:     core.NewCheckBase(CheckName),
+			telemetryComp: telemetry,
+		}
+	})
 }

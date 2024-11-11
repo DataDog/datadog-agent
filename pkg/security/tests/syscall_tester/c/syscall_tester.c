@@ -48,9 +48,9 @@ struct thread_opts {
 
 void *register_tls() {
     uint64_t max_threads = 100;
-    uint64_t len = max_threads * sizeof(uint64_t) * 2;
+    uint64_t len = max_threads * (sizeof(uint64_t) + sizeof(__int128));
 
-    uint64_t *base = (uint64_t *)malloc(len);
+    void *base = (void *)malloc(len);
     if (base == NULL)
         return NULL;
     bzero(base, len);
@@ -72,18 +72,28 @@ void *register_tls() {
     return tls;
 }
 
-void register_span(struct span_tls_t *tls, unsigned trace_id, unsigned span_id) {
-    int offset = (gettid() % tls->max_threads) * 2;
+void register_span(struct span_tls_t *tls, __int128 trace_id, unsigned long span_id) {
+    int offset = (gettid() % tls->max_threads) * 24; // sizeof uint64 + sizeof int128
 
-    uint64_t *base = tls->base;
-    base[offset] = span_id;
-    base[offset + 1] = trace_id;
+    *(uint64_t*)(tls->base + offset) = span_id;
+    *(__int128*)(tls->base + offset + 8) = trace_id;
+}
+
+__int128 atouint128(char *s) {
+    if (s == NULL)
+        return (0);
+
+    __int128_t val = 0;
+    for (; *s != 0 && *s >= '0' && *s <= '9'; s++) {
+        val = (10 * val) + (*s - '0');
+    }
+    return val;
 }
 
 static void *thread_span_exec(void *data) {
     struct thread_opts *opts = (struct thread_opts *)data;
 
-    unsigned trace_id = atoi(opts->argv[1]);
+    __int128_t trace_id = atouint128(opts->argv[1]);
     unsigned span_id = atoi(opts->argv[2]);
 
     register_span(opts->tls, trace_id, span_id);
@@ -121,7 +131,7 @@ int span_exec(int argc, char **argv) {
 static void *thread_open(void *data) {
     struct thread_opts *opts = (struct thread_opts *)data;
 
-    unsigned trace_id = atoi(opts->argv[1]);
+    __int128_t trace_id = atouint128(opts->argv[1]);
     unsigned span_id = atoi(opts->argv[2]);
 
     register_span(opts->tls, trace_id, span_id);
@@ -482,6 +492,122 @@ int test_bind(int argc, char** argv) {
     return EXIT_FAILURE;
 }
 
+int test_connect_af_inet(int argc, char** argv) {
+
+    if (argc != 3) {
+        fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
+        fprintf(stderr, "Arg1: an option for the addr in the list: any, custom_ip\n");
+        fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
+        return EXIT_FAILURE;
+    }
+
+    char* proto = argv[2];
+    int s;
+
+    if (!strcmp(proto, "udp"))
+        s = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    else
+        s = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+    if (s < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+
+    char* ip = argv[1];
+    if (!strcmp(ip, "any")) {
+        addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    } else if (!strcmp(ip, "custom_ip")) {
+        int ip32 = 0;
+        if (inet_pton(AF_INET, "127.0.0.1", &ip32) != 1) {
+            perror("inet_pton");
+            return EXIT_FAILURE;
+        }
+        addr.sin_addr.s_addr = htonl(ip32);
+    } else {
+        fprintf(stderr, "Please specify an option in the list: any, broadcast, custom_ip\n");
+        return EXIT_FAILURE;
+    }
+
+    addr.sin_port = htons(4242);
+
+    if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        close(s);
+        perror("Failed to connect to port");
+        return EXIT_FAILURE;
+    }
+
+    close (s);
+    return EXIT_SUCCESS;
+}
+
+int test_connect_af_inet6(int argc, char** argv) {
+
+    if (argc != 3) {
+        fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
+        fprintf(stderr, "Arg1: an option for the addr in the list: any, custom_ip\n");
+        fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
+        return EXIT_FAILURE;
+    }
+
+    char* proto = argv[2];
+    int s;
+
+    if (!strcmp(proto, "udp"))
+        s = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+    else
+        s = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
+
+    if (s < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    struct sockaddr_in6 addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin6_family = AF_INET6;
+
+    char* ip = argv[1];
+    if (!strcmp(ip, "any")) {
+        inet_pton(AF_INET6, "::", &addr.sin6_addr);
+    } else if (!strcmp(ip, "custom_ip")) {
+        inet_pton(AF_INET6, "1234:5678:90ab:cdef:0000:0000:1a1a:1337", &addr.sin6_addr);
+    } else {
+        fprintf(stderr, "Please specify an option in the list: any, broadcast, custom_ip\n");
+        return EXIT_FAILURE;
+    }
+
+    addr.sin6_port = htons(4242);
+    if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        close(s);
+        perror("Failed to connect to port");
+        return EXIT_FAILURE;
+    }
+
+    close(s);
+    return EXIT_SUCCESS;
+}
+
+int test_connect(int argc, char** argv) {
+    if (argc <= 1) {
+        fprintf(stderr, "Please specify an addr_type\n");
+        return EXIT_FAILURE;
+    }
+
+    char* addr_family = argv[1];
+    if (!strcmp(addr_family, "AF_INET")) {
+        return test_connect_af_inet(argc - 1, argv + 1);
+    } else if  (!strcmp(addr_family, "AF_INET6")) {
+        return test_connect_af_inet6(argc - 1, argv + 1);
+    }
+    fprintf(stderr, "Specified %s addr_type is not a valid one, try: AF_INET or AF_INET6 \n", addr_family);
+    return EXIT_FAILURE;
+}
+
 int test_forkexec(int argc, char **argv) {
     if (argc == 2) {
         char *subcmd = argv[1];
@@ -632,8 +758,48 @@ int test_sleep(int argc, char **argv) {
     if (duration <= 0) {
         fprintf(stderr, "Please specify at a valid sleep duration\n");
     }
-    for (int i = 0; i < duration; i++)
-        sleep(1);
+    sleep(duration);
+
+    return EXIT_SUCCESS;
+}
+
+int test_slow_cat(int argc, char **argv) {
+    if (argc != 3) {
+        fprintf(stderr, "%s: Please pass a duration in seconds, and a path.\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+
+    int duration = atoi(argv[1]);
+    int fd = open(argv[2], O_RDONLY);
+
+    if (duration <= 0) {
+        fprintf(stderr, "Please specify at a valid sleep duration\n");
+    }
+    sleep(duration);
+
+    close(fd);
+
+    return EXIT_SUCCESS;
+}
+
+int test_slow_write(int argc, char **argv) {
+    if (argc != 4) {
+        fprintf(stderr, "%s: Please pass a duration in seconds, a path, and a content.\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+
+    int duration = atoi(argv[1]);
+    int fd = open(argv[2], O_CREAT|O_WRONLY);
+
+    if (duration <= 0) {
+        fprintf(stderr, "Please specify at a valid sleep duration\n");
+    }
+    sleep(duration);
+
+    write(fd, argv[3], strlen(argv[3]));
+
+    close(fd);
+
     return EXIT_SUCCESS;
 }
 
@@ -737,6 +903,8 @@ int main(int argc, char **argv) {
             exit_code = self_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "bind") == 0) {
             exit_code = test_bind(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "connect") == 0) {
+            exit_code = test_connect(sub_argc, sub_argv);
         } else if (strcmp(cmd, "fork") == 0) {
             return test_forkexec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "set-signal-handler") == 0) {
@@ -761,7 +929,12 @@ int main(int argc, char **argv) {
             exit_code = test_memfd_create(sub_argc, sub_argv);
         } else if (strcmp(cmd, "new_netns_exec") == 0) {
             exit_code = test_new_netns_exec(sub_argc, sub_argv);
-        } else {
+        } else if (strcmp(cmd, "slow-cat") == 0) {
+            exit_code = test_slow_cat(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "slow-write") == 0) {
+            exit_code = test_slow_write(sub_argc, sub_argv);
+        }
+        else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);
             exit_code = EXIT_FAILURE;
         }

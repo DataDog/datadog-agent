@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
-//go:build kubelet && orchestrator
+//go:build kubelet && orchestrator && test
 
 package pod
 
@@ -20,16 +20,25 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/agent-payload/v5/process"
+
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -105,6 +114,7 @@ type PodTestSuite struct {
 	testServer   *httptest.Server
 	sender       *fakeSender
 	kubeUtil     kubelet.KubeUtilInterface
+	tagger       tagger.Mock
 }
 
 func (suite *PodTestSuite) SetupSuite() {
@@ -117,7 +127,7 @@ func (suite *PodTestSuite) SetupSuite() {
 	require.NoError(suite.T(), err)
 	suite.testServer = ts
 
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
 	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
 	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", kubeletPort)
@@ -132,11 +142,20 @@ func (suite *PodTestSuite) SetupSuite() {
 	sender := &fakeSender{}
 	suite.sender = sender
 
+	mockStore := fxutil.Test[workloadmetamock.Mock](suite.T(), fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
+	suite.tagger = fakeTagger
+
 	suite.check = &Check{
 		sender:    sender,
-		processor: processors.NewProcessor(new(k8sProcessors.PodHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewPodHandlers(mockConfig, mockStore, fakeTagger)),
 		hostName:  testHostName,
 		config:    oconfig.NewDefaultOrchestratorConfig(),
+		tagger:    fakeTagger,
 	}
 }
 
@@ -149,17 +168,14 @@ func TestPodTestSuite(t *testing.T) {
 }
 
 func (suite *PodTestSuite) TestPodCheck() {
-	cacheKey := cache.BuildAgentKey(config.ClusterIDCacheKey)
+	cacheKey := cache.BuildAgentKey(constants.ClusterIDCacheKey)
 	cachedClusterID, found := cache.Cache.Get(cacheKey)
 	if !found {
 		cache.Cache.Set(cacheKey, strings.Repeat("1", 36), cache.NoExpiration)
 	}
 
-	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
-
 	defer func() {
 		cache.Cache.Set(cacheKey, cachedClusterID, cache.NoExpiration)
-		fakeTagger.ResetTagger()
 	}()
 
 	err := suite.check.Run()

@@ -60,20 +60,20 @@ the filesystem without disrupting anything.
 To run Omnibus and build the package, make the `/opt` folder world readable and run:
 
 ```
-inv omnibus.build --base-dir=$HOME/.omnibus
+deva omnibus.build --base-dir=$HOME/.omnibus
 ```
 
 On Mac, you might want to skip the signing step by running:
 
 ```
-inv omnibus.build --base-dir=$HOME/.omnibus --skip-sign
+deva omnibus.build --base-dir=$HOME/.omnibus --skip-sign
 ```
 
 The path you pass with the `--base-dir` option will contain the sources
 downloaded by Omnibus in the `src` folder, the binaries cached after building
 those sources in the `cache` folder and the final deb/rpm/dmg artifacts in the
 `pkg` folder. You can fine tune an Omnibus run passing more options, see
-`inv omnibus.build --help` for the list of all the available options.
+`deva omnibus.build --help` for the list of all the available options.
 
 **Note:** it's strongly advised to pass `--base-dir` and point to a directory
 outside the Agent repo. By default Omnibus stores packages in the project folder
@@ -90,7 +90,7 @@ Start a Powershell prompt and navigate to your local clone of the `datadog-agent
  Run the following command:
 
 ```powershell
-docker run -v "$(Get-Location):c:\mnt" -e OMNIBUS_TARGET=main -e RELEASE_VERSION=nightly -e MAJOR_VERSION=7 -e PY_RUNTIMES=3 -e TARGET_ARCH=x64 datadog/agent-buildimages-windows_x64:1809 c:\mnt\tasks\winbuildscripts\buildwin.bat
+docker run -v "$(Get-Location):c:\mnt" -e OMNIBUS_TARGET=main -e RELEASE_VERSION=nightly -e MAJOR_VERSION=7 -e TARGET_ARCH=x64 datadog/agent-buildimages-windows_x64:1809 c:\mnt\tasks\winbuildscripts\buildwin.bat
 ```
 
 Downloading the Docker image may take some time in the first run.
@@ -105,16 +105,11 @@ param (
    [bool]$DEBUG=$false
 )
 
-if ($MAJOR_VERSION -eq 7) {
-    $PY_RUNTIMES="3"
-} else {
-    $PY_RUNTIMES="2,3"
-}
 $cmd = "docker run"
 if ($RM_CONTAINER) {
     $cmd += " --rm "
 }
-$opts = "-e OMNIBUS_TARGET=main -e RELEASE_VERSION=$RELEASE_VERSION -e MAJOR_VERSION=$MAJOR_VERSION -e PY_RUNTIMES=$PY_RUNTIMES -e TARGET_ARCH=$TARGET_ARCH"
+$opts = "-e OMNIBUS_TARGET=main -e RELEASE_VERSION=$RELEASE_VERSION -e MAJOR_VERSION=$MAJOR_VERSION -e TARGET_ARCH=$TARGET_ARCH"
 if ($DEBUG) {
     $opts += " -e DEBUG_CUSTOMACTION=yes "
 }

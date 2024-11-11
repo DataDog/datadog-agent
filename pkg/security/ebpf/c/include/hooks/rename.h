@@ -6,35 +6,38 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_rename(u8 async) {
+int __attribute__((always_inline)) trace__sys_rename(u8 async, const char *oldpath, const char *newpath) {
     struct syscall_cache_t syscall = {
         .policy = fetch_policy(EVENT_RENAME),
         .async = async,
         .type = EVENT_RENAME,
     };
 
+    if (!async) {
+        collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_STR(1), (void *)oldpath, (void *)newpath, NULL);
+    }
     cache_syscall(&syscall);
 
     return 0;
 }
 
-HOOK_SYSCALL_ENTRY0(rename) {
-    return trace__sys_rename(SYNC_SYSCALL);
+HOOK_SYSCALL_ENTRY2(rename, const char *, oldpath, const char *, newpath) {
+    return trace__sys_rename(SYNC_SYSCALL, oldpath, newpath);
 }
 
-HOOK_SYSCALL_ENTRY0(renameat) {
-    return trace__sys_rename(SYNC_SYSCALL);
+HOOK_SYSCALL_ENTRY4(renameat, int, olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath) {
+    return trace__sys_rename(SYNC_SYSCALL, oldpath, newpath);
 }
 
-HOOK_SYSCALL_ENTRY0(renameat2) {
-    return trace__sys_rename(SYNC_SYSCALL);
+HOOK_SYSCALL_ENTRY4(renameat2, int , olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath) {
+    return trace__sys_rename(SYNC_SYSCALL, oldpath, newpath);
 }
 
 HOOK_ENTRY("do_renameat2")
 int hook_do_renameat2(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
     if (!syscall) {
-        return trace__sys_rename(ASYNC_SYSCALL);
+        return trace__sys_rename(ASYNC_SYSCALL, NULL, NULL);
     }
     return 0;
 }
@@ -60,8 +63,8 @@ int hook_vfs_rename(ctx_t *ctx) {
     } else {
         struct renamedata *rename_data = (struct renamedata *)CTX_PARM1(ctx);
 
-        bpf_probe_read(&src_dentry, sizeof(src_dentry), (void *) rename_data + get_vfs_rename_src_dentry_offset());
-        bpf_probe_read(&target_dentry, sizeof(target_dentry), (void *) rename_data + get_vfs_rename_target_dentry_offset());
+        bpf_probe_read(&src_dentry, sizeof(src_dentry), (void *)rename_data + get_vfs_rename_src_dentry_offset());
+        bpf_probe_read(&target_dentry, sizeof(target_dentry), (void *)rename_data + get_vfs_rename_target_dentry_offset());
     }
 
     syscall->rename.src_dentry = src_dentry;
@@ -78,7 +81,7 @@ int hook_vfs_rename(ctx_t *ctx) {
     set_file_inode(src_dentry, &syscall->rename.target_file, 1);
 
     // we generate a fake source key as the inode is (can be ?) reused
-    syscall->rename.src_file.path_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();
+    syscall->rename.src_file.path_key.ino = FAKE_INODE_MSW << 32 | bpf_get_prandom_u32();
 
     // if destination already exists invalidate
     u64 inode = get_dentry_ino(target_dentry);
@@ -87,19 +90,15 @@ int hook_vfs_rename(ctx_t *ctx) {
     }
 
     // always return after any invalidate_inode call
-    if (filter_syscall(syscall, rename_approvers)) {
-        return mark_as_discarded(syscall);
-    }
-
-    // If we are discarded, we still want to invalidate the inode
-    if (is_discarded_by_process(syscall->policy.mode, EVENT_RENAME)) {
-        return mark_as_discarded(syscall);
+    if (approve_syscall(syscall, rename_approvers) == DISCARDED) {
+        // do not pop, we want to invalidate the inode even if the syscall is discarded
+        return 0;
     }
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = syscall->rename.src_dentry;
     syscall->resolver.key = syscall->rename.src_file.path_key;
-    syscall->resolver.discarder_type = 0;
+    syscall->resolver.discarder_event_type = 0;
     syscall->resolver.callback = DR_NO_CALLBACK;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
@@ -130,8 +129,6 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
         expire_inode_discarders(syscall->rename.target_file.path_key.mount_id, inode);
     }
 
-    int pass_to_userspace = !syscall->discarded && is_event_enabled(EVENT_RENAME);
-
     // invalid discarder + path_id
     if (retval >= 0) {
         expire_inode_discarders(syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.path_key.ino);
@@ -143,11 +140,11 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
         }
     }
 
-    if (pass_to_userspace) {
+    if (syscall->state != DISCARDED && is_event_enabled(EVENT_RENAME)) {
         // for centos7, use src dentry for target resolution as the pointers have been swapped
         syscall->resolver.key = syscall->rename.target_file.path_key;
         syscall->resolver.dentry = syscall->rename.src_dentry;
-        syscall->resolver.discarder_type = 0;
+        syscall->resolver.discarder_event_type = 0;
         syscall->resolver.callback = select_dr_key(dr_type, DR_RENAME_CALLBACK_KPROBE_KEY, DR_RENAME_CALLBACK_TRACEPOINT_KEY);
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
@@ -201,6 +198,7 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx) {
 
     struct rename_event_t event = {
         .syscall.retval = retval,
+        .syscall_ctx.id = syscall->ctx_id,
         .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
         .old = syscall->rename.src_file,
         .new = syscall->rename.target_file,

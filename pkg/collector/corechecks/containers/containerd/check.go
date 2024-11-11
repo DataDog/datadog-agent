@@ -19,7 +19,8 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -52,6 +53,7 @@ type ContainerdCheck struct {
 	client          cutil.ContainerdItf
 	httpClient      http.Client
 	store           workloadmeta.Component
+	tagger          tagger.Component
 }
 
 // ContainerdConfig contains the custom options and configurations set by the user.
@@ -62,12 +64,13 @@ type ContainerdConfig struct {
 }
 
 // Factory is used to create register the check and initialize it.
-func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+func Factory(store workloadmeta.Component, tagger tagger.Component) optional.Option[func() check.Check] {
 	return optional.NewOption(func() check.Check {
 		return &ContainerdCheck{
 			CheckBase: corechecks.NewCheckBase(CheckName),
 			instance:  &ContainerdConfig{},
 			store:     store,
+			tagger:    tagger,
 		}
 	})
 }
@@ -78,9 +81,9 @@ func (co *ContainerdConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (c *ContainerdCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (c *ContainerdCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
 	var err error
-	if err = c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source); err != nil {
+	if err = c.CommonConfigure(senderManager, initConfig, config, source); err != nil {
 		return err
 	}
 
@@ -99,7 +102,7 @@ func (c *ContainerdCheck) Configure(senderManager sender.SenderManager, integrat
 	}
 
 	c.httpClient = http.Client{Timeout: time.Duration(1) * time.Second}
-	c.processor = generic.NewProcessor(metrics.GetProvider(optional.NewOption(c.store)), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(c.containerFilter, c.store))
+	c.processor = generic.NewProcessor(metrics.GetProvider(optional.NewOption(c.store)), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(c.containerFilter, c.store), c.tagger)
 	c.processor.RegisterExtension("containerd-custom-metrics", &containerdCustomMetricsExtension{})
 	c.subscriber = createEventSubscriber("ContainerdCheck", c.client, cutil.FiltersWithNamespaces(c.instance.ContainerdFilters))
 
@@ -247,5 +250,5 @@ func (c *ContainerdCheck) collectEvents(sender sender.Sender) {
 	}
 	events := c.subscriber.Flush(time.Now().Unix())
 	// Process events
-	computeEvents(events, sender, c.containerFilter)
+	c.computeEvents(events, sender, c.containerFilter)
 }

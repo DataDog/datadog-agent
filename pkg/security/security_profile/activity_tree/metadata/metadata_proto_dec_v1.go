@@ -30,7 +30,6 @@ func ProtoMetadataToMetadata(meta *adproto.Metadata) Metadata {
 		Name:              meta.Name,
 		ProtobufVersion:   meta.ProtobufVersion,
 		DifferentiateArgs: meta.DifferentiateArgs,
-		Comm:              meta.Comm,
 		ContainerID:       meta.ContainerId,
 		Start:             activity_tree.ProtoDecodeTimestamp(meta.Start),
 		End:               activity_tree.ProtoDecodeTimestamp(meta.End),

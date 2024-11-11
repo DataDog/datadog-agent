@@ -13,11 +13,12 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -87,30 +88,32 @@ func (c *Config) Parse(data []byte) error {
 type Check struct {
 	core.CheckBase
 	workloadmetaStore workloadmeta.Component
+	tagger            tagger.Component
 	instance          *Config
 	processor         *processor
 	stopCh            chan struct{}
 }
 
 // Factory returns a new check factory
-func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+func Factory(store workloadmeta.Component, tagger tagger.Component) optional.Option[func() check.Check] {
 	return optional.NewOption(func() check.Check {
 		return core.NewLongRunningCheckWrapper(&Check{
 			CheckBase:         core.NewCheckBase(CheckName),
 			workloadmetaStore: store,
 			instance:          &Config{},
 			stopCh:            make(chan struct{}),
+			tagger:            tagger,
 		})
 	})
 }
 
 // Configure parses the check configuration and initializes the container_image check
-func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	if !ddConfig.Datadog.GetBool("container_image.enabled") {
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+	if !pkgconfigsetup.Datadog().GetBool("container_image.enabled") {
 		return errors.New("collection of container images is disabled")
 	}
 
-	if err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source); err != nil {
+	if err := c.CommonConfigure(senderManager, initConfig, config, source); err != nil {
 		return err
 	}
 
@@ -123,7 +126,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		return err
 	}
 
-	c.processor = newProcessor(sender, c.instance.ChunkSize, time.Duration(c.instance.NewImagesMaxLatencySeconds)*time.Second)
+	c.processor = newProcessor(sender, c.instance.ChunkSize, time.Duration(c.instance.NewImagesMaxLatencySeconds)*time.Second, c.tagger)
 
 	return nil
 }
@@ -133,19 +136,19 @@ func (c *Check) Run() error {
 	log.Infof("Starting long-running check %q", c.ID())
 	defer log.Infof("Shutting down long-running check %q", c.ID())
 
-	filterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeSet, // We don’t care about images removal because we just have to wait for them to expire on BE side once we stopped refreshing them periodically.
-	}
+	filter := workloadmeta.NewFilterBuilder().
+		SetEventType(workloadmeta.EventTypeSet). // We don’t care about images removal because we just have to wait for them to expire on BE side once we stopped refreshing them periodically.
+		AddKind(workloadmeta.KindContainerImageMetadata).
+		Build()
+
 	imgEventsCh := c.workloadmetaStore.Subscribe(
 		CheckName,
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&filterParams),
+		filter,
 	)
 
 	imgRefreshTicker := time.NewTicker(time.Duration(c.instance.PeriodicRefreshSeconds) * time.Second)
-
+	defer imgRefreshTicker.Stop()
 	defer c.processor.stop()
 	for {
 		select {

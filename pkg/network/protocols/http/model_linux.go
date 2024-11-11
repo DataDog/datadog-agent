@@ -110,7 +110,7 @@ func (e *EbpfEvent) String() string {
 
 func requestFragment(fragment []byte) [BufferSize]byte {
 	if len(fragment) >= BufferSize {
-		return *(*[BufferSize]byte)(fragment)
+		return [BufferSize]byte(fragment)
 	}
 	var b [BufferSize]byte
 	copy(b[:], fragment)

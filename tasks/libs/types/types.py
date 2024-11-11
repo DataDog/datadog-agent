@@ -43,6 +43,7 @@ class Test:
 class FailedJobType(Enum):
     JOB_FAILURE = 1
     INFRA_FAILURE = 2
+    BRIDGE_FAILURE = 3
 
 
 class FailedJobReason(Enum):
@@ -53,6 +54,7 @@ class FailedJobReason(Enum):
     KITCHEN = 7
     EC2_SPOT = 8
     E2E_INFRA_FAILURE = 9
+    FAILED_BRIDGE_JOB = 10
 
     @staticmethod
     def get_infra_failure_mapping():
@@ -105,10 +107,8 @@ class FailedJobs:
 
 class SlackMessage:
     JOBS_SECTION_HEADER = "Failed jobs:"
-    OPTIONAL_JOBS_SECTION_HEADER = "Failed jobs (allowed to fail):"
     INFRA_SECTION_HEADER = "Infrastructure failures:"
-    OPTIONAL_INFRA_SECTION_HEADER = "Infrastructure failures (allowed to fail):"
-    TEST_SECTION_HEADER = "Failed unit tests:"
+    TEST_SECTION_HEADER = "Failed tests:"
     MAX_JOBS_PER_TEST = 2
 
     def __init__(self, base: str = "", jobs: FailedJobs = None):
@@ -164,18 +164,8 @@ class SlackMessage:
             buffer,
         )
         self.__render_jobs_section(
-            self.OPTIONAL_JOBS_SECTION_HEADER,
-            self.failed_jobs.optional_job_failures,
-            buffer,
-        )
-        self.__render_jobs_section(
             self.INFRA_SECTION_HEADER,
             self.failed_jobs.mandatory_infra_job_failures,
-            buffer,
-        )
-        self.__render_jobs_section(
-            self.OPTIONAL_INFRA_SECTION_HEADER,
-            self.failed_jobs.optional_infra_job_failures,
             buffer,
         )
         if self.failed_tests:
@@ -183,9 +173,3 @@ class SlackMessage:
         if self.coda:
             print(self.coda, file=buffer)
         return buffer.getvalue()
-
-
-class TeamMessage(SlackMessage):
-    JOBS_SECTION_HEADER = "Failed jobs you own:"
-    OPTIONAL_JOBS_SECTION_HEADER = "Failed jobs (allowed to fail) you own:"
-    TEST_SECTION_HEADER = "Failed unit tests you own:"

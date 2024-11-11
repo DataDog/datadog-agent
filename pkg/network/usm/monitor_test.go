@@ -25,18 +25,20 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cihub/seelog"
+	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -96,10 +98,14 @@ type HTTPTestSuite struct {
 }
 
 func TestHTTP(t *testing.T) {
-	if kv < http.MinimumKernelVersion {
+	if kv < usmconfig.MinimumKernelVersion {
 		t.Skipf("USM is not supported on %v", kv)
 	}
-	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}), "", func(t *testing.T) {
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	if !prebuilt.IsDeprecated() {
+		modes = append(modes, ebpftest.Prebuilt)
+	}
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 		suite.Run(t, new(HTTPTestSuite))
 	})
 }
@@ -107,54 +113,35 @@ func TestHTTP(t *testing.T) {
 func (s *HTTPTestSuite) TestHTTPStats() {
 	t := s.T()
 
-	testCases := []struct {
-		name                  string
-		aggregateByStatusCode bool
-	}{
-		{
-			name:                  "status code",
-			aggregateByStatusCode: true,
-		},
-		{
-			name:                  "status class",
-			aggregateByStatusCode: false,
-		},
-	}
-	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) {
-			// Start an HTTP server on localhost:8080
-			serverAddr := "127.0.0.1:8080"
-			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
-				EnableKeepAlive: true,
-			})
-			t.Cleanup(srvDoneFn)
+	// Start an HTTP server on localhost:8080
+	serverAddr := "127.0.0.1:8080"
+	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
+		EnableKeepAlive: true,
+	})
+	t.Cleanup(srvDoneFn)
 
-			cfg := config.New()
-			cfg.EnableHTTPStatsByStatusCode = tt.aggregateByStatusCode
-			monitor := newHTTPMonitorWithCfg(t, cfg)
+	monitor := newHTTPMonitorWithCfg(t, config.New())
 
-			resp, err := nethttp.Get(fmt.Sprintf("http://%s/%d/test", serverAddr, nethttp.StatusNoContent))
-			require.NoError(t, err)
-			_ = resp.Body.Close()
-			srvDoneFn()
+	resp, err := nethttp.Get(fmt.Sprintf("http://%s/%d/test", serverAddr, nethttp.StatusNoContent))
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	srvDoneFn()
 
-			// Iterate through active connections until we find connection created above
-			require.Eventuallyf(t, func() bool {
-				stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
+	// Iterate through active connections until we find connection created above
+	require.Eventuallyf(t, func() bool {
+		stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 
-				for key, reqStats := range stats {
-					if key.Method == http.MethodGet && strings.HasSuffix(key.Path.Content.Get(), "/test") && (key.SrcPort == 8080 || key.DstPort == 8080) {
-						currentStats := reqStats.Data[reqStats.NormalizeStatusCode(204)]
-						if currentStats != nil && currentStats.Count == 1 {
-							return true
-						}
-					}
+		for key, reqStats := range stats {
+			if key.Method == http.MethodGet && strings.HasSuffix(key.Path.Content.Get(), "/test") && (key.SrcPort == 8080 || key.DstPort == 8080) {
+				currentStats := reqStats.Data[204]
+				if currentStats != nil && currentStats.Count == 1 {
+					return true
 				}
+			}
+		}
 
-				return false
-			}, 3*time.Second, 100*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
-		})
-	}
+		return false
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
 }
 
 // TestHTTPMonitorLoadWithIncompleteBuffers sends thousands of requests without getting responses for them, in parallel
@@ -656,5 +643,56 @@ func skipIfNotSupported(t *testing.T, err error) {
 	notSupported := new(errNotSupported)
 	if errors.As(err, &notSupported) {
 		t.Skipf("skipping test because this kernel is not supported: %s", notSupported)
+	}
+}
+
+var (
+	mapTypesToZero = map[ebpf.MapType]struct{}{
+		ebpf.PerCPUArray: {},
+		ebpf.Array:       {},
+		ebpf.PerCPUHash:  {},
+	}
+)
+
+func cleanProtocolMaps(t *testing.T, protocolName string, manager *manager.Manager) {
+	// Getting all maps loaded into the manager
+	maps, err := manager.GetMaps()
+	if err != nil {
+		t.Logf("failed to get maps: %v", err)
+		return
+	}
+	for mapName, mapInstance := range maps {
+		// We only want to clean postgres maps
+		if !strings.Contains(mapName, protocolName) {
+			continue
+		}
+		// Special case for batches, as the values is never "empty", but contain the CPU number.
+		if strings.HasSuffix(mapName, fmt.Sprintf("%s_batches", protocolName)) {
+			continue
+		}
+		_, shouldOnlyZero := mapTypesToZero[mapInstance.Type()]
+
+		key := make([]byte, mapInstance.KeySize())
+		value := make([]byte, mapInstance.ValueSize())
+		mapEntries := mapInstance.Iterate()
+		var keys [][]byte
+		for mapEntries.Next(&key, &value) {
+			keys = append(keys, key)
+		}
+
+		if shouldOnlyZero {
+			emptyValue := make([]byte, mapInstance.ValueSize())
+			for _, key := range keys {
+				if err := mapInstance.Put(&key, &emptyValue); err != nil {
+					t.Log("failed zeroing map entry; error: ", err)
+				}
+			}
+		} else {
+			for _, key := range keys {
+				if err := mapInstance.Delete(&key); err != nil {
+					t.Log("failed deleting map entry; error: ", err)
+				}
+			}
+		}
 	}
 }

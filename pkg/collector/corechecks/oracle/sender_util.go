@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type metricType int
@@ -65,7 +65,7 @@ func getMetricFunctionCode(name string) (metricType, error) {
 func sendMetric(c *Check, method metricType, metric string, value float64, tags []string) {
 	sender, err := c.GetSender()
 	if err != nil {
-		log.Errorf("%s failed to get metric sender %s", err)
+		log.Errorf("failed to get metric sender: %s", err)
 	}
 	metricFunction, err := getMetricFunction(sender, method)
 	if err != nil {
@@ -81,7 +81,7 @@ func sendMetricWithDefaultTags(c *Check, method metricType, metric string, value
 func sendServiceCheck(c *Check, service string, status servicecheck.ServiceCheckStatus, message string) {
 	sender, err := c.GetSender()
 	if err != nil {
-		log.Errorf("%s failed to get metric sender %s", err)
+		log.Errorf("failed to get metric sender: %s", err)
 		return
 	}
 
@@ -91,7 +91,7 @@ func sendServiceCheck(c *Check, service string, status servicecheck.ServiceCheck
 func commit(c *Check) {
 	sender, err := c.GetSender()
 	if err != nil {
-		log.Errorf("%s failed to get metric sender %s", err)
+		log.Errorf("failed to get metric sender: %s", err)
 		return
 	}
 	sender.Commit()

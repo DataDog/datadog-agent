@@ -11,6 +11,10 @@ For more information on the context, see the `agent-healthcheck.md` proposal.
 receive a `*health.Handle` to keep. As soon as `Register` is called, you need to start reading
 the channel to be considered healthy.
 
+- If you want to register a component for the `Startup` probe, you need to call `RegisterStartup()`.
+This is useful for components that need to perform some initialization before being considered healthy.
+You will need to first register the component, then do the initialization, and finally read from the channel.
+
 - In your main goroutine, you need to read from the `handle.C` channel, at least every 15 seconds.
 This is accomplished by using a `select` statement in your main goroutine. If the channel is full
 (after two tries), your component will be considered unhealthy, which might result in the agent
@@ -25,6 +29,6 @@ It depends on your component lifecycle, but the check's purpose is to check that
 is able to process new input and act accordingly. For components that read input from a channel,
 you should read the channel from this logic.
 
-This is usually hightly unprobable, but it's exactly the scope of this system: be able to
+This is usually highly unlikely, but it's exactly the scope of this system: be able to
 detect if a component is frozen because of a bug / race condition. This is usually the only
 kind of issue that could be solved by the agent restarting.

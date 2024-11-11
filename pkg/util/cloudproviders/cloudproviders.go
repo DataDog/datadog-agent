@@ -11,8 +11,8 @@ import (
 	"errors"
 	"sync"
 
-	logComp "github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -46,7 +46,7 @@ var cloudProviderDetectors = []cloudProviderDetector{
 }
 
 // DetectCloudProvider detects the cloud provider where the agent is running in order:
-func DetectCloudProvider(ctx context.Context, collectAccountID bool, l logComp.Component) (string, string) {
+func DetectCloudProvider(ctx context.Context, collectAccountID bool, l logcomp.Component) (string, string) {
 	for _, cloudDetector := range cloudProviderDetectors {
 		if cloudDetector.callback(ctx) {
 			l.Infof("Cloud provider %s detected", cloudDetector.name)
@@ -86,7 +86,7 @@ func GetCloudProviderNTPHosts(ctx context.Context) []string {
 
 	for _, cloudNTPDetector := range detectors {
 		if cloudNTPServers := cloudNTPDetector.callback(ctx); cloudNTPServers != nil {
-			log.Infof("Using NTP servers from %s cloud provider: %+q", cloudNTPDetector.name, cloudNTPServers)
+			log.Infof("Detected %s cloud provider environment with NTP server(s) at %+q", cloudNTPDetector.name, cloudNTPServers)
 			return cloudNTPServers
 		}
 	}
@@ -99,8 +99,13 @@ type cloudProviderAliasesDetector struct {
 	callback func(context.Context) ([]string, error)
 }
 
+// getValidHostAliases is an alias from pkg config
+func getValidHostAliases(ctx context.Context) ([]string, error) {
+	return pkgconfigsetup.GetValidHostAliases(ctx, pkgconfigsetup.Datadog())
+}
+
 var hostAliasesDetectors = []cloudProviderAliasesDetector{
-	{name: "config", callback: config.GetValidHostAliases},
+	{name: "config", callback: getValidHostAliases},
 	{name: alibaba.CloudProviderName, callback: alibaba.GetHostAliases},
 	{name: ec2.CloudProviderName, callback: ec2.GetHostAliases},
 	{name: azure.CloudProviderName, callback: azure.GetHostAliases},

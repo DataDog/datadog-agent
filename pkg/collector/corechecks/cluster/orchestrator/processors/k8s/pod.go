@@ -12,16 +12,19 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	kubetypes "github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
+	podtagprovider "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s/pod_tag_provider"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	corev1 "k8s.io/api/core/v1"
@@ -31,6 +34,17 @@ import (
 // PodHandlers implements the Handlers interface for Kubernetes Pods.
 type PodHandlers struct {
 	common.BaseHandlers
+	tagProvider podtagprovider.PodTagProvider
+}
+
+// NewPodHandlers creates and returns a new PodHanlders object
+func NewPodHandlers(cfg config.Component, store workloadmeta.Component, tagger tagger.Component) *PodHandlers {
+	podHandlers := new(PodHandlers)
+
+	// initialise tag provider
+	podHandlers.tagProvider = podtagprovider.NewPodTagProvider(cfg, store, tagger)
+
+	return podHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
@@ -58,7 +72,7 @@ func (h *PodHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource
 	}
 
 	// insert tagger tags
-	taggerTags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(r.UID)), taggerTypes.HighCardinality)
+	taggerTags, err := h.tagProvider.GetTags(r, taggertypes.HighCardinality)
 	if err != nil {
 		log.Debugf("Could not retrieve tags for pod: %s", err.Error())
 		skip = true
@@ -75,7 +89,7 @@ func (h *PodHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource
 		// Tags which should be on the tagger
 		for _, volume := range r.Spec.Volumes {
 			if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName != "" {
-				tag := fmt.Sprintf("%s:%s", kubernetes.PersistentVolumeClaimTagName, strings.ToLower(volume.PersistentVolumeClaim.ClaimName))
+				tag := fmt.Sprintf("%s:%s", tags.KubePersistentVolumeClaim, strings.ToLower(volume.PersistentVolumeClaim.ClaimName))
 				m.Tags = append(m.Tags, tag)
 			}
 		}
@@ -109,6 +123,7 @@ func (h *PodHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 		HostName:    pctx.HostName,
 		Pods:        models,
 		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Info:        pctx.SystemInfo,
 	}
 }
 
@@ -155,7 +170,7 @@ func (h *PodHandlers) ResourceVersion(ctx processors.ProcessorContext, resource,
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PodHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.Pod)
-	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
+	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }
 
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before

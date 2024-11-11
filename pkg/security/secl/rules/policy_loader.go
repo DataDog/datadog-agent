@@ -15,9 +15,10 @@ import (
 )
 
 const (
-	PolicyProviderTypeDir     = "file"          // PolicyProviderTypeDir defines directory policy provider
-	PolicyProviderTypeRC      = "remote-config" // PolicyProviderTypeRC defines RC policy provider
-	PolicyProviderTypeBundled = "bundled"       // PolicyProviderTypeBundled defines the bundled policy provider
+	PolicyProviderTypeDir      = "file"          // PolicyProviderTypeDir defines directory policy provider
+	PolicyProviderTypeRC       = "remote-config" // PolicyProviderTypeRC defines RC policy provider
+	PolicyProviderTypeBundled  = "bundled"       // PolicyProviderTypeBundled defines the bundled policy provider
+	PolicyProviderTypeWorkload = "workload"      // PolicyProviderTypeWorkload defines the workload policy provider
 )
 
 var (
@@ -111,12 +112,13 @@ func (p *PolicyLoader) notifyListeners() {
 
 // Close stops the loader
 func (p *PolicyLoader) Close() {
-	p.RLock()
-	defer p.RUnlock()
+	p.Lock()
+	defer p.Unlock()
 
 	for _, ch := range p.listeners {
 		close(ch)
 	}
+	p.listeners = p.listeners[:0]
 
 	p.debouncer.Stop()
 }

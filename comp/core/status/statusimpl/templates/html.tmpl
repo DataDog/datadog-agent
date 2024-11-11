@@ -1,17 +1,25 @@
 <div class="stat">
   <span class="stat_title">Agent Info</span>
   <span class="stat_data">
-    Version: {{.version}}
-    <br>Flavor: {{.flavor}}
-    <br>PID: {{.pid}}
-    <br>Agent start: {{ formatUnixTime .agent_start_nano }}
+    Version: {{.version}}<br>
+    Flavor: {{.flavor}}<br>
+    PID: {{.pid}}<br>
+    Agent start: {{ formatUnixTime .agent_start_nano }}<br>
     {{- if .config.log_file}}
-      <br>Log File: {{.config.log_file}}
+      Log File: {{.config.log_file}}<br>
     {{end}}
-    <br>Log Level: {{.config.log_level}}
-    <br>Config File: {{if .conf_file}}{{.conf_file}}{{else}}There is no config file{{end}}
-    <br>Conf.d Path: {{.config.confd_path}}
-    <br>Checks.d Path: {{.config.additional_checksd}}
+    Log Level: {{.config.log_level}}<br>
+    Config File: {{if .conf_file}}{{.conf_file}}{{else}}There is no config file{{end}}<br>
+    {{- if gt (len .extra_conf_file) 0 }}
+    Extra Config Files:
+    <span class="stat_subdata">
+    {{- range $_, $element := .extra_conf_file}}
+    {{$element}}<br>
+    {{- end}}
+    </span>
+    {{- end}}
+    Conf.d Path: {{.config.confd_path}}<br>
+    Checks.d Path: {{.config.additional_checksd}}
   </span>
 </div>
 

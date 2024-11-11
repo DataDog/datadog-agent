@@ -1,0 +1,27 @@
+## Minimal configuration to enable Datadog to ship metrics and enable OpenTelemetry.
+
+## The Datadog API key used by your Agent to submit metrics and events to Datadog.
+api_key:
+
+## The environment name where the agent is running. Attached in-app to every
+## metric, event, log, trace, and service check emitted by this Agent.  
+env:
+
+## The site of the Datadog intake to send Agent data to.
+site: datadoghq.com    
+
+## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
+tags:
+  - example:changeme
+#  - <TAG_KEY>:<TAG_VALUE>
+
+oltp_config:
+  receiver:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+apm_config:
+  enabled: false

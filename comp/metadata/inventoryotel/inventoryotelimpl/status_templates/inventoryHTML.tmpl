@@ -1,0 +1,8 @@
+<div class="stat">
+  <span class="stat_title">OTel Metadata</span>
+  <span class="stat_data">
+  {{- range $key, $value := .otel_metadata }}
+    {{ $key }}: {{ $value }}<br>
+  {{- end }}
+  </span>
+</div>

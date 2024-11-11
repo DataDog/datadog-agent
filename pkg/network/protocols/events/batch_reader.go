@@ -11,13 +11,10 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
-var batchPool = sync.Pool{
-	New: func() interface{} {
-		return new(batch)
-	},
-}
+var batchPool = ddsync.NewDefaultTypedPool[batch]()
 
 type batchReader struct {
 	sync.Mutex
@@ -78,7 +75,7 @@ func (r *batchReader) ReadAll(f func(cpu int, b *batch)) {
 			defer wg.Done()
 			batchID, key := r.generateBatchKey(cpu)
 
-			b := batchPool.Get().(*batch)
+			b := batchPool.Get()
 			defer func() {
 				*b = batch{}
 				batchPool.Put(b)

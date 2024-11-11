@@ -14,15 +14,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	genericstore "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/generic_store"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/subscriber"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/benbjohnson/clock"
 )
 
 const (
@@ -37,25 +38,30 @@ var ErrNotFound = errors.New("entity not found")
 type TagStore struct {
 	sync.RWMutex
 
-	store     map[string]*EntityTags
+	store     types.ObjectStore[EntityTags]
 	telemetry map[string]map[string]float64
 
-	subscriber *subscriber.Subscriber
+	subscriptionManager subscriber.SubscriptionManager
 
 	clock clock.Clock
+
+	cfg            config.Component
+	telemetryStore *telemetry.Store
 }
 
-// NewTagStore creates new TagStore.
-func NewTagStore() *TagStore {
-	return newTagStoreWithClock(clock.New())
+// NewTagStore creates new LocalTaggerTagStore.
+func NewTagStore(cfg config.Component, telemetryStore *telemetry.Store) *TagStore {
+	return newTagStoreWithClock(cfg, clock.New(), telemetryStore)
 }
 
-func newTagStoreWithClock(clock clock.Clock) *TagStore {
+func newTagStoreWithClock(cfg config.Component, clock clock.Clock, telemetryStore *telemetry.Store) *TagStore {
 	return &TagStore{
-		telemetry:  make(map[string]map[string]float64),
-		store:      make(map[string]*EntityTags),
-		subscriber: subscriber.NewSubscriber(),
-		clock:      clock,
+		telemetry:           make(map[string]map[string]float64),
+		store:               genericstore.NewObjectStore[EntityTags](),
+		subscriptionManager: subscriber.NewSubscriptionManager(telemetryStore),
+		clock:               clock,
+		cfg:                 cfg,
+		telemetryStore:      telemetryStore,
 	}
 }
 
@@ -96,7 +102,7 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*types.TagInfo) {
 			log.Tracef("ProcessTagInfo err: skipping nil message")
 			continue
 		}
-		if info.Entity == "" {
+		if info.EntityID.String() == "" {
 			log.Tracef("ProcessTagInfo err: empty entity name, skipping message")
 			continue
 		}
@@ -105,17 +111,12 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*types.TagInfo) {
 			continue
 		}
 
-		storedTags, exist := s.store[info.Entity]
+		storedTags, exist := s.store.Get(info.EntityID)
 
 		if info.DeleteEntity {
 			if exist {
-				st, ok := storedTags.sourceTags[info.Source]
-				if ok {
-					st.expiryDate = s.clock.Now().Add(deletedTTL)
-					storedTags.sourceTags[info.Source] = st
-				}
+				storedTags.setSourceExpiration(info.Source, s.clock.Now().Add(deletedTTL))
 			}
-
 			continue
 		}
 
@@ -129,19 +130,18 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*types.TagInfo) {
 
 		eventType := types.EventTypeModified
 		if exist {
-			st, ok := storedTags.sourceTags[info.Source]
-			if ok && reflect.DeepEqual(st, newSt) {
+			tags := storedTags.tagsForSource(info.Source)
+			if tags != nil && reflect.DeepEqual(tags, newSt) {
 				continue
 			}
 		} else {
 			eventType = types.EventTypeAdded
-			storedTags = newEntityTags(info.Entity)
-			s.store[info.Entity] = storedTags
+			storedTags = newEntityTags(info.EntityID, info.Source)
+			s.store.Set(info.EntityID, storedTags)
 		}
 
-		telemetry.UpdatedEntities.Inc()
-		storedTags.cacheValid = false
-		storedTags.sourceTags[info.Source] = newSt
+		s.telemetryStore.UpdatedEntities.Inc()
+		storedTags.setTagsForSource(info.Source, newSt)
 
 		events = append(events, types.EntityEvent{
 			EventType: eventType,
@@ -163,21 +163,21 @@ func (s *TagStore) collectTelemetry() {
 	s.Lock()
 	defer s.Unlock()
 
-	for _, entityTags := range s.store {
-		prefix, _ := containers.SplitEntityName(entityTags.entityID)
+	s.store.ForEach(nil, func(_ types.EntityID, et EntityTags) {
+		prefix := string(et.getEntityID().GetPrefix())
 
-		for source := range entityTags.sourceTags {
+		for _, source := range et.sources() {
 			if _, ok := s.telemetry[prefix]; !ok {
 				s.telemetry[prefix] = make(map[string]float64)
 			}
 
 			s.telemetry[prefix][source]++
 		}
-	}
+	})
 
 	for prefix, sources := range s.telemetry {
 		for source, storedEntities := range sources {
-			telemetry.StoredEntities.Set(storedEntities, source, prefix)
+			s.telemetryStore.StoredEntities.Set(storedEntities, source, prefix)
 			s.telemetry[prefix][source] = 0
 		}
 	}
@@ -186,28 +186,24 @@ func (s *TagStore) collectTelemetry() {
 // Subscribe returns a channel that receives a slice of events whenever an entity is
 // added, modified or deleted. It can send an initial burst of events only to the new
 // subscriber, without notifying all of the others.
-func (s *TagStore) Subscribe(cardinality types.TagCardinality) chan []types.EntityEvent {
+func (s *TagStore) Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
 	s.RLock()
 	defer s.RUnlock()
 
-	events := make([]types.EntityEvent, 0, len(s.store))
-	for _, storedTags := range s.store {
+	events := make([]types.EntityEvent, 0, s.store.Size())
+
+	s.store.ForEach(filter, func(_ types.EntityID, et EntityTags) {
 		events = append(events, types.EntityEvent{
 			EventType: types.EventTypeAdded,
-			Entity:    storedTags.toEntity(),
+			Entity:    et.toEntity(),
 		})
-	}
+	})
 
-	return s.subscriber.Subscribe(cardinality, events)
-}
-
-// Unsubscribe ends a subscription to entity events and closes its channel.
-func (s *TagStore) Unsubscribe(ch chan []types.EntityEvent) {
-	s.subscriber.Unsubscribe(ch)
+	return s.subscriptionManager.Subscribe(subscriptionID, filter, events)
 }
 
 func (s *TagStore) notifySubscribers(events []types.EntityEvent) {
-	s.subscriber.Notify(events)
+	s.subscriptionManager.Notify(events)
 }
 
 // Prune deletes tags for entities that have been marked as deleted. This is to
@@ -219,42 +215,27 @@ func (s *TagStore) Prune() {
 	now := s.clock.Now()
 	events := []types.EntityEvent{}
 
-	for entity, storedTags := range s.store {
-		changed := false
+	s.store.ForEach(nil, func(eid types.EntityID, et EntityTags) {
+		changed := et.deleteExpired(now)
 
-		// remove any sourceTags that have expired
-		for source, st := range storedTags.sourceTags {
-			if st.isExpired(now) {
-				delete(storedTags.sourceTags, source)
-				changed = true
-			}
+		if !changed && !et.shouldRemove() {
+			return
 		}
 
-		// remove all sourceTags only if they're all empty
-		if storedTags.shouldRemove() {
-			storedTags.sourceTags = nil
-			changed = true
-		}
-
-		if !changed {
-			continue
-		}
-
-		if len(storedTags.sourceTags) == 0 {
-			telemetry.PrunedEntities.Inc()
-			delete(s.store, entity)
+		if et.shouldRemove() {
+			s.telemetryStore.PrunedEntities.Inc()
+			s.store.Unset(eid)
 			events = append(events, types.EntityEvent{
 				EventType: types.EventTypeDeleted,
-				Entity:    storedTags.toEntity(),
+				Entity:    et.toEntity(),
 			})
 		} else {
-			storedTags.cacheValid = false
 			events = append(events, types.EntityEvent{
 				EventType: types.EventTypeModified,
-				Entity:    storedTags.toEntity(),
+				Entity:    et.toEntity(),
 			})
 		}
-	}
+	})
 
 	if len(events) > 0 {
 		s.notifySubscribers(events)
@@ -262,10 +243,10 @@ func (s *TagStore) Prune() {
 }
 
 // LookupHashed gets tags from the store and returns them as a HashedTags instance.
-func (s *TagStore) LookupHashed(entity string, cardinality types.TagCardinality) tagset.HashedTags {
+func (s *TagStore) LookupHashed(entityID types.EntityID, cardinality types.TagCardinality) tagset.HashedTags {
 	s.RLock()
 	defer s.RUnlock()
-	storedTags, present := s.store[entity]
+	storedTags, present := s.store.Get(entityID)
 
 	if !present {
 		return tagset.HashedTags{}
@@ -273,13 +254,29 @@ func (s *TagStore) LookupHashed(entity string, cardinality types.TagCardinality)
 	return storedTags.getHashedTags(cardinality)
 }
 
+// LookupHashedWithEntityStr is the same as LookupHashed but takes a string as input.
+// This function is needed only for performance reasons. It functions like
+// LookupHashed, but accepts a string instead of an EntityID. This reduces the
+// allocations that occur when an EntityID is passed as a parameter.
+func (s *TagStore) LookupHashedWithEntityStr(entityID types.EntityID, cardinality types.TagCardinality) tagset.HashedTags {
+	s.RLock()
+	defer s.RUnlock()
+
+	storedTags, present := s.store.Get(entityID)
+	if !present {
+		return tagset.HashedTags{}
+	}
+
+	return storedTags.getHashedTags(cardinality)
+}
+
 // Lookup gets tags from the store and returns them concatenated in a string slice.
-func (s *TagStore) Lookup(entity string, cardinality types.TagCardinality) []string {
-	return s.LookupHashed(entity, cardinality).Get()
+func (s *TagStore) Lookup(entityID types.EntityID, cardinality types.TagCardinality) []string {
+	return s.LookupHashed(entityID, cardinality).Get()
 }
 
 // LookupStandard returns the standard tags recorded for a given entity
-func (s *TagStore) LookupStandard(entityID string) ([]string, error) {
+func (s *TagStore) LookupStandard(entityID types.EntityID) ([]string, error) {
 	storedTags, err := s.getEntityTags(entityID)
 	if err != nil {
 		return nil, err
@@ -297,26 +294,17 @@ func (s *TagStore) List() types.TaggerListResponse {
 	s.RLock()
 	defer s.RUnlock()
 
-	for entityID, et := range s.store {
-		entity := types.TaggerListEntity{
-			Tags: make(map[string][]string),
+	for _, et := range s.store.ListObjects(types.NewMatchAllFilter()) {
+		r.Entities[et.getEntityID().String()] = types.TaggerListEntity{
+			Tags: et.tagsBySource(),
 		}
-
-		for source, sourceTags := range et.sourceTags {
-			tags := append([]string(nil), sourceTags.lowCardTags...)
-			tags = append(tags, sourceTags.orchestratorCardTags...)
-			tags = append(tags, sourceTags.highCardTags...)
-			entity.Tags[source] = tags
-		}
-
-		r.Entities[entityID] = entity
 	}
 
 	return r
 }
 
 // GetEntity returns the entity corresponding to the specified id and an error
-func (s *TagStore) GetEntity(entityID string) (*types.Entity, error) {
+func (s *TagStore) GetEntity(entityID types.EntityID) (*types.Entity, error) {
 	tags, err := s.getEntityTags(entityID)
 	if err != nil {
 		return nil, err
@@ -326,11 +314,11 @@ func (s *TagStore) GetEntity(entityID string) (*types.Entity, error) {
 	return &entity, nil
 }
 
-func (s *TagStore) getEntityTags(entityID string) (*EntityTags, error) {
+func (s *TagStore) getEntityTags(entityID types.EntityID) (EntityTags, error) {
 	s.RLock()
 	defer s.RUnlock()
 
-	storedTags, present := s.store[entityID]
+	storedTags, present := s.store.Get(entityID)
 	if !present {
 		return nil, ErrNotFound
 	}

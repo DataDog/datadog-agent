@@ -7,6 +7,8 @@
 package model
 
 import (
+	"slices"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -38,12 +40,32 @@ func GetAllCategories() []EventCategory {
 // GetEventTypeCategory returns the category for the given event type
 func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 	switch eventType {
-	case "exec", "signal", "exit", "fork", "anomaly_detection_syscall":
+	// Process
+	case
+		ExecEventType.String(),
+		SignalEventType.String(),
+		ExitEventType.String(),
+		ForkEventType.String(),
+		SyscallsEventType.String():
 		return ProcessCategory
-	case "bpf", "selinux", "mmap", "mprotect", "ptrace", "load_module", "unload_module", "bind":
-		// TODO(will): "bind" is in this category because answering "NetworkCategory" would insert a network section in the serializer.
+
+	// Kernel
+	case
+		BPFEventType.String(),
+		SELinuxEventType.String(),
+		MMapEventType.String(),
+		MProtectEventType.String(),
+		PTraceEventType.String(),
+		UnloadModuleEventType.String(),
+		BindEventType.String(),
+		ConnectEventType.String():
 		return KernelCategory
-	case "dns":
+
+	// Network
+	case
+		IMDSEventType.String(),
+		RawPacketEventType.String(),
+		DNSEventType.String():
 		return NetworkCategory
 	}
 
@@ -51,8 +73,8 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 }
 
 // GetEventTypePerCategory returns the event types per category
-func GetEventTypePerCategory() map[EventCategory][]eval.EventType {
-	categories := make(map[EventCategory][]eval.EventType)
+func GetEventTypePerCategory(categories ...EventCategory) map[EventCategory][]eval.EventType {
+	result := make(map[EventCategory][]eval.EventType)
 
 	var eventTypes []eval.EventType
 	var exists bool
@@ -60,14 +82,17 @@ func GetEventTypePerCategory() map[EventCategory][]eval.EventType {
 	m := &Model{}
 	for _, eventType := range m.GetEventTypes() {
 		category := GetEventTypeCategory(eventType)
+		if len(categories) > 0 && !slices.Contains(categories, category) {
+			continue
+		}
 
-		if eventTypes, exists = categories[category]; exists {
+		if eventTypes, exists = result[category]; exists {
 			eventTypes = append(eventTypes, eventType)
 		} else {
 			eventTypes = []eval.EventType{eventType}
 		}
-		categories[category] = eventTypes
+		result[category] = eventTypes
 	}
 
-	return categories
+	return result
 }

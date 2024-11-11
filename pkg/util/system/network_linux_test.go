@@ -8,11 +8,13 @@
 package system
 
 import (
+	"os"
 	"path/filepath"
 	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
@@ -196,102 +198,32 @@ Local:
 	}
 }
 
-// func TestDefaultGateway(t *testing.T) {
-// 	testCases := []struct {
-// 		netRouteContent []byte
-// 		expectedIP      string
-// 	}{
-// 		{
-// 			[]byte(`Iface	Destination	Gateway 	Flags	RefCnt	Use	Metric	Mask		MTU	Window	IRTT
-// ens33	00000000	0280A8C0	0003	0	0	100	00000000	0	0	0
-// `),
-// 			"192.168.128.2",
-// 		},
-// 		{
-// 			[]byte(`Iface	Destination	Gateway 	Flags	RefCnt	Use	Metric	Mask		MTU	Window	IRTT
-// ens33	00000000	FE01A8C0	0003	0	0	100	00000000	0	0	0
-// `),
-// 			"192.168.1.254",
-// 		},
-// 		{
-// 			[]byte(`Iface	Destination	Gateway 	Flags	RefCnt	Use	Metric	Mask		MTU	Window	IRTT
-// ens33	00000000	FEFEA8C0	0003	0	0	100	00000000	0	0	0
-// `),
-// 			"192.168.254.254",
-// 		},
-// 	}
-// 	for _, testCase := range testCases {
-// 		t.Run("", func(t *testing.T) {
-// 			testProc, err := testutil.NewTempFolder("test-default-gateway")
-// 			require.NoError(t, err)
-// 			defer testProc.RemoveAll()
-// 			err = os.MkdirAll(path.Join(testProc.RootPath, "net"), os.ModePerm)
-// 			require.NoError(t, err)
+func TestGetProcessNetDevInode(t *testing.T) {
+	fakeProc := t.TempDir()
+	// Test setup: pid 2 has same network namespace as pid 1, pid 3 different
+	require.NoError(t, os.MkdirAll(filepath.Join(fakeProc, "1", "net"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(fakeProc, "2", "net"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(fakeProc, "3", "net"), 0o755))
 
-// 			err = os.WriteFile(path.Join(testProc.RootPath, "net", "route"), testCase.netRouteContent, os.ModePerm)
-// 			require.NoError(t, err)
-// 			ip, err := defaultGateway(testProc.RootPath)
-// 			require.NoError(t, err)
-// 			assert.Equal(t, testCase.expectedIP, ip.String())
+	require.NoError(t, os.WriteFile(filepath.Join(fakeProc, "1", "net", "dev"), []byte{}, 0o644))
+	require.NoError(t, os.Link(filepath.Join(fakeProc, "1", "net", "dev"), filepath.Join(fakeProc, "2", "net", "dev")))
+	require.NoError(t, os.WriteFile(filepath.Join(fakeProc, "3", "net", "dev"), []byte{}, 0o644))
 
-// 			testProc.RemoveAll()
-// 			ip, err = defaultGateway(testProc.RootPath)
-// 			require.NoError(t, err)
-// 			require.Nil(t, ip)
-// 		})
-// 	}
-// }
+	pid2inode, err := GetProcessNetDevInode(fakeProc, 2)
+	if assert.NoError(t, err) {
 
-// func TestDefaulHostIPs(t *testing.T) {
-// 	dummyProcDir, err := testutil.NewTempFolder("test-default-host-ips")
-// 	require.NoError(t, err)
-// 	defer dummyProcDir.RemoveAll()
+		pid2HostNet := IsProcessHostNetwork(fakeProc, pid2inode)
+		if assert.NotNil(t, pid2HostNet) {
+			assert.True(t, *pid2HostNet)
+		}
+	}
 
-// 	t.Run("routing table contains a gateway entry", func(t *testing.T) {
-// 		routes := `
-// 		    Iface    Destination Gateway  Flags RefCnt Use Metric Mask     MTU Window IRTT
-// 		    default  00000000    010011AC 0003  0      0   0      00000000 0   0      0
-// 		    default  000011AC    00000000 0001  0      0   0      0000FFFF 0   0      0
-// 		    eth1     000012AC    00000000 0001  0      0   0      0000FFFF 0   0      0 `
+	pid3inode, err := GetProcessNetDevInode(fakeProc, 3)
+	if assert.NoError(t, err) {
 
-// 		// Pick an existing device and replace the "default" placeholder by its name
-// 		interfaces, err := net.Interfaces()
-// 		require.NoError(t, err)
-// 		require.NotEmpty(t, interfaces)
-// 		netInterface := interfaces[0]
-// 		routes = strings.ReplaceAll(routes, "default", netInterface.Name)
-
-// 		// Populate routing table file
-// 		err = dummyProcDir.Add(filepath.Join("net", "route"), routes)
-// 		require.NoError(t, err)
-
-// 		// Retrieve IPs bound to the "default" network interface
-// 		var expectedIPs []string
-// 		netAddrs, err := netInterface.Addrs()
-// 		require.NoError(t, err)
-// 		require.NotEmpty(t, netAddrs)
-// 		for _, address := range netAddrs {
-// 			ip := strings.Split(address.String(), "/")[0]
-// 			require.NotNil(t, net.ParseIP(ip))
-// 			expectedIPs = append(expectedIPs, ip)
-// 		}
-
-// 		// Verify they match the IPs returned by DefaultHostIPs()
-// 		defaultIPs, err := defaultHostIPs(dummyProcDir.RootPath)
-// 		assert.NoError(t, err)
-// 		assert.Equal(t, expectedIPs, defaultIPs)
-// 	})
-
-// 	t.Run("routing table missing a gateway entry", func(t *testing.T) {
-// 		routes := `
-// 	        Iface    Destination Gateway  Flags RefCnt Use Metric Mask     MTU Window IRTT
-// 	        eth0     000011AC    00000000 0001  0      0   0      0000FFFF 0   0      0
-// 	        eth1     000012AC    00000000 0001  0      0   0      0000FFFF 0   0      0 `
-
-// 		err = dummyProcDir.Add(filepath.Join("net", "route"), routes)
-// 		require.NoError(t, err)
-// 		ips, err := defaultHostIPs(dummyProcDir.RootPath)
-// 		assert.Nil(t, ips)
-// 		assert.NotNil(t, err)
-// 	})
-// }
+		pid3HostNet := IsProcessHostNetwork(fakeProc, pid3inode)
+		if assert.NotNil(t, pid3HostNet) {
+			assert.False(t, *pid3HostNet)
+		}
+	}
+}

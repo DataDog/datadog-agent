@@ -276,7 +276,7 @@ func checkForKnownFlags(allKomponents []*komponent, knownFlags []string) {
 	}
 }
 
-func defaultedType(componentName string, conf *conf) *conf { //nolint:revive // TODO fix revive unused-parameter
+func defaultedType(_ string, conf *conf) *conf {
 	if conf.flagName == "kubeconfig" || conf.flagName == "authentication-kubeconfig" {
 		conf.flagType = "kubeconfig"
 	} else if conf.flagType == "string" || conf.flagType == "stringArray" {

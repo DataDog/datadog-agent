@@ -8,48 +8,49 @@ package util
 import (
 	"errors"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
 func TestServiceNameFromTags(t *testing.T) {
 	tests := []struct {
 		name         string
-		tFunc        func(string) ([]string, error)
+		tFunc        func(types.EntityID) ([]string, error)
 		ctrName      string
-		taggerEntity string
+		taggerEntity types.EntityID
 		want         string
 	}{
 		{
 			name: "nominal case",
-			tFunc: func(e string) ([]string, error) {
+			tFunc: func(types.EntityID) ([]string, error) {
 				return []string{"env:foo", "service:bar"}, nil
 			},
 			ctrName:      "ctr-name",
-			taggerEntity: "ctr entity",
+			taggerEntity: types.NewEntityID(types.ContainerID, "ctrId"),
 			want:         "bar",
 		},
 		{
 			name: "tagger error",
-			tFunc: func(e string) ([]string, error) {
+			tFunc: func(types.EntityID) ([]string, error) {
 				return nil, errors.New("err")
 			},
 			ctrName:      "ctr-name",
-			taggerEntity: "ctr entity",
+			taggerEntity: types.NewEntityID(types.ContainerID, "ctrId"),
 			want:         "",
 		},
 		{
 			name: "not found",
-			tFunc: func(e string) ([]string, error) {
+			tFunc: func(types.EntityID) ([]string, error) {
 				return []string{"env:foo", "version:bar"}, nil
 			},
 			ctrName:      "ctr-name",
-			taggerEntity: "ctr entity",
+			taggerEntity: types.NewEntityID(types.ContainerID, "ctrId"),
 			want:         "",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			taggerFunc = tt.tFunc
-			if got := ServiceNameFromTags(tt.ctrName, tt.taggerEntity); got != tt.want {
+			if got := ServiceNameFromTags(tt.ctrName, tt.taggerEntity, tt.tFunc); got != tt.want {
 				t.Errorf("ServiceNameFromTags() = %v, want %v", got, tt.want)
 			}
 		})

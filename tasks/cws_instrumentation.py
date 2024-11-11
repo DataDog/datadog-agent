@@ -8,16 +8,14 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
+from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
-    get_git_branch_name,
-    get_git_commit,
     get_go_version,
     get_version,
 )
-from tasks.system_probe import CURRENT_ARCH
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "cws-instrumentation", bin_name("cws-instrumentation"))
@@ -32,9 +30,6 @@ def build(
     race=False,
     incremental_build=True,
     major_version='7',
-    # arch is never used here; we keep it to have a
-    # consistent CLI on the build task for all agents.
-    arch=CURRENT_ARCH,  # noqa: U100
     go_mod="mod",
     static=False,
     no_strip_binary=False,
@@ -44,15 +39,15 @@ def build(
     """
     if build_tags is None:
         build_tags = []
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
 
     # TODO use pkg/version for this
     main = "main."
     ld_vars = {
         "Version": get_version(ctx, major_version=major_version),
         "GoVersion": get_go_version(),
-        "GitBranch": get_git_branch_name(),
-        "GitCommit": get_git_commit(),
+        "GitBranch": get_current_branch(ctx),
+        "GitCommit": get_commit_sha(ctx, short=True),
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 

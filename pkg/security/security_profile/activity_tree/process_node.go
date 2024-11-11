@@ -38,8 +38,10 @@ type ProcessNode struct {
 	ImageTags      []string
 	MatchedRules   []*model.MatchedRule
 
-	Files    map[string]*FileNode
-	DNSNames map[string]*DNSNode
+	Files      map[string]*FileNode
+	DNSNames   map[string]*DNSNode
+	IMDSEvents map[model.IMDSEvent]*IMDSNode
+
 	Sockets  []*SocketNode
 	Syscalls []int
 	Children []*ProcessNode
@@ -59,6 +61,7 @@ func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGeneratio
 		GenerationType: generationType,
 		Files:          make(map[string]*FileNode),
 		DNSNames:       make(map[string]*DNSNode),
+		IMDSEvents:     make(map[model.IMDSEvent]*IMDSNode),
 	}
 }
 
@@ -134,6 +137,12 @@ func (pn *ProcessNode) debug(w io.Writer, prefix string) {
 			fmt.Fprintf(w, "%s    - %s\n", prefix, dnsName)
 		}
 	}
+	if len(pn.IMDSEvents) > 0 {
+		fmt.Fprintf(w, "%s  imds:\n", prefix)
+		for evt := range pn.IMDSEvents {
+			fmt.Fprintf(w, "%s    - %s | %s\n", prefix, evt.CloudProvider, evt.Type)
+		}
+	}
 	if len(pn.Children) > 0 {
 		fmt.Fprintf(w, "%s  children:\n", prefix)
 		for _, child := range pn.Children {
@@ -159,7 +168,6 @@ func (pn *ProcessNode) scrubAndReleaseArgsEnvs(resolver *sprocess.EBPFResolver) 
 // Matches return true if the process fields used to generate the dump are identical with the provided model.Process
 func (pn *ProcessNode) Matches(entry *model.Process, matchArgs bool, normalize bool) bool {
 	if normalize {
-		// should convert /var/run/1234/runc.pid + /var/run/54321/runc.pic into /var/run/*/runc.pid
 		match := utils.PathPatternMatch(pn.Process.FileEvent.PathnameStr, entry.FileEvent.PathnameStr, utils.PathPatternMatchOpts{WildcardLimit: 3, PrefixNodeRequired: 1, SuffixNodeRequired: 1, NodeSizeLimit: 8})
 		if !match {
 			return false
@@ -304,6 +312,23 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTag string, generat
 	return true
 }
 
+// InsertIMDSEvent inserts an IMDS event in a process node
+func (pn *ProcessNode) InsertIMDSEvent(evt *model.Event, imageTag string, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
+	imdsNode, ok := pn.IMDSEvents[evt.IMDS]
+	if ok {
+		imdsNode.MatchedRules = model.AppendMatchedRule(imdsNode.MatchedRules, evt.Rules)
+		imdsNode.appendImageTag(imageTag)
+		return false
+	}
+
+	if !dryRun {
+		// create new node
+		pn.IMDSEvents[evt.IMDS] = NewIMDSNode(&evt.IMDS, evt.Rules, generationType, imageTag)
+		stats.IMDSNodes++
+	}
+	return true
+}
+
 // InsertBindEvent inserts a bind event in a process node
 func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTag string, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
 	if evt.Bind.SyscallEvent.Retval != 0 {
@@ -406,6 +431,13 @@ func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys
 	for question, dns := range pn.DNSNames {
 		if shouldRemoveNode := dns.evictImageTag(imageTag, DNSNames); shouldRemoveNode {
 			delete(pn.DNSNames, question)
+		}
+	}
+
+	// Evict image tag from IMDS nodes
+	for key, imds := range pn.IMDSEvents {
+		if shouldRemoveNode := imds.evictImageTag(imageTag); shouldRemoveNode {
+			delete(pn.IMDSEvents, key)
 		}
 	}
 

@@ -14,7 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -37,6 +38,7 @@ type dependencies struct {
 	Config     config.Component
 	Hostname   hostname.Component
 	Compressor compression.Component
+	Tagger     tagger.Component
 }
 
 type diagnoseSenderManager struct {
@@ -77,6 +79,7 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 		opts,
 		eventPlatformForwarder,
 		sender.deps.Compressor,
+		sender.deps.Tagger,
 		hostnameDetected)
 
 	sender.senderManager.Set(senderManager)

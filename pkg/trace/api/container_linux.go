@@ -31,6 +31,12 @@ const cgroupV1BaseController = "memory"
 // It also needs to be small enough to catch the first traces of new containers.
 const readerCacheExpiration = 2 * time.Second
 
+const (
+	legacyContainerIDPrefix = "cid-"
+	containerIDPrefix       = "ci-"
+	inodePrefix             = "in-"
+)
+
 type ucredKey struct{}
 
 // connContext injects a Unix Domain Socket's User Credentials into the
@@ -129,70 +135,125 @@ type cgroupIDProvider struct {
 	cache  *Cache
 }
 
-// GetContainerID returns the container ID in the http.Header,
-// otherwise looks for a PID in the ctx which is used to search cgroups for a container ID.
+// GetContainerID returns the container ID.
+// The Container ID can come from either http headers or the context:
+// * Local Data header
+// * Datadog-Container-ID header
+// * Looks for a PID in the ctx which is used to search cgroups for a container ID.
 func (c *cgroupIDProvider) GetContainerID(ctx context.Context, h http.Header) string {
-	// Retrieve the container-id from Datadog-Container-ID header
-	if id := h.Get(header.ContainerID); id != "" {
-		return id
+	// Retrieve container ID from Local Data header
+	if localData := h.Get(header.LocalData); localData != "" {
+		return c.resolveContainerIDFromLocalData(localData)
 	}
+
+	// Retrieve container ID from Datadog-Container-ID header.
+	// Deprecated in favor of Local Data header. This is kept for backward compatibility with older libraries.
+	if containerIDFromHeader := h.Get(header.ContainerID); containerIDFromHeader != "" {
+		return containerIDFromHeader
+	}
+
 	// Retrieve the container-id from the pid in its context
-	cid := c.resolveContainerIDFromContext(ctx)
-	if cid != "" {
-		return cid
+	if containerID := c.resolveContainerIDFromContext(ctx); containerID != "" {
+		return containerID
 	}
-	// Retrieve from the entity id
-	if eid := h.Get(header.EntityID); eid != "" {
-		return c.resolveContainerIDFromEntityID(eid)
-	}
+
 	return ""
 }
 
-// resolveContainerIDFromEntityID returns the container ID for the given entity ID.
-// This is a fallback for when the container ID is not available in the http header.
-func (c *cgroupIDProvider) resolveContainerIDFromEntityID(eid string) string {
-	// The entityID can contain the container ID directly
-	if strings.HasPrefix(eid, "cid-") {
-		return eid[4:]
-	}
-	// The entityID can contain the cgroupv2 node inode
-	if !strings.HasPrefix(eid, "in-") {
-		return ""
-	}
-	inode, err := strconv.ParseUint(eid[3:], 10, 64)
-	if err != nil {
-		log.Debugf("Could not parse cgroupv2 inode: %s: %v", eid, err)
-		return ""
+// resolveContainerIDFromLocalData returns the container ID for the given Local Data.
+// The Local Data is a list that can contain one or two (split by a ',') of either:
+// * "cid-<container-id>" or "ci-<container-id>" for the container ID.
+// * "in-<cgroupv2-inode>" for the cgroupv2 inode.
+// Possible values:
+// * "cid-<container-id>"
+// * "ci-<container-id>,in-<cgroupv2-inode>"
+func (c *cgroupIDProvider) resolveContainerIDFromLocalData(localData string) string {
+	containerID := ""
+
+	if strings.Contains(localData, ",") {
+		// The Local Data can contain a list
+		containerID = c.resolveContainerIDFromLocalDataList(localData)
+	} else {
+		// The Local Data can contain a single value
+		if strings.HasPrefix(localData, legacyContainerIDPrefix) { // Container ID with old format: cid-<container-id>
+			containerID = localData[len(legacyContainerIDPrefix):]
+		} else if strings.HasPrefix(localData, containerIDPrefix) { // Container ID with new format: ci-<container-id>
+			containerID = localData[len(containerIDPrefix):]
+		} else if strings.HasPrefix(localData, inodePrefix) { // Cgroupv2 inode format: in-<cgroupv2-inode>
+			containerID = c.resolveContainerIDFromInode(localData[len(inodePrefix):])
+		}
 	}
 
-	cid, err := c.getCachedContainerID(eid, func() (string, error) { return c.getContainerIDByInode(inode) })
-	if err != nil {
-		log.Debugf("Could not get container ID from cgroupv2 inode: %s: %v", eid, err)
-		return ""
+	if containerID == "" {
+		log.Debugf("Could not parse container ID from Local Data: %s", localData)
 	}
-	return cid
+	return containerID
 }
 
-// getContainerIDByInode returns the container ID for the given cgroup inode.
-func (c *cgroupIDProvider) getContainerIDByInode(inode uint64) (string, error) {
-	cgroup := c.reader.GetCgroupByInode(inode)
-	if cgroup == nil {
-		err := c.reader.RefreshCgroups(readerCacheExpiration)
+// resolveContainerIDFromLocalDataList returns the container ID for the given Local Data list.
+func (c *cgroupIDProvider) resolveContainerIDFromLocalDataList(localData string) string {
+	containerID, err := c.getCachedContainerID(localData, func() (string, error) {
+		containerID := ""
+		containerIDFromInode := ""
+
+		// The list should always contain two items. With a malformed list, we will overwrite variables.
+		items := strings.Split(localData, ",")
+		for _, item := range items {
+			if strings.HasPrefix(item, containerIDPrefix) {
+				containerID = item[len(containerIDPrefix):]
+			} else if strings.HasPrefix(item, inodePrefix) {
+				containerIDFromInode = c.resolveContainerIDFromInode(item[len(inodePrefix):])
+			}
+		}
+
+		if containerID != "" {
+			return containerID, nil
+		}
+		return containerIDFromInode, nil
+	})
+	if err != nil {
+		log.Debugf("Could not get container ID from Local Data: %s: %v", localData, err)
+		return ""
+	}
+
+	return containerID
+}
+
+// resolveContainerIDFromInode returns the container ID for the given cgroupv2 inode.
+func (c *cgroupIDProvider) resolveContainerIDFromInode(inodeString string) string {
+	containerID, err := c.getCachedContainerID(inodeString, func() (string, error) {
+		// Parse the cgroupv2 inode as a uint64.
+		inode, err := strconv.ParseUint(inodeString, 10, 64)
 		if err != nil {
-			return "", fmt.Errorf("containerID not found from inode %d and unable to refresh cgroups, err: %w", inode, err)
+			return "", fmt.Errorf("could not parse cgroupv2 inode: %s: %v", inodeString, err)
 		}
 
-		cgroup = c.reader.GetCgroupByInode(inode)
+		// Get the container ID from the cgroupv2 inode.
+		cgroup := c.reader.GetCgroupByInode(inode)
 		if cgroup == nil {
-			return "", fmt.Errorf("containerID not found from inode %d, err: %w", inode, err)
+			err := c.reader.RefreshCgroups(readerCacheExpiration)
+			if err != nil {
+				return "", fmt.Errorf("containerID not found from inode %d and unable to refresh cgroups, err: %w", inode, err)
+			}
+
+			cgroup = c.reader.GetCgroupByInode(inode)
+			if cgroup == nil {
+				return "", fmt.Errorf("containerID not found from inode %d, err: %w", inode, err)
+			}
 		}
+
+		return cgroup.Identifier(), nil
+	})
+	if err != nil {
+		log.Debugf("Could not get container ID from cgroupv2 inode: %s: %v", inodeString, err)
+		return ""
 	}
 
-	return cgroup.Identifier(), nil
+	return containerID
 }
 
-// resolveContainerIDFromContext returns the container ID for the given entity ID.
-// This is a fallback for when the container ID is not available in the http header.
+// resolveContainerIDFromContext returns the container ID for the given context.
+// This is a fallback for when the container ID is not available in the http headers.
 func (c *cgroupIDProvider) resolveContainerIDFromContext(ctx context.Context) string {
 	ucred, ok := ctx.Value(ucredKey{}).(*syscall.Ucred)
 	if !ok || ucred == nil {

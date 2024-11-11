@@ -15,9 +15,9 @@ import (
 	"code.cloudfoundry.org/garden"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -47,8 +47,8 @@ func NewContainerTagger(wmeta workloadmeta.Component) (*ContainerTagger, error) 
 		return nil, err
 	}
 
-	retryCount := config.Datadog.GetInt("cloud_foundry_container_tagger.retry_count")
-	retryInterval := time.Second * time.Duration(config.Datadog.GetInt("cloud_foundry_container_tagger.retry_interval"))
+	retryCount := pkgconfigsetup.Datadog().GetInt("cloud_foundry_container_tagger.retry_count")
+	retryInterval := time.Second * time.Duration(pkgconfigsetup.Datadog().GetInt("cloud_foundry_container_tagger.retry_interval"))
 
 	return &ContainerTagger{
 		gardenUtil: gu,
@@ -65,12 +65,10 @@ func NewContainerTagger(wmeta workloadmeta.Component) (*ContainerTagger, error) 
 // Cancel the context to stop the container tagger.
 func (c *ContainerTagger) Start(ctx context.Context) {
 	go func() {
-		filterParams := workloadmeta.FilterParams{
-			Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
-			Source:    workloadmeta.SourceClusterOrchestrator,
-			EventType: workloadmeta.EventTypeAll,
-		}
-		filter := workloadmeta.NewFilter(&filterParams)
+		filter := workloadmeta.NewFilterBuilder().
+			SetSource(workloadmeta.SourceClusterOrchestrator).
+			AddKind(workloadmeta.KindContainer).
+			Build()
 
 		ch := c.store.Subscribe(componentName, workloadmeta.NormalPriority, filter)
 		defer c.store.Unsubscribe(ch)
@@ -108,7 +106,7 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 		log.Debugf("Processing Event (id %s): %+v", eventID, storeContainer)
 
 		// extract tags
-		hostTags := hostMetadataUtils.Get(ctx, true, config.Datadog)
+		hostTags := hostMetadataUtils.Get(ctx, true, pkgconfigsetup.Datadog())
 		tags := storeContainer.CollectorTags
 		tags = append(tags, hostTags.System...)
 		tags = append(tags, hostTags.GoogleCloudPlatform...)
@@ -163,7 +161,7 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 // updateTagsInContainer runs a script inside the container that handles updating the agent with the given tags
 func updateTagsInContainer(container garden.Container, tags []string) (int, error) {
 	//nolint:revive // TODO(PLINT) Fix revive linter
-	shell_path := config.Datadog.GetString("cloud_foundry_container_tagger.shell_path")
+	shell_path := pkgconfigsetup.Datadog().GetString("cloud_foundry_container_tagger.shell_path")
 	process, err := container.Run(garden.ProcessSpec{
 		Path: shell_path,
 		Args: []string{"/home/vcap/app/.datadog/scripts/update_agent_config.sh"},

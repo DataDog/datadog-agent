@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes an issue introduced in `7.55.0` with container metrics. In some rare cases, container metrics (cpu, memory, limits, etc.) could be incorrect and not reflect actual resources usage.

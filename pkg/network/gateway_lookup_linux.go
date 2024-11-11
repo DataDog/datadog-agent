@@ -16,7 +16,9 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/vishvananda/netns"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -71,12 +73,12 @@ func init() {
 
 func gwLookupEnabled() bool {
 	// only enabled on AWS currently
-	return Cloud.IsAWS() && ddconfig.IsCloudProviderEnabled(ec2.CloudProviderName)
+	return Cloud.IsAWS() && pkgconfigsetup.IsCloudProviderEnabled(ec2.CloudProviderName, pkgconfigsetup.Datadog())
 }
 
 // NewGatewayLookup creates a new instance of a gateway lookup using
 // a given root network namespace and a size for the route cache
-func NewGatewayLookup(rootNsLookup nsLookupFunc, maxRouteCacheSize uint32) GatewayLookup {
+func NewGatewayLookup(rootNsLookup nsLookupFunc, maxRouteCacheSize uint32, telemetryComp telemetryComponent.Component) GatewayLookup {
 	if !gwLookupEnabled() {
 		return nil
 	}
@@ -105,7 +107,7 @@ func NewGatewayLookup(rootNsLookup nsLookupFunc, maxRouteCacheSize uint32) Gatew
 	}
 
 	gl.subnetCache, _ = simplelru.NewLRU[int, interface{}](int(routeCacheSize), nil)
-	gl.routeCache = NewRouteCache(int(routeCacheSize), router)
+	gl.routeCache = NewRouteCache(telemetryComp, int(routeCacheSize), router)
 	return gl
 }
 
@@ -129,7 +131,7 @@ func (g *gatewayLookup) LookupWithIPs(source util.Address, dest util.Address, ne
 
 	// if there is no gateway, we don't need to add subnet info
 	// for gateway resolution in the backend
-	if r.Gateway.IsZero() || r.Gateway.IsUnspecified() {
+	if !r.Gateway.IsValid() || r.Gateway.IsUnspecified() {
 		return nil
 	}
 

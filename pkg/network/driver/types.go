@@ -68,6 +68,18 @@ const (
 	TCPFlowEstablishedMask = C.TCP_FLOW_ESTABLISHED_MASK
 )
 
+type ConnectionStatus C.enum__ConnectionStatus
+
+const (
+	ConnectionStatusUnknown     ConnectionStatus = C.CONN_STAT_UNKNOWN
+	ConnectionStatusAttempted   ConnectionStatus = C.CONN_STAT_ATTEMPTED
+	ConnectionStatusEstablished ConnectionStatus = C.CONN_STAT_ESTABLISHED
+	ConnectionStatusACKRST      ConnectionStatus = C.CONN_STAT_ACKRST
+	ConnectionStatusTimeout     ConnectionStatus = C.CONN_STAT_TIMEOUT
+	ConnectionStatusSentRst     ConnectionStatus = C.CONN_STAT_EST_SENT_RST
+	ConnectionStatusRecvRst     ConnectionStatus = C.CONN_STAT_EST_RECV_RST
+)
+
 const (
 	DirectionInbound  = C.DIRECTION_INBOUND
 	DirectionOutbound = C.DIRECTION_OUTBOUND

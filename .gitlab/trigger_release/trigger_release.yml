@@ -4,7 +4,7 @@
 
 .agent_release_management_trigger:
   stage: trigger_release
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   # We don't directly depend/need the package deploy jobs, because
   # that would make us deploy even when there are kitchen failures etc
@@ -18,9 +18,8 @@
   script:
     # agent-release-management creates pipeline for both Agent 6 and Agent 7
     # when triggered with major version 7
-    - source /root/.bashrc
-    - export RELEASE_VERSION=$(inv agent.version --major-version 7 --url-safe --omnibus-format)-1
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
+    - RELEASE_VERSION="$(inv agent.version --major-version 7 --url-safe --omnibus-format)-1" || exit $?; export RELEASE_VERSION
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - 'inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-release-management" --git-ref "main"
       --variable ACTION
       --variable AUTO_RELEASE
@@ -40,6 +39,8 @@ trigger_auto_staging_release:
   rules:
     - if: $DDR == "true"
       when: never
+    - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+){0,1}$/
+      when: never
     - !reference [.on_deploy]
 
 trigger_manual_prod_release:
@@ -50,4 +51,7 @@ trigger_manual_prod_release:
     # The jobs in the downstream pipeline will all be manual, so following
     # the created pipeline would likely cause this job to timeout
     NO_FOLLOW: "--no-follow"
-  rules: !reference [.on_deploy_stable_or_beta_manual_auto_on_stable]
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+){0,1}$/
+      when: never
+    - !reference [.on_deploy_stable_or_beta_manual_auto_on_stable]

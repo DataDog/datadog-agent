@@ -15,11 +15,11 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/proto"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	pbutils "github.com/DataDog/datadog-agent/pkg/util/proto"
 )
 
 const (
@@ -30,12 +30,14 @@ const (
 // Server is a grpc server that streams tagger entities
 type Server struct {
 	taggerComponent tagger.Component
+	maxEventSize    int
 }
 
 // NewServer returns a new Server
-func NewServer(t tagger.Component) *Server {
+func NewServer(t tagger.Component, maxEventSize int) *Server {
 	return &Server{
 		taggerComponent: t,
+		maxEventSize:    maxEventSize,
 	}
 }
 
@@ -43,24 +45,31 @@ func NewServer(t tagger.Component) *Server {
 // and streams them to clients as pb.StreamTagsResponse events. Filtering is as
 // of yet not implemented.
 func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecure_TaggerStreamEntitiesServer) error {
-	cardinality, err := pbutils.Pb2TaggerCardinality(in.Cardinality)
+	cardinality, err := proto.Pb2TaggerCardinality(in.GetCardinality())
 	if err != nil {
 		return err
 	}
 
-	// NOTE: StreamTagsRequest can specify filters, but they cannot be
-	// implemented since the tagger has no concept of container metadata.
-	// these filters will be introduced when we implement a container
-	// metadata service that can receive them as is from the tagger.
+	filterBuilder := types.NewFilterBuilder()
+	for _, prefix := range in.GetPrefixes() {
+		filterBuilder = filterBuilder.Include(types.EntityIDPrefix(prefix))
+	}
 
-	eventCh := s.taggerComponent.Subscribe(cardinality)
-	defer s.taggerComponent.Unsubscribe(eventCh)
+	filter := filterBuilder.Build(cardinality)
+
+	subscriptionID := fmt.Sprintf("streaming-client-%s", in.GetStreamingID())
+	subscription, err := s.taggerComponent.Subscribe(subscriptionID, filter)
+	if err != nil {
+		return err
+	}
+
+	defer subscription.Unsubscribe()
 
 	ticker := time.NewTicker(streamKeepAliveInterval)
 	defer ticker.Stop()
 	for {
 		select {
-		case events, ok := <-eventCh:
+		case events, ok := <-subscription.EventsChan():
 			if !ok {
 				log.Warnf("subscriber channel closed, client will reconnect")
 				return fmt.Errorf("subscriber channel closed")
@@ -70,7 +79,7 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 
 			responseEvents := make([]*pb.StreamTagsEvent, 0, len(events))
 			for _, event := range events {
-				e, err := pbutils.Tagger2PbEntityEvent(event)
+				e, err := proto.Tagger2PbEntityEvent(event)
 				if err != nil {
 					log.Warnf("can't convert tagger entity to protobuf: %s", err)
 					continue
@@ -79,16 +88,20 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 				responseEvents = append(responseEvents, e)
 			}
 
-			err = grpc.DoWithTimeout(func() error {
-				return out.Send(&pb.StreamTagsResponse{
-					Events: responseEvents,
-				})
-			}, taggerStreamSendTimeout)
+			// Split events into chunks and send each one
+			chunks := splitEvents(responseEvents, s.maxEventSize)
+			for _, chunk := range chunks {
+				err = grpc.DoWithTimeout(func() error {
+					return out.Send(&pb.StreamTagsResponse{
+						Events: chunk,
+					})
+				}, taggerStreamSendTimeout)
 
-			if err != nil {
-				log.Warnf("error sending tagger event: %s", err)
-				telemetry.ServerStreamErrors.Inc()
-				return err
+				if err != nil {
+					log.Warnf("error sending tagger event: %s", err)
+					s.taggerComponent.GetTaggerTelemetryStore().ServerStreamErrors.Inc()
+					return err
+				}
 			}
 
 		case <-out.Context().Done():
@@ -111,7 +124,7 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 
 			if err != nil {
 				log.Warnf("error sending tagger keep-alive: %s", err)
-				telemetry.ServerStreamErrors.Inc()
+				s.taggerComponent.GetTaggerTelemetryStore().ServerStreamErrors.Inc()
 				return err
 			}
 		}
@@ -121,13 +134,13 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 // TaggerFetchEntity fetches an entity from the Tagger with the desired cardinality tags.
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (s *Server) TaggerFetchEntity(ctx context.Context, in *pb.FetchEntityRequest) (*pb.FetchEntityResponse, error) {
+func (s *Server) TaggerFetchEntity(_ context.Context, in *pb.FetchEntityRequest) (*pb.FetchEntityResponse, error) {
 	if in.Id == nil {
 		return nil, status.Errorf(codes.InvalidArgument, `missing "id" parameter`)
 	}
 
-	entityID := fmt.Sprintf("%s://%s", in.Id.Prefix, in.Id.Uid)
-	cardinality, err := pbutils.Pb2TaggerCardinality(in.Cardinality)
+	entityID := types.NewEntityID(types.EntityIDPrefix(in.Id.Prefix), in.Id.Uid)
+	cardinality, err := proto.Pb2TaggerCardinality(in.GetCardinality())
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +152,7 @@ func (s *Server) TaggerFetchEntity(ctx context.Context, in *pb.FetchEntityReques
 
 	return &pb.FetchEntityResponse{
 		Id:          in.Id,
-		Cardinality: in.Cardinality,
+		Cardinality: in.GetCardinality(),
 		Tags:        tags,
 	}, nil
 }

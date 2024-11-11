@@ -15,6 +15,16 @@ func TracedProgramsEndpoint(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(404)
 }
 
+// BlockedPathIDEndpoint is not supported on Windows
+func BlockedPathIDEndpoint(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(404)
+}
+
+// ClearBlockedEndpoint is not supported on Windows
+func ClearBlockedEndpoint(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(404)
+}
+
 // AttachPIDEndpoint is not supported on Windows
 func AttachPIDEndpoint(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(404)

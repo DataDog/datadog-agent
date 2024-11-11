@@ -41,7 +41,7 @@ func TestReaderV2(t *testing.T) {
 		"memory": {},
 	}
 
-	r, err := newReaderV2("", fakeFsPath, ContainerFilter)
+	r, err := newReaderV2("", fakeFsPath, ContainerFilter, "")
 	r.pidMapper = nil
 	assert.NoError(t, err)
 	assert.NotNil(t, r)

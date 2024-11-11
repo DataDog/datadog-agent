@@ -9,8 +9,9 @@
 package validators
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // go test -v github.com/DataDog/datadog-agent/pkg/security/secl/validators --run=TestHasBareWildcardInField
@@ -91,14 +92,14 @@ func TestHasBareWildcardInField(t *testing.T) {
 		{
 			name: "not always true chained",
 			args: args{
-				ruleExpression: "exec.file.path =~ \"/**\" && exec.file.name != \"ls\" || open.file.name == \"myfile.txt\"",
+				ruleExpression: "exec.file.path =~ \"/**\" && exec.file.name != \"ls\" || exec.file.name == \"myfile.txt\"",
 			},
 			want: true,
 		},
 		{
 			name: "always true chained",
 			args: args{
-				ruleExpression: "exec.file.path =~ \"/**\" && open.file.name == \"*\" || exec.file.path != \"/bin/ls\"",
+				ruleExpression: "exec.file.path =~ \"/**\" && exec.file.name == \"*\" || exec.file.path != \"/bin/ls\"",
 			},
 			want: true,
 		},

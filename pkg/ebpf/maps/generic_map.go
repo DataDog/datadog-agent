@@ -9,6 +9,8 @@
 package maps
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"reflect"
@@ -22,6 +24,8 @@ import (
 )
 
 const defaultBatchSize = 100
+
+var ErrBatchAPINotSupported = errors.New("batch API not supported for this map: check whether key is fixed-size, kernel supports batch API and if this map is not per-cpu")
 
 // BatchAPISupported returns true if the kernel supports the batch API for maps
 var BatchAPISupported = funcs.MemoizeNoError(func() bool {
@@ -53,7 +57,18 @@ var BatchAPISupported = funcs.MemoizeNoError(func() bool {
 // GenericMap is a wrapper around ebpf.Map that allows to use generic types.
 // Also includes support for batch iterations
 type GenericMap[K any, V any] struct {
-	m *ebpf.Map
+	m                   *ebpf.Map
+	keySupportsBatchAPI bool
+}
+
+func canBinaryReadKey[K any]() bool {
+	kval := new(K)
+	buffer := make([]byte, unsafe.Sizeof(*kval))
+	reader := bytes.NewReader(buffer)
+
+	err := binary.Read(reader, binary.LittleEndian, kval)
+
+	return err == nil
 }
 
 // NewGenericMap creates a new GenericMap with the given spec. Key and Value sizes are automatically
@@ -78,13 +93,21 @@ func NewGenericMap[K any, V any](spec *ebpf.MapSpec) (*GenericMap[K, V], error) 
 		spec.ValueSize = uint32(unsafe.Sizeof(vval))
 	}
 
+	// See if we can perform binary.Read on the key type. If we can't we can't use the batch API
+	// for this map
+	keySupportsBatchAPI := canBinaryReadKey[K]()
+	if !keySupportsBatchAPI {
+		log.Warnf("Key type %T does not support binary.Read, batch API will not be used for this map", kval)
+	}
+
 	m, err := ebpf.NewMap(spec)
 	if err != nil {
 		return nil, err
 	}
 
 	return &GenericMap[K, V]{
-		m: m,
+		m:                   m,
+		keySupportsBatchAPI: keySupportsBatchAPI,
 	}, nil
 }
 
@@ -169,11 +192,19 @@ func (g *GenericMap[K, V]) Delete(key *K) error {
 
 // BatchDelete deletes a batch of keys from the map. Returns the number of deleted items
 func (g *GenericMap[K, V]) BatchDelete(keys []K) (int, error) {
+	if !g.CanUseBatchAPI() {
+		return 0, ErrBatchAPINotSupported
+	}
+
 	return g.m.BatchDelete(keys, nil)
 }
 
 // BatchUpdate updates a batch of keys in the map
 func (g *GenericMap[K, V]) BatchUpdate(keys []K, values []V, opts *ebpf.BatchOptions) (int, error) {
+	if !g.CanUseBatchAPI() {
+		return 0, ErrBatchAPINotSupported
+	}
+
 	return g.m.BatchUpdate(keys, values, opts)
 }
 
@@ -184,6 +215,12 @@ type GenericMapIterator[K any, V any] interface {
 
 	// Err returns the last error that happened during iteration.
 	Err() error
+}
+
+// CanUseBatchAPI returns whether this map can use the batch API. Takes into account map type, batch API support
+// in the kernel and the key type (keys with pointers). Returns an error describing the reason.
+func (g *GenericMap[K, V]) CanUseBatchAPI() bool {
+	return g.keySupportsBatchAPI && BatchAPISupported() && !g.isPerCPU()
 }
 
 func isPerCPU(t ebpf.MapType) bool {
@@ -221,7 +258,7 @@ func (g *GenericMap[K, V]) IterateWithBatchSize(batchSize int) GenericMapIterato
 		batchSize = int(g.m.MaxEntries())
 	}
 
-	if BatchAPISupported() && !g.isPerCPU() && batchSize > 1 {
+	if batchSize > 1 && g.CanUseBatchAPI() {
 		it := &genericMapBatchIterator[K, V]{
 			m:                            g.m,
 			batchSize:                    batchSize,

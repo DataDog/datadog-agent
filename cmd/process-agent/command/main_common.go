@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -33,10 +33,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	"github.com/DataDog/datadog-agent/comp/networkpath"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
@@ -45,29 +49,22 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/profiler"
 	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
-)
-
-const (
-	agent6DisabledMessage = `process-agent not enabled.
-Set env var DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED=true or add
-process_config:
-  process_collection:
-    enabled: true
-to your datadog.yaml file.
-Exiting.`
 )
 
 // errAgentDisabled indicates that the process-agent wasn't enabled through environment variable or config.
@@ -93,7 +90,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 	var appInitDeps struct {
 		fx.In
 
-		Logger logComponent.Component
+		Logger logcomp.Component
 
 		Checks       []types.CheckComponent `group:"check"`
 		Syscfg       sysprobeconfig.Component
@@ -105,8 +102,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			core.BundleParams{
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(
 					sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
+					sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
 				),
-				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 				SecretParams: secrets.NewEnabledParams(),
 				LogParams:    DaemonLogParams,
 			},
@@ -133,11 +131,17 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provide process agent bundle so fx knows where to find components
 		process.Bundle(),
 
+		eventplatformreceiverimpl.Module(),
+		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+
+		// Provides the rdnssquerier module
+		rdnsquerierfx.Module(),
+
+		// Provide network path bundle
+		networkpath.Bundle(),
+
 		// Provide remote config client bundle
 		remoteconfig.Bundle(),
-
-		// Provide workloadmeta module
-		workloadmeta.Module(),
 
 		// Provide tagger module
 		taggerimpl.Module(),
@@ -159,8 +163,10 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		autoexitimpl.Module(),
 
 		// Provide the corresponding workloadmeta Params to configure the catalog
-		collectors.GetCatalog(),
-		fx.Provide(func(c config.Component) workloadmeta.Params {
+		wmcatalog.GetCatalog(),
+
+		// Provide workloadmeta module
+		workloadmetafx.ModuleWithProvider(func(c config.Component) workloadmeta.Params {
 			var catalog workloadmeta.AgentType
 
 			if c.GetBool("process_config.remote_workloadmeta") {
@@ -174,14 +180,18 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide the corresponding tagger Params to configure the tagger
 		fx.Provide(func(c config.Component) tagger.Params {
-			if c.GetBool("process_config.remote_tagger") {
+			if c.GetBool("process_config.remote_tagger") ||
+				// If the agent is running in ECS or ECS Fargate and the ECS task collection is enabled, use the remote tagger
+				// as remote tagger can return more tags than the local tagger.
+				((env.IsECS() || env.IsECSFargate()) && c.GetBool("ecs_task_collection_enabled")) {
 				return tagger.NewNodeRemoteTaggerParams()
 			}
 			return tagger.NewTaggerParams()
 		}),
 
-		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
-		fxutil.FxLoggingOption(),
+		// Provides specific features to our own fx wrapper (logging, lifecycle, shutdowner)
+		fxutil.FxAgentBase(),
+		logging.EnableFxLoggingOnDebug[logcomp.Component](),
 
 		// Set the pid file path
 		fx.Supply(pidimpl.NewParams(globalParams.PidFilePath)),
@@ -197,6 +207,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			_ profiler.Component,
 			_ expvars.Component,
 			_ apiserver.Component,
+			cfg config.Component,
 			_ optional.Option[configsync.Component],
 			// TODO: This is needed by the container-provider which is not currently a component.
 			// We should ensure the tagger is a dependency when converting to a component.
@@ -205,7 +216,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			processAgent agent.Component,
 			_ autoexit.Component,
 		) error {
-			if !processAgent.Enabled() {
+			if !processAgent.Enabled() && !collector.Enabled(cfg) {
 				return errAgentDisabled
 			}
 			return nil
@@ -225,33 +236,23 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		settingsimpl.Module(),
 	)
 
-	if err := app.Err(); err != nil {
-
-		if errors.Is(err, errAgentDisabled) {
-			log.Info("process-agent is not enabled, exiting...")
-			return nil
-		}
-
-		// At this point it is not guaranteed that the logger has been successfully initialized. We should fall back to
-		// stdout just in case.
-		if appInitDeps.Logger == nil {
-			fmt.Println("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
-		} else {
-			appInitDeps.Logger.Critical("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
-		}
-		return err
-	}
-
-	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
-	if !shouldEnableProcessAgent(appInitDeps.Checks, appInitDeps.Config) {
-		log.Infof(agent6DisabledMessage)
-		return nil
-	}
-
 	err := app.Start(ctx)
 	if err != nil {
-		log.Criticalf("Failed to start process agent: %v", err)
-		return err
+		if errors.Is(err, errAgentDisabled) {
+			if !shouldStayAlive(appInitDeps.Config) {
+				log.Info("process-agent is not enabled, exiting...")
+				return nil
+			}
+		} else {
+			// At this point it is not guaranteed that the logger has been successfully initialized. We should fall back to
+			// stdout just in case.
+			if appInitDeps.Logger == nil {
+				fmt.Println("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
+			} else {
+				appInitDeps.Logger.Critical("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
+			}
+			return err
+		}
 	}
 
 	// Wait for exit signal
@@ -272,43 +273,31 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 	return nil
 }
 
-func anyChecksEnabled(checks []types.CheckComponent) bool {
-	for _, check := range checks {
-		if check.Object().IsEnabled() {
-			return true
-		}
-	}
-	return false
-}
-
-func shouldEnableProcessAgent(checks []types.CheckComponent, cfg ddconfig.Reader) bool {
-	return anyChecksEnabled(checks) || collector.Enabled(cfg)
-}
-
 type miscDeps struct {
 	fx.In
 	Lc fx.Lifecycle
 
 	Config       config.Component
-	Statsd       compstatsd.Component
 	Syscfg       sysprobeconfig.Component
 	HostInfo     hostinfo.Component
 	WorkloadMeta workloadmeta.Component
-	Logger       logComponent.Component
+	Logger       logcomp.Component
+	Tagger       tagger.Component
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
-// Todo: (Components) WorkloadMeta, remoteTagger, statsd
+// Todo: (Components) WorkloadMeta, remoteTagger
 // Todo: move metadata/workloadmeta/collector to workloadmeta
 func initMisc(deps miscDeps) error {
-	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), deps.Statsd.CreateForHostPort); err != nil {
-		deps.Logger.Criticalf("Error configuring statsd: %s", err)
-		return err
-	}
-
 	if err := ddutil.SetupCoreDump(deps.Config); err != nil {
 		deps.Logger.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
+
+	// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
+	// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
+	// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
+	// we can include the tagger as part of the workloadmeta component.
+	proccontainers.InitSharedContainerProvider(deps.WorkloadMeta, deps.Tagger)
 
 	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg)
 
@@ -318,7 +307,6 @@ func initMisc(deps miscDeps) error {
 	appCtx, stopApp := context.WithCancel(context.Background())
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
-
 			if collector.Enabled(deps.Config) {
 				err := processCollectionServer.Start(appCtx, deps.WorkloadMeta)
 				if err != nil {
@@ -336,4 +324,16 @@ func initMisc(deps miscDeps) error {
 	})
 
 	return nil
+}
+
+// shouldStayAlive determines whether the process agent should stay alive when no checks are running.
+// This can happen when the checks are running on the core agent but a process agent container is
+// still brought up. The process-agent is kept alive to prevent crash loops.
+func shouldStayAlive(cfg model.Reader) bool {
+	if env.IsKubernetes() && cfg.GetBool("process_config.run_in_core_agent.enabled") {
+		log.Warn("The process-agent is staying alive to prevent crash loops due to the checks running on the core agent. Thus, the process-agent is idle. Update your Helm chart or Datadog Operator to the latest version to prevent this (https://docs.datadoghq.com/containers/kubernetes/installation/).")
+		return true
+	}
+
+	return false
 }

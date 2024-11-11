@@ -13,6 +13,7 @@ import (
 	"github.com/docker/docker/api/types/events"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -20,8 +21,11 @@ import (
 )
 
 func TestReportExitCodes(t *testing.T) {
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+
 	dockerCheck := &DockerCheck{
 		instance: &DockerConfig{},
+		tagger:   fakeTagger,
 	}
 
 	dockerCheck.setOkExitCodes()
@@ -87,6 +91,7 @@ func TestReportExitCodes(t *testing.T) {
 		instance: &DockerConfig{
 			OkExitCodes: []int{0},
 		},
+		tagger: fakeTagger,
 	}
 
 	dockerCheck.setOkExitCodes()
@@ -120,6 +125,8 @@ func TestReportExitCodes(t *testing.T) {
 }
 
 func TestAggregateEvents(t *testing.T) {
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+
 	testCases := []struct {
 		events          []*docker.ContainerEvent
 		filteredActions []string
@@ -149,7 +156,8 @@ func TestAggregateEvents(t *testing.T) {
 					countByAction: map[events.Action]int{
 						"unfiltered_action": 1,
 					},
-					alertType: event.EventAlertTypeInfo,
+					alertType: event.AlertTypeInfo,
+					tagger:    fakeTagger,
 				},
 			},
 		},
@@ -188,7 +196,8 @@ func TestAggregateEvents(t *testing.T) {
 						"unfiltered_action": 2,
 						"other_action":      1,
 					},
-					alertType: event.EventAlertTypeInfo,
+					alertType: event.AlertTypeInfo,
+					tagger:    fakeTagger,
 				},
 			},
 		},
@@ -220,21 +229,23 @@ func TestAggregateEvents(t *testing.T) {
 						"unfiltered_action": 2,
 						"other_action":      1,
 					},
-					alertType: event.EventAlertTypeInfo,
+					alertType: event.AlertTypeInfo,
+					tagger:    fakeTagger,
 				},
 				"other_image": {
 					imageName: "other_image",
 					countByAction: map[events.Action]int{
 						"other_action": 1,
 					},
-					alertType: event.EventAlertTypeInfo,
+					alertType: event.AlertTypeInfo,
+					tagger:    fakeTagger,
 				},
 			},
 		},
 	}
 	for _, tc := range testCases {
 		t.Run("", func(t *testing.T) {
-			transformer := newBundledTransformer("test-host", tc.filteredActions).(*bundledTransformer)
+			transformer := newBundledTransformer("test-host", tc.filteredActions, fakeTagger).(*bundledTransformer)
 			bundles := transformer.aggregateEvents(tc.events)
 			for _, b := range bundles {
 				// Strip underlying events to ease testing

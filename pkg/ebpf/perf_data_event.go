@@ -15,7 +15,7 @@ import (
 // EventHandler is the common interface shared across perf map and perf ring
 // buffer handlers
 type EventHandler interface {
-	DataChannel() <-chan *DataEvent
+	DataChannel() <-chan DataEvent
 	LostChannel() <-chan uint64
 	Stop()
 }

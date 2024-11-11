@@ -7,4 +7,4 @@
 
 package listeners
 
-var NewContainerListener ServiceListenerFactory
+var NewContainerListener func(ServiceListernerDeps) (ServiceListener, error)

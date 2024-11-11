@@ -20,7 +20,6 @@ def trigger_macos_workflow(
     datadog_agent_ref=DEFAULT_BRANCH,
     release_version=None,
     major_version=None,
-    python_runtimes="3",
     gitlab_pipeline_id=None,
     bucket_branch=None,
     version_cache_file_content=None,
@@ -42,9 +41,6 @@ def trigger_macos_workflow(
 
     if major_version is not None:
         inputs["agent_major_version"] = major_version
-
-    if python_runtimes is not None:
-        inputs["python_runtimes"] = python_runtimes
 
     if gitlab_pipeline_id is not None:
         inputs["gitlab_pipeline_id"] = gitlab_pipeline_id
@@ -156,7 +152,7 @@ def follow_workflow_run(run):
             print(f"Workflow run not found, retrying in 15 seconds (failure {failures}/{MAX_FAILURES})")
             print("Error: ", e)
             if failures == MAX_FAILURES:
-                raise Exit(code=1)
+                raise Exit(code=1) from e
             sleep(15)
             continue
 

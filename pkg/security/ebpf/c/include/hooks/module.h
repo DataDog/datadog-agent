@@ -6,11 +6,6 @@
 #include "helpers/syscalls.h"
 
 int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory, const char *uargs) {
-    struct policy_t policy = fetch_policy(EVENT_INIT_MODULE);
-    if (is_discarded_by_process(policy.mode, EVENT_INIT_MODULE)) {
-        return 0;
-    }
-
     struct syscall_cache_t syscall = {
         .type = EVENT_INIT_MODULE,
         .init_module = {
@@ -18,7 +13,7 @@ int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory, con
         },
     };
 
-	int len = bpf_probe_read_user_str(&syscall.init_module.args, sizeof(syscall.init_module.args), uargs);
+    int len = bpf_probe_read_user_str(&syscall.init_module.args, sizeof(syscall.init_module.args), uargs);
     if (len == sizeof(syscall.init_module.args)) {
         syscall.init_module.args_truncated = 1;
     }
@@ -47,8 +42,8 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
 
     syscall->resolver.key = syscall->init_module.file.path_key;
     syscall->resolver.dentry = syscall->init_module.dentry;
-    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_INIT_MODULE : 0;
     syscall->resolver.iteration = 0;
+    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
     syscall->resolver.callback = DR_NO_CALLBACK;
     syscall->resolver.ret = 0;
 
@@ -61,7 +56,7 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
 }
 
 int __attribute__((always_inline)) fetch_mod_name_common(struct module *m) {
-	struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
     }
@@ -76,13 +71,13 @@ int __attribute__((always_inline)) fetch_mod_name_common(struct module *m) {
 
 HOOK_ENTRY("mod_sysfs_setup")
 int hook_mod_sysfs_setup(ctx_t *ctx) {
-    struct module *m = (struct module*)CTX_PARM1(ctx);
+    struct module *m = (struct module *)CTX_PARM1(ctx);
     return fetch_mod_name_common(m);
 }
 
 HOOK_ENTRY("module_param_sysfs_setup")
 int hook_module_param_sysfs_setup(ctx_t *ctx) {
-    struct module *m = (struct module*)CTX_PARM1(ctx);
+    struct module *m = (struct module *)CTX_PARM1(ctx);
     return fetch_mod_name_common(m);
 }
 
@@ -161,11 +156,6 @@ HOOK_SYSCALL_EXIT(finit_module) {
 }
 
 HOOK_SYSCALL_ENTRY1(delete_module, const char *, name_user) {
-    struct policy_t policy = fetch_policy(EVENT_DELETE_MODULE);
-    if (is_discarded_by_process(policy.mode, EVENT_DELETE_MODULE)) {
-        return 0;
-    }
-
     struct syscall_cache_t syscall = {
         .type = EVENT_DELETE_MODULE,
         .delete_module = {

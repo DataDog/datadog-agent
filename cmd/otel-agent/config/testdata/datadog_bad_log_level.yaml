@@ -1,0 +1,5 @@
+log_level: yabadabadoo
+
+otelcollector:
+  enabled: true
+  extension_url: "https://localhost:8888"

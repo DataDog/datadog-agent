@@ -52,6 +52,6 @@ func (sw *TraceLevelLogWriter) Write(logInput []byte) (n int, err error) {
 			logInput = replacer.Regex.ReplaceAll(logInput, replacer.Repl)
 		}
 	}
-	log.Tracef(string(logInput))
+	log.Trace(string(logInput))
 	return len(logInput), nil
 }

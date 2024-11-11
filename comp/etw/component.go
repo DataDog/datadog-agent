@@ -155,6 +155,17 @@ type ProviderConfiguration struct {
 
 	// PIDs allow filtering by PIDs if non-empty
 	PIDs []uint32
+
+	// The EnabledIDs and DisabledIDs fields are mutually exclusive; the API allows you to send one or the other but not both.
+	//
+	// Setting the list of EnabledIDs will enable only listed events.
+	// Setting the list of DisabledIDs will disable only listed events, and allow all others
+
+	// EventIDs for enableTrace = TRUE
+	EnabledIDs []uint16
+
+	// eventIds for enabletrace = FALSE
+	DisabledIDs []uint16
 }
 
 // ProviderConfigurationFunc is a function used to configure a provider

@@ -12,6 +12,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -40,6 +41,7 @@ func NetworkSelectors() []manager.ProbesSelector {
 		// flow classification probes
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
 			kprobeOrFentry("security_socket_bind"),
+			kprobeOrFentry("security_socket_connect"),
 			kprobeOrFentry("security_sk_classify_flow"),
 			kprobeOrFentry("path_get"),
 			kprobeOrFentry("proc_fd_link"),
@@ -59,7 +61,6 @@ func NetworkSelectors() []manager.ProbesSelector {
 			kprobeOrFentry("dev_new_index"),
 			kretprobeOrFexit("dev_new_index"),
 			kprobeOrFentry("__dev_get_by_index"),
-			kprobeOrFentry("__dev_get_by_name"),
 		}},
 	}
 }
@@ -71,9 +72,12 @@ var SyscallMonitorSelectors = []manager.ProbesSelector{
 
 // SnapshotSelectors selectors required during the snapshot
 func SnapshotSelectors() []manager.ProbesSelector {
+	procsOpen := kprobeOrFentry("cgroup_procs_open")
+	tasksOpen := kprobeOrFentry("cgroup_tasks_open")
 	return []manager.ProbesSelector{
 		// required to stat /proc/.../exe
 		kprobeOrFentry("security_inode_getattr"),
+		&manager.BestEffort{Selectors: []manager.ProbesSelector{procsOpen, tasksOpen}},
 	}
 }
 
@@ -90,7 +94,6 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		"*": {
 			// Exec probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "sys_exit"}},
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "sched_process_fork"}},
 				kprobeOrFentry("do_exit"),
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
@@ -108,10 +111,15 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				kprobeOrFentry("commit_creds"),
 				kprobeOrFentry("switch_task_namespaces"),
 				kprobeOrFentry("do_coredump"),
+				kprobeOrFentry("audit_set_loginuid"),
+				kretprobeOrFexit("audit_set_loginuid"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("cgroup_procs_write"),
 				kprobeOrFentry("cgroup1_procs_write"),
+			}},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("cgroup_procs_open"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("_do_fork"),
@@ -148,12 +156,16 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			kprobeOrFentry("security_inode_setattr"),
 
 			// Open probes
-			&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.OneOf{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("security_path_truncate"),
+				kprobeOrFentry("security_file_truncate"),
 				kprobeOrFentry("vfs_truncate"),
+				kprobeOrFentry("do_truncate"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "open", fentry, EntryAndExit, true)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "creat", fentry, EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "truncate", fentry, EntryAndExit, true)},
+			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "ftruncate", fentry, EntryAndExit, true)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "openat", fentry, EntryAndExit, true)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "openat2", fentry, EntryAndExit)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "open_by_handle_at", fentry, EntryAndExit, true)},
@@ -375,10 +387,14 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		// List of probes required to capture mmap events
 		"mmap": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "tracepoint_syscalls_sys_enter_mmap"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "tracepoint_syscalls_sys_exit_mmap"}},
+				kprobeOrFentry("vm_mmap_pgoff"),
+				kretprobeOrFexit("vm_mmap_pgoff"),
 				kprobeOrFentry("security_mmap_file"),
-			}}},
+			}},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("get_unmapped_area"),
+			}},
+		},
 
 		// List of probes required to capture mprotect events
 		"mprotect": {
@@ -433,14 +449,12 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "bind", fentry, EntryAndExit)},
 		},
-
-		// List of probes required to capture DNS events
-		"dns": {
+		// List of probes required to capture connect events
+		"connect": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.AllOf{Selectors: NetworkSelectors()},
-				&manager.AllOf{Selectors: NetworkVethSelectors()},
-				kprobeOrFentry("security_socket_bind"),
+				kprobeOrFentry("security_socket_connect"),
 			}},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "connect", fentry, EntryAndExit)},
 		},
 
 		// List of probes required to capture chdir events
@@ -453,11 +467,25 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		},
 	}
 
+	// Add probes required to track network interfaces and map network flows to processes
+	// networkEventTypes: dns, imds, packet
+	networkEventTypes := model.GetEventTypePerCategory(model.NetworkCategory)[model.NetworkCategory]
+	for _, networkEventType := range networkEventTypes {
+		selectorsPerEventTypeStore[networkEventType] = []manager.ProbesSelector{
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				&manager.AllOf{Selectors: NetworkSelectors()},
+				&manager.AllOf{Selectors: NetworkVethSelectors()},
+			}},
+		}
+	}
+
 	// add probes depending on loaded modules
 	loadedModules, err := utils.FetchLoadedModules()
 	if err == nil {
 		if _, ok := loadedModules["nf_nat"]; ok {
-			selectorsPerEventTypeStore["dns"] = append(selectorsPerEventTypeStore["dns"], NetworkNFNatSelectors()...)
+			for _, networkEventType := range networkEventTypes {
+				selectorsPerEventTypeStore[networkEventType] = append(selectorsPerEventTypeStore[networkEventType], NetworkNFNatSelectors()...)
+			}
 		}
 	}
 

@@ -9,9 +9,9 @@ set -e
 
 echo -e "\033[33m
  install_script.sh is deprecated. Please use one of
- 
- * https://s3.amazonaws.com/dd-agent/scripts/install_script_agent6.sh to install Agent 6
- * https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh to install Agent 7
+
+ * https://install.datadoghq.com/scripts/install_script_agent6.sh to install Agent 6
+ * https://install.datadoghq.com/scripts/install_script_agent7.sh to install Agent 7
 \033[0m"
 
 install_script_version=1.13.0.deprecated
@@ -357,7 +357,7 @@ DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || gre
 if [ "$DISTRIBUTION" = "Darwin" ]; then
     printf "\033[31mThis script does not support installing on the Mac.
 
-Please use the 1-step script available at https://app.datadoghq.com/account/settings#agent/mac.\033[0m\n"
+Please use the 1-step script available at https://app.datadoghq.com/account/settings/agent/latest?platform=macos.\033[0m\n"
     exit 1;
 
 elif [ -f /etc/debian_version ] || [ "$DISTRIBUTION" == "Debian" ] || [ "$DISTRIBUTION" == "Ubuntu" ]; then
@@ -689,7 +689,7 @@ else
     printf "\033[31mYour OS or distribution are not supported by this install script.
 Please follow the instructions on the Agent setup page:
 
-    https://app.datadoghq.com/account/settings#agent\033[0m\n"
+    https://app.datadoghq.com/account/settings/agent/latest?platform=overview\033[0m\n"
     exit;
 fi
 

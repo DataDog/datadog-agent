@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -31,15 +30,17 @@ type dockerEventBundle struct {
 	events        []*docker.ContainerEvent
 	maxTimestamp  time.Time
 	countByAction map[events.Action]int
-	alertType     event.EventAlertType
+	alertType     event.AlertType
+	tagger        tagger.Component
 }
 
-func newDockerEventBundler(imageName string) *dockerEventBundle {
+func newDockerEventBundler(imageName string, tagger tagger.Component) *dockerEventBundle {
 	return &dockerEventBundle{
 		imageName:     imageName,
 		events:        []*docker.ContainerEvent{},
 		countByAction: make(map[events.Action]int),
-		alertType:     event.EventAlertTypeInfo,
+		alertType:     event.AlertTypeInfo,
+		tagger:        tagger,
 	}
 }
 
@@ -56,7 +57,7 @@ func (b *dockerEventBundle) addEvent(ev *docker.ContainerEvent) error {
 	}
 
 	if isAlertTypeError(ev.Action) {
-		b.alertType = event.EventAlertTypeError
+		b.alertType = event.AlertTypeError
 	}
 
 	return nil
@@ -73,7 +74,7 @@ func (b *dockerEventBundle) toDatadogEvent(hostname string) (event.Event, error)
 			formatActionMap(b.countByAction),
 			hostname,
 		),
-		Priority:       event.EventPriorityNormal,
+		Priority:       event.PriorityNormal,
 		Host:           hostname,
 		SourceTypeName: CheckName,
 		EventType:      CheckName,
@@ -93,7 +94,7 @@ func (b *dockerEventBundle) toDatadogEvent(hostname string) (event.Event, error)
 	output.Text = strings.Join(textLines, "\n")
 
 	for cid := range seenContainers {
-		tags, err := tagger.Tag(containers.BuildTaggerEntityName(cid), types.HighCardinality)
+		tags, err := b.tagger.Tag(types.NewEntityID(types.ContainerID, cid), types.HighCardinality)
 		if err != nil {
 			log.Debugf("no tags for %s: %s", cid, err)
 		} else {

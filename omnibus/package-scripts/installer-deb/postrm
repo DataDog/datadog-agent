@@ -6,7 +6,7 @@
 
 PACKAGES_DIR=/opt/datadog-packages
 INSTALL_DIR=/opt/datadog-installer
-RUN_DIR=/var/run/datadog/installer
+RUN_DIR=/var/run/datadog-installer
 
 set -e
 

@@ -13,6 +13,15 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
+// Well Known SIDs
+//
+// https://learn.microsoft.com/en-us/windows/win32/secauthz/well-known-sids
+const (
+	LocalSystemSID    = "S-1-5-18"
+	AdministratorsSID = "S-1-5-32-544"
+	EveryoneSID       = "S-1-1-0"
+)
+
 // Identity contains the name and SID of an identity (user or group)
 type Identity struct {
 	Name string
@@ -29,10 +38,24 @@ func (i Identity) GetSID() string {
 	return i.SID
 }
 
+// Equal returns true if the SIDs are equal. Names can be localized, ambiguous, or just be in different formats.
+func (i Identity) Equal(other SecurityIdentifier) bool {
+	return SecurityIdentifierEqual(i, other)
+}
+
 // SecurityIdentifier is an interface for objects that have a name and SID
 type SecurityIdentifier interface {
 	GetName() string
 	GetSID() string
+}
+
+// SecurityIdentifierEqual returns true if the SIDs are equal. Names can be localized, ambiguous, or just be in different formats.
+func SecurityIdentifierEqual(a SecurityIdentifier, b SecurityIdentifier) bool {
+	if a.GetSID() == "" || b.GetSID() == "" {
+		// return false if either is empty
+		return false
+	}
+	return a.GetSID() == b.GetSID()
 }
 
 // MakeDownLevelLogonName joins a user and domain into a single string, e.g. DOMAIN\user
@@ -48,6 +71,38 @@ func MakeDownLevelLogonName(domain string, user string) string {
 	}
 	domain = NameToNetBIOSName(domain)
 	return domain + "\\" + user
+}
+
+// GetIdentityForUser returns the Identity for the given user.
+func GetIdentityForUser(host *components.RemoteHost, user string) (Identity, error) {
+	sid, err := GetSIDForUser(host, user)
+	if err != nil {
+		return Identity{}, err
+	}
+	return Identity{Name: user, SID: sid}, nil
+}
+
+// GetIdentityForSID returns an Identity for the given SID. Does not fetch the name, see GetIdentityForSIDWithName.
+func GetIdentityForSID(sid string) Identity {
+	return Identity{SID: sid}
+}
+
+// GetIdentityForSIDWithName returns an Identity for the given SID with the name fetched from the host.
+//
+// This is useful when the name is needed for display purposes. The name may be localized or ambiguous, and may not be unique.
+func GetIdentityForSIDWithName(host *components.RemoteHost, sid string) (Identity, error) {
+	name, err := GetUserForSID(host, sid)
+	if err != nil {
+		return Identity{}, err
+	}
+	return Identity{Name: name, SID: sid}, nil
+}
+
+// GetUserForSID returns the username for the given SID.
+func GetUserForSID(host *components.RemoteHost, sid string) (string, error) {
+	cmd := fmt.Sprintf(`(New-Object System.Security.Principal.SecurityIdentifier('%s')).Translate([System.Security.Principal.NTAccount]).Value`, sid)
+	out, err := host.Execute(cmd)
+	return strings.TrimSpace(out), err
 }
 
 // GetSIDForUser returns the SID for the given user.
@@ -229,4 +284,10 @@ func RemoveLocalUser(host *components.RemoteHost, user string) error {
 	cmd := fmt.Sprintf(`Remove-LocalUser -Name "%s"`, user)
 	_, err := host.Execute(cmd)
 	return err
+}
+
+// IsIdentityLocalSystem Returns true if the identity is the local SYSTEM account
+func IsIdentityLocalSystem(i Identity) bool {
+	// We don't need to fetch a full identity with name from the host, we can just compare the SIDs
+	return SecurityIdentifierEqual(i, GetIdentityForSID(LocalSystemSID))
 }

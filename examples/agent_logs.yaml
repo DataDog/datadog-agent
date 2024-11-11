@@ -1,0 +1,22 @@
+## Minimal configuration to enable Datadog to ship metrics and logs.
+
+## @env DD_API_KEY - string - required
+## The Datadog API key used by your Agent to submit metrics and events to Datadog.
+api_key:
+
+## The site of the Datadog intake to send Agent data to.
+site: datadoghq.com  
+
+## The environment name where the agent is running. Attached in-app to every
+## metric, event, log, trace, and service check emitted by this Agent.  
+env:
+
+## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
+tags:
+  - example:changeme
+#  - <TAG_KEY>:<TAG_VALUE>
+
+logs_enabled: true
+
+apm_config:
+  enabled: false

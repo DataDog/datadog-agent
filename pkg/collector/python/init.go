@@ -8,18 +8,20 @@
 package python
 
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -82,9 +84,11 @@ void initLogger(rtloader_t *rtloader) {
 void GetClusterName(char **);
 void GetConfig(char*, char **);
 void GetHostname(char **);
+void GetHostTags(char **);
 void GetVersion(char **);
 void Headers(char **);
 char * ReadPersistentCache(char *);
+void SendLog(char *, char *);
 void SetCheckMetadata(char *, char *, char *);
 void SetExternalTags(char *, char *, char **);
 void WritePersistentCache(char *, char *);
@@ -92,13 +96,17 @@ bool TracemallocEnabled();
 char* ObfuscateSQL(char *, char *, char **);
 char* ObfuscateSQLExecPlan(char *, bool, char **);
 double getProcessStartTime();
+char* ObfuscateMongoDBString(char *, char **);
+void EmitAgentTelemetry(char *, char *, double, char *);
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_clustername_cb(rtloader, GetClusterName);
 	set_get_config_cb(rtloader, GetConfig);
 	set_get_hostname_cb(rtloader, GetHostname);
+	set_get_host_tags_cb(rtloader, GetHostTags);
 	set_get_version_cb(rtloader, GetVersion);
 	set_headers_cb(rtloader, Headers);
+	set_send_log_cb(rtloader, SendLog);
 	set_set_check_metadata_cb(rtloader, SetCheckMetadata);
 	set_set_external_tags_cb(rtloader, SetExternalTags);
 	set_write_persistent_cache_cb(rtloader, WritePersistentCache);
@@ -107,6 +115,8 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_obfuscate_sql_cb(rtloader, ObfuscateSQL);
 	set_obfuscate_sql_exec_plan_cb(rtloader, ObfuscateSQLExecPlan);
 	set_get_process_start_time_cb(rtloader, getProcessStartTime);
+	set_obfuscate_mongodb_string_cb(rtloader, ObfuscateMongoDBString);
+	set_emit_agent_telemetry_cb(rtloader, EmitAgentTelemetry);
 }
 
 //
@@ -195,7 +205,6 @@ var (
 	PythonVersion = ""
 	// The pythonHome variable typically comes from -ldflags
 	// it's needed in case the agent was built using embedded libs
-	pythonHome2 = ""
 	pythonHome3 = ""
 	// PythonHome contains the computed value of the Python Home path once the
 	// intepreter is created. It might be empty in case the interpreter wasn't
@@ -243,10 +252,7 @@ func expvarPythonInitErrors() interface{} {
 	pyInitLock.RLock()
 	defer pyInitLock.RUnlock()
 
-	pyInitErrorsCopy := []string{}
-	pyInitErrorsCopy = append(pyInitErrorsCopy, pyInitErrors...)
-
-	return pyInitErrorsCopy
+	return slices.Clone(pyInitErrors)
 }
 
 func addExpvarPythonInitErrors(msg string) error {
@@ -254,7 +260,7 @@ func addExpvarPythonInitErrors(msg string) error {
 	defer pyInitLock.Unlock()
 
 	pyInitErrors = append(pyInitErrors, msg)
-	return fmt.Errorf(msg)
+	return errors.New(msg)
 }
 
 func sendTelemetry(pythonVersion string) {
@@ -296,7 +302,7 @@ func pathToBinary(name string, ignoreErrors bool) (string, error) {
 	return absPath, nil
 }
 
-func resolvePythonExecPath(pythonVersion string, ignoreErrors bool) (string, error) {
+func resolvePythonExecPath(ignoreErrors bool) (string, error) {
 	// Since the install location can be set by the user on Windows we use relative import
 	if runtime.GOOS == "windows" {
 		_here, err := executable.Folder()
@@ -310,18 +316,12 @@ func resolvePythonExecPath(pythonVersion string, ignoreErrors bool) (string, err
 		}
 		log.Debugf("Executable folder is %v", _here)
 
-		embeddedPythonHome2 := filepath.Join(_here, "..", "embedded2")
 		embeddedPythonHome3 := filepath.Join(_here, "..", "embedded3")
 
 		// We want to use the path-relative embedded2/3 directories above by default.
 		// They will be correct for normal installation on Windows. However, if they
 		// are not present for cases like running unit tests, fall back to the compile
 		// time values.
-		if _, err := os.Stat(embeddedPythonHome2); os.IsNotExist(err) {
-			log.Warnf("Relative embedded directory not found for Python 2. Using default: %s", pythonHome2)
-		} else {
-			pythonHome2 = embeddedPythonHome2
-		}
 		if _, err := os.Stat(embeddedPythonHome3); os.IsNotExist(err) {
 			log.Warnf("Relative embedded directory not found for Python 3. Using default: %s", pythonHome3)
 		} else {
@@ -329,11 +329,7 @@ func resolvePythonExecPath(pythonVersion string, ignoreErrors bool) (string, err
 		}
 	}
 
-	if pythonVersion == "2" {
-		PythonHome = pythonHome2
-	} else if pythonVersion == "3" {
-		PythonHome = pythonHome3
-	}
+	PythonHome = pythonHome3
 
 	log.Infof("Using '%s' as Python home", PythonHome)
 
@@ -354,7 +350,7 @@ func resolvePythonExecPath(pythonVersion string, ignoreErrors bool) (string, err
 	// don't want to use the default version (aka "python") but rather "python2" or
 	// "python3" based on the configuration. Also on some Python3 platforms there
 	// are no "python" aliases either.
-	interpreterBasename := "python" + pythonVersion
+	interpreterBasename := "python3"
 
 	// If we are in a development env or just the ldflags haven't been set, the PythonHome
 	// variable won't be set so what we do here is to just find out where our current
@@ -371,11 +367,11 @@ func resolvePythonExecPath(pythonVersion string, ignoreErrors bool) (string, err
 
 //nolint:revive // TODO(AML) Fix revive linter
 func Initialize(paths ...string) error {
-	pythonVersion := config.Datadog.GetString("python_version")
-	allowPathHeuristicsFailure := config.Datadog.GetBool("allow_python_path_heuristics_failure")
+	pythonVersion := pkgconfigsetup.Datadog().GetString("python_version")
+	allowPathHeuristicsFailure := pkgconfigsetup.Datadog().GetBool("allow_python_path_heuristics_failure")
 
 	// Memory related RTLoader-global initialization
-	if config.Datadog.GetBool("memtrack_enabled") {
+	if pkgconfigsetup.Datadog().GetBool("memtrack_enabled") {
 		C.initMemoryTracker()
 	}
 
@@ -386,7 +382,7 @@ func Initialize(paths ...string) error {
 	}
 
 	// Note: pythonBinPath is a module-level var
-	pythonBinPath, err := resolvePythonExecPath(pythonVersion, allowPathHeuristicsFailure)
+	pythonBinPath, err := resolvePythonExecPath(allowPathHeuristicsFailure)
 	if err != nil {
 		return err
 	}
@@ -400,10 +396,7 @@ func Initialize(paths ...string) error {
 	csPythonExecPath := TrackedCString(pythonBinPath)
 	defer C._free(unsafe.Pointer(csPythonExecPath))
 
-	if pythonVersion == "2" {
-		log.Infof("Initializing rtloader with Python 2 %s", PythonHome)
-		rtloader = C.make2(csPythonHome, csPythonExecPath, &pyErr)
-	} else if pythonVersion == "3" {
+	if pythonVersion == "3" {
 		log.Infof("Initializing rtloader with Python 3 %s", PythonHome)
 		rtloader = C.make3(csPythonHome, csPythonExecPath, &pyErr)
 	} else {
@@ -421,7 +414,7 @@ func Initialize(paths ...string) error {
 		return err
 	}
 
-	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.python_memory") {
+	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.python_memory") {
 		initPymemTelemetry()
 	}
 

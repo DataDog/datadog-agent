@@ -15,8 +15,13 @@ import (
 
 const (
 	defaultCISecretPrefix = "ci.datadog-agent."
-	defaultCIEnvironments = "aws/agent-qa"
 )
+
+var defaultCIEnvironments = map[string]string{
+	"aws": "agent-qa",
+	"az":  "agent-qa",
+	"gcp": "agent-qa",
+}
 
 type ciProfile struct {
 	baseProfile
@@ -47,14 +52,29 @@ func NewCIProfile() (Profile, error) {
 	if jobID == "" || projectID == "" {
 		return nil, fmt.Errorf("unable to compute name prefix, missing variables job id: %s, project id: %s", jobID, projectID)
 	}
-
+	uniqueID := jobID
 	store := parameters.NewEnvStore(EnvPrefix)
 
-	// get environments from store
-	environmentsStr, err := store.GetWithDefault(parameters.Environments, defaultCIEnvironments)
+	initOnly, err := store.GetBoolWithDefault(parameters.InitOnly, false)
 	if err != nil {
 		return nil, err
 	}
+
+	preInitialized, err := store.GetBoolWithDefault(parameters.PreInitialized, false)
+	if err != nil {
+		return nil, err
+	}
+
+	if initOnly || preInitialized {
+		uniqueID = fmt.Sprintf("init-%s", os.Getenv("CI_PIPELINE_ID")) // We use pipeline ID for init only and pre-initialized jobs, to be able to share state
+	}
+
+	// get environments from store
+	environmentsStr, err := store.GetWithDefault(parameters.Environments, "")
+	if err != nil {
+		return nil, err
+	}
+	environmentsStr = mergeEnvironments(environmentsStr, defaultCIEnvironments)
 
 	// TODO can be removed using E2E_ENV variable
 	ciEnvNames := os.Getenv("CI_ENV_NAMES")
@@ -69,7 +89,7 @@ func NewCIProfile() (Profile, error) {
 
 	return ciProfile{
 		baseProfile: newProfile("e2eci", ciEnvironments, store, &secretStore, outputRoot),
-		ciUniqueID:  "ci-" + jobID + "-" + projectID,
+		ciUniqueID:  "ci-" + uniqueID + "-" + projectID,
 	}, nil
 }
 

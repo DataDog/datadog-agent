@@ -61,6 +61,28 @@ func (e *etwSession) EnableProvider(providerGUID windows.GUID) error {
 		pids = (*C.ULONG)(unsafe.SliceData(cfg.PIDs))
 		pidCount = C.ULONG(len(cfg.PIDs))
 	}
+	/*
+	 * the enabled list and disabled list are mutually exclusive; the API
+	 * allows you to send one or the other but not both.
+	 */
+	if len(cfg.EnabledIDs) > 0 && len(cfg.DisabledIDs) > 0 {
+		return fmt.Errorf("cannot enable and disable the same provider at the same time")
+	}
+	var enabledFilters *C.USHORT
+	var enabledFilterCount C.ULONG
+
+	if len(cfg.EnabledIDs) > 0 {
+		enabledFilters = (*C.USHORT)(unsafe.SliceData(cfg.EnabledIDs))
+		enabledFilterCount = C.ULONG(len(cfg.EnabledIDs))
+	}
+
+	var disabledFilters *C.USHORT
+	var disabledFilterCount C.ULONG
+
+	if len(cfg.DisabledIDs) > 0 {
+		disabledFilters = (*C.USHORT)(unsafe.SliceData(cfg.DisabledIDs))
+		disabledFilterCount = C.ULONG(len(cfg.DisabledIDs))
+	}
 
 	ret := windows.Errno(C.DDEnableTrace(
 		e.hSession,
@@ -75,6 +97,10 @@ func (e *etwSession) EnableProvider(providerGUID windows.GUID) error {
 		// and re-assemble them in C-land using our helper DDEnableTrace.
 		pids,
 		pidCount,
+		enabledFilters,
+		enabledFilterCount,
+		disabledFilters,
+		disabledFilterCount,
 	))
 
 	if ret != windows.ERROR_SUCCESS {
@@ -140,11 +166,21 @@ func (e *etwSession) StopTracing() error {
 		globalError = errors.Join(globalError, e.DisableProvider(guid))
 	}
 	ptp := (C.PEVENT_TRACE_PROPERTIES)(unsafe.Pointer(&e.propertiesBuf[0]))
-	ret := windows.Errno(C.ControlTraceW(
-		e.hSession,
-		nil,
-		ptp,
-		C.EVENT_TRACE_CONTROL_STOP))
+	var ret windows.Errno
+	if e.wellKnown {
+		if e.hTraceHandle == C.INVALID_PROCESSTRACE_HANDLE {
+			return windows.ERROR_INVALID_HANDLE
+		}
+		ret = windows.Errno(C.CloseTrace(e.hTraceHandle))
+
+	} else {
+		ret = windows.Errno(C.ControlTraceW(
+			e.hSession,
+			nil,
+			ptp,
+			C.EVENT_TRACE_CONTROL_STOP))
+	}
+
 	if !(ret == windows.ERROR_MORE_DATA ||
 		ret == windows.ERROR_SUCCESS) {
 		return errors.Join(ret, globalError)

@@ -27,7 +27,14 @@
 #define POSTGRES_MAX_PAYLOAD_LEN 30000
 
 #define POSTGRES_QUERY_MAGIC_BYTE 'Q'
+#define POSTGRES_PARSE_MAGIC_BYTE 'P'
 #define POSTGRES_COMMAND_COMPLETE_MAGIC_BYTE 'C'
+
+#define POSTGRES_PING_BODY "-- ping"
+#define NULL_TERMINATOR '\0'
+
+#define POSTGRES_SKIP_STRING_ITERATIONS 8
+#define SKIP_STRING_FAILED 0
 
 // Regular format of postgres message: | byte tag | int32_t len | string payload |
 // From https://www.postgresql.org/docs/current/protocol-overview.html:

@@ -17,7 +17,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,9 +24,10 @@ import (
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -136,7 +136,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 		// mode
 		cwsInstrumentationMode InstrumentationMode
 	}
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	tests := []struct {
 		name string
 		args args
@@ -474,7 +474,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 	}
 
 	// prepare the workload meta
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -489,7 +489,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				initialCommand = strings.Join(tt.args.exec.Command, " ")
 			}
 
-			ci, err := NewCWSInstrumentation(wmeta)
+			ci, err := NewCWSInstrumentation(wmeta, mockConfig)
 			if err != nil {
 				require.Fail(t, "couldn't instantiate CWS Instrumentation", "%v", err)
 			} else {
@@ -826,12 +826,12 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 		},
 	}
 
-	// prepare the workload meta
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := config.Mock(t)
+			// prepare the workload meta
+			wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.include", tt.args.include)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.exclude", tt.args.exclude)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.image_name", tt.args.cwsInjectorImageName)
@@ -846,7 +846,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.remote_copy.mount_volume", tt.args.cwsInjectorMountVolumeForRemoteCopy)
 			mockConfig.SetWithoutSource("cluster_agent.service_account_name", tt.args.cwsInjectorServiceAccountName)
 
-			ci, err := NewCWSInstrumentation(wmeta)
+			ci, err := NewCWSInstrumentation(wmeta, mockConfig)
 			if err != nil {
 				require.Fail(t, "couldn't instantiate CWS Instrumentation", "%v", err)
 			} else {
@@ -875,6 +875,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 						require.NotNil(t, annotations, "failed to annotate pod")
 						if annotations != nil {
 							require.Equal(t, cwsInstrumentationPodAnotationReady, annotations[cwsInstrumentationPodAnotationStatus], "CWS instrumentation annotation is missing")
+							require.Equal(t, cwsVolumeName, annotations[common.K8sAutoscalerSafeToEvictVolumesAnnotation], "CWS instrumentation volume should be marked as safe to evict")
 						}
 					} else {
 						testNoInjectedCWSVolume(t, tt.args.pod)
@@ -969,7 +970,7 @@ func testNoInjectedCWSInitContainer(t *testing.T, pod *corev1.Pod) {
 }
 
 func Test_initCWSInitContainerResources(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	tests := []struct {
 		name       string
 		mem        string

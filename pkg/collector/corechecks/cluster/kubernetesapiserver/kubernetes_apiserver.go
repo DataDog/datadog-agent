@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -52,7 +52,7 @@ var (
 	kubeEvents = telemetry.NewCounterWithOpts(
 		CheckName,
 		"kube_events",
-		[]string{"kind", "component", "type", "reason"},
+		[]string{"kind", "component", "type", "reason", "source"},
 		"Number of Kubernetes events received by the check.",
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
@@ -60,7 +60,7 @@ var (
 	emittedEvents = telemetry.NewCounterWithOpts(
 		CheckName,
 		"emitted_events",
-		[]string{"kind", "type"},
+		[]string{"kind", "type", "source", "is_bundled"},
 		"Number of events emitted by the check.",
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
@@ -78,15 +78,16 @@ type KubeASConfig struct {
 	EventCollectionTimeoutMs int  `yaml:"kubernetes_event_read_timeout_ms"`
 	ResyncPeriodEvents       int  `yaml:"kubernetes_event_resync_period_s"`
 	UnbundleEvents           bool `yaml:"unbundle_events"`
+	BundleUnspecifiedEvents  bool `yaml:"bundle_unspecified_events"`
 
 	// FilteredEventTypes is a slice of kubernetes field selectors that
-	// works as a deny list of events to filter out. Only effective when
-	// UnbundleEvents = false
+	// works as a deny list of events to filter out.
 	FilteredEventTypes []string `yaml:"filtered_event_types"`
 
 	// CollectedEventTypes specifies which events to collect.
 	// Only effective when UnbundleEvents = true
 	CollectedEventTypes []collectedEventType `yaml:"collected_event_types"`
+	FilteringEnabled    bool                 `yaml:"filtering_enabled"`
 }
 
 type collectedEventType struct {
@@ -97,6 +98,12 @@ type collectedEventType struct {
 
 type eventTransformer interface {
 	Transform([]*v1.Event) ([]event.Event, []error)
+}
+
+type noopEventTransformer struct{}
+
+func (noopEventTransformer) Transform(_ []*v1.Event) ([]event.Event, []error) {
+	return nil, nil
 }
 
 type eventCollection struct {
@@ -113,11 +120,12 @@ type KubeASCheck struct {
 	eventCollection eventCollection
 	ac              *apiserver.APIClient
 	oshiftAPILevel  apiserver.OpenShiftAPILevel
+	tagger          tagger.Component
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
 	// default values
-	c.CollectEvent = config.Datadog.GetBool("collect_kubernetes_events")
+	c.CollectEvent = pkgconfigsetup.Datadog().GetBool("collect_kubernetes_events")
 	c.CollectOShiftQuotas = true
 	c.ResyncPeriodEvents = defaultResyncPeriodInSecond
 	c.UseComponentStatus = true
@@ -126,25 +134,30 @@ func (c *KubeASConfig) parse(data []byte) error {
 }
 
 // NewKubeASCheck returns a new KubeASCheck
-func NewKubeASCheck(base core.CheckBase, instance *KubeASConfig) *KubeASCheck {
+func NewKubeASCheck(base core.CheckBase, instance *KubeASConfig, tagger tagger.Component) *KubeASCheck {
 	return &KubeASCheck{
 		CheckBase: base,
 		instance:  instance,
+		tagger:    tagger,
 	}
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory(tagger tagger.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(
+		func() check.Check {
+			return newCheck(tagger)
+		},
+	)
 }
 
-func newCheck() check.Check {
-	return NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{})
+func newCheck(tagger tagger.Component) check.Check {
+	return NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{}, tagger)
 }
 
 // Configure parses the check configuration and init the check.
-func (k *KubeASCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	err := k.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
+func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+	err := k.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -166,11 +179,24 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, integrationC
 	hostnameDetected, _ := hostname.Get(context.TODO())
 	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hostnameDetected)
 
-	if k.instance.UnbundleEvents {
-		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes)
-	} else {
+	// Automatically add events based on activated Datadog products
+	if pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") {
+		k.instance.CollectedEventTypes = append(k.instance.CollectedEventTypes, collectedEventType{
+			Source: "datadog-workload-autoscaler",
+		})
+	}
+
+	// When we use both bundled and unbundled transformers, we apply two filters: filtered_event_types and collected_event_types.
+	// When we use only the bundled transformer, we apply filtered_event_types.
+	// When we use only the unbundled transformer, we apply collected_event_types.
+	if (k.instance.UnbundleEvents && k.instance.BundleUnspecifiedEvents) || !k.instance.UnbundleEvents {
 		k.eventCollection.Filter = convertFilters(k.instance.FilteredEventTypes)
-		k.eventCollection.Transformer = newBundledTransformer(clusterName, tagger.GetTaggerInstance())
+	}
+
+	if k.instance.UnbundleEvents {
+		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, k.tagger, k.instance.CollectedEventTypes, k.instance.BundleUnspecifiedEvents, k.instance.FilteringEnabled)
+	} else {
+		k.eventCollection.Transformer = newBundledTransformer(clusterName, k.tagger, k.instance.CollectedEventTypes, k.instance.FilteringEnabled)
 	}
 
 	return nil
@@ -184,7 +210,7 @@ func (k *KubeASCheck) Run() error {
 	}
 	defer sender.Commit()
 
-	if config.Datadog.GetBool("cluster_agent.enabled") {
+	if pkgconfigsetup.Datadog().GetBool("cluster_agent.enabled") {
 		log.Debug("Cluster agent is enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 		return nil
 	}
@@ -192,7 +218,7 @@ func (k *KubeASCheck) Run() error {
 	// The Cluster Agent will passed in the `skip_leader_election` bool.
 	if !k.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
-		if !config.Datadog.GetBool("leader_election") {
+		if !pkgconfigsetup.Datadog().GetBool("leader_election") {
 			return log.Error("Leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 		}
 		leader, errLeader := cluster.RunLeaderElection()
@@ -287,7 +313,6 @@ func (k *KubeASCheck) eventCollectionCheck() ([]event.Event, error) {
 		resync,
 		k.eventCollection.Filter,
 	)
-
 	if err != nil {
 		k.Warnf("Could not collect events from the api server: %s", err.Error()) //nolint:errcheck
 		return nil, err

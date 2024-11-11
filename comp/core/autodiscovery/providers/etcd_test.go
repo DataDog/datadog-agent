@@ -8,12 +8,12 @@
 package providers
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.etcd.io/etcd/client/v2"
-	"golang.org/x/net/context"
 )
 
 type etcdTest struct {

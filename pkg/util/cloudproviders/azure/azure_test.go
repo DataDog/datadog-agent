@@ -17,12 +17,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestGetAlias(t *testing.T) {
 	ctx := context.Background()
 	expected := "5d33a910-a7a0-4443-9f01-6a807801b29b"
+
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -90,14 +92,14 @@ func TestGetNTPHosts(t *testing.T) {
 	ctx := context.Background()
 	expectedHosts := []string{"time.windows.com"}
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		io.WriteString(w, "test")
 	}))
 	defer ts.Close()
 
 	metadataURL = ts.URL
-	config.Datadog.SetWithoutSource("cloud_provider_metadata", []string{"azure"})
+	pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"azure"})
 	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)
@@ -105,7 +107,7 @@ func TestGetNTPHosts(t *testing.T) {
 
 func TestGetHostname(t *testing.T) {
 	ctx := context.Background()
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		io.WriteString(w, `{
 			"name": "vm-name",
@@ -129,7 +131,7 @@ func TestGetHostname(t *testing.T) {
 		{"invalid", "", true},
 	}
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 
 	for _, tt := range cases {
 		mockConfig.SetWithoutSource(hostnameStyleSetting, tt.style)
@@ -141,12 +143,12 @@ func TestGetHostname(t *testing.T) {
 
 func TestGetHostnameWithInvalidMetadata(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 
 	styles := []string{"vmid", "name", "name_and_resource_group", "full"}
 
 	for _, response := range []string{"", "!"} {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			io.WriteString(w, fmt.Sprintf(`{
 				"name": "%s",

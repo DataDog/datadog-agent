@@ -27,20 +27,50 @@ import (
 )
 
 // NodeDroppedReason is used to list the reasons to drop a node
-type NodeDroppedReason string
+type NodeDroppedReason byte
 
-var (
-	eventTypeReason       NodeDroppedReason = "event_type"
-	invalidRootNodeReason NodeDroppedReason = "invalid_root_node"
-	bindFamilyReason      NodeDroppedReason = "bind_family"
-	brokenEventReason     NodeDroppedReason = "broken_event"
-	allDropReasons                          = []NodeDroppedReason{
-		eventTypeReason,
-		invalidRootNodeReason,
-		bindFamilyReason,
-		brokenEventReason,
-	}
+const (
+	eventTypeReason NodeDroppedReason = iota
+	invalidRootNodeReason
+	bindFamilyReason
+	brokenEventReason
+
+	minNodeDroppedReason   = eventTypeReason
+	maxNodeDroppedReason   = brokenEventReason
+	nodeDroppedReasonCount = maxNodeDroppedReason - minNodeDroppedReason + 1
 )
+
+func (reason NodeDroppedReason) String() string {
+	switch reason {
+	case eventTypeReason:
+		return "event_type"
+	case invalidRootNodeReason:
+		return "invalid_root_node"
+	case bindFamilyReason:
+		return "bind_family"
+	case brokenEventReason:
+		return "broken_event"
+	default:
+		return "unknown"
+	}
+}
+
+// Tag returns the metric tag associated with this dropped reason, it's basically
+// fmt.Sprintf("reason:%s", reason)
+func (reason NodeDroppedReason) Tag() string {
+	switch reason {
+	case eventTypeReason:
+		return "reason:event_type"
+	case invalidRootNodeReason:
+		return "reason:invalid_root_node"
+	case bindFamilyReason:
+		return "reason:bind_family"
+	case brokenEventReason:
+		return "reason:broken_event"
+	default:
+		return "reason:unknown"
+	}
+}
 
 var (
 	// ErrBrokenLineage is returned when the given process don't have a full lineage
@@ -80,6 +110,23 @@ func (genType NodeGenerationType) String() string {
 		return "workload_warmup"
 	default:
 		return "unknown"
+	}
+}
+
+// Tag returns the metric tag associated with this generation type, it's basically
+// fmt.Sprintf("generation_type:%s", genType)
+func (genType NodeGenerationType) Tag() string {
+	switch genType {
+	case Runtime:
+		return "generation_type:runtime"
+	case Snapshot:
+		return "generation_type:snapshot"
+	case ProfileDrift:
+		return "generation_type:profile_drift"
+	case WorkloadWarmup:
+		return "generation_type:workload_warmup"
+	default:
+		return "generation_type:unknown"
 	}
 }
 
@@ -272,6 +319,15 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 			}
 			return false, errors.New("invalid event: invalid bind family")
 		}
+	case model.IMDSEventType:
+		// ignore IMDS answers without AccessKeyIDS
+		if event.IMDS.Type == model.IMDSResponseType && len(event.IMDS.AWS.SecurityCredentials.AccessKeyID) == 0 {
+			return false, fmt.Errorf("untraced event: IMDS response without credentials")
+		}
+		// ignore IMDS requests without URLs
+		if event.IMDS.Type == model.IMDSRequestType && len(event.IMDS.URL) == 0 {
+			return false, fmt.Errorf("invalid event: IMDS request without any URL")
+		}
 	}
 	return true, nil
 }
@@ -340,6 +396,8 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return node.InsertFileEvent(&event.Open.File, event, imageTag, generationType, at.Stats, dryRun, at.pathsReducer, resolvers), nil
 	case model.DNSEventType:
 		return node.InsertDNSEvent(event, imageTag, generationType, at.Stats, at.DNSNames, dryRun, at.DNSMatchMaxDepth), nil
+	case model.IMDSEventType:
+		return node.InsertIMDSEvent(event, imageTag, generationType, at.Stats, dryRun), nil
 	case model.BindEventType:
 		return node.InsertBindEvent(event, imageTag, generationType, at.Stats, dryRun), nil
 	case model.SyscallsEventType:
@@ -795,4 +853,95 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 		}
 	}
 	at.ProcessNodes = newProcessNodes
+}
+
+func (at *ActivityTree) visitProcessNode(processNode *ProcessNode, cb func(processNode *ProcessNode)) {
+	for _, pn := range processNode.Children {
+		at.visitProcessNode(pn, cb)
+	}
+	cb(processNode)
+}
+
+func (at *ActivityTree) visitFileNode(fileNode *FileNode, cb func(fileNode *FileNode)) {
+	if len(fileNode.Children) == 0 {
+		cb(fileNode)
+		return
+	}
+
+	for _, file := range fileNode.Children {
+		at.visitFileNode(file, cb)
+	}
+}
+
+func (at *ActivityTree) visit(cb func(processNode *ProcessNode)) {
+	for _, pn := range at.ProcessNodes {
+		at.visitProcessNode(pn, cb)
+	}
+}
+
+// ExtractPaths returns the exec / fim, exec / parent paths
+func (at *ActivityTree) ExtractPaths(_, fimEnabled, lineageEnabled bool) (map[string][]string, map[string][]string) {
+
+	fimPathsperExecPath := make(map[string][]string)
+	execAndParent := make(map[string][]string)
+	modifiedPaths := make(map[string]string)
+
+	at.visit(func(processNode *ProcessNode) {
+		var fimPaths []string
+		if fimEnabled {
+			for _, file := range processNode.Files {
+				at.visitFileNode(file, func(fileNode *FileNode) {
+					path, ok := modifiedPaths[fileNode.File.PathnameStr]
+					if !ok {
+						modifiedPaths[fileNode.File.PathnameStr] = utils.CheckForPatterns(fileNode.File.PathnameStr)
+						path = modifiedPaths[fileNode.File.PathnameStr]
+					}
+					if len(path) > 0 {
+						fimPaths = append(fimPaths, path)
+					}
+				})
+			}
+		}
+
+		execPath, ok := modifiedPaths[processNode.Process.FileEvent.PathnameStr]
+		if !ok {
+			modifiedPaths[processNode.Process.FileEvent.PathnameStr] = utils.CheckForPatterns(processNode.Process.FileEvent.PathnameStr)
+			execPath = modifiedPaths[processNode.Process.FileEvent.PathnameStr]
+		}
+
+		paths, ok := fimPathsperExecPath[execPath]
+		if ok {
+			fimPathsperExecPath[execPath] = append(paths, fimPaths...)
+		} else {
+			fimPathsperExecPath[execPath] = fimPaths
+		}
+
+		if lineageEnabled {
+			p, pp := extractExecAndParent(processNode)
+			tmp, ok := execAndParent[p]
+			if ok {
+				execAndParent[p] = append(tmp, pp)
+			} else {
+				execAndParent[p] = []string{pp}
+			}
+		}
+	})
+
+	return fimPathsperExecPath, execAndParent
+}
+
+// ExtractSyscalls return the syscalls present in an activity tree
+func (at *ActivityTree) ExtractSyscalls(arch string) []string {
+	var syscalls []string
+
+	at.visit(func(processNode *ProcessNode) {
+		for _, s := range processNode.Syscalls {
+			sycallKey := utils.SyscallKey{Arch: arch, ID: s}
+			syscall, ok := utils.Syscalls[sycallKey]
+			if ok {
+				syscalls = append(syscalls, syscall)
+			}
+		}
+	})
+	return syscalls
 }

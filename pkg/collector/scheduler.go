@@ -17,6 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -62,15 +64,15 @@ type CheckScheduler struct {
 }
 
 // InitCheckScheduler creates and returns a check scheduler
-func InitCheckScheduler(collector optional.Option[collector.Component], senderManager sender.SenderManager) *CheckScheduler {
+func InitCheckScheduler(collector optional.Option[collector.Component], senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component], tagger tagger.Component) *CheckScheduler {
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
 		senderManager:  senderManager,
 		configToChecks: make(map[string][]checkid.ID),
-		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager))),
+		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger))),
 	}
 	// add the check loaders
-	for _, loader := range loaders.LoaderCatalog(senderManager) {
+	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger) {
 		checkScheduler.AddLoader(loader)
 		log.Debugf("Added %s to Check Scheduler", loader)
 	}
@@ -79,7 +81,6 @@ func InitCheckScheduler(collector optional.Option[collector.Component], senderMa
 
 // Schedule schedules configs to checks
 func (s *CheckScheduler) Schedule(configs []integration.Config) {
-
 	if coll, ok := s.collector.Get(); ok {
 		checks := s.GetChecksFromConfigs(configs, true)
 		for _, c := range checks {
@@ -98,8 +99,8 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 // Unschedule unschedules checks matching configs
 func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 	for _, config := range configs {
-		if !config.IsCheckConfig() || config.HasFilter(containers.MetricsFilter) {
-			// skip non check and excluded configs.
+		if !config.IsCheckConfig() {
+			// skip non check
 			continue
 		}
 		// unschedule all the possible checks corresponding to this config
@@ -167,6 +168,11 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 	selectedLoader := initConfig.LoaderName
 
 	for _, instance := range config.Instances {
+		if check.IsJMXInstance(config.Name, instance, config.InitConfig) {
+			log.Debugf("skip loading jmx check '%s', it is handled elsewhere", config.Name)
+			continue
+		}
+
 		errors := []string{}
 		selectedInstanceLoader := selectedLoader
 		instanceConfig := commonInstanceConfig{}
@@ -198,14 +204,6 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 				errorStats.removeLoaderErrors(config.Name)
 				checks = append(checks, c)
 				break
-			} else if c != nil && check.IsJMXInstance(config.Name, instance, config.InitConfig) {
-				// JMXfetch is more permissive than the agent regarding instance configuration. It
-				// accepts tags as a map and a list whether the agent only accepts tags as a list
-				// we still attempt to schedule the check but we save the error.
-				log.Debugf("%v: loading issue for JMX check '%s', the agent will still attempt to schedule it", loader, config.Name)
-				errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
-				checks = append(checks, c)
-				break
 			}
 			errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
 			errors = append(errors, fmt.Sprintf("%v: %s", loader, err))
@@ -214,10 +212,6 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 		if len(errors) == numLoaders {
 			log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, strings.Join(errors, "; "))
 		}
-	}
-
-	if len(checks) == 0 {
-		return checks, fmt.Errorf("unable to load any check from config '%s'", config.Name)
 	}
 
 	return checks, nil

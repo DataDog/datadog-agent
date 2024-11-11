@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix duplicate logging in Process Agent component's Enabled() method.

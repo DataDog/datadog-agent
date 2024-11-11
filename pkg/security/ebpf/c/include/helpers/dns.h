@@ -24,6 +24,7 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
     // reset DNS name
     evt->name[0] = 0;
     evt->size = pkt->payload_len;
+    evt->event.flags = 0;
 
     // process context
     fill_network_process_context(&evt->process, pkt);
@@ -36,6 +37,7 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
         evt->container.container_id[0] = 0;
     } else {
         copy_container_id_no_tracing(entry->container.container_id, &evt->container.container_id);
+        evt->container.cgroup_context = entry->container.cgroup_context;
     }
 
     // should we sample this event for activity dumps ?

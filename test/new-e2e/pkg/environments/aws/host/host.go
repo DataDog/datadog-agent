@@ -168,19 +168,26 @@ func ProvisionerNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[env
 	return Provisioner(mergedOpts...)
 }
 
+// RunParams is a set of parameters for the Run function.
+type RunParams struct {
+	Environment       *aws.Environment
+	ProvisionerParams *ProvisionerParams
+}
+
 // Run deploys a environment given a pulumi.Context
-func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams) error {
+func Run(ctx *pulumi.Context, env *environments.Host, runParams RunParams) error {
 	var awsEnv aws.Environment
-	var err error
-	if env.AwsEnvironment != nil {
-		awsEnv = *env.AwsEnvironment
-	} else {
+	if runParams.Environment == nil {
+		var err error
 		awsEnv, err = aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
 		}
+	} else {
+		awsEnv = *runParams.Environment
 	}
 
+	params := runParams.ProvisionerParams
 	host, err := ec2.NewVM(awsEnv, params.name, params.instanceOptions...)
 	if err != nil {
 		return err
@@ -191,7 +198,15 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 	}
 
 	if params.installDocker {
-		dockerManager, err := docker.NewManager(&awsEnv, host)
+		// install the ECR credentials helper
+		// required to get pipeline agent images or other internally hosted images
+		installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
+		if err != nil {
+			return err
+		}
+
+		dockerManager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+
 		if err != nil {
 			return err
 		}
@@ -246,7 +261,8 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 		// todo: add agent once updater installs agent on bootstrap
 		env.Agent = nil
 	} else if params.agentOptions != nil {
-		agent, err := agent.NewHostAgent(&awsEnv, host, params.agentOptions...)
+		agentOptions := append(params.agentOptions, agentparams.WithTags([]string{fmt.Sprintf("stackid:%s", ctx.Stack())}))
+		agent, err := agent.NewHostAgent(&awsEnv, host, agentOptions...)
 		if err != nil {
 			return err
 		}
@@ -275,7 +291,7 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ho
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
 		params := GetProvisionerParams(opts...)
-		return Run(ctx, env, params)
+		return Run(ctx, env, RunParams{ProvisionerParams: params})
 	}, params.extraConfigParams)
 
 	return provisioner

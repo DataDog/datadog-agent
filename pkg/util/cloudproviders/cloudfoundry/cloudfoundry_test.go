@@ -12,13 +12,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 func TestHostAliasDisable(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 
 	mockConfig.SetWithoutSource("cloud_foundry", false)
 	mockConfig.SetWithoutSource("bosh_id", "ID_CF")
@@ -31,7 +31,7 @@ func TestHostAliasDisable(t *testing.T) {
 func TestHostAlias(t *testing.T) {
 	ctx := context.Background()
 	defer func() { getFqdn = util.Fqdn }()
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 
 	mockConfig.SetWithoutSource("cloud_foundry", true)
 	mockConfig.SetWithoutSource("bosh_id", "ID_CF")
@@ -70,11 +70,11 @@ func TestHostAlias(t *testing.T) {
 
 func TestHostAliasDefault(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockHostname := "hostname"
 
 	// mock getFqdn to avoid flakes in CI runners
-	getFqdn = func(hostname string) string {
+	getFqdn = func(string) string {
 		return mockHostname
 	}
 

@@ -23,6 +23,12 @@ func (sgw *StatCounterWrapper) Inc(tags ...string) {
 	sgw.counter.Inc(tags...)
 }
 
+// IncWithTags increments the counter with the given tags value.
+func (sgw *StatCounterWrapper) IncWithTags(tags map[string]string) {
+	sgw.stat.Inc()
+	sgw.counter.IncWithTags(tags)
+}
+
 // Delete deletes the value for the counter with the given tags value.
 func (sgw *StatCounterWrapper) Delete() {
 	sgw.stat.Store(0)

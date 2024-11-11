@@ -75,9 +75,9 @@ func (_m *SecurityModuleClientWrapper) DumpNetworkNamespace(snapshotInterfaces b
 	return r0, r1
 }
 
-// DumpProcessCache provides a mock function with given fields: withArgs
-func (_m *SecurityModuleClientWrapper) DumpProcessCache(withArgs bool) (string, error) {
-	ret := _m.Called(withArgs)
+// DumpProcessCache provides a mock function with given fields: withArgs, format
+func (_m *SecurityModuleClientWrapper) DumpProcessCache(withArgs bool, format string) (string, error) {
+	ret := _m.Called(withArgs, format)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DumpProcessCache")
@@ -85,17 +85,17 @@ func (_m *SecurityModuleClientWrapper) DumpProcessCache(withArgs bool) (string, 
 
 	var r0 string
 	var r1 error
-	if rf, ok := ret.Get(0).(func(bool) (string, error)); ok {
-		return rf(withArgs)
+	if rf, ok := ret.Get(0).(func(bool, string) (string, error)); ok {
+		return rf(withArgs, format)
 	}
-	if rf, ok := ret.Get(0).(func(bool) string); ok {
-		r0 = rf(withArgs)
+	if rf, ok := ret.Get(0).(func(bool, string) string); ok {
+		r0 = rf(withArgs, format)
 	} else {
 		r0 = ret.Get(0).(string)
 	}
 
-	if rf, ok := ret.Get(1).(func(bool) error); ok {
-		r1 = rf(withArgs)
+	if rf, ok := ret.Get(1).(func(bool, string) error); ok {
+		r1 = rf(withArgs, format)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -463,9 +463,9 @@ func (_m *SecurityModuleClientWrapper) SaveSecurityProfile(name string, tag stri
 	return r0, r1
 }
 
-// StopActivityDump provides a mock function with given fields: name, containerid, comm
-func (_m *SecurityModuleClientWrapper) StopActivityDump(name string, containerid string, comm string) (*api.ActivityDumpStopMessage, error) {
-	ret := _m.Called(name, containerid, comm)
+// StopActivityDump provides a mock function with given fields: name, containerid
+func (_m *SecurityModuleClientWrapper) StopActivityDump(name string, containerid string) (*api.ActivityDumpStopMessage, error) {
+	ret := _m.Called(name, containerid)
 
 	if len(ret) == 0 {
 		panic("no return value specified for StopActivityDump")
@@ -473,19 +473,19 @@ func (_m *SecurityModuleClientWrapper) StopActivityDump(name string, containerid
 
 	var r0 *api.ActivityDumpStopMessage
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string, string) (*api.ActivityDumpStopMessage, error)); ok {
-		return rf(name, containerid, comm)
+	if rf, ok := ret.Get(0).(func(string, string) (*api.ActivityDumpStopMessage, error)); ok {
+		return rf(name, containerid)
 	}
-	if rf, ok := ret.Get(0).(func(string, string, string) *api.ActivityDumpStopMessage); ok {
-		r0 = rf(name, containerid, comm)
+	if rf, ok := ret.Get(0).(func(string, string) *api.ActivityDumpStopMessage); ok {
+		r0 = rf(name, containerid)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*api.ActivityDumpStopMessage)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string, string) error); ok {
-		r1 = rf(name, containerid, comm)
+	if rf, ok := ret.Get(1).(func(string, string) error); ok {
+		r1 = rf(name, containerid)
 	} else {
 		r1 = ret.Error(1)
 	}

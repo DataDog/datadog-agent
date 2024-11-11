@@ -15,10 +15,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestFxRun(t *testing.T) {
+func TestFxRun_WithDatadogExporter(t *testing.T) {
 	fxutil.TestRun(t, func() error {
 		ctx := context.Background()
-		cliParams := &subcommands.GlobalParams{}
-		return runOTelAgentCommand(ctx, cliParams)
+		params := &subcommands.GlobalParams{
+			ConfPaths: []string{"test_config.yaml"},
+		}
+		return runOTelAgentCommand(ctx, params)
+	})
+}
+
+func TestFxRun_NoDatadogExporter(t *testing.T) {
+	fxutil.TestRun(t, func() error {
+		ctx := context.Background()
+		params := &subcommands.GlobalParams{
+			ConfPaths: []string{"test_config_no_dd.yaml"},
+		}
+		return runOTelAgentCommand(ctx, params)
 	})
 }

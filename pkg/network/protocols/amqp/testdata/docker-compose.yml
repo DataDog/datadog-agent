@@ -4,8 +4,16 @@ services:
   rabbitmq:
     image: rabbitmq:3-management-alpine
     ports:
-      - ${AMQP_ADDR:-127.0.0.1}:${AMQP_PORT:-5672}:5672
+      - ${AMQP_ADDR:-127.0.0.1}:${AMQP_PORT:-5672}:${AMQP_PORT:-5672}
       - ${AMQP_ADDR:-127.0.0.1}:15672:15672
+      - ${AMQP_ADDR:-127.0.0.1}:15671:15671
     environment:
       - "RABBITMQ_DEFAULT_PASS=${PASS:-guest}"
       - "RABBITMQ_DEFAULT_USER=${USER:-guest}"
+    volumes:
+      - type: bind
+        source: ${CERTS_PATH}
+        target: /certs
+      - type: bind
+        source: ./${ENCRYPTION_POLICY}.conf
+        target: /etc/rabbitmq/rabbitmq.conf

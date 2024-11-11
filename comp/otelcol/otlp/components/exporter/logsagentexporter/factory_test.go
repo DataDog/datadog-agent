@@ -23,7 +23,7 @@ func TestNewLogsExporter(t *testing.T) {
 	factory := NewFactory(channel)
 	cfg := factory.CreateDefaultConfig()
 
-	set := exportertest.NewNopCreateSettings()
+	set := exportertest.NewNopSettings()
 	_, err := factory.CreateLogsExporter(context.Background(), set, cfg)
 	assert.NoError(t, err)
 }

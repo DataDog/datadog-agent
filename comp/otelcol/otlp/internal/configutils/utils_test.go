@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
@@ -53,20 +52,32 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 	require.NoError(t, err)
 	cfgMap, err := NewMapFromYAMLString(string(content))
 	require.NoError(t, err)
-	mapProvider := NewConfigProviderFromMap(cfgMap)
 
+	mapSettings := otelcol.ConfigProviderSettings{
+		ResolverSettings: confmap.ResolverSettings{
+			URIs: []string{mapLocation},
+			ProviderFactories: []confmap.ProviderFactory{
+				NewProviderFactory(cfgMap),
+			},
+			ConverterFactories: []confmap.ConverterFactory{},
+		},
+	}
 	// build default provider from same data
 	settings := otelcol.ConfigProviderSettings{
 		ResolverSettings: confmap.ResolverSettings{
 			URIs: []string{fmt.Sprintf("file:%s", testPath)},
-			Providers: makeConfigMapProviderMap(
-				fileprovider.NewFactory().Create(confmap.ProviderSettings{}),
-				envprovider.NewFactory().Create(confmap.ProviderSettings{}),
-				yamlprovider.NewFactory().Create(confmap.ProviderSettings{})),
-			Converters: []confmap.Converter{expandconverter.NewFactory().Create(confmap.ConverterSettings{})},
+			ProviderFactories: []confmap.ProviderFactory{
+				fileprovider.NewFactory(),
+				envprovider.NewFactory(),
+				yamlprovider.NewFactory(),
+			},
+			ConverterFactories: []confmap.ConverterFactory{},
 		},
 	}
+
 	defaultProvider, err := otelcol.NewConfigProvider(settings)
+	require.NoError(t, err)
+	mapProvider, err := otelcol.NewConfigProvider(mapSettings)
 	require.NoError(t, err)
 
 	// Get config.Config from both
@@ -77,12 +88,4 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, cfg, defaultCfg, "Custom constant provider does not provide same config as default provider.")
-}
-
-func makeConfigMapProviderMap(providers ...confmap.Provider) map[string]confmap.Provider {
-	ret := make(map[string]confmap.Provider, len(providers))
-	for _, provider := range providers {
-		ret[provider.Scheme()] = provider
-	}
-	return ret
 }

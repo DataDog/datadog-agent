@@ -47,7 +47,7 @@ func TestEvents(t *testing.T) {
 		}...),
 		AggregationKey: "docker:datadog/docker-library:busybox_1_28_0",
 		SourceTypeName: "docker",
-		Priority:       event.EventPriorityNormal,
+		Priority:       event.PriorityNormal,
 		Host:           localHostname,
 	}
 	sender.AssertEvent(t, expectedBusyboxEvent, time.Minute)
@@ -64,7 +64,7 @@ func TestEvents(t *testing.T) {
 		}...),
 		AggregationKey: "docker:datadog/docker-library:redis_3_2_11-alpine",
 		SourceTypeName: "docker",
-		Priority:       event.EventPriorityNormal,
+		Priority:       event.PriorityNormal,
 		Host:           localHostname,
 	}
 	sender.AssertEvent(t, expectedRedisEvent, time.Minute)

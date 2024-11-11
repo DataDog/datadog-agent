@@ -20,7 +20,7 @@ func NewGetContainerLifecycleEventsCommand(cl **client.Client) (cmd *cobra.Comma
 		Use:     "container-lifecycle-events",
 		Short:   "Get container lifecycle events",
 		Example: `fakeintakectl --url http://internal-lenaic-eks-fakeintake-2062862526.us-east-1.elb.amazonaws.com get container-lifecycle-events`,
-		RunE: func(cmd *cobra.Command, args []string) (err error) {
+		RunE: func(*cobra.Command, []string) (err error) {
 			evts, err := (*cl).GetContainerLifecycleEvents()
 			if err != nil {
 				return err

@@ -26,7 +26,7 @@ func NewFilterLogsCommand(cl **client.Client) (cmd *cobra.Command) {
 		Use:     "logs",
 		Short:   "Filter logs",
 		Example: `fakeintakectl --url http://internal-lenaic-eks-fakeintake-2062862526.us-east-1.elb.amazonaws.com filter logs --service agent --tags image_name:gcr.io/datadoghq/agent,container_name:agent`,
-		RunE: func(cmd *cobra.Command, args []string) (err error) {
+		RunE: func(cmd *cobra.Command, _ []string) (err error) {
 			var opts []client.MatchOpt[*aggregator.Log]
 			if cmd.Flag("tags").Changed {
 				opts = append(opts, client.WithTags[*aggregator.Log](tags))

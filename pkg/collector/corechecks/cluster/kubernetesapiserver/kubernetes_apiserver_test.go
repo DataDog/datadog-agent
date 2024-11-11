@@ -14,6 +14,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	obj "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -82,8 +83,10 @@ func TestParseComponentStatus(t *testing.T) {
 		Items: nil,
 	}
 
+	tagger := taggerimpl.SetupFakeTagger(t)
+
 	// FIXME: use the factory instead
-	kubeASCheck := NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{})
+	kubeASCheck := NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{}, tagger)
 
 	mocked := mocksender.NewMockSender(kubeASCheck.ID())
 	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", servicecheck.ServiceCheckOK, "", []string{"component:Zookeeper"}, "imok")

@@ -13,6 +13,7 @@ import golog "log"
 // Logger defines a logger
 type Logger struct {
 	Verbose bool
+	Debug   bool
 }
 
 // Errorf print the error
@@ -20,9 +21,16 @@ func (l *Logger) Errorf(fmt string, args ...any) {
 	golog.Printf(fmt, args...)
 }
 
+// Logf print if verbose
+func (l *Logger) Logf(fmt string, args ...any) {
+	if l.Verbose {
+		golog.Printf(fmt, args...)
+	}
+}
+
 // Debugf print if verbose
 func (l *Logger) Debugf(fmt string, args ...any) {
-	if l.Verbose {
+	if l.Debug {
 		golog.Printf(fmt, args...)
 	}
 }

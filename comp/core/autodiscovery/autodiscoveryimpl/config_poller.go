@@ -30,17 +30,19 @@ type configPoller struct {
 
 	stopChan chan struct{}
 
-	configsMu sync.Mutex
-	configs   map[uint64]integration.Config
+	configsMu      sync.Mutex
+	configs        map[uint64]integration.Config
+	telemetryStore *telemetry.Store
 }
 
-func newConfigPoller(provider providers.ConfigProvider, canPoll bool, interval time.Duration) *configPoller {
+func newConfigPoller(provider providers.ConfigProvider, canPoll bool, interval time.Duration, telemetryStore *telemetry.Store) *configPoller {
 	return &configPoller{
-		provider:     provider,
-		configs:      make(map[uint64]integration.Config),
-		canPoll:      canPoll,
-		pollInterval: interval,
-		stopChan:     make(chan struct{}),
+		provider:       provider,
+		configs:        make(map[uint64]integration.Config),
+		canPoll:        canPoll,
+		pollInterval:   interval,
+		stopChan:       make(chan struct{}),
+		telemetryStore: telemetryStore,
 	}
 }
 
@@ -203,7 +205,9 @@ func (cp *configPoller) collectOnce(ctx context.Context, provider providers.Coll
 func (cp *configPoller) collect(ctx context.Context, provider providers.CollectingConfigProvider) ([]integration.Config, []integration.Config) {
 	start := time.Now()
 	defer func() {
-		telemetry.PollDuration.Observe(time.Since(start).Seconds(), cp.provider.String())
+		if cp.telemetryStore != nil {
+			cp.telemetryStore.PollDuration.Observe(time.Since(start).Seconds(), cp.provider.String())
+		}
 	}()
 
 	fetched, err := provider.Collect(ctx)

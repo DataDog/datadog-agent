@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/benbjohnson/clock"
 
 	//nolint:revive // TODO(DBM) Fix revive linter
 	_ "github.com/godror/godror"
@@ -97,8 +98,10 @@ type Check struct {
 	metricLastRun                           time.Time
 	statementsLastRun                       time.Time
 	dbInstanceLastRun                       time.Time
+	tablespaceLastRun                       time.Time
 	filePath                                string
 	sqlTraceRunsCount                       int
+	sqlSubstringLength                      int
 	connectedToPdb                          bool
 	fqtEmitted                              *cache.Cache
 	planEmitted                             *cache.Cache
@@ -107,10 +110,13 @@ type Check struct {
 	logPrompt                               string
 	initialized                             bool
 	multitenant                             bool
-	lastOracleRows                          []OracleRow // added for tests
+	lastOracleRows                          []OracleRow         // added for tests
+	lastOracleActivityRows                  []OracleActivityRow //added for tests
 	databaseRole                            string
 	openMode                                string
 	legacyIntegrationCompatibilityMode      bool
+	clock                                   clock.Clock
+	lastSampleId                            uint64
 }
 
 type vDatabase struct {
@@ -182,7 +188,7 @@ func (c *Check) Run() error {
 		c.connection = conn
 	}
 
-	dbInstanceIntervalExpired := checkIntervalExpired(&c.dbInstanceLastRun, 1800)
+	dbInstanceIntervalExpired := checkIntervalExpired(&c.dbInstanceLastRun, c.config.DatabaseInstanceCollectionInterval)
 
 	if dbInstanceIntervalExpired && !c.legacyIntegrationCompatibilityMode && !c.config.OnlyCustomQueries {
 		err := sendDbInstanceMetadata(c)
@@ -247,12 +253,6 @@ func (c *Check) Run() error {
 				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect sysmetrics %w", c.logPrompt, err))
 			}
 		}
-		if c.config.Tablespaces.Enabled {
-			err := c.Tablespaces()
-			if err != nil {
-				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect tablespaces %w", c.logPrompt, err))
-			}
-		}
 		if c.config.ProcessMemory.Enabled || c.config.InactiveSessions.Enabled {
 			err := c.ProcessMemory()
 			if err != nil {
@@ -264,6 +264,14 @@ func (c *Check) Run() error {
 			if err != nil {
 				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to execute custom queries %w", c.logPrompt, err))
 			}
+		}
+	}
+
+	tablespaceIntervalExpired := checkIntervalExpired(&c.tablespaceLastRun, c.config.Tablespaces.CollectionInterval)
+	if c.config.Tablespaces.Enabled && tablespaceIntervalExpired {
+		err := c.Tablespaces()
+		if err != nil {
+			allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect tablespaces %w", c.logPrompt, err))
 		}
 	}
 
@@ -366,7 +374,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	// Must be called before c.CommonConfigure because this integration supports multiple instances
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
-	if err := c.CommonConfigure(senderManager, integrationConfigDigest, rawInitConfig, rawInstance, source); err != nil {
+	if err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source); err != nil {
 		return fmt.Errorf("common configure failed: %s", err)
 	}
 
@@ -379,6 +387,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.agentVersion = agentVersion.GetNumberAndPre()
 
 	c.checkInterval = float64(c.config.InitConfig.MinCollectionInterval)
+	c.sqlSubstringLength = MaxSQLFullTextVSQL
 
 	tags := make([]string, len(c.config.Tags))
 	copy(tags, c.config.Tags)

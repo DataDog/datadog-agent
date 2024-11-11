@@ -6,8 +6,6 @@
 package api
 
 import (
-	"net/http"
-
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -18,17 +16,10 @@ import (
 // setupConfigHandlers adds the specific handlers for /config endpoints
 func setupConfigHandlers(r *mux.Router, settings settings.Component) {
 	r.HandleFunc("/config", settings.GetFullConfig(getAggregatedNamespaces()...)).Methods("GET")
+	r.HandleFunc("/config/by-source", settings.GetFullConfigBySource()).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		setting := vars["setting"]
-		settings.GetValue(setting, w, r)
-	}).Methods("GET")
-	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		setting := vars["setting"]
-		settings.SetValue(setting, w, r)
-	}).Methods("POST")
+	r.HandleFunc("/config/{setting}", settings.GetValue).Methods("GET")
+	r.HandleFunc("/config/{setting}", settings.SetValue).Methods("POST")
 }
 
 func getAggregatedNamespaces() []string {

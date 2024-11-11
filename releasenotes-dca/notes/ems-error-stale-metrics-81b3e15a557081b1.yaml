@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixes issue where the external metrics server would sometimes return metrics which had not
+    been updated for longer than the configured `external_metrics_provider.max_age` as valid.
+    In connection with this fix, a new config (`external_metrics_provider.query_validity_period`)
+    has been added to account for the delay between when metrics are resolved and when they
+    are queried by the various autoscaling controllers. It is set to 30 seconds by default.

@@ -16,8 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -30,11 +29,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "version",
 		Short: "Print the version info",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(displayVersion,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
 			)
 		},

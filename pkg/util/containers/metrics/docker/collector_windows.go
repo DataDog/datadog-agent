@@ -9,13 +9,14 @@ package docker
 
 import (
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-func convertContainerStats(stats *types.Stats) *provider.ContainerStats {
+func convertContainerStats(stats *container.Stats) *provider.ContainerStats {
 	return &provider.ContainerStats{
 		Timestamp: stats.Read,
 		CPU:       convertCPUStats(&stats.CPUStats),
@@ -25,7 +26,7 @@ func convertContainerStats(stats *types.Stats) *provider.ContainerStats {
 	}
 }
 
-func convertCPUStats(cpuStats *types.CPUStats) *provider.ContainerCPUStats {
+func convertCPUStats(cpuStats *container.CPUStats) *provider.ContainerCPUStats {
 	return &provider.ContainerCPUStats{
 		// ContainerCPUStats expects CPU metrics in nanoseconds
 		// *On Windows* (only) CPUStats units are 100’s of nanoseconds
@@ -35,7 +36,7 @@ func convertCPUStats(cpuStats *types.CPUStats) *provider.ContainerCPUStats {
 	}
 }
 
-func convertMemoryStats(memStats *types.MemoryStats) *provider.ContainerMemStats {
+func convertMemoryStats(memStats *container.MemoryStats) *provider.ContainerMemStats {
 	return &provider.ContainerMemStats{
 		UsageTotal:        pointer.Ptr(float64(memStats.Commit)),
 		PrivateWorkingSet: pointer.Ptr(float64(memStats.PrivateWorkingSet)),
@@ -44,7 +45,7 @@ func convertMemoryStats(memStats *types.MemoryStats) *provider.ContainerMemStats
 	}
 }
 
-func convertIOStats(storageStats *types.StorageStats) *provider.ContainerIOStats {
+func convertIOStats(storageStats *container.StorageStats) *provider.ContainerIOStats {
 	return &provider.ContainerIOStats{
 		ReadBytes:       pointer.Ptr(float64(storageStats.ReadSizeBytes)),
 		WriteBytes:      pointer.Ptr(float64(storageStats.WriteSizeBytes)),

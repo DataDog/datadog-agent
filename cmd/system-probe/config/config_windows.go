@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -43,5 +44,8 @@ func ValidateSocketAddress(sockAddress string) error {
 
 // ProcessEventDataStreamSupported returns true if process event data stream is supported
 func ProcessEventDataStreamSupported() bool {
-	return false
+	return true
+}
+
+func allowPrebuiltEbpfFallback(_ model.Config) {
 }

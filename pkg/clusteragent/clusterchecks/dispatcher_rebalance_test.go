@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestRebalance(t *testing.T) {
@@ -1522,9 +1522,9 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 
 	testDispatcher.store.active = true
 	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "")
-	testDispatcher.store.nodes["node1"].workers = config.DefaultNumWorkers
+	testDispatcher.store.nodes["node1"].workers = pkgconfigsetup.DefaultNumWorkers
 	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "")
-	testDispatcher.store.nodes["node2"].workers = config.DefaultNumWorkers
+	testDispatcher.store.nodes["node2"].workers = pkgconfigsetup.DefaultNumWorkers
 
 	testDispatcher.store.nodes["node1"].clcRunnerStats = map[string]types.CLCRunnerStats{
 		// This is the check with the highest utilization. The code will try to

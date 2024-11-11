@@ -16,6 +16,10 @@ import (
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
+var (
+	ssUserRegex = regexp.MustCompile(`(\("(?P<Process>[^"]+)",pid=(?P<PID>\d+),fd=\d+\),?)`)
+)
+
 // BoundPort represents a port that is bound to a process
 type BoundPort interface {
 	LocalAddress() string
@@ -133,25 +137,26 @@ func FromSs(output string) ([]BoundPort, error) {
 
 		// EXAMPLE: users:(("node",pid=15296,fd=18))
 		program := parts[5]
-		re := regexp.MustCompile(`users:\(\("(?P<Process>[^"]+)",pid=(?P<PID>\d+),fd=\d+\)\)`)
-		matches := re.FindStringSubmatch(program)
-		if len(matches) != 3 {
-			return nil, fmt.Errorf("unexpected ss output: %s", line)
-		}
-		processIndex := re.SubexpIndex("Process")
-		pidIndex := re.SubexpIndex("PID")
-		process := matches[processIndex]
-		pid, err := strconv.Atoi(matches[pidIndex])
-		if err != nil {
-			return nil, fmt.Errorf("unexpected ss output: %s", line)
-		}
+		matches := ssUserRegex.FindAllStringSubmatch(program, -1)
+		processIndex := ssUserRegex.SubexpIndex("Process")
+		pidIndex := ssUserRegex.SubexpIndex("PID")
+		for _, match := range matches {
+			if len(match) < 3 {
+				return nil, fmt.Errorf("unexpected ss output: %s", line)
+			}
+			process := match[processIndex]
+			pid, err := strconv.Atoi(match[pidIndex])
+			if err != nil {
+				return nil, fmt.Errorf("unexpected ss output: %s", line)
+			}
 
-		ports = append(ports, &boundPort{
-			localAddress: address,
-			localPort:    port,
-			processName:  process,
-			pid:          pid,
-		})
+			ports = append(ports, &boundPort{
+				localAddress: address,
+				localPort:    port,
+				processName:  process,
+				pid:          pid,
+			})
+		}
 	}
 	return ports, nil
 }

@@ -10,10 +10,11 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/kindvm"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/kindvm"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/suite"
@@ -39,7 +40,12 @@ func (suite *kindSuite) SetupSuite() {
 		"dddogstatsd:deploy":              auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "kind-cluster", stackConfig, kindvm.Run, false, nil, nil)
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
+		ctx,
+		"kind-cluster",
+		kindvm.Run,
+		infra.WithConfigMap(stackConfig),
+	)
 	if !suite.Assert().NoError(err) {
 		stackName, err := infra.GetStackManager().GetPulumiStackName("kind-cluster")
 		suite.Require().NoError(err)
@@ -67,8 +73,11 @@ func (suite *kindSuite) SetupSuite() {
 	suite.K8sConfig, err = clientcmd.RESTConfigFromKubeConfig([]byte(kubeCluster.KubeConfig))
 	suite.Require().NoError(err)
 
-	suite.AgentLinuxHelmInstallName = stackOutput.Outputs["agent-linux-helm-install-name"].Value.(string)
-	suite.AgentWindowsHelmInstallName = "none"
+	kubernetesAgent := &components.KubernetesAgent{}
+	kubernetesAgentSerialized, err := json.Marshal(stackOutput.Outputs["dd-KubernetesAgent-aws-datadog-agent"].Value)
+	suite.Require().NoError(err)
+	suite.Require().NoError(kubernetesAgent.Import(kubernetesAgentSerialized, &kubernetesAgent))
+	suite.KubernetesAgentRef = kubernetesAgent
 
 	suite.k8sSuite.SetupSuite()
 }
@@ -99,7 +108,7 @@ func (suite *kindSuite) TestControlPlane() {
 				`^dry_run:$`,
 				`^group:`,
 				`^image_id:`,
-				`^image_name:registry.k8s.io/kube-apiserver$`,
+				`^image_name:(?:k8s\.gcr\.io|registry\.k8s\.io)/kube-apiserver$`,
 				`^image_tag:v1\.`,
 				`^kube_container_name:kube-apiserver$`,
 				`^kube_namespace:kube-system$`,
@@ -111,8 +120,13 @@ func (suite *kindSuite) TestControlPlane() {
 				`^scope:(?:|cluster|namespace|resource)$`,
 				`^short_image:kube-apiserver$`,
 				`^subresource:`,
-				`^verb:(?:APPLY|DELETE|GET|LIST|PATCH|POST|PUT|PATCH)$`,
+				`^verb:(?:APPLY|DELETE|GET|LIST|PATCH|POST|PUT|PATCH|WATCH|TOTAL)$`,
 				`^version:`,
+			},
+		},
+		Optional: testMetricExpectArgs{
+			Tags: &[]string{
+				`^contentType:`,
 			},
 		},
 	})
@@ -128,7 +142,7 @@ func (suite *kindSuite) TestControlPlane() {
 				`^container_name:kube-controller-manager$`,
 				`^display_container_name:kube-controller-manager_kube-controller-manager-.*-control-plane$`,
 				`^image_id:`,
-				`^image_name:registry.k8s.io/kube-controller-manager$`,
+				`^image_name:(?:k8s\.gcr\.io|registry\.k8s\.io)/kube-controller-manager$`,
 				`^image_tag:v1\.`,
 				`^kube_container_name:kube-controller-manager$`,
 				`^kube_namespace:kube-system$`,
@@ -153,7 +167,7 @@ func (suite *kindSuite) TestControlPlane() {
 				`^container_name:kube-scheduler$`,
 				`^display_container_name:kube-scheduler_kube-scheduler-.*-control-plane$`,
 				`^image_id:`,
-				`^image_name:registry.k8s.io/kube-scheduler$`,
+				`^image_name:(?:k8s\.gcr\.io|registry\.k8s\.io)/kube-scheduler$`,
 				`^image_tag:v1\.`,
 				`^kube_container_name:kube-scheduler$`,
 				`^kube_namespace:kube-system$`,

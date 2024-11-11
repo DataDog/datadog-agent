@@ -26,24 +26,17 @@ type logFormatter struct {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (l *logFormatter) Format(m *message.Message, eventType string, redactedMsg []byte) string {
+func (l *logFormatter) Format(m *message.Message, _ string, redactedMsg []byte) string {
 	hname, err := l.hostname.Get(context.TODO())
 	if err != nil {
 		hname = "unknown"
-	}
-
-	ts := time.Now().UTC()
-	// TODO(remy): should we consider renaming the "Timestamp: %s" to mention
-	// it's only concerning the serverless agent?
-	if !m.ServerlessExtra.Timestamp.IsZero() {
-		ts = m.ServerlessExtra.Timestamp
 	}
 
 	return fmt.Sprintf("Integration Name: %s | Type: %s | Status: %s | Timestamp: %s | Hostname: %s | Service: %s | Source: %s | Tags: %s | Message: %s\n",
 		m.Origin.LogSource.Name,
 		m.Origin.LogSource.Config.Type,
 		m.GetStatus(),
-		ts,
+		time.Now().UTC(),
 		hname,
 		m.Origin.Service(),
 		m.Origin.Source(),

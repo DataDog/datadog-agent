@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -31,9 +32,44 @@ func (a *APIServer) DumpDiscarders(_ context.Context, _ *api.DumpDiscardersParam
 
 // DumpProcessCache handles process cache dump requests
 func (a *APIServer) DumpProcessCache(_ context.Context, params *api.DumpProcessCacheParams) (*api.SecurityDumpProcessCacheMessage, error) {
-	filename, err := a.probe.DumpProcessCache(params.WithArgs)
-	if err != nil {
-		return nil, err
+	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		return nil, fmt.Errorf("not supported")
+	}
+
+	var (
+		filename string
+		err      error
+	)
+
+	switch params.Format {
+	case "json":
+		jsonContent, err := p.Resolvers.ProcessResolver.ToJSON(true)
+		if err != nil {
+			return nil, err
+		}
+
+		dump, err := os.CreateTemp("/tmp", "process-cache-dump-*.json")
+		if err != nil {
+			return nil, err
+		}
+
+		defer dump.Close()
+
+		filename = dump.Name()
+		if err := os.Chmod(dump.Name(), 0400); err != nil {
+			return nil, err
+		}
+
+		if _, err := dump.Write(jsonContent); err != nil {
+			return nil, err
+		}
+
+	case "dot", "":
+		filename, err = p.Resolvers.ProcessResolver.ToDot(params.WithArgs)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &api.SecurityDumpProcessCacheMessage{
@@ -41,7 +77,7 @@ func (a *APIServer) DumpProcessCache(_ context.Context, params *api.DumpProcessC
 	}, nil
 }
 
-// DumpActivity handle an activity dump request
+// DumpActivity handles an activity dump request
 func (a *APIServer) DumpActivity(_ context.Context, params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
@@ -51,7 +87,7 @@ func (a *APIServer) DumpActivity(_ context.Context, params *api.ActivityDumpPara
 	if managers := p.GetProfileManagers(); managers != nil {
 		msg, err := managers.DumpActivity(params)
 		if err != nil {
-			seclog.Errorf(err.Error())
+			seclog.Errorf("%s", err.Error())
 		}
 		return msg, nil
 	}
@@ -69,7 +105,7 @@ func (a *APIServer) ListActivityDumps(_ context.Context, params *api.ActivityDum
 	if managers := p.GetProfileManagers(); managers != nil {
 		msg, err := managers.ListActivityDumps(params)
 		if err != nil {
-			seclog.Errorf(err.Error())
+			seclog.Errorf("%s", err.Error())
 		}
 		return msg, nil
 	}
@@ -87,7 +123,7 @@ func (a *APIServer) StopActivityDump(_ context.Context, params *api.ActivityDump
 	if managers := p.GetProfileManagers(); managers != nil {
 		msg, err := managers.StopActivityDump(params)
 		if err != nil {
-			seclog.Errorf(err.Error())
+			seclog.Errorf("%s", err.Error())
 		}
 		return msg, nil
 	}
@@ -105,7 +141,7 @@ func (a *APIServer) TranscodingRequest(_ context.Context, params *api.Transcodin
 	if managers := p.GetProfileManagers(); managers != nil {
 		msg, err := managers.GenerateTranscoding(params)
 		if err != nil {
-			seclog.Errorf(err.Error())
+			seclog.Errorf("%s", err.Error())
 		}
 		return msg, nil
 	}
@@ -123,7 +159,7 @@ func (a *APIServer) ListSecurityProfiles(_ context.Context, params *api.Security
 	if managers := p.GetProfileManagers(); managers != nil {
 		msg, err := managers.ListSecurityProfiles(params)
 		if err != nil {
-			seclog.Errorf(err.Error())
+			seclog.Errorf("%s", err.Error())
 		}
 		return msg, nil
 	}
@@ -141,7 +177,7 @@ func (a *APIServer) SaveSecurityProfile(_ context.Context, params *api.SecurityP
 	if managers := p.GetProfileManagers(); managers != nil {
 		msg, err := managers.SaveSecurityProfile(params)
 		if err != nil {
-			seclog.Errorf(err.Error())
+			seclog.Errorf("%s", err.Error())
 		}
 		return msg, nil
 	}

@@ -34,7 +34,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -45,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -56,7 +56,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var (
@@ -72,13 +71,15 @@ system_probe_config:
 
 event_monitoring_config:
   socket: /tmp/test-event-monitor.sock
-  runtime_compilation:
-    enabled: true
   remote_tagger: false
   custom_sensitive_words:
     - "*custom*"
   network:
     enabled: true
+    ingress:
+      enabled: {{ .NetworkIngressEnabled }}
+    raw_packet:
+      enabled: {{ .NetworkRawPacketEnabled}}
   flush_discarder_window: 0
 {{if .DisableFilters}}
   enable_kernel_filters: false
@@ -100,13 +101,25 @@ runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
   internal_monitoring:
     enabled: true
+{{ if gt .EventServerRetention 0 }}
+  event_server:
+    retention: {{ .EventServerRetention }}
+{{ end }}
   remote_configuration:
     enabled: false
+  on_demand:
+    enabled: true
+    rate_limiter:
+      enabled: {{ .OnDemandRateLimiterEnabled}}
   socket: /tmp/test-runtime-security.sock
   sbom:
     enabled: {{ .SBOMEnabled }}
+    host:
+      enabled: {{ .HostSBOMEnabled }}
   activity_dump:
     enabled: {{ .EnableActivityDump }}
+    syscall_monitor:
+      period: {{ .ActivityDumpSyscallMonitorPeriod }}
 {{if .EnableActivityDump}}
     rate_limiter: {{ .ActivityDumpRateLimiter }}
     tag_rules:
@@ -175,49 +188,20 @@ runtime_security_config:
     enabled: {{.EBPFLessEnabled}}
   hash_resolver:
     enabled: true
-`
-
-const testPolicy = `---
-version: 1.2.3
-
-macros:
-{{range $Macro := .Macros}}
-  - id: {{$Macro.ID}}
-    expression: >-
-      {{$Macro.Expression}}
-{{end}}
-
-rules:
-{{range $Rule := .Rules}}
-  - id: {{$Rule.ID}}
-    version: {{$Rule.Version}}
-    expression: >-
-      {{$Rule.Expression}}
-    tags:
-{{- range $Tag, $Val := .Tags}}
-      {{$Tag}}: {{$Val}}
-{{- end}}
-    actions:
-{{- range $Action := .Actions}}
-{{- if $Action.Set}}
-      - set:
-          name: {{$Action.Set.Name}}
-		  {{- if $Action.Set.Value}}
-          value: {{$Action.Set.Value}}
-          {{- else if $Action.Set.Field}}
-          field: {{$Action.Set.Field}}
-          {{- end}}
-          scope: {{$Action.Set.Scope}}
-          append: {{$Action.Set.Append}}
-{{- end}}
-{{- if $Action.Kill}}
-      - kill:
-          {{- if $Action.Kill.Signal}}
-          signal: {{$Action.Kill.Signal}}
-          {{- end}}
-{{- end}}
-{{- end}}
-{{end}}
+  enforcement:
+    exclude_binaries:
+      - {{ .EnforcementExcludeBinary }}
+    rule_source_allowed:
+      - file
+    disarmer:
+      container:
+        enabled: {{.EnforcementDisarmerContainerEnabled}}
+        max_allowed: {{.EnforcementDisarmerContainerMaxAllowed}}
+        period: {{.EnforcementDisarmerContainerPeriod}}
+      executable:
+        enabled: {{.EnforcementDisarmerExecutableEnabled}}
+        max_allowed: {{.EnforcementDisarmerExecutableMaxAllowed}}
+        period: {{.EnforcementDisarmerExecutablePeriod}}
 `
 
 const (
@@ -469,7 +453,6 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event) {
 	if event.Origin != "ebpfless" {
 		nameFields = append(nameFields,
 			"process.ancestors.file.name",
-			"process.parent.file.path",
 			"process.parent.file.name",
 		)
 	}
@@ -481,7 +464,10 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event) {
 		"process.file.path",
 	}
 	if event.Origin != "ebpfless" {
-		pathFields = append(pathFields, "process.ancestors.file.path")
+		pathFields = append(pathFields,
+			"process.parent.file.path",
+			"process.ancestors.file.path",
+		)
 	}
 
 	pathFieldValid := true
@@ -542,6 +528,32 @@ func checkProcessContextFieldsForBlankValues(tb testing.TB, event *model.Event, 
 }
 
 //nolint:deadcode,unused
+func validateSyscallContext(tb testing.TB, event *model.Event, jsonPath string) {
+	if ebpfLessEnabled {
+		return
+	}
+
+	eventJSON, err := serializers.MarshalEvent(event, nil)
+	if err != nil {
+		tb.Errorf("failed to marshal event: %v", err)
+		return
+	}
+
+	var data interface{}
+	if err := json.Unmarshal(eventJSON, &data); err != nil {
+		tb.Error(err)
+		tb.Error(string(eventJSON))
+		return
+	}
+
+	json, err := jsonpath.JsonPathLookup(data, jsonPath)
+	if err != nil {
+		tb.Errorf("should have a syscall context, got %+v (%s)", json, spew.Sdump(data))
+		tb.Error(string(eventJSON))
+	}
+}
+
+//nolint:deadcode,unused
 func validateProcessContext(tb testing.TB, event *model.Event) {
 	if event.ProcessContext.IsKworker {
 		return
@@ -576,10 +588,20 @@ func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validat
 }
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
+	return newTestModuleWithOnDemandProbes(t, nil, macroDefs, ruleDefs, fopts...)
+}
+
+func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDemandHookPoint, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
 	var opts tmOpts
 	for _, opt := range fopts {
 		opt(&opts)
 	}
+
+	prevEbpfLessEnabled := ebpfLessEnabled
+	defer func() {
+		ebpfLessEnabled = prevEbpfLessEnabled
+	}()
+	ebpfLessEnabled = ebpfLessEnabled || opts.staticOpts.ebpfLessEnabled
 
 	if commonCfgDir == "" {
 		cd, err := os.MkdirTemp("", "test-cfgdir")
@@ -613,12 +635,20 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
+	if opts.dynamicOpts.disableBundledRules {
+		ruleDefs = append(ruleDefs, &rules.RuleDefinition{
+			ID:       bundled.NeedRefreshSBOMRuleID,
+			Disabled: true,
+			Combine:  rules.OverridePolicy,
+		})
+	}
+
 	st, err := newSimpleTest(t, macroDefs, ruleDefs, opts.dynamicOpts.testDir)
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err = setTestPolicy(commonCfgDir, macroDefs, ruleDefs); err != nil {
+	if _, err = setTestPolicy(commonCfgDir, onDemandHooks, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
 
@@ -626,7 +656,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	if testEnvironment == DockerEnvironment || ebpfLessEnabled {
 		cmdWrapper = newStdCmdWrapper()
 	} else {
-		wrapper, err := newDockerCmdWrapper(st.Root(), st.Root(), "ubuntu")
+		wrapper, err := newDockerCmdWrapper(st.Root(), st.Root(), "ubuntu", "")
 		if err == nil {
 			cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
 		} else {
@@ -706,12 +736,13 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	emopts := eventmonitor.Opts{
 		StatsdClient: statsdClient,
 		ProbeOpts: sprobe.Opts{
-			StatsdClient:           statsdClient,
-			DontDiscardRuntime:     true,
-			PathResolutionEnabled:  true,
-			SyscallsMonitorEnabled: true,
-			TTYFallbackEnabled:     true,
-			EBPFLessEnabled:        ebpfLessEnabled,
+			StatsdClient:             statsdClient,
+			DontDiscardRuntime:       true,
+			PathResolutionEnabled:    true,
+			EnvsVarResolutionEnabled: !opts.staticOpts.disableEnvVarsResolution,
+			SyscallsMonitorEnabled:   true,
+			TTYFallbackEnabled:       true,
+			EBPFLessEnabled:          ebpfLessEnabled,
 		},
 	}
 	if opts.staticOpts.tagsResolver != nil {
@@ -719,7 +750,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	} else {
 		emopts.ProbeOpts.TagsResolver = NewFakeResolverDifferentImageNames()
 	}
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, optional.NewNoneOption[workloadmeta.Component]())
+
+	if opts.staticOpts.discardRuntime {
+		emopts.ProbeOpts.DontDiscardRuntime = false
+	}
+
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -729,22 +765,23 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	if !opts.staticOpts.disableRuntimeSecurity {
 		msgSender := newFakeMsgSender(testMod)
 
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, module.Opts{EventSender: testMod, MsgSender: msgSender})
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod, MsgSender: msgSender})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
+		// disable containers telemetry
+		cws.PrepareForFunctionalTests()
+
 		testMod.cws = cws
 		testMod.ruleEngine = cws.GetRuleEngine()
 		testMod.msgSender = msgSender
 
 		testMod.eventMonitor.RegisterEventConsumer(cws)
 
-		testMod.ruleEngine.SetRulesetLoadedCallback(func(es *rules.EvaluationSet, err *multierror.Error) {
+		testMod.ruleEngine.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
 			ruleSetloadedErr = err
 			log.Infof("Adding test module as listener")
-			for _, ruleSet := range es.RuleSets {
-				ruleSet.AddListener(testMod)
-			}
+			rs.AddListener(testMod)
 		})
 	}
 
@@ -757,17 +794,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	if err := testMod.eventMonitor.Init(); err != nil {
 		return nil, fmt.Errorf("failed to init module: %w", err)
-	}
-
-	kv, _ := kernel.NewKernelVersion()
-
-	var isRuntimeCompiled bool
-	if p, ok := testMod.eventMonitor.Probe.PlatformProbe.(*sprobe.EBPFProbe); ok {
-		isRuntimeCompiled = p.IsRuntimeCompiled()
-	}
-
-	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && secconfig.Probe.RuntimeCompilationEnabled && !isRuntimeCompiled && !kv.IsSuseKernel() {
-		return nil, errors.New("failed to runtime compile module")
 	}
 
 	if opts.staticOpts.preStartCallback != nil {
@@ -784,7 +810,9 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
 			opts.staticOpts.snapshotRuleMatchHandler(testMod, e, r)
 		})
-		defer testMod.RegisterRuleEventHandler(nil)
+		t.Cleanup(func() {
+			testMod.RegisterRuleEventHandler(nil)
+		})
 	}
 
 	if err := testMod.eventMonitor.Start(); err != nil {
@@ -792,7 +820,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	if ruleSetloadedErr.ErrorOrNil() != nil {
-		defer testMod.Close()
+		testMod.Close()
 		return nil, ruleSetloadedErr.ErrorOrNil()
 	}
 
@@ -800,7 +828,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		t.Logf("%s entry stats: %s", t.Name(), GetEBPFStatusMetrics(testMod.probe))
 	}
 
-	if ebpfLessEnabled {
+	if ebpfLessEnabled && !opts.staticOpts.dontWaitEBPFLessClient {
 		t.Logf("EBPFLess mode, waiting for a client to connect")
 		err := retry.Do(func() error {
 			if testMod.probe.PlatformProbe.(*sprobe.EBPFLessProbe).GetClientsCount() > 0 {
@@ -1046,23 +1074,48 @@ func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintpt
 	}
 }
 
+// eventKeyValueFilter is used to filter events in `waitForProbeEvent`
+type eventKeyValueFilter struct {
+	key   string
+	value interface{}
+}
+
 // waitForProbeEvent returns the first open event with the provided filename.
 // WARNING: this function may yield a "fatal error: concurrent map writes" error if the ruleset of testModule does not
 // contain a rule on "open.file.path"
 //
 //nolint:deadcode,unused
-func waitForProbeEvent(test *testModule, action func() error, key string, value interface{}, eventType model.EventType) error {
+func waitForProbeEvent(test *testModule, action func() error, eventType model.EventType, filters ...eventKeyValueFilter) error {
 	return test.GetProbeEvent(action, func(event *model.Event) bool {
-		if v, _ := event.GetFieldValue(key); v == value {
-			return true
+		for _, filter := range filters {
+			if v, _ := event.GetFieldValue(filter.key); v != filter.value {
+				return false
+			}
 		}
-		return false
+		return true
 	}, getEventTimeout, eventType)
 }
 
 //nolint:deadcode,unused
 func waitForOpenProbeEvent(test *testModule, action func() error, filename string) error {
-	return waitForProbeEvent(test, action, "open.file.path", filename, model.FileOpenEventType)
+	return waitForProbeEvent(test, action, model.FileOpenEventType, eventKeyValueFilter{
+		key:   "open.file.path",
+		value: filename,
+	})
+}
+
+//nolint:deadcode,unused
+func waitForIMDSResponseProbeEvent(test *testModule, action func() error, processFileName string) error {
+	return waitForProbeEvent(test, action, model.IMDSEventType, []eventKeyValueFilter{
+		{
+			key:   "process.file.name",
+			value: processFileName,
+		},
+		{
+			key:   "imds.type",
+			value: "response",
+		},
+	}...)
 }
 
 //nolint:deadcode,unused
@@ -1079,41 +1132,7 @@ func checkKernelCompatibility(tb testing.TB, why string, skipCheck func(kv *kern
 	}
 }
 
-func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, formats []string) ([]string, error) {
-	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
-	if !ok {
-		return nil, errors.New("not supported")
-	}
-
-	managers := p.GetProfileManagers()
-	if managers == nil {
-		return nil, errors.New("no manager")
-	}
-	params := &api.ActivityDumpParams{
-		Comm:              comm,
-		Timeout:           "1m",
-		DifferentiateArgs: true,
-		Storage: &api.StorageRequestParams{
-			LocalStorageDirectory:    outputDir,
-			LocalStorageFormats:      formats,
-			LocalStorageCompression:  false,
-			RemoteStorageFormats:     []string{},
-			RemoteStorageCompression: false,
-		},
-	}
-	mess, err := managers.DumpActivity(params)
-	if err != nil || mess == nil || len(mess.Storage) < 1 {
-		return nil, fmt.Errorf("failed to start activity dump: err:%v message:%v len:%v", err, mess, len(mess.Storage))
-	}
-
-	var files []string
-	for _, s := range mess.Storage {
-		files = append(files, s.File)
-	}
-	return files, nil
-}
-
-func (tm *testModule) StopActivityDump(name, containerID, comm string) error {
+func (tm *testModule) StopActivityDump(name, containerID string) error {
 	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
 		return errors.New("not supported")
@@ -1126,7 +1145,6 @@ func (tm *testModule) StopActivityDump(name, containerID, comm string) error {
 	params := &api.ActivityDumpStopParams{
 		Name:        name,
 		ContainerID: containerID,
-		Comm:        comm,
 	}
 	_, err := managers.StopActivityDump(params)
 	if err != nil {
@@ -1231,7 +1249,7 @@ func DecodeSecurityProfile(path string) (*profile.SecurityProfile, error) {
 
 func (tm *testModule) StartADocker() (*dockerCmdWrapper, error) {
 	// we use alpine to use nslookup on some tests, and validate all busybox specificities
-	docker, err := newDockerCmdWrapper(tm.st.Root(), tm.st.Root(), "alpine")
+	docker, err := newDockerCmdWrapper(tm.st.Root(), tm.st.Root(), "alpine", "")
 	if err != nil {
 		return nil, err
 	}
@@ -1248,12 +1266,10 @@ func (tm *testModule) StartADocker() (*dockerCmdWrapper, error) {
 func (tm *testModule) GetDumpFromDocker(dockerInstance *dockerCmdWrapper) (*activityDumpIdentifier, error) {
 	dumps, err := tm.ListActivityDumps()
 	if err != nil {
-		_, _ = dockerInstance.stop()
 		return nil, err
 	}
 	dump := findLearningContainerID(dumps, dockerInstance.containerID)
 	if dump == nil {
-		_, _ = dockerInstance.stop()
 		return nil, errors.New("ContainerID not found on activity dump list")
 	}
 	return dump, nil
@@ -1266,6 +1282,7 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 	}
 	dump, err := tm.GetDumpFromDocker(dockerInstance)
 	if err != nil {
+		_, _ = dockerInstance.stop()
 		return nil, nil, err
 	}
 	return dockerInstance, dump, nil
@@ -1315,7 +1332,7 @@ func (tm *testModule) findCgroupDump(id *activityDumpIdentifier) *activityDumpId
 }
 
 //nolint:deadcode,unused
-func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, syscallTester string) {
+func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, syscallTester string, goSyscallTester string) {
 	// open
 	cmd := dockerInstance.Command("touch", []string{filepath.Join(tm.Root(), "open")}, []string{})
 	_, _ = cmd.CombinedOutput()
@@ -1329,6 +1346,10 @@ func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, s
 	_, _ = cmd.CombinedOutput()
 
 	// syscalls should be added with previous events
+
+	// imds
+	cmd = dockerInstance.Command(goSyscallTester, []string{"-run-imds-test"}, []string{})
+	_, _ = cmd.CombinedOutput()
 }
 
 //nolint:deadcode,unused
@@ -1401,6 +1422,16 @@ func searchForOpen(ad *dump.ActivityDump) bool {
 func searchForDNS(ad *dump.ActivityDump) bool {
 	for _, node := range ad.ActivityTree.ProcessNodes {
 		if len(node.DNSNames) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+//nolint:deadcode,unused
+func searchForIMDS(ad *dump.ActivityDump) bool {
+	for _, node := range ad.ActivityTree.ProcessNodes {
+		if len(node.IMDSEvents) > 0 {
 			return true
 		}
 	}
@@ -1500,6 +1531,9 @@ func (tm *testModule) extractAllDumpEventTypes(id *activityDumpIdentifier) ([]st
 	if searchForOpen(ad) {
 		res = append(res, "open")
 	}
+	if searchForIMDS(ad) {
+		res = append(res, "imds")
+	}
 	return res, nil
 }
 
@@ -1512,7 +1546,7 @@ func (tm *testModule) StopAllActivityDumps() error {
 		return nil
 	}
 	for _, dump := range dumps {
-		_ = tm.StopActivityDump(dump.Name, "", "")
+		_ = tm.StopActivityDump(dump.Name, "")
 	}
 	dumps, err = tm.ListActivityDumps()
 	if err != nil {
@@ -1681,7 +1715,7 @@ func (tm *testModule) ListAllProfiles() {
 	spm.ListAllProfileStates()
 }
 
-func (tm *testModule) SetProfileVersionState(selector *cgroupModel.WorkloadSelector, imageTag string, state profile.EventFilteringProfileState) error {
+func (tm *testModule) SetProfileVersionState(selector *cgroupModel.WorkloadSelector, imageTag string, state model.EventFilteringProfileState) error {
 	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
 		return errors.New("no ebpf probe")

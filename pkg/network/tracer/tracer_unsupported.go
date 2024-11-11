@@ -5,13 +5,14 @@
 
 //go:build (linux && !linux_bpf) || (windows && !npm) || (!linux && !windows)
 
-// Package tracer implements the network tracer
+// Package tracer implements the functionality of the network tracer
 package tracer
 
 import (
 	"context"
 	"io"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -21,7 +22,7 @@ import (
 type Tracer struct{}
 
 // NewTracer is not implemented on this OS for Tracer
-func NewTracer(_ *config.Config) (*Tracer, error) {
+func NewTracer(_ *config.Config, _ telemetry.Component) (*Tracer, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
@@ -31,6 +32,11 @@ func (t *Tracer) Stop() {}
 // GetActiveConnections is not implemented on this OS for Tracer
 func (t *Tracer) GetActiveConnections(_ string) (*network.Connections, error) {
 	return nil, ebpf.ErrNotImplemented
+}
+
+// GetNetworkID is not implemented on this OS for Tracer
+func (t *Tracer) GetNetworkID(_ context.Context) (string, error) {
+	return "", ebpf.ErrNotImplemented
 }
 
 // RegisterClient registers the client
@@ -58,13 +64,21 @@ func (t *Tracer) DebugEBPFMaps(_ io.Writer, _ ...string) error {
 	return ebpf.ErrNotImplemented
 }
 
+// DebugConntrackTable is not implemented on this OS for Tracer
+type DebugConntrackTable struct{}
+
+// WriteTo is not implemented on this OS for Tracer
+func (table *DebugConntrackTable) WriteTo(_ io.Writer, _ int) error {
+	return ebpf.ErrNotImplemented
+}
+
 // DebugCachedConntrack is not implemented on this OS for Tracer
-func (t *Tracer) DebugCachedConntrack(context.Context) (interface{}, error) {
+func (t *Tracer) DebugCachedConntrack(_ context.Context) (*DebugConntrackTable, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 // DebugHostConntrack is not implemented on this OS for Tracer
-func (t *Tracer) DebugHostConntrack(context.Context) (interface{}, error) {
+func (t *Tracer) DebugHostConntrack(_ context.Context) (*DebugConntrackTable, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 

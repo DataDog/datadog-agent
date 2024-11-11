@@ -39,7 +39,7 @@ func TestDaemonStopOnTerminationSignals(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			go handleTerminationSignals(serverlessDaemon, stopCh, func(c chan<- os.Signal, sig ...os.Signal) {
+			go handleTerminationSignals(serverlessDaemon, stopCh, func(c chan<- os.Signal, _ ...os.Signal) {
 				c <- tc.signal
 			})
 

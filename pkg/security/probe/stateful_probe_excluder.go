@@ -71,6 +71,10 @@ func (af *availableFunctionsBasedExcluder) ShouldExcludeFunction(name string, pr
 		return false
 	}
 
+	if strings.HasPrefix(name, "hook_on_demand") {
+		return false
+	}
+
 	_, ok := af.available[prog.AttachTo]
 	return !ok
 }

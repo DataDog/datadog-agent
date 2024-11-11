@@ -18,9 +18,10 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
@@ -31,9 +32,9 @@ import (
 
 func TestTopologyPayload_LLDP(t *testing.T) {
 	timeNow = common.MockTimeNow
-	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nooptagger.NewTaggerClient(), "", 1*time.Hour)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
-	config.Datadog.SetWithoutSource("confd_path", invalidPath)
+	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -616,6 +617,7 @@ profiles:
       "os_name":"LINUX (3.10.0-862.14.4.el7.ve.x86_64)",
       "os_version":"3.10.0-862.14.4.el7.ve.x86_64",
       "os_hostname":"my-linux-f5-server",
+	  "integration": "snmp",
 	  "device_type": "load_balancer"
     }
   ],
@@ -732,9 +734,9 @@ profiles:
 
 func TestTopologyPayload_CDP(t *testing.T) {
 	timeNow = common.MockTimeNow
-	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nooptagger.NewTaggerClient(), "", 1*time.Hour)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
-	config.Datadog.SetWithoutSource("confd_path", invalidPath)
+	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1317,6 +1319,7 @@ profiles:
       "os_name":"LINUX (3.10.0-862.14.4.el7.ve.x86_64)",
       "os_version":"3.10.0-862.14.4.el7.ve.x86_64",
       "os_hostname":"my-linux-f5-server",
+	  "integration": "snmp",
 	  "device_type": "load_balancer"
     }
   ],
@@ -1424,9 +1427,9 @@ profiles:
 // we have different data for LLDP and CDP to test that we're only using LLDP to build the links
 func TestTopologyPayload_LLDP_CDP(t *testing.T) {
 	timeNow = common.MockTimeNow
-	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nooptagger.NewTaggerClient(), "", 1*time.Hour)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
-	config.Datadog.SetWithoutSource("confd_path", invalidPath)
+	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -2009,6 +2012,7 @@ profiles:
       "os_name":"LINUX (3.10.0-862.14.4.el7.ve.x86_64)",
       "os_version":"3.10.0-862.14.4.el7.ve.x86_64",
       "os_hostname":"my-linux-f5-server",
+	  "integration": "snmp",
 	  "device_type": "load_balancer"
     }
   ],

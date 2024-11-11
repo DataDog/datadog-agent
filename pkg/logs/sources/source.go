@@ -25,6 +25,8 @@ const (
 	DockerSourceType SourceType = "docker"
 	// KubernetesSourceType kubernetes source type
 	KubernetesSourceType SourceType = "kubernetes"
+	// IntegrationSourceType integration source type
+	IntegrationSourceType SourceType = "integration"
 )
 
 // LogSource holds a reference to an integration name and a log configuration, and allows to track errors and

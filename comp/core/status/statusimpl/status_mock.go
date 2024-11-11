@@ -25,6 +25,10 @@ func (s *statusMock) GetStatusBySections([]string, string, bool) ([]byte, error)
 	return []byte{}, nil
 }
 
+func (s *statusMock) GetSections() []string {
+	return []string{}
+}
+
 // newMock returns a status Mock
 func newMock() status.Mock {
 	return &statusMock{}

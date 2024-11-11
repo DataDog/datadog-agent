@@ -22,8 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
@@ -73,14 +72,14 @@ func complianceLoadCommand(globalParams *command.GlobalParams) *cobra.Command {
 		Use:   "load <conf-type>",
 		Short: "Load compliance config",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			loadArgs.confType = args[0]
 			return fxutil.OneShot(loadRun,
 				fx.Supply(loadArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
 				}),
 				core.Bundle(),
 			)
@@ -152,13 +151,13 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 	eventCmd := &cobra.Command{
 		Use:   "event",
 		Short: "Issue logs to test Security Agent compliance events",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(eventRun,
 				fx.Supply(eventArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
 				}),
 				core.Bundle(),
 			)

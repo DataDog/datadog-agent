@@ -8,6 +8,11 @@
 #include "events_context.h"
 #include "process.h"
 
+struct syscall_monitor_key_t {
+    u32 type;
+    u32 pid;
+};
+
 struct syscall_monitor_entry_t {
     char syscalls[SYSCALL_ENCODING_TABLE_SIZE];
     u64 last_sent;
@@ -27,9 +32,9 @@ struct syscall_table_key_t {
 struct syscall_cache_t {
     struct policy_t policy;
     u64 type;
-    u8 discarded;
+    enum SYSCALL_STATE state;
     u8 async;
-
+    u32 ctx_id;
     struct dentry_resolver_input_t resolver;
 
     union {
@@ -95,7 +100,7 @@ struct syscall_cache_t {
             struct path_key_t root_key;
             struct path_key_t mountpoint_key;
             dev_t device;
-         } mount;
+        } mount;
 
         struct {
             struct vfsmount *vfs;
@@ -203,11 +208,21 @@ struct syscall_cache_t {
             u16 port;
         } bind;
 
+         struct {
+            u64 addr[2];
+            u16 family;
+            u16 port;
+        } connect;
+
         struct {
             struct dentry *dentry;
             struct path *path;
             struct file_t file;
         } chdir;
+
+        struct {
+            u32 auid;
+        } login_uid;
     };
 };
 

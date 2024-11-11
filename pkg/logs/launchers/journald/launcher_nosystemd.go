@@ -9,6 +9,7 @@
 package journald
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -20,14 +21,14 @@ import (
 type Launcher struct{}
 
 // NewLauncher returns a new Launcher
-func NewLauncher(fc *flareController.FlareController) *Launcher {
+func NewLauncher(*flareController.FlareController, tagger.Component) *Launcher {
 	return &Launcher{}
 }
 
 // Start does nothing
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func (l *Launcher) Start(sources launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
+func (l *Launcher) Start(_ launchers.SourceProvider, _ pipeline.Provider, _ auditor.Registry, _ *tailers.TailerTracker) {
 }
 
 // Stop does nothing

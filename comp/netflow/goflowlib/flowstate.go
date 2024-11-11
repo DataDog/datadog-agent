@@ -8,6 +8,7 @@ package goflowlib
 import (
 	"context"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
 
@@ -18,7 +19,7 @@ import (
 	_ "github.com/netsampler/goflow2/decoders/netflow/templates/memory"
 	"github.com/netsampler/goflow2/utils"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 )
 

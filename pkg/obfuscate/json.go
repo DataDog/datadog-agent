@@ -22,6 +22,11 @@ func (o *Obfuscator) ObfuscateElasticSearchString(cmd string) string {
 	return obfuscateJSONString(cmd, o.es)
 }
 
+// ObfuscateOpenSearchString obfuscates the given OpenSearch JSON query.
+func (o *Obfuscator) ObfuscateOpenSearchString(cmd string) string {
+	return obfuscateJSONString(cmd, o.openSearch)
+}
+
 // obfuscateJSONString obfuscates the given span's tag using the given obfuscator. If the obfuscator is
 // nil it is considered disabled.
 func obfuscateJSONString(cmd string, obfuscator *jsonObfuscator) string {

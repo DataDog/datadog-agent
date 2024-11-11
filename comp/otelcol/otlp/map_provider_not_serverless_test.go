@@ -12,14 +12,16 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/otelcol"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
 
 func TestNewMap(t *testing.T) {
@@ -35,7 +37,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				TracesEnabled:      true,
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -89,7 +91,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -148,7 +150,7 @@ func TestNewMap(t *testing.T) {
 			},
 		},
 		{
-			name: "only HTTP, metrics and traces, invalid loglevel(ignored)",
+			name: "only HTTP, metrics and traces, invalid verbosity (ignored)",
 			pcfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
 				TracePort:          5003,
@@ -165,7 +167,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "foo",
+					"verbosity": "foo",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -230,7 +232,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				TracesEnabled:      true,
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -286,7 +288,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -331,13 +333,13 @@ func TestNewMap(t *testing.T) {
 			},
 		},
 		{
-			name: "only gRPC, only Traces, logging info",
+			name: "only gRPC, only Traces, logging with normal verbosity",
 			pcfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
 				TracePort:          5003,
 				TracesEnabled:      true,
 				Debug: map[string]interface{}{
-					"loglevel": "info",
+					"verbosity": "normal",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -361,8 +363,8 @@ func TestNewMap(t *testing.T) {
 							"enabled": false,
 						},
 					},
-					"logging": map[string]interface{}{
-						"loglevel": "info",
+					"debug": map[string]interface{}{
+						"verbosity": "normal",
 					},
 				},
 				"service": map[string]interface{}{
@@ -370,14 +372,14 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
 							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp", "logging"},
+							"exporters": []interface{}{"otlp", "debug"},
 						},
 					},
 				},
 			},
 		},
 		{
-			name: "only HTTP, only metrics, logging debug",
+			name: "only HTTP, only metrics, logging with detailed verbosity",
 			pcfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
 				TracePort:          5003,
@@ -392,7 +394,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "debug",
+					"verbosity": "detailed",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -422,8 +424,8 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 					},
-					"logging": map[string]interface{}{
-						"loglevel": "debug",
+					"debug": map[string]interface{}{
+						"verbosity": "detailed",
 					},
 				},
 				"service": map[string]interface{}{
@@ -432,14 +434,14 @@ func TestNewMap(t *testing.T) {
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
 							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"serializer", "logging"},
+							"exporters":  []interface{}{"serializer", "debug"},
 						},
 					},
 				},
 			},
 		},
 		{
-			name: "only HTTP, metrics and traces, logging warn",
+			name: "only HTTP, metrics and traces, logging with basic verbosity",
 			pcfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
 				TracePort:          5003,
@@ -455,7 +457,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "warn",
+					"verbosity": "basic",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -495,8 +497,8 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 					},
-					"logging": map[string]interface{}{
-						"loglevel": "warn",
+					"debug": map[string]interface{}{
+						"verbosity": "basic",
 					},
 				},
 				"service": map[string]interface{}{
@@ -504,12 +506,12 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
 							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp", "logging"},
+							"exporters": []interface{}{"otlp", "debug"},
 						},
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
 							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"serializer", "logging"},
+							"exporters":  []interface{}{"serializer", "debug"},
 						},
 					},
 				},
@@ -523,7 +525,7 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:      true,
 				LogsEnabled:        true,
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -550,7 +552,7 @@ func TestNewMap(t *testing.T) {
 					"logsagent": interface{}(nil),
 				},
 				"processors": map[string]interface{}{
-					"tagenrichment": interface{}(nil),
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -564,7 +566,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"tagenrichment", "batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent"},
 						},
 					},
@@ -590,7 +592,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -604,7 +606,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
-					"tagenrichment": interface{}(nil),
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -648,7 +650,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"tagenrichment", "batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent"},
 						},
 					},
@@ -656,7 +658,7 @@ func TestNewMap(t *testing.T) {
 			},
 		},
 		{
-			name: "only HTTP; metrics, logs and traces; invalid loglevel(ignored)",
+			name: "only HTTP; metrics, logs and traces; invalid verbosity (ignored)",
 			pcfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
 				TracePort:          5003,
@@ -674,7 +676,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "foo",
+					"verbosity": "foo",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -688,7 +690,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
-					"tagenrichment": interface{}(nil),
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -732,7 +734,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"tagenrichment", "batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent"},
 						},
 					},
@@ -747,7 +749,7 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:      true,
 				LogsEnabled:        true,
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -764,7 +766,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
-					"tagenrichment": interface{}(nil),
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -791,7 +793,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"tagenrichment", "batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent"},
 						},
 					},
@@ -816,7 +818,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -830,7 +832,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
-					"tagenrichment": interface{}(nil),
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -860,7 +862,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"tagenrichment", "batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent"},
 						},
 					},
@@ -868,14 +870,14 @@ func TestNewMap(t *testing.T) {
 			},
 		},
 		{
-			name: "only gRPC, traces and logs, logging info",
+			name: "only gRPC, traces and logs, logging with normal verbosity",
 			pcfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
 				TracePort:          5003,
 				TracesEnabled:      true,
 				LogsEnabled:        true,
 				Debug: map[string]interface{}{
-					"loglevel": "info",
+					"verbosity": "normal",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -889,7 +891,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
-					"tagenrichment": interface{}(nil),
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -905,8 +907,8 @@ func TestNewMap(t *testing.T) {
 							"enabled": false,
 						},
 					},
-					"logging": map[string]interface{}{
-						"loglevel": "info",
+					"debug": map[string]interface{}{
+						"verbosity": "normal",
 					},
 					"logsagent": interface{}(nil),
 				},
@@ -915,19 +917,19 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
 							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp", "logging"},
+							"exporters": []interface{}{"otlp", "debug"},
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"tagenrichment", "batch"},
-							"exporters":  []interface{}{"logsagent", "logging"},
+							"processors": []interface{}{"infraattributes", "batch"},
+							"exporters":  []interface{}{"logsagent", "debug"},
 						},
 					},
 				},
 			},
 		},
 		{
-			name: "only HTTP, metrics and logs, logging debug",
+			name: "only HTTP, metrics and logs, logging with detailed verbosity",
 			pcfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
 				TracePort:          5003,
@@ -943,7 +945,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "debug",
+					"verbosity": "detailed",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -957,7 +959,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
-					"tagenrichment": interface{}(nil),
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -974,8 +976,8 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 					},
-					"logging": map[string]interface{}{
-						"loglevel": "debug",
+					"debug": map[string]interface{}{
+						"verbosity": "detailed",
 					},
 					"logsagent": interface{}(nil),
 				},
@@ -985,19 +987,19 @@ func TestNewMap(t *testing.T) {
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
 							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"serializer", "logging"},
+							"exporters":  []interface{}{"serializer", "debug"},
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"tagenrichment", "batch"},
-							"exporters":  []interface{}{"logsagent", "logging"},
+							"processors": []interface{}{"infraattributes", "batch"},
+							"exporters":  []interface{}{"logsagent", "debug"},
 						},
 					},
 				},
 			},
 		},
 		{
-			name: "only HTTP; metrics, traces, and logs; logging warn",
+			name: "only HTTP; metrics, traces, and logs; logging with basic verbosity",
 			pcfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
 				TracePort:          5003,
@@ -1014,7 +1016,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "warn",
+					"verbosity": "basic",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -1028,7 +1030,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
-					"tagenrichment": interface{}(nil),
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -1055,8 +1057,8 @@ func TestNewMap(t *testing.T) {
 							},
 						},
 					},
-					"logging": map[string]interface{}{
-						"loglevel": "warn",
+					"debug": map[string]interface{}{
+						"verbosity": "basic",
 					},
 					"logsagent": interface{}(nil),
 				},
@@ -1065,17 +1067,17 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
 							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp", "logging"},
+							"exporters": []interface{}{"otlp", "debug"},
 						},
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
 							"processors": []interface{}{"batch"},
-							"exporters":  []interface{}{"serializer", "logging"},
+							"exporters":  []interface{}{"serializer", "debug"},
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"tagenrichment", "batch"},
-							"exporters":  []interface{}{"logsagent", "logging"},
+							"processors": []interface{}{"infraattributes", "batch"},
+							"exporters":  []interface{}{"logsagent", "debug"},
 						},
 					},
 				},
@@ -1094,7 +1096,7 @@ func TestNewMap(t *testing.T) {
 }
 
 func TestUnmarshal(t *testing.T) {
-	provider, err := newMapProvider(PipelineConfig{
+	pcfg := PipelineConfig{
 		OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 4317, 4318),
 		TracePort:          5001,
 		MetricsEnabled:     true,
@@ -1110,9 +1112,24 @@ func TestUnmarshal(t *testing.T) {
 				"send_count_sum_metrics": true,
 			},
 		},
-	})
+	}
+	cfgMap, err := buildMap(pcfg)
 	require.NoError(t, err)
-	components, err := getComponents(&serializer.MockSerializer{}, make(chan *message.Message))
+
+	mapSettings := otelcol.ConfigProviderSettings{
+		ResolverSettings: confmap.ResolverSettings{
+			URIs: []string{"map:hardcoded"},
+			ProviderFactories: []confmap.ProviderFactory{
+				configutils.NewProviderFactory(cfgMap),
+			},
+		},
+	}
+
+	provider, err := otelcol.NewConfigProvider(mapSettings)
+	require.NoError(t, err)
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+
+	components, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
 	require.NoError(t, err)
 
 	_, err = provider.Get(context.Background(), components)

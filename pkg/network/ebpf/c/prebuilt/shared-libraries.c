@@ -2,6 +2,7 @@
 #include "bpf_tracing.h"
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
+#include "bpf_metadata.h"
 
 #include <uapi/linux/ptrace.h>
 

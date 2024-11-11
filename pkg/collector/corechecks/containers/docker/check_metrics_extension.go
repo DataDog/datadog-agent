@@ -11,7 +11,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -108,7 +109,7 @@ func (dn *dockerCustomMetricsExtension) Process(tags []string, container *worklo
 }
 
 // PostProcess is called once during each check run, after all calls to `Process`
-func (dn *dockerCustomMetricsExtension) PostProcess() {
+func (dn *dockerCustomMetricsExtension) PostProcess(tagger.Component) {
 	// Nothing to do here
 }
 

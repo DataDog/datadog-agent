@@ -16,7 +16,7 @@ func TestDeltas(t *testing.T) {
 	Clear()
 
 	var deltas deltaCalculator
-	t.Run("gauge metric", func(t *testing.T) {
+	t.Run("gauge metric", func(*testing.T) {
 		// Delta calculator always returns the current value of a `Gauge` metric
 		state := deltas.GetState("")
 		m := NewGauge("cache_size")
@@ -28,7 +28,7 @@ func TestDeltas(t *testing.T) {
 		assert.Equal(int64(5), state.ValueFor(m))
 	})
 
-	t.Run("counter metric", func(t *testing.T) {
+	t.Run("counter metric", func(*testing.T) {
 		state := deltas.GetState("")
 		m := NewCounter("requests_processed")
 
@@ -39,7 +39,7 @@ func TestDeltas(t *testing.T) {
 		assert.Equal(int64(5), state.ValueFor(m))
 	})
 
-	t.Run("one metric, multiple clients", func(t *testing.T) {
+	t.Run("one metric, multiple clients", func(*testing.T) {
 		stateA := deltas.GetState("clientA")
 		stateB := deltas.GetState("clientB")
 		m := NewCounter("connections_closed")

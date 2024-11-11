@@ -7,7 +7,7 @@ package core
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 )
@@ -32,7 +32,7 @@ type ConfigParams = config.Params
 type SecretParams = secrets.Params
 
 // LogParams defines the parameters of the log component
-type LogParams = logimpl.Params
+type LogParams = log.Params
 
 // SysprobeConfigParams defines the parameters of the system-probe config component
 type SysprobeConfigParams = sysprobeconfigimpl.Params

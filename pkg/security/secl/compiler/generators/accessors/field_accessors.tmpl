@@ -19,6 +19,13 @@ import (
 
 {{range $Name, $Field := .Fields}}
 
+{{if $Field.Ref}}
+{{$Ref := index $.Fields $Field.Ref}}
+    {{if $Ref}}
+        {{$Field = $Ref}}
+    {{end}}
+{{end}}
+
 {{ $pascalCaseName := PascalCaseFieldName $Name }}
 
 {{$accessorReturnType := $Field.OrigType}}
@@ -26,13 +33,13 @@ import (
     {{$accessorReturnType = $Field.ReturnType}}
 {{ end }}
 
-{{ if or ($Field.Iterator) ($Field.IsArray) }}
+{{ if or (and $Field.Iterator (not $Field.IsIterator)) ($Field.IsArray) }}
     {{$accessorReturnType = $accessorReturnType | printf "[]%s" }}
 {{ end }}
 
 // Get{{$pascalCaseName}} returns the value of the field, resolving if necessary
 func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
-    {{if ne $Field.Event "*"}}
+    {{if ne $Field.Event ""}}
         if ev.GetEventType().String() != "{{$Field.Event}}" {
             return {{ GetDefaultValueOfType $accessorReturnType}}
         }
@@ -40,7 +47,7 @@ func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
 
     {{$Field | GeneratePrefixNilChecks $.AllFields $accessorReturnType}}
 
-    {{if $Field.Iterator}}
+    {{if and $Field.Iterator (not $Field.IsIterator)}}
         var values {{ $accessorReturnType }}
 
         ctx := eval.NewContext(ev)
@@ -102,7 +109,13 @@ func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
         {{end}}
 
         {{if $Field.IsLength}}
-            {{$Return = ".length" | TrimSuffix $Field.Name | printf "len(ev.%s)"}}
+            {{- if $Field.IsIterator}}
+                ctx := eval.NewContext(ev)
+                iterator := &{{$Field.Iterator.ReturnType}}{}
+                {{$Return = "iterator.Len(ctx)"}}
+            {{else}}
+                {{$Return = ".length" | TrimSuffix $Field.Name | printf "len(ev.%s)"}}
+            {{end}}
         {{end}}
 
         {{if $Field.Handler}}

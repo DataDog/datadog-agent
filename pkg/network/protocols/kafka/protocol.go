@@ -37,20 +37,33 @@ type protocol struct {
 }
 
 const (
-	eventStreamName                          = "kafka"
-	filterTailCall                           = "socket__kafka_filter"
-	responseParserTailCall                   = "socket__kafka_response_parser"
-	dispatcherTailCall                       = "socket__protocol_dispatcher_kafka"
-	protocolDispatcherClassificationPrograms = "dispatcher_classification_progs"
-	kafkaHeapMap                             = "kafka_heap"
-	inFlightMap                              = "kafka_in_flight"
-	responseMap                              = "kafka_response"
+	eventStreamName = "kafka"
+	filterTailCall  = "socket__kafka_filter"
 
-	tlsFilterTailCall                           = "uprobe__kafka_tls_filter"
-	tlsResponseParserTailCall                   = "uprobe__kafka_tls_response_parser"
-	tlsTerminationTailCall                      = "uprobe__kafka_tls_termination"
-	tlsDispatcherTailCall                       = "uprobe__tls_protocol_dispatcher_kafka"
-	tlsProtocolDispatcherClassificationPrograms = "tls_dispatcher_classification_progs"
+	fetchResponsePartitionParserV0TailCall    = "socket__kafka_fetch_response_partition_parser_v0"
+	fetchResponsePartitionParserV12TailCall   = "socket__kafka_fetch_response_partition_parser_v12"
+	fetchResponseRecordBatchParserV0TailCall  = "socket__kafka_fetch_response_record_batch_parser_v0"
+	fetchResponseRecordBatchParserV12TailCall = "socket__kafka_fetch_response_record_batch_parser_v12"
+	produceResponsePartitionParserV0TailCall  = "socket__kafka_produce_response_partition_parser_v0"
+	produceResponsePartitionParserV9TailCall  = "socket__kafka_produce_response_partition_parser_v9"
+
+	dispatcherTailCall = "socket__protocol_dispatcher_kafka"
+	kafkaHeapMap       = "kafka_heap"
+	inFlightMap        = "kafka_in_flight"
+	responseMap        = "kafka_response"
+	telemetryMap       = "kafka_telemetry"
+
+	tlsFilterTailCall = "uprobe__kafka_tls_filter"
+
+	tlsFetchResponsePartitionParserV0TailCall    = "uprobe__kafka_tls_fetch_response_partition_parser_v0"
+	tlsFetchResponsePartitionParserV12TailCall   = "uprobe__kafka_tls_fetch_response_partition_parser_v12"
+	tlsFetchResponseRecordBatchParserV0TailCall  = "uprobe__kafka_tls_fetch_response_record_batch_parser_v0"
+	tlsFetchResponseRecordBatchParserV12TailCall = "uprobe__kafka_tls_fetch_response_record_batch_parser_v12"
+	tlsProduceResponsePartitionParserV0TailCall  = "uprobe__kafka_tls_produce_response_partition_parser_v0"
+	tlsProduceResponsePartitionParserV9TailCall  = "uprobe__kafka_tls_produce_response_partition_parser_v9"
+
+	tlsTerminationTailCall = "uprobe__kafka_tls_termination"
+	tlsDispatcherTailCall  = "uprobe__tls_protocol_dispatcher_kafka"
 	// eBPFTelemetryMap is the name of the eBPF map used to retrieve metrics from the kernel
 	eBPFTelemetryMap = "kafka_telemetry"
 )
@@ -60,12 +73,6 @@ var Spec = &protocols.ProtocolSpec{
 	Factory: newKafkaProtocol,
 	Maps: []*manager.Map{
 		{
-			Name: protocolDispatcherClassificationPrograms,
-		},
-		{
-			Name: tlsProtocolDispatcherClassificationPrograms,
-		},
-		{
 			Name: kafkaHeapMap,
 		},
 		{
@@ -73,6 +80,24 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: responseMap,
+		},
+		{
+			Name: "kafka_client_id",
+		},
+		{
+			Name: "kafka_topic_name",
+		},
+		{
+			Name: telemetryMap,
+		},
+		{
+			Name: "kafka_batch_events",
+		},
+		{
+			Name: "kafka_batch_state",
+		},
+		{
+			Name: "kafka_batches",
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -85,13 +110,48 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramKafkaResponseParser),
+			Key:           uint32(protocols.ProgramKafkaFetchResponsePartitionParserV0),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: responseParserTailCall,
+				EBPFFuncName: fetchResponsePartitionParserV0TailCall,
 			},
 		},
 		{
-			ProgArrayName: protocolDispatcherClassificationPrograms,
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaFetchResponsePartitionParserV12),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: fetchResponsePartitionParserV12TailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaFetchResponseRecordBatchParserV0),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: fetchResponseRecordBatchParserV0TailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaFetchResponseRecordBatchParserV12),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: fetchResponseRecordBatchParserV12TailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaProduceResponsePartitionParserV0),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: produceResponsePartitionParserV0TailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaProduceResponsePartitionParserV9),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: produceResponsePartitionParserV9TailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherClassificationPrograms,
 			Key:           uint32(protocols.DispatcherKafkaProg),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: dispatcherTailCall,
@@ -99,28 +159,63 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSKakfa),
+			Key:           uint32(protocols.ProgramKafka),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsFilterTailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSKakfaResponseParser),
+			Key:           uint32(protocols.ProgramKafkaFetchResponsePartitionParserV0),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: tlsResponseParserTailCall,
+				EBPFFuncName: tlsFetchResponsePartitionParserV0TailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSKafkaTermination),
+			Key:           uint32(protocols.ProgramKafkaFetchResponsePartitionParserV12),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsFetchResponsePartitionParserV12TailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaFetchResponseRecordBatchParserV0),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsFetchResponseRecordBatchParserV0TailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaFetchResponseRecordBatchParserV12),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsFetchResponseRecordBatchParserV12TailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaProduceResponsePartitionParserV0),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsProduceResponsePartitionParserV0TailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaProduceResponsePartitionParserV9),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsProduceResponsePartitionParserV9TailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaTermination),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsTerminationTailCall,
 			},
 		},
 		{
-			ProgArrayName: tlsProtocolDispatcherClassificationPrograms,
-			Key:           uint32(protocols.TLSDispatcherKafkaProg),
+			ProgArrayName: protocols.TLSProtocolDispatcherClassificationPrograms,
+			Key:           uint32(protocols.DispatcherKafkaProg),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsDispatcherTailCall,
 			},
@@ -217,6 +312,14 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
+	case telemetryMap:
+		var zeroKey uint32
+
+		var value RawKernelTelemetry
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, zeroKey, value)
+		if err := currentMap.Lookup(unsafe.Pointer(&zeroKey), unsafe.Pointer(&value)); err == nil {
+			spew.Fdump(w, zeroKey, value)
+		}
 	}
 }
 
@@ -239,7 +342,7 @@ func (p *protocol) setupInFlightMapCleaner(mgr *manager.Manager) error {
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, key KafkaTransactionKey, val KafkaTransaction) bool {
+	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ KafkaTransactionKey, val KafkaTransaction) bool {
 		started := int64(val.Request_started)
 		return started > 0 && (now-started) > ttl
 	})

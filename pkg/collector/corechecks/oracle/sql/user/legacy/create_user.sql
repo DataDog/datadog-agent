@@ -8,7 +8,9 @@ BEGIN
     EXECUTE IMMEDIATE 'CREATE USER &&legacy_user IDENTIFIED BY &&password CONTAINER = ALL';
     execute immediate 'GRANT CREATE SESSION TO &&legacy_user CONTAINER=ALL';
   ELSE
-    execute immediate 'ALTER SESSION SET "_ORACLE_SCRIPT"=true';
+    if :hostingType = :hostingTypeSelfManaged THEN
+      execute immediate 'ALTER SESSION SET "_ORACLE_SCRIPT"=true';
+    END IF;
     EXECUTE IMMEDIATE 'CREATE USER &&legacy_user IDENTIFIED BY &&password';
     execute immediate 'GRANT CONNECT TO &&legacy_user';
   END IF;

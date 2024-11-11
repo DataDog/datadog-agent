@@ -17,7 +17,8 @@ import (
 	etcd_client "go.etcd.io/etcd/client/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -81,7 +82,7 @@ func (suite *EtcdTestSuite) TearDownSuite() {
 
 // put configuration back in a known state before each test
 func (suite *EtcdTestSuite) SetupTest() {
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("autoconf_template_dir", "/foo/")
 
 	suite.populateEtcd()
@@ -141,11 +142,11 @@ func (suite *EtcdTestSuite) toggleEtcdAuth(enable bool) {
 
 func (suite *EtcdTestSuite) TestWorkingConnectionAnon() {
 	ctx := context.Background()
-	config := config.ConfigurationProviders{
+	config := pkgconfigsetup.ConfigurationProviders{
 		TemplateURL: suite.etcdURL,
 		TemplateDir: "/foo",
 	}
-	p, err := providers.NewEtcdConfigProvider(&config)
+	p, err := providers.NewEtcdConfigProvider(&config, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -162,11 +163,11 @@ func (suite *EtcdTestSuite) TestWorkingConnectionAnon() {
 
 func (suite *EtcdTestSuite) TestBadConnection() {
 	ctx := context.Background()
-	config := config.ConfigurationProviders{
+	config := pkgconfigsetup.ConfigurationProviders{
 		TemplateURL: "http://127.0.0.1:1337",
 		TemplateDir: "/foo",
 	}
-	p, err := providers.NewEtcdConfigProvider(&config)
+	p, err := providers.NewEtcdConfigProvider(&config, nil)
 	assert.Nil(suite.T(), err)
 
 	checks, err := p.(providers.CollectingConfigProvider).Collect(ctx)
@@ -177,13 +178,13 @@ func (suite *EtcdTestSuite) TestBadConnection() {
 func (suite *EtcdTestSuite) TestWorkingAuth() {
 	ctx := context.Background()
 	suite.toggleEtcdAuth(true)
-	config := config.ConfigurationProviders{
+	config := pkgconfigsetup.ConfigurationProviders{
 		TemplateURL: suite.etcdURL,
 		TemplateDir: "/foo",
 		Username:    etcdUser,
 		Password:    etcdPass,
 	}
-	p, err := providers.NewEtcdConfigProvider(&config)
+	p, err := providers.NewEtcdConfigProvider(&config, nil)
 	assert.Nil(suite.T(), err)
 
 	checks, err := p.(providers.CollectingConfigProvider).Collect(ctx)
@@ -194,13 +195,13 @@ func (suite *EtcdTestSuite) TestWorkingAuth() {
 func (suite *EtcdTestSuite) TestBadAuth() {
 	ctx := context.Background()
 	suite.toggleEtcdAuth(true)
-	config := config.ConfigurationProviders{
+	config := pkgconfigsetup.ConfigurationProviders{
 		TemplateURL: suite.etcdURL,
 		TemplateDir: "/foo",
 		Username:    etcdUser,
 		Password:    "invalid",
 	}
-	p, err := providers.NewEtcdConfigProvider(&config)
+	p, err := providers.NewEtcdConfigProvider(&config, nil)
 	assert.Nil(suite.T(), err)
 
 	checks, err := p.(providers.CollectingConfigProvider).Collect(ctx)

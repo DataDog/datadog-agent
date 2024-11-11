@@ -126,7 +126,7 @@ func (t *Tester) ExpectedServiceConfig() (windowsCommon.ServiceConfigMap, error)
 	m["datadogagent"].DisplayName = "Datadog Agent"
 	m["datadog-trace-agent"].DisplayName = "Datadog Trace Agent"
 	m["datadog-process-agent"].DisplayName = "Datadog Process Agent"
-	m["datadog-security-agent"].DisplayName = "Datadog Security Service"
+	m["datadog-security-agent"].DisplayName = "Datadog Security Agent"
 	m["datadog-system-probe"].DisplayName = "Datadog System Probe"
 	m["ddnpm"].DisplayName = "Datadog Network Performance Monitor"
 	m["ddprocmon"].DisplayName = "Datadog Process Monitor"
@@ -178,6 +178,15 @@ func ExpectedInstalledServices() []string {
 		"datadog-system-probe",
 		"ddnpm",
 		"ddprocmon",
+	}
+}
+
+// ExpectedRunningServices returns the list of services expected to be running after installation
+func ExpectedRunningServices() []string {
+	return []string{
+		"datadogagent",
+		"datadog-trace-agent",
+		"datadog-process-agent",
 	}
 }
 

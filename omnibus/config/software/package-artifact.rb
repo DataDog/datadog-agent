@@ -2,9 +2,18 @@ name 'package-artifacts'
 
 description "Helper to package an XZ build artifact to deb/rpm/..."
 
+always_build true
+
 build do
-  command "tar xf #{ENV['OMNIBUS_PACKAGE_ARTIFACT']} -C /"
-  delete "#{ENV['OMNIBUS_PACKAGE_ARTIFACT']}"
+  input_dir = ENV['OMNIBUS_PACKAGE_ARTIFACT_DIR']
+  # Iterate over all provided intermediate artifacts. There can be the main one
+  # which contains all binaries, and an optional debug one with the debuging symbols
+  # that have been stripped out during the build
+  Dir.glob("*.tar.xz", base: input_dir).each do |input|
+    path = File.join(input_dir, input)
+    command "tar xf #{path} -C /"
+    delete path
+  end
 
   if project.name == "installer"
     # This file depends on the type of package and must therefor be generated during

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 import errno
 import glob
@@ -8,30 +10,32 @@ import sys
 import tempfile
 from subprocess import check_output
 
-from invoke import task
 from invoke.exceptions import Exit
+from invoke.tasks import task
 
 from tasks.agent import build as agent_build
 from tasks.agent import generate_config
 from tasks.build_tags import get_default_build_tags
 from tasks.go import run_golangci_lint
 from tasks.libs.build.ninja import NinjaWriter
+from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     environ,
     get_build_flags,
-    get_git_branch_name,
-    get_git_commit,
     get_go_version,
-    get_gopath,
     get_version,
 )
+from tasks.libs.types.arch import ARCH_AMD64, Arch
 from tasks.process_agent import TempDir
 from tasks.system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
+    build_libpcap,
     check_for_ninja,
+    copy_ebpf_and_related_files,
+    get_libpcap_cgo_flags,
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
 )
@@ -42,8 +46,6 @@ is_windows = sys.platform == "win32"
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
 CI_PROJECT_DIR = os.environ.get("CI_PROJECT_DIR", ".")
-KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
-KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-security-agent-check", "files")
 STRESS_TEST_SUITE = "stresssuite"
 
 
@@ -55,9 +57,6 @@ def build(
     incremental_build=True,
     install_path=None,
     major_version='7',
-    # arch is never used here; we keep it to have a
-    # consistent CLI on the build task for all agents.
-    arch=CURRENT_ARCH,  # noqa: U100
     go_mod="mod",
     skip_assets=False,
     static=False,
@@ -71,33 +70,28 @@ def build(
             ctx,
             install_path=install_path,
             race=race,
-            arch=arch,
             go_mod=go_mod,
         )
 
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, install_path=install_path)
 
     main = "main."
     ld_vars = {
         "Version": get_version(ctx, major_version=major_version),
         "GoVersion": get_go_version(),
-        "GitBranch": get_git_branch_name(),
-        "GitCommit": get_git_commit(),
+        "GitBranch": get_current_branch(ctx),
+        "GitCommit": get_commit_sha(ctx, short=True),
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
     ## build windows resources
     # generate windows resources
     if sys.platform == 'win32':
-        if arch == "x86":
-            env["GOARCH"] = "386"
-
-        build_messagetable(ctx, arch=arch)
-        vars = versioninfo_vars(ctx, major_version=major_version, arch=arch)
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx, major_version=major_version)
         build_rc(
             ctx,
             "cmd/security-agent/windows_resources/security-agent.rc",
-            arch=arch,
             vars=vars,
             out="cmd/security-agent/rsrc.syso",
         )
@@ -162,13 +156,7 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
             ctx.run(f"touch {docker_context}/agent")
             core_agent_dest = "/dev/null"
 
-        ctx.run(f"cp pkg/ebpf/bytecode/build/*.o {docker_context}")
-        ctx.run(f"mkdir {docker_context}/co-re")
-        ctx.run(f"cp pkg/ebpf/bytecode/build/co-re/*.o {docker_context}/co-re/")
-        ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
-        ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c {docker_context}/co-re/*.o")
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
+        copy_ebpf_and_related_files(ctx, docker_context)
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image
@@ -208,14 +196,13 @@ def run_functional_tests(ctx, testsuite, verbose=False, testflags='', fentry=Fal
 
 
 @task
-def run_ebpfless_functional_tests(ctx, cws_instrumentation, testsuite, verbose=False, testflags=''):
+def run_ebpfless_functional_tests(ctx, testsuite, verbose=False, testflags=''):
     cmd = '{testsuite} -trace {verbose_opt} {testflags}'
 
     if os.getuid() != 0:
         cmd = 'sudo -E PATH={path} ' + cmd
 
     args = {
-        "cws_instrumentation": cws_instrumentation,
         "testsuite": testsuite,
         "verbose_opt": "-test.v" if verbose else "",
         "testflags": testflags,
@@ -246,12 +233,12 @@ def build_go_syscall_tester(ctx, build_dir):
     syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
     syscall_tester_exe_file = os.path.join(build_dir, "syscall_go_tester")
     ctx.run(
-        f"go build -o {syscall_tester_exe_file} -tags syscalltesters,osusergo,netgo -ldflags=\"-extldflags=-static\" {syscall_tester_go_dir}/syscall_go_tester.go"
+        f"go build -o {syscall_tester_exe_file} -tags syscalltesters,osusergo,netgo -ldflags=\"-extldflags=-static\" {syscall_tester_go_dir}/syscall_go_tester.go",
     )
     return syscall_tester_exe_file
 
 
-def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=None, static=True):
+def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=None, static=True, compiler='clang'):
     if flags is None:
         flags = []
     if libs is None:
@@ -268,11 +255,11 @@ def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=Non
     nw.build(
         inputs=[syscall_tester_c_file],
         outputs=[syscall_tester_exe_file],
-        rule="execlang",
+        rule="exe" + compiler,
         variables={
             "exeflags": flags,
             "exelibs": libs,
-            "flags": [f"-D__{uname_m}__", f"-isystem/usr/include/{uname_m}-linux-gnu"],
+            "flags": [f"-isystem/usr/include/{uname_m}-linux-gnu"],
         },
     )
     return syscall_tester_exe_file
@@ -319,12 +306,16 @@ def build_embed_latency_tools(ctx, static=True):
     ctx.run(f"ninja -f {nf_path}")
 
 
-def ninja_syscall_x86_tester(ctx, build_dir, static=True):
-    return ninja_c_syscall_tester_common(ctx, "syscall_x86_tester", build_dir, flags=["-m32"], static=static)
+def ninja_syscall_x86_tester(ctx, build_dir, static=True, compiler='clang'):
+    return ninja_c_syscall_tester_common(
+        ctx, "syscall_x86_tester", build_dir, flags=["-m32"], static=static, compiler=compiler
+    )
 
 
-def ninja_syscall_tester(ctx, build_dir, static=True):
-    return ninja_c_syscall_tester_common(ctx, "syscall_tester", build_dir, libs=["-lpthread"], static=static)
+def ninja_syscall_tester(ctx, build_dir, static=True, compiler='clang'):
+    return ninja_c_syscall_tester_common(
+        ctx, "syscall_tester", build_dir, libs=["-lpthread"], static=static, compiler=compiler
+    )
 
 
 def create_dir_if_needed(dir):
@@ -336,7 +327,10 @@ def create_dir_if_needed(dir):
 
 
 @task
-def build_embed_syscall_tester(ctx, arch=CURRENT_ARCH, static=True):
+def build_embed_syscall_tester(
+    ctx, arch: str | Arch = CURRENT_ARCH, static=True, compiler="clang", ebpf_compiler="clang"
+):
+    arch = Arch.from_str(arch)
     check_for_ninja(ctx)
     build_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "bin")
     go_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "go")
@@ -345,12 +339,12 @@ def build_embed_syscall_tester(ctx, arch=CURRENT_ARCH, static=True):
     nf_path = os.path.join(ctx.cwd, 'syscall-tester.ninja')
     with open(nf_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file, width=120)
-        ninja_define_ebpf_compiler(nw)
-        ninja_define_exe_compiler(nw)
+        ninja_define_ebpf_compiler(nw, arch=arch, compiler=ebpf_compiler)
+        ninja_define_exe_compiler(nw, compiler=compiler)
 
-        ninja_syscall_tester(nw, build_dir, static=static)
-        if arch == "x64":
-            ninja_syscall_x86_tester(nw, build_dir, static=static)
+        ninja_syscall_tester(nw, build_dir, static=static, compiler=compiler)
+        if arch == ARCH_AMD64:
+            ninja_syscall_x86_tester(nw, build_dir, static=static, compiler=compiler)
         ninja_ebpf_probe_syscall_tester(nw, go_dir)
 
     ctx.run(f"ninja -f {nf_path}")
@@ -362,7 +356,7 @@ def build_functional_tests(
     ctx,
     output='pkg/security/tests/testsuite',
     srcpath='pkg/security/tests',
-    arch=CURRENT_ARCH,
+    arch: str | Arch = CURRENT_ARCH,
     major_version='7',
     build_tags='functionaltests',
     build_flags='',
@@ -373,6 +367,8 @@ def build_functional_tests(
     kernel_release=None,
     debug=False,
     skip_object_files=False,
+    syscall_tester_compiler='clang',
+    ebpf_compiler='clang',
 ):
     if not is_windows:
         if not skip_object_files:
@@ -382,16 +378,18 @@ def build_functional_tests(
                 arch=arch,
                 kernel_release=kernel_release,
                 debug=debug,
+                bundle_ebpf=bundle_ebpf,
+                ebpf_compiler=ebpf_compiler,
             )
-        build_embed_syscall_tester(ctx)
+        build_embed_syscall_tester(ctx, compiler=syscall_tester_compiler, ebpf_compiler=ebpf_compiler)
 
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
+    arch = Arch.from_str(arch)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, arch=arch)
 
     env["CGO_ENABLED"] = "1"
-    if arch == "x86":
-        env["GOARCH"] = "386"
 
     build_tags = build_tags.split(",")
+    build_tags.append("test")
     if not is_windows:
         build_tags.append("linux_bpf")
         build_tags.append("trivy")
@@ -400,12 +398,22 @@ def build_functional_tests(
         if bundle_ebpf:
             build_tags.append("ebpf_bindata")
 
+        build_tags.append("pcap")
+        build_libpcap(ctx)
+        cgo_flags = get_libpcap_cgo_flags(ctx)
+        # append libpcap cgo-related environment variables to any existing ones
+        for k, v in cgo_flags.items():
+            if k in env:
+                env[k] += f" {v}"
+            else:
+                env[k] = v
+
     if static:
         build_tags.extend(["osusergo", "netgo"])
 
     if not skip_linters:
         targets = [srcpath]
-        results = run_golangci_lint(ctx, module_path="", targets=targets, build_tags=build_tags, arch=arch)
+        results, _ = run_golangci_lint(ctx, module_path="", targets=targets, build_tags=build_tags)
         for result in results:
             # golangci exits with status 1 when it finds an issue
             if result.exited != 0:
@@ -436,7 +444,6 @@ def build_functional_tests(
 def build_stress_tests(
     ctx,
     output=f"pkg/security/tests/{STRESS_TEST_SUITE}",
-    arch=CURRENT_ARCH,
     major_version='7',
     bundle_ebpf=True,
     skip_linters=False,
@@ -446,7 +453,6 @@ def build_stress_tests(
     build_functional_tests(
         ctx,
         output=output,
-        arch=arch,
         major_version=major_version,
         build_tags='stresstests',
         bundle_ebpf=bundle_ebpf,
@@ -459,7 +465,6 @@ def build_stress_tests(
 def stress_tests(
     ctx,
     verbose=False,
-    arch=CURRENT_ARCH,
     major_version='7',
     output=f"pkg/security/tests/{STRESS_TEST_SUITE}",
     bundle_ebpf=True,
@@ -469,7 +474,6 @@ def stress_tests(
 ):
     build_stress_tests(
         ctx,
-        arch=arch,
         major_version=major_version,
         output=output,
         bundle_ebpf=bundle_ebpf,
@@ -490,7 +494,6 @@ def functional_tests(
     ctx,
     verbose=False,
     race=False,
-    arch=CURRENT_ARCH,
     major_version='7',
     output='pkg/security/tests/testsuite',
     bundle_ebpf=True,
@@ -501,7 +504,6 @@ def functional_tests(
 ):
     build_functional_tests(
         ctx,
-        arch=arch,
         major_version=major_version,
         output=output,
         bundle_ebpf=bundle_ebpf,
@@ -531,11 +533,9 @@ def ebpfless_functional_tests(
     testflags='',
     skip_linters=False,
     kernel_release=None,
-    cws_instrumentation='bin/cws-instrumentation/cws-instrumentation',
 ):
     build_functional_tests(
         ctx,
-        arch=arch,
         major_version=major_version,
         output=output,
         bundle_ebpf=bundle_ebpf,
@@ -546,39 +546,10 @@ def ebpfless_functional_tests(
 
     run_ebpfless_functional_tests(
         ctx,
-        cws_instrumentation,
         testsuite=output,
         verbose=verbose,
         testflags=testflags,
     )
-
-
-@task
-def kitchen_functional_tests(
-    ctx,
-    verbose=False,
-    arch=CURRENT_ARCH,
-    major_version='7',
-    build_tests=False,
-    testflags='',
-):
-    if build_tests:
-        functional_tests(
-            ctx,
-            verbose=verbose,
-            arch=arch,
-            major_version=major_version,
-            output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite",
-            testflags=testflags,
-        )
-
-    kitchen_dir = os.path.join("test", "kitchen")
-    shutil.copy(
-        os.path.join(kitchen_dir, "kitchen-vagrant-security-agent.yml"), os.path.join(kitchen_dir, "kitchen.yml")
-    )
-
-    with ctx.cd(kitchen_dir):
-        ctx.run("kitchen test")
 
 
 @task
@@ -595,7 +566,6 @@ def docker_functional_tests(
 ):
     build_functional_tests(
         ctx,
-        arch=arch,
         major_version=major_version,
         output="pkg/security/tests/testsuite",
         bundle_ebpf=bundle_ebpf,
@@ -605,36 +575,7 @@ def docker_functional_tests(
         kernel_release=kernel_release,
     )
 
-    add_arch_line = ""
-    if arch == "x86":
-        add_arch_line = "RUN dpkg --add-architecture i386"
-
-    dockerfile = f"""
-FROM ubuntu:22.04
-
-ENV DOCKER_DD_AGENT=yes
-
-{add_arch_line}
-
-RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 clang-14 llvm-14 \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN mkdir -p /opt/datadog-agent/embedded/bin
-RUN ln -s $(which clang-14) /opt/datadog-agent/embedded/bin/clang-bpf
-RUN ln -s $(which llc-14) /opt/datadog-agent/embedded/bin/llc-bpf
-    """
-
-    docker_image_tag_name = "docker-functional-tests"
-
-    # build docker image
-    with tempfile.TemporaryDirectory() as temp_dir:
-        print("Create tmp dir:", temp_dir)
-        with open(os.path.join(temp_dir, "Dockerfile"), "w") as f:
-            f.write(dockerfile)
-
-        cmd = 'docker build {docker_file_ctx} --tag {image_tag}'
-        ctx.run(cmd.format(**{"docker_file_ctx": temp_dir, "image_tag": docker_image_tag_name}))
+    image_tag = "ghcr.io/datadog/apps-cws-centos7:main"
 
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
@@ -648,14 +589,13 @@ RUN ln -s $(which llc-14) /opt/datadog-agent/embedded/bin/llc-bpf
     cmd += '-v /usr/lib/os-release:/host/usr/lib/os-release '
     cmd += '-v /etc/passwd:/etc/passwd '
     cmd += '-v /etc/group:/etc/group '
+    cmd += '-v /opt/datadog-agent/embedded/:/opt/datadog-agent/embedded/ '
     cmd += '-v ./pkg/security/tests:/tests {image_tag} sleep 3600'
 
     args = {
-        "GOPATH": get_gopath(ctx),
-        "REPO_PATH": REPO_PATH,
         "container_name": container_name,
         "caps": ' '.join(f"--cap-add {cap}" for cap in capabilities),
-        "image_tag": f"{docker_image_tag_name}:latest",
+        "image_tag": image_tag,
     }
 
     ctx.run(cmd.format(**args))
@@ -680,16 +620,22 @@ def generate_cws_documentation(ctx, go_generate=False):
 
     # secl docs
     ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl.json --output ./docs/cloud-workload-security/agent_expressions.md"
+        "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl_linux.json --output ./docs/cloud-workload-security/linux_expressions.md --template ./linux_expressions.md"
+    )
+    ctx.run(
+        "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl_windows.json --output ./docs/cloud-workload-security/windows_expressions.md --template ./windows_expressions.md"
     )
     # backend event docs
     ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend.schema.json --output ./docs/cloud-workload-security/backend.md"
+        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend_linux.schema.json --output ./docs/cloud-workload-security/backend_linux.md --template ./backend_linux.md"
+    )
+    ctx.run(
+        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend_windows.schema.json --output ./docs/cloud-workload-security/backend_windows.md --template ./backend_windows.md"
     )
 
 
 @task
-def cws_go_generate(ctx):
+def cws_go_generate(ctx, verbose=False):
     ctx.run("go install golang.org/x/tools/cmd/stringer")
     ctx.run("go install github.com/mailru/easyjson/easyjson")
     with ctx.cd("./pkg/security/secl"):
@@ -700,17 +646,15 @@ def cws_go_generate(ctx):
         # Disable cross generation from windows for now. Need to fix the stringer issue.
         # elif sys.platform == "win32":
         #     ctx.run("set GOOS=linux && go generate ./...")
-        ctx.run("go generate ./...")
+        cmd = "go generate"
+        if verbose:
+            cmd += " -v"
+        ctx.run(cmd + " ./...")
 
     if sys.platform == "linux":
         shutil.copy(
             "./pkg/security/serializers/serializers_linux_easyjson.mock",
             "./pkg/security/serializers/serializers_linux_easyjson.go",
-        )
-
-        shutil.copy(
-            "./pkg/security/security_profile/dump/activity_dump_easyjson.mock",
-            "./pkg/security/security_profile/dump/activity_dump_easyjson.go",
         )
 
     ctx.run("go generate ./pkg/security/...")
@@ -763,9 +707,9 @@ def combine_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONST
 def generate_cws_proto(ctx):
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.33.0")
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2")
             ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.6.0")
-            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0")
+            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.4.0")
 
             plugin_opts = " ".join(
                 [
@@ -818,6 +762,7 @@ def go_generate_check(ctx):
         [cws_go_generate],
         [generate_cws_documentation],
         [gen_mocks],
+        [sync_secl_win_pkg],
     ]
     failing_tasks = []
 
@@ -838,22 +783,21 @@ def go_generate_check(ctx):
             print(f"Task `{ft.name}` resulted in dirty files, please re-run it:")
             for file in ft.dirty_files:
                 print(f"* {file}")
-            raise Exit(code=1)
+        raise Exit(code=1)
+
+
+E2E_ARTIFACT_DIR = os.path.join(CI_PROJECT_DIR, "test", "new-e2e", "tests", "security-agent-functional", "artifacts")
 
 
 @task
-def kitchen_prepare(ctx, skip_linters=False):
+def e2e_prepare_win(ctx):
     """
-    Compile test suite for kitchen
+    Compile test suite for CWS windows new-e2e tests
     """
 
-    out_binary = "testsuite"
-    race = True
-    if is_windows:
-        out_binary = "testsuite.exe"
-        race = False
+    out_binary = "testsuite.exe"
 
-    testsuite_out_dir = os.path.join(KITCHEN_ARTIFACT_DIR, "tests")
+    testsuite_out_dir = E2E_ARTIFACT_DIR
     # Clean up previous build
     if os.path.exists(testsuite_out_dir):
         shutil.rmtree(testsuite_out_dir)
@@ -862,58 +806,30 @@ def kitchen_prepare(ctx, skip_linters=False):
     build_functional_tests(
         ctx,
         bundle_ebpf=False,
-        race=race,
+        race=False,
         debug=True,
         output=testsuite_out_path,
-        skip_linters=skip_linters,
+        skip_linters=True,
     )
-    if is_windows:
-        # build the ETW tests binary also
-        testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", "etw", out_binary)
-        srcpath = 'pkg/security/probe'
-        build_functional_tests(
-            ctx,
-            output=testsuite_out_path,
-            srcpath=srcpath,
-            bundle_ebpf=False,
-            race=race,
-            debug=True,
-            skip_linters=skip_linters,
-        )
 
-        return
-
-    stresssuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", STRESS_TEST_SUITE)
-    build_stress_tests(ctx, output=stresssuite_out_path, skip_linters=skip_linters)
-
-    # Copy clang binaries
-    for bin in ["clang-bpf", "llc-bpf"]:
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/{bin} {KITCHEN_ARTIFACT_DIR}/{bin}")
-
-    # Copy gotestsum binary
-    gopath = get_gopath(ctx)
-    ctx.run(f"cp {gopath}/bin/gotestsum {KITCHEN_ARTIFACT_DIR}/")
-
-    # Build test2json binary
-    ctx.run(f"go build -o {KITCHEN_ARTIFACT_DIR}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
-
-    ebpf_bytecode_dir = os.path.join(KITCHEN_ARTIFACT_DIR, "ebpf_bytecode")
-    ebpf_runtime_dir = os.path.join(ebpf_bytecode_dir, "runtime")
-    bytecode_build_dir = os.path.join(CI_PROJECT_DIR, "pkg", "ebpf", "bytecode", "build")
-
-    ctx.run(f"mkdir -p {ebpf_runtime_dir}")
-    ctx.run(f"cp {bytecode_build_dir}/runtime-security* {ebpf_bytecode_dir}")
-    ctx.run(f"cp {bytecode_build_dir}/runtime/runtime-security* {ebpf_runtime_dir}")
+    # build the ETW tests binary also
+    testsuite_out_path = os.path.join(E2E_ARTIFACT_DIR, "etw", out_binary)
+    srcpath = 'pkg/security/probe'
+    build_functional_tests(
+        ctx,
+        output=testsuite_out_path,
+        srcpath=srcpath,
+        bundle_ebpf=False,
+        race=False,
+        debug=True,
+        skip_linters=True,
+    )
 
 
 @task
 def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
     build_cws_object_files(
-        ctx,
-        major_version='7',
-        arch=CURRENT_ARCH,
-        kernel_release=None,
-        with_unit_test=True,
+        ctx, major_version='7', kernel_release=None, with_unit_test=True, bundle_ebpf=True, arch=CURRENT_ARCH
     )
 
     flags = '-tags ebpf_bindata'
@@ -942,12 +858,13 @@ def sync_secl_win_pkg(ctx):
         ("events.go", None),
         ("args_envs.go", None),
         ("consts_common.go", None),
-        ("consts_other.go", None),
-        ("consts_map_names.go", None),
+        ("consts_windows.go", "consts_win.go"),
+        ("consts_map_names_linux.go", None),
         ("model_windows.go", "model_win.go"),
         ("field_handlers_windows.go", "field_handlers_win.go"),
         ("accessors_windows.go", "accessors_win.go"),
         ("legacy_secl.go", None),
+        ("security_profile.go", None),
     ]
 
     ctx.run("rm -r pkg/security/seclwin/model")

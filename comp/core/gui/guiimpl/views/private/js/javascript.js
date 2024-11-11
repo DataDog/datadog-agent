@@ -12,31 +12,66 @@ if (!String.prototype.endsWith) {
 	};
 }
 
-// Attempts to fetch the API key from the browsers cookies
-function getAuthToken() {
-  var cookies = document.cookie.split(';');
-  for (var i = 0; i < cookies.length; i++) {
-      var c = cookies[i];
-      while (c.charAt(0) == ' ') c = c.substring(1, c.length);
-      if (c.indexOf("authToken=") == 0) {
-        return c.substring(10, c.length);
-      }
-  }
-  return null;
-}
-
 // Sends a message to the GUI server with the correct authorization/format
 function sendMessage(endpoint, data, method, callback, callbackErr){
   $.ajax({
     url: window.location.href + endpoint,
     type: method,
     data: data,
-    headers: {
-        Authorization: 'Bearer ' + getAuthToken()
+    success: function(data, status, xhr) {
+      // cleaning error layout before updating layour 
+      $("#error").hide()
+      $("#logged_out").hide();
+
+      // Set Agent state to "connected"
+      $("#agent_status").html("Connected<br>to Agent");
+      $("#agent_status").removeClass("disconnected")
+      $("#agent_status").addClass("connected")
+
+      try {
+        callback(data, status, xhr)
+      } catch (error) {
+        console.log(error)
+      }
     },
-    success: callback,
-    error: callbackErr
+    error: function(requestObject, error, errorThrown) {
+      try {
+        callbackErr(requestObject, error, errorThrown)
+      } catch (error) {
+        console.log(error)
+      }
+
+      // Set Agent state to "disconnected"
+      $("#agent_status").html("Not connected<br>to Agent");
+      $("#agent_status").removeClass("connected")
+      $("#agent_status").addClass("disconnected")
+
+      // Display error layout 
+      setError(requestObject.status, requestObject.responseText)
+    }
   })
+}
+
+// setError print the 
+/**
+ * Sets the error message and displays it on the page.
+ * @param {number} status - The status code of the error.
+ * @param {string} message - The error message.
+ */
+function setError(status, message) {
+  if (status == 0) {
+    message = "Unable to contact the Datadog Agent. Please ensure it is running."
+  }
+  else if (status == 401) {
+    message = "Not logged in. Please ensure that your GUI session has not expired. (Agent replied with: " + DOMPurify.sanitize(message.trim()) + ")"
+  }
+
+  $("#error_content").html("<h3>Error</h3> " + message)
+
+  if (status == 401) {
+    $("#logged_out").css("display", "block");
+  }
+  $("#error").css("display", "block");
 }
 
 // Generates a CodeMirror text editor object and attaches it to the specific element
@@ -112,28 +147,11 @@ function checkStatus() {
   }
   sendMessage("agent/ping", "", "post",
   function(data, status, xhr) {
-    $("#agent_status").html("Connected <br>to Agent");
-    $("#agent_status").css({
-      "background": 'linear-gradient(to bottom, #89c403 5%, #77a809 100%)',
-      "background-color": '#89c403',
-      "border": '1px solid #74b807',
-      "text-shadow": '0px 1px 0px #528009',
-      'left': '-150px'
-    })
     last_ts = parseInt(data)
     if (checkStatus.uptime > last_ts) {
       $("#restart_status").hide()
     }
     checkStatus.uptime = last_ts
-  },function() {
-    $("#agent_status").html("Not connected<br> to Agent");
-    $("#agent_status").css({
-      "background": 'linear-gradient(to bottom, #c62d1f 5%, #f24437 100%)',
-      "background-color": '#c62d1f',
-      "border": '1px solid #d02718',
-      "text-shadow": '0px 1px 0px #810e05',
-      'left': '-180px'
-    })
   });
 }
 
@@ -153,8 +171,6 @@ function loadStatus(page) {
   sendMessage("agent/status/" + page, "", "post",
   function(data, status, xhr){
       $("#" + page + "_status").html(DOMPurify.sanitize(data));
-  },function(){
-      $("#" + page + "_status").html("<span class='center'>An error occurred.</span>");
   });
 }
 
@@ -186,8 +202,6 @@ function loadLog(){
                     '</select></div>' +
                     '<div class="log_data">' + DOMPurify.sanitize(data) + ' </div>');
     $("#log_view_type").change(changeLogView);
-  }, function(){
-    $('#logs').html("<span class='center'>An error occurred.</span>");
   });
 }
 
@@ -258,8 +272,6 @@ function loadSettings() {
     var editor = attachEditor("settings_input", data);
 
     $("#submit_settings").click(function() { submitSettings(editor); });
-  }, function(){
-    $('#settings').html("<span class='center'>An error occurred.</span>");
   });
 }
 
@@ -298,7 +310,8 @@ function loadManageChecks() {
 // Fetches the names of all the configuration (.yaml) files and fills the list of
 // checks to configure with the configurations for all currently enabled checks
 function loadCheckConfigFiles() {
-  $(".list").html("");
+  // Create a temporary container (IE doesn't like adding elements in HTML elements)
+  var tempList = $("<div></div>");
 
   sendMessage("checks/listConfigs", "", "post",
   function(data, status, xhr){
@@ -314,24 +327,26 @@ function loadCheckConfigFiles() {
           item.endsWith("auto_conf.yaml")) return;
 
       item = DOMPurify.sanitize(item)
-      $(".list").append('<a href="javascript:void(0)" onclick="showCheckConfig(\''
+      tempList.append('<a href="javascript:void(0)" onclick="showCheckConfig(\''
                         + item  + '\')" class="check">' +  item + '</a>');
     });
+
+    // Replace the existing .list content with the new HTML
+    $(".list").html(tempList.html());
 
     // Add highlighting current check functionality
     $(".check").click(function(){
       $(".active_check").removeClass("active_check");
       $(this).addClass("active_check");
     })
-  }, function() {
-    $("#checks_description").html("An error occurred.");
   });
 }
 
 // Fetches the names of all the check (.py) files and fills the list of checks to add
 // with the checks which are not already enabled
 function loadNewChecks() {
-  $(".list").html("");
+  // Create a temporary container (IE doesn't like adding elements in HTML elements)
+  var tempList = $("<div></div>");
 
   // Get a list of all the currently enabled checks (aka checks with a valid config file)
   var enabledChecks = [];
@@ -368,20 +383,20 @@ function loadNewChecks() {
         // Only display checks that aren't already enabled
         if (enabledChecks.indexOf(checkName) != -1) return;
 
-        $(".list").append('<a href="javascript:void(0)" onclick="addCheck(\'' +
+        tempList.append('<a href="javascript:void(0)" onclick="addCheck(\'' +
                           DOMPurify.sanitize(checkName) + '\')" class="check">' +  DOMPurify.sanitize(item) + '</a>');
       });
+
+      // Replace the existing .list content with the new HTML
+      $(".list").html(tempList.html());
+      
       // Add current item highlighting
       $(".check").click(function(){
         $(".active_check").removeClass("active_check");
         $(this).addClass("active_check");
       })
-    }, function() {
-      $("#checks_description").html("An error occurred.");
     });
 
-  }, function() {
-    $("#checks_description").html("An error occurred.");
   });
 }
 
@@ -420,9 +435,6 @@ function showCheckConfig(fileName) {
     var editor = attachEditor("check_input", data);
     $("#save_check").click(function() { saveCheckSettings(editor); });
     $("#disable_check").click(function() { disableCheckSettings(editor); });
-  }, function() {
-    $("#checks_description").html("An error occurred.");
-    $(".right").html("");
   });
 }
 
@@ -454,9 +466,6 @@ function saveCheckSettings(editor) {
       $(".unsuccessful").delay(3000).fadeOut("slow");
       $("#checks_description").html(DOMPurify.sanitize(data));
     }
-  }, function() {
-    $("#checks_description").html("An error occurred.");
-    $(".right").html("");
   });
 }
 
@@ -488,9 +497,6 @@ function disableCheckSettings(editor) {
       $(".unsuccessful").delay(3000).fadeOut("slow");
       $("#checks_description").html(DOMPurify.sanitize(data));
     }
-  }, function() {
-    $("#checks_description").html("An error occurred.");
-    $(".right").html("");
   });
 }
 
@@ -519,9 +525,6 @@ function reloadCheck() {
     } else {
       $("#check_run_results").prepend('<div id="summary"> Check reloaded: <i class="fa fa-times red"></i></div>');
     }
-  }, function() {
-    $("#checks_description").html("An error occurred.");
-    $(".right").html("");
   });
 }
 
@@ -549,24 +552,15 @@ function addCheck(checkToAdd) {
       sendMessage("checks/getConfig/" + disabledFile, "", "post",
       function(data, status, xhr){
         createNewConfigFile(checkToAdd, data);
-      }, function() {
-        $(".right").html("");
-        $("#checks_description").html("An error occurred.");
       });
     } else if (exampleFile != "") {
       sendMessage("checks/getConfig/" + exampleFile, "", "post",
       function(data, status, xhr){
         createNewConfigFile(checkToAdd, data);
-      }, function() {
-        $(".right").html("");
-        $("#checks_description").html("An error occurred.");
       });
     } else {
       createNewConfigFile(checkToAdd, "# Add your configuration here");
     }
-  }, function() {
-    $(".right").html("");
-    $("#checks_description").html("An error occurred.");
   });
 }
 
@@ -600,9 +594,6 @@ function createNewConfigFile(checkName, data) {
       // Reload the display (once the config file is saved this check is now enabled,
       // so it gets moved to the 'Edit Running Checks' section)
       checkDropdown();
-    }, function() {
-      $("#checks_description").html("An error occurred.");
-      $(".right").html("");
     });
   });
 }
@@ -657,9 +648,6 @@ function addNewCheck(editor, name) {
           '</div>');
       }
     });
-  }, function() {
-    $("#checks_description").html("An error occurred.");
-    $(".right").html("");
   });
 }
 
@@ -676,8 +664,6 @@ function seeRunningChecks() {
   sendMessage("checks/running", "", "post",
   function(data, status, xhr){
     $("#running_checks").html(DOMPurify.sanitize(data));
-  }, function() {
-    $("#running_checks").html("An error occurred.");
   });
 }
 
@@ -712,8 +698,6 @@ function submitFlare() {
     $("#email").val("");
     $(".flare_input").css("display", "none");
     $("#flare_description").html(DOMPurify.sanitize(data));
-  }, function(){
-    $('#flare_response').html("<span class='center'>An error occurred.</span>");
   });
 }
 
@@ -728,14 +712,9 @@ function restartAgent() {
   $(".active").removeClass("active");
   $("#main").append('<i class="fa fa-spinner fa-pulse fa-3x fa-fw center loading_spinner"></i>');
 
-  $("#agent_status").html("Not connected<br> to Agent");
-  $("#agent_status").css({
-    "background": 'linear-gradient(to bottom, #c62d1f 5%, #f24437 100%)',
-    "background-color": '#c62d1f',
-    "border": '1px solid #d02718',
-    "text-shadow": '0px 1px 0px #810e05',
-    'left': '-180px'
-  });
+  $("#agent_status").html("Not connected<br>to Agent");
+  $("#agent_status").removeClass("connected")
+  $("#agent_status").addClass("disconnected")
 
   // Disable the restart button to prevent multiple consecutive clicks
   $("#restart_button").css("pointer-events", "none");
@@ -750,12 +729,14 @@ function restartAgent() {
       if (data != "Success") {
         $("#general_status").css("display", "block");
         $('#general_status').html("<span class='center'>Error restarting agent: " + DOMPurify.sanitize(data) + "</span>");
-      } else loadStatus("general");
+      } else {
+        $("#restart_status").hide()
+        loadStatus("general");
+      }
     }, 10000);
-  }, function() {
+  }, function(requestObject, error, errorThrown) {
     $(".loading_spinner").remove();
     $("#general_status").css("display", "block");
-    $('#general_status').html("<span class='center'>An error occurred.</span>");
     $("#restart_button").css("pointer-events", "auto");
   });
 }

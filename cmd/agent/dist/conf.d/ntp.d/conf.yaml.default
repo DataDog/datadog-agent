@@ -1,6 +1,6 @@
 ## This file is overwritten upon Agent upgrade.
 ## To make modifications to the check configuration, copy this file
-## to `ntp.yaml` and make your changes on that file.
+## to `conf.yaml` and make your changes on that file.
 
 init_config:
 

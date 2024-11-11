@@ -17,17 +17,16 @@ from invoke.exceptions import Exit, ParseError
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
-from tasks.go import deps
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
-    cache_version,
     get_build_flags,
     get_embedded_path,
     get_goenv,
     get_version,
-    has_both_python,
+    gitlab_section,
 )
+from tasks.libs.releasing.version import create_version_json
 from tasks.rtloader import clean as rtloader_clean
 from tasks.rtloader import install as rtloader_install
 from tasks.rtloader import make as rtloader_make
@@ -43,6 +42,22 @@ BUNDLED_AGENTS = {
     # enable it by default but we enable it in the released artifacts.
     AgentFlavor.base: ["process-agent", "trace-agent", "security-agent"],
 }
+
+if sys.platform == "win32":
+    # Our `ridk enable` toolchain puts Ruby's bin dir at the front of the PATH
+    # This dir contains `aws.rb` which will execute if we just call `aws`,
+    # so we need to be explicit about the executable extension/path
+    # NOTE: awscli seems to have a bug where running "aws.cmd", quoted, without a full path,
+    #       causes it to fail due to not searching the PATH.
+    # NOTE: The full path to `aws.cmd` is likely to contain spaces, so if the full path is
+    #       used instead, it must be quoted when passed to ctx.run.
+    # This unfortunately means that the quoting requirements are different if you use
+    # the full path or just the filename.
+    # aws.cmd -> awscli v1 from Python env
+    AWS_CMD = "aws.cmd"
+    # TODO: can we use use `aws.exe` from AWSCLIv2? E2E expects v2.
+else:
+    AWS_CMD = "aws"
 
 AGENT_CORECHECKS = [
     "container",
@@ -74,10 +89,13 @@ AGENT_CORECHECKS = [
     "orchestrator_pod",
     "orchestrator_ecs",
     "cisco_sdwan",
+    "network_path",
+    "service_discovery",
 ]
 
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
+    "sbom",
     "windows_registry",
     "winkmem",
     "wincrashdetect",
@@ -120,8 +138,6 @@ def build(
     python_home_2=None,
     python_home_3=None,
     major_version='7',
-    python_runtimes='3',
-    arch='x64',
     exclude_rtloader=False,
     include_sds=False,
     go_mod="mod",
@@ -141,11 +157,16 @@ def build(
     """
     flavor = AgentFlavor[flavor]
 
+    if flavor.is_ot():
+        # for agent build purposes the UA agent is just like base
+        flavor = AgentFlavor.base
+
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()
-        rtloader_make(ctx, python_runtimes=python_runtimes, install_prefix=embedded_path, cmake_options=cmake_options)
-        rtloader_install(ctx)
+        with gitlab_section("Install embedded rtloader", collapsed=True):
+            rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
+            rtloader_install(ctx)
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -155,7 +176,6 @@ def build(
         python_home_2=python_home_2,
         python_home_3=python_home_3,
         major_version=major_version,
-        python_runtimes=python_runtimes,
     )
 
     bundled_agents = ["agent"]
@@ -163,15 +183,11 @@ def build(
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
 
-        if arch == "x86":
-            env["GOARCH"] = "386"
-
-        build_messagetable(ctx, arch=arch)
-        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx, major_version=major_version)
         build_rc(
             ctx,
             "cmd/agent/windows_resources/agent.rc",
-            arch=arch,
             vars=vars,
             out="cmd/agent/rsrc.syso",
         )
@@ -180,7 +196,7 @@ def build(
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
-        build_tags = get_default_build_tags(build="agent", arch=arch, flavor=flavor)
+        build_tags = get_default_build_tags(build="agent", flavor=flavor)
     else:
         all_tags = set()
         if bundle_ebpf and "system-probe" in bundled_agents:
@@ -189,9 +205,9 @@ def build(
         for build in bundled_agents:
             all_tags.add("bundle_" + build.replace("-", "_"))
             include_tags = (
-                get_default_build_tags(build=build, arch=arch, flavor=flavor)
+                get_default_build_tags(build=build, flavor=flavor)
                 if build_include is None
-                else filter_incompatible_tags(build_include.split(","), arch=arch)
+                else filter_incompatible_tags(build_include.split(","))
             )
 
             exclude_tags = [] if build_exclude is None else build_exclude.split(",")
@@ -220,10 +236,12 @@ def build(
         "REPO_PATH": REPO_PATH,
         "flavor": "iot-agent" if flavor.is_iot() else "agent",
     }
-    ctx.run(cmd.format(**args), env=env)
+    with gitlab_section("Build agent", collapsed=True):
+        ctx.run(cmd.format(**args), env=env)
 
     if embedded_path is None:
         embedded_path = get_embedded_path(ctx)
+        assert embedded_path, "Failed to find embedded path"
 
     for build in bundled_agents:
         if build == "agent":
@@ -238,16 +256,16 @@ def build(
 
         create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
 
-    render_config(
-        ctx,
-        env=env,
-        flavor=flavor,
-        python_runtimes=python_runtimes,
-        skip_assets=skip_assets,
-        build_tags=build_tags,
-        development=development,
-        windows_sysprobe=windows_sysprobe,
-    )
+    with gitlab_section("Generate configuration files", collapsed=True):
+        render_config(
+            ctx,
+            env=env,
+            flavor=flavor,
+            skip_assets=skip_assets,
+            build_tags=build_tags,
+            development=development,
+            windows_sysprobe=windows_sysprobe,
+        )
 
 
 def create_launcher(ctx, agent, src, dst):
@@ -266,7 +284,7 @@ def create_launcher(ctx, agent, src, dst):
     ctx.run(cmd.format(**args))
 
 
-def render_config(ctx, env, flavor, python_runtimes, skip_assets, build_tags, development, windows_sysprobe):
+def render_config(ctx, env, flavor, skip_assets, build_tags, development, windows_sysprobe):
     # Remove cross-compiling bits to render config
     env.update({"GOOS": "", "GOARCH": ""})
 
@@ -274,8 +292,6 @@ def render_config(ctx, env, flavor, python_runtimes, skip_assets, build_tags, de
     build_type = "agent-py3"
     if flavor.is_iot():
         build_type = "iot-agent"
-    elif has_both_python(python_runtimes):
-        build_type = "agent-py2py3"
 
     generate_config(ctx, build_type=build_type, output_file="./cmd/agent/dist/datadog.yaml", env=env)
 
@@ -408,7 +424,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
         raise ParseError("provided python_version is invalid")
 
     build_context = "Dockerfiles/agent"
-    base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
+    base_dir = base_dir or os.environ["OMNIBUS_BASE_DIR"]
     pkg_dir = os.path.join(base_dir, 'pkg')
     deb_glob = f'datadog-agent*_{arch}.deb'
     dockerfile_path = f"{build_context}/Dockerfile"
@@ -445,6 +461,8 @@ def hacky_dev_image_build(
     ctx,
     base_image=None,
     target_image="agent",
+    process_agent=False,
+    trace_agent=False,
     push=False,
     signed_pull=False,
 ):
@@ -483,6 +501,18 @@ def hacky_dev_image_build(
             f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
         )
 
+    copy_extra_agents = ""
+    if process_agent:
+        from tasks.process_agent import build as process_agent_build
+
+        process_agent_build(ctx, bundle=False)
+        copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
+    if trace_agent:
+        from tasks.trace_agent import build as trace_agent_build
+
+        trace_agent_build(ctx)
+        copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
+
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
             f'''FROM ubuntu:latest AS src
@@ -510,6 +540,13 @@ FROM golang:latest AS dlv
 
 RUN go install github.com/go-delve/delve/cmd/dlv@latest
 
+FROM {base_image} AS bash_completion
+
+RUN apt-get update && \
+    apt-get install -y gawk
+
+RUN awk -i inplace '!/^#/ {{uncomment=0}} uncomment {{gsub(/^#/, "")}} /# enable bash completion/ {{uncomment=1}} {{print}}' /etc/bash.bashrc
+
 FROM {base_image}
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -520,10 +557,12 @@ RUN apt-get update && \
 ENV DELVE_PAGER=less
 
 COPY --from=dlv /go/bin/dlv /usr/local/bin/dlv
+COPY --from=bash_completion /etc/bash.bashrc /etc/bash.bashrc
 COPY --from=src /usr/src/datadog-agent {os.getcwd()}
 COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+{copy_extra_agents}
 RUN agent          completion bash > /usr/share/bash-completion/completions/agent
 RUN process-agent  completion bash > /usr/share/bash-completion/completions/process-agent
 RUN security-agent completion bash > /usr/share/bash-completion/completions/security-agent
@@ -545,29 +584,28 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod", arch="x64"):
+def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout=""):
     """
     Run integration tests for the Agent
     """
-    if install_deps:
-        deps(ctx)
 
     if sys.platform == 'win32':
-        return _windows_integration_tests(ctx, race=race, go_mod=go_mod, arch=arch)
+        return _windows_integration_tests(ctx, race=race, go_mod=go_mod, timeout=timeout)
     else:
         # TODO: See if these will function on Windows
-        return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, arch=arch)
+        return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, timeout=timeout)
 
 
-def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
+def _windows_integration_tests(ctx, race=False, go_mod="mod", timeout=""):
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
+        "go_build_tags": " ".join(get_default_build_tags(build="test")),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
+        "timeout_opt": f"-timeout {timeout}" if timeout else "",
     }
 
-    go_cmd = 'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
+    go_cmd = 'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
 
     tests = [
         {
@@ -596,12 +634,13 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
             ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
 
 
-def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", arch="x64"):
+def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout=""):
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
+        "go_build_tags": " ".join(get_default_build_tags(build="test")),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
+        "timeout_opt": f"-timeout {timeout}" if timeout else "",
     }
 
     # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
@@ -611,7 +650,7 @@ def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod",
     if remote_docker:
         test_args["exec_opts"] = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
 
-    go_cmd = 'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
+    go_cmd = 'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
 
     prefixes = [
         "./test/integration/config_providers/...",
@@ -734,10 +773,11 @@ def version(
     omnibus_format=False,
     git_sha_length=7,
     major_version='7',
-    version_cached=False,
+    cache_version=False,
     pipeline_id=None,
     include_git=True,
     include_pre=True,
+    release=False,
 ):
     """
     Get the agent version.
@@ -750,8 +790,8 @@ def version(
     version_cached: save the version inside a "agent-version.cache" that will be reused
                     by each next call of version.
     """
-    if version_cached:
-        cache_version(ctx, git_sha_length=git_sha_length)
+    if cache_version:
+        create_version_json(ctx, git_sha_length=git_sha_length)
 
     version = get_version(
         ctx,
@@ -762,6 +802,7 @@ def version(
         include_pipeline_id=True,
         pipeline_id=pipeline_id,
         include_pre=include_pre,
+        release=release,
     )
     if omnibus_format:
         # See: https://github.com/DataDog/omnibus-ruby/blob/datadog-5.5.0/lib/omnibus/packagers/deb.rb#L599
@@ -782,7 +823,7 @@ def version(
 
 
 @task
-def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, target_dir, integrations, awscli="aws"):
+def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, target_dir, integrations):
     """
     Get cached integration wheels for given integrations.
     python: Python version to retrieve integrations for
@@ -791,7 +832,6 @@ def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, t
     integrations_dir: directory with Git repository of integrations
     target_dir: local directory to put integration wheels to
     integrations: comma-separated names of the integrations to try to retrieve from cache
-    awscli: AWS CLI executable to call
     """
     integrations_hashes = {}
     for integration in integrations.strip().split(","):
@@ -809,13 +849,9 @@ def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, t
     # On windows, maximum length of a command line call is 8191 characters, therefore
     # we do multiple syncs that fit within that limit (we use 8100 as a nice round number
     # and just to make sure we don't do any of-by-one errors that would break this).
-    # WINDOWS NOTES: on Windows, the awscli is usually in program files, so we have to wrap the
-    # executable in quotes; also we have to not put the * in quotes, as there's no
-    # expansion on it, unlike on Linux
+    # WINDOWS NOTES: we have to not put the * in quotes, as there's no expansion on it, unlike on Linux
     exclude_wildcard = "*" if platform.system().lower() == "windows" else "'*'"
-    sync_command_prefix = (
-        f"\"{awscli}\" s3 sync s3://{bucket} {target_dir} --no-sign-request --exclude {exclude_wildcard}"
-    )
+    sync_command_prefix = f"{AWS_CMD} s3 sync s3://{bucket} {target_dir} --no-sign-request --exclude {exclude_wildcard}"
     sync_commands = [[[sync_command_prefix], len(sync_command_prefix)]]
     for integration, hash in integrations_hashes.items():
         include_arg = " --include " + CACHED_WHEEL_FULL_PATH_PATTERN.format(
@@ -863,7 +899,7 @@ def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, t
 
 
 @task
-def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, build_dir, integration, awscli="aws"):
+def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, build_dir, integration):
     """
     Upload a built integration wheel for given integration.
     python: Python version the integration is built for
@@ -872,7 +908,6 @@ def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, b
     integrations_dir: directory with Git repository of integrations
     build_dir: directory containing the built integration wheel
     integration: name of the integration being cached
-    awscli: AWS CLI executable to call
     """
     matching_glob = os.path.join(build_dir, CACHED_WHEEL_FILENAME_PATTERN.format(integration=integration))
     files_matched = glob.glob(matching_glob)
@@ -894,8 +929,7 @@ def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, b
         hash=hash, python_version=python, branch=branch
     ) + os.path.basename(wheel_path)
     print(f"Caching wheel {target_name}")
-    # NOTE: on Windows, the awscli is usually in program files, so we have the executable
-    ctx.run(f"\"{awscli}\" s3 cp {wheel_path} s3://{bucket}/{target_name} --acl public-read")
+    ctx.run(f"{AWS_CMD} s3 cp {wheel_path} s3://{bucket}/{target_name} --acl public-read")
 
 
 @task()

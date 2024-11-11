@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"text/template"
@@ -73,8 +74,13 @@ const (
     {{end}}
 
   {{end}}
+  {{if .Status.Config.ProbabilisticSamplerEnabled}}
+  Probabilistic sampling percentage: {{.Status.Config.ProbabilisticSamplerSamplingPercentage}}%
+  Probabilistic sampler hash seed: {{.Status.Config.ProbabilisticSamplerHashSeed}}
+  {{ else }}
   {{ range $key, $value := .Status.RateByService }}
   Priority sampling rate for '{{ $key }}': {{percent $value}} %
+  {{ end }}
   {{ end }}
 
   --- Writer stats (1 min) ---
@@ -132,7 +138,7 @@ func Languages() []string {
 func publishReceiverStats() interface{} {
 	infoMu.RLock()
 	defer infoMu.RUnlock()
-	return receiverStats
+	return slices.Clone(receiverStats)
 }
 
 // UpdateRateByService updates the RateByService map and the filtered RateByServiceFiltered map.

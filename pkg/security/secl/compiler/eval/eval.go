@@ -9,10 +9,10 @@
 package eval
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -86,61 +86,6 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 		if newField, ok := opts.LegacyFields[field]; ok {
 			field = newField
 		}
-		if newField, ok := opts.LegacyFields[field]; ok {
-			itField = newField
-		}
-	}
-
-	// extract iterator
-	var iterator Iterator
-	if itField != "" {
-		if iterator, err = state.model.GetIterator(itField); err != nil {
-			return nil, obj.Pos, err
-		}
-	} else {
-		// detect whether a iterator is along the path
-		var candidate string
-		for _, node := range strings.Split(field, ".") {
-			if candidate == "" {
-				candidate = node
-			} else {
-				candidate = candidate + "." + node
-			}
-
-			iterator, err = state.model.GetIterator(candidate)
-			if err == nil {
-				break
-			}
-		}
-	}
-
-	if iterator != nil {
-		// Force "_" register for now.
-		if regID != "" && regID != "_" {
-			return nil, obj.Pos, NewRegisterNameNotAllowed(obj.Pos, regID, errors.New("only `_` is supported"))
-		}
-
-		// regID not specified or `_` generate one
-		if regID == "" || regID == "_" {
-			regID = state.newAnonymousRegID()
-		}
-
-		if info, exists := state.registersInfo[regID]; exists {
-			if info.field != itField {
-				return nil, obj.Pos, NewRegisterMultipleFields(obj.Pos, regID, errors.New("used by multiple fields"))
-			}
-
-			info.subFields[field] = true
-		} else {
-			info = &registerInfo{
-				field:    itField,
-				iterator: iterator,
-				subFields: map[Field]bool{
-					field: true,
-				},
-			}
-			state.registersInfo[regID] = info
-		}
 	}
 
 	accessor, err := state.model.GetEvaluator(field, regID)
@@ -149,6 +94,26 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 	}
 
 	state.UpdateFields(field)
+
+	if regID != "" {
+		// avoid wildcard register for the moment
+		if regID == "_" {
+			return nil, obj.Pos, NewError(obj.Pos, "`_` can't be used as a iterator variable name")
+		}
+
+		// avoid using the same register on two different fields
+		if slices.ContainsFunc(state.registers, func(r Register) bool {
+			return r.ID == regID && r.Field != itField
+		}) {
+			return nil, obj.Pos, NewError(obj.Pos, "iterator variable used by different fields '%s'", regID)
+		}
+
+		if !slices.ContainsFunc(state.registers, func(r Register) bool {
+			return r.ID == regID
+		}) {
+			state.registers = append(state.registers, Register{ID: regID, Field: itField})
+		}
+	}
 
 	return accessor, obj.Pos, nil
 }
@@ -171,6 +136,42 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 
 		// could be an iterator
 		return identToEvaluator(&ident{Pos: array.Pos, Ident: array.Ident}, opts, state)
+	} else if len(array.Idents) != 0 {
+		// Only "Constants" idents are supported, and only string, int and boolean constants are expected.
+		// Determine the type with the first ident
+		switch reflect.TypeOf(opts.Constants[array.Idents[0]]) {
+		case reflect.TypeOf(&IntEvaluator{}):
+			var evaluator IntArrayEvaluator
+			for _, item := range array.Idents {
+				itemEval, ok := opts.Constants[item].(*IntEvaluator)
+				if !ok {
+					return nil, array.Pos, fmt.Errorf("can't mix constants types in arrays: `%s` is not of type int", item)
+				}
+				evaluator.AppendValues(itemEval.Value)
+			}
+			return &evaluator, array.Pos, nil
+		case reflect.TypeOf(&StringEvaluator{}):
+			var evaluator StringValuesEvaluator
+			for _, item := range array.Idents {
+				itemEval, ok := opts.Constants[item].(*StringEvaluator)
+				if !ok {
+					return nil, array.Pos, fmt.Errorf("can't mix constants types in arrays: `%s` is not of type string", item)
+				}
+				evaluator.AppendMembers(ast.StringMember{String: &itemEval.Value})
+			}
+			return &evaluator, array.Pos, nil
+		case reflect.TypeOf(&BoolEvaluator{}):
+			var evaluator BoolArrayEvaluator
+			for _, item := range array.Idents {
+				itemEval, ok := opts.Constants[item].(*BoolEvaluator)
+				if !ok {
+					return nil, array.Pos, fmt.Errorf("can't mix constants types in arrays: `%s` is not of type bool", item)
+				}
+				evaluator.AppendValues(itemEval.Value)
+			}
+			return &evaluator, array.Pos, nil
+		}
+		return nil, array.Pos, fmt.Errorf("array of unsupported identifiers (ident type: `%s`)", reflect.TypeOf(opts.Constants[array.Idents[0]]))
 	} else if array.Variable != nil {
 		varName, ok := isVariableName(*array.Variable)
 		if !ok {

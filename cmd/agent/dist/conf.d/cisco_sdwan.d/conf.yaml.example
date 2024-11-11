@@ -76,3 +76,8 @@ instances:
     ## on the Cisco Manager instance.
     #
     # collect_bfd_session_status: false
+
+    ## @param collect_hardware_status - boolean - optional - default: false
+    ## This enable collecting hardware status metrics.
+    #
+    # collect_hardware_status: true

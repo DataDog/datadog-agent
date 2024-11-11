@@ -25,7 +25,6 @@ func (protoRuleSetReport *RuleSetReportMessage) FromProtoToKFiltersRuleSetReport
 		}
 		policies[policy.EventType] = &kfilters.PolicyReport{
 			Mode:      kfilters.PolicyMode(policy.GetMode()),
-			Flags:     kfilters.PolicyFlag(policy.GetFlags()),
 			Approvers: approversToPrint,
 		}
 	}
@@ -69,7 +68,6 @@ func FromKFiltersToProtoRuleSetReport(ruleSetReport *kfilters.ApplyRuleSetReport
 		detail := &EventTypePolicy{
 			EventType: key,
 			Mode:      uint32(policyReport.Mode),
-			Flags:     uint32(policyReport.Flags),
 			Approvers: FromKFiltersToProtoApprovers(policyReport.Approvers),
 		}
 

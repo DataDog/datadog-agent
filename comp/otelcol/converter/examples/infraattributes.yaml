@@ -1,0 +1,25 @@
+receivers:
+    otlp:
+
+exporters:
+    datadog:
+      api:
+        key: 12345
+
+processors:
+  infraattributes/user-defined:
+
+service:
+    pipelines:
+        traces:
+            receivers: [otlp]
+            processors: [infraattributes/user-defined]
+            exporters: [datadog]
+        metrics:
+            receivers: [otlp]
+            processors: [infraattributes/user-defined]
+            exporters: [datadog]
+        logs:
+            receivers: [otlp]
+            processors: [infraattributes/user-defined]
+            exporters: [datadog]

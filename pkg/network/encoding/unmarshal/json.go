@@ -68,5 +68,8 @@ func handleZeroValues(conns *model.Connections) {
 		if len(c.DnsStatsByDomainOffsetByQueryType) == 0 {
 			c.DnsStatsByDomainOffsetByQueryType = nil
 		}
+		if len(c.TcpFailuresByErrCode) == 0 {
+			c.TcpFailuresByErrCode = nil
+		}
 	}
 }

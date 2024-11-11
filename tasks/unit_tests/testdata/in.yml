@@ -1,0 +1,7 @@
+---
+include:
+  - tasks/unit_tests/testdata/a.yml
+  - tasks/unit_tests/testdata/b.yml
+default:
+  retry:
+    max: 2

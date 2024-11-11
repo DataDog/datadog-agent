@@ -177,6 +177,12 @@ func loaderFunc(closeFn func(), err error) func(_ *config.Config, _ manager.Opti
 	}
 }
 
+func prebuiltLoaderFunc(closeFn func(), err error) func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	return func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
+		return nil, closeFn, err
+	}
+}
+
 func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []struct {
 	enableCORE            bool
 	allowRCFallback       bool
@@ -189,6 +195,7 @@ func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []st
 	expectedCloseFn := func() {}
 	rcTracerLoader = loaderFunc(expectedCloseFn, nil)
 	coreTracerLoader = loaderFunc(expectedCloseFn, nil)
+	prebuiltTracerLoader = prebuiltLoaderFunc(expectedCloseFn, nil)
 	if rcErr {
 		rcTracerLoader = loaderFunc(nil, assert.AnError)
 	}
@@ -196,10 +203,8 @@ func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []st
 		coreTracerLoader = loaderFunc(nil, assert.AnError)
 	}
 
-	prebuiltTracerLoader = loaderFunc(expectedCloseFn, nil)
-
 	offsetGuessingRun := 0
-	tracerOffsetGuesserRunner = func(cfg *config.Config) ([]manager.ConstantEditor, error) {
+	tracerOffsetGuesserRunner = func(*config.Config) ([]manager.ConstantEditor, error) {
 		offsetGuessingRun++
 		return nil, nil
 	}
@@ -210,10 +215,10 @@ func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []st
 			cfg.EnableCORE = te.enableCORE
 			cfg.AllowRuntimeCompiledFallback = te.allowRCFallback
 			cfg.EnableRuntimeCompiler = te.enableRC
-			cfg.AllowPrecompiledFallback = te.allowPrebuiltFallback
+			cfg.AllowPrebuiltFallback = te.allowPrebuiltFallback
 
 			prevOffsetGuessingRun := offsetGuessingRun
-			_, closeFn, tracerType, err := LoadTracer(cfg, manager.Options{}, nil)
+			_, closeFn, tracerType, err := LoadTracer(cfg, manager.Options{}, nil, nil)
 			if te.err == nil {
 				assert.NoError(t, err, "%+v", te)
 			} else {
@@ -248,12 +253,12 @@ func TestCORETracerSupported(t *testing.T) {
 	})
 
 	coreCalled := false
-	coreTracerLoader = func(config *config.Config, mgrOpts manager.Options, closedConnEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	coreTracerLoader = func(*config.Config, manager.Options, ddebpf.EventHandler) (*manager.Manager, func(), error) {
 		coreCalled = true
 		return nil, nil, nil
 	}
 	prebuiltCalled := false
-	prebuiltTracerLoader = func(config *config.Config, mgrOpts manager.Options, closedConnEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	prebuiltTracerLoader = func(*config.Config, manager.Options, ddebpf.EventHandler) (*manager.Manager, func(), error) {
 		prebuiltCalled = true
 		return nil, nil, nil
 	}
@@ -267,8 +272,7 @@ func TestCORETracerSupported(t *testing.T) {
 	cfg := config.New()
 	cfg.EnableCORE = true
 	cfg.AllowRuntimeCompiledFallback = false
-	cfg.AllowPrecompiledFallback = false
-	_, _, _, err = LoadTracer(cfg, manager.Options{}, nil)
+	_, _, _, err = LoadTracer(cfg, manager.Options{}, nil, nil)
 	assert.False(t, prebuiltCalled)
 	if kv < kernel.VersionCode(4, 4, 128) && platform != "centos" && platform != "redhat" {
 		assert.False(t, coreCalled)
@@ -280,8 +284,8 @@ func TestCORETracerSupported(t *testing.T) {
 
 	coreCalled = false
 	prebuiltCalled = false
-	cfg.AllowPrecompiledFallback = true
-	_, _, _, err = LoadTracer(cfg, manager.Options{}, nil)
+	cfg.AllowRuntimeCompiledFallback = true
+	_, _, _, err = LoadTracer(cfg, manager.Options{}, nil, nil)
 	assert.NoError(t, err)
 	if kv < kernel.VersionCode(4, 4, 128) && platform != "centos" && platform != "redhat" {
 		assert.False(t, coreCalled)
@@ -294,7 +298,7 @@ func TestCORETracerSupported(t *testing.T) {
 
 func TestDefaultKprobeMaxActiveSet(t *testing.T) {
 	prevLoader := tracerLoaderFromAsset
-	tracerLoaderFromAsset = func(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	tracerLoaderFromAsset = func(_ bytecode.AssetReader, _, _ bool, _ *config.Config, mgrOpts manager.Options, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
 		assert.Equal(t, mgrOpts.DefaultKProbeMaxActive, 128)
 		return nil, nil, nil
 	}
@@ -304,7 +308,7 @@ func TestDefaultKprobeMaxActiveSet(t *testing.T) {
 		cfg := config.New()
 		cfg.EnableCORE = true
 		cfg.AllowRuntimeCompiledFallback = false
-		_, _, _, err := LoadTracer(cfg, manager.Options{DefaultKProbeMaxActive: 128}, nil)
+		_, _, _, err := LoadTracer(cfg, manager.Options{DefaultKProbeMaxActive: 128}, nil, nil)
 		require.NoError(t, err)
 	})
 
@@ -313,17 +317,15 @@ func TestDefaultKprobeMaxActiveSet(t *testing.T) {
 		cfg := config.New()
 		cfg.EnableCORE = false
 		cfg.AllowRuntimeCompiledFallback = false
-		_, _, _, err := LoadTracer(cfg, manager.Options{DefaultKProbeMaxActive: 128}, nil)
+		_, _, _, err := LoadTracer(cfg, manager.Options{DefaultKProbeMaxActive: 128}, nil, nil)
 		require.NoError(t, err)
 	})
 
 	t.Run("runtime_compiled", func(t *testing.T) {
 		cfg := config.New()
 		cfg.EnableCORE = false
-		cfg.AllowRuntimeCompiledFallback = false
-		cfg.EnableRuntimeCompiler = true
-		cfg.AllowPrecompiledFallback = false
-		_, _, _, err := LoadTracer(cfg, manager.Options{DefaultKProbeMaxActive: 128}, nil)
+		cfg.AllowRuntimeCompiledFallback = true
+		_, _, _, err := LoadTracer(cfg, manager.Options{DefaultKProbeMaxActive: 128}, nil, nil)
 		require.NoError(t, err)
 	})
 }

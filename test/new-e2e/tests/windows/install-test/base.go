@@ -33,7 +33,8 @@ import (
 
 type baseAgentMSISuite struct {
 	windows.BaseAgentInstallerSuite[environments.WindowsHost]
-	beforeInstall *windowsCommon.FileSystemSnapshot
+	beforeInstall      *windowsCommon.FileSystemSnapshot
+	beforeInstallPerms map[string]string // path -> SDDL
 }
 
 // NOTE: BeforeTest is not called before subtests
@@ -46,6 +47,8 @@ func (s *baseAgentMSISuite) BeforeTest(suiteName, testName string) {
 	var err error
 	// If necessary (for example for parallelization), store the snapshot per suite/test in a map
 	s.beforeInstall, err = windowsCommon.NewFileSystemSnapshot(vm, SystemPaths())
+	s.Require().NoError(err)
+	s.beforeInstallPerms, err = SnapshotPermissionsForPaths(vm, SystemPathsForPermissionsValidation())
 	s.Require().NoError(err)
 
 	// Clear the event logs before each test
@@ -113,51 +116,49 @@ func (s *baseAgentMSISuite) installAgentPackage(vm *components.RemoteHost, agent
 	return remoteMSIPath
 }
 
-func (s *baseAgentMSISuite) uninstallAgentAndRunUninstallTests(t *Tester) bool {
+func (s *baseAgentMSISuite) uninstallAgent() bool {
+	host := s.Env().RemoteHost
 	return s.T().Run("uninstall the agent", func(tt *testing.T) {
-		// Get config dir from registry before uninstalling
-		configDir, err := windowsAgent.GetConfigRootFromRegistry(t.host)
-		require.NoError(tt, err)
-		tt.Cleanup(func() {
-			// remove the agent config for a cleaner uninstall
-			tt.Logf("Removing agent configuration files")
-			err = t.host.RemoveAll(configDir)
-			require.NoError(tt, err)
-		})
-
 		if !tt.Run("uninstall", func(tt *testing.T) {
-			err := windowsAgent.UninstallAgent(t.host, filepath.Join(s.OutputDir, "uninstall.log"))
+			err := windowsAgent.UninstallAgent(host, filepath.Join(s.OutputDir, "uninstall.log"))
 			require.NoError(tt, err, "should uninstall the agent")
 		}) {
 			tt.Fatal("uninstall failed")
 		}
+	})
+}
 
-		AssertDoesNotRemoveSystemFiles(s.T(), s.Env().RemoteHost, s.beforeInstall)
+func (s *baseAgentMSISuite) uninstallAgentAndRunUninstallTests(t *Tester) bool {
+	host := s.Env().RemoteHost
+
+	if !s.uninstallAgent() {
+		return false
+	}
+
+	return s.T().Run("validate uninstall", func(tt *testing.T) {
+		AssertDoesNotRemoveSystemFiles(s.T(), host, s.beforeInstall)
+
+		s.Run("uninstall does not change system file permissions", func() {
+			AssertDoesNotChangePathPermissions(s.T(), host, s.beforeInstallPerms)
+		})
 
 		t.TestUninstallExpectations(tt)
 	})
 }
 
-// installLastStable installs the last stable agent package on the VM, runs tests, and returns the Tester
-func (s *baseAgentMSISuite) installLastStable(vm *components.RemoteHost, options ...windowsAgent.InstallAgentOption) *Tester {
+func (s *baseAgentMSISuite) installAndTestPreviousAgentVersion(vm *components.RemoteHost, agentPackage *windowsAgent.Package, options ...windowsAgent.InstallAgentOption) {
+	_ = s.installAgentPackage(vm, agentPackage, options...)
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), agentPackage.AgentVersion())
+}
 
+// installLastStable installs the last stable agent package on the VM, runs tests, and returns the Tester
+func (s *baseAgentMSISuite) installAndTestLastStable(vm *components.RemoteHost, options ...windowsAgent.InstallAgentOption) *windowsAgent.Package {
 	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
 	s.Require().NoError(err, "should get last stable agent package from env")
 
-	// create the tester
-	t := s.newTester(vm,
-		WithAgentPackage(previousAgentPackage),
-		WithPreviousVersion(),
-	)
+	s.installAndTestPreviousAgentVersion(vm, previousAgentPackage, options...)
 
-	_ = s.installAgentPackage(vm, previousAgentPackage, options...)
-
-	// Ensure the agent is functioning properly to provide a proper foundation for the test
-	if !t.TestInstallExpectations(s.T()) {
-		s.T().FailNow()
-	}
-
-	return t
+	return previousAgentPackage
 }
 
 func (s *baseAgentMSISuite) readYamlConfig(host *components.RemoteHost, path string) (map[string]any, error) {
@@ -180,6 +181,16 @@ func (s *baseAgentMSISuite) readAgentConfig(host *components.RemoteHost) (map[st
 	}
 	configFilePath := filepath.Join(confDir, "datadog.yaml")
 	return s.readYamlConfig(host, configFilePath)
+}
+
+func (s *baseAgentMSISuite) writeYamlConfig(host *components.RemoteHost, path string, config map[string]any) error {
+	configYaml, err := yaml.Marshal(config)
+	if err != nil {
+		return err
+	}
+
+	_, err = host.WriteFile(path, configYaml)
+	return err
 }
 
 // cleanupAgent fully removes the agent from the VM, MSI, config, agent user, etc,

@@ -7,11 +7,11 @@
 #include "helpers/syscalls.h"
 
 HOOK_SYSCALL_ENTRY0(mprotect) {
-    struct policy_t policy = fetch_policy(EVENT_MPROTECT);
-    if (is_discarded_by_process(policy.mode, EVENT_MPROTECT)) {
+    if (is_discarded_by_pid()) {
         return 0;
     }
 
+    struct policy_t policy = fetch_policy(EVENT_MPROTECT);
     struct syscall_cache_t syscall = {
         .type = EVENT_MPROTECT,
         .policy = policy,
@@ -33,7 +33,7 @@ int hook_security_file_mprotect(ctx_t *ctx) {
 
     // Retrieve vma information
     struct vm_area_struct *vma = (struct vm_area_struct *)CTX_PARM1(ctx);
-    bpf_probe_read(&syscall->mprotect.vm_protection, sizeof(syscall->mprotect.vm_protection), (char*)vma + flags_offset);
+    bpf_probe_read(&syscall->mprotect.vm_protection, sizeof(syscall->mprotect.vm_protection), (char *)vma + flags_offset);
     bpf_probe_read(&syscall->mprotect.vm_start, sizeof(syscall->mprotect.vm_start), &vma->vm_start);
     bpf_probe_read(&syscall->mprotect.vm_end, sizeof(syscall->mprotect.vm_end), &vma->vm_end);
     syscall->mprotect.req_protection = (u64)CTX_PARM2(ctx);
@@ -46,8 +46,8 @@ int __attribute__((always_inline)) sys_mprotect_ret(void *ctx, int retval) {
         return 0;
     }
 
-    if (filter_syscall(syscall, mprotect_approvers)) {
-        return mark_as_discarded(syscall);
+    if (approve_syscall(syscall, mprotect_approvers) == DISCARDED) {
+        return 0;
     }
 
     struct mprotect_event_t event = {

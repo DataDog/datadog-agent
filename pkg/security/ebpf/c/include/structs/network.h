@@ -49,8 +49,8 @@ struct register_netdevice_cache_t {
 };
 
 struct cursor {
-	void *pos;
-	void *end;
+    void *pos;
+    void *end;
 };
 
 struct packet_t {
@@ -81,6 +81,17 @@ struct network_context_t {
     u32 size;
     u16 l3_protocol;
     u16 l4_protocol;
+};
+
+struct raw_packet_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    struct network_device_context_t device;
+
+    int len;
+    char data[256];
 };
 
 #endif

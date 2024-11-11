@@ -6,8 +6,7 @@
 #include "helpers/syscalls.h"
 
 HOOK_SYSCALL_ENTRY2(kill, int, pid, int, type) {
-    struct policy_t policy = fetch_policy(EVENT_SIGNAL);
-    if (is_discarded_by_process(policy.mode, EVENT_SIGNAL)) {
+    if (is_discarded_by_pid()) {
         return 0;
     }
 
@@ -16,7 +15,6 @@ HOOK_SYSCALL_ENTRY2(kill, int, pid, int, type) {
         return 0;
     }
 
-    /* cache the signal and wait to grab the retval to send it */
     struct syscall_cache_t syscall = {
         .type = EVENT_SIGNAL,
         .signal = {
@@ -47,7 +45,7 @@ int hook_check_kill_permission(ctx_t *ctx) {
 
 /* hook here to grab the EPERM retval */
 HOOK_EXIT("check_kill_permission")
-int rethook_check_kill_permission(ctx_t* ctx) {
+int rethook_check_kill_permission(ctx_t *ctx) {
     int retval = (int)CTX_PARMRET(ctx, 3);
 
     struct syscall_cache_t *syscall = pop_syscall(EVENT_SIGNAL);

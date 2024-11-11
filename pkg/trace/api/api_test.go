@@ -28,11 +28,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
 	vmsgp "github.com/vmihailenco/msgpack/v4"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // Traces shouldn't come from more than 5 different sources
@@ -48,7 +49,7 @@ var headerFields = map[string]string{
 
 type noopStatsProcessor struct{}
 
-func (noopStatsProcessor) ProcessStats(_ *pb.ClientStatsPayload, _, _ string) {}
+func (noopStatsProcessor) ProcessStats(_ *pb.ClientStatsPayload, _, _, _ string) {}
 
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig()
@@ -63,6 +64,7 @@ func newTestReceiverConfig() *config.AgentConfig {
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "test"
 	conf.DecoderTimeout = 10000
+	conf.ReceiverPort = 8326 // use non-default port to avoid conflict with a running agent
 
 	return conf
 }
@@ -165,6 +167,8 @@ func TestStateHeaders(t *testing.T) {
 	assert := assert.New(t)
 	cfg := newTestReceiverConfig()
 	cfg.AgentVersion = "testVersion"
+	url := fmt.Sprintf("http://%s:%d",
+		cfg.ReceiverHost, cfg.ReceiverPort)
 	r := newTestReceiverFromConfig(cfg)
 	r.Start()
 	defer r.Stop()
@@ -182,7 +186,7 @@ func TestStateHeaders(t *testing.T) {
 		"/v0.5/traces",
 		"/v0.7/traces",
 	} {
-		resp, err := http.Post("http://localhost:8126"+e, "application/msgpack", bytes.NewReader(data))
+		resp, err := http.Post(url+e, "application/msgpack", bytes.NewReader(data))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -215,7 +219,7 @@ func TestLegacyReceiver(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
 				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
@@ -280,7 +284,7 @@ func TestReceiverJSONDecoder(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
 				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
@@ -340,7 +344,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
 				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
@@ -434,7 +438,7 @@ func TestReceiverDecodingError(t *testing.T) {
 	data := []byte("} invalid json")
 	var client http.Client
 
-	t.Run("no-header", func(t *testing.T) {
+	t.Run("no-header", func(_ *testing.T) {
 		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
 		assert.NoError(err)
 		req.Header.Set("Content-Type", "application/json")
@@ -446,7 +450,7 @@ func TestReceiverDecodingError(t *testing.T) {
 		assert.EqualValues(0, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError.Load())
 	})
 
-	t.Run("with-header", func(t *testing.T) {
+	t.Run("with-header", func(_ *testing.T) {
 		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
 		assert.NoError(err)
 		traceCount := 10
@@ -572,7 +576,7 @@ func TestDecodeV05(t *testing.T) {
 	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
 	assert.NoError(err)
 	req.Header.Set(header.ContainerID, "abcdef123789456")
-	tp, _, err := decodeTracerPayload(v05, req, NewIDProvider(""), "python", "3.8.1", "1.2.3")
+	tp, err := decodeTracerPayload(v05, req, NewIDProvider(""), "python", "3.8.1", "1.2.3")
 	assert.NoError(err)
 	assert.EqualValues(tp, &pb.TracerPayload{
 		ContainerID:     "abcdef123789456",
@@ -637,20 +641,22 @@ type mockStatsProcessor struct {
 	lastP             *pb.ClientStatsPayload
 	lastLang          string
 	lastTracerVersion string
+	containerID       string
 }
 
-func (m *mockStatsProcessor) ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion string) {
+func (m *mockStatsProcessor) ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion, containerID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.lastP = p
 	m.lastLang = lang
 	m.lastTracerVersion = tracerVersion
+	m.containerID = containerID
 }
 
-func (m *mockStatsProcessor) Got() (p *pb.ClientStatsPayload, lang, tracerVersion string) {
+func (m *mockStatsProcessor) Got() (p *pb.ClientStatsPayload, lang, tracerVersion, containerID string) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.lastP, m.lastLang, m.lastTracerVersion
+	return m.lastP, m.lastLang, m.lastTracerVersion, m.containerID
 }
 
 func TestHandleStats(t *testing.T) {
@@ -671,6 +677,7 @@ func TestHandleStats(t *testing.T) {
 		req.Header.Set("Content-Type", "application/msgpack")
 		req.Header.Set(header.Lang, "lang1")
 		req.Header.Set(header.TracerVersion, "0.1.0")
+		req.Header.Set(header.ContainerID, "abcdef123789456")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -681,10 +688,12 @@ func TestHandleStats(t *testing.T) {
 		}
 
 		resp.Body.Close()
-		gotp, gotlang, gotTracerVersion := mockProcessor.Got()
-		if !reflect.DeepEqual(gotp, p) || gotlang != "lang1" || gotTracerVersion != "0.1.0" {
-			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
-		}
+		gotp, gotlang, gotTracerVersion, containerID := mockProcessor.Got()
+		assert.True(t, reflect.DeepEqual(gotp, p), "payload did not match")
+		assert.Equal(t, "lang1", gotlang, "lang did not match")
+		assert.Equal(t, "0.1.0", gotTracerVersion, "tracerVersion did not match")
+		assert.Equal(t, "abcdef123789456", containerID, "containerID did not match")
+
 		_, ok := rcv.Stats.Stats[info.Tags{Lang: "lang1", EndpointVersion: "v0.6", Service: "service", TracerVersion: "0.1.0"}]
 		assert.True(t, ok)
 	})
@@ -1051,6 +1060,110 @@ func TestExpvar(t *testing.T) {
 			assert.NotNil(t, out["receiver"], "expvar receiver must not be nil")
 		}
 	})
+}
+
+func TestNormalizeHTTPHeader(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{
+			input:    "Header: value\nAnother header: value",
+			expected: "Header: value_Another header: value",
+		},
+		{
+			input:    "Header: value\rAnother header: value",
+			expected: "Header: value_Another header: value",
+		},
+		{
+			input:    "Header: value\r\nAnother header: value",
+			expected: "Header: value_Another header: value",
+		},
+		{
+			input:    "SingleLineHeader: value",
+			expected: "SingleLineHeader: value",
+		},
+		{
+			input:    "\rLeading carriage return",
+			expected: "_Leading carriage return",
+		},
+		{
+			input:    "\nLeading line break",
+			expected: "_Leading line break",
+		},
+		{
+			input:    "Trailing carriage return\r",
+			expected: "Trailing carriage return_",
+		},
+		{
+			input:    "Trailing line break\n",
+			expected: "Trailing line break_",
+		},
+		{
+			input:    "Multiple\r\nline\r\nbreaks",
+			expected: "Multiple_line_breaks",
+		},
+		{
+			input:    "",
+			expected: "",
+		},
+	}
+
+	for _, test := range tests {
+		result := normalizeHTTPHeader(test.input)
+		if result != test.expected {
+			t.Errorf("normalizeHTTPHeader(%q) = %q; expected %q", test.input, result, test.expected)
+		}
+	}
+}
+
+func TestUpdateAPIKey(t *testing.T) {
+	assert := assert.New(t)
+
+	var counter int // keeps track of every time the buildHandler function has been called
+	buildHandler := func(*HTTPReceiver) http.Handler {
+		counter++
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			fmt.Fprintf(w, "%d", counter)
+		})
+	}
+
+	testEndpoint := Endpoint{
+		Pattern: "/test",
+		Handler: buildHandler,
+	}
+	AttachEndpoint(testEndpoint)
+
+	conf := newTestReceiverConfig()
+	receiver := newTestReceiverFromConfig(conf)
+	receiver.Start()
+	defer receiver.Stop()
+
+	assert.Equal(1, counter)
+
+	url := fmt.Sprintf("http://%s:%d/test",
+		conf.ReceiverHost, conf.ReceiverPort)
+
+	for i := 1; i <= 10; i++ {
+		receiver.UpdateAPIKey() // force handler rebuild
+
+		req, err := http.NewRequest("GET", url, nil)
+		assert.NoError(err)
+
+		resp, err := http.DefaultClient.Do(req)
+		assert.NoError(err)
+		defer resp.Body.Close()
+
+		assert.Equal(200, resp.StatusCode)
+
+		body, err := io.ReadAll(resp.Body)
+		assert.NoError(err)
+
+		number, err := strconv.Atoi(string(body))
+		assert.NoError(err)
+
+		assert.Equal(counter, number)
+	}
 }
 
 func msgpTraces(t *testing.T, traces pb.Traces) []byte {

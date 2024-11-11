@@ -14,11 +14,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestExtractECSTask(t *testing.T) {
 	now := time.Date(2024, 1, 1, 11, 1, 1, 1, time.UTC)
+
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
 
 	actual := ExtractECSTask(TaskWithContainers{
 		Task: &workloadmeta.ECSTask{
@@ -74,11 +79,9 @@ func TestExtractECSTask(t *testing.T) {
 				ECSContainer: &workloadmeta.ECSContainer{
 					DisplayName: "log_router_container",
 					Health: &workloadmeta.ContainerHealthStatus{
-						Status: "HEALTHY",
-						Since:  &now,
-						ExitCode: func(i uint32) *uint32 {
-							return &i
-						}(2),
+						Status:   "HEALTHY",
+						Since:    &now,
+						ExitCode: pointer.Ptr(int64(2)),
 					},
 					Type: "NORMAL",
 				},
@@ -125,7 +128,9 @@ func TestExtractECSTask(t *testing.T) {
 				},
 			},
 		},
-	})
+	},
+		fakeTagger,
+	)
 
 	expected := &model.ECSTask{
 		Arn:             "arn:aws:ecs:us-east-1:123456789012:task/12345678-1234-1234-1234-123456789012",

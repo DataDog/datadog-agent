@@ -53,7 +53,7 @@ func SetFlavor(flavor string) {
 	agentFlavor = flavor
 
 	if agentFlavor == IotAgent {
-		pkgconfigsetup.Datadog.SetDefault("iot_host", true)
+		pkgconfigsetup.Datadog().SetDefault("iot_host", true)
 	}
 }
 

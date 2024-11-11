@@ -18,6 +18,12 @@ enum TransactionPriorityProto {
     HIGH = 1;
  }
 
+ enum TransactionDestinationProto {
+    ALL_REGIONS = 0;
+    PRIMARY_ONLY = 1;
+    SECONDARY_ONLY = 2;
+ }
+
 message HttpTransactionProto {
     string Domain = 1;
     EndpointProto Endpoint = 2;
@@ -28,6 +34,7 @@ message HttpTransactionProto {
     bool Retryable = 7;
     TransactionPriorityProto priority = 8;
     int32 PointCount = 9;
+    TransactionDestinationProto Destination = 10;
 }
 
 message HttpTransactionProtoCollection {

@@ -14,7 +14,7 @@ After you have refactored, if needed, and listed the packages that you want to e
    ```
     require (
         // ...
-        github.com/DataDog/datadog-agent/path/to/module v.0.0.0
+        github.com/DataDog/datadog-agent/path/to/module v0.0.0
         // ...
     )
     ```

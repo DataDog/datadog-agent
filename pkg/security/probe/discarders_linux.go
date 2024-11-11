@@ -96,25 +96,6 @@ func marshalDiscardHeader(req *erpc.Request, eventType model.EventType, timeout 
 	return 16
 }
 
-//nolint:deadcode,unused
-type pidDiscarders struct {
-	erpc *erpc.ERPC
-}
-
-//nolint:deadcode,unused
-func (p *pidDiscarders) discardWithTimeout(req *erpc.Request, eventType model.EventType, pid uint32, timeout int64) error {
-	req.OP = erpc.DiscardPidOp
-	offset := marshalDiscardHeader(req, eventType, uint64(timeout))
-	binary.NativeEndian.PutUint32(req.Data[offset:offset+4], pid)
-
-	return p.erpc.Request(req)
-}
-
-//nolint:deadcode,unused
-func newPidDiscarders(erpc *erpc.ERPC) *pidDiscarders {
-	return &pidDiscarders{erpc: erpc}
-}
-
 // InodeDiscarderMapEntry describes a map entry
 type InodeDiscarderMapEntry struct {
 	PathKey model.PathKey
@@ -133,11 +114,6 @@ type InodeDiscarderEntry struct {
 type InodeDiscarderParams struct {
 	DiscarderParams `yaml:"params"`
 	Revision        uint32
-}
-
-// PidDiscarderParams describes a map value
-type PidDiscarderParams struct {
-	DiscarderParams `yaml:"params"`
 }
 
 // DiscarderParams describes a map value
@@ -311,7 +287,7 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 					}
 				} else {
 					// regex are not currently supported on path, see ValidateFields
-					isDiscarderFnc = func(dirname string) (bool, bool, error) {
+					isDiscarderFnc = func(_ string) (bool, bool, error) {
 						return false, false, nil
 					}
 				}
@@ -332,8 +308,10 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 			return false, false, err
 		}
 
-		if isDiscarder, _ := rules.IsDiscarder(id.evalCtx, basenameField, basenameRules); !isDiscarder {
-			return false, true, nil
+		if len(basenameRules) > 0 {
+			if isDiscarder, _ := rules.IsDiscarder(id.evalCtx, basenameField, basenameRules); !isDiscarder {
+				return false, true, nil
+			}
 		}
 
 		return true, true, nil
@@ -421,13 +399,14 @@ func (id *inodeDiscarders) discardParentInode(req *erpc.Request, rs *rules.RuleS
 	parentKey := pathKey
 
 	for i := 0; i < discarderDepth; i++ {
-		parentKey, err = id.dentryResolver.GetParent(parentKey)
+		key, err := id.dentryResolver.GetParent(parentKey)
 		if err != nil || dentry.IsFakeInode(pathKey.Inode) {
 			if i == 0 {
 				return false, 0, 0, err
 			}
 			break
 		}
+		parentKey = key
 	}
 
 	// do not insert multiple time the same discarder
@@ -517,12 +496,6 @@ func createInvalidDiscardersCache() map[invalidDiscarderEntry]bool {
 	return invalidDiscarders
 }
 
-// PidDiscarderDump describes a dump of a pid discarder
-type PidDiscarderDump struct {
-	Index              int `yaml:"index"`
-	PidDiscarderParams `yaml:"value"`
-}
-
 // InodeDiscarderDump describes a dump of an inode discarder
 type InodeDiscarderDump struct {
 	Index                int `yaml:"index"`
@@ -536,39 +509,7 @@ type InodeDiscarderDump struct {
 type DiscardersDump struct {
 	Date   time.Time                  `yaml:"date"`
 	Inodes []InodeDiscarderDump       `yaml:"inodes"`
-	Pids   []PidDiscarderDump         `yaml:"pids"`
 	Stats  map[string]discarder.Stats `yaml:"stats"`
-}
-
-func dumpPidDiscarders(pidMap *ebpf.Map) ([]PidDiscarderDump, error) {
-	var dumps []PidDiscarderDump
-
-	info, err := pidMap.Info()
-	if err != nil {
-		return nil, fmt.Errorf("could not get info about pid discarders: %w", err)
-	}
-
-	var (
-		count     int
-		pid       uint32
-		pidParams PidDiscarderParams
-	)
-
-	for entries := pidMap.Iterate(); entries.Next(&pid, &pidParams); {
-		record := PidDiscarderDump{
-			Index:              count,
-			PidDiscarderParams: pidParams,
-		}
-
-		dumps = append(dumps, record)
-
-		count++
-		if count == int(info.MaxEntries) {
-			break
-		}
-	}
-
-	return dumps, nil
 }
 
 func dumpInodeDiscarders(resolver *dentry.Resolver, inodeMap *ebpf.Map) ([]InodeDiscarderDump, error) {
@@ -644,18 +585,12 @@ func dumpDiscarderStats(buffers ...*ebpf.Map) (map[string]discarder.Stats, error
 }
 
 // DumpDiscarders removes all the discarders
-func dumpDiscarders(resolver *dentry.Resolver, pidMap, inodeMap, statsFB, statsBB *ebpf.Map) (DiscardersDump, error) {
+func dumpDiscarders(resolver *dentry.Resolver, inodeMap, statsFB, statsBB *ebpf.Map) (DiscardersDump, error) {
 	seclog.Debugf("Dumping discarders")
 
 	dump := DiscardersDump{
 		Date: time.Now(),
 	}
-
-	pids, err := dumpPidDiscarders(pidMap)
-	if err != nil {
-		return dump, err
-	}
-	dump.Pids = pids
 
 	inodes, err := dumpInodeDiscarders(resolver, inodeMap)
 	if err != nil {

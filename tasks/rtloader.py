@@ -10,7 +10,7 @@ import sys
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.common.utils import collapsed_section
+from tasks.libs.common.utils import gitlab_section
 
 
 def get_rtloader_path():
@@ -31,61 +31,18 @@ def run_make_command(ctx, command=""):
     ctx.run(f"make -C {get_rtloader_build_path()} {command}", err_stream=sys.stdout)
 
 
-def get_cmake_cache_path(rtloader_path):
-    return os.path.join(rtloader_path, "CMakeCache.txt")
-
-
-def clear_cmake_cache(rtloader_path, settings):
-    """
-    CMake is not regenerated when we change an option. This function detect the
-    current cmake settings and remove the cache if they have change to retrigger
-    a cmake build.
-    """
-    cmake_cache = get_cmake_cache_path(rtloader_path)
-    if not os.path.exists(cmake_cache):
-        return
-
-    settings_not_found = settings.copy()
-    with open(cmake_cache) as cache:
-        for line in cache.readlines():
-            for key, value in settings.items():
-                if line.strip() == key + "=" + value:
-                    settings_not_found.pop(key)
-
-    if settings_not_found:
-        os.remove(cmake_cache)
-
-
 @task
-def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="x64"):
+def make(ctx, install_prefix=None, cmake_options=''):
     dev_path = get_dev_path()
 
     if cmake_options.find("-G") == -1:
         cmake_options += " -G \"Unix Makefiles\""
 
     cmake_args = cmake_options + f" -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH={install_prefix or dev_path}"
-
-    python_runtimes = python_runtimes.split(',')
-
-    settings = {
-        "DISABLE_PYTHON2:BOOL": "OFF",
-        "DISABLE_PYTHON3:BOOL": "OFF",
-    }
-    if '2' not in python_runtimes:
-        settings["DISABLE_PYTHON2:BOOL"] = "ON"
-    if '3' not in python_runtimes:
-        settings["DISABLE_PYTHON3:BOOL"] = "ON"
+    if os.getenv('DD_CMAKE_TOOLCHAIN'):
+        cmake_args += f' --toolchain {os.getenv("DD_CMAKE_TOOLCHAIN")}'
 
     rtloader_build_path = get_rtloader_build_path()
-
-    # clear cmake cache if settings have changed since the last build
-    clear_cmake_cache(rtloader_build_path, settings)
-
-    for option, value in settings.items():
-        cmake_args += f" -D{option}={value} "
-
-    if arch == "x86":
-        cmake_args += " -DARCH_I386=ON"
 
     if sys.platform == 'darwin':
         cmake_args += " -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13"
@@ -99,7 +56,7 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="
         else:
             raise
 
-    with collapsed_section("Build rtloader"):
+    with gitlab_section("Build rtloader", collapsed=True):
         ctx.run(f"cd {rtloader_build_path} && cmake {cmake_args} {get_rtloader_path()}", err_stream=sys.stdout)
         run_make_command(ctx)
 
@@ -125,19 +82,19 @@ def clean(_):
 
 @task
 def install(ctx):
-    with collapsed_section("Install rtloader"):
+    with gitlab_section("Install rtloader", collapsed=True):
         run_make_command(ctx, "install")
 
 
 @task
 def test(ctx):
-    with collapsed_section("Run rtloader tests"):
+    with gitlab_section("Run rtloader tests", collapsed=True):
         ctx.run(f"make -C {get_rtloader_build_path()}/test run", err_stream=sys.stdout)
 
 
 @task
 def format(ctx, raise_if_changed=False):
-    with collapsed_section("Run clang-format on rtloader"):
+    with gitlab_section("Run clang-format on rtloader", collapsed=True):
         run_make_command(ctx, "clang-format")
 
     if raise_if_changed:

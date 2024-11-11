@@ -16,18 +16,19 @@ import (
 	"strings"
 	"time"
 
-	admiv1 "k8s.io/api/admissionregistration/v1"
+	admiv1 "k8s.io/api/admission/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,31 +44,38 @@ const webhookName = "standard_tags"
 
 // Webhook is the webhook that injects DD_ENV, DD_VERSION, DD_SERVICE env vars
 type Webhook struct {
-	name          string
-	isEnabled     bool
-	endpoint      string
-	resources     []string
-	operations    []admiv1.OperationType
-	ownerCacheTTL time.Duration
-	wmeta         workloadmeta.Component
+	name            string
+	isEnabled       bool
+	endpoint        string
+	resources       []string
+	operations      []admissionregistrationv1.OperationType
+	ownerCacheTTL   time.Duration
+	wmeta           workloadmeta.Component
+	injectionFilter mutatecommon.InjectionFilter
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook(wmeta workloadmeta.Component) *Webhook {
+func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, injectionFilter mutatecommon.InjectionFilter) *Webhook {
 	return &Webhook{
-		name:          webhookName,
-		isEnabled:     config.Datadog.GetBool("admission_controller.inject_tags.enabled"),
-		endpoint:      config.Datadog.GetString("admission_controller.inject_tags.endpoint"),
-		resources:     []string{"pods"},
-		operations:    []admiv1.OperationType{admiv1.Create},
-		ownerCacheTTL: ownerCacheTTL(),
-		wmeta:         wmeta,
+		name:            webhookName,
+		isEnabled:       datadogConfig.GetBool("admission_controller.inject_tags.enabled"),
+		endpoint:        datadogConfig.GetString("admission_controller.inject_tags.endpoint"),
+		resources:       []string{"pods"},
+		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
+		ownerCacheTTL:   ownerCacheTTL(datadogConfig),
+		wmeta:           wmeta,
+		injectionFilter: injectionFilter,
 	}
 }
 
 // Name returns the name of the webhook
 func (w *Webhook) Name() string {
 	return w.name
+}
+
+// WebhookType returns the type of the webhook
+func (w *Webhook) WebhookType() common.WebhookType {
+	return common.MutatingWebhook
 }
 
 // IsEnabled returns whether the webhook is enabled
@@ -88,7 +96,7 @@ func (w *Webhook) Resources() []string {
 
 // Operations returns the operations on the resources specified for which
 // the webhook should be invoked
-func (w *Webhook) Operations() []admiv1.OperationType {
+func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 	return w.operations
 }
 
@@ -96,11 +104,6 @@ func (w *Webhook) Operations() []admiv1.OperationType {
 // should be invoked
 func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
 	return common.DefaultLabelSelectors(useNamespaceSelector)
-}
-
-// MutateFunc returns the function that mutates the resources
-func (w *Webhook) MutateFunc() admission.WebhookFunc {
-	return w.mutate
 }
 
 type owner struct {
@@ -122,12 +125,14 @@ func (o *ownerInfo) buildID(ns string) string {
 	return fmt.Sprintf("%s/%s/%s", ns, o.name, o.gvr.String())
 }
 
-// mutate adds the DD_ENV, DD_VERSION, DD_SERVICE env vars to
-// the pod template from pod and higher-level resource labels
-func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
-	return common.Mutate(request.Raw, request.Namespace, w.Name(), func(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
-		return w.injectTags(pod, ns, dc)
-	}, request.DynamicClient)
+// WebhookFunc returns the function that mutates the resources
+func (w *Webhook) WebhookFunc() admission.WebhookFunc {
+	return func(request *admission.Request) *admiv1.AdmissionResponse {
+		return common.MutationResponse(mutatecommon.Mutate(request.Raw, request.Namespace, w.Name(), func(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
+			// Adds the DD_ENV, DD_VERSION, DD_SERVICE env vars to the pod template from pod and higher-level resource labels.
+			return w.injectTags(pod, ns, dc)
+		}, request.DynamicClient))
+	}
 }
 
 // injectTags injects DD_ENV, DD_VERSION, DD_SERVICE
@@ -139,8 +144,9 @@ func (w *Webhook) injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) (
 		return false, errors.New(metrics.InvalidInput)
 	}
 
-	if !autoinstrumentation.ShouldInject(pod, w.wmeta) {
-		// Ignore pod if it has the label admission.datadoghq.com/enabled=false or Single step configuration is disabled
+	if !w.injectionFilter.ShouldMutatePod(pod) {
+		// Ignore pod if it has the label admission.datadoghq.com/enabled=false
+		// or Single step configuration is disabled
 		return false, nil
 	}
 
@@ -171,7 +177,7 @@ func (w *Webhook) injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) (
 		return false, errors.New(metrics.InternalError)
 	}
 
-	log.Debugf("Looking for standard labels on '%s/%s' - kind '%s' owner of pod %s", owner.namespace, owner.name, owner.kind, common.PodString(pod))
+	log.Debugf("Looking for standard labels on '%s/%s' - kind '%s' owner of pod %s", owner.namespace, owner.name, owner.kind, mutatecommon.PodString(pod))
 	_, injected = injectTagsFromLabels(owner.labels, pod)
 
 	return injected, nil
@@ -188,7 +194,7 @@ func injectTagsFromLabels(labels map[string]string, pod *corev1.Pod) (bool, bool
 				Name:  envName,
 				Value: tagValue,
 			}
-			if injected := common.InjectEnv(pod, env); injected {
+			if injected := mutatecommon.InjectEnv(pod, env); injected {
 				injectedAtLeastOnce = true
 			}
 			found = true
@@ -267,10 +273,10 @@ func (w *Webhook) getAndCacheOwner(info *ownerInfo, ns string, dc dynamic.Interf
 	return owner, nil
 }
 
-func ownerCacheTTL() time.Duration {
-	if config.Datadog.IsSet("admission_controller.pod_owners_cache_validity") { // old option. Kept for backwards compatibility
-		return config.Datadog.GetDuration("admission_controller.pod_owners_cache_validity") * time.Minute
+func ownerCacheTTL(datadogConfig config.Component) time.Duration {
+	if datadogConfig.IsSet("admission_controller.pod_owners_cache_validity") { // old option. Kept for backwards compatibility
+		return datadogConfig.GetDuration("admission_controller.pod_owners_cache_validity") * time.Minute
 	}
 
-	return config.Datadog.GetDuration("admission_controller.inject_tags.pod_owners_cache_validity") * time.Minute
+	return datadogConfig.GetDuration("admission_controller.inject_tags.pod_owners_cache_validity") * time.Minute
 }

@@ -8,10 +8,12 @@ generator:
       maximum_prebuild_cache_size_bytes: "400 Mb"
 
 blackhole:
-  - tcp:
+  - http:
       binding_addr: "127.0.0.1:9091"
   - http:
       binding_addr: "127.0.0.1:9092"
+  - http:
+      binding_addr: "127.0.0.1:9093"
 
 target_metrics:
   - prometheus:

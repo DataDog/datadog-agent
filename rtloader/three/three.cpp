@@ -855,7 +855,7 @@ void Three::setModuleAttrString(char *module, char *attr, char *value)
         return;
     }
 
-    PyObject *py_value = PyStringFromCString(value);
+    PyObject *py_value = PyUnicode_FromString(value);
     if (PyObject_SetAttrString(py_module, attr, py_value) != 0) {
         setError("error setting the '" + std::string(module) + "." + std::string(attr)
                  + "' attribute: " + _fetchPythonError());
@@ -910,6 +910,11 @@ void Three::setGetHostnameCb(cb_get_hostname_t cb)
     _set_get_hostname_cb(cb);
 }
 
+void Three::setGetHostTagsCb(cb_get_host_tags_t cb)
+{
+    _set_get_host_tags_cb(cb);
+}
+
 void Three::setGetClusternameCb(cb_get_clustername_t cb)
 {
     _set_get_clustername_cb(cb);
@@ -923,6 +928,11 @@ void Three::setGetTracemallocEnabledCb(cb_tracemalloc_enabled_t cb)
 void Three::setLogCb(cb_log_t cb)
 {
     _set_log_cb(cb);
+}
+
+void Three::setSendLogCb(cb_send_log_t cb)
+{
+    _set_send_log_cb(cb);
 }
 
 void Three::setSetCheckMetadataCb(cb_set_check_metadata_t cb)
@@ -983,6 +993,16 @@ void Three::setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t cb)
 void Three::setGetProcessStartTimeCb(cb_get_process_start_time_t cb)
 {
     _set_get_process_start_time_cb(cb);
+}
+
+void Three::setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t cb)
+{
+    _set_obfuscate_mongodb_string_cb(cb);
+}
+
+void Three::setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t cb)
+{
+    _set_emit_agent_telemetry_cb(cb);
 }
 
 // Python Helpers

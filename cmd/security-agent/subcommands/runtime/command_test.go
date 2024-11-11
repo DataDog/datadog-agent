@@ -9,7 +9,6 @@ package runtime
 
 import (
 	"bytes"
-	"math"
 	"testing"
 
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
@@ -32,7 +31,7 @@ func TestDownloadCommand(t *testing.T) {
 		{
 			name:     "runtime download",
 			cliInput: []string{"download"},
-			check: func(cliParams *downloadPolicyCliParams, params core.BundleParams) {
+			check: func(_ *downloadPolicyCliParams, params core.BundleParams) {
 				// Verify logger defaults
 				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
 				require.Equal(t, "off", params.LogLevelFn(nil), "log level not matching")
@@ -58,13 +57,11 @@ func newMockRSClient(t *testing.T) secagent.SecurityModuleClientWrapper {
 				{
 					EventType: "exec",
 					Mode:      1,
-					Flags:     math.MaxUint8,
 					Approvers: nil,
 				},
 				{
 					EventType: "open",
 					Mode:      2,
-					Flags:     math.MaxUint8,
 					Approvers: &api.Approvers{
 						ApproverDetails: []*api.ApproverDetails{
 							{
@@ -114,38 +111,31 @@ func Test_checkPoliciesLoaded(t *testing.T) {
 	"Policies": {
 		"exec": {
 			"Mode": "accept",
-			"Flags": [
-				"basename",
-				"flags",
-				"mode"
-			],
 			"Approvers": null
 		},
 		"open": {
 			"Mode": "deny",
-			"Flags": [
-				"basename",
-				"flags",
-				"mode"
-			],
 			"Approvers": {
 				"open.file.path": [
 					{
 						"Field": "open.file.path",
 						"Value": "/etc/gshadow",
-						"Type": "scalar"
+						"Type": "scalar",
+						"Mode": 0
 					},
 					{
 						"Field": "open.file.path",
 						"Value": "/etc/shadow",
-						"Type": "scalar"
+						"Type": "scalar",
+						"Mode": 0
 					}
 				],
 				"open.flags": [
 					{
 						"Field": "open.flags",
 						"Value": 64,
-						"Type": "scalar"
+						"Type": "scalar",
+						"Mode": 0
 					}
 				]
 			}

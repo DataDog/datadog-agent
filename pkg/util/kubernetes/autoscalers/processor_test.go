@@ -15,7 +15,9 @@ import (
 	"testing"
 	"time"
 
+	datadogclientmock "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/mock"
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -27,25 +29,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 )
-
-type fakeDatadogClient struct {
-	queryMetricsFunc  func(from, to int64, query string) ([]datadog.Series, error)
-	getRateLimitsFunc func() map[string]datadog.RateLimit
-}
-
-func (d *fakeDatadogClient) QueryMetrics(from, to int64, query string) ([]datadog.Series, error) {
-	if d.queryMetricsFunc != nil {
-		return d.queryMetricsFunc(from, to, query)
-	}
-	return nil, nil
-}
-
-func (d *fakeDatadogClient) GetRateLimitStats() map[string]datadog.RateLimit {
-	if d.getRateLimitsFunc != nil {
-		return d.getRateLimitsFunc()
-	}
-	return nil
-}
 
 var maxAge = 30 * time.Second
 
@@ -174,12 +157,11 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
-			datadogClient := &fakeDatadogClient{
-				queryMetricsFunc: func(int64, int64, string) ([]datadog.Series, error) {
-					return tt.series, nil
-				},
-			}
-			hpaCl := &Processor{datadogClient: datadogClient, externalMaxAge: maxAge}
+			datadogClientComp := datadogclientmock.New(t).Comp
+			datadogClientComp.SetQueryMetricsFunc(func(int64, int64, string) ([]datadog.Series, error) {
+				return tt.series, nil
+			})
+			hpaCl := &Processor{datadogClient: datadogClientComp, externalMaxAge: maxAge}
 
 			externalMetrics := hpaCl.UpdateExternalMetrics(tt.metrics)
 			fmt.Println(externalMetrics)
@@ -210,12 +192,12 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 			Valid:      true,
 		},
 	}
-	datadogClient := &fakeDatadogClient{
-		queryMetricsFunc: func(int64, int64, string) ([]datadog.Series, error) {
-			return nil, fmt.Errorf("API error 400 Bad Request: {\"error\": [\"Rate limit of 300 requests in 3600 seconds reqchec.\"]}")
-		},
-	}
-	hpaCl := &Processor{datadogClient: datadogClient, externalMaxAge: maxAge}
+	datadogClientComp := datadogclientmock.New(t).Comp
+	datadogClientComp.SetQueryMetricsFunc(func(int64, int64, string) ([]datadog.Series, error) {
+		return nil, fmt.Errorf("API error 400 Bad Request: {\"error\": [\"Rate limit of 300 requests in 3600 seconds reqchec.\"]}")
+	})
+
+	hpaCl := &Processor{datadogClient: datadogClientComp, externalMaxAge: maxAge}
 	invList := hpaCl.UpdateExternalMetrics(emList)
 	require.Len(t, invList, len(emList))
 	for _, i := range invList {
@@ -360,31 +342,30 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 		res.bc = 0
 		res.m.Unlock()
 		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
-			datadogClient := &fakeDatadogClient{
-				getRateLimitsFunc: func() map[string]datadog.RateLimit {
-					return map[string]datadog.RateLimit{
-						queryEndpoint: {
-							Limit:     "12",
-							Period:    "10",
-							Remaining: "200",
-							Reset:     "10",
-						},
-					}
-				},
-				queryMetricsFunc: func(int64, int64, string) ([]datadog.Series, error) {
-					res.m.Lock()
-					defer res.m.Unlock()
-					result.bc++
-					if tt.timeout == true && res.bc == 1 {
-						// Error will be under the format:
-						// Error: Error while executing metric query avg:foo-56{foo:bar}.rollup(30),avg:foo-93{foo:bar}.rollup(30),[...],avg:foo-64{foo:bar}.rollup(30),avg:foo-81{foo:bar}.rollup(30): Networking Error, timeout!!!
-						// In the logs, we will be able to see which bundle failed, but for the tests, we can't know which routine will finish first (and therefore have `bc == 1`), so we only check the error returned by the Datadog Servers.
-						return nil, fmt.Errorf("networking Error, timeout")
-					}
-					return tt.out, nil
-				},
-			}
-			p := &Processor{datadogClient: datadogClient}
+			datadogClientComp := datadogclientmock.New(t).Comp
+			datadogClientComp.SetGetRateLimitsFunc(func() map[string]datadog.RateLimit {
+				return map[string]datadog.RateLimit{
+					queryEndpoint: {
+						Limit:     "12",
+						Period:    "10",
+						Remaining: "200",
+						Reset:     "10",
+					},
+				}
+			})
+			datadogClientComp.SetQueryMetricsFunc(func(int64, int64, string) ([]datadog.Series, error) {
+				res.m.Lock()
+				defer res.m.Unlock()
+				result.bc++
+				if tt.timeout == true && res.bc == 1 {
+					// Error will be under the format:
+					// Error: Error while executing metric query avg:foo-56{foo:bar}.rollup(30),avg:foo-93{foo:bar}.rollup(30),[...],avg:foo-64{foo:bar}.rollup(30),avg:foo-81{foo:bar}.rollup(30): Networking Error, timeout!!!
+					// In the logs, we will be able to see which bundle failed, but for the tests, we can't know which routine will finish first (and therefore have `bc == 1`), so we only check the error returned by the Datadog Servers.
+					return nil, fmt.Errorf("networking Error, timeout")
+				}
+				return tt.out, nil
+			})
+			p := &Processor{datadogClient: datadogClientComp}
 
 			_, err := p.QueryExternalMetric(tt.in, GetDefaultTimeWindow())
 			if err != nil || tt.err != nil {
@@ -512,8 +493,8 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
-			datadogClient := &fakeDatadogClient{}
-			hpaCl := &Processor{datadogClient: datadogClient, externalMaxAge: maxAge}
+			datadogClientComp := datadogclientmock.New(t).Comp
+			hpaCl := &Processor{datadogClient: datadogClientComp, externalMaxAge: maxAge}
 
 			externalMetrics := hpaCl.ProcessHPAs(&tt.metrics)
 			for id, m := range externalMetrics {
@@ -657,12 +638,11 @@ func TestUpdateRateLimiting(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
-			datadogClient := &fakeDatadogClient{
-				getRateLimitsFunc: func() map[string]datadog.RateLimit {
-					return tt.rateLimits
-				},
-			}
-			hpaCl := &Processor{datadogClient: datadogClient, externalMaxAge: maxAge}
+			datadogClientComp := datadogclientmock.New(t).Comp
+			datadogClientComp.SetGetRateLimitsFunc(func() map[string]datadog.RateLimit {
+				return tt.rateLimits
+			})
+			hpaCl := &Processor{datadogClient: datadogClientComp, externalMaxAge: maxAge}
 
 			err := hpaCl.updateRateLimitingMetrics()
 			if err != nil {
@@ -719,5 +699,5 @@ func (m *mockGauge) Delete(tagsValue ...string) {
 	delete(m.values, strings.Join(tagsValue, ","))
 }
 
-func (*mockGauge) WithValues(tagsValue ...string) telemetryComponent.SimpleGauge  { return nil } //nolint:revive // TODO fix revive unused-parameter
-func (*mockGauge) WithTags(tags map[string]string) telemetryComponent.SimpleGauge { return nil } //nolint:revive // TODO fix revive unused-parameter
+func (*mockGauge) WithValues(_ ...string) telemetryComponent.SimpleGauge       { return nil }
+func (*mockGauge) WithTags(_ map[string]string) telemetryComponent.SimpleGauge { return nil }

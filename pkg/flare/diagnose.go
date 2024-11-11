@@ -13,7 +13,7 @@ import (
 )
 
 // GetClusterAgentDiagnose dumps the connectivity checks diagnose to the writer
-func GetClusterAgentDiagnose(w io.Writer, deps diagnose.SuitesDeps) error {
+func GetClusterAgentDiagnose(w io.Writer) error {
 	// Verbose:  true - to show details like if was done a while ago
 	// RunLocal: true - do not attept to run in actual running agent but
 	//                  may need to implement it in future
@@ -21,10 +21,11 @@ func GetClusterAgentDiagnose(w io.Writer, deps diagnose.SuitesDeps) error {
 	//                  diagnose suite as it was done in this agent for
 	//                  a while. Most likely need to relax or add more
 	//                  diagnose suites in the future
-	diagCfg := diagnosis.Config{
-		Verbose:  true,
-		RunLocal: true,
-		Include:  []string{"connectivity-datadog-autodiscovery"},
+	diagCfg := diagnosis.Config{Verbose: true, RunLocal: true}
+	diagnoses, err := diagnose.RunLocalCheck(diagCfg, diagnose.RegisterConnectivityAutodiscovery)
+	if err != nil {
+		return err
 	}
-	return diagnose.RunStdOut(w, diagCfg, deps)
+	return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
+
 }

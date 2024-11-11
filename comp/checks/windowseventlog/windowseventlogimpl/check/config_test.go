@@ -11,8 +11,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func assertOptionalValue[T any](t *testing.T, assertCompare assert.ComparisonAssertionFunc, o optional.Option[T], expected T) bool {
@@ -192,9 +193,9 @@ func TestInvalidRegexp(t *testing.T) {
 		errorMatch string
 	}{
 		{"lookahead", "(?=foo)", "invalid or unsupported Perl syntax: `(?=`"},
-		{"lookbehind", "(?<=foo)", "invalid or unsupported Perl syntax: `(?<`"},
+		{"lookbehind", "(?<=foo)", "invalid named capture: `(?<="},
 		{"negative lookahead", "(?!foo)", "invalid or unsupported Perl syntax: `(?!`"},
-		{"negative lookbehind", "(?<!foo)", "invalid or unsupported Perl syntax: `(?<`"},
+		{"negative lookbehind", "(?<!foo)", "invalid named capture: `(?<!"},
 	}
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {

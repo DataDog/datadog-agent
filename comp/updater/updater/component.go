@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 )
 
-// team: fleet
+// team: fleet windows-agent
 
 // Component is the interface for the updater component.
 type Component interface {

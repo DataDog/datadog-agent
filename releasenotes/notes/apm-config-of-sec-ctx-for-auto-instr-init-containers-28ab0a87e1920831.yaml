@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    APM: In order to allow for automatic instrumentation to work in Kubernetes
+    clusters that enforce a ``Restricted`` `Pod Security Standard <https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted>`_,
+    which require all containers to explicitly set a ``securityContext``,
+    an option to configure a `securityContext` to be used for all ``initContainers``
+    created by the auto instrumentation has been added.
+    | This can be done through the ``DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT``
+    environment value, or ``admission_controller.auto_instrumentation.init_security_context`` configuration -
+    in both cases a ``json`` string should be supplied.

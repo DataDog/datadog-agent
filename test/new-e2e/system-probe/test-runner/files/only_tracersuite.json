@@ -1,5 +1,0 @@
-{
-    "pkg/network/tracer": {
-        "skip": ["^TestUSMSuite$"]
-    }
-}

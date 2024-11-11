@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -74,7 +74,7 @@ func TestUseFile(t *testing.T) {
 			runtime := "evrgivn"
 			identifier := "abc123"
 
-			cfg := coreConfig.Mock(t)
+			cfg := configmock.New(t)
 			cfg.SetWithoutSource("logs_config.docker_container_use_file", c.dcuf)
 			cfg.SetWithoutSource("logs_config.docker_container_force_use_file", c.dcfuf)
 			cfg.SetWithoutSource("logs_config.k8s_container_use_file", c.kcuf)

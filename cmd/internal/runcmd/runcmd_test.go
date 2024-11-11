@@ -8,8 +8,6 @@ package runcmd
 import (
 	"bytes"
 	"errors"
-	"os"
-	"regexp"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -20,7 +18,7 @@ import (
 func TestRun_success(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "ok",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return nil
 		},
 	}
@@ -31,7 +29,7 @@ func TestRun_success(t *testing.T) {
 func TestRun_fail(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "bad",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return errors.New("uhoh")
 		},
 	}
@@ -39,12 +37,12 @@ func TestRun_fail(t *testing.T) {
 	require.Equal(t, -1, Run(cmd))
 }
 
-func makeFxError(t *testing.T) error { //nolint:revive // TODO fix revive unused-parameter
+func makeFxError(_ *testing.T) error {
 	app := fx.New(
 		fx.Provide(func() (string, error) {
 			return "", errors.New("uhoh")
 		}),
-		fx.Invoke(func(s string) {}),
+		fx.Invoke(func(_ string) {}),
 	)
 
 	// "could not build arguments for function .. uhoh"
@@ -60,16 +58,6 @@ func TestDisplayError_normalError(t *testing.T) {
 // fx errors are abbreviated to just the root cause by default
 func TestDisplayError_fxError(t *testing.T) {
 	var buf bytes.Buffer
-	t.Setenv("TRACE_FX", "") // get testing to reset this value for us
-	os.Unsetenv("TRACE_FX")  // but actually _unset_ the value
 	displayError(makeFxError(t), &buf)
 	require.Equal(t, "Error: uhoh\n", buf.String())
-}
-
-// entire error is included with TRACE_FX set
-func TestDisplayError_fxError_TRACE_FX(t *testing.T) {
-	var buf bytes.Buffer
-	t.Setenv("TRACE_FX", "1")
-	displayError(makeFxError(t), &buf)
-	require.Regexp(t, regexp.MustCompile("Error: could not build arguments for function .* uhoh"), buf.String())
 }

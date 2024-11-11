@@ -9,6 +9,7 @@
 package ecs
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
@@ -20,8 +21,11 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/atomic"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -29,6 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/ecs"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -44,22 +50,26 @@ type Check struct {
 	collectors                 []collectors.Collector
 	groupID                    *atomic.Int32
 	workloadmetaStore          workloadmeta.Component
+	tagger                     tagger.Component
 	isECSCollectionEnabledFunc func() bool
 	awsAccountID               int
 	clusterName                string
 	region                     string
 	clusterID                  string
+	hostName                   string
+	systemInfo                 *model.SystemInfo
 }
 
 // Factory creates a new check factory
-func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check { return newCheck(store) })
+func Factory(store workloadmeta.Component, tagger tagger.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check { return newCheck(store, tagger) })
 }
 
-func newCheck(store workloadmeta.Component) check.Check {
+func newCheck(store workloadmeta.Component, tagger tagger.Component) check.Check {
 	return &Check{
 		CheckBase:                  core.NewCheckBase(CheckName),
 		workloadmetaStore:          store,
+		tagger:                     tagger,
 		config:                     oconfig.NewDefaultOrchestratorConfig(),
 		groupID:                    atomic.NewInt32(rand.Int31()),
 		isECSCollectionEnabledFunc: oconfig.IsOrchestratorECSExplorerEnabled,
@@ -77,7 +87,7 @@ func (c *Check) Configure(
 ) error {
 	c.BuildID(integrationConfigDigest, data, initConfig)
 
-	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
+	err := c.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
 		return err
 	}
@@ -103,6 +113,14 @@ func (c *Check) Configure(
 		}
 		c.sender = sender
 	}
+
+	c.systemInfo, err = checks.CollectSystemInfo()
+	if err != nil {
+		log.Warnf("Failed to collect system info: %s", err)
+	}
+
+	c.hostName, _ = hostname.Get(context.TODO())
+
 	return nil
 }
 
@@ -127,6 +145,8 @@ func (c *Check) Run() error {
 				AWSAccountID:      c.awsAccountID,
 				Region:            c.region,
 				ClusterName:       c.clusterName,
+				HostName:          c.hostName,
+				SystemInfo:        c.systemInfo,
 			},
 			Config:      c.config,
 			MsgGroupRef: c.groupID,
@@ -134,7 +154,7 @@ func (c *Check) Run() error {
 		}
 		result, err := collector.Run(runConfig)
 		if err != nil {
-			_ = c.Warnf("K8sCollector %s failed to run: %s", collector.Metadata().FullName(), err.Error())
+			_ = c.Warnf("ECSCollector %s failed to run: %s", collector.Metadata().FullName(), err.Error())
 			continue
 		}
 		runDuration := time.Since(runStartTime)
@@ -182,7 +202,7 @@ func (c *Check) initConfig() {
 }
 
 func (c *Check) initCollectors() {
-	c.collectors = []collectors.Collector{ecs.NewTaskCollector()}
+	c.collectors = []collectors.Collector{ecs.NewTaskCollector(c.tagger)}
 }
 
 // initClusterID generates a cluster ID from the AWS account ID, region and cluster name.

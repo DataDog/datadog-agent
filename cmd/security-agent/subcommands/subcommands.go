@@ -16,6 +16,7 @@ import (
 	cmdstart "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/start"
 	cmdstatus "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/status"
 	cmdversion "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/version"
+	cmdworkloadlist "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/workloadlist"
 )
 
 // SecurityAgentSubcommands returns SubcommandFactories for the subcommands supported
@@ -33,5 +34,6 @@ func SecurityAgentSubcommands() []command.SubcommandFactory {
 		cmdstart.Commands,
 		cmdstatus.Commands,
 		cmdversion.Commands,
+		cmdworkloadlist.Commands,
 	}
 }

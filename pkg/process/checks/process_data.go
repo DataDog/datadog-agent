@@ -6,13 +6,11 @@
 package checks
 
 import (
-	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
 )
 
 // ProcessData collects a basic state of process data such as cmdline args.
@@ -24,18 +22,10 @@ type ProcessData struct {
 }
 
 // NewProcessData returns a new ProcessData from the given config
-func NewProcessData(cfg config.Reader) *ProcessData {
+func NewProcessData(cfg pkgconfigmodel.Reader) *ProcessData {
 	return &ProcessData{
 		probe: newProcessProbe(cfg),
 	}
-}
-
-// NewProcessDataWithMockProbe returns a new ProcessData with a mock probe
-func NewProcessDataWithMockProbe(t *testing.T) (*ProcessData, *mocks.Probe) {
-	probe := mocks.NewProbe(t)
-	return &ProcessData{
-		probe: probe,
-	}, probe
 }
 
 // Fetch retrieves process data from the system and notifies registered extractors

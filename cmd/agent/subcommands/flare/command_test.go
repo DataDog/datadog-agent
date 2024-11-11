@@ -11,23 +11,58 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path"
 	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-const sysprobeSockPath = "/tmp/sysprobe.sock"
+type commandTestSuite struct {
+	suite.Suite
+	sysprobeSocketPath string
+	tcpServer          *httptest.Server
+	unixServer         *httptest.Server
+	systemProbeServer  *httptest.Server
+}
 
-func getPprofTestServer(t *testing.T) (tcpServer *httptest.Server, unixServer *httptest.Server) {
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func (c *commandTestSuite) SetupSuite() {
+	t := c.T()
+	c.sysprobeSocketPath = path.Join(t.TempDir(), "sysprobe.sock")
+}
+
+// startTestServers starts test servers from a clean state to ensure no cache responses are used.
+// This should be called by each test that requires them.
+func (c *commandTestSuite) startTestServers() {
+	t := c.T()
+	c.tcpServer, c.unixServer, c.systemProbeServer = c.getPprofTestServer()
+
+	t.Cleanup(func() {
+		if c.tcpServer != nil {
+			c.tcpServer.Close()
+			c.tcpServer = nil
+		}
+		if c.unixServer != nil {
+			c.unixServer.Close()
+			c.unixServer = nil
+		}
+		if c.systemProbeServer != nil {
+			c.systemProbeServer.Close()
+			c.systemProbeServer = nil
+		}
+	})
+}
+
+func newMockHandler() http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/debug/pprof/heap":
 			w.Write([]byte("heap_profile"))
@@ -40,37 +75,49 @@ func getPprofTestServer(t *testing.T) (tcpServer *httptest.Server, unixServer *h
 			w.Write([]byte("block"))
 		case "/debug/stats": // only for system-probe
 			w.WriteHeader(200)
+		case "/debug/pprof/trace":
+			w.Write([]byte("trace"))
 		default:
 			w.WriteHeader(500)
 		}
 	})
+}
 
+func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, unixServer *httptest.Server, sysProbeServer *httptest.Server) {
+	var err error
+	t := c.T()
+
+	handler := newMockHandler()
 	tcpServer = httptest.NewServer(handler)
 	if runtime.GOOS == "linux" {
 		unixServer = httptest.NewUnstartedServer(handler)
-		var err error
-		unixServer.Listener, err = net.Listen("unix", sysprobeSockPath)
-		require.NoError(t, err, "could not create listener for unix socket /tmp/sysprobe.sock")
+		unixServer.Listener, err = net.Listen("unix", c.sysprobeSocketPath)
+		require.NoError(t, err, "could not create listener for unix socket on %s", c.sysprobeSocketPath)
 		unixServer.Start()
-
-		return tcpServer, unixServer
 	}
 
-	return tcpServer, tcpServer
+	sysProbeServer, err = NewSystemProbeTestServer(handler)
+	require.NoError(c.T(), err, "could not restart system probe server")
+	if sysProbeServer != nil {
+		sysProbeServer.Start()
+	}
+
+	return tcpServer, unixServer, sysProbeServer
 }
 
-func TestReadProfileData(t *testing.T) {
-	ts, uts := getPprofTestServer(t)
-	t.Cleanup(func() {
-		ts.Close()
-		uts.Close()
-	})
+func TestCommandTestSuite(t *testing.T) {
+	suite.Run(t, &commandTestSuite{})
+}
 
-	u, err := url.Parse(ts.URL)
+func (c *commandTestSuite) TestReadProfileData() {
+	t := c.T()
+	c.startTestServers()
+
+	u, err := url.Parse(c.tcpServer.URL)
 	require.NoError(t, err)
 	port := u.Port()
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("expvar_port", port)
 	mockConfig.SetWithoutSource("apm_config.enabled", true)
 	mockConfig.SetWithoutSource("apm_config.debug.port", port)
@@ -78,12 +125,12 @@ func TestReadProfileData(t *testing.T) {
 	mockConfig.SetWithoutSource("process_config.expvar_port", port)
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
 
-	mockSysProbeConfig := config.MockSystemProbe(t)
+	mockSysProbeConfig := configmock.NewSystemProbe(t)
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 	if runtime.GOOS == "windows" {
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", u.Host)
 	} else {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", sysprobeSockPath)
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 	}
 
 	data, err := readProfileData(10)
@@ -95,21 +142,25 @@ func TestReadProfileData(t *testing.T) {
 		"core-block.pprof":              []byte("block"),
 		"core-cpu.pprof":                []byte("10_sec_cpu_pprof"),
 		"core-mutex.pprof":              []byte("mutex"),
+		"core.trace":                    []byte("trace"),
 		"process-1st-heap.pprof":        []byte("heap_profile"),
 		"process-2nd-heap.pprof":        []byte("heap_profile"),
 		"process-block.pprof":           []byte("block"),
 		"process-cpu.pprof":             []byte("10_sec_cpu_pprof"),
 		"process-mutex.pprof":           []byte("mutex"),
+		"process.trace":                 []byte("trace"),
 		"security-agent-1st-heap.pprof": []byte("heap_profile"),
 		"security-agent-2nd-heap.pprof": []byte("heap_profile"),
 		"security-agent-block.pprof":    []byte("block"),
 		"security-agent-cpu.pprof":      []byte("10_sec_cpu_pprof"),
 		"security-agent-mutex.pprof":    []byte("mutex"),
+		"security-agent.trace":          []byte("trace"),
 		"trace-1st-heap.pprof":          []byte("heap_profile"),
 		"trace-2nd-heap.pprof":          []byte("heap_profile"),
 		"trace-block.pprof":             []byte("block"),
 		"trace-cpu.pprof":               []byte("10_sec_cpu_pprof"),
 		"trace-mutex.pprof":             []byte("mutex"),
+		"trace.trace":                   []byte("trace"),
 	}
 	if runtime.GOOS != "darwin" {
 		maps.Copy(expected, flare.ProfileData{
@@ -118,6 +169,7 @@ func TestReadProfileData(t *testing.T) {
 			"system-probe-block.pprof":    []byte("block"),
 			"system-probe-cpu.pprof":      []byte("10_sec_cpu_pprof"),
 			"system-probe-mutex.pprof":    []byte("mutex"),
+			"system-probe.trace":          []byte("trace"),
 		})
 	}
 
@@ -127,18 +179,15 @@ func TestReadProfileData(t *testing.T) {
 	}
 }
 
-func TestReadProfileDataNoTraceAgent(t *testing.T) {
-	ts, uts := getPprofTestServer(t)
-	t.Cleanup(func() {
-		ts.Close()
-		uts.Close()
-	})
+func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
+	t := c.T()
+	c.startTestServers()
 
-	u, err := url.Parse(ts.URL)
+	u, err := url.Parse(c.tcpServer.URL)
 	require.NoError(t, err)
 	port := u.Port()
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("expvar_port", port)
 	mockConfig.SetWithoutSource("apm_config.enabled", true)
 	mockConfig.SetWithoutSource("apm_config.debug.port", 0)
@@ -146,12 +195,12 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 	mockConfig.SetWithoutSource("process_config.expvar_port", port)
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
 
-	mockSysProbeConfig := config.MockSystemProbe(t)
+	mockSysProbeConfig := configmock.NewSystemProbe(t)
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 	if runtime.GOOS == "windows" {
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", u.Host)
 	} else {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", sysprobeSockPath)
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 	}
 
 	data, err := readProfileData(10)
@@ -164,16 +213,19 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 		"core-block.pprof":              []byte("block"),
 		"core-cpu.pprof":                []byte("10_sec_cpu_pprof"),
 		"core-mutex.pprof":              []byte("mutex"),
+		"core.trace":                    []byte("trace"),
 		"process-1st-heap.pprof":        []byte("heap_profile"),
 		"process-2nd-heap.pprof":        []byte("heap_profile"),
 		"process-block.pprof":           []byte("block"),
 		"process-cpu.pprof":             []byte("10_sec_cpu_pprof"),
 		"process-mutex.pprof":           []byte("mutex"),
+		"process.trace":                 []byte("trace"),
 		"security-agent-1st-heap.pprof": []byte("heap_profile"),
 		"security-agent-2nd-heap.pprof": []byte("heap_profile"),
 		"security-agent-block.pprof":    []byte("block"),
 		"security-agent-cpu.pprof":      []byte("10_sec_cpu_pprof"),
 		"security-agent-mutex.pprof":    []byte("mutex"),
+		"security-agent.trace":          []byte("trace"),
 	}
 	if runtime.GOOS != "darwin" {
 		maps.Copy(expected, flare.ProfileData{
@@ -182,6 +234,7 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 			"system-probe-block.pprof":    []byte("block"),
 			"system-probe-cpu.pprof":      []byte("10_sec_cpu_pprof"),
 			"system-probe-mutex.pprof":    []byte("mutex"),
+			"system-probe.trace":          []byte("trace"),
 		})
 	}
 
@@ -191,23 +244,36 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 	}
 }
 
-func TestReadProfileDataErrors(t *testing.T) {
-	mockConfig := config.Mock(t)
+func (c *commandTestSuite) TestReadProfileDataErrors() {
+	t := c.T()
+	c.startTestServers()
+
+	mockConfig := configmock.New(t)
+	// setting Core Agent Expvar port to 0 to ensure failing on fetch (using the default value can lead to
+	// successful request when running next to an Agent)
+	mockConfig.SetWithoutSource("expvar_port", 0)
 	mockConfig.SetWithoutSource("apm_config.enabled", true)
 	mockConfig.SetWithoutSource("apm_config.debug.port", 0)
+	mockConfig.SetWithoutSource("process_config.enabled", true)
+	mockConfig.SetWithoutSource("process_config.expvar_port", 0)
+
+	mockSysProbeConfig := configmock.NewSystemProbe(t)
+	InjectConnectionFailures(mockSysProbeConfig, mockConfig)
 
 	data, err := readProfileData(10)
+
 	require.Error(t, err)
-	require.Regexp(t, "^4 errors occurred:\n", err.Error())
+	CheckExpectedConnectionFailures(c, err)
 	require.Len(t, data, 0)
 }
 
-func TestCommand(t *testing.T) {
+func (c *commandTestSuite) TestCommand() {
+	t := c.T()
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"flare", "1234"},
 		makeFlare,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(cliParams *cliParams, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, []string{"1234"}, cliParams.args)
 			require.Equal(t, true, secretParams.Enabled)
 		})
