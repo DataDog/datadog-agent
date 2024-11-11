@@ -576,25 +576,28 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv6() {
 	tr := setupTracer(t, cfg)
 	linkLocal, err := offsetguess.GetIPv6LinkLocalAddress()
 	require.NoError(t, err)
+	remoteAddr := linkLocal[0]
+	remoteAddr.Port = rand.Int()%5000 + 15000
 
-	println(linkLocal[0].String())
-
-	remotePort := rand.Int()%5000 + 15000
-	remoteAddr := &net.UDPAddr{IP: net.ParseIP(offsetguess.InterfaceLocalMulticastIPv6), Port: remotePort}
-	conn, err := net.ListenUDP("udp6", linkLocal[0])
+	conn, err := net.ListenUDP("udp6", remoteAddr)
 	require.NoError(t, err)
 	defer conn.Close()
 	message := []byte("payload")
 	bytesSent, err := conn.WriteTo(message, remoteAddr)
 	require.NoError(t, err)
 
-	println(remotePort)
+	bytes := make([]byte, 100)
+	n, _, err := conn.ReadFromUDP(bytes)
+	require.NoError(t, err)
+	require.Equal(t, string(message), string(bytes[:n]))
 
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		connections := getConnections(t, tr)
 		outgoing := network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
-			fmt.Printf("%+v\n", cs)
-			return cs.DPort == uint16(remotePort)
+			if cs.Type != network.UDP {
+				return false
+			}
+			return cs.DPort == uint16(remoteAddr.Port)
 		})
 		if !assert.Len(ct, outgoing, 1) {
 			return
