@@ -200,9 +200,9 @@ func addToTailerInfo(k, m string, tailerInfo *status.InfoRegistry) {
 
 // NewRotatedTailer creates a new tailer that replaces this one, writing
 // messages to the same channel but using an updated file and decoder.
-func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder, info *status.InfoRegistry, tagAdder tag.EntityTagAdder) *Tailer {
+func (t *Tailer) NewRotatedTailer(file *File, outputChan chan *message.Message, decoder *decoder.Decoder, info *status.InfoRegistry, tagAdder tag.EntityTagAdder) *Tailer {
 	options := &TailerOptions{
-		OutputChan:    t.outputChan,
+		OutputChan:    outputChan,
 		File:          file,
 		SleepDuration: t.sleepDuration,
 		Decoder:       decoder,
