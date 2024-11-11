@@ -6,9 +6,10 @@
 //go:build zlib && !zstd
 
 // Package compressionimpl provides a set of functions for compressing with zlib / zstd
-package compressionimpl
+package fx_zlib_no_zstd
 
 import (
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	strategy_noop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
 	strategy_zlib "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-zlib"
 	"go.uber.org/fx"
@@ -30,12 +31,12 @@ func Module() fxutil.Module {
 // This function is called only when the zlib build tag is included
 func NewCompressor(cfg config.Component) compression.Component {
 	switch cfg.GetString("serializer_compressor_kind") {
-	case ZlibKind:
+	case compressionimpl.ZlibKind:
 		return strategy_zlib.NewZlibStrategy()
-	case ZstdKind:
+	case compressionimpl.ZstdKind:
 		log.Warn("zstd build tag not included. using zlib")
 		return strategy_zlib.NewZlibStrategy()
-	case NoneKind:
+	case compressionimpl.NoneKind:
 		log.Warn("no serializer_compressor_kind set. use zlib or zstd")
 		return strategy_noop.NewNoopStrategy()
 	default:
