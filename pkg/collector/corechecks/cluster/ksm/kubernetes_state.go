@@ -67,6 +67,14 @@ var extendedCollectors = map[string]string{
 	"pods":  "core/v1, Resource=pods_extended",
 }
 
+// collectorNameReplacement contains a mapping of collector names as they would appear in the KSM config to what
+// their new collector name would be. For backwards compatibility.
+var collectorNameReplacement = map[string]string{
+	// verticalpodautoscalers were removed from the built-in KSM metrics in KSM 2.9, and the changes made to
+	// the KSM builder in KSM 2.9 result in the detected custom resource store name being different.
+	"verticalpodautoscalers": "autoscaling.k8s.io/v1, Resource=verticalpodautoscalers",
+}
+
 var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
 
 type podCollectionMode string
@@ -406,7 +414,11 @@ func filterUnknownCollectors(collectors []string, resources []*v1.APIResourceLis
 	filteredCollectors := make([]string, 0, len(collectors))
 	for i := range collectors {
 		if _, ok := resourcesSet[collectors[i]]; ok {
-			filteredCollectors = append(filteredCollectors, collectors[i])
+			if _, okRepl := collectorNameReplacement[collectors[i]]; okRepl {
+				filteredCollectors = append(filteredCollectors, collectorNameReplacement[collectors[i]])
+			} else {
+				filteredCollectors = append(filteredCollectors, collectors[i])
+			}
 		} else {
 			log.Warnf("resource %v is unknown and will not be collected", collectors[i])
 		}
