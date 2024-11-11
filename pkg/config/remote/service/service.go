@@ -387,12 +387,14 @@ func WithClientTTL(interval time.Duration, cfgPath string) func(s *options) {
 	}
 }
 
+// WithAgentPollLoopDisabled disables the config poll loop
 func WithAgentPollLoopDisabled() func(s *options) {
 	return func(s *options) {
 		s.disableConfigPollLoop = true
 	}
 }
 
+// WithForceCacheBypass forces a cache bypass on every request
 func WithForceCacheBypass() func(s *options) {
 	return func(s *options) {
 		s.forceCacheBypass = true
@@ -579,15 +581,14 @@ func startWithAgentPollLoop(s *CoreAgentService) {
 func startWithoutAgentPollLoop(s *CoreAgentService) {
 	for {
 		var err error
-		select {
-		case response := <-s.cacheBypassClients.requests:
-			if s.forceCacheBypass || !s.cacheBypassClients.Limit() {
-				err = s.refresh()
-			} else {
-				s.telemetryReporter.IncRateLimit()
-			}
-			close(response)
+		response := <-s.cacheBypassClients.requests
+		if s.forceCacheBypass || !s.cacheBypassClients.Limit() {
+			err = s.refresh()
+		} else {
+			s.telemetryReporter.IncRateLimit()
 		}
+		close(response)
+
 		if err != nil {
 			logRefreshError(s, err)
 		}

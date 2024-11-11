@@ -16,11 +16,21 @@ import (
 	"syscall"
 	"time"
 
+	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -39,13 +49,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
-	serverlessRemoteConfig "github.com/DataDog/datadog-agent/pkg/serverless/remoteconfig"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"go.uber.org/fx"
 )
 
 // AWS Lambda is writing the Lambda function files in /var/task, we want the
@@ -53,12 +64,12 @@ import (
 var datadogConfigPath = "/var/task/datadog.yaml"
 
 const (
-	loggerName                   pkglogsetup.LoggerName = "DD_EXTENSION"
-	logLevelEnvVar                                      = "DD_LOG_LEVEL"
-	flushStrategyEnvVar                                 = "DD_SERVERLESS_FLUSH_STRATEGY"
-	logsLogsTypeSubscribed                              = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
-	extensionRegistrationRoute                          = "/2020-01-01/extension/register"
-	extensionRegistrationTimeout                        = 5 * time.Second
+	loggerName                   string = "DD_EXTENSION"
+	logLevelEnvVar                      = "DD_LOG_LEVEL"
+	flushStrategyEnvVar                 = "DD_SERVERLESS_FLUSH_STRATEGY"
+	logsLogsTypeSubscribed              = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
+	extensionRegistrationRoute          = "/2020-01-01/extension/register"
+	extensionRegistrationTimeout        = 5 * time.Second
 
 	// httpServerAddr will be the default addr used to run the HTTP server listening
 	// to calls from the client libraries and to logs from the AWS environment.
@@ -71,6 +82,8 @@ const (
 	logsAPITimeout             = 25
 	logsAPIMaxBytes            = 262144
 	logsAPIMaxItems            = 1000
+
+	lambdaCompatibleRunPath = "/tmp/datadog-agent"
 )
 
 func main() {
@@ -78,6 +91,27 @@ func main() {
 	err := fxutil.OneShot(
 		runAgent,
 		taggernoop.Module(),
+		fx.Supply(&rcservice.Params{
+			Options: []service.Option{
+				service.WithForceCacheBypass(),
+				service.WithAgentPollLoopDisabled(),
+			},
+		}),
+		rcserviceimpl.Module(),
+		rctelemetryreporterimpl.Module(),
+		fx.Supply(cfgcomp.NewParams("", cfgcomp.WithConfigMissingOK(true))),
+		cfgcomp.Module(),
+		fx.Decorate(func(config cfgcomp.Component) cfgcomp.Component {
+			config.Set("run_path", lambdaCompatibleRunPath, model.SourceAgentRuntime)
+			return config
+		}),
+		hostnameimpl.Module(),
+		fx.Supply(secrets.NewEnabledParams()),
+		secretsimpl.Module(),
+		fx.Provide(func(secrets secrets.Component) optional.Option[secrets.Component] { return optional.NewOption(secrets) }),
+		fx.Supply(logdef.ForOneShot("DD_EXTENSION", "off", true)),
+		logfx.Module(),
+		nooptelemetry.Module(),
 	)
 
 	if err != nil {
@@ -86,7 +120,10 @@ func main() {
 	}
 }
 
-func runAgent(tagger tagger.Component) {
+func runAgent(
+	tagger tagger.Component,
+	rcService optional.Option[rcservice.Component],
+) {
 	startTime := time.Now()
 
 	setupLambdaAgentOverrides()
@@ -115,9 +152,6 @@ func runAgent(tagger tagger.Component) {
 	//nolint:revive // TODO(SERV) Fix revive linter
 	coldStartSpanId := random.Random.Uint64()
 	metricAgent := startMetricAgent(serverlessDaemon, logChannel, lambdaInitMetricChan, tagger)
-
-	// Start RC service if remote configuration is enabled
-	rcService := serverlessRemoteConfig.StartRCService(serverlessDaemon.ExecutionContext.GetCurrentState().ARN)
 
 	// Concurrently start heavyweight features
 	var wg sync.WaitGroup
@@ -342,7 +376,7 @@ func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAge
 
 }
 
-func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon, tagger tagger.Component, rcService *remoteconfig.CoreAgentService) {
+func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon, tagger tagger.Component, rcService optional.Option[rcservice.Component]) {
 	defer wg.Done()
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:         pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
@@ -417,7 +451,7 @@ func setupLogger() {
 
 	// init the logger configuring it to not log in a file (the first empty string)
 	if err := pkglogsetup.SetupLogger(
-		loggerName,
+		pkglogsetup.LoggerName(loggerName),
 		logLevel,
 		"",    // logFile -> by setting this to an empty string, we don't write the logs to any file
 		"",    // syslog URI
