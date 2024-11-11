@@ -14,7 +14,7 @@ import (
 
 func TestStartStopUDPListener(t *testing.T) {
 	port, err := getAvailableUDPPort()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	cfg := map[string]interface{}{}
 	cfg["dogstatsd_port"] = port
 	cfg["dogstatsd_non_local_traffic"] = false
@@ -25,13 +25,13 @@ func TestStartStopUDPListener(t *testing.T) {
 	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
 	require.NotNil(t, s)
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	s.Listen()
 	// Local port should be unavailable
 	address, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
 	_, err = net.ListenUDP("udp", address)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 
 	s.Stop()
 
@@ -50,7 +50,7 @@ func TestStartStopUDPListener(t *testing.T) {
 
 func TestUDPNonLocal(t *testing.T) {
 	port, err := getAvailableUDPPort()
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	cfg := map[string]interface{}{}
 	cfg["dogstatsd_port"] = port
@@ -59,7 +59,7 @@ func TestUDPNonLocal(t *testing.T) {
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
 	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	require.NotNil(t, s)
 
 	s.Listen()
@@ -68,18 +68,18 @@ func TestUDPNonLocal(t *testing.T) {
 	// Local port should be unavailable
 	address, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
 	_, err = net.ListenUDP("udp", address)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 
 	// External port should be unavailable
 	externalPort := fmt.Sprintf("%s:%d", getLocalIP(), port)
 	address, _ = net.ResolveUDPAddr("udp", externalPort)
 	_, err = net.ListenUDP("udp", address)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestUDPLocalOnly(t *testing.T) {
 	port, err := getAvailableUDPPort()
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	fmt.Println("port: ", port)
 
@@ -90,7 +90,7 @@ func TestUDPLocalOnly(t *testing.T) {
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
 	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	require.NotNil(t, s)
 
 	s.Listen()
@@ -99,13 +99,13 @@ func TestUDPLocalOnly(t *testing.T) {
 	// Local port should be unavailable
 	address, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
 	_, err = net.ListenUDP("udp", address)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 
 	// External port should be available
 	externalPort := fmt.Sprintf("%s:%d", getLocalIP(), port)
 	address, _ = net.ResolveUDPAddr("udp", externalPort)
 	conn, err := net.ListenUDP("udp", address)
 	require.NotNil(t, conn)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	conn.Close()
 }

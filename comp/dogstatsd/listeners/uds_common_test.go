@@ -53,7 +53,7 @@ func newPacketPoolManagerUDS(cfg config.Component, packetsTelemetryStore *packet
 
 func testFileExistsNewUDSListener(t *testing.T, socketPath string, cfg map[string]interface{}, listenerFactory udsListenerFactory) {
 	_, err := os.Create(socketPath)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer os.Remove(socketPath)
 	deps := fulfillDepsWithConfig(t, cfg)
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
@@ -64,9 +64,9 @@ func testFileExistsNewUDSListener(t *testing.T, socketPath string, cfg map[strin
 
 func testSocketExistsNewUSDListener(t *testing.T, socketPath string, cfg map[string]interface{}, listenerFactory udsListenerFactory) {
 	address, err := net.ResolveUnixAddr("unix", socketPath)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	_, err = net.ListenUnix("unix", address)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	testWorkingNewUDSListener(t, socketPath, cfg, listenerFactory)
 }
 
@@ -77,10 +77,10 @@ func testWorkingNewUDSListener(t *testing.T, socketPath string, cfg map[string]i
 	s, err := listenerFactory(nil, newPacketPoolManagerUDS(deps.Config, packetsTelemetryStore), deps.Config, deps.PidMap, telemetryStore, packetsTelemetryStore, deps.Telemetry)
 	defer s.Stop()
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.NotNil(t, s)
 	fi, err := os.Stat(socketPath)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "Srwx-w--w-", fi.Mode().String())
 }
 
@@ -112,19 +112,19 @@ func testStartStopUDSListener(t *testing.T, listenerFactory udsListenerFactory, 
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
 	s, err := listenerFactory(nil, newPacketPoolManagerUDS(deps.Config, packetsTelemetryStore), deps.Config, deps.PidMap, telemetryStore, packetsTelemetryStore, deps.Telemetry)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.NotNil(t, s)
 
 	s.Listen()
 
 	conn, err := net.Dial(transport, socketPath)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	conn.Close()
 
 	s.Stop()
 
 	_, err = net.Dial(transport, socketPath)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func defaultMUnixConn(addr net.Addr, streamMode bool) *mockUnixConn {
