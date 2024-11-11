@@ -8,6 +8,7 @@
 package agentimpl
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -22,7 +23,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
-func (a *logAgent) SetUpLaunchers(processingRules []*config.ProcessingRule) {
+func (a *logAgent) SetUpLaunchers() {
+	processingRules, err := config.GlobalProcessingRules(a.config)
+	if err != nil {
+		return
+	}
 	health := health.RegisterLiveness("logs-agent")
 	// setup the auditor
 	// We pass the health handle to the auditor because it's the end of the pipeline and the most
@@ -49,7 +54,8 @@ func (a *logAgent) SetUpLaunchers(processingRules []*config.ProcessingRule) {
 		fileWildcardSelectionMode,
 		a.flarecontroller,
 		a.tagger)
-	sourceProvider := sources.NewConfigSources()
+	sourceProvider := sources.GetInstance()
+	fmt.Printf("WACK logs_analyze_init %p \n", sourceProvider)
 	fileLauncher.Start(sourceProvider, pipelineProvider, auditor, a.tracker)
 	lnchrs.AddLauncher(fileLauncher)
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)

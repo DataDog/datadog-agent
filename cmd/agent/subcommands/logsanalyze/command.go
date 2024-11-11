@@ -10,6 +10,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	agentConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -34,7 +37,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &CliParams{
 		GlobalParams:   globalParams,
 		CoreConfigPath: defaultCoreConfigPath, // Set default path
-		ConfigSource:   sources.NewConfigSources(),
+		ConfigSource:   sources.GetInstance(),
 	}
 
 	cmd := &cobra.Command{
@@ -62,16 +65,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // runLogsAnalyze handles the logs check operation.
-func runLogsAnalyze(cliParams *CliParams) error {
-	// Check if the provided log config file exists
-	// if _, err := os.Stat(cliParams.LogConfigPath); os.IsNotExist(err) {
-	// 	return fmt.Errorf("log config file %s does not exist", cliParams.LogConfigPath)
-	// }
+func runLogsAnalyze(config config.Component, cliParams *CliParams) error {
 
-	// // Check if the core config file exists, using default or user-specified path
-	// if _, err := os.Stat(cliParams.CoreConfigPath); os.IsNotExist(err) {
-	// 	return fmt.Errorf("core config file %s does not exist", cliParams.CoreConfigPath)
-	// }
+	processingRules, err := agentConfig.GlobalProcessingRules(config)
+	if err != nil {
+		return err
+	}
 
 	//send paths to source provider
 	// Add log config source

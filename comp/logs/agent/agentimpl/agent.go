@@ -237,7 +237,6 @@ func (a *logAgent) setupAgent() error {
 	}
 
 	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs)
-	a.SetUpLaunchers(processingRules)
 	return nil
 }
 
