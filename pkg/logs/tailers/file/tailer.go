@@ -116,9 +116,6 @@ type Tailer struct {
 	// blocked sending to the tailer's outputChan.
 	stopForward context.CancelFunc
 
-	// inBuf holds a buffer for reading from the file.
-	inBuf []byte
-
 	info      *status.InfoRegistry
 	bytesRead *status.CountInfo
 	movingSum *util.MovingSum
