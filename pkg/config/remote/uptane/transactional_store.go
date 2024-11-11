@@ -8,6 +8,7 @@ package uptane
 import (
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/pkg/errors"
 	"go.etcd.io/bbolt"
 )
@@ -173,34 +174,40 @@ func (ts *transactionalStore) commit() error {
 		}
 		return nil
 	})
-	ts.clearCache()
-	return err
-}
-
-func (ts *transactionalStore) clearCache() {
-	for k := range ts.cachedData {
-		delete(ts.cachedData, k)
+	if err != nil {
+		log.Debugf("Failed Commit: %v", err)
+	} else {
+		log.Debugf("Commit successful. %d keys", len(ts.cachedData))
 	}
+	ts.cachedData = make(map[string]dbBucket)
+
+	return err
 }
 
 // removes all cached changes
 func (ts *transactionalStore) rollback() {
 	ts.lock.Lock()
 	defer ts.lock.Unlock()
-	ts.clearCache()
+	if len(ts.cachedData) > 0 {
+		log.Debugf("Rollback of %d keys", len(ts.cachedData))
+		ts.cachedData = make(map[string]dbBucket)
+	}
 }
 
 func (t *transaction) put(bucketName string, path string, data []byte) {
+	log.Debugf("Putting %s in bucket %s", path, bucketName)
 	bucket := t.store.getMemBucket(bucketName)
 	bucket[path] = data
 }
 
 func (t *transaction) delete(bucketName string, path string) {
+	log.Debugf("Deleting %s from bucket %s", path, bucketName)
 	bucket := t.store.getMemBucket(bucketName)
 	bucket[path] = nil
 }
 
 func (t *transaction) get(bucketName string, path string) ([]byte, error) {
+	log.Debugf("Get %s from bucket %s", path, bucketName)
 	bucket := t.store.getMemBucket(bucketName)
 
 	// check if it's present in the in-memory cache
