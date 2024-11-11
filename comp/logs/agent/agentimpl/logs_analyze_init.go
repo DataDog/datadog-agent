@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
-func (a *logAgent) SetUpLaunchers() {
+func SetUpLaunchers() {
 	processingRules, err := config.GlobalProcessingRules(a.config)
 	if err != nil {
 		return
