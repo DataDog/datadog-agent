@@ -741,6 +741,7 @@ require (
 	go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.111.0
 	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.17.0
 	go.opentelemetry.io/collector/extension v0.111.0
+	go.opentelemetry.io/collector/extension/extensioncapabilities v0.111.0 // indirect
 	go.opentelemetry.io/collector/otelcol v0.111.0
 	go.opentelemetry.io/collector/processor v0.111.0
 	go.opentelemetry.io/collector/service v0.111.0
@@ -989,7 +990,6 @@ require (
 	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.111.0 // indirect
 	go.opentelemetry.io/collector/extension/auth v0.111.0 // indirect
 	go.opentelemetry.io/collector/extension/experimental/storage v0.111.0 // indirect
-	go.opentelemetry.io/collector/extension/extensioncapabilities v0.111.0 // indirect
 	go.opentelemetry.io/collector/extension/zpagesextension v0.111.0 // indirect
 	go.opentelemetry.io/collector/filter v0.111.0 // indirect
 	go.opentelemetry.io/collector/internal/globalgates v0.111.0 // indirect

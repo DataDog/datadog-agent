@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.uber.org/zap"
 
@@ -41,9 +42,7 @@ type ddExtension struct {
 	configStore *configStore
 }
 
-// TODO: update to reference extensioncapabilities.ConfigWatcher when updated to v0.109.0 or later,
-// see https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/e788e319e129071e74c13db48296464a5253413d/extension/opampextension/opamp_agent.go#L67-L69
-var _ extension.Extension = (*ddExtension)(nil)
+var _ extensioncapabilities.ConfigWatcher = (*ddExtension)(nil)
 
 func extensionType(s string) string {
 	index := strings.Index(s, "/")
@@ -61,12 +60,11 @@ func extensionType(s string) string {
 // calling Start.
 func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) error {
 	var err error
-	ext.telemetry.Logger.Info("Collector called NotifyConfig interface")
 	ext.configStore.setEnhancedConf(conf)
-	ext.telemetry.Logger.Info("Enhanced config set")
+
 	extensionConfs, err := conf.Sub("extensions")
 	if err != nil {
-		return err
+		return nil
 	}
 
 	extensions := extensionConfs.ToStringMap()
@@ -198,7 +196,6 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	}
 	enhanced, err := ext.configStore.getEnhancedConfAsString()
 	if err != nil {
-		ext.telemetry.Logger.Error("Unable to get enhanced config", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(w, "Unable to get enhanced config\n")
 		return
