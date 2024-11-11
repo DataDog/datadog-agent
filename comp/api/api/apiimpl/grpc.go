@@ -19,8 +19,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
-	raproto "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/proto"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
+	rarproto "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/proto"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -42,15 +42,15 @@ type grpcServer struct {
 
 type serverSecure struct {
 	pb.UnimplementedAgentSecureServer
-	taggerServer       *taggerserver.Server
-	taggerComp         tagger.Component
-	workloadmetaServer *workloadmetaServer.Server
-	configService      optional.Option[rcservice.Component]
-	configServiceMRF   optional.Option[rcservicemrf.Component]
-	dogstatsdServer    dogstatsdServer.Component
-	capture            dsdReplay.Component
-	pidMap             pidmap.Component
-	remoteAgent        remoteagent.Component
+	taggerServer        *taggerserver.Server
+	taggerComp          tagger.Component
+	workloadmetaServer  *workloadmetaServer.Server
+	configService       optional.Option[rcservice.Component]
+	configServiceMRF    optional.Option[rcservicemrf.Component]
+	dogstatsdServer     dogstatsdServer.Component
+	capture             dsdReplay.Component
+	pidMap              pidmap.Component
+	remoteAgentRegistry remoteagentregistry.Component
 }
 
 func (s *grpcServer) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -187,8 +187,8 @@ func (s *serverSecure) WorkloadmetaStreamEntities(in *pb.WorkloadmetaStreamReque
 }
 
 func (s *serverSecure) RegisterRemoteAgent(_ context.Context, in *pb.RegisterRemoteAgentRequest) (*pb.RegisterRemoteAgentResponse, error) {
-	registration := raproto.ProtobufToRemoteAgentRegistration(in)
-	recommendedRefreshIntervalSecs, err := s.remoteAgent.RegisterRemoteAgent(registration)
+	registration := rarproto.ProtobufToRemoteAgentRegistration(in)
+	recommendedRefreshIntervalSecs, err := s.remoteAgentRegistry.RegisterRemoteAgent(registration)
 	if err != nil {
 		return nil, err
 	}

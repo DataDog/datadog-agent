@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
@@ -91,7 +91,7 @@ func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 				Provider: nil,
 			}
 		}),
-		fx.Provide(func() remoteagent.Component { return nil }),
+		fx.Provide(func() remoteagentregistry.Component { return nil }),
 	)
 }
 
