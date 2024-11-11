@@ -71,11 +71,11 @@ func (server *apiServer) startCMDServer(
 		taggerServer:     taggerserver.NewServer(server.taggerComp, maxEventSize),
 		taggerComp:       server.taggerComp,
 		// TODO(components): decide if workloadmetaServer should be componentized itself
-		workloadmetaServer: workloadmetaServer.NewServer(server.wmeta),
-		dogstatsdServer:    server.dogstatsdServer,
-		capture:            server.capture,
-		pidMap:             server.pidMap,
-		remoteAgent:        server.remoteAgent,
+		workloadmetaServer:  workloadmetaServer.NewServer(server.wmeta),
+		dogstatsdServer:     server.dogstatsdServer,
+		capture:             server.capture,
+		pidMap:              server.pidMap,
+		remoteAgentRegistry: server.remoteAgentRegistry,
 	})
 
 	dcreds := credentials.NewTLS(&tls.Config{

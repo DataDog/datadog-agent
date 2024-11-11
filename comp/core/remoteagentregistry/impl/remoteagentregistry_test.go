@@ -47,9 +47,9 @@ func TestRemoteAgentCreation(t *testing.T) {
 }
 
 func TestRecommendedRefreshInterval(t *testing.T) {
-	expected_refresh_interval_secs := uint32(27)
+	expectedRefreshIntervalSecs := uint32(27)
 	config := configmock.New(t)
-	config.SetWithoutSource("remote_agent_registry.recommended_refresh_interval", fmt.Sprintf("%ds", expected_refresh_interval_secs))
+	config.SetWithoutSource("remote_agent_registry.recommended_refresh_interval", fmt.Sprintf("%ds", expectedRefreshIntervalSecs))
 
 	provides, _ := buildComponentWithConfig(t, config)
 	component := provides.Comp
@@ -61,9 +61,9 @@ func TestRecommendedRefreshInterval(t *testing.T) {
 		AuthToken:   "",
 	}
 
-	actual_refresh_interval_secs, err := component.RegisterRemoteAgent(registrationData)
+	actualRefreshIntervalSecs, err := component.RegisterRemoteAgent(registrationData)
 	require.NoError(t, err)
-	require.Equal(t, expected_refresh_interval_secs, actual_refresh_interval_secs)
+	require.Equal(t, expectedRefreshIntervalSecs, actualRefreshIntervalSecs)
 
 	agents := component.GetRegisteredAgents()
 	require.Len(t, agents, 1)
