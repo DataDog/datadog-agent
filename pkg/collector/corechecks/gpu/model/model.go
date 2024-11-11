@@ -13,8 +13,8 @@ type MemoryMetrics struct {
 	MaxBytes     uint64 `json:"max_bytes"`
 }
 
-// Metrics contains the GPU stats for a given device and process
-type Metrics struct {
+// UtilizationMetrics contains the GPU stats for a given device and process
+type UtilizationMetrics struct {
 	UtilizationPercentage float64       `json:"utilization_percentage"`
 	Memory                MemoryMetrics `json:"memory"`
 }
@@ -31,5 +31,5 @@ type Key struct {
 // GPUStats contains the past and current data for all streams, including kernel spans and allocations.
 // This is the data structure that is sent to the agent
 type GPUStats struct {
-	MetricsMap map[Key]Metrics `json:"metrics_map"`
+	MetricsMap map[Key]UtilizationMetrics `json:"metrics_map"`
 }

@@ -60,7 +60,7 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	normFactor := g.getNormalizationFactor()
 
 	stats := &model.GPUStats{
-		MetricsMap: make(map[model.Key]model.Metrics),
+		MetricsMap: make(map[model.Key]model.UtilizationMetrics),
 	}
 
 	for aggKey, aggr := range g.aggregators {
