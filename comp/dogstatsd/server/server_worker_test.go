@@ -7,30 +7,16 @@
 package server
 
 import (
-	"net"
-	"sort"
+	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/core"
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
-	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Run through all of the major metric types and verify both the default and the timestamped flows
@@ -224,67 +210,35 @@ func TestServiceChecks(t *testing.T) {
 
 func TestHistToDist(t *testing.T) {
 	cfg := make(map[string]interface{})
-
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 	cfg["histogram_copy_to_distribution"] = true
 	cfg["histogram_copy_to_distribution_prefix"] = "dist."
-
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	demux := deps.Demultiplexer
-	requireStart(t, deps.Server)
-
-	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
-	require.NoError(t, err, "cannot connect to DSD socket")
-	defer conn.Close()
-
 	// Test metric
-	_, err = conn.Write([]byte("daemon:666|h|#sometag1:somevalue1,sometag2:somevalue2"))
-	require.NoError(t, err, "cannot write to DSD socket")
-	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 2, len(samples))
-	require.Equal(t, 0, len(timedSamples))
-	histMetric := samples[0]
-	distMetric := samples[1]
-	assert.NotNil(t, histMetric)
-	assert.Equal(t, histMetric.Name, "daemon")
-	assert.EqualValues(t, histMetric.Value, 666.0)
-	assert.Equal(t, metrics.HistogramType, histMetric.Mtype)
+	input := []byte("daemon:666|h|#sometag1:somevalue1,sometag2:somevalue2")
 
-	assert.NotNil(t, distMetric)
-	assert.Equal(t, distMetric.Name, "dist.daemon")
-	assert.EqualValues(t, distMetric.Value, 666.0)
-	assert.Equal(t, metrics.DistributionType, distMetric.Mtype)
-	demux.Reset()
+	test1 := defaultMetric().withType(metrics.HistogramType)
+	test2 := defaultMetric().withName("dist.daemon").withType(metrics.DistributionType)
+
+	runTestMetrics(t, deps, input, []*tMetricSample{test1, test2}, []*tMetricSample{})
 }
 
 func TestExtraTags(t *testing.T) {
 	cfg := make(map[string]interface{})
 	cfg["dogstatsd_port"] = listeners.RandomPortName
-	cfg["dogstatsd_tags"] = []string{"sometag3:somevalue3"}
 
-	env.SetFeatures(t, env.EKSFargate)
 	deps := fulfillDepsWithConfigOverride(t, cfg)
+	deps.Server.SetExtraTags([]string{"sometag3:somevalue3"})
 
-	demux := deps.Demultiplexer
-	requireStart(t, deps.Server)
+	test := defaultMetric().withTags([]string{"sometag1:somevalue1", "sometag2:somevalue2", "sometag3:somevalue3"})
+	// Test single metric
+	runTestMetrics(t, deps, defaultMetricInput, []*tMetricSample{test}, []*tMetricSample{})
 
-	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
-	require.NoError(t, err, "cannot connect to DSD socket")
-	defer conn.Close()
-
-	// Test metric
-	_, err = conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-	require.NoError(t, err, "cannot write to DSD socket")
-	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 1, len(samples))
-	require.Equal(t, 0, len(timedSamples))
-	sample := samples[0]
-	assert.NotNil(t, sample)
-	assert.Equal(t, sample.Name, "daemon")
-	assert.EqualValues(t, sample.Value, 666.0)
-	assert.Equal(t, sample.Mtype, metrics.GaugeType)
-	assert.ElementsMatch(t, sample.Tags, []string{"sometag1:somevalue1", "sometag2:somevalue2", "sometag3:somevalue3"})
+	// Test multivalue metric
+	test2 := defaultMetric().withValue(500.0).withTags([]string{"sometag1:somevalue1", "sometag2:somevalue2", "sometag3:somevalue3"})
+	input := []byte("daemon:666:500|g|#sometag1:somevalue1,sometag2:somevalue2")
+	runTestMetrics(t, deps, input, []*tMetricSample{test, test2}, []*tMetricSample{})
 }
 
 func TestParseMetricMessageTelemetry(t *testing.T) {
@@ -292,21 +246,7 @@ func TestParseMetricMessageTelemetry(t *testing.T) {
 
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
-	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
-		core.MockBundle(),
-		serverdebugimpl.MockModule(),
-		fx.Replace(configComponent.MockParams{
-			Overrides: cfg,
-		}),
-		fx.Supply(Params{Serverless: false}),
-		replaymock.MockModule(),
-		compressionimpl.MockModule(),
-		pidmapimpl.Module(),
-		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
-
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	deps, s := fulfillDepsWithInactiveServer(t, cfg)
 
 	assert.Nil(t, s.mapper)
 
@@ -327,19 +267,12 @@ func TestParseMetricMessageTelemetry(t *testing.T) {
 	assert.Equal(t, float64(1), s.tlmProcessedError.Get())
 }
 
-type MetricSample struct {
-	Name  string
-	Value float64
-	Tags  []string
-	Mtype metrics.MetricType
-}
-
 func TestMappingCases(t *testing.T) {
 	scenarios := []struct {
 		name              string
 		config            string
-		packets           []string
-		expectedSamples   []MetricSample
+		packets           [][]byte
+		expectedSamples   []*tMetricSample
 		expectedCacheSize int
 	}{
 		{
@@ -361,15 +294,15 @@ dogstatsd_mapper_profiles:
           foo: "$1"
           bar: "$2"
 `,
-			packets: []string{
-				"test.job.duration.my_job_type.my_job_name:666|g",
-				"test.job.size.my_job_type.my_job_name:666|g",
-				"test.job.size.not_match:666|g",
+			packets: [][]byte{
+				[]byte("test.job.duration.my_job_type.my_job_name:666|g"),
+				[]byte("test.job.size.my_job_type.my_job_name:666|g"),
+				[]byte("test.job.size.not_match:666|g"),
 			},
-			expectedSamples: []MetricSample{
-				{Name: "test.job.duration", Tags: []string{"job_type:my_job_type", "job_name:my_job_name"}, Mtype: metrics.GaugeType, Value: 666.0},
-				{Name: "test.job.size", Tags: []string{"foo:my_job_type", "bar:my_job_name"}, Mtype: metrics.GaugeType, Value: 666.0},
-				{Name: "test.job.size.not_match", Tags: nil, Mtype: metrics.GaugeType, Value: 666.0},
+			expectedSamples: []*tMetricSample{
+				defaultMetric().withName("test.job.duration").withTags([]string{"job_type:my_job_type", "job_name:my_job_name"}),
+				defaultMetric().withName("test.job.size").withTags([]string{"foo:my_job_type", "bar:my_job_name"}),
+				defaultMetric().withName("test.job.size.not_match").withTags(nil),
 			},
 			expectedCacheSize: 1000,
 		},
@@ -387,15 +320,15 @@ dogstatsd_mapper_profiles:
           job_type: "$1"
           job_name: "$2"
 `,
-			packets: []string{
-				"test.job.duration.my_job_type.my_job_name:666|g",
-				"test.job.duration.my_job_type.my_job_name:666|g|#some:tag",
-				"test.job.duration.my_job_type.my_job_name:666|g|#some:tag,more:tags",
+			packets: [][]byte{
+				[]byte("test.job.duration.my_job_type.my_job_name:666|g"),
+				[]byte("test.job.duration.my_job_type.my_job_name:666|g|#some:tag"),
+				[]byte("test.job.duration.my_job_type.my_job_name:666|g|#some:tag,more:tags"),
 			},
-			expectedSamples: []MetricSample{
-				{Name: "test.job.duration", Tags: []string{"job_type:my_job_type", "job_name:my_job_name"}, Mtype: metrics.GaugeType, Value: 666.0},
-				{Name: "test.job.duration", Tags: []string{"job_type:my_job_type", "job_name:my_job_name", "some:tag"}, Mtype: metrics.GaugeType, Value: 666.0},
-				{Name: "test.job.duration", Tags: []string{"job_type:my_job_type", "job_name:my_job_name", "some:tag", "more:tags"}, Mtype: metrics.GaugeType, Value: 666.0},
+			expectedSamples: []*tMetricSample{
+				defaultMetric().withName("test.job.duration").withTags([]string{"job_type:my_job_type", "job_name:my_job_name"}),
+				defaultMetric().withName("test.job.duration").withTags([]string{"job_type:my_job_type", "job_name:my_job_name", "some:tag"}),
+				defaultMetric().withName("test.job.duration").withTags([]string{"job_type:my_job_type", "job_name:my_job_name", "some:tag", "more:tags"}),
 			},
 			expectedCacheSize: 1000,
 		},
@@ -414,13 +347,12 @@ dogstatsd_mapper_profiles:
           job_type: "$1"
           job_name: "$2"
 `,
-			packets:           []string{},
+			packets:           [][]byte{},
 			expectedSamples:   nil,
 			expectedCacheSize: 999,
 		},
 	}
 
-	samples := []metrics.MetricSample{}
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
 			deps := fulfillDepsWithConfigYaml(t, scenario.config)
@@ -431,22 +363,13 @@ dogstatsd_mapper_profiles:
 
 			assert.Equal(t, deps.Config.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize, "Case `%s` failed. cache_size `%s` should be `%s`", scenario.name, deps.Config.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)
 
-			var actualSamples []MetricSample
-			for _, p := range scenario.packets {
-				parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
-				samples, err := s.parseMetricMessage(samples, parser, []byte(p), "", "", false)
-				assert.NoError(t, err, "Case `%s` failed. parseMetricMessage should not return error %v", err)
-				for _, sample := range samples {
-					actualSamples = append(actualSamples, MetricSample{Name: sample.Name, Tags: sample.Tags, Mtype: sample.Mtype, Value: sample.Value})
-				}
+			parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+			var b batcherMock
+			s.parsePackets(&b, parser, genTestPackets(scenario.packets...), metrics.MetricSampleBatch{})
+
+			for idx, sample := range b.samples {
+				scenario.expectedSamples[idx].testMetric(t, sample)
 			}
-			for _, sample := range scenario.expectedSamples {
-				sort.Strings(sample.Tags)
-			}
-			for _, sample := range actualSamples {
-				sort.Strings(sample.Tags)
-			}
-			assert.Equal(t, scenario.expectedSamples, actualSamples, "Case `%s` failed. `%s` should be `%s`", scenario.name, actualSamples, scenario.expectedSamples)
 		})
 	}
 }
@@ -456,21 +379,7 @@ func TestParseEventMessageTelemetry(t *testing.T) {
 
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
-	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
-		core.MockBundle(),
-		serverdebugimpl.MockModule(),
-		fx.Replace(configComponent.MockParams{
-			Overrides: cfg,
-		}),
-		fx.Supply(Params{Serverless: false}),
-		replaymock.MockModule(),
-		compressionimpl.MockModule(),
-		pidmapimpl.Module(),
-		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
-
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	deps, s := fulfillDepsWithInactiveServer(t, cfg)
 
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 
@@ -506,21 +415,7 @@ func TestParseServiceCheckMessageTelemetry(t *testing.T) {
 
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
-	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
-		core.MockBundle(),
-		serverdebugimpl.MockModule(),
-		fx.Replace(configComponent.MockParams{
-			Overrides: cfg,
-		}),
-		fx.Supply(Params{Serverless: false}),
-		replaymock.MockModule(),
-		compressionimpl.MockModule(),
-		pidmapimpl.Module(),
-		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
-
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	deps, s := fulfillDepsWithInactiveServer(t, cfg)
 
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 
@@ -630,5 +525,55 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Equal(s.cachedOrder[1].origin, "fourth_origin")
 		assert.Equal(s.cachedOrder[1].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "fourth_origin"})
 		assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "fourth_origin"})
+	}
+}
+
+func TestNextMessage(t *testing.T) {
+	scenarios := []struct {
+		name              string
+		messages          []string
+		eolTermination    bool
+		expectedTlm       int64
+		expectedMetritCnt int
+	}{
+		{
+			name:              "No eol newline, eol enabled",
+			messages:          []string{"foo\n", "bar\r\n", "baz\r\n", "quz\n", "hax\r"},
+			eolTermination:    true,
+			expectedTlm:       1,
+			expectedMetritCnt: 4, // final message won't be processed, no newline
+		},
+		{
+			name:              "No eol newline, eol disabled",
+			messages:          []string{"foo\n", "bar\r\n", "baz\r\n", "quz\n", "hax"},
+			eolTermination:    false,
+			expectedTlm:       0,
+			expectedMetritCnt: 5,
+		},
+		{
+			name:              "Base Case",
+			messages:          []string{"foo\n", "bar\r\n", "baz\r\n", "quz\n", "hax\r\n"},
+			eolTermination:    true,
+			expectedTlm:       0,
+			expectedMetritCnt: 5,
+		},
+	}
+
+	for _, s := range scenarios {
+		t.Run(s.name, func(t *testing.T) {
+			packet := []byte(strings.Join(s.messages, ""))
+			initialTelem := dogstatsdUnterminatedMetricErrors.Value()
+			res := nextMessage(&packet, s.eolTermination)
+			cnt := 0
+			for res != nil {
+				// Confirm newline/carriage return were not transferred
+				assert.Equal(t, string(res), strings.TrimRight(s.messages[cnt], "\n\r"))
+				res = nextMessage(&packet, s.eolTermination)
+				cnt++
+			}
+
+			assert.Equal(t, s.expectedTlm, dogstatsdUnterminatedMetricErrors.Value()-initialTelem)
+			assert.Equal(t, s.expectedMetritCnt, cnt)
+		})
 	}
 }

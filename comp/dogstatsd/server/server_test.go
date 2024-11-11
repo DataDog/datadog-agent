@@ -11,30 +11,18 @@ import (
 	"fmt"
 	"net"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/core"
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
-	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestNewServer(t *testing.T) {
@@ -70,21 +58,7 @@ func TestNoRaceOriginTagMaps(t *testing.T) {
 
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
-	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
-		core.MockBundle(),
-		serverdebugimpl.MockModule(),
-		fx.Replace(configComponent.MockParams{
-			Overrides: cfg,
-		}),
-		fx.Supply(Params{Serverless: false}),
-		replaymock.MockModule(),
-		compressionimpl.MockModule(),
-		pidmapimpl.Module(),
-		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
-
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	_, s := fulfillDepsWithInactiveServer(t, cfg)
 
 	sync := make(chan struct{})
 	done := make(chan struct{}, N)
@@ -100,58 +74,6 @@ func TestNoRaceOriginTagMaps(t *testing.T) {
 	for i := 0; i < N; i++ {
 		<-done
 	}
-}
-
-func TestScanLines(t *testing.T) {
-	messages := []string{"foo", "bar", "baz", "quz", "hax", ""}
-	packet := []byte(strings.Join(messages, "\n"))
-	cnt := 0
-	advance, tok, eol, err := scanLines(packet, true)
-	for tok != nil && err == nil {
-		cnt++
-		assert.Equal(t, eol, true)
-		packet = packet[advance:]
-		advance, tok, eol, err = scanLines(packet, true)
-	}
-
-	assert.False(t, eol)
-	assert.Equal(t, 5, cnt)
-
-	cnt = 0
-	packet = []byte(strings.Join(messages[0:len(messages)-1], "\n"))
-	advance, tok, eol, err = scanLines(packet, true)
-	for tok != nil && err == nil {
-		cnt++
-		packet = packet[advance:]
-		advance, tok, eol, err = scanLines(packet, true)
-	}
-
-	assert.False(t, eol)
-	assert.Equal(t, 5, cnt)
-}
-
-func TestEOLParsing(t *testing.T) {
-	messages := []string{"foo", "bar", "baz", "quz", "hax", ""}
-	packet := []byte(strings.Join(messages, "\n"))
-	cnt := 0
-	msg := nextMessage(&packet, true)
-	for msg != nil {
-		assert.Equal(t, string(msg), messages[cnt])
-		msg = nextMessage(&packet, true)
-		cnt++
-	}
-
-	assert.Equal(t, 5, cnt)
-
-	packet = []byte(strings.Join(messages[0:len(messages)-1], "\r\n"))
-	cnt = 0
-	msg = nextMessage(&packet, true)
-	for msg != nil {
-		msg = nextMessage(&packet, true)
-		cnt++
-	}
-
-	assert.Equal(t, 4, cnt)
 }
 
 func TestE2EParsing(t *testing.T) {
@@ -195,40 +117,6 @@ func TestE2EParsing(t *testing.T) {
 	demux.Reset()
 }
 
-func TestStaticTags(t *testing.T) {
-	cfg := make(map[string]interface{})
-	cfg["dogstatsd_port"] = listeners.RandomPortName
-	cfg["dogstatsd_tags"] = []string{"sometag3:somevalue3"}
-	cfg["tags"] = []string{"from:dd_tags"}
-
-	env.SetFeatures(t, env.EKSFargate)
-	deps := fulfillDepsWithConfigOverride(t, cfg)
-
-	demux := deps.Demultiplexer
-	requireStart(t, deps.Server)
-
-	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
-	require.NoError(t, err, "cannot connect to DSD socket")
-	defer conn.Close()
-
-	// Test metric
-	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 1, len(samples))
-	require.Equal(t, 0, len(timedSamples))
-	sample := samples[0]
-	assert.NotNil(t, sample)
-	assert.Equal(t, sample.Name, "daemon")
-	assert.EqualValues(t, sample.Value, 666.0)
-	assert.Equal(t, sample.Mtype, metrics.GaugeType)
-	assert.ElementsMatch(t, sample.Tags, []string{
-		"sometag1:somevalue1",
-		"sometag2:somevalue2",
-		"sometag3:somevalue3",
-		"from:dd_tags",
-	})
-}
-
 func TestNoMappingsConfig(t *testing.T) {
 	cfg := make(map[string]interface{})
 	cfg["dogstatsd_port"] = listeners.RandomPortName
@@ -260,21 +148,34 @@ func TestNewServerExtraTags(t *testing.T) {
 	requireStart(t, s)
 	require.Len(s.extraTags, 0, "no tags should have been read")
 
-	// when the extraTags parameter isn't used, the DogStatsD server is not reading this env var
+	// when not running in fargate, the tags entry is not used
 	cfg["tags"] = "hello:world"
 	deps = fulfillDepsWithConfigOverride(t, cfg)
 	s = deps.Server.(*server)
 	requireStart(t, s)
 	require.Len(s.extraTags, 0, "no tags should have been read")
 
-	// when the extraTags parameter isn't used, the DogStatsD server is automatically reading this env var for extra tags
-	cfg["dogstatsd_tags"] = "hello:world extra:tags"
+	// dogstatsd_tag is always pulled in to extra tags
+	cfg["dogstatsd_tags"] = "hello:world2 extra:tags"
 	deps = fulfillDepsWithConfigOverride(t, cfg)
 	s = deps.Server.(*server)
 	requireStart(t, s)
+	require.ElementsMatch([]string{"extra:tags", "hello:world2"}, s.extraTags, "two tags should have been read")
 	require.Len(s.extraTags, 2, "two tags should have been read")
 	require.Equal(s.extraTags[0], "extra:tags", "the tag extra:tags should be set")
-	require.Equal(s.extraTags[1], "hello:world", "the tag hello:world should be set")
+	require.Equal(s.extraTags[1], "hello:world2", "the tag hello:world should be set")
+
+	// when running in fargate, "tags" and "dogstatsd_tag" configs are conjoined
+	env.SetFeatures(t, env.EKSFargate)
+	deps = fulfillDepsWithConfigOverride(t, cfg)
+	s = deps.Server.(*server)
+	requireStart(t, s)
+
+	require.ElementsMatch(
+		[]string{"hello:world", "extra:tags", "hello:world2"},
+		s.extraTags,
+		"both tag sources should have been combined",
+	)
 }
 
 //nolint:revive // TODO(AML) Fix revive linter

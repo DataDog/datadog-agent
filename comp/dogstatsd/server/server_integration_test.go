@@ -10,19 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/core"
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
-	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestStopServer(t *testing.T) {
@@ -30,21 +19,7 @@ func TestStopServer(t *testing.T) {
 
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
-	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
-		core.MockBundle(),
-		serverdebugimpl.MockModule(),
-		fx.Replace(configComponent.MockParams{
-			Overrides: cfg,
-		}),
-		fx.Supply(Params{Serverless: false}),
-		replaymock.MockModule(),
-		compressionimpl.MockModule(),
-		pidmapimpl.Module(),
-		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
-
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	_, s := fulfillDepsWithInactiveServer(t, cfg)
 	s.start(context.TODO())
 	requireStart(t, s)
 
