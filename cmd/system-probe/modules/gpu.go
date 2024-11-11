@@ -33,7 +33,7 @@ var GPUMonitoring = module.Factory{
 	ConfigNamespaces: gpuMonitoringConfigNamespaces,
 	Fn: func(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 
-		c := gpuconfig.NewConfig()
+		c := gpuconfig.New()
 		probeDeps := gpu.ProbeDependencies{
 			Telemetry: deps.Telemetry,
 			//if the config parameter doesn't exist or is empty string, the default value is used as defined in go-nvml library
