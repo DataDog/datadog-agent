@@ -62,7 +62,7 @@ func getTestExtension(t *testing.T) (ddflareextension.Component, error) {
 	info := component.NewDefaultBuildInfo()
 	cfg := getExtensionTestConfig(t)
 
-	return NewExtension(c, cfg, telemetry, info, false)
+	return NewExtension(c, cfg, telemetry, info, true)
 }
 
 func getResponseToHandlerRequest(t *testing.T, tokenOverride string) *httptest.ResponseRecorder {

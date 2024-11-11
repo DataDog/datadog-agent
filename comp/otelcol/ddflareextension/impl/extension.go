@@ -119,7 +119,7 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 }
 
 // NewExtension creates a new instance of the extension.
-func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo, getProvidedConfig bool) (extensionDef.Component, error) {
+func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo, providedConfigSupported bool) (extensionDef.Component, error) {
 	ext := &ddExtension{
 		cfg:         cfg,
 		telemetry:   telemetry,
@@ -130,10 +130,7 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 		},
 	}
 	// only initiate the configprovider and set provided config if factories are provided
-	if getProvidedConfig {
-		ext.configStore.setProvidedConfigSupported(false)
-	} else {
-		ext.configStore.setProvidedConfigSupported(true)
+	if providedConfigSupported {
 		ocpProvided, err := otelcol.NewConfigProvider(cfg.configProviderSettings)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create configprovider: %w", err)
@@ -151,7 +148,9 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 		ext.configStore.setProvidedConf(conf)
 	}
 	var err error
-	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext, getProvidedConfig)
+	// auth = providedConfigSupported; if value true, component was likely built by Agent and has
+	// bearer auth token, if false, component was likely built by OCB and has no auth token
+	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext, providedConfigSupported)
 	if err != nil {
 		return nil, err
 	}
@@ -184,18 +183,18 @@ func (ext *ddExtension) Shutdown(ctx context.Context) error {
 // ServeHTTP the request handler for the extension.
 func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	var (
-		customer string
-		err      error
+		customer  string
+		err       error
+		envconfig string
 	)
-	if ext.configStore.isProvidedConfigSupported() {
+	providedConfig, _ := ext.configStore.getProvidedConf()
+	if providedConfig != nil {
 		customer, err = ext.configStore.getProvidedConfAsString()
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintf(w, "Unable to get provided config\n")
 			return
 		}
-	} else {
-		customer = ""
 	}
 	enhanced, err := ext.configStore.getEnhancedConfAsString()
 	if err != nil {
@@ -204,7 +203,6 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintf(w, "Unable to get enhanced config\n")
 		return
 	}
-	envconfig := ""
 	envvars := getEnvironmentAsMap()
 	if envbytes, err := json.Marshal(envvars); err == nil {
 		envconfig = string(envbytes)

@@ -29,6 +29,7 @@ type ddExtensionFactory struct {
 	configProviderSettings otelcol.ConfigProviderSettings
 }
 
+// isOCB returns true if extension was built with OCB
 func (f *ddExtensionFactory) isOCB() bool {
 	return f.factories == nil
 }
@@ -46,15 +47,14 @@ func NewFactoryForAgent(factories *otelcol.Factories, configProviderSettings ote
 	}
 }
 
-// CreateExtension creates a new instance of the Datadog Flare Extension, deprecated as of v0.112.0
-// TODO: Remove CreateExtension when updating collector dependencies to v0.112.0 or later
+// CreateExtension is deprecated as of v0.112.0
 func (f *ddExtensionFactory) CreateExtension(ctx context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
 	config := &Config{
 		factories:              f.factories,
 		configProviderSettings: f.configProviderSettings,
 	}
 	config.HTTPConfig = cfg.(*Config).HTTPConfig
-	providedConfigSupported := f.isOCB()
+	providedConfigSupported := !f.isOCB()
 	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, providedConfigSupported)
 }
 
@@ -65,7 +65,7 @@ func (f *ddExtensionFactory) Create(ctx context.Context, set extension.Settings,
 		configProviderSettings: f.configProviderSettings,
 	}
 	config.HTTPConfig = cfg.(*Config).HTTPConfig
-	providedConfigSupported := f.isOCB()
+	providedConfigSupported := !f.isOCB()
 	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, providedConfigSupported)
 }
 
@@ -82,12 +82,11 @@ func (f *ddExtensionFactory) Type() component.Type {
 }
 
 // ExtensionStability is deprecated as of v0.112.0
-// TODO: remove ExtensionStability when updating collector dependencies to v0.112.0 or later
 func (f *ddExtensionFactory) ExtensionStability() component.StabilityLevel {
 	return metadata.ExtensionStability
 }
 
-// Stability is the new stability level interface for extension as of v0.112.0
+// Stability returns the stability level of the component as of v0.112.0 or later
 func (f *ddExtensionFactory) Stability() component.StabilityLevel {
 	return metadata.ExtensionStability
 }
