@@ -222,6 +222,7 @@ func (s *sdsProcessor) resetBuffer() {
 
 func (p *Processor) processMessage(msg *message.Message) {
 	p.utilization.Start()
+	defer p.pipelineMonitor.ReportComponentEgress(msg, "processor")
 	metrics.LogsDecoded.Add(1)
 	metrics.TlmLogsDecoded.Inc()
 
@@ -254,7 +255,6 @@ func (p *Processor) processMessage(msg *message.Message) {
 	} else {
 		p.utilization.Stop()
 	}
-	p.pipelineMonitor.ReportComponentEgress(msg, "processor")
 
 }
 
