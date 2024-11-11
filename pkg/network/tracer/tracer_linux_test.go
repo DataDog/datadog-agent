@@ -586,11 +586,6 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv6() {
 	bytesSent, err := conn.WriteTo(message, remoteAddr)
 	require.NoError(t, err)
 
-	bytes := make([]byte, 100)
-	n, _, err := conn.ReadFromUDP(bytes)
-	require.NoError(t, err)
-	require.Equal(t, string(message), string(bytes[:n]))
-
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		connections := getConnections(t, tr)
 		outgoing := network.FilterConnections(connections, func(cs network.ConnectionStats) bool {

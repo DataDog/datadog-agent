@@ -251,9 +251,6 @@ func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionSt
 		return
 	}
 
-	// @stu
-	//if conn.Source.IsLoopback() || conn.Source.IsUnspecified()
-
 	switch pktType {
 	case unix.PACKET_HOST:
 		conn.Direction = network.INCOMING
