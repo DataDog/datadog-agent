@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -23,8 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
-func SetUpLaunchers() {
-	processingRules, err := config.GlobalProcessingRules(a.config)
+func SetUpLaunchers(conf configComponent.Component) {
+	processingRules, err := config.GlobalProcessingRules(conf)
 	if err != nil {
 		return
 	}

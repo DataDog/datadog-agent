@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -64,8 +65,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // runLogsAnalyze handles the logs check operation.
-func runLogsAnalyze(cliParams *CliParams) error {
-	agentimpl.SetUpLaunchers()
+func runLogsAnalyze(config config.Component, cliParams *CliParams) error {
+	agentimpl.SetUpLaunchers(config)
 
 	//send paths to source provider
 	// Add log config source
