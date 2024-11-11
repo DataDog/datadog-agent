@@ -17,8 +17,6 @@ require (
 	google.golang.org/protobuf v1.35.1
 )
 
-require go.opentelemetry.io/collector/processor/processortest v0.113.0 // indirect
-
 require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.56.0-rc.3 // indirect

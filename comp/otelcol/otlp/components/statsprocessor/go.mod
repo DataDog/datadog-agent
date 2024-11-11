@@ -30,8 +30,6 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.31.0
 )
 
-require go.opentelemetry.io/collector/processor/processortest v0.113.0 // indirect
-
 require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.56.0-rc.3 // indirect

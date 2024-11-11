@@ -128,7 +128,6 @@ require (
 require (
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.113.0 // indirect
-	go.opentelemetry.io/collector/processor/processortest v0.113.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.113.0 // indirect
 )
 
