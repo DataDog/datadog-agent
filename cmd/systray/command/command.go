@@ -28,7 +28,6 @@ import (
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/comp/systray/systray"
 	"github.com/DataDog/datadog-agent/comp/systray/systray/systrayimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
