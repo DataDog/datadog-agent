@@ -43,12 +43,12 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.2
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.3
 	github.com/stretchr/testify v1.9.0
-	go.opentelemetry.io/collector/confmap v1.17.0
-	go.opentelemetry.io/collector/confmap/provider/envprovider v0.111.0
-	go.opentelemetry.io/collector/confmap/provider/fileprovider v0.111.0
-	go.opentelemetry.io/collector/confmap/provider/httpprovider v0.111.0
-	go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.111.0
-	go.opentelemetry.io/collector/confmap/provider/yamlprovider v0.111.0
+	go.opentelemetry.io/collector/confmap v1.19.0
+	go.opentelemetry.io/collector/confmap/provider/envprovider v1.19.0
+	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.19.0
+	go.opentelemetry.io/collector/confmap/provider/httpprovider v1.19.0
+	go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.19.0
+	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.19.0
 
 )
 
@@ -81,7 +81,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/go-viper/mapstructure/v2 v2.1.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
