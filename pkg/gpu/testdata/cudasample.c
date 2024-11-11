@@ -39,7 +39,7 @@ cudaError_t cudaSetDevice(int device) {
 int main(int argc, char **argv) {
     cudaStream_t stream = 30;
 
-    if (argc < 4) {
+    if (argc != 4) {
         fprintf(stderr, "Usage: %s <wait-to-start-sec> <wait-to-end-sec> <device-index>\n", argv[0]);
         return 1;
     }
