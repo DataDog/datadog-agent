@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
+// SetUpLaunchers creates launchers set up tailers to tail files provided by the logs-analyze command
 func SetUpLaunchers(conf configComponent.Component) {
 	processingRules, err := config.GlobalProcessingRules(conf)
 	if err != nil {
