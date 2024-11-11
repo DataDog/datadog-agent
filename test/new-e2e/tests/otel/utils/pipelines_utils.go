@@ -457,13 +457,13 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 }
 
 // TestCalendarApp tests that OTLP metrics are received through OTel pipelines as expected
-func TestCalendarApp(s OTelTestSuite) {
+func TestCalendarApp(s OTelTestSuite, ust bool) {
 	ctx := context.Background()
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 
 	s.T().Log("Starting calendar app")
-	createCalendarApp(ctx, s)
+	createCalendarApp(ctx, s, ust)
 
 	// Wait for calendar app to start
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
@@ -473,7 +473,7 @@ func TestCalendarApp(s OTelTestSuite) {
 	}, 30*time.Minute, 10*time.Second)
 }
 
-func createCalendarApp(ctx context.Context, s OTelTestSuite) {
+func createCalendarApp(ctx context.Context, s OTelTestSuite, ust bool) {
 	var replicas int32 = 1
 	name := fmt.Sprintf("calendar-rest-go-%v", strings.ReplaceAll(strings.ToLower(s.T().Name()), "/", "-"))
 
@@ -567,43 +567,7 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite) {
 								},
 							},
 						},
-						Env: []corev1.EnvVar{{
-							Name:  "OTEL_SERVICE_NAME",
-							Value: calendarService,
-						}, {
-							Name:  "OTEL_CONTAINER_NAME",
-							Value: name,
-						}, {
-							Name:      "OTEL_K8S_NAMESPACE",
-							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}},
-						}, {
-							Name:      "OTEL_K8S_NODE_NAME",
-							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "spec.nodeName"}},
-						}, {
-							Name:      "OTEL_K8S_POD_NAME",
-							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}},
-						}, {
-							Name:      "OTEL_K8S_POD_ID",
-							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}},
-						}, {
-							Name:  "OTEL_EXPORTER_OTLP_ENDPOINT",
-							Value: otlpEndpoint,
-						}, {
-							Name:  "OTEL_EXPORTER_OTLP_PROTOCOL",
-							Value: "grpc",
-						}, {
-							Name: "OTEL_RESOURCE_ATTRIBUTES",
-							Value: "service.name=$(OTEL_SERVICE_NAME)," +
-								"k8s.namespace.name=$(OTEL_K8S_NAMESPACE)," +
-								"k8s.node.name=$(OTEL_K8S_NODE_NAME)," +
-								"k8s.pod.name=$(OTEL_K8S_POD_NAME)," +
-								"k8s.pod.uid=$(OTEL_K8S_POD_ID)," +
-								"k8s.container.name=$(OTEL_CONTAINER_NAME)," +
-								"host.name=$(OTEL_K8S_NODE_NAME)," +
-								fmt.Sprintf("deployment.environment=%v,", env) +
-								fmt.Sprintf("service.version=%v,", version) +
-								fmt.Sprintf("%v=%v", customAttribute, customAttributeValue),
-						}},
+						Env: getCalendarAppEnvVars(name, otlpEndpoint, ust),
 					},
 					},
 				},
@@ -615,6 +579,66 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite) {
 	require.NoError(s.T(), err, "Could not properly start service")
 	_, err = s.Env().KubernetesCluster.Client().AppsV1().Deployments("datadog").Create(ctx, deploymentSpec, metav1.CreateOptions{})
 	require.NoError(s.T(), err, "Could not properly start deployment")
+}
+
+func getCalendarAppEnvVars(name string, otlpEndpoint string, ust bool) []corev1.EnvVar {
+	envVars := []corev1.EnvVar{{
+		Name:  "OTEL_CONTAINER_NAME",
+		Value: name,
+	}, {
+		Name:      "OTEL_K8S_NAMESPACE",
+		ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}},
+	}, {
+		Name:      "OTEL_K8S_NODE_NAME",
+		ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "spec.nodeName"}},
+	}, {
+		Name:      "OTEL_K8S_POD_NAME",
+		ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}},
+	}, {
+		Name:      "OTEL_K8S_POD_ID",
+		ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}},
+	}, {
+		Name:  "OTEL_EXPORTER_OTLP_ENDPOINT",
+		Value: otlpEndpoint,
+	}, {
+		Name:  "OTEL_EXPORTER_OTLP_PROTOCOL",
+		Value: "grpc",
+	}}
+	resourceAttrs := "k8s.namespace.name=$(OTEL_K8S_NAMESPACE)," +
+		"k8s.node.name=$(OTEL_K8S_NODE_NAME)," +
+		"k8s.pod.name=$(OTEL_K8S_POD_NAME)," +
+		"k8s.pod.uid=$(OTEL_K8S_POD_ID)," +
+		"k8s.container.name=$(OTEL_CONTAINER_NAME)," +
+		"host.name=$(OTEL_K8S_NODE_NAME)," +
+		fmt.Sprintf("%v=%v", customAttribute, customAttributeValue)
+
+	// Use Universal Service Tagging env vars instead of OTel env vars
+	if ust {
+		return append(envVars, []corev1.EnvVar{{
+			Name:  "DD_SERVICE",
+			Value: calendarService,
+		}, {
+			Name:  "DD_ENV",
+			Value: env,
+		}, {
+			Name:  "DD_VERSION",
+			Value: version,
+		}, {
+			Name:  "OTEL_RESOURCE_ATTRIBUTES",
+			Value: resourceAttrs,
+		}}...)
+	}
+
+	return append(envVars, []corev1.EnvVar{{
+		Name:  "OTEL_SERVICE_NAME",
+		Value: calendarService,
+	}, {
+		Name: "OTEL_RESOURCE_ATTRIBUTES",
+		Value: resourceAttrs +
+			",service.name=$(OTEL_SERVICE_NAME)," +
+			fmt.Sprintf("deployment.environment=%v,", env) +
+			fmt.Sprintf("service.version=%v", version),
+	}}...)
 }
 
 func testInfraTags(t *testing.T, tags map[string]string, iaParams IAParams) {
