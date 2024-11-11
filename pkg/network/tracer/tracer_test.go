@@ -1178,12 +1178,12 @@ func (s *TracerSuite) TestConnectedUDPSendIPv6() {
 		outgoing = network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
 			return cs.DPort == uint16(remotePort)
 		})
-		if !assert.Len(t, outgoing, 1) {
+		if !assert.Len(ct, outgoing, 1) {
 			return
 		}
 
-		assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
-		assert.Equal(t, bytesSent, int(outgoing[0].Monotonic.SentBytes))
+		assert.Equal(ct, remoteAddr.IP.String(), outgoing[0].Dest.String())
+		assert.Equal(ct, bytesSent, int(outgoing[0].Monotonic.SentBytes))
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection")
 
 }
