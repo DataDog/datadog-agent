@@ -157,7 +157,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.57.1
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0-rc.5
 	github.com/DataDog/datadog-go/v5 v5.5.0
-	github.com/DataDog/datadog-operator v0.7.1-0.20241024104907-734366f3c0d1
+	github.com/DataDog/datadog-operator v1.10.0
 	github.com/DataDog/ebpf-manager v0.7.4
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.7
@@ -166,7 +166,6 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.21.0
 	github.com/DataDog/sketches-go v1.4.6
 	github.com/DataDog/viper v1.13.5
-	github.com/DataDog/watermarkpodautoscaler v0.5.3-0.20241023200123-ab786c1724cf
 	github.com/DataDog/zstd v1.5.6
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Masterminds/semver/v3 v3.3.0
