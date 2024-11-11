@@ -13,7 +13,7 @@ type MemoryMetrics struct {
 	MaxBytes     uint64 `json:"max_bytes"`
 }
 
-// DeviceStats contains the GPU stats for a given device and process
+// Metrics contains the GPU stats for a given device and process
 type Metrics struct {
 	UtilizationPercentage float64       `json:"utilization_percentage"`
 	Memory                MemoryMetrics `json:"memory"`
