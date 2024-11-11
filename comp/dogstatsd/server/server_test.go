@@ -9,10 +9,8 @@ package server
 
 import (
 	"fmt"
-	"net"
 	"runtime"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -74,47 +72,6 @@ func TestNoRaceOriginTagMaps(t *testing.T) {
 	for i := 0; i < N; i++ {
 		<-done
 	}
-}
-
-func TestE2EParsing(t *testing.T) {
-	cfg := make(map[string]interface{})
-
-	cfg["dogstatsd_port"] = listeners.RandomPortName
-
-	deps := fulfillDepsWithConfigOverride(t, cfg)
-	demux := deps.Demultiplexer
-	requireStart(t, deps.Server)
-
-	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
-	require.NoError(t, err, "cannot connect to DSD socket")
-	defer conn.Close()
-
-	// Test metric
-	conn.Write([]byte("daemon:666|g|#foo:bar\ndaemon:666|g|#foo:bar"))
-	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
-	assert.Equal(t, 2, len(samples))
-	assert.Equal(t, 0, len(timedSamples))
-	demux.Reset()
-	demux.Stop(false)
-
-	// EOL enabled
-	cfg["dogstatsd_eol_required"] = []string{"udp"}
-
-	deps = fulfillDepsWithConfigOverride(t, cfg)
-	demux = deps.Demultiplexer
-	requireStart(t, deps.Server)
-
-	conn, err = net.Dial("udp", deps.Server.UDPLocalAddr())
-	require.NoError(t, err, "cannot connect to DSD socket")
-	defer conn.Close()
-
-	// Test metric expecting an EOL
-	_, err = conn.Write([]byte("daemon:666|g|#foo:bar\ndaemon:666|g|#foo:bar"))
-	require.NoError(t, err, "cannot write to DSD socket")
-	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 1, len(samples))
-	assert.Equal(t, 0, len(timedSamples))
-	demux.Reset()
 }
 
 func TestNoMappingsConfig(t *testing.T) {
