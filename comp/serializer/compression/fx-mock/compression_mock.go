@@ -5,7 +5,7 @@
 
 //go:build test
 
-package compressionimpl
+package fx_mock
 
 import (
 	strategy_noop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"

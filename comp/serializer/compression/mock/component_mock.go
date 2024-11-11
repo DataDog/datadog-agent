@@ -5,7 +5,7 @@
 
 //go:build test
 
-package compression
+package mock
 
 import def "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 
