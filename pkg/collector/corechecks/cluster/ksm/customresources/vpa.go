@@ -16,7 +16,6 @@ package customresources
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,6 +30,8 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 var (
@@ -44,12 +45,12 @@ var (
 // NewVerticalPodAutoscalerFactory returns a new VerticalPodAutoscalers metric family generator factory.
 func NewVerticalPodAutoscalerFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &vpaFactory{
-		client: &client.VPAInformerClient,
+		client: client.VPAInformerClient,
 	}
 }
 
 type vpaFactory struct {
-	client *versioned.Interface
+	client versioned.Interface
 }
 
 func (f *vpaFactory) Name() string {
@@ -332,7 +333,7 @@ func wrapVPAFunc(f func(*v1.VerticalPodAutoscaler) *metric.Family) func(interfac
 }
 
 func (f *vpaFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
-	vpaClient := customResourceClient.(versioned.Clientset)
+	vpaClient := customResourceClient.(versioned.Interface)
 	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
