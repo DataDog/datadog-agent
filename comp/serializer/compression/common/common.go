@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package compressionimpl provides a set of functions for compressing with zlib / zstd
-package compressionimpl
+package common
 
 // ZlibKind defines a const value for the zlib compressor
 const ZlibKind = "zlib"

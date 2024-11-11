@@ -11,16 +11,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	log "github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 
-	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func testMetadata(t *testing.T, d *dogstatsdTest) {
@@ -47,8 +47,8 @@ func TestReceiveAndForward(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 
 	for name, tc := range tests {

@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	fx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/protocolbuffers/protoscope"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +23,6 @@ import (
 
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -64,8 +63,8 @@ func TestInitExtraHeadersWithCompression(t *testing.T) {
 		kind             string
 		expectedEncoding string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind, expectedEncoding: compression.ZlibEncoding},
-		"zstd": {kind: compressionimpl.ZstdKind, expectedEncoding: compression.ZstdEncoding},
+		"zlib": {kind: common.ZlibKind, expectedEncoding: compression.ZlibEncoding},
+		"zstd": {kind: common.ZstdKind, expectedEncoding: compression.ZstdEncoding},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -250,8 +249,8 @@ func TestSendV1Events(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -276,8 +275,8 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 
 	for name, tc := range tests {
@@ -315,8 +314,8 @@ func TestSendV1ServiceChecks(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 
 	for name, tc := range tests {
@@ -340,8 +339,8 @@ func TestSendV1Series(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 
 	for name, tc := range tests {
@@ -367,8 +366,8 @@ func TestSendSeries(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 
 	for name, tc := range tests {
@@ -396,8 +395,8 @@ func TestSendSketch(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 
 	for name, tc := range tests {
@@ -426,8 +425,8 @@ func TestSendMetadata(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 
 	for name, tc := range tests {
@@ -461,8 +460,8 @@ func TestSendProcessesMetadata(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 
 	for name, tc := range tests {
@@ -495,8 +494,8 @@ func TestSendWithDisabledKind(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 
 	for name, tc := range tests {

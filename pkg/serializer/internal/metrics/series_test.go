@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
@@ -21,8 +22,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/gogen"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -376,8 +376,8 @@ func TestMarshalSplitCompress(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -410,8 +410,8 @@ func TestMarshalSplitCompressPointsLimit(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -433,8 +433,8 @@ func TestMarshalSplitCompressMultiplePointsLimit(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -478,8 +478,8 @@ func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -502,8 +502,8 @@ func TestPayloadsSeries(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {

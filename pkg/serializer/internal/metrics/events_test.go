@@ -17,12 +17,12 @@ import (
 	"testing"
 
 	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
@@ -173,8 +173,8 @@ func TestEventsSeveralPayloadsCreateSingleMarshaler(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -197,8 +197,8 @@ func TestEventsSeveralPayloadsCreateMarshalersBySourceType(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -259,8 +259,8 @@ func assertEqualEventsToMarshalJSON(t *testing.T, events Events) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compressionimpl.ZlibKind},
-		"zstd": {kind: compressionimpl.ZstdKind},
+		"zlib": {kind: common.ZlibKind},
+		"zstd": {kind: common.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
