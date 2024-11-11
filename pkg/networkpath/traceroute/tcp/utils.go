@@ -88,9 +88,7 @@ func localAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, net.Conn, e
 }
 
 // createRawTCPPkt creates a TCP packet with the specified parameters
-// if rst == true, the packet will have the RST flag set
-// if rst == false, the packet will have the SYN flag set
-func createRawTCPPkt(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, seqNum uint32, ttl int, rst bool) (*ipv4.Header, []byte, error) {
+func createRawTCPPkt(sourceIP net.IP, destIP net.IP, ttl int, tcpLayer *layers.TCP) (*ipv4.Header, []byte, error) {
 	ipLayer := &layers.IPv4{
 		Version:  4,
 		Length:   20,
@@ -99,19 +97,6 @@ func createRawTCPPkt(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort
 		Protocol: 6,
 		DstIP:    destIP,
 		SrcIP:    sourceIP,
-	}
-
-	tcpLayer := &layers.TCP{
-		SrcPort: layers.TCPPort(sourcePort),
-		DstPort: layers.TCPPort(destPort),
-		Seq:     seqNum,
-		Ack:     0,
-		Window:  1024,
-	}
-	if rst {
-		tcpLayer.RST = true
-	} else {
-		tcpLayer.SYN = true
 	}
 
 	err := tcpLayer.SetNetworkLayerForChecksum(ipLayer)
@@ -151,7 +136,7 @@ func sendPacket(rawConn rawConnWrapper, header *ipv4.Header, payload []byte) err
 // receives a matching packet within the timeout, a blank response is returned.
 // Once a matching packet is received by a listener, it will cause the other listener
 // to be canceled, and data from the matching packet will be returned to the caller
-func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
+func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, uint32, uint32, time.Time, error) {
 	var tcpErr error
 	var icmpErr error
 	var wg sync.WaitGroup
@@ -160,6 +145,8 @@ func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time
 	var icmpCode layers.ICMPv4TypeCode
 	var tcpFinished time.Time
 	var icmpFinished time.Time
+	var ackSeqNum uint32
+	var ackAckNum uint32
 	var port uint16
 	wg.Add(2)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -167,12 +154,12 @@ func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time
 	go func() {
 		defer wg.Done()
 		defer cancel()
-		tcpIP, port, _, tcpFinished, tcpErr = handlePackets(ctx, tcpConn, "tcp", localIP, localPort, remoteIP, remotePort, seqNum)
+		tcpIP, port, _, ackSeqNum, ackAckNum, tcpFinished, tcpErr = handlePackets(ctx, tcpConn, "tcp", localIP, localPort, remoteIP, remotePort, seqNum)
 	}()
 	go func() {
 		defer wg.Done()
 		defer cancel()
-		icmpIP, _, icmpCode, icmpFinished, icmpErr = handlePackets(ctx, icmpConn, "icmp", localIP, localPort, remoteIP, remotePort, seqNum)
+		icmpIP, _, icmpCode, _, _, icmpFinished, icmpErr = handlePackets(ctx, icmpConn, "icmp", localIP, localPort, remoteIP, remotePort, seqNum)
 	}()
 	wg.Wait()
 
@@ -181,7 +168,7 @@ func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time
 		_, icmpCanceled := icmpErr.(canceledError)
 		if icmpCanceled && tcpCanceled {
 			log.Trace("timed out waiting for responses")
-			return net.IP{}, 0, 0, time.Time{}, nil
+			return net.IP{}, 0, 0, 0, 0, time.Time{}, nil
 		}
 		if tcpErr != nil {
 			log.Errorf("TCP listener error: %s", tcpErr.Error())
@@ -190,35 +177,35 @@ func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time
 			log.Errorf("ICMP listener error: %s", icmpErr.Error())
 		}
 
-		return net.IP{}, 0, 0, time.Time{}, multierr.Append(fmt.Errorf("tcp error: %w", tcpErr), fmt.Errorf("icmp error: %w", icmpErr))
+		return net.IP{}, 0, 0, 0, 0, time.Time{}, multierr.Append(fmt.Errorf("tcp error: %w", tcpErr), fmt.Errorf("icmp error: %w", icmpErr))
 	}
 
 	// if there was an error for TCP, but not
 	// ICMP, return the ICMP response
 	if tcpErr != nil {
-		return icmpIP, port, icmpCode, icmpFinished, nil
+		return icmpIP, port, icmpCode, 0, 0, icmpFinished, nil
 	}
 
 	// return the TCP response
-	return tcpIP, port, 0, tcpFinished, nil
+	return tcpIP, port, 0, ackSeqNum, ackAckNum, tcpFinished, nil
 }
 
 // handlePackets in its current implementation should listen for the first matching
 // packet on the connection and then return. If no packet is received within the
 // timeout or if the listener is canceled, it should return a canceledError
-func handlePackets(ctx context.Context, conn rawConnWrapper, listener string, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
+func handlePackets(ctx context.Context, conn rawConnWrapper, listener string, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, uint32, uint32, time.Time, error) {
 	buf := make([]byte, 1024)
 	tp := newTCPParser()
 	for {
 		select {
 		case <-ctx.Done():
-			return net.IP{}, 0, 0, time.Time{}, canceledError("listener canceled")
+			return net.IP{}, 0, 0, 0, 0, time.Time{}, canceledError("listener canceled")
 		default:
 		}
 		now := time.Now()
 		err := conn.SetReadDeadline(now.Add(time.Millisecond * 100))
 		if err != nil {
-			return net.IP{}, 0, 0, time.Time{}, fmt.Errorf("failed to read: %w", err)
+			return net.IP{}, 0, 0, 0, 0, time.Time{}, fmt.Errorf("failed to read: %w", err)
 		}
 		header, packet, _, err := conn.ReadFrom(buf)
 		if err != nil {
@@ -227,7 +214,7 @@ func handlePackets(ctx context.Context, conn rawConnWrapper, listener string, lo
 					continue
 				}
 			}
-			return net.IP{}, 0, 0, time.Time{}, err
+			return net.IP{}, 0, 0, 0, 0, time.Time{}, err
 		}
 		// once we have a packet, take a timestamp to know when
 		// the response was received, if it matches, we will
@@ -242,7 +229,7 @@ func handlePackets(ctx context.Context, conn rawConnWrapper, listener string, lo
 				continue
 			}
 			if icmpMatch(localIP, localPort, remoteIP, remotePort, seqNum, icmpResponse) {
-				return icmpResponse.SrcIP, 0, icmpResponse.TypeCode, received, nil
+				return icmpResponse.SrcIP, 0, icmpResponse.TypeCode, 0, 0, received, nil
 			}
 		} else if listener == "tcp" {
 			tcpResp, err := tp.parseTCP(header, packet)
@@ -251,10 +238,10 @@ func handlePackets(ctx context.Context, conn rawConnWrapper, listener string, lo
 				continue
 			}
 			if tcpMatch(localIP, localPort, remoteIP, remotePort, seqNum, tcpResp) {
-				return tcpResp.SrcIP, uint16(tcpResp.TCPResponse.SrcPort), 0, received, nil
+				return tcpResp.SrcIP, uint16(tcpResp.TCPResponse.SrcPort), 0, tcpResp.TCPResponse.Seq, tcpResp.TCPResponse.Ack, received, nil
 			}
 		} else {
-			return net.IP{}, 0, 0, received, fmt.Errorf("unsupported listener type")
+			return net.IP{}, 0, 0, 0, 0, received, fmt.Errorf("unsupported listener type")
 		}
 	}
 }

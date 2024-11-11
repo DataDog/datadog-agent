@@ -107,9 +107,11 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	// hops should be of length # of hops
 	hops := make([]*Hop, 0, t.MaxTTL-t.MinTTL)
 
+	var hop *Hop
+	var ackSeqNum, ackAckNum uint32
 	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
 		seqNumber := rand.Uint32()
-		hop, err := t.sendAndReceive(rawIcmpConn, rawTCPConn, i, seqNumber, t.Timeout)
+		hop, ackSeqNum, ackAckNum, err = t.sendAndReceive(rawIcmpConn, rawTCPConn, i, seqNumber, t.Timeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to run traceroute: %w", err)
 		}
@@ -124,7 +126,7 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	// TODO: should we use maxTTL always, or if we know the exact TTL
 	// should we use that instead? I think we should use the max in case
 	// the packet takes a different route. Perhaps even higher than the max?
-	err = t.sendTCPReset(rawTCPConn, int(t.MaxTTL), rand.Uint32())
+	err = t.sendTCPReset(rawTCPConn, int(t.MaxTTL), ackSeqNum, ackAckNum)
 	if err != nil {
 		log.Errorf("failed to send TCP RST: %s", err.Error())
 	}
@@ -138,24 +140,34 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	}, nil
 }
 
-func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawConn, ttl int, seqNum uint32, timeout time.Duration) (*Hop, error) {
-	tcpHeader, tcpPacket, err := createRawTCPPkt(t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, ttl, false)
+func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawConn, ttl int, seqNum uint32, timeout time.Duration) (*Hop, uint32, uint32, error) {
+	// Create SYN packet
+	tcpLayer := &layers.TCP{
+		SrcPort: layers.TCPPort(t.srcPort),
+		DstPort: layers.TCPPort(t.DestPort),
+		Seq:     seqNum,
+		Ack:     0,
+		SYN:     true,
+		Window:  1024,
+	}
+
+	tcpHeader, tcpPacket, err := createRawTCPPkt(t.srcIP, t.Target, ttl, tcpLayer)
 	if err != nil {
 		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
-		return nil, err
+		return nil, 0, 0, err
 	}
 
 	err = sendPacket(rawTCPConn, tcpHeader, tcpPacket)
 	if err != nil {
 		log.Errorf("failed to send TCP SYN: %s", err.Error())
-		return nil, err
+		return nil, 0, 0, err
 	}
 
 	start := time.Now() // TODO: is this the best place to start?
-	hopIP, hopPort, icmpType, end, err := listenPackets(rawIcmpConn, rawTCPConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
+	hopIP, hopPort, icmpType, ackSeqNum, ackAckNum, end, err := listenPackets(rawIcmpConn, rawTCPConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
 	if err != nil {
 		log.Errorf("failed to listen for packets: %s", err.Error())
-		return nil, err
+		return nil, 0, 0, err
 	}
 
 	rtt := time.Duration(0)
@@ -169,11 +181,22 @@ func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawCo
 		ICMPType: icmpType,
 		RTT:      rtt,
 		IsDest:   hopIP.Equal(t.Target),
-	}, nil
+	}, ackSeqNum, ackAckNum, nil
 }
 
-func (t *TCPv4) sendTCPReset(rawTCPConn *ipv4.RawConn, ttl int, seqNum uint32) error {
-	tcpHeader, tcpPacket, err := createRawTCPPkt(t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, ttl, true)
+func (t *TCPv4) sendTCPReset(rawTCPConn *ipv4.RawConn, ttl int, seqNum uint32, ackNum uint32) error {
+	// Create RST packet
+	tcpLayer := &layers.TCP{
+		SrcPort: layers.TCPPort(t.srcPort),
+		DstPort: layers.TCPPort(t.DestPort),
+		Seq:     ackNum,
+		Ack:     seqNum + 1,
+		RST:     true,
+		ACK:     true,
+		Window:  1024,
+	}
+
+	tcpHeader, tcpPacket, err := createRawTCPPkt(t.srcIP, t.Target, ttl, tcpLayer)
 	if err != nil {
 		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
 		return err
