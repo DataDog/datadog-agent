@@ -184,14 +184,15 @@ deploy_containers_latest-dogstatsd:
 
 deploy_containers_latest-a7-ot:
   extends: .deploy_containers-a7-base-ot
+  stage: deploy_containers
   rules:
     !reference [.on_final-ot]
+  dependencies: []
   variables:
-    VERSION: 7
+    VERSION: 7-ot-beta
   parallel:
     matrix:
-      - IMG_SOURCES: ${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-arm64
-        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:${VERSION}-ot-beta
-      - IMG_SOURCES: ${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-arm64
-        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:${VERSION}-ot-beta-jmx
+      - JMX:
+          - ""
+          - "-jmx"
 
