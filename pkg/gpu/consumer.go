@@ -139,8 +139,7 @@ func isStreamSpecificEvent(eventType gpuebpf.CudaEventType) bool {
 }
 
 func (c *cudaEventConsumer) handleStreamEvent(header *gpuebpf.CudaEventHeader, data unsafe.Pointer, dataLen int) error {
-	key := c.getStreamKey(header)
-	streamHandler := c.getStreamHandler(key, header)
+	streamHandler := c.getStreamHandler(header)
 
 	switch header.Type {
 	case gpuebpf.CudaEventTypeKernelLaunch:
@@ -225,7 +224,8 @@ func (c *cudaEventConsumer) getStreamKey(header *gpuebpf.CudaEventHeader) stream
 	return key
 }
 
-func (c *cudaEventConsumer) getStreamHandler(key streamKey, header *gpuebpf.CudaEventHeader) *StreamHandler {
+func (c *cudaEventConsumer) getStreamHandler(header *gpuebpf.CudaEventHeader) *StreamHandler {
+	key := c.getStreamKey(header)
 	if _, ok := c.streamHandlers[key]; !ok {
 		cgroup := unix.ByteSliceToString(header.Cgroup[:])
 		containerID, err := cgroups.ContainerFilter("", cgroup)
