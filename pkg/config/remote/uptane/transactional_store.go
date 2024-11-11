@@ -175,7 +175,7 @@ func (ts *transactionalStore) commit() error {
 		return nil
 	})
 	if err != nil {
-		log.Debugf("Failed Commit: %s", err.Error())
+		log.Debugf("Failed Commit: %v", err)
 	} else {
 		log.Debugf("Commit successful. %d keys", len(ts.cachedData))
 	}
