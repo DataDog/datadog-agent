@@ -9,6 +9,8 @@ type CudaEventHeader struct {
 	Pid_tgid  uint64
 	Stream_id uint64
 	Ktime_ns  uint64
+	Cgroup    [129]byte
+	Pad_cgo_0 [7]byte
 }
 
 type CudaKernelLaunch struct {
@@ -51,8 +53,8 @@ const CudaEventTypeSetDevice = 0x3
 const CudaMemAlloc = 0x0
 const CudaMemFree = 0x1
 
-const SizeofCudaKernelLaunch = 0x48
-const SizeofCudaMemEvent = 0x38
-const SizeofCudaEventHeader = 0x20
-const SizeofCudaSync = 0x20
-const SizeofCudaSetDeviceEvent = 0x28
+const SizeofCudaKernelLaunch = 0xd0
+const SizeofCudaMemEvent = 0xc0
+const SizeofCudaEventHeader = 0xa8
+const SizeofCudaSync = 0xa8
+const SizeofCudaSetDeviceEvent = 0xb0

@@ -31,6 +31,7 @@ type StreamHandler struct {
 	allocations    []*memoryAllocation
 	processEnded   bool // A marker to indicate that the process has ended, and this handler should be flushed
 	sysCtx         *systemContext
+	containerID    string
 }
 
 // enrichedKernelLaunch is a kernel launch event with the kernel data attached.
@@ -111,11 +112,12 @@ type kernelSpan struct {
 	avgMemoryUsage map[memAllocType]uint64
 }
 
-func newStreamHandler(pid uint32, sysCtx *systemContext) *StreamHandler {
+func newStreamHandler(pid uint32, containerID string, sysCtx *systemContext) *StreamHandler {
 	return &StreamHandler{
 		memAllocEvents: make(map[uint64]gpuebpf.CudaMemEvent),
 		pid:            pid,
 		sysCtx:         sysCtx,
+		containerID:    containerID,
 	}
 }
 

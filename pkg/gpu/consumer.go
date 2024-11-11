@@ -15,12 +15,14 @@ import (
 	"unsafe"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -138,7 +140,7 @@ func isStreamSpecificEvent(eventType gpuebpf.CudaEventType) bool {
 
 func (c *cudaEventConsumer) handleStreamEvent(header *gpuebpf.CudaEventHeader, data unsafe.Pointer, dataLen int) error {
 	key := c.getStreamKey(header)
-	streamHandler := c.getStreamHandler(key)
+	streamHandler := c.getStreamHandler(key, header)
 
 	switch header.Type {
 	case gpuebpf.CudaEventTypeKernelLaunch:
@@ -223,9 +225,14 @@ func (c *cudaEventConsumer) getStreamKey(header *gpuebpf.CudaEventHeader) stream
 	return key
 }
 
-func (c *cudaEventConsumer) getStreamHandler(key streamKey) *StreamHandler {
+func (c *cudaEventConsumer) getStreamHandler(key streamKey, header *gpuebpf.CudaEventHeader) *StreamHandler {
 	if _, ok := c.streamHandlers[key]; !ok {
-		c.streamHandlers[key] = newStreamHandler(key.pid, c.sysCtx)
+		cgroup := unix.ByteSliceToString(header.Cgroup[:])
+		containerID, err := cgroups.ContainerFilter("", cgroup)
+		if err != nil {
+			log.Errorf("error getting container ID for cgroup %s: %s", cgroup, err)
+		}
+		c.streamHandlers[key] = newStreamHandler(key.pid, containerID, c.sysCtx)
 	}
 
 	return c.streamHandlers[key]
