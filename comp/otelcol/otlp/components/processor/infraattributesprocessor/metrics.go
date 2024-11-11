@@ -124,6 +124,16 @@ func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md
 
 		// Add all tags as resource attributes
 		for k, v := range tagMap {
+			// Add OTel semantics for universal service tags which are required in mapping
+			if k == "service" {
+				resourceAttributes.PutStr(conventions.AttributeServiceName, v)
+			}
+			if k == "env" {
+				resourceAttributes.PutStr(conventions.AttributeDeploymentEnvironment, v)
+			}
+			if k == "version" {
+				resourceAttributes.PutStr(conventions.AttributeServiceVersion, v)
+			}
 			resourceAttributes.PutStr(k, v)
 		}
 	}

@@ -12,6 +12,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/processor"
+	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
 	"go.uber.org/zap"
 )
 
@@ -69,6 +70,16 @@ func (ialp *infraAttributesLogProcessor) processLogs(_ context.Context, ld plog.
 		}
 		// Add all tags as resource attributes
 		for k, v := range tagMap {
+			// Add OTel semantics for universal service tags which are required in mapping
+			if k == "service" {
+				resourceAttributes.PutStr(conventions.AttributeServiceName, v)
+			}
+			if k == "env" {
+				resourceAttributes.PutStr(conventions.AttributeDeploymentEnvironment, v)
+			}
+			if k == "version" {
+				resourceAttributes.PutStr(conventions.AttributeServiceVersion, v)
+			}
 			resourceAttributes.PutStr(k, v)
 		}
 	}
