@@ -50,7 +50,7 @@ var (
 type bpfMapName = string
 
 const (
-	cudaEventsMap         bpfMapName = "cuda_events"
+	cudaEventsRingbuf     bpfMapName = "cuda_events"
 	cudaAllocCacheMap     bpfMapName = "cuda_alloc_cache"
 	cudaSyncCacheMap      bpfMapName = "cuda_sync_cache"
 	cudaSetDeviceCacheMap bpfMapName = "cuda_set_device_cache"
@@ -266,7 +266,7 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 func (p *Probe) setupSharedBuffer(o *manager.Options) {
 	rbHandler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	rb := &manager.RingBuffer{
-		Map: manager.Map{Name: cudaEventsMap},
+		Map: manager.Map{Name: cudaEventsRingbuf},
 		RingBufferOptions: manager.RingBufferOptions{
 			RecordHandler: rbHandler.RecordHandler,
 			RecordGetter:  rbHandler.RecordGetter,
@@ -275,7 +275,7 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 
 	ringBufferSize := toPowerOf2(defaultRingBufferSize)
 
-	o.MapSpecEditors[cudaEventsMap] = manager.MapSpecEditor{
+	o.MapSpecEditors[cudaEventsRingbuf] = manager.MapSpecEditor{
 		Type:       ebpf.RingBuf,
 		MaxEntries: uint32(ringBufferSize),
 		KeySize:    0,
