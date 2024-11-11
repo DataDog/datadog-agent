@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -105,4 +106,132 @@ secret_backend_command: ./my_secret_fetcher.sh
 			require.Equal(t, tc.expectSource, src)
 		})
 	}
+}
+
+func TestNewConfig(t *testing.T) {
+	cfg := NewConfig("config_name", "PREFIX", nil)
+
+	c := cfg.(*ntmConfig)
+
+	assert.False(t, c.ready.Load())
+
+	assert.Equal(t, "config_name", c.configName)
+	assert.Equal(t, "", c.configFile)
+	assert.Equal(t, "PREFIX", c.envPrefix)
+
+	assert.NotNil(t, c.defaults)
+	assert.NotNil(t, c.file)
+	assert.NotNil(t, c.unknown)
+	assert.NotNil(t, c.envs)
+	assert.NotNil(t, c.runtime)
+	assert.NotNil(t, c.localConfigProcess)
+	assert.NotNil(t, c.remoteConfig)
+	assert.NotNil(t, c.fleetPolicies)
+	assert.NotNil(t, c.cli)
+
+	// TODO: test SetTypeByDefaultValue and SetEnvKeyReplacer once implemented
+}
+
+// TODO: expand testing coverage once we have environment and Set() implemented
+func TestBasicUsage(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+
+	cfg.SetDefault("a", 1)
+	cfg.BuildSchema()
+	cfg.ReadConfig(strings.NewReader("a: 2"))
+
+	assert.Equal(t, 2, cfg.Get("a"))
+}
+
+func TestSet(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+
+	cfg.SetDefault("default", 0)
+	cfg.SetDefault("unknown", 0)
+	cfg.SetDefault("file", 0)
+	cfg.SetDefault("env", 0)
+	cfg.SetDefault("runtime", 0)
+	cfg.SetDefault("localConfigProcess", 0)
+	cfg.SetDefault("rc", 0)
+	cfg.SetDefault("fleetPolicies", 0)
+	cfg.SetDefault("cli", 0)
+
+	cfg.BuildSchema()
+
+	assert.Equal(t, 0, cfg.Get("default"))
+	assert.Equal(t, 0, cfg.Get("unknown"))
+	assert.Equal(t, 0, cfg.Get("file"))
+	assert.Equal(t, 0, cfg.Get("env"))
+	assert.Equal(t, 0, cfg.Get("runtime"))
+	assert.Equal(t, 0, cfg.Get("localConfigProcess"))
+	assert.Equal(t, 0, cfg.Get("rc"))
+	assert.Equal(t, 0, cfg.Get("fleetPolicies"))
+	assert.Equal(t, 0, cfg.Get("cli"))
+
+	cfg.Set("unknown", 1, model.SourceUnknown)
+	assert.Equal(t, 1, cfg.Get("unknown"))
+
+	cfg.ReadConfig(strings.NewReader(`
+file: 2
+`))
+
+	assert.Equal(t, 2, cfg.Get("file"))
+
+	cfg.Set("unknown", 1, model.SourceUnknown)
+	cfg.Set("env", 3, model.SourceEnvVar)
+	cfg.Set("runtime", 4, model.SourceAgentRuntime)
+	cfg.Set("localConfigProcess", 5, model.SourceLocalConfigProcess)
+	cfg.Set("rc", 6, model.SourceRC)
+	cfg.Set("fleetPolicies", 7, model.SourceFleetPolicies)
+	cfg.Set("cli", 8, model.SourceCLI)
+
+	assert.Equal(t, 0, cfg.Get("default"))
+	assert.Equal(t, 1, cfg.Get("unknown"))
+	assert.Equal(t, 2, cfg.Get("file"))
+	assert.Equal(t, 3, cfg.Get("env"))
+	assert.Equal(t, 4, cfg.Get("runtime"))
+	assert.Equal(t, 5, cfg.Get("localConfigProcess"))
+	assert.Equal(t, 6, cfg.Get("rc"))
+	assert.Equal(t, 7, cfg.Get("fleetPolicies"))
+	assert.Equal(t, 8, cfg.Get("cli"))
+
+	assert.Equal(t, model.SourceDefault, cfg.GetSource("default"))
+	assert.Equal(t, model.SourceUnknown, cfg.GetSource("unknown"))
+	assert.Equal(t, model.SourceFile, cfg.GetSource("file"))
+	assert.Equal(t, model.SourceEnvVar, cfg.GetSource("env"))
+	assert.Equal(t, model.SourceAgentRuntime, cfg.GetSource("runtime"))
+	assert.Equal(t, model.SourceLocalConfigProcess, cfg.GetSource("localConfigProcess"))
+	assert.Equal(t, model.SourceRC, cfg.GetSource("rc"))
+	assert.Equal(t, model.SourceFleetPolicies, cfg.GetSource("fleetPolicies"))
+	assert.Equal(t, model.SourceCLI, cfg.GetSource("cli"))
+}
+
+func TestSetLowerSource(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+
+	cfg.SetDefault("setting", 0)
+	cfg.BuildSchema()
+
+	assert.Equal(t, 0, cfg.Get("setting"))
+	assert.Equal(t, model.SourceDefault, cfg.GetSource("setting"))
+
+	cfg.Set("setting", 1, model.SourceAgentRuntime)
+
+	assert.Equal(t, 1, cfg.Get("setting"))
+	assert.Equal(t, model.SourceAgentRuntime, cfg.GetSource("setting"))
+
+	cfg.Set("setting", 2, model.SourceFile)
+
+	assert.Equal(t, 1, cfg.Get("setting"))
+	assert.Equal(t, model.SourceAgentRuntime, cfg.GetSource("setting"))
+}
+
+func TestSetUnkownKey(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+	cfg.BuildSchema()
+
+	cfg.Set("unknown_key", 21, model.SourceAgentRuntime)
+
+	assert.Nil(t, cfg.Get("unknown_key"))
+	assert.Equal(t, model.SourceUnknown, cfg.GetSource("unknown_key"))
 }

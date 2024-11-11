@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
@@ -244,7 +245,7 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 			{
 				Name: cudaSyncCacheMap,
 			},
-		}})
+		}}, "gpu", &ebpftelemetry.ErrorsTelemetryModifier{})
 
 	if opts.MapSpecEditors == nil {
 		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)

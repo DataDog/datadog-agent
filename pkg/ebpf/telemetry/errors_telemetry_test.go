@@ -17,6 +17,7 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/prometheus/client_golang/prometheus"
@@ -87,12 +88,15 @@ func triggerTestAndGetTelemetry(t *testing.T) []prometheus.Metric {
 		},
 	}
 
+	err = m.LoadELF(buf)
+	require.NoError(t, err)
+
 	modifier := ErrorsTelemetryModifier{}
-	err = modifier.BeforeInit(m, &options)
+	err = modifier.BeforeInit(m, names.NewModuleName("ebpf"), &options)
 	require.NoError(t, err)
-	err = m.InitWithOptions(buf, options)
+	err = m.InitWithOptions(nil, options)
 	require.NoError(t, err)
-	err = modifier.AfterInit(m, &options)
+	err = modifier.AfterInit(m, names.NewModuleName("ebpf"), &options)
 	require.NoError(t, err)
 	m.Start()
 
