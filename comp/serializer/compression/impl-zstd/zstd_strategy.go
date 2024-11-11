@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package strategy provides a set of functions for compressing with zlib / zstd
-package strategy
+// Package compressionimpl provides a set of functions for compressing with zlib / zstd
+package compressionimpl
 
 import (
 	"bytes"

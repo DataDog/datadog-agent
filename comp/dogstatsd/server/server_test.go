@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/stretchr/testify/assert"
@@ -43,7 +44,6 @@ import (
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -97,7 +97,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 			Overrides: overrides,
 		}),
 		replaymock.MockModule(),
-		compressionimpl.MockModule(),
+		fx.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
@@ -113,7 +113,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		hostnameimpl.MockModule(),
 		serverdebugimpl.MockModule(),
 		replaymock.MockModule(),
-		compressionimpl.MockModule(),
+		fx.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
@@ -143,7 +143,7 @@ func TestStopServer(t *testing.T) {
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replaymock.MockModule(),
-		compressionimpl.MockModule(),
+		fx.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
@@ -190,7 +190,7 @@ func TestNoRaceOriginTagMaps(t *testing.T) {
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replaymock.MockModule(),
-		compressionimpl.MockModule(),
+		fx.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
@@ -771,7 +771,7 @@ func TestParseMetricMessageTelemetry(t *testing.T) {
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replaymock.MockModule(),
-		compressionimpl.MockModule(),
+		fx.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
@@ -935,7 +935,7 @@ func TestParseEventMessageTelemetry(t *testing.T) {
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replaymock.MockModule(),
-		compressionimpl.MockModule(),
+		fx.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
@@ -985,7 +985,7 @@ func TestParseServiceCheckMessageTelemetry(t *testing.T) {
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replaymock.MockModule(),
-		compressionimpl.MockModule(),
+		fx.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),

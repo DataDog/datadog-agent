@@ -6,7 +6,7 @@
 //go:build zlib && !zstd
 
 // Package compressionimpl provides a set of functions for compressing with zlib / zstd
-package fx_zlib_no_zstd
+package fx
 
 import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"

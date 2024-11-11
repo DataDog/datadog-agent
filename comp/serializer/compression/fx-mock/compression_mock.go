@@ -3,9 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build test
-
-package fx_mock
+package fx
 
 import (
 	strategy_noop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
