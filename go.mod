@@ -39,6 +39,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/secrets => ./comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/status => ./comp/core/status
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ./comp/core/status/statusimpl
+	github.com/DataDog/datadog-agent/comp/core/tagger/tags => ./comp/core/tagger/tags
 	github.com/DataDog/datadog-agent/comp/core/tagger/types => ./comp/core/tagger/types
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ./comp/core/tagger/utils
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry/
@@ -105,6 +106,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ./pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ./pkg/serializer/
 	github.com/DataDog/datadog-agent/pkg/status/health => ./pkg/status/health
+	github.com/DataDog/datadog-agent/pkg/tagger/tags => ./pkg/tagger/tags
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ./pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ./pkg/tagset/
 	github.com/DataDog/datadog-agent/pkg/telemetry => ./pkg/telemetry/
@@ -627,6 +629,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.57.1
 	github.com/DataDog/datadog-agent/comp/core/status v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.56.2
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.56.2
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.57.1
 	github.com/DataDog/datadog-agent/comp/def v0.57.1

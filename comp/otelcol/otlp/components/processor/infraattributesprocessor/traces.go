@@ -8,6 +8,7 @@ package infraattributesprocessor
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -70,14 +71,17 @@ func (iasp *infraAttributesSpanProcessor) processTraces(_ context.Context, td pt
 		// Add all tags as resource attributes
 		for k, v := range tagMap {
 			// Add OTel semantics for universal service tags which are required in mapping
-			if k == "service" {
+			if k == tags.Service {
 				resourceAttributes.PutStr(conventions.AttributeServiceName, v)
+				continue
 			}
-			if k == "env" {
+			if k == tags.Env {
 				resourceAttributes.PutStr(conventions.AttributeDeploymentEnvironment, v)
+				continue
 			}
-			if k == "version" {
+			if k == tags.Version {
 				resourceAttributes.PutStr(conventions.AttributeServiceVersion, v)
+				continue
 			}
 			resourceAttributes.PutStr(k, v)
 		}
