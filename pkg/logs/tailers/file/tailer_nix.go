@@ -38,6 +38,8 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	t.lastReadOffset.Store(ret)
 	t.decodedOffset.Store(ret)
 
+	t.inBuf = make([]byte, 4096)
+
 	return nil
 }
 
@@ -45,8 +47,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 // until it is closed or the tailer is stopped.
 func (t *Tailer) read() (int, error) {
 	// keep reading data from file
-	inBuf := make([]byte, 4096)
-	n, err := t.osFile.Read(inBuf)
+	n, err := t.osFile.Read(t.inBuf)
 	if err != nil && err != io.EOF {
 		// an unexpected error occurred, stop the tailor
 		t.file.Source.Status().Error(err)
@@ -56,6 +57,6 @@ func (t *Tailer) read() (int, error) {
 		return 0, nil
 	}
 	t.lastReadOffset.Add(int64(n))
-	t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
+	t.decoder.InputChan <- decoder.NewInput(t.inBuf[:n])
 	return n, nil
 }

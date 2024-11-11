@@ -116,6 +116,9 @@ type Tailer struct {
 	// blocked sending to the tailer's outputChan.
 	stopForward context.CancelFunc
 
+	// inBuf holds a buffer for reading from the file.
+	inBuf []byte
+
 	info      *status.InfoRegistry
 	bytesRead *status.CountInfo
 	movingSum *util.MovingSum
@@ -350,11 +353,15 @@ func (t *Tailer) forwardMessages() {
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
 
-		tags := make([]string, len(t.tags))
-		copy(tags, t.tags)
-		tags = append(tags, t.tagProvider.GetTags()...)
-		tags = append(tags, output.ParsingExtra.Tags...)
+		tagProviderTags := t.tagProvider.GetTags()
+		parsingExtraTags := output.ParsingExtra.Tags
+		totalTagsLen := len(t.tags) + len(tagProviderTags) + len(parsingExtraTags)
+		tags := make([]string, 0, totalTagsLen)
+		tags = append(tags, t.tags...)
+		tags = append(tags, tagProviderTags...)
+		tags = append(tags, parsingExtraTags...)
 		origin.SetTags(tags)
+
 		// Ignore empty lines once the registry offset is updated
 		if len(output.GetContent()) == 0 {
 			continue
