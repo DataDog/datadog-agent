@@ -1785,6 +1785,12 @@ metric_tags:
     tag: snmp_host
 `)
 
+	// language=yaml
+	rawInitConfig := []byte(`
+reverse_dns_enrichment:
+  enabled: true
+  timeout: 5000
+`)
 	discoveryPacket := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
 			{
@@ -1798,7 +1804,7 @@ metric_tags:
 	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&discoveryPacket, nil)
 
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
 
 	_, err = waitForDiscoveredDevices(chk.discovery, 4, 2*time.Second)
