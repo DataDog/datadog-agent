@@ -57,12 +57,15 @@ const (
 	tagTLSClientVersion = "tls.client_version:"
 )
 
+// Tags holds the TLS tags. It is used to store the TLS version, cipher suite and offered versions.
+// We can't use the struct from eBPF as the definition is shared with windows.
 type Tags struct {
 	ChosenVersion   uint16
 	CipherSuite     uint16
 	OfferedVersions uint8
 }
 
+// MergeWith merges the tags from another Tags struct into this one
 func (t *Tags) MergeWith(that Tags) {
 	if t.ChosenVersion == 0 {
 		t.ChosenVersion = that.ChosenVersion
@@ -76,10 +79,12 @@ func (t *Tags) MergeWith(that Tags) {
 
 }
 
+// IsEmpty returns true if all fields are zero
 func (t *Tags) IsEmpty() bool {
 	return t.ChosenVersion == 0 && t.CipherSuite == 0 && t.OfferedVersions == 0
 }
 
+// String returns a string representation of the Tags struct
 func (t *Tags) String() string {
 	return fmt.Sprintf("ChosenVersion: %d, CipherSuite: %d, OfferedVersions: %d", t.ChosenVersion, t.CipherSuite, t.OfferedVersions)
 }
