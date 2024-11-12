@@ -43,7 +43,8 @@ func GetTracedPrograms(moduleName, programType string) []TracedProgram {
 // in the same test will cause the debugger to contain multiple and old instances of the same program.
 func ResetDebugger() {
 	debugger = &tlsDebugger{
-		attachers: make(map[string]map[string]Attacher),
+		registries: make(map[string][]*FileRegistry),
+		attachers:  make(map[string]map[string]Attacher),
 	}
 }
 

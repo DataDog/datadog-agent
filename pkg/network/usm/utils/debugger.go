@@ -67,7 +67,7 @@ func GetBlockedPathIDEndpoint(moduleName string) func(http.ResponseWriter, *http
 
 // GetClearBlockedEndpoint returns a callback for the given module name, that clears the lists of blocked paths.
 func GetClearBlockedEndpoint(moduleName string) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, _ *http.Request) {
+	return func(http.ResponseWriter, *http.Request) {
 		debugger.ClearBlocked(moduleName)
 	}
 }

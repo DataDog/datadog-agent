@@ -560,7 +560,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 			})
 			monitor := newKafkaMonitor(t, cfg)
 			if tls && cfg.EnableGoTLSSupport {
-				utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+				utils.WaitForProgramsToBeTraced(t, "usm", GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
 			tt.testBody(t, &tt.context, monitor)
 		})
@@ -1158,7 +1158,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 
 	monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
 	if tls {
-		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, proxyPid, utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, "usm", GoTLSAttacherName, proxyPid, utils.ManualTracingFallbackEnabled)
 	}
 
 	for _, tt := range tests {
@@ -1386,7 +1386,7 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 
 	monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
 	if tls {
-		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, proxyPid, utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, "usm", GoTLSAttacherName, proxyPid, utils.ManualTracingFallbackEnabled)
 	}
 
 	for _, tt := range tests {

@@ -239,9 +239,9 @@ func TestFailedRegistration(t *testing.T) {
 	// This is because we have block-listed this file
 	assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID))
 
-	assert.Contains(t, debugger.GetBlockedPathIDs(""), pathID)
-	debugger.ClearBlocked()
-	assert.Empty(t, debugger.GetBlockedPathIDs(""))
+	assert.Contains(t, debugger.GetBlockedPathIDs("usm", ""), pathID)
+	debugger.ClearBlocked("usm")
+	assert.Empty(t, debugger.GetBlockedPathIDs("usm", ""))
 }
 
 func TestShortLivedProcess(t *testing.T) {
@@ -403,5 +403,5 @@ func newFileRegistry() *FileRegistry {
 	// Ensure that tests relying on telemetry data will always have a clean slate
 	telemetry.Clear()
 	ResetDebugger()
-	return NewFileRegistry("")
+	return NewFileRegistry("usm", "")
 }

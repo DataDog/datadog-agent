@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -135,7 +134,6 @@ func newNodeJSMonitor(c *config.Config, mgr *manager.Manager) (*nodeJSMonitor, e
 	if err != nil {
 		return nil, fmt.Errorf("cannot create uprobe attacher: %w", err)
 	}
-	utils.AddAttacher("usm", nodeJsAttacherName, attacher)
 
 	return &nodeJSMonitor{
 		attacher:       attacher,

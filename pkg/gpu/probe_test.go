@@ -71,7 +71,7 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	probe := s.getProbe()
 	cmd := testutil.RunSample(t, testutil.CudaSample)
 
-	utils.WaitForProgramsToBeTraced(t, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
+	utils.WaitForProgramsToBeTraced(t, "gpu", gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 
 	var handlerStream, handlerGlobal *StreamHandler
 	require.Eventually(t, func() bool {
@@ -108,12 +108,12 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 
 	cmd := testutil.RunSample(t, testutil.CudaSample)
 
-	utils.WaitForProgramsToBeTraced(t, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
+	utils.WaitForProgramsToBeTraced(t, "gpu", gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 
 	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
 	// so that we can time out correctly
 	require.Eventually(t, func() bool {
-		return !utils.IsProgramTraced(gpuAttacherName, cmd.Process.Pid)
+		return !utils.IsProgramTraced("gpu", gpuAttacherName, cmd.Process.Pid)
 	}, 20*time.Second, 500*time.Millisecond, "process not stopped")
 
 	stats, err := probe.GetAndFlush()
@@ -139,12 +139,12 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	args.EndWaitTimeSec = 1
 	pid, cid := testutil.RunSampleInDockerWithArgs(t, testutil.CudaSample, testutil.MinimalDockerImage, args)
 
-	utils.WaitForProgramsToBeTraced(t, gpuAttacherName, pid, utils.ManualTracingFallbackDisabled)
+	utils.WaitForProgramsToBeTraced(t, "gpu", gpuAttacherName, pid, utils.ManualTracingFallbackDisabled)
 
 	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
 	// so that we can time out correctly
 	require.Eventually(t, func() bool {
-		return !utils.IsProgramTraced(gpuAttacherName, pid)
+		return !utils.IsProgramTraced("gpu", gpuAttacherName, pid)
 	}, 20*time.Second, 500*time.Millisecond, "process not stopped")
 
 	// Check that the stream handlers have the correct container ID assigned
