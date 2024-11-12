@@ -140,10 +140,10 @@ single-machine-performance-regression_detector:
       import sys
 
       try:
-          with open('outputs/quality_gates_report.json') as f:
+          with open('outputs/report.json') as f:
               data = json.load(f)
       except FileNotFoundError:
-          print("Quality gates report not found.")
+          print("Machine readable report not found.")
           sys.exit(1)
       except json.JSONDecodeError as e:
           print(f"Error parsing JSON report: {e}")
