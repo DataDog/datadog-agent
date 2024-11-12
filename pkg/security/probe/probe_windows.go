@@ -975,7 +975,7 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 	event.PIDContext.Pid = pid
 	err := backoff.Retry(func() error {
-		entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event)
+		entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, nil)
 		event.ProcessCacheEntry = entry
 		// use ProcessCacheEntry process context as process context
 		event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
@@ -1234,7 +1234,11 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts, telemetry t
 		hostname = "unknown"
 	}
 
-	p.fieldHandlers = &FieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname}
+	fh, err := NewFieldHandlers(config, p.Resolvers, hostname)
+	if err != nil {
+		return nil, err
+	}
+	p.fieldHandlers = fh
 
 	p.event = p.NewEvent()
 

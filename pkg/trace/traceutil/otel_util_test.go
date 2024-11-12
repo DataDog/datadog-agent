@@ -257,36 +257,42 @@ func TestGetOTelService(t *testing.T) {
 
 func TestGetOTelResource(t *testing.T) {
 	for _, tt := range []struct {
-		name      string
-		rattrs    map[string]string
-		sattrs    map[string]string
-		normalize bool
-		expected  string
+		name       string
+		rattrs     map[string]string
+		sattrs     map[string]string
+		normalize  bool
+		expectedV1 string
+		expectedV2 string
 	}{
 		{
-			name:     "resource not set",
-			expected: "span_name",
+			name:       "resource not set",
+			expectedV1: "span_name",
+			expectedV2: "span_name",
 		},
 		{
-			name:     "normal resource",
-			sattrs:   map[string]string{"resource.name": "res"},
-			expected: "res",
+			name:       "normal resource",
+			sattrs:     map[string]string{"resource.name": "res"},
+			expectedV1: "res",
+			expectedV2: "res",
 		},
 		{
-			name:     "HTTP request method resource",
-			sattrs:   map[string]string{"http.request.method": "GET"},
-			expected: "GET",
+			name:       "HTTP request method resource",
+			sattrs:     map[string]string{"http.request.method": "GET"},
+			expectedV1: "GET",
+			expectedV2: "GET",
 		},
 		{
-			name:     "HTTP method and route resource",
-			sattrs:   map[string]string{semconv.AttributeHTTPMethod: "GET", semconv.AttributeHTTPRoute: "/"},
-			expected: "GET /",
+			name:       "HTTP method and route resource",
+			sattrs:     map[string]string{semconv.AttributeHTTPMethod: "GET", semconv.AttributeHTTPRoute: "/"},
+			expectedV1: "GET /",
+			expectedV2: "GET",
 		},
 		{
-			name:      "truncate long resource",
-			sattrs:    map[string]string{"resource.name": strings.Repeat("a", MaxResourceLen+1)},
-			normalize: true,
-			expected:  strings.Repeat("a", MaxResourceLen),
+			name:       "truncate long resource",
+			sattrs:     map[string]string{"resource.name": strings.Repeat("a", MaxResourceLen+1)},
+			normalize:  true,
+			expectedV1: strings.Repeat("a", MaxResourceLen),
+			expectedV2: strings.Repeat("a", MaxResourceLen),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -299,8 +305,8 @@ func TestGetOTelResource(t *testing.T) {
 			for k, v := range tt.rattrs {
 				res.Attributes().PutStr(k, v)
 			}
-			actual := GetOTelResource(span, res)
-			assert.Equal(t, tt.expected, actual)
+			assert.Equal(t, tt.expectedV1, GetOTelResourceV1(span, res))
+			assert.Equal(t, tt.expectedV2, GetOTelResourceV2(span, res))
 		})
 	}
 }
@@ -384,7 +390,7 @@ func TestGetOTelOperationName(t *testing.T) {
 			}
 			lib := pcommon.NewInstrumentationScope()
 			lib.SetName(tt.libname)
-			actual := GetOTelOperationName(span, res, lib, tt.spanNameAsResourceName, tt.spanNameRemappings, tt.normalize)
+			actual := GetOTelOperationNameV1(span, res, lib, tt.spanNameAsResourceName, tt.spanNameRemappings, tt.normalize)
 			assert.Equal(t, tt.expected, actual)
 		})
 	}

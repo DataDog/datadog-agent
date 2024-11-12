@@ -28,7 +28,13 @@ func GetBasicNvmlMock() *nvmlmock.Interface {
 				GetNumGpuCoresFunc: func() (int, nvml.Return) {
 					return DefaultGpuCores, nvml.SUCCESS
 				},
+				GetCudaComputeCapabilityFunc: func() (int, int, nvml.Return) {
+					return 7, 5, nvml.SUCCESS
+				},
 			}, nvml.SUCCESS
+		},
+		DeviceGetCudaComputeCapabilityFunc: func(nvml.Device) (int, int, nvml.Return) {
+			return 7, 5, nvml.SUCCESS
 		},
 	}
 }
