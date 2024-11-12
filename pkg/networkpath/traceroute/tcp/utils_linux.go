@@ -9,16 +9,13 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"go.uber.org/multierr"
 	"golang.org/x/net/ipv4"
-
 )
 
 // sendPacket sends a raw IPv4 packet using the passed connection
