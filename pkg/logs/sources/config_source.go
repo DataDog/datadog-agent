@@ -70,6 +70,7 @@ func (s *ConfigSources) AddFileSource(path string) error {
 	if err != nil {
 		return err
 	}
+	configSource := GetInstance()
 	for _, cfg := range logsConfig {
 		source := NewLogSource(cfg.Name, cfg)
 		// NOT SURE IF THIS IS NEEDED?
@@ -80,7 +81,7 @@ func (s *ConfigSources) AddFileSource(path string) error {
 		// 	// labels attached to the same container.
 		// 	source.Config.IntegrationName = cfg.Name
 		// }
-		GetInstance().AddSource(source)
+		configSource.AddSource(source)
 	}
 
 	return nil
@@ -92,17 +93,18 @@ func (s *ConfigSources) AddFileSource(path string) error {
 // notified.
 func (s *ConfigSources) AddSource(source *LogSource) {
 	log.Tracef("Adding %s", source.Dump(false))
-	GetInstance().mu.Lock()
-	GetInstance().sources = append(GetInstance().sources, source)
+	configSource := GetInstance()
+	configSource.mu.Lock()
+	configSource.sources = append(configSource.sources, source)
 	if source.Config == nil || source.Config.Validate() != nil {
-		GetInstance().mu.Unlock()
+		configSource.mu.Unlock()
 		fmt.Println("andrewq config_source.go: source config isnt valid")
 		return
 	}
-	streams := GetInstance().added
-	streamsForType := GetInstance().addedByType[source.Config.Type]
+	streams := configSource.added
+	streamsForType := configSource.addedByType[source.Config.Type]
 
-	GetInstance().mu.Unlock()
+	configSource.mu.Unlock()
 	fmt.Println("channel 1 ", streams)
 	fmt.Println("channel 2 ", streamsForType)
 	fmt.Println("config_source.go source is : ", source)
@@ -122,18 +124,19 @@ func (s *ConfigSources) AddSource(source *LogSource) {
 // notified of its removal.
 func (s *ConfigSources) RemoveSource(source *LogSource) {
 	log.Tracef("Removing %s", source.Dump(false))
-	GetInstance().mu.Lock()
+	configSource := GetInstance()
+	configSource.mu.Lock()
 	var sourceFound bool
 	for i, src := range s.sources {
 		if src == source {
-			GetInstance().sources = append(GetInstance().sources[:i], s.sources[i+1:]...)
+			configSource.sources = append(configSource.sources[:i], s.sources[i+1:]...)
 			sourceFound = true
 			break
 		}
 	}
-	streams := GetInstance().removed
-	streamsForType := GetInstance().removedByType[source.Config.Type]
-	GetInstance().mu.Unlock()
+	streams := configSource.removed
+	streamsForType := configSource.removedByType[source.Config.Type]
+	configSource.mu.Unlock()
 
 	if sourceFound {
 		for _, stream := range streams {
@@ -151,16 +154,17 @@ func (s *ConfigSources) RemoveSource(source *LogSource) {
 //
 // Any sources added before this call are delivered from a new goroutine.
 func (s *ConfigSources) SubscribeAll() (added chan *LogSource, removed chan *LogSource) {
-	GetInstance().mu.Lock()
-	defer GetInstance().mu.Unlock()
+	configSource := GetInstance()
+	configSource.mu.Lock()
+	defer configSource.mu.Unlock()
 
 	added = make(chan *LogSource)
 	removed = make(chan *LogSource)
 
-	GetInstance().added = append(GetInstance().added, added)
-	GetInstance().removed = append(GetInstance().removed, removed)
+	configSource.added = append(configSource.added, added)
+	configSource.removed = append(configSource.removed, removed)
 
-	existingSources := append([]*LogSource{}, GetInstance().sources...) // clone for goroutine
+	existingSources := append([]*LogSource{}, configSource.sources...) // clone for goroutine
 	go func() {
 		for _, source := range existingSources {
 			added <- source
@@ -176,23 +180,24 @@ func (s *ConfigSources) SubscribeAll() (added chan *LogSource, removed chan *Log
 //
 // Any sources added before this call are delivered from a new goroutine.
 func (s *ConfigSources) SubscribeForType(sourceType string) (added chan *LogSource, removed chan *LogSource) {
-	GetInstance().mu.Lock()
-	defer GetInstance().mu.Unlock()
+	configSource := GetInstance()
+	configSource.mu.Lock()
+	defer configSource.mu.Unlock()
 
 	added = make(chan *LogSource)
 	removed = make(chan *LogSource)
 
-	if _, exists := GetInstance().addedByType[sourceType]; !exists {
-		GetInstance().addedByType[sourceType] = []chan *LogSource{}
+	if _, exists := configSource.addedByType[sourceType]; !exists {
+		configSource.addedByType[sourceType] = []chan *LogSource{}
 	}
-	GetInstance().addedByType[sourceType] = append(GetInstance().addedByType[sourceType], added)
+	configSource.addedByType[sourceType] = append(configSource.addedByType[sourceType], added)
 
-	if _, exists := GetInstance().removedByType[sourceType]; !exists {
-		GetInstance().removedByType[sourceType] = []chan *LogSource{}
+	if _, exists := configSource.removedByType[sourceType]; !exists {
+		configSource.removedByType[sourceType] = []chan *LogSource{}
 	}
-	GetInstance().removedByType[sourceType] = append(GetInstance().removedByType[sourceType], removed)
+	configSource.removedByType[sourceType] = append(configSource.removedByType[sourceType], removed)
 
-	existingSources := append([]*LogSource{}, GetInstance().sources...) // clone for goroutine
+	existingSources := append([]*LogSource{}, configSource.sources...) // clone for goroutine
 	go func() {
 		for _, source := range existingSources {
 			if source.Config.Type == sourceType {
@@ -209,18 +214,19 @@ func (s *ConfigSources) SubscribeForType(sourceType string) (added chan *LogSour
 //
 // Any sources added before this call are delivered from a new goroutine.
 func (s *ConfigSources) GetAddedForType(sourceType string) chan *LogSource {
-	GetInstance().mu.Lock()
-	defer GetInstance().mu.Unlock()
+	configSource := GetInstance()
+	configSource.mu.Lock()
+	defer configSource.mu.Unlock()
 
-	_, exists := GetInstance().addedByType[sourceType]
+	_, exists := configSource.addedByType[sourceType]
 	if !exists {
-		GetInstance().addedByType[sourceType] = []chan *LogSource{}
+		configSource.addedByType[sourceType] = []chan *LogSource{}
 	}
 
 	stream := make(chan *LogSource)
-	GetInstance().addedByType[sourceType] = append(GetInstance().addedByType[sourceType], stream)
+	configSource.addedByType[sourceType] = append(configSource.addedByType[sourceType], stream)
 
-	existingSources := append([]*LogSource{}, GetInstance().sources...) // clone for goroutine
+	existingSources := append([]*LogSource{}, configSource.sources...) // clone for goroutine
 	go func() {
 		for _, source := range existingSources {
 			if source.Config.Type == sourceType {
@@ -236,9 +242,10 @@ func (s *ConfigSources) GetAddedForType(sourceType string) chan *LogSource {
 // will not be modified after it is returned.  However, the copy in the LogSources
 // instance may change in that time (changing indexes or adding/removing entries).
 func (s *ConfigSources) GetSources() []*LogSource {
-	GetInstance().mu.Lock()
-	defer GetInstance().mu.Unlock()
+	configSource := GetInstance()
+	configSource.mu.Lock()
+	defer configSource.mu.Unlock()
 
-	clone := append([]*LogSource{}, GetInstance().sources...)
+	clone := append([]*LogSource{}, configSource.sources...)
 	return clone
 }
