@@ -101,7 +101,7 @@ class GoModule:
         independent: specifies whether this modules is supposed to exist independently of the datadog-agent module. If True, a check will run to ensure this is true.
 
     Usage:
-        A module is defined within a module.yml next to the go.mod file containing the following fields by default (these can be omitted if the default value is used):
+        A module is defined within the modules.yml file containing the following fields by default (these can be omitted if the default value is used):
         > condition: always
         > importable: true
         > independent: true
@@ -112,8 +112,11 @@ class GoModule:
         > - .
         > used_by_otel: false
 
-        If a module should be ignored and not included within get_default_modules(), add the following to the module.yml:
-        > ignored: true
+        If a module has default attributes, it should be defined like this:
+        > my/module: default
+
+        If a module should be ignored and not included within get_default_modules(), it should be defined like this:
+        > my/module: ignored
     """
 
     # Possible conditions for GoModule.condition
