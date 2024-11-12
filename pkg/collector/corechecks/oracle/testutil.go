@@ -34,7 +34,7 @@ const (
 )
 
 const (
-	expectedSessionsDefault           = 2
+	expectedSessionsDefault           = 3
 	expectedSessionsWithCustomQueries = 3
 )
 

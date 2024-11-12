@@ -125,7 +125,7 @@ func (bfh *BaseFieldHandlers) ResolveService(ev *model.Event, e *model.BaseEvent
 		return e.Service
 	}
 
-	entry, _ := ev.ResolveProcessCacheEntry()
+	entry, _ := ev.ResolveProcessCacheEntry(nil)
 	if entry == nil {
 		return ""
 	}
