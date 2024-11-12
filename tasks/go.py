@@ -381,8 +381,27 @@ def check_go_mod_replaces(_):
         raise Exit(message=message)
 
 
+def raise_if_errors(errors_found, suggestion_msg=None):
+    if errors_found:
+        message = "\nErrors found:\n" + "\n".join("  - " + error for error in errors_found)
+        if suggestion_msg:
+            message += f"\n\n{suggestion_msg}"
+        raise Exit(message=message)
+
+
+def check_valid_mods(ctx):
+    errors_found = []
+    for mod in DEFAULT_MODULES.values():
+        pattern = os.path.join(mod.full_path(), '*.go')
+        if not glob.glob(pattern):
+            errors_found.append(f"module {mod.import_path} does not contain *.go source files, so it is not a package")
+    raise_if_errors(errors_found)
+    return bool(errors_found)
+
+
 @task
 def check_mod_tidy(ctx, test_folder="testmodule"):
+    check_valid_mods(ctx)
     with generate_dummy_package(ctx, test_folder) as dummy_folder:
         errors_found = []
         for mod in DEFAULT_MODULES.values():
@@ -411,10 +430,7 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
             if os.path.isfile(os.path.join(ctx.cwd, "main")):
                 os.remove(os.path.join(ctx.cwd, "main"))
 
-        if errors_found:
-            message = "\nErrors found:\n" + "\n".join("  - " + error for error in errors_found)
-            message += "\n\nRun 'inv tidy' to fix 'out of sync' errors."
-            raise Exit(message=message)
+        raise_if_errors(errors_found, "Run 'inv tidy' to fix 'out of sync' errors.")
 
 
 @task
