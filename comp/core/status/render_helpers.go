@@ -12,6 +12,7 @@ import (
 	htemplate "html/template"
 	"io"
 	"path"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -38,7 +39,7 @@ var (
 // HTMLFmap return a map of utility functions for HTML templating
 func HTMLFmap() htemplate.FuncMap {
 	htmlFuncOnce.Do(func() {
-		htmlFuncMap = htemplate.FuncMap{
+		htmlFuncMap = funcMapDynTypeChecker(htemplate.FuncMap{
 			"doNotEscape":        doNotEscape,
 			"lastError":          lastError,
 			"configError":        configError,
@@ -60,7 +61,8 @@ func HTMLFmap() htemplate.FuncMap {
 			"lastErrorMessage":   lastErrorMessageHTML,
 			"pythonLoaderError":  pythonLoaderErrorHTML,
 			"status":             statusHTML,
-		}
+			"test":               func() { fmt.Println("hello") },
+		})
 	})
 	return htmlFuncMap
 }
@@ -68,7 +70,7 @@ func HTMLFmap() htemplate.FuncMap {
 // TextFmap map of utility functions for text templating
 func TextFmap() ttemplate.FuncMap {
 	textFuncOnce.Do(func() {
-		textFuncMap = ttemplate.FuncMap{
+		textFuncMap = funcMapDynTypeChecker(ttemplate.FuncMap{
 			"lastErrorTraceback": lastErrorTraceback,
 			"lastErrorMessage":   lastErrorMessage,
 			"printDashes":        PrintDashes,
@@ -87,13 +89,62 @@ func TextFmap() ttemplate.FuncMap {
 			"version":            getVersion,
 			"percent":            func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
 			"complianceResult":   complianceResult,
-		}
+		})
 	})
 
 	return textFuncMap
 }
 
 const timeFormat = "2006-01-02 15:04:05.999 MST"
+
+// funcMapDynTypeChecker takes a map of functions and returns a new map with a dynamic type-checking mechanism.
+// This mechanism ensures that when a type mismatch occurs during the execution of a template with one of the functions
+// from the returned map, an error message is provided instead of causing the template rendering to fail.
+func funcMapDynTypeChecker(funcMap map[string]any) map[string]any {
+	newFuncMap := make(map[string]any)
+
+	for name, function := range funcMap {
+		funcType := reflect.TypeOf(function)
+		originalFunc := reflect.ValueOf(function)
+
+		// Create a slice of input types, all set to interface{}
+		in := make([]reflect.Type, funcType.NumIn())
+		for i := range in {
+			in[i] = reflect.TypeOf(new(interface{})).Elem()
+		}
+
+		out := make([]reflect.Type, 1)
+		out[0] = reflect.TypeOf(new(interface{})).Elem()
+
+		// Create a new function type with the modified input types and original output types
+		newFuncType := reflect.FuncOf(in, out, funcType.IsVariadic())
+
+		newFunc := reflect.MakeFunc(newFuncType, func(args []reflect.Value) (results []reflect.Value) {
+			// Convert input parameters
+			inValues := make([]reflect.Value, len(args))
+
+			var src any
+			var tgt reflect.Type
+
+			for i, v := range args {
+				src = v.Interface()
+				tgt = funcType.In(i)
+
+				if !reflect.TypeOf(src).AssignableTo(tgt) {
+					return []reflect.Value{reflect.ValueOf(fmt.Sprintf("{{CAST_ERROR: unable to cast value of type %T to %s}}", src, tgt))}
+				}
+				inValues[i] = reflect.ValueOf(src)
+			}
+
+			// Call the original function
+			return originalFunc.Call(inValues)
+		}).Interface()
+
+		newFuncMap[name] = newFunc
+	}
+
+	return newFuncMap
+}
 
 // RenderHTML reads, parse and execute template from embed.FS
 func RenderHTML(templateFS embed.FS, template string, buffer io.Writer, data any) error {
@@ -160,7 +211,6 @@ func formatUnixTime(unixTime any) string {
 		if t.Year() == time.Unix(0, 0).Year() {
 			t = time.Unix(value, 0)
 		}
-
 		_, tzoffset := t.Zone()
 		result := t.Format(timeFormat)
 		if tzoffset != 0 {
@@ -218,7 +268,6 @@ func mkHumanDuration(i interface{}, unit string) string {
 	} else {
 		duration = time.Duration(int64(f)) * time.Second
 	}
-
 	return duration.String()
 }
 
