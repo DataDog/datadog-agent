@@ -135,7 +135,7 @@ func addFactories(reqs Requires, factories otelcol.Factories) {
 	}
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger, generateID)
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
-	factories.Extensions[ddextension.Type] = ddextension.NewFactory(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
+	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
 }
 
 var buildInfo = component.BuildInfo{
@@ -194,7 +194,7 @@ func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
 		return Provides{}, err
 	}
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
-	factories.Extensions[ddextension.Type] = ddextension.NewFactory(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
+	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
 
 	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
 	set := otelcol.CollectorSettings{
