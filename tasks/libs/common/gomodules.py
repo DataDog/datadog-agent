@@ -29,7 +29,7 @@ class Configuration:
 
     FILE_NAME: ClassVar[str] = 'modules.yml'
     INFO_COMMENT: ClassVar[str] = """
-# This file contains the configuration of the modules.
+# This file contains the go modules configuration.
 # See {file} for more information.
 """
 

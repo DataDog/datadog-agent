@@ -1,4 +1,4 @@
-# This file contains the configuration of the modules.
+# This file contains the go modules configuration.
 # See tasks/libs/common/gomodules.py for more information.
 
 modules:
