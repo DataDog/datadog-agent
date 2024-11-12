@@ -13,6 +13,8 @@ from typing import ClassVar
 
 import yaml
 
+import tasks
+
 
 class ConfigDumper(yaml.SafeDumper):
     """SafeDumper that ignores aliases. (no references for readability)"""
@@ -81,8 +83,7 @@ class Configuration:
         """Save the configuration to a yaml file at <base_dir/FILE_NAME>."""
 
         with open(self.base_dir / self.FILE_NAME, "w") as file:
-            prefix = os.sep + 'datadog-agent' + os.sep
-            path = __file__[__file__.index(prefix) + len(prefix) :]
+            path = f'tasks/{Path(__file__).relative_to(Path(tasks.__file__).parent).as_posix()}'
             print(self.INFO_COMMENT.format(file=path).strip() + '\n', file=file)
 
             yaml.dump(self.to_dict(), file, Dumper=ConfigDumper)
