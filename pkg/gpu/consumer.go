@@ -210,6 +210,8 @@ func (c *cudaEventConsumer) getStreamKey(header *gpuebpf.CudaEventHeader) stream
 		gpuUUID: "",
 	}
 
+	// Try to get the GPU device if we can, but do not fail if we can't as we want to report
+	// the data even if we can't get the GPU UUID
 	gpuDevice, err := c.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid))
 	if err != nil {
 		log.Warnf("Error getting GPU device for process %d: %v", pid, err)
@@ -230,6 +232,7 @@ func (c *cudaEventConsumer) getStreamHandler(header *gpuebpf.CudaEventHeader) *S
 		cgroup := unix.ByteSliceToString(header.Cgroup[:])
 		containerID, err := cgroups.ContainerFilter("", cgroup)
 		if err != nil {
+			// We don't want to return an error here, as we can still process the event without the container ID
 			log.Errorf("error getting container ID for cgroup %s: %s", cgroup, err)
 		}
 		c.streamHandlers[key] = newStreamHandler(key.pid, containerID, c.sysCtx)
