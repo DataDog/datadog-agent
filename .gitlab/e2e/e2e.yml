@@ -500,7 +500,7 @@ new-e2e-otel-eks-init:
   variables:
     TARGETS: ./tests/otel
     TEAM: otel
-    EXTRA_PARAMS: --run TestOTelAgentIAEKS
+    EXTRA_PARAMS: --run "TestOTelAgentIA(EKS|USTEKS)"
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
 
@@ -519,7 +519,7 @@ new-e2e-otel-eks:
     - new-e2e-otel-eks-init
   variables:
     TARGETS: ./tests/otel
-    EXTRA_PARAMS: --run TestOTelAgentIAEKS
+    EXTRA_PARAMS: --run "TestOTelAgentIA(EKS|USTEKS)"
     TEAM: otel
     E2E_PRE_INITIALIZED: "true"
 
@@ -535,7 +535,7 @@ new-e2e-otel:
     - qa_agent_ot
   variables:
     TARGETS: ./tests/otel
-    EXTRA_PARAMS: --skip TestOTelAgentIAEKS
+    EXTRA_PARAMS: --skip "TestOTelAgentIA(EKS|USTEKS)"
     TEAM: otel
 
 .new-e2e_package_signing:

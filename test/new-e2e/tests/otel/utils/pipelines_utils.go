@@ -612,7 +612,7 @@ func getCalendarAppEnvVars(name string, otlpEndpoint string, ust bool) []corev1.
 		"host.name=$(OTEL_K8S_NODE_NAME)," +
 		fmt.Sprintf("%v=%v", customAttribute, customAttributeValue)
 
-	// Use Universal Service Tagging env vars instead of OTel env vars
+	// Use Unified Service Tagging env vars instead of OTel env vars
 	if ust {
 		return append(envVars, []corev1.EnvVar{{
 			Name:  "DD_SERVICE",

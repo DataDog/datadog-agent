@@ -8,12 +8,10 @@ package infraattributesprocessor
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/processor"
-	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
 	"go.uber.org/zap"
 )
 
@@ -70,20 +68,18 @@ func (iasp *infraAttributesSpanProcessor) processTraces(_ context.Context, td pt
 		}
 		// Add all tags as resource attributes
 		for k, v := range tagMap {
-			// Add OTel semantics for universal service tags which are required in mapping
-			if k == tags.Service {
-				resourceAttributes.PutStr(conventions.AttributeServiceName, v)
+			otelAttr, ust := unifiedServiceTagMap[k]
+			if !ust {
+				resourceAttributes.PutStr(k, v)
 				continue
 			}
-			if k == tags.Env {
-				resourceAttributes.PutStr(conventions.AttributeDeploymentEnvironment, v)
+
+			// Add OTel semantics for unified service tags which are required in mapping
+			_, hasOTelAttr := resourceAttributes.Get(otelAttr)
+			if !hasOTelAttr {
+				resourceAttributes.PutStr(otelAttr, v)
 				continue
 			}
-			if k == tags.Version {
-				resourceAttributes.PutStr(conventions.AttributeServiceVersion, v)
-				continue
-			}
-			resourceAttributes.PutStr(k, v)
 		}
 	}
 	return td, nil
