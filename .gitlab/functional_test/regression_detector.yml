@@ -17,8 +17,9 @@ single-machine-performance-regression_detector:
       - outputs/report.md # for debugging, also on S3
       - outputs/regression_signal.json # for debugging, also on S3
       - outputs/bounds_check_signal.json # for debugging, also on S3
-      - outputs/reporquality_gates_reportt.json # for debugging, also on S3
+      - outputs/quality_gates_report.json # for debugging, also on S3
       - outputs/junit.xml # for debugging, also on S3
+      - outputs/report.json # for debugging, also on S3
     when: always
   variables:
     SMP_VERSION: 0.18.1
@@ -107,8 +108,8 @@ single-machine-performance-regression_detector:
       --comparison-image ${COMPARISON_IMAGE}
       --baseline-sha ${BASELINE_SHA}
       --comparison-sha ${CI_COMMIT_SHA}
-      --replicas 3 # hack smaller experiment
-      --total-samples 90 # hack shorter experiment
+      --replicas 3
+      --total-samples 90
       --target-config-dir test/regression/
       --submission-metadata submission_metadata
     # Wait for job to complete.
@@ -132,7 +133,7 @@ single-machine-performance-regression_detector:
     # uploading JUnit XML, so the upload command below respects that convention.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     - datadog-ci junit upload --service datadog-agent outputs/junit.xml
-        # Run quality gate check script
+      # Run quality gate check script
     - |
       python3 <<'EOF'
       import json
@@ -184,7 +185,7 @@ single-machine-performance-regression_detector-pr-comment:
     - when: on_success
   image:
     name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3"
-    entrypoint: [""]  # disable entrypoint script for the pr-commenter image
+    entrypoint: [""] # disable entrypoint script for the pr-commenter image
   tags: ["arch:amd64"]
   needs:
     - job: single-machine-performance-regression_detector
@@ -192,11 +193,11 @@ single-machine-performance-regression_detector-pr-comment:
     expire_in: 1 weeks
     paths:
       - report_as_json_string.txt # for debugging transform to valid JSON string
-      - pr_comment_payload.json  # for debugging PR commenter JSON payload bugs
+      - pr_comment_payload.json # for debugging PR commenter JSON payload bugs
   variables:
     # Not using the entrypoint script for the pr-commenter image
     FF_KUBERNETES_HONOR_ENTRYPOINT: false
-  allow_failure: true  # allow_failure here should have same setting as in job above
+  allow_failure: true # allow_failure here should have same setting as in job above
   script: # ignore error message about no PR, because it happens for dev branches without PRs
     # Prevent posting empty Regression Detector report if Markdown report is not found or
     # has zero size.
