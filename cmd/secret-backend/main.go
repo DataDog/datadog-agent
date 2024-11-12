@@ -45,26 +45,19 @@ func init() {
 	log.Logger = zerolog.New(output).With().Timestamp().Logger()
 }
 
-func printVersion() {
-	fmt.Fprintf(os.Stdout, "%s: v%s\n\nRapDev (https://www.rapdev.io) (c) 2021\n",
-		filepath.Base(os.Args[0]), appVersion)
-	os.Exit(0)
-}
-
 func main() {
 	program, _ := os.Executable()
 	programPath := filepath.Dir(program)
 	defaultConfigFile := filepath.Join(programPath, "datadog-secret-backend.yaml")
 
-	version := flag.Bool("version", false,
-		fmt.Sprintf("Displays version and information of %s", filepath.Base(program)),
-	)
+	version := flag.Bool("version", false, fmt.Sprintf("Print the version info"))
 	configFile := flag.String("config", defaultConfigFile, "Path to backend configuration yaml")
 
 	flag.Parse()
 
 	if *version {
-		printVersion()
+		fmt.Fprintf(os.Stdout, "%s v%s\n", filepath.Base(program), appVersion)
+		os.Exit(0)
 	}
 
 	input, err := ioutil.ReadAll(os.Stdin)
