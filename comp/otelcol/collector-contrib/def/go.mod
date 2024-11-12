@@ -2,7 +2,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def
 
 go 1.22.0
 
-require go.opentelemetry.io/collector/otelcol v0.111.0
+require go.opentelemetry.io/collector/otelcol v0.113.0
 
 require (
 	go.opentelemetry.io/collector/connector/connectortest v0.113.0 // indirect
