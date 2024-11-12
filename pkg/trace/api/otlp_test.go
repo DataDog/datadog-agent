@@ -1305,6 +1305,7 @@ func TestResourceRelatedSpanAttributesAreIgnored_ReceiveResourceSpansV2(t *testi
 		"k8s.pod.id":                  "do-not-use",
 		"deployment.environment.name": "do-not-use",
 		"service.name":                "do-not-use",
+		"service.version":             "do-not-use",
 	}
 	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
@@ -1324,6 +1325,7 @@ func TestResourceRelatedSpanAttributesAreIgnored_ReceiveResourceSpansV2(t *testi
 		assert.Empty(t, p.TracerPayload.ContainerID)
 		assert.Empty(t, p.TracerPayload.Env)
 		assert.Equal(t, "otlpresourcenoservicename", span.Service)
+		assert.Empty(t, span.Meta["version"])
 	}
 }
 
