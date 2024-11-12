@@ -535,11 +535,7 @@ func (s *CoreAgentService) Start() {
 func startWithAgentPollLoop(s *CoreAgentService) {
 	err := s.refresh()
 	if err != nil {
-		if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled && s.previousOrgStatus.Authorized {
-			log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
-		} else {
-			log.Debugf("[%s] Could not refresh Remote Config (org is disabled or key is not authorized): %v", s.rcType, err)
-		}
+		logRefreshError(s, err)
 	}
 
 	for {
