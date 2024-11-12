@@ -1049,3 +1049,55 @@ def create_qa_cards(ctx, tag):
         return
     setup_ddqa(ctx)
     ctx.run(f"ddqa --auto create {version.previous_rc_version()} {tag} {get_labels(version)}")
+
+
+@task
+def create_github_release(_ctx, version, draft=True):
+    """
+    Create a GitHub release for the given tag.
+    """
+    import pandoc
+
+    sections = (
+        ("Agent", "CHANGELOG.rst"),
+        ("Datadog Cluster Agent", "CHANGELOG-DCA.rst"),
+    )
+
+    notes = []
+
+    for section, filename in sections:
+        text = pandoc.write(pandoc.read(file=filename), format="markdown_strict", options=["--wrap=none"])
+
+        header_found = False
+        lines = []
+
+        # Extract the section for the given version
+        for line in text.splitlines():
+            # Move to the right section
+            if line.startswith("## " + version):
+                header_found = True
+                continue
+
+            if header_found:
+                # Next version found, stop
+                if line.startswith("## "):
+                    break
+                lines.append(line)
+
+        # if we found the header, add the section to the final release note
+        if header_found:
+            notes.append(f"# {section}")
+            notes.extend(lines)
+
+    if not notes:
+        print(f"No release notes found for {version}")
+        raise Exit(code=1)
+
+    github = GithubAPI()
+    release = github.create_release(
+        version,
+        "\n".join(notes),
+        draft=draft,
+    )
+
+    print(f"Link to the release note: {release.html_url}")

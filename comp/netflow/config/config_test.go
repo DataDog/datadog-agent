@@ -6,7 +6,6 @@
 package config
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +13,7 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
@@ -216,9 +216,7 @@ network_devices:
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkgconfigsetup.Datadog().SetConfigType("yaml")
-			err := pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(tt.configYaml))
-			require.NoError(t, err)
+			configmock.NewFromYAML(t, tt.configYaml)
 
 			readConfig, err := ReadConfig(pkgconfigsetup.Datadog(), logger)
 			if tt.expectedError != "" {

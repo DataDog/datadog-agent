@@ -71,12 +71,15 @@ type StructField struct {
 	GettersOnly      bool
 	Ref              string
 	RestrictedTo     []string
+	IsIterator       bool
 }
 
 // GetEvaluatorType returns the evaluator type name
 func (sf *StructField) GetEvaluatorType() string {
 	var evaluatorType string
-	if sf.ReturnType == "int" {
+	if sf.IsLength && sf.IsIterator {
+		evaluatorType = "eval.IntEvaluator"
+	} else if sf.ReturnType == "int" {
 		evaluatorType = "eval.IntEvaluator"
 		if sf.Iterator != nil || sf.IsArray {
 			evaluatorType = "eval.IntArrayEvaluator"

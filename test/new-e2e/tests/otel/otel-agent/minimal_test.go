@@ -26,6 +26,15 @@ type minimalTestSuite struct {
 //go:embed config/minimal.yml
 var minimalConfig string
 
+//go:embed testdata/minimal-provided-config.yml
+var minimalProvidedConfig string
+
+//go:embed testdata/minimal-full-config.yml
+var minimalFullConfig string
+
+//go:embed testdata/minimal-sources.json
+var minimalSources string
+
 func TestOTelAgentMinimal(t *testing.T) {
 	values := `
 datadog:
@@ -72,6 +81,14 @@ func (s *minimalTestSuite) TestOTelAgentInstalled() {
 	utils.TestOTelAgentInstalled(s)
 }
 
-func (s *minimalTestSuite) TestOTelFlare() {
-	utils.TestOTelFlare(s)
+func (s *minimalTestSuite) TestOTelFlareExtensionResponse() {
+	utils.TestOTelFlareExtensionResponse(s, minimalProvidedConfig, minimalFullConfig, minimalSources)
+}
+
+func (s *minimalTestSuite) TestOTelFlareFiles() {
+	utils.TestOTelFlareFiles(s)
+}
+
+func (s *minimalTestSuite) TestOTelRemoteConfigPayload() {
+	utils.TestOTelRemoteConfigPayload(s, minimalProvidedConfig, minimalFullConfig)
 }

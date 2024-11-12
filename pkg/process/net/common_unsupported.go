@@ -83,6 +83,15 @@ func (r *RemoteSysProbeUtil) GetPprof(_ string) ([]byte, error) {
 // GetTelemetry is not supported
 func (r *RemoteSysProbeUtil) GetTelemetry() ([]byte, error) { return nil, ErrNotImplemented }
 
+// GetConnTrackCached is not supported
+func (r *RemoteSysProbeUtil) GetConnTrackCached() ([]byte, error) { return nil, ErrNotImplemented }
+
+// GetConnTrackHost is not supported
+func (r *RemoteSysProbeUtil) GetConnTrackHost() ([]byte, error) { return nil, ErrNotImplemented }
+
+// GetBTFLoaderInfo is not supported
+func (r *RemoteSysProbeUtil) GetBTFLoaderInfo() ([]byte, error) { return nil, ErrNotImplemented }
+
 func (r *RemoteSysProbeUtil) GetDiscoveryServices() (*discoverymodel.ServicesResponse, error) {
 	return nil, ErrNotImplemented
 }

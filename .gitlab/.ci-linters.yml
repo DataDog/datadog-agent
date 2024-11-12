@@ -109,7 +109,6 @@ job-owners:
     - trace-agent-v05-2cpus-normal_load-fixed_sps
     - trace-agent-v05-2cpus-stress_load-fixed_sps
     - trigger-flakes-finder
-    - unit_tests_arm64_junit_upload
     - unit_tests_notify
     - update_rc_build_links
     - validate_modules

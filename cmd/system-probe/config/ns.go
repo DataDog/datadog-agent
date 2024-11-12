@@ -9,64 +9,70 @@ import "strings"
 
 // spNS adds `system_probe_config` namespace to configuration key
 func spNS(k ...string) string {
-	return nskey("system_probe_config", k...)
+	return NSkey("system_probe_config", k...)
 }
 
 // netNS adds `network_config` namespace to configuration key
 func netNS(k ...string) string {
-	return nskey("network_config", k...)
+	return NSkey("network_config", k...)
 }
 
 // smNS adds `service_monitoring_config` namespace to configuration key
 func smNS(k ...string) string {
-	return nskey("service_monitoring_config", k...)
+	return NSkey("service_monitoring_config", k...)
 }
 
 // ccmNS adds `ccm_network_config` namespace to a configuration key
 func ccmNS(k ...string) string {
-	return nskey("ccm_network_config", k...)
+	return NSkey("ccm_network_config", k...)
 }
 
 // diNS adds `dynamic_instrumentation` namespace to configuration key
 func diNS(k ...string) string {
-	return nskey("dynamic_instrumentation", k...)
+	return NSkey("dynamic_instrumentation", k...)
 }
 
 // secNS adds `runtime_security_config` namespace to configuration key
 func secNS(k ...string) string {
-	return nskey("runtime_security_config", k...)
+	return NSkey("runtime_security_config", k...)
 }
 
 // evNS adds `event_monitoring_config` namespace to configuration key
 func evNS(k ...string) string {
-	return nskey("event_monitoring_config", k...)
+	return NSkey("event_monitoring_config", k...)
 }
 
-func nskey(ns string, pieces ...string) string {
+// NSkey returns a full key path in the config file by joining the given namespace and the rest of the path fragments
+func NSkey(ns string, pieces ...string) string {
 	return strings.Join(append([]string{ns}, pieces...), ".")
+}
+
+// FullKeyPath returns a full key path in the config file by joining multiple path fragments
+func FullKeyPath(pieces ...string) string {
+	return strings.Join(pieces, ".")
 }
 
 // wcdNS addes 'windows_crash_detection' namespace to config key
 func wcdNS(k ...string) string {
-	return nskey("windows_crash_detection", k...)
+	return NSkey("windows_crash_detection", k...)
 }
 
 // pngNS adds `ping` namespace to config key
 func pngNS(k ...string) string {
-	return nskey("ping", k...)
+	return NSkey("ping", k...)
 }
 
 // tracerouteNS adds `traceroute` namespace to config key
 func tracerouteNS(k ...string) string {
-	return nskey("traceroute", k...)
+	return NSkey("traceroute", k...)
 }
 
 // discoveryNS adds `discovery` namespace to config key
 func discoveryNS(k ...string) string {
-	return nskey("discovery", k...)
+	return NSkey("discovery", k...)
 }
 
 // gpuNS adds `gpu_monitoring` namespace to config key
 func gpuNS(k ...string) string {
-	return nskey("gpu_monitoring", k...)
+	return NSkey("gpu_monitoring", k...)
 }

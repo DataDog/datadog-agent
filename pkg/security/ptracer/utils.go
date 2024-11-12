@@ -132,7 +132,7 @@ func simpleHTTPRequest(uri string) ([]byte, error) {
 		path = "/"
 	}
 
-	req := fmt.Sprintf("GET %s?%s HTTP/1.1\nHost: %s\nConnection: close\n\n", path, u.RawQuery, u.Hostname())
+	req := fmt.Sprintf("GET %s?%s HTTP/1.0\nHost: %s\nConnection: close\n\n", path, u.RawQuery, u.Hostname())
 
 	_, err = client.Write([]byte(req))
 	if err != nil {

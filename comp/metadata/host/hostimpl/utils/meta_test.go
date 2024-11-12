@@ -18,7 +18,7 @@ func TestGetMeta(t *testing.T) {
 	ctx := context.Background()
 	cfg := config.NewMock(t)
 
-	meta := GetMeta(ctx, cfg)
+	meta := getMeta(ctx, cfg)
 	assert.NotEmpty(t, meta.SocketHostname)
 	assert.NotEmpty(t, meta.Timezones)
 	assert.NotEmpty(t, meta.SocketFqdn)

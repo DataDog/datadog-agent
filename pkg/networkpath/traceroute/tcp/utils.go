@@ -54,7 +54,7 @@ type (
 	tcpResponse struct {
 		SrcIP       net.IP
 		DstIP       net.IP
-		TCPResponse *layers.TCP
+		TCPResponse layers.TCP
 	}
 
 	rawConnWrapper interface {
@@ -194,25 +194,37 @@ func parseICMP(header *ipv4.Header, payload []byte) (*icmpResponse, error) {
 	return &icmpResponse, nil
 }
 
-func parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, error) {
-	tcpResponse := tcpResponse{}
+type tcpParser struct {
+	layer               layers.TCP
+	decoded             []gopacket.LayerType
+	decodingLayerParser *gopacket.DecodingLayerParser
+}
 
+func newTCPParser() *tcpParser {
+	tcpParser := &tcpParser{}
+	tcpParser.decodingLayerParser = gopacket.NewDecodingLayerParser(layers.LayerTypeTCP, &tcpParser.layer)
+	return tcpParser
+}
+
+func (tp *tcpParser) parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, error) {
 	if header.Protocol != IPProtoTCP || header.Version != 4 ||
 		header.Src == nil || header.Dst == nil {
 		return nil, fmt.Errorf("invalid IP header for TCP packet: %+v", header)
 	}
-	tcpResponse.SrcIP = header.Src
-	tcpResponse.DstIP = header.Dst
 
-	var tcpLayer layers.TCP
-	decoded := []gopacket.LayerType{}
-	tcpParser := gopacket.NewDecodingLayerParser(layers.LayerTypeTCP, &tcpLayer)
-	if err := tcpParser.DecodeLayers(payload, &decoded); err != nil {
+	if err := tp.decodingLayerParser.DecodeLayers(payload, &tp.decoded); err != nil {
 		return nil, fmt.Errorf("failed to decode TCP packet: %w", err)
 	}
-	tcpResponse.TCPResponse = &tcpLayer
 
-	return &tcpResponse, nil
+	resp := &tcpResponse{
+		SrcIP:       header.Src,
+		DstIP:       header.Dst,
+		TCPResponse: tp.layer,
+	}
+	// make sure the TCP layer is cleared between runs
+	tp.layer = layers.TCP{}
+
+	return resp, nil
 }
 
 func icmpMatch(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, response *icmpResponse) bool {

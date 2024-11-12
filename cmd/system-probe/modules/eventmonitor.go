@@ -8,10 +8,13 @@
 package modules
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
+	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	netconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	procconsumer "github.com/DataDog/datadog-agent/pkg/process/events/consumer"
@@ -32,6 +35,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	}
 
 	opts := eventmonitor.Opts{}
+	opts.ProbeOpts.EnvsVarResolutionEnabled = emconfig.EnvVarsResolutionEnabled
 	secmoduleOpts := secmodule.Opts{}
 
 	// adapt options
@@ -87,6 +91,14 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		if procmonconsumer != nil {
 			evm.RegisterEventConsumer(procmonconsumer)
 			log.Info("USM process monitoring consumer initialized")
+		}
+	}
+
+	gpucfg := gpuconfig.New()
+	if gpucfg.Enabled {
+		err := createGPUProcessEventConsumer(evm)
+		if err != nil {
+			return nil, fmt.Errorf("cannot create event consumer for GPU: %w", err)
 		}
 	}
 
