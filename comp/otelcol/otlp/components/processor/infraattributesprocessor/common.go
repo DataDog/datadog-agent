@@ -16,10 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
-var unifiedServiceTagMap = map[string]string{
-	tags.Service: conventions.AttributeServiceName,
-	tags.Env:     conventions.AttributeDeploymentEnvironment,
-	tags.Version: conventions.AttributeServiceVersion,
+var unifiedServiceTagMap = map[string][]string{
+	tags.Service: {conventions.AttributeServiceName},
+	tags.Env:     {conventions.AttributeDeploymentEnvironment, "deployment.environment.name"},
+	tags.Version: {conventions.AttributeServiceVersion},
 }
 
 // GenerateKubeMetadataEntityID is a function that generates an entity ID for a Kubernetes resource.

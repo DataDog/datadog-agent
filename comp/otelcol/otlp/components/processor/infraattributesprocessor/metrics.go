@@ -68,17 +68,22 @@ func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md
 
 		// Add all tags as resource attributes
 		for k, v := range tagMap {
-			otelAttr, ust := unifiedServiceTagMap[k]
+			otelAttrs, ust := unifiedServiceTagMap[k]
 			if !ust {
 				resourceAttributes.PutStr(k, v)
 				continue
 			}
 
 			// Add OTel semantics for unified service tags which are required in mapping
-			_, hasOTelAttr := resourceAttributes.Get(otelAttr)
+			hasOTelAttr := false
+			for _, otelAttr := range otelAttrs {
+				if _, ok := resourceAttributes.Get(otelAttr); ok {
+					hasOTelAttr = true
+					break
+				}
+			}
 			if !hasOTelAttr {
-				resourceAttributes.PutStr(otelAttr, v)
-				continue
+				resourceAttributes.PutStr(otelAttrs[0], v)
 			}
 		}
 	}
