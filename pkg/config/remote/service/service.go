@@ -202,7 +202,6 @@ type CoreAgentService struct {
 	agentVersion string
 
 	disableConfigPollLoop bool
-	forceCacheBypass      bool
 }
 
 // uptaneClient provides functions to get TUF/uptane repo data.
@@ -260,7 +259,6 @@ type options struct {
 	maxBackoff                     time.Duration
 	clientTTL                      time.Duration
 	disableConfigPollLoop          bool
-	forceCacheBypass               bool
 }
 
 var defaultOptions = options{
@@ -277,7 +275,6 @@ var defaultOptions = options{
 	maxBackoff:                     minimalMaxBackoffTime,
 	clientTTL:                      defaultClientsTTL,
 	disableConfigPollLoop:          false,
-	forceCacheBypass:               false,
 }
 
 // Option is a service option
@@ -394,13 +391,6 @@ func WithAgentPollLoopDisabled() func(s *options) {
 	}
 }
 
-// WithForceCacheBypass forces a cache bypass on every request
-func WithForceCacheBypass() func(s *options) {
-	return func(s *options) {
-		s.forceCacheBypass = true
-	}
-}
-
 // NewService instantiates a new remote configuration management service
 func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGetter func() []string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...Option) (*CoreAgentService, error) {
 	options := defaultOptions
@@ -504,7 +494,6 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		stopOrgPoller:         make(chan struct{}),
 		stopConfigPoller:      make(chan struct{}),
 		disableConfigPollLoop: options.disableConfigPollLoop,
-		forceCacheBypass:      options.forceCacheBypass,
 	}, nil
 }
 
@@ -582,13 +571,14 @@ func startWithoutAgentPollLoop(s *CoreAgentService) {
 	for {
 		var err error
 		response := <-s.cacheBypassClients.requests
-		if s.forceCacheBypass || !s.cacheBypassClients.Limit() {
+		if !s.cacheBypassClients.Limit() {
 			err = s.refresh()
 		} else {
+			err = errors.New("cache bypass limit exceeded")
+			s.lastUpdateErr = err
 			s.telemetryReporter.IncRateLimit()
 		}
 		close(response)
-
 		if err != nil {
 			logRefreshError(s, err)
 		}
@@ -825,6 +815,9 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		}
 
 		s.Lock()
+	}
+	if s.disableConfigPollLoop && s.lastUpdateErr != nil {
+		return nil, s.lastUpdateErr
 	}
 
 	s.clients.seen(request.Client)

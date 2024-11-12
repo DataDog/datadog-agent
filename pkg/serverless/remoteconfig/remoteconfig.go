@@ -37,7 +37,7 @@ func StartRCService(functionARN string) *remoteconfig.CoreAgentService {
 			remoteconfig.WithDirectorRootOverride(config.GetString("site"), config.GetString("remote_configuration.director_root")),
 			remoteconfig.WithRcKey(config.GetString("remote_configuration.key")),
 			remoteconfig.WithAgentPollLoopDisabled(),
-			remoteconfig.WithForceCacheBypass(),
+			remoteconfig.WithClientCacheBypassLimit(10, "remote_configuration.clients.cache_bypass_limit"),
 		}
 
 		if config.IsSet("remote_configuration.refresh_interval") {
@@ -48,9 +48,6 @@ func StartRCService(functionARN string) *remoteconfig.CoreAgentService {
 		}
 		if config.IsSet("remote_configuration.clients.ttl_seconds") {
 			options = append(options, remoteconfig.WithClientTTL(config.GetDuration("remote_configuration.clients.ttl_seconds"), "remote_configuration.clients.ttl_seconds"))
-		}
-		if config.IsSet("remote_configuration.clients.cache_bypass_limit") {
-			options = append(options, remoteconfig.WithClientCacheBypassLimit(config.GetInt("remote_configuration.clients.cache_bypass_limit"), "remote_configuration.clients.cache_bypass_limit"))
 		}
 
 		commonOpts := telemetry.Options{NoDoubleUnderscoreSep: true}
