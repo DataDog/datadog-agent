@@ -3,15 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build zlib && !zstd
+//go:build zlib && zstd
 
-// Package compressionimpl provides a set of functions for compressing with zlib / zstd
+// Package fx provides the fx module for the serializer/compression component
 package fx
 
 import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
-	strategy_noop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
-	strategy_zlib "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-zlib"
+	implnoop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
+	implzlib "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-zlib"
+	implzstd "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-zstd"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -28,19 +29,19 @@ func Module() fxutil.Module {
 }
 
 // NewCompressor returns a new Compressor based on serializer_compressor_kind
-// This function is called only when the zlib build tag is included
+// This function is called when both zlib and zstd build tags are included
 func NewCompressor(cfg config.Component) compression.Component {
 	switch cfg.GetString("serializer_compressor_kind") {
 	case common.ZlibKind:
-		return strategy_zlib.NewZlibStrategy()
+		return implzlib.NewZlibStrategy()
 	case common.ZstdKind:
-		log.Warn("zstd build tag not included. using zlib")
-		return strategy_zlib.NewZlibStrategy()
+		level := cfg.GetInt("serializer_zstd_compressor_level")
+		return implzstd.NewZstdStrategy(level)
 	case common.NoneKind:
 		log.Warn("no serializer_compressor_kind set. use zlib or zstd")
-		return strategy_noop.NewNoopStrategy()
+		return implnoop.NewNoopStrategy()
 	default:
-		log.Warn("invalid serializer_compressor_kind detected. use zlib or zstd")
-		return strategy_noop.NewNoopStrategy()
+		log.Warn("invalid serializer_compressor_kind detected. use one of 'zlib', 'zstd'")
+		return implnoop.NewNoopStrategy()
 	}
 }
