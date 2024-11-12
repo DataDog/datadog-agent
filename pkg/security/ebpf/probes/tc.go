@@ -16,7 +16,7 @@ import (
 )
 
 // GetTCProbes returns the list of TCProbes
-func GetTCProbes(withNetworkIngress bool) []*manager.Probe {
+func GetTCProbes(withNetworkIngress bool, withRawPacket bool) []*manager.Probe {
 	out := []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -27,7 +27,10 @@ func GetTCProbes(withNetworkIngress bool) []*manager.Probe {
 			TCFilterProtocol: unix.ETH_P_ALL,
 			KeepProgramSpec:  true,
 		},
-		{
+	}
+
+	if withRawPacket {
+		out = append(out, &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
 				EBPFFuncName: "classifier_raw_packet_egress",
@@ -35,7 +38,7 @@ func GetTCProbes(withNetworkIngress bool) []*manager.Probe {
 			NetworkDirection: manager.Egress,
 			TCFilterProtocol: unix.ETH_P_ALL,
 			KeepProgramSpec:  true,
-		},
+		})
 	}
 
 	if withNetworkIngress {
@@ -48,15 +51,18 @@ func GetTCProbes(withNetworkIngress bool) []*manager.Probe {
 			TCFilterProtocol: unix.ETH_P_ALL,
 			KeepProgramSpec:  true,
 		})
-		out = append(out, &manager.Probe{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFFuncName: "classifier_raw_packet_ingress",
-			},
-			NetworkDirection: manager.Ingress,
-			TCFilterProtocol: unix.ETH_P_ALL,
-			KeepProgramSpec:  true,
-		})
+
+		if withRawPacket {
+			out = append(out, &manager.Probe{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					UID:          SecurityAgentUID,
+					EBPFFuncName: "classifier_raw_packet_ingress",
+				},
+				NetworkDirection: manager.Ingress,
+				TCFilterProtocol: unix.ETH_P_ALL,
+				KeepProgramSpec:  true,
+			})
+		}
 	}
 
 	return out
@@ -94,7 +100,7 @@ func GetAllTCProgramFunctions() []string {
 		"classifier_raw_packet",
 	}
 
-	for _, tcProbe := range GetTCProbes(true) {
+	for _, tcProbe := range GetTCProbes(true, true) {
 		output = append(output, tcProbe.EBPFFuncName)
 	}
 
