@@ -1300,11 +1300,11 @@ func TestResourceRelatedSpanAttributesAreIgnored_ReceiveResourceSpansV2(t *testi
 	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	rattr := map[string]interface{}{}
 	sattr := map[string]interface{}{
-		"datadog.host.name": "do-not-use",
-		"container.id":      "do-not-use",
-		"k8s.pod.id":        "do-not-use",
-		"env":               "do-not-use",
-		"service.name":      "do-not-use",
+		"datadog.host.name":           "do-not-use",
+		"container.id":                "do-not-use",
+		"k8s.pod.id":                  "do-not-use",
+		"deployment.environment.name": "do-not-use",
+		"service.name":                "do-not-use",
 	}
 	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
@@ -2240,11 +2240,11 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				End:        now + 200000000,
 				StatusCode: ptrace.StatusCodeError,
 				Attributes: map[string]interface{}{
-					"datadog.host.name": "do-not-use",
-					"env":               "do-not-use",
-					"service.name":      "do-not-use",
-					"container.id":      "do-not-use",
-					"k8s.pod.uid":       "do-not-use",
+					"datadog.host.name":           "do-not-use",
+					"deployment.environment.name": "do-not-use",
+					"service.name":                "do-not-use",
+					"container.id":                "do-not-use",
+					"k8s.pod.uid":                 "do-not-use",
 				},
 			}),
 			operationNameV1: "ddtracer.unspecified",
@@ -2260,15 +2260,15 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				Duration: 200000000,
 				Error:    1,
 				Meta: map[string]string{
-					"container.id":         "do-not-use",
-					"env":                  "do-not-use",
-					"k8s.pod.uid":          "do-not-use",
-					"datadog.host.name":    "do-not-use",
-					"otel.library.name":    "ddtracer",
-					"otel.library.version": "v2",
-					"otel.status_code":     "Error",
-					"otel.trace_id":        "72df520af2bde7a5240031ead750e5f3",
-					"span.kind":            "unspecified",
+					"container.id":                "do-not-use",
+					"deployment.environment.name": "do-not-use",
+					"k8s.pod.uid":                 "do-not-use",
+					"datadog.host.name":           "do-not-use",
+					"otel.library.name":           "ddtracer",
+					"otel.library.version":        "v2",
+					"otel.status_code":            "Error",
+					"otel.trace_id":               "72df520af2bde7a5240031ead750e5f3",
+					"span.kind":                   "unspecified",
 				},
 				Type: "custom",
 			},
