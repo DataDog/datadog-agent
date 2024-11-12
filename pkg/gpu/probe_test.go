@@ -151,11 +151,6 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 func (s *probeTestSuite) TestMultiGPUSupport() {
 	t := s.T()
 
-	procMon := monitor.GetProcessMonitor()
-	require.NotNil(t, procMon)
-	require.NoError(t, procMon.Initialize(false))
-	t.Cleanup(procMon.Stop)
-
 	probe := s.getProbe()
 
 	sampleArgs := testutil.SampleArgs{
@@ -167,9 +162,12 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	// Visible devices 1,2 -> selects 1 in that array -> global device index = 2
 	selectedGPU := testutil.GPUUUIDs[2]
 
-	cmd, err := testutil.RunSampleWithArgs(t, testutil.CudaSample, sampleArgs)
-	require.NoError(t, err)
+	procMon := monitor.GetProcessMonitor()
+	require.NotNil(t, procMon)
+	require.NoError(t, procMon.Initialize(false))
+	t.Cleanup(procMon.Stop)
 
+	cmd := testutil.RunSampleWithArgs(t, testutil.CudaSample, sampleArgs)
 	utils.WaitForProgramsToBeTraced(t, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
 
 	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
@@ -177,7 +175,6 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	require.Eventually(t, func() bool {
 		return !utils.IsProgramTraced(gpuAttacherName, cmd.Process.Pid)
 	}, 60*time.Second, 500*time.Millisecond, "process not stopped")
-	require.NoError(t, err)
 
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
@@ -223,12 +220,13 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	}
 
 	stats, err := probe.GetAndFlush()
+	key := model.Key{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID}
 	require.NoError(t, err)
 	require.NotNil(t, stats)
-	require.NotEmpty(t, stats.ProcessStats)
-	require.Contains(t, stats.ProcessStats, uint32(pid))
+	require.NotEmpty(t, stats.MetricsMap)
+	require.Contains(t, stats.MetricsMap, key)
 
-	pidStats := stats.ProcessStats[uint32(pid)]
+	pidStats := stats.MetricsMap[key]
 	require.Greater(t, pidStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
 }
