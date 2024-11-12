@@ -33,9 +33,8 @@ func newDefaultConfig() component.Config {
 		Metrics: MetricsConfig{
 			DeltaTTL: 3600,
 			ExporterConfig: MetricsExporterConfig{
-				ResourceAttributesAsTags:             false,
-				InstrumentationLibraryMetadataAsTags: false,
-				InstrumentationScopeMetadataAsTags:   false,
+				ResourceAttributesAsTags:           false,
+				InstrumentationScopeMetadataAsTags: false,
 			},
 			TagCardinality: "low",
 			HistConfig: HistogramConfig{
@@ -114,14 +113,6 @@ func translatorFromConfig(
 	switch cfg.Metrics.SummaryConfig.Mode {
 	case SummaryModeGauges:
 		options = append(options, metrics.WithQuantiles())
-	}
-
-	if cfg.Metrics.ExporterConfig.InstrumentationLibraryMetadataAsTags && cfg.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags {
-		return nil, fmt.Errorf("cannot use both instrumentation_library_metadata_as_tags(deprecated) and instrumentation_scope_metadata_as_tags")
-	}
-
-	if cfg.Metrics.ExporterConfig.InstrumentationLibraryMetadataAsTags {
-		options = append(options, metrics.WithInstrumentationLibraryMetadataAsTags())
 	}
 
 	if cfg.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags {

@@ -71,8 +71,6 @@ func TestCreateWebhookV1beta1(t *testing.T) {
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	c := f.run(stopCh)
-	c.config.validationEnabled = true
-	c.config.mutationEnabled = true
 
 	var validatingWebhookConfiguration *admiv1beta1.ValidatingWebhookConfiguration
 	require.Eventually(t, func() bool {
@@ -140,8 +138,6 @@ func TestUpdateOutdatedWebhookV1beta1(t *testing.T) {
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	c := f.run(stopCh)
-	c.config.validationEnabled = true
-	c.config.mutationEnabled = true
 
 	var newValidatingWebhookConfiguration *admiv1beta1.ValidatingWebhookConfiguration
 	require.Eventually(t, func() bool {

@@ -88,3 +88,7 @@ func (s *minimalTestSuite) TestOTelFlareExtensionResponse() {
 func (s *minimalTestSuite) TestOTelFlareFiles() {
 	utils.TestOTelFlareFiles(s)
 }
+
+func (s *minimalTestSuite) TestOTelRemoteConfigPayload() {
+	utils.TestOTelRemoteConfigPayload(s, minimalProvidedConfig, minimalFullConfig)
+}
