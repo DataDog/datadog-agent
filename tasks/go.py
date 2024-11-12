@@ -587,7 +587,7 @@ def create_module(ctx, path: str, no_verify: bool = False):
         modules.modules[path] = GoModule(path, independent=True)
         modules.to_file()
         print(
-            f'{color_message("NOTE", "blue")}: A {path}/module.yml file has been created to mark the module as independent, you can modify this file to change the module configuration.'
+            f'{color_message("NOTE", "blue")}: The modules.yml file has been updated to mark the module as independent, you can modify this file to change the module configuration.'
         )
 
         if not is_empty:
