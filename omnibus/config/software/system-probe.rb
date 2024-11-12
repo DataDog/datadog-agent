@@ -5,6 +5,8 @@
 
 name 'system-probe'
 
+require './lib/project_helpers.rb'
+
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
@@ -21,7 +23,7 @@ build do
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf"
   mkdir "#{install_dir}/embedded/share/system-probe/java"
 
-  if ENV.has_key?('SYSTEM_PROBE_BIN') and not ENV['SYSTEM_PROBE_BIN'].empty?
+  if sysprobe_enabled?
     arch = `uname -m`.strip
     if arch == "aarch64"
       arch = "arm64"
