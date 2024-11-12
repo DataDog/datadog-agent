@@ -18,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
 
-	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
