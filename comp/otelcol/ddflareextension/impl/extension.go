@@ -185,7 +185,12 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		err       error
 		envconfig string
 	)
-	providedConfig, _ := ext.configStore.getProvidedConf()
+	providedConfig, err := ext.configStore.getProvidedConf()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "Unable to get provided config\n")
+		return
+	}
 	if providedConfig != nil {
 		customer, err = ext.configStore.getProvidedConfAsString()
 		if err != nil {

@@ -54,8 +54,7 @@ func (f *ddExtensionFactory) CreateExtension(ctx context.Context, set extension.
 		configProviderSettings: f.configProviderSettings,
 	}
 	config.HTTPConfig = cfg.(*Config).HTTPConfig
-	providedConfigSupported := !f.isOCB()
-	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, providedConfigSupported)
+	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, !f.isOCB())
 }
 
 // Create creates a new instance of the Datadog Flare Extension, as of v0.112.0 or later
@@ -65,8 +64,7 @@ func (f *ddExtensionFactory) Create(ctx context.Context, set extension.Settings,
 		configProviderSettings: f.configProviderSettings,
 	}
 	config.HTTPConfig = cfg.(*Config).HTTPConfig
-	providedConfigSupported := !f.isOCB()
-	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, providedConfigSupported)
+	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, !f.isOCB())
 }
 
 func (f *ddExtensionFactory) CreateDefaultConfig() component.Config {
