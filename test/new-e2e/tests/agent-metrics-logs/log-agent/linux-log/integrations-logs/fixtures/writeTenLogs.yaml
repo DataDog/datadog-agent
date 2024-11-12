@@ -1,0 +1,8 @@
+init_config:
+instances:
+  - min_collection_interval: 1000
+
+logs:
+  - type: integration
+    source: my_source
+    service: my_service
