@@ -62,7 +62,7 @@ const (
 	DefaultBatchMaxConcurrentSend = 0
 
 	// DefaultBatchMaxSize is the default HTTP batch max size (maximum number of events in a single batch) for logs
-	DefaultBatchMaxSize = 1000
+	DefaultBatchMaxSize = 3000
 
 	// DefaultInputChanSize is the default input chan size for events
 	DefaultInputChanSize = 100
