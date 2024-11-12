@@ -27,7 +27,6 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
-	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -77,6 +76,9 @@ type ProbeDependencies struct {
 
 	// NvmlLib is the NVML library interface
 	NvmlLib nvml.Interface
+
+	// ProcessMonitor is the process monitor interface
+	ProcessMonitor uprobes.ProcessMonitor
 }
 
 // Probe represents the GPU monitoring probe
@@ -88,7 +90,6 @@ type Probe struct {
 	statsGenerator *statsGenerator
 	deps           ProbeDependencies
 	sysCtx         *systemContext
-	procMon        *monitor.ProcessMonitor
 	eventHandler   ddebpf.EventHandler
 }
 
@@ -106,22 +107,15 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	}
 
 	attachCfg := getAttacherConfig(cfg)
-	// Note: this will later be replaced by a common way to enable the process monitor across system-probe
-	procMon := monitor.GetProcessMonitor()
-	if err := procMon.Initialize(false); err != nil {
-		return nil, fmt.Errorf("error initializing process monitor: %w", err)
-	}
-
 	sysCtx, err := getSystemContext(deps.NvmlLib, cfg.ProcRoot)
 	if err != nil {
 		return nil, fmt.Errorf("error getting system context: %w", err)
 	}
 
 	p := &Probe{
-		cfg:     cfg,
-		deps:    deps,
-		procMon: procMon,
-		sysCtx:  sysCtx,
+		cfg:    cfg,
+		deps:   deps,
+		sysCtx: sysCtx,
 	}
 
 	allowRC := cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback
@@ -148,7 +142,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		}
 	}
 
-	p.attacher, err = uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, p.m, nil, &uprobes.NativeBinaryInspector{}, procMon)
+	p.attacher, err = uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, p.m, nil, &uprobes.NativeBinaryInspector{}, deps.ProcessMonitor)
 	if err != nil {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
@@ -181,7 +175,6 @@ func (p *Probe) start() error {
 
 // Close stops the probe
 func (p *Probe) Close() {
-	p.procMon.Stop()
 	p.attacher.Stop()
 	_ = p.m.Stop(manager.CleanAll)
 	p.consumer.Stop()

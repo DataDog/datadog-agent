@@ -40,6 +40,7 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/nopreceiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+
 	"go.uber.org/zap"
 )
 
@@ -61,7 +62,7 @@ func getTestExtension(t *testing.T) (ddflareextension.Component, error) {
 	info := component.NewDefaultBuildInfo()
 	cfg := getExtensionTestConfig(t)
 
-	return NewExtension(c, cfg, telemetry, info)
+	return NewExtension(c, cfg, telemetry, info, true)
 }
 
 func getResponseToHandlerRequest(t *testing.T, tokenOverride string) *httptest.ResponseRecorder {
