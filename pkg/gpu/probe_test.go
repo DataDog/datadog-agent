@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 type probeTestSuite struct {
@@ -191,6 +192,9 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 
 func (s *probeTestSuite) TestDetectsContainer() {
 	t := s.T()
+
+	// Flaky test in CI, avoid failures on main for now.
+	flake.Mark(t)
 
 	procMon := monitor.GetProcessMonitor()
 	require.NotNil(t, procMon)

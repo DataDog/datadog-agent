@@ -70,7 +70,7 @@ int BPF_UPROBE(uprobe__cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 
     log_debug("cudaLaunchKernel: EMIT[1/2] pid_tgid=%llu, ts=%llu", launch_data.header.pid_tgid, launch_data.header.ktime_ns);
     log_debug("cudaLaunchKernel: EMIT[2/2] kernel_addr=0x%llx, shared_mem=%llu, stream_id=%llu", launch_data.kernel_addr, launch_data.shared_mem_size, launch_data.header.stream_id);
 
-    bpf_ringbuf_output(&cuda_events, &launch_data, sizeof(launch_data), 0);
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &launch_data, sizeof(launch_data), 0);
 
     return 0;
 }
@@ -111,7 +111,7 @@ int BPF_URETPROBE(uretprobe__cudaMalloc) {
 
     log_debug("cudaMalloc[ret]: EMIT size=%llu, addr=0x%llx, ts=%llu", mem_data.size, (__u64)mem_data.addr, mem_data.header.ktime_ns);
 
-    bpf_ringbuf_output(&cuda_events, &mem_data, sizeof(mem_data), 0);
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &mem_data, sizeof(mem_data), 0);
 
 out:
     bpf_map_delete_elem(&cuda_alloc_cache, &pid_tgid);
@@ -127,7 +127,7 @@ int BPF_UPROBE(uprobe__cudaFree, void *mem) {
     mem_data.addr = (uint64_t)mem;
     mem_data.type = cudaFree;
 
-    bpf_ringbuf_output(&cuda_events, &mem_data, sizeof(mem_data), 0);
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &mem_data, sizeof(mem_data), 0);
 
     return 0;
 }
@@ -160,7 +160,7 @@ int BPF_URETPROBE(uretprobe__cudaStreamSynchronize) {
 
     log_debug("cudaStreamSynchronize[ret]: EMIT cudaSync pid_tgid=%llu, stream_id=%llu", event.header.pid_tgid, event.header.stream_id);
 
-    bpf_ringbuf_output(&cuda_events, &event, sizeof(event), 0);
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &event, sizeof(event), 0);
     bpf_map_delete_elem(&cuda_sync_cache, &pid_tgid);
 
     return 0;
