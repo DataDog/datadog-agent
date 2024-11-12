@@ -144,4 +144,4 @@ repos:
       entry: 'inv modules.validate --fix-format'
       language: system
       pass_filenames: false
-      files: (.*go\.mod|modules.yml|.*gomodules.py|.*modules.py)$
+      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py)$
