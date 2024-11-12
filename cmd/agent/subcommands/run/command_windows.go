@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer/etwtracerimpl"
 
@@ -131,6 +132,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			settings settings.Component,
 			_ optional.Option[gui.Component],
 			_ agenttelemetry.Component,
+			rdnsquerier rdnsquerier.Component,
 		) error {
 			defer StopAgentWithDefaults()
 
@@ -159,6 +161,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				cloudfoundrycontainer,
 				jmxlogger,
 				settings,
+				rdnsquerier,
 			)
 			if err != nil {
 				return err
