@@ -51,10 +51,15 @@ type Telemetry struct {
 	listener *telemetryListener
 	server   *http.Server
 	client   *http.Client
+
+	samplingRules []tracer.SamplingRule
 }
 
+// Option is a functional option for telemetry.
+type Option func(*Telemetry)
+
 // NewTelemetry creates a new telemetry instance
-func NewTelemetry(apiKey string, site string, service string) (*Telemetry, error) {
+func NewTelemetry(apiKey string, site string, service string, opts ...Option) (*Telemetry, error) {
 	endpoint := &traceconfig.Endpoint{
 		Host:   fmt.Sprintf("https://%s.%s", telemetrySubdomain, strings.TrimSpace(site)),
 		APIKey: apiKey,
@@ -72,6 +77,9 @@ func NewTelemetry(apiKey string, site string, service string) (*Telemetry, error
 			},
 		},
 	}
+	for _, opt := range opts {
+		opt(t)
+	}
 	t.server.Handler = t.handler()
 	return t, nil
 }
@@ -88,6 +96,7 @@ func (t *Telemetry) Start(_ context.Context) error {
 	if t.site == "datad0g.com" {
 		env = "staging"
 	}
+
 	tracer.Start(
 		tracer.WithService(t.service),
 		tracer.WithServiceVersion(version.AgentVersion),
@@ -95,6 +104,13 @@ func (t *Telemetry) Start(_ context.Context) error {
 		tracer.WithGlobalTag("site", t.site),
 		tracer.WithHTTPClient(t.client),
 		tracer.WithLogStartup(false),
+
+		// We don't need the value, we just need to enforce that it's not
+		// the default. If it is, then the tracer will try to use the socket
+		// if it exists -- and it always exists for newer agents.
+		// If the agent address is the socket, the tracer overrides WithHTTPClient to use it.
+		tracer.WithAgentAddr("192.0.2.42:12345"), // 192.0.2.0/24 is reserved
+		tracer.WithSamplingRules(t.samplingRules),
 	)
 	return nil
 }
@@ -222,4 +238,11 @@ func SpanContextFromContext(ctx context.Context) (ddtrace.SpanContext, bool) {
 		return nil, false
 	}
 	return span.Context(), true
+}
+
+// WithSamplingRules sets the sampling rules for the telemetry.
+func WithSamplingRules(rules ...tracer.SamplingRule) Option {
+	return func(t *Telemetry) {
+		t.samplingRules = rules
+	}
 }

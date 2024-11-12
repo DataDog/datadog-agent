@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 )
 
 var confYaml = `
@@ -34,27 +33,16 @@ network_devices:
     bind_host: ko
 `
 
-func setupDefault(t *testing.T, cfg model.Config) *ntmConfig {
-	// TODO: we manually create an empty tree until we can create one from the defaults settings. Once remove
-	// 'SetDefault' should replace those. This entire block should be remove then.
-	obj := map[string]interface{}{
-		"network_devices": map[string]interface{}{
-			"snmp_traps": map[string]interface{}{
-				"enabled":      0,
-				"port":         0,
-				"bind_host":    0,
-				"stop_timeout": 0,
-				"namespace":    0,
-			},
-		},
-	}
-	newNode, err := NewNodeTree(obj, model.SourceDefault)
-	require.NoError(t, err)
-	defaults, ok := newNode.(InnerNode)
-	require.True(t, ok)
-	ntm := cfg.(*ntmConfig)
-	ntm.defaults = defaults
-	return ntm
+func setupDefault(_ *testing.T, cfg model.Config) *ntmConfig {
+	cfg.SetDefault("network_devices.snmp_traps.enabled", false)
+	cfg.SetDefault("network_devices.snmp_traps.port", 0)
+	cfg.SetDefault("network_devices.snmp_traps.bind_host", "")
+	cfg.SetDefault("network_devices.snmp_traps.stop_timeout", 0)
+	cfg.SetDefault("network_devices.snmp_traps.namespace", "")
+
+	cfg.BuildSchema()
+
+	return cfg.(*ntmConfig)
 }
 
 func writeTempFile(t *testing.T, name string, data string) string {
@@ -159,31 +147,29 @@ a: orange
 c:
   d: 1234
 `
-	yamlData := map[string]interface{}{}
-	err := yaml.Unmarshal([]byte(yamlPayload), &yamlData)
+	cfg := NewConfig("test", "TEST", nil)
+
+	cfg.SetDefault("a", "apple")
+	cfg.SetDefault("b", 123)
+	cfg.SetDefault("c.d", true)
+	cfg.SetDefault("c.e.f", 456)
+
+	cfg.BuildSchema()
+
+	err := cfg.ReadConfig(strings.NewReader(yamlPayload))
 	require.NoError(t, err)
 
-	// TODO: we manually create an empty tree until we can create one from the defaults settings
-	obj := map[string]interface{}{
-		"a": "apple",
-		"b": 123,
-		"c": map[string]interface{}{
-			"d": true,
-			"e": map[string]interface{}{
-				"f": 456,
-			},
-		},
-	}
-	newNode, err := NewNodeTree(obj, model.SourceDefault)
-	require.NoError(t, err)
-	defaults, ok := newNode.(InnerNode)
-	require.True(t, ok)
+	c := cfg.(*ntmConfig)
+	assert.Empty(t, c.warnings)
 
-	tree := newInnerNode(nil)
-
-	warnings := loadYamlInto(defaults, tree, yamlData, "")
-
-	assert.Empty(t, warnings)
+	assert.Equal(t, "orange", cfg.Get("a"))
+	assert.Equal(t, model.SourceFile, cfg.GetSource("a"))
+	assert.Equal(t, 123, cfg.Get("b"))
+	assert.Equal(t, model.SourceDefault, cfg.GetSource("b"))
+	assert.Equal(t, 1234, cfg.Get("c.d"))
+	assert.Equal(t, model.SourceFile, cfg.GetSource("c.d"))
+	assert.Equal(t, 456, cfg.Get("c.e.f"))
+	assert.Equal(t, model.SourceDefault, cfg.GetSource("c.e.f"))
 
 	expected := &innerNode{
 		remapCase: map[string]string{"a": "a", "c": "c"},
@@ -197,7 +183,7 @@ c:
 			},
 		},
 	}
-	assert.Equal(t, expected, tree)
+	assert.Equal(t, expected, c.file)
 }
 
 func TestWarningUnknownKey(t *testing.T) {
@@ -207,28 +193,20 @@ c:
   d: 1234
   unknown: key
 `
-	yamlData := map[string]interface{}{}
-	err := yaml.Unmarshal([]byte(yamlPayload), &yamlData)
+	cfg := NewConfig("test", "TEST", nil)
+
+	cfg.SetDefault("a", "apple")
+	cfg.SetDefault("c.d", true)
+
+	cfg.BuildSchema()
+
+	err := cfg.ReadConfig(strings.NewReader(yamlPayload))
 	require.NoError(t, err)
 
-	// TODO: we manually create an empty tree until we can create one from the defaults settings
-	obj := map[string]interface{}{
-		"a": "apple",
-		"c": map[string]interface{}{
-			"d": true,
-		},
-	}
-	newNode, err := NewNodeTree(obj, model.SourceDefault)
-	require.NoError(t, err)
-	defaults, ok := newNode.(InnerNode)
-	require.True(t, ok)
+	c := cfg.(*ntmConfig)
 
-	tree := newInnerNode(nil)
-
-	warnings := loadYamlInto(defaults, tree, yamlData, "")
-
-	require.Len(t, warnings, 1)
-	assert.Equal(t, "unknown key from YAML: c.unknown", warnings[0])
+	require.Len(t, c.warnings, 1)
+	assert.Equal(t, "unknown key from YAML: c.unknown", c.warnings[0])
 
 	expected := &innerNode{
 		remapCase: map[string]string{"a": "a", "c": "c"},
@@ -242,7 +220,7 @@ c:
 			},
 		},
 	}
-	assert.Equal(t, expected, tree)
+	assert.Equal(t, expected, c.file)
 }
 
 func TestWarningConflictDataType(t *testing.T) {
@@ -250,28 +228,20 @@ func TestWarningConflictDataType(t *testing.T) {
 a: orange
 c: 1234
 `
-	yamlData := map[string]interface{}{}
-	err := yaml.Unmarshal([]byte(yamlPayload), &yamlData)
+	cfg := NewConfig("test", "TEST", nil)
+
+	cfg.SetDefault("a", "apple")
+	cfg.SetDefault("c.d", true)
+
+	cfg.BuildSchema()
+
+	err := cfg.ReadConfig(strings.NewReader(yamlPayload))
 	require.NoError(t, err)
 
-	// TODO: we manually create an empty tree until we can create one from the defaults settings
-	obj := map[string]interface{}{
-		"a": "apple",
-		"c": map[string]interface{}{
-			"d": true,
-		},
-	}
-	newNode, err := NewNodeTree(obj, model.SourceDefault)
-	require.NoError(t, err)
-	defaults, ok := newNode.(InnerNode)
-	require.True(t, ok)
+	c := cfg.(*ntmConfig)
 
-	tree := newInnerNode(nil)
-
-	warnings := loadYamlInto(defaults, tree, yamlData, "")
-
-	require.Len(t, warnings, 1)
-	assert.Equal(t, "invalid type from configuration for key 'c'", warnings[0])
+	require.Len(t, c.warnings, 1)
+	assert.Equal(t, "invalid type from configuration for key 'c'", c.warnings[0])
 
 	expected := &innerNode{
 		remapCase: map[string]string{"a": "a", "c": "c"},
@@ -283,69 +253,7 @@ c: 1234
 			},
 		},
 	}
-	assert.Equal(t, expected, tree)
-}
-
-func TestWarningConflictNodeTypeInnerToLeaf(t *testing.T) {
-	var yamlPayload = `
-a:
-  b:
-    c: 1234
-`
-	yamlData := map[string]interface{}{}
-	err := yaml.Unmarshal([]byte(yamlPayload), &yamlData)
-	require.NoError(t, err)
-
-	// TODO: we manually create an empty tree until we can create one from the defaults settings
-	obj := map[string]interface{}{
-		"a": map[string]interface{}{
-			"b": true,
-		},
-	}
-	newNode, err := NewNodeTree(obj, model.SourceDefault)
-	require.NoError(t, err)
-	defaults, ok := newNode.(InnerNode)
-	require.True(t, ok)
-
-	tree := newInnerNode(nil)
-	tree.SetAt([]string{"a", "b", "c"}, 9876, model.SourceFile)
-
-	warnings := loadYamlInto(defaults, tree, yamlData, "")
-
-	require.Len(t, warnings, 1)
-	assert.Equal(t, "invalid tree: default and dest tree don't have the same layout", warnings[0])
-}
-
-func TestWarningConflictNodeTypeLeafToInner(t *testing.T) {
-	var yamlPayload = `
-a:
-  b:
-    c: 1234
-`
-	yamlData := map[string]interface{}{}
-	err := yaml.Unmarshal([]byte(yamlPayload), &yamlData)
-	require.NoError(t, err)
-
-	// TODO: we manually create an empty tree until we can create one from the defaults settings
-	obj := map[string]interface{}{
-		"a": map[string]interface{}{
-			"b": map[string]interface{}{
-				"c": 1324,
-			},
-		},
-	}
-	newNode, err := NewNodeTree(obj, model.SourceDefault)
-	require.NoError(t, err)
-	defaults, ok := newNode.(InnerNode)
-	require.True(t, ok)
-
-	tree := newInnerNode(nil)
-	tree.SetAt([]string{"a", "b"}, 9876, model.SourceFile)
-
-	warnings := loadYamlInto(defaults, tree, yamlData, "")
-
-	require.Len(t, warnings, 1)
-	assert.Equal(t, "invalid tree: default and dest tree don't have the same layout", warnings[0])
+	assert.Equal(t, expected, c.file)
 }
 
 func TestToMapStringInterface(t *testing.T) {
@@ -377,4 +285,33 @@ func TestToMapStringInterface(t *testing.T) {
 	data, err = toMapStringInterface(map[interface{}]string{"test": "test"}, "key")
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]interface{}{"test": "test"}, data)
+}
+
+func TestReadConfigBeforeReady(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+	err := cfg.ReadConfig(strings.NewReader(""))
+	require.Error(t, err)
+	assert.Equal(t, "attempt to ReadConfig before config is constructed", err.Error())
+
+	cfg = NewConfig("test", "TEST", nil)
+	err = cfg.ReadInConfig()
+	require.Error(t, err)
+	assert.Equal(t, "attempt to ReadInConfig before config is constructed", err.Error())
+}
+
+func TestReadConfigInvalidPath(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+	cfg.SetConfigFile("does not exists")
+	cfg.BuildSchema()
+
+	err := cfg.ReadInConfig()
+	require.Error(t, err)
+}
+
+func TestReadConfigInvalidYaml(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+	cfg.BuildSchema()
+
+	err := cfg.ReadConfig(strings.NewReader("123"))
+	require.Error(t, err)
 }

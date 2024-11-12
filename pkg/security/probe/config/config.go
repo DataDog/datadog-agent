@@ -136,6 +136,12 @@ type Config struct {
 	// NetworkRawPacketEnabled defines if the network raw packet is enabled
 	NetworkRawPacketEnabled bool
 
+	// NetworkPrivateIPRanges defines the list of IP that should be considered private
+	NetworkPrivateIPRanges []string
+
+	// NetworkExtraPrivateIPRanges defines the list of extra IP that should be considered private
+	NetworkExtraPrivateIPRanges []string
+
 	// StatsPollingInterval determines how often metrics should be polled
 	StatsPollingInterval time.Duration
 
@@ -174,6 +180,8 @@ func NewConfig() (*Config, error) {
 		NetworkEnabled:               getBool("network.enabled"),
 		NetworkIngressEnabled:        getBool("network.ingress.enabled"),
 		NetworkRawPacketEnabled:      getBool("network.raw_packet.enabled"),
+		NetworkPrivateIPRanges:       getStringSlice("network.private_ip_ranges"),
+		NetworkExtraPrivateIPRanges:  getStringSlice("network.extra_private_ip_ranges"),
 		StatsPollingInterval:         time.Duration(getInt("events_stats.polling_interval")) * time.Second,
 		SyscallsMonitorEnabled:       getBool("syscalls_monitor.enabled"),
 
