@@ -123,8 +123,6 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 	procInfo.SetUprobeLink(probe.ID, &link)
 	diagnostics.Diagnostics.SetStatus(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, ditypes.StatusInstalled)
 
-	ddebpf.AddNameMappingsCollection(bpfObject, "dynamicinstrumentation")
-
 	return nil
 }
 
