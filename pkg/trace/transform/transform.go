@@ -23,6 +23,11 @@ import (
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 )
 
+// OperationAndResourceNameV2Enabled checks if the new operation and resource name logic should be used
+func OperationAndResourceNameV2Enabled(conf *config.AgentConfig) bool {
+	return !conf.OTLPReceiver.SpanNameAsResourceName && (conf.OTLPReceiver.SpanNameRemappings == nil || len(conf.OTLPReceiver.SpanNameRemappings) == 0) && conf.HasFeature("enable_operation_and_resource_name_logic_v2")
+}
+
 // OtelSpanToDDSpanMinimal otelSpanToDDSpan converts an OTel span to a DD span.
 // The converted DD span only has the minimal number of fields for APM stats calculation and is only meant
 // to be used in OTLPTracesToConcentratorInputs. Do not use them for other purposes.
@@ -34,10 +39,20 @@ func OtelSpanToDDSpanMinimal(
 	conf *config.AgentConfig,
 	peerTagKeys []string,
 ) *pb.Span {
+	var operationName string
+	var resourceName string
+	if OperationAndResourceNameV2Enabled(conf) {
+		operationName = traceutil.GetOTelOperationNameV2(otelspan)
+		resourceName = traceutil.GetOTelResourceV2(otelspan, otelres)
+	} else {
+		operationName = traceutil.GetOTelOperationNameV1(otelspan, otelres, lib, conf.OTLPReceiver.SpanNameAsResourceName, conf.OTLPReceiver.SpanNameRemappings, true)
+		resourceName = traceutil.GetOTelResourceV1(otelspan, otelres)
+	}
+
 	ddspan := &pb.Span{
 		Service:  traceutil.GetOTelService(otelspan, otelres, true),
-		Name:     traceutil.GetOTelOperationName(otelspan, otelres, lib, conf.OTLPReceiver.SpanNameAsResourceName, conf.OTLPReceiver.SpanNameRemappings, true),
-		Resource: traceutil.GetOTelResource(otelspan, otelres),
+		Name:     operationName,
+		Resource: resourceName,
 		TraceID:  traceutil.OTelTraceIDToUint64(otelspan.TraceID()),
 		SpanID:   traceutil.OTelSpanIDToUint64(otelspan.SpanID()),
 		ParentID: traceutil.OTelSpanIDToUint64(otelspan.ParentSpanID()),

@@ -114,12 +114,13 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 	cs.Type = connectionType
 	cs.Family = family
 	cs.Direction = connDirection(flow.Flags)
+	cs.SPortIsEphemeral = IsPortInEphemeralRange(cs.Family, cs.Type, cs.SPort)
 	cs.Cookie = flow.FlowCookie
 	if connectionType == TCP {
 
 		tf := flow.TCPFlow()
 		if tf != nil {
-			cs.TCPFailures = make(map[uint32]uint32)
+			cs.TCPFailures = make(map[uint16]uint32)
 			cs.Monotonic.Retransmits = uint32(tf.RetransmitCount)
 			cs.RTT = uint32(tf.SRTT)
 			cs.RTTVar = uint32(tf.RttVariance)

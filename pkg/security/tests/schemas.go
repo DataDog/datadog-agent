@@ -307,6 +307,12 @@ func (tm *testModule) validateBindSchema(t *testing.T, event *model.Event) bool 
 }
 
 //nolint:deadcode,unused
+func (tm *testModule) validateConnectSchema(t *testing.T, event *model.Event) bool {
+	t.Helper()
+	return tm.validateEventSchema(t, event, "file:///schemas/connect.schema.json")
+}
+
+//nolint:deadcode,unused
 func (tm *testModule) validateMountSchema(t *testing.T, event *model.Event) bool {
 	if ebpfLessEnabled {
 		return true

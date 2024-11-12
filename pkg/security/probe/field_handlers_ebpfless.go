@@ -23,22 +23,25 @@ import (
 
 // EBPFLessFieldHandlers defines a field handlers
 type EBPFLessFieldHandlers struct {
-	config    *config.Config
+	*BaseFieldHandlers
 	resolvers *resolvers.EBPFLessResolvers
-	hostname  string
 }
 
-// ResolveService returns the service tag based on the process context
-func (fh *EBPFLessFieldHandlers) ResolveService(ev *model.Event, _ *model.BaseEvent) string {
-	entry, _ := fh.ResolveProcessCacheEntry(ev)
-	if entry == nil {
-		return ""
+// NewEBPFLessFieldHandlers returns a new EBPFLessFieldHandlers
+func NewEBPFLessFieldHandlers(config *config.Config, resolvers *resolvers.EBPFLessResolvers, hostname string) (*EBPFLessFieldHandlers, error) {
+	bfh, err := NewBaseFieldHandlers(config, hostname)
+	if err != nil {
+		return nil, err
 	}
-	return getProcessService(fh.config, entry)
+
+	return &EBPFLessFieldHandlers{
+		BaseFieldHandlers: bfh,
+		resolvers:         resolvers,
+	}, nil
 }
 
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
+func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, _ func(*model.ProcessCacheEntry, error)) (*model.ProcessCacheEntry, bool) {
 	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
 		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(sprocess.CacheResolverKey{
 			Pid:  ev.PIDContext.Pid,
@@ -175,7 +178,7 @@ func (fh *EBPFLessFieldHandlers) ResolveContainerRuntime(_ *model.Event, _ *mode
 // ResolveContainerID resolves the container ID of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
 	if len(e.ContainerID) == 0 {
-		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
+		if entry, _ := fh.ResolveProcessCacheEntry(ev, nil); entry != nil {
 			e.ContainerID = containerutils.ContainerID(entry.ContainerID)
 		}
 	}
@@ -415,11 +418,6 @@ func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsInt2(_ *model.Event, e *mo
 // ResolveSyscallCtxArgsInt3 resolve syscall ctx
 func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsInt3(_ *model.Event, e *model.SyscallContext) int {
 	return int(e.IntArg3)
-}
-
-// ResolveHostname resolve the hostname
-func (fh *EBPFLessFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
-	return fh.hostname
 }
 
 // ResolveOnDemandName resolves the on-demand event name

@@ -22,6 +22,7 @@ type structNodeImpl struct {
 }
 
 var _ Node = (*structNodeImpl)(nil)
+var _ InnerNode = (*structNodeImpl)(nil)
 
 // GetChild returns the child node at the given case-insensitive key, or an error if not found
 func (n *structNodeImpl) GetChild(key string) (Node, error) {
@@ -33,7 +34,7 @@ func (n *structNodeImpl) GetChild(key string) (Node, error) {
 	if inner.Kind() == reflect.Interface {
 		inner = inner.Elem()
 	}
-	return NewNode(inner.Interface(), model.SourceDefault)
+	return NewNodeTree(inner.Interface(), model.SourceDefault)
 }
 
 func (n *structNodeImpl) HasChild(name string) bool {
@@ -130,6 +131,11 @@ func (n *structNodeImpl) SetWithSource(interface{}, model.Source) error {
 // Source returns the source for this leaf
 func (n *structNodeImpl) Source() model.Source {
 	return model.SourceUnknown
+}
+
+// DumpSettings returns nil
+func (n *structNodeImpl) DumpSettings(func(model.Source) bool) map[string]interface{} {
+	return nil
 }
 
 type specifierSet map[string]struct{}

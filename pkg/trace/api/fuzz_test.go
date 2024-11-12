@@ -186,6 +186,7 @@ func FuzzHandleStats(f *testing.F) {
 		req.Header.Set("Content-Type", "application/msgpack")
 		req.Header.Set(header.Lang, "lang")
 		req.Header.Set(header.TracerVersion, "0.0.1")
+		req.Header.Set(header.ContainerID, "abcdef123789456")
 		var client http.Client
 		resp, err := client.Do(req)
 		if err != nil {
@@ -207,7 +208,7 @@ func FuzzHandleStats(f *testing.F) {
 			if decodeErr != nil {
 				t.Fatalf("Got status code 200 for invalid request payload: %v", decodeErr)
 			}
-			gotPayload, gotLang, gotVersion := mockProcessor.Got()
+			gotPayload, gotLang, gotVersion, containerID := mockProcessor.Got()
 			if !reflect.DeepEqual(payload, gotPayload) {
 				t.Fatalf("Expected payload (%v) got (%v)", payload, gotPayload)
 			}
@@ -216,6 +217,9 @@ func FuzzHandleStats(f *testing.F) {
 			}
 			if gotVersion != "0.0.1" {
 				t.Fatalf("Expected version (0.0.1) got (%s)", gotVersion)
+			}
+			if containerID != "abcdef123789456" {
+				t.Fatalf("Expected containerID () got (%s)", containerID)
 			}
 			if len(body) != 0 {
 				t.Fatalf("Expected empty response body, got (%s):", string(body))
