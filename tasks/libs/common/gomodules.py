@@ -70,6 +70,7 @@ class Configuration:
 
     def to_dict(self) -> dict[str, object]:
         modules_config = {}
+        # Path removed because the key is the path
         modules_config.update(
             {name: module.to_dict(remove_path=True) or 'default' for name, module in self.modules.items()}
         )
