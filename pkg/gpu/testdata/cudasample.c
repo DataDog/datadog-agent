@@ -45,6 +45,8 @@ int main(int argc, char **argv) {
 
     fprintf(stderr, "Starting calls.\n");
 
+    fprintf(stderr, "Starting!\n");
+
     cudaLaunchKernel((void *)0x1234, (dim3){ 1, 2, 3 }, (dim3){ 4, 5, 6 }, NULL, 10, stream);
     void *ptr;
     cudaMalloc(&ptr, 100);

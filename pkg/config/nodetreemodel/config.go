@@ -758,15 +758,6 @@ func (c *ntmConfig) MergeFleetPolicy(configPath string) error {
 	return c.logErrorNotImplemented("MergeFleetPolicy")
 }
 
-// MergeConfigMap merges the configuration from the map given with an existing config.
-// Note that the map given may be modified.
-func (c *ntmConfig) MergeConfigMap(_cfg map[string]any) error {
-	c.Lock()
-	defer c.Unlock()
-	c.logErrorNotImplemented("AllSettings")
-	return nil
-}
-
 // AllSettings returns all settings from the config
 func (c *ntmConfig) AllSettings() map[string]interface{} {
 	c.RLock()
