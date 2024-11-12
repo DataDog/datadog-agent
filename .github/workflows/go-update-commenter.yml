@@ -5,7 +5,9 @@ on:
     # Only run on PR label events (in particular not on every commit)
     types: [ labeled ]
 
-permissions: {}
+permissions:
+  # write permissions are needed to create the comment
+  pull-requests: write
 
 jobs:
   old-versions-match:
@@ -44,7 +46,7 @@ jobs:
         run: |
           set -euo pipefail
           # build the base of the Github URL to the current commit
-          GITHUB_HEAD_URL="GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$GITHUB_SHA"
+          GITHUB_HEAD_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$GITHUB_SHA"
           {
             echo "matches<<EOF"
             echo "Here are potential matches of the former version:"
