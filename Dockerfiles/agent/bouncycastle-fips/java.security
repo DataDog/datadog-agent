@@ -1,85 +1,14 @@
-#
-# This is the "master security properties file".
-#
-# An alternate java.security properties file may be specified
-# from the command line via the system property
-#
-#    -Djava.security.properties=<URL>
-#
-# This properties file appends to the master security properties file.
-# If both properties files specify values for the same key, the value
-# from the command-line properties file is selected, as it is the last
-# one loaded.
-#
-# Also, if you specify
-#
-#    -Djava.security.properties==<URL> (2 equals),
-#
-# then that properties file completely overrides the master security
-# properties file.
-#
-# To disable the ability to specify an additional properties file from
-# the command line, set the key security.overridePropertiesFile
-# to false in the master security properties file. It is set to true
-# by default.
-#
-# If this properties file fails to load, the JDK implementation will throw
-# an unspecified error when initializing the java.security.Security class.
+# This is a system java.security file modified to use BouncyCastle
+# FIPS provider as the main JSSE provider.
 
-# In this file, various security properties are set for use by
-# java.security classes. This is where users can statically register
-# Cryptography Package Providers ("providers" for short). The term
-# "provider" refers to a package or set of packages that supply a
-# concrete implementation of a subset of the cryptography aspects of
-# the Java Security API. A provider may, for example, implement one or
-# more digital signature algorithms or message digest algorithms.
-#
-# Each provider must implement a subclass of the Provider class.
-# To register a provider in this master security properties file,
-# specify the provider and priority in the format
-#
-#    security.provider.<n>=<provName | className>
-#
-# This declares a provider, and specifies its preference
-# order n. The preference order is the order in which providers are
-# searched for requested algorithms (when no specific provider is
-# requested). The order is 1-based; 1 is the most preferred, followed
-# by 2, and so on.
-#
-# <provName> must specify the name of the Provider as passed to its super
-# class java.security.Provider constructor. This is for providers loaded
-# through the ServiceLoader mechanism.
-#
-# <className> must specify the subclass of the Provider class whose
-# constructor sets the values of various properties that are required
-# for the Java Security API to look up the algorithms or other
-# facilities implemented by the provider. This is for providers loaded
-# through classpath.
-#
-# Note: Providers can be dynamically registered instead by calls to
-# either the addProvider or insertProviderAt method in the Security
-# class.
-
-#
-# List of providers and their preference orders (see above):
-#
+# See BouncyCastle documentation for specific instructions on how to modify this file.
+# See the main java.security file provided with the JVM for description of available
+# options.
 
 security.provider.1=org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider
 security.provider.2=org.bouncycastle.jsse.provider.BouncyCastleJsseProvider fips:BCFIPS
 security.provider.3=sun.security.provider.Sun 
 
-# security.provider.1=SUN
-# security.provider.2=SunRsaSign
-# security.provider.3=SunEC
-# security.provider.4=SunJSSE
-# security.provider.5=SunJCE
-# security.provider.6=SunJGSS
-# security.provider.7=SunSASL
-# security.provider.8=XMLDSig
-# security.provider.9=SunPCSC
-# security.provider.10=JdkLDAP
-# security.provider.11=JdkSASL
-# security.provider.12=SunPKCS11
 
 #
 # a list of preferred providers for specific algorithms. These providers will
