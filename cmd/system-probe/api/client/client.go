@@ -56,13 +56,13 @@ func GetCheck[T any](client *http.Client, module types.ModuleName) (T, error) {
 		return data, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return data, fmt.Errorf("conn request failed: url %s, status code: %d", req.URL, resp.StatusCode)
-	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return data, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return data, fmt.Errorf("non-ok status code: url %s, status_code: %d, response: `%s`", req.URL, resp.StatusCode, string(body))
 	}
 
 	err = json.Unmarshal(body, &data)

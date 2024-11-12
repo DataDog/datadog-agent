@@ -540,7 +540,7 @@ func getHTTPData(client *http.Client, url string) ([]byte, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(`non-ok status code: url: %s, status_code: %d, response: "%s"`, req.URL, resp.StatusCode, string(data))
+		return nil, fmt.Errorf("non-ok status code: url: %s, status_code: %d, response: `%s`", req.URL, resp.StatusCode, string(data))
 	}
 	return data, nil
 }
