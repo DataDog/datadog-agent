@@ -87,8 +87,8 @@ func GetTopLevelOTelSpans(spanByID map[pcommon.SpanID]ptrace.Span, resByID map[p
 			continue
 		}
 
-		svc := GetOTelService(span, resByID[spanID], true)
-		parentSvc := GetOTelService(parentSpan, resByID[parentSpan.SpanID()], true)
+		svc := GetOTelService(resByID[spanID], true)
+		parentSvc := GetOTelService(resByID[parentSpan.SpanID()], true)
 		if svc != parentSvc {
 			// case 3: parent is not in the same service
 			topLevelSpans[spanID] = struct{}{}
@@ -153,9 +153,9 @@ func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
 }
 
 // GetOTelService returns the DD service name based on OTel span and resource attributes.
-func GetOTelService(span ptrace.Span, res pcommon.Resource, normalize bool) string {
+func GetOTelService(res pcommon.Resource, normalize bool) string {
 	// No need to normalize with NormalizeTagValue since we will do NormalizeService later
-	svc := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeServiceName)
+	svc := GetOTelAttrVal(res.Attributes(), false, semconv.AttributeServiceName)
 	if svc == "" {
 		svc = "otlpresourcenoservicename"
 	}
