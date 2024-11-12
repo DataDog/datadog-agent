@@ -128,7 +128,7 @@ def deps_vendored(ctx, verbose=False):
         verbosity = ' -v' if verbose else ''
 
         ctx.run(f"go work vendor{verbosity}")
-        ctx.run(f"go worktidy{verbosity}")
+        ctx.run(f"go mod tidy{verbosity}")
 
         # "go mod vendor" doesn't copy files that aren't in a package: https://github.com/golang/go/issues/26366
         # This breaks when deps include other files that are needed (eg: .java files from gomobile): https://github.com/golang/go/issues/43736
