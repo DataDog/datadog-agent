@@ -178,11 +178,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         // Parse TLS payload
         tls_info_t *tags = get_or_create_tls_enhanced_tags(&skb_tup);
         if (tags) {
-            // Parse the TLS payload and update the tags
-            int ret = parse_tls_payload(skb, skb_info.data_off, &tls_hdr, tags);
-            log_debug("adamk\n");
-            log_debug("adamk tls classification: parse_tls_payload=%d", ret);
-            ret++;
+            parse_tls_payload(skb, skb_info.data_off, &tls_hdr, tags);
         }
         // The connection is TLS encrypted, thus we cannot further classify the protocol
         // using the socket filter and can bail out;

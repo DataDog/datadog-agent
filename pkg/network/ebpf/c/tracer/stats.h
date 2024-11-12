@@ -112,13 +112,7 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     // lookup from new map and add info to the connection
     tls_info_t *tls_tags = get_tls_enhanced_tags(&conn_tuple_copy);
     if (tls_tags) {
-        // TODO: flush the tags to userspace
-        log_debug("adamk tls classification: client version 1=%d", tls_tags->offered_versions);
-        log_debug("adamk tls classification: server version=%d", tls_tags->chosen_version);
-        log_debug("adamk tls classification: server cipher=%d", tls_tags->cipher_suite);
         stats->tls_tags = *tls_tags;
-    } else {
-        log_debug("adamk tls classification: no tags found");
     }
 
     conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
@@ -133,14 +127,9 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
     // lookup from new map and add info to the connection
     tls_tags = get_tls_enhanced_tags(&conn_tuple_copy);
+    // TODO: we should merge the tags
     if (tls_tags) {
-        // TODO: flush the tags to userspace
-        log_debug("adamk tls classification: client version 1=%d", tls_tags->offered_versions);
-        log_debug("adamk tls classification: server version=%d", tls_tags->chosen_version);
-        log_debug("adamk tls classification: server cipher=%d", tls_tags->cipher_suite);
         stats->tls_tags = *tls_tags;
-    } else {
-        log_debug("adamk tls classification 2: no tags found");
     }
 }
 

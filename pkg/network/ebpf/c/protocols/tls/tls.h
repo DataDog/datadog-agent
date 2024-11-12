@@ -5,8 +5,6 @@
 #include "bpf_builtins.h"
 #include "tracer/tracer.h"
 
-#define ETH_HLEN 14  // Ethernet header length
-
 #define SSL_VERSION20 0x0200
 #define SSL_VERSION30 0x0300
 #define TLS_VERSION10 0x0301
@@ -33,7 +31,7 @@ typedef struct {
 #define TLS_HANDSHAKE_CLIENT_HELLO 0x01
 #define TLS_HANDSHAKE_SERVER_HELLO 0x02
 
-// Function to check if the given version is a valid TLS version
+// is_valid_tls_version checks if the version is a valid TLS version
 static __always_inline bool is_valid_tls_version(__u16 version) {
     switch (version) {
         case SSL_VERSION20:
@@ -48,6 +46,7 @@ static __always_inline bool is_valid_tls_version(__u16 version) {
     }
 }
 
+// set_tls_offered_version sets the bit corresponding to the offered version in the offered_versions field of tls_info
 static __always_inline void set_tls_offered_version(tls_info_t *tls_info, __u16 version) {
     switch (version) {
         case SSL_VERSION20:
@@ -73,7 +72,7 @@ static __always_inline void set_tls_offered_version(tls_info_t *tls_info, __u16 
     }
 }
 
-// Helper function to read and validate the TLS record header
+// read_tls_record_header reads the TLS record header from the packet
 static __always_inline bool read_tls_record_header(struct __sk_buff *skb, __u64 nh_off, tls_record_header_t *tls_hdr) {
     __u32 skb_len = skb->len;
 
@@ -102,7 +101,7 @@ static __always_inline bool read_tls_record_header(struct __sk_buff *skb, __u64 
     return true;
 }
 
-// Function to check if the packet is TLS
+// is_tls checks if the packet is a TLS packet and reads the TLS record header
 static __always_inline bool is_tls(struct __sk_buff *skb, __u64 nh_off, tls_record_header_t *tls_hdr) {
     // Use the helper function to read and validate the TLS record header
     if (!read_tls_record_header(skb, nh_off, tls_hdr))
@@ -251,7 +250,7 @@ static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offse
     return 0;
 }
 
-// Function to parse ServerHello message
+// parse_server_hello reads the ServerHello message from the TLS handshake and populates select tags
 static __always_inline int parse_server_hello(struct __sk_buff *skb, __u64 offset, __u32 skb_len, tls_info_t *tags) {
     // Move offset past handshake type (1 byte)
     offset += 1;
@@ -375,7 +374,7 @@ static __always_inline int parse_server_hello(struct __sk_buff *skb, __u64 offse
     return 0;
 }
 
-// Function to parse the TLS payload and update tls_enhanced_tags_t
+// parse_tls_payload parses the TLS payload and populates select tags
 static __always_inline int parse_tls_payload(struct __sk_buff *skb, __u64 nh_off, tls_record_header_t *tls_hdr, tls_info_t *tags) {
     // At this point, tls_hdr has already been validated and filled by is_tls()
     __u64 offset = nh_off + sizeof(tls_record_header_t);
