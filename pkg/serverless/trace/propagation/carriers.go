@@ -253,16 +253,6 @@ func headersCarrier(hdrs map[string]string) (tracer.TextMapReader, error) {
 	return tracer.TextMapCarrier(hdrs), nil
 }
 
-// multiValueHeadersCarrier returns the tracer.TextMapReader used to extract trace
-// context from a MultiValueHeaders field of form map[string][]string.
-func multiValueHeadersCarrier(hdrs map[string][]string) (tracer.TextMapReader, error) {
-	headers := make(map[string]string)
-	for k, v := range hdrs {
-		headers[k] = v[0]
-	}
-	return headersCarrier(headers)
-}
-
 // extractTraceContextFromStepFunctionContext extracts the execution ARN, state name, and state entered time and uses them to generate Trace ID and Parent ID
 // The logic is based on the trace context conversion in Logs To Traces, dd-trace-py, dd-trace-js, etc.
 func extractTraceContextFromStepFunctionContext(event events.StepFunctionPayload) (*TraceContext, error) {

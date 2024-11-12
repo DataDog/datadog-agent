@@ -826,51 +826,6 @@ func TestHeadersCarrier(t *testing.T) {
 	}
 }
 
-func TestMultiValueHeadersCarrier(t *testing.T) {
-	testcases := []struct {
-		name   string
-		event  map[string]string
-		expMap map[string]string
-		expErr error
-	}{
-		{
-			name:   "nil-map",
-			event:  headersMapNone,
-			expMap: headersMapEmpty,
-			expErr: nil,
-		},
-		{
-			name:   "empty-map",
-			event:  headersMapEmpty,
-			expMap: headersMapEmpty,
-			expErr: nil,
-		},
-		{
-			name:   "headers-all",
-			event:  headersMapAll,
-			expMap: headersMapAll,
-			expErr: nil,
-		},
-	}
-
-	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			event := map[string][]string{}
-			for k, v := range tc.event {
-				event[k] = []string{v, "dummy"}
-			}
-
-			tm, err := multiValueHeadersCarrier(event)
-			t.Logf("rawPayloadCarrier returned TextMapReader=%#v error=%#v", tm, err)
-			assert.Equal(t, tc.expErr != nil, err != nil)
-			if tc.expErr != nil && err != nil {
-				assert.Equal(t, tc.expErr.Error(), err.Error())
-			}
-			assert.Equal(t, tc.expMap, getMapFromCarrier(tm))
-		})
-	}
-}
-
 func Test_stringToDdSpanId(t *testing.T) {
 	type args struct {
 		execArn          string

@@ -115,7 +115,7 @@ func (e Extractor) extract(event interface{}) (*TraceContext, error) {
 		if len(ev.Headers) > 0 {
 			carrier, err = headersCarrier(ev.Headers)
 		} else {
-			carrier, err = multiValueHeadersCarrier(ev.MultiValueHeaders)
+			carrier = tracer.HTTPHeadersCarrier(ev.MultiValueHeaders)
 		}
 	case events.LambdaFunctionURLRequest:
 		carrier, err = headersCarrier(ev.Headers)

@@ -179,7 +179,7 @@ var (
 func toMultiValueHeaders(headers map[string]string) map[string][]string {
 	mvh := make(map[string][]string)
 	for k, v := range headers {
-		mvh[k] = []string{v, "dummy"}
+		mvh[k] = []string{v}
 	}
 	return mvh
 }
