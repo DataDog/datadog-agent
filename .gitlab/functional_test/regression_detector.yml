@@ -133,46 +133,47 @@ single-machine-performance-regression_detector:
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     - datadog-ci junit upload --service datadog-agent outputs/junit.xml
         # Run quality gate check script
-    - python3 <<'EOF'
-import json
-import sys
+    - |
+      python3 <<'EOF'
+      import json
+      import sys
 
-try:
-    with open('outputs/quality_gates_report.json') as f:
-        data = json.load(f)
-except FileNotFoundError:
-    print("Quality gates report not found.")
-    sys.exit(1)
-except json.JSONDecodeError as e:
-    print(f"Error parsing JSON report: {e}")
-    sys.exit(1)
+      try:
+          with open('outputs/quality_gates_report.json') as f:
+              data = json.load(f)
+      except FileNotFoundError:
+          print("Quality gates report not found.")
+          sys.exit(1)
+      except json.JSONDecodeError as e:
+          print(f"Error parsing JSON report: {e}")
+          sys.exit(1)
 
-experiments = data.get('experiments', {})
-failed = False
+      experiments = data.get('experiments', {})
+      failed = False
 
-for exp_name, exp_data in experiments.items():
-    if exp_name.startswith('quality_gate_'):
-        bounds_checks = exp_data.get('bounds_checks', {})
-        for check_name, check_data in bounds_checks.items():
-            results = check_data.get('results', {})
-            comparison = results.get('comparison', [])
-            for replicate in comparison:
-                if not replicate.get('passed', False):
-                    print(f"Failed replicate in experiment '{exp_name}', check '{check_name}', replicate index {replicate.get('replicate_idx')}")
-                    failed = True
-                    break
-            if failed:
-                break
-        if failed:
-            break
+      for exp_name, exp_data in experiments.items():
+          if exp_name.startswith('quality_gate_'):
+              bounds_checks = exp_data.get('bounds_checks', {})
+              for check_name, check_data in bounds_checks.items():
+                  results = check_data.get('results', {})
+                  comparison = results.get('comparison', [])
+                  for replicate in comparison:
+                      if not replicate.get('passed', False):
+                          print(f"Failed replicate in experiment '{exp_name}', check '{check_name}', replicate index {replicate.get('replicate_idx')}")
+                          failed = True
+                          break
+                  if failed:
+                      break
+              if failed:
+                  break
 
-if failed:
-    print("Quality gate failed.")
-    sys.exit(1)
-else:
-    print("Quality gate passed.")
-    sys.exit(0)
-EOF
+      if failed:
+          print("Quality gate failed.")
+          sys.exit(1)
+      else:
+          print("Quality gate passed.")
+          sys.exit(0)
+      EOF
 
 # Shamelessly adapted from golang_deps_commenter job config in
 # golang_deps_diff.yml at commit 01da274032e510d617161cf4e264a53292f44e55.
