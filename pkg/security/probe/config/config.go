@@ -121,6 +121,9 @@ type Config struct {
 	// NetworkClassifierHandle defines the handle at which CWS should insert its TC classifiers.
 	NetworkClassifierHandle uint16
 
+	// RawNetworkClassifierHandle defines the handle at which CWS should insert its Raw TC classifiers.
+	RawNetworkClassifierHandle uint16
+
 	// ProcessConsumerEnabled defines if the process-agent wants to receive kernel events
 	ProcessConsumerEnabled bool
 
@@ -173,6 +176,7 @@ func NewConfig() (*Config, error) {
 		NetworkLazyInterfacePrefixes: getStringSlice("network.lazy_interface_prefixes"),
 		NetworkClassifierPriority:    uint16(getInt("network.classifier_priority")),
 		NetworkClassifierHandle:      uint16(getInt("network.classifier_handle")),
+		RawNetworkClassifierHandle:   uint16(getInt("network.raw_classifier_handle")),
 		EventStreamUseRingBuffer:     getBool("event_stream.use_ring_buffer"),
 		EventStreamBufferSize:        getInt("event_stream.buffer_size"),
 		EventStreamUseFentry:         getEventStreamFentryValue(),
@@ -206,6 +210,18 @@ func NewConfig() (*Config, error) {
 func (c *Config) sanitize() error {
 	if !c.ERPCDentryResolutionEnabled && !c.MapDentryResolutionEnabled {
 		c.MapDentryResolutionEnabled = true
+	}
+
+	if c.NetworkRawPacketEnabled {
+		if c.RawNetworkClassifierHandle != c.NetworkClassifierHandle {
+			if c.NetworkClassifierHandle*c.RawNetworkClassifierHandle == 0 {
+				return fmt.Errorf("none or both of network.classifier_handle and network.raw_classifier_handle must be provided: got classifier_handle:%d raw_classifier_handle:%d", c.NetworkClassifierHandle, c.RawNetworkClassifierHandle)
+			}
+		} else {
+			if c.NetworkClassifierHandle*c.RawNetworkClassifierHandle != 0 {
+				return fmt.Errorf("network.classifier_handle and network.raw_classifier_handle can't be equal and not null: got classifier_handle:%d raw_classifier_handle:%d", c.NetworkClassifierHandle, c.RawNetworkClassifierHandle)
+			}
+		}
 	}
 
 	// not enable at the system-probe level, disable for cws as well

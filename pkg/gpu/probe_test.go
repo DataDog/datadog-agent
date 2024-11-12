@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 type probeTestSuite struct {
@@ -30,7 +31,7 @@ func TestProbe(t *testing.T) {
 		t.Skipf("minimum kernel version not met, %v", err)
 	}
 
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.CORE}, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.CORE, ebpftest.RuntimeCompiled}, "", func(t *testing.T) {
 		suite.Run(t, new(probeTestSuite))
 	})
 }
@@ -73,8 +74,7 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 
 	probe := s.getProbe()
 
-	cmd, err := testutil.RunSample(t, testutil.CudaSample)
-	require.NoError(t, err)
+	cmd := testutil.RunSample(t, testutil.CudaSample)
 
 	utils.WaitForProgramsToBeTraced(t, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 
@@ -116,8 +116,7 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 
 	probe := s.getProbe()
 
-	cmd, err := testutil.RunSample(t, testutil.CudaSample)
-	require.NoError(t, err)
+	cmd := testutil.RunSample(t, testutil.CudaSample)
 
 	utils.WaitForProgramsToBeTraced(t, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 
@@ -126,7 +125,6 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	require.Eventually(t, func() bool {
 		return !utils.IsProgramTraced(gpuAttacherName, cmd.Process.Pid)
 	}, 20*time.Second, 500*time.Millisecond, "process not stopped")
-	require.NoError(t, err)
 
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
@@ -135,6 +133,49 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	require.Contains(t, stats.ProcessStats, uint32(cmd.Process.Pid))
 
 	pidStats := stats.ProcessStats[uint32(cmd.Process.Pid)]
+	require.Greater(t, pidStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
+	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
+}
+
+func (s *probeTestSuite) TestDetectsContainer() {
+	t := s.T()
+
+	// Flaky test in CI, avoid failures on main for now.
+	flake.Mark(t)
+
+	procMon := monitor.GetProcessMonitor()
+	require.NotNil(t, procMon)
+	require.NoError(t, procMon.Initialize(false))
+	t.Cleanup(procMon.Stop)
+
+	probe := s.getProbe()
+
+	args := testutil.GetDefaultArgs()
+	args.EndWaitTimeSec = 1
+	pid, cid := testutil.RunSampleInDockerWithArgs(t, testutil.CudaSample, testutil.MinimalDockerImage, args)
+
+	utils.WaitForProgramsToBeTraced(t, gpuAttacherName, pid, utils.ManualTracingFallbackDisabled)
+
+	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
+	// so that we can time out correctly
+	require.Eventually(t, func() bool {
+		return !utils.IsProgramTraced(gpuAttacherName, pid)
+	}, 20*time.Second, 500*time.Millisecond, "process not stopped")
+
+	// Check that the stream handlers have the correct container ID assigned
+	for key, handler := range probe.consumer.streamHandlers {
+		if key.pid == uint32(pid) {
+			require.Equal(t, cid, handler.containerID)
+		}
+	}
+
+	stats, err := probe.GetAndFlush()
+	require.NoError(t, err)
+	require.NotNil(t, stats)
+	require.NotEmpty(t, stats.ProcessStats)
+	require.Contains(t, stats.ProcessStats, uint32(pid))
+
+	pidStats := stats.ProcessStats[uint32(pid)]
 	require.Greater(t, pidStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
 }

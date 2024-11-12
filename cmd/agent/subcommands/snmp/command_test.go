@@ -6,6 +6,7 @@
 package snmp
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,7 +22,7 @@ func TestWalkCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"snmp", "walk", "1.2.3.4", "10.9.8.7", "-v", "3", "-r", "10"},
 		snmpWalk,
-		func(cliParams *snmpConnectionParams, args argsType) {
+		func(cliParams *snmpparse.SNMPConfig, args argsType) {
 			require.Equal(t, argsType{"1.2.3.4", "10.9.8.7"}, args)
 			require.Equal(t, "3", cliParams.Version)
 			require.Equal(t, 10, cliParams.Retries)
@@ -32,7 +33,7 @@ func TestWalkCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"snmp", "walk", "1.2.3.4", "10.9.8.7", "--use-unconnected-udp-socket"},
 		snmpWalk,
-		func(cliParams *snmpConnectionParams, args argsType) {
+		func(cliParams *snmpparse.SNMPConfig, args argsType) {
 			require.Equal(t, argsType{"1.2.3.4", "10.9.8.7"}, args)
 			require.True(t, cliParams.UseUnconnectedUDPSocket)
 		})
@@ -44,7 +45,7 @@ func TestScanCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"snmp", "scan", "1.2.3.4", "-v", "3", "-r", "10"},
 		scanDevice,
-		func(cliParams *snmpConnectionParams, args argsType) {
+		func(cliParams *snmpparse.SNMPConfig, args argsType) {
 			require.Equal(t, argsType{"1.2.3.4"}, args)
 			require.Equal(t, "3", cliParams.Version)
 			require.Equal(t, 10, cliParams.Retries)
@@ -55,7 +56,7 @@ func TestScanCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"snmp", "scan", "1.2.3.4", "--use-unconnected-udp-socket"},
 		scanDevice,
-		func(cliParams *snmpConnectionParams, args argsType) {
+		func(cliParams *snmpparse.SNMPConfig, args argsType) {
 			require.Equal(t, argsType{"1.2.3.4"}, args)
 			require.True(t, cliParams.UseUnconnectedUDPSocket)
 		})

@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
@@ -91,13 +92,14 @@ type Probe struct {
 // consumers for the events generated from the uprobes, and the stats generator to aggregate the data from
 // streams into per-process GPU stats.
 func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
-	var err error
-	//var m *ddebpf.Manager
-	if err = config.CheckGPUSupported(); err != nil {
+	log.Tracef("creating GPU monitoring probe...")
+	if err := config.CheckGPUSupported(); err != nil {
 		return nil, err
 	}
 
-	log.Tracef("creating GPU monitoring probe...")
+	if !cfg.EnableRuntimeCompiler && !cfg.EnableCORE {
+		return nil, fmt.Errorf("%s probe supports CO-RE or Runtime Compilation modes, but none of them are enabled", sysconfig.GPUMonitoringModule)
+	}
 
 	attachCfg := getAttacherConfig(cfg)
 	// Note: this will later be replaced by a common way to enable the process monitor across system-probe
@@ -118,16 +120,28 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		sysCtx:  sysCtx,
 	}
 
-	filename := "gpu.o"
-	if cfg.BPFDebug {
-		filename = "gpu-debug.o"
+	allowRC := cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback
+	//try CO-RE first
+	if cfg.EnableCORE {
+		err = p.initCOREGPU(cfg)
+		if err != nil {
+			if allowRC {
+				log.Warnf("error loading CO-RE %s, falling back to runtime compiled: %v", sysconfig.GPUMonitoringModule, err)
+			} else {
+				return nil, fmt.Errorf("error loading CO-RE %s: %w", sysconfig.GPUMonitoringModule, err)
+			}
+		}
+	} else {
+		//if CO-RE is disabled we don't need to check the AllowRuntimeCompiledFallback config flag
+		allowRC = cfg.EnableRuntimeCompiler
 	}
 
-	err = ddebpf.LoadCOREAsset(filename, func(ar bytecode.AssetReader, o manager.Options) error {
-		return p.setupManager(ar, o)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error loading CO-RE %s: %w", sysconfig.GPUMonitoringModule, err)
+	//if manager is not initialized yet and RC is enabled, try runtime compilation
+	if p.m == nil && allowRC {
+		err = p.initRCGPU(cfg)
+		if err != nil {
+			return nil, fmt.Errorf("unable to compile %s probe: %w", sysconfig.GPUMonitoringModule, err)
+		}
 	}
 
 	p.attacher, err = uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, p.m, nil, &uprobes.NativeBinaryInspector{}, procMon)
@@ -187,10 +201,63 @@ func (p *Probe) cleanupFinished() {
 	p.consumer.cleanFinishedHandlers()
 }
 
-// toPowerOf2 converts a number to its nearest power of 2
-func toPowerOf2(x int) int {
-	log := math.Log2(float64(x))
-	return int(math.Pow(2, math.Round(log)))
+func (p *Probe) initRCGPU(cfg *config.Config) error {
+	buf, err := getRuntimeCompiledGPUMonitoring(cfg)
+	if err != nil {
+		return err
+	}
+	defer buf.Close()
+
+	return p.setupManager(buf, manager.Options{})
+}
+
+func (p *Probe) initCOREGPU(cfg *config.Config) error {
+	asset := getAssetName("gpu", cfg.BPFDebug)
+	var err error
+	err = ddebpf.LoadCOREAsset(asset, func(ar bytecode.AssetReader, o manager.Options) error {
+		return p.setupManager(ar, o)
+	})
+	return err
+}
+
+func getAssetName(module string, debug bool) string {
+	if debug {
+		return fmt.Sprintf("%s-debug.o", module)
+	}
+
+	return fmt.Sprintf("%s.o", module)
+}
+
+func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
+	p.m = ddebpf.NewManagerWithDefault(&manager.Manager{
+		/* 	We don't init the probes list here, because the manager will try to attach them at startup
+		   	and fail since those are uprobes and their full path is resolved in runtime using the uprobeAttacher:
+			adding those probe later via manager.AddHook API
+
+		   	All manager's modifiers will still run as they operate on the ProgramSpecs map
+			of the manager,which is populated while parsing the elf file and creating the CollectionSpec
+		*/
+
+		Maps: []*manager.Map{
+			{
+				Name: cudaAllocCacheMap,
+			},
+			{
+				Name: cudaSyncCacheMap,
+			},
+		}}, "gpu", &ebpftelemetry.ErrorsTelemetryModifier{})
+
+	if opts.MapSpecEditors == nil {
+		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
+	}
+
+	p.setupSharedBuffer(&opts)
+
+	if err := p.m.InitWithOptions(buf, &opts); err != nil {
+		return fmt.Errorf("failed to init manager: %w", err)
+	}
+
+	return nil
 }
 
 // setupSharedBuffer sets up the ringbuffer to handle CUDA events produces by ebpf uprobes
@@ -244,34 +311,8 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 	}
 }
 
-func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
-	p.m = ddebpf.NewManagerWithDefault(&manager.Manager{
-		/* 	We don't init the probes list here, because the manager will try to attach them at startup
-		   	and fail since those are uprobes and their full path is resolved in runtime using the uprobeAttacher
-		   	the uprobeAttacher will add those probe later via manager.AddHook API
-
-		   	All manager's modifiers will still run as they operate on the ProgramSpecs map
-			of the manager,which is populated while parsing the elf file and creating the CollectionSpec
-		*/
-
-		Maps: []*manager.Map{
-			{
-				Name: cudaAllocCacheMap,
-			},
-			{
-				Name: cudaSyncCacheMap,
-			},
-		}})
-
-	if opts.MapSpecEditors == nil {
-		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
-	}
-
-	p.setupSharedBuffer(&opts)
-
-	if err := p.m.InitWithOptions(buf, &opts); err != nil {
-		return fmt.Errorf("failed to init manager: %w", err)
-	}
-
-	return nil
+// toPowerOf2 converts a number to its nearest power of 2
+func toPowerOf2(x int) int {
+	log := math.Log2(float64(x))
+	return int(math.Pow(2, math.Round(log)))
 }
