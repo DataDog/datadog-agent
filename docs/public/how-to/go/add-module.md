@@ -27,13 +27,14 @@ The repository contains a few submodules. To add a new one and ensure it is test
     ```
 
 
-4.  Create the `module.yml` file next to `go.mod` with this content:
+4.  Udpate the `modules.yml` file at the root of the repository with this content:
 
     ```yaml
-    independent: true
-    should_tag: false
-    targets:
-    - .
+    path/to/mymodule:
+        independent: true
+        should_tag: false
+        targets:
+        - .
     ```
 
     - `independent`: Should it be importable as an independent module?

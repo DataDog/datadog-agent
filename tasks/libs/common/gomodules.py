@@ -302,10 +302,7 @@ AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
 
 @lru_cache
 def get_default_modules(base_dir: Path | None = None) -> dict[str, GoModule]:
-    """Load the default modules from all the module.yml files.
-
-    All the module.yml files are supposed to be next to a go.mod file.
-    If no module.yml file is found, a module is still created with default values except if the file contains `ignored: true`.
+    """Load the default modules from the modules.yml file.
 
     Args:
         base_dir: Root directory of the agent repository ('.' by default).
