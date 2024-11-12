@@ -125,16 +125,22 @@ class GoModule:
 
     # Posix path of the module's directory
     path: str
+    # Directories to unit test
     targets: list[str] | None = None
+    # When to execute tests, must be a enumerated field of `GoModule.CONDITIONS``
     condition: str = 'always'
+    # Whether this module should be tagged or not
     should_tag: bool = True
     # HACK: Workaround for modules that can be tested, but not imported (eg. gohai), because
     # they define a main package
     # A better solution would be to automatically detect if a module contains a main package,
     # at the cost of spending some time parsing the module.
     importable: bool = True
+    # Whether the module relies on the datadog-agent main module or not
     independent: bool = True
+    # Directories to lint
     lint_targets: list[str] | None = None
+    # Whether the module is an otel dependency or not
     used_by_otel: bool = False
 
     @staticmethod
