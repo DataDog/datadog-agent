@@ -17,14 +17,22 @@ import (
 
 	"github.com/DataDog/ebpf-manager/tracefs"
 
+	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
-	sysprobeSocketLocation := pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")
+	sysprobeSocketLocation := getSystemProbeSocketPath()
 	if sysprobeSocketLocation != "" {
 		fb.RegisterDirPerm(filepath.Dir(sysprobeSocketLocation))
+	}
+
+	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_cached.log"), getSystemProbeConntrackCached)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_host.log"), getSystemProbeConntrackHost)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "ebpf_btf_loader.log"), getSystemProbeBTFLoaderInfo)
 	}
 }
 
@@ -116,4 +124,22 @@ func getLinuxTracingAvailableFilterFunctions(fb flaretypes.FlareBuilder) error {
 		return err
 	}
 	return fb.CopyFile(filepath.Join(traceFSPath, "available_filter_functions"))
+}
+
+func getSystemProbeConntrackCached() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/debug/conntrack/cached")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeConntrackHost() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/debug/conntrack/host")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeBTFLoaderInfo() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	url := sysprobeclient.DebugURL("/ebpf_btf_loader_info")
+	return getHTTPData(sysProbeClient, url)
 }
