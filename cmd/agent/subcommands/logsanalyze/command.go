@@ -9,8 +9,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/comp/core"
 
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -51,11 +51,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return fmt.Errorf("log config file path is required")
 			}
 			cliParams.LogConfigPath = args[0]
-			fmt.Println("andrewq1", cliParams.LogConfigPath)
 			return fxutil.OneShot(runLogsAnalyze,
+				core.Bundle(),
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle(),
 			)
 		},
 	}
@@ -68,22 +67,17 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 // runLogsAnalyze handles the logs check operation.
 func runLogsAnalyze(config config.Component, cliParams *CliParams) error {
-	fmt.Println("wacktest?")
 	agentimpl.SetUpLaunchers(config)
 
 	//send paths to source provider
-	// Add log config source
-	fmt.Println("andrewq command.go 1")
 	if err := cliParams.ConfigSource.AddFileSource(cliParams.LogConfigPath); err != nil {
 		return fmt.Errorf("failed to add log config source: %w", err)
 	}
 
-	fmt.Println("andrewq command.go 2")
 	// Add core config source
 	if err := cliParams.ConfigSource.AddFileSource(cliParams.CoreConfigPath); err != nil {
 		return fmt.Errorf("failed to add core config source: %w", err)
 	}
-	fmt.Println("andrewq command.go 3, added both log files")
 
 	return nil
 }

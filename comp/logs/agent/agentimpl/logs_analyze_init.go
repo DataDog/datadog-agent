@@ -17,6 +17,7 @@ import (
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
 
 // SetUpLaunchers creates launchers set up tailers to tail files provided by the logs-analyze command
@@ -27,10 +28,8 @@ func SetUpLaunchers(conf configComponent.Component) {
 	}
 
 	pipelineProvider := pipeline.NewProcessorOnlyProvider(nil, processingRules, conf, nil)
-
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(nil, pipelineProvider, nil, nil)
-
 	fileLimits := 500
 	fileValidatePodContainer := false
 	fileScanPeriod := time.Duration(10.0 * float64(time.Second))
@@ -44,7 +43,8 @@ func SetUpLaunchers(conf configComponent.Component) {
 		nil,
 		nil)
 	sourceProvider := sources.GetInstance()
-	fmt.Printf("WACK logs_analyze_init %p \n", sourceProvider)
-	fileLauncher.Start(sourceProvider, pipelineProvider, nil, nil)
+	fmt.Printf("logs_analyze_init SourcerProvider address is %p \n", sourceProvider)
+	tracker := tailers.NewTailerTracker()
+	fileLauncher.Start(sourceProvider, pipelineProvider, nil, tracker)
 	lnchrs.AddLauncher(fileLauncher)
 }

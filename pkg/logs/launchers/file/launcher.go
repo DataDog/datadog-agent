@@ -90,9 +90,11 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	s.pipelineProvider = pipelineProvider
 	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.FileType)
-	fmt.Println("andrewq launcher.go: s.addedSources channel added")
+	fmt.Println("launcher added sources is ", s.addedSources)
+	fmt.Printf("launcher added sources channel address is %p \n", s.addedSources)
 	s.registry = registry
 	tracker.Add(s.tailers)
+	fmt.Println("launcher.go tailers are ", s.tailers)
 	go s.run()
 }
 
