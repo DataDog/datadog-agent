@@ -152,11 +152,6 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	// Visible devices 1,2 -> selects 1 in that array -> global device index = 2
 	selectedGPU := testutil.GPUUUIDs[2]
 
-	procMon := monitor.GetProcessMonitor()
-	require.NotNil(t, procMon)
-	require.NoError(t, procMon.Initialize(false))
-	t.Cleanup(procMon.Stop)
-
 	cmd := testutil.RunSampleWithArgs(t, testutil.CudaSample, sampleArgs)
 	utils.WaitForProgramsToBeTraced(t, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
 
