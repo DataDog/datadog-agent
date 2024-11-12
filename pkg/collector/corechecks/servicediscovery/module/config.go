@@ -21,6 +21,7 @@ const discoveryNS = "discovery"
 type discoveryConfig struct {
 	cpuUsageUpdateDelay time.Duration
 	ignoreComms         map[string]struct{}
+	ignoreServices      map[string]struct{}
 }
 
 func newConfig() *discoveryConfig {
@@ -32,6 +33,7 @@ func newConfig() *discoveryConfig {
 	}
 
 	conf.loadIgnoredComms(cfg.GetStringSlice(join(discoveryNS, "ignored_command_names")))
+	conf.loadIgnoredServices(cfg.GetStringSlice(join(discoveryNS, "ignored_services")))
 
 	return conf
 }
@@ -51,6 +53,19 @@ func (config *discoveryConfig) loadIgnoredComms(comms []string) {
 		} else if len(comm) > 0 {
 			config.ignoreComms[comm] = struct{}{}
 		}
+	}
+}
+
+// loadIgnoredServices saves names that should not be reported as a service
+func (config *discoveryConfig) loadIgnoredServices(services []string) {
+	if len(services) == 0 {
+		log.Debug("loading ignored services found empty services list")
+		return
+	}
+	config.ignoreServices = make(map[string]struct{}, len(services))
+
+	for _, service := range services {
+		config.ignoreServices[service] = struct{}{}
 	}
 }
 
