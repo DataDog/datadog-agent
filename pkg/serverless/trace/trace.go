@@ -16,10 +16,10 @@ import (
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
 	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
@@ -102,7 +101,7 @@ type StartServerlessTraceAgentArgs struct {
 	LambdaSpanChan        chan<- *pb.Span
 	ColdStartSpanID       uint64
 	AzureContainerAppTags string
-	RCService             optional.Option[rcservice.Component]
+	RCService             *remoteconfig.CoreAgentService
 }
 
 // Start starts the agent
@@ -147,14 +146,13 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 	return noopTraceAgent{}
 }
 
-func startTraceAgentConfigEndpoint(rcService optional.Option[rcservice.Component], tc *config.AgentConfig) {
-	serverlessRCService, set := rcService.Get()
-	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) && set {
+func startTraceAgentConfigEndpoint(rcService *remoteconfig.CoreAgentService, tc *config.AgentConfig) {
+	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) && rcService != nil {
 		statsdNoopClient := &statsd.NoOpClient{}
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
 			Handler: func(r *api.HTTPReceiver) http.Handler {
-				return remotecfg.ConfigHandler(r, serverlessRCService, tc, statsdNoopClient, timing.New(statsdNoopClient))
+				return remotecfg.ConfigHandler(r, rcService, tc, statsdNoopClient, timing.New(statsdNoopClient))
 			},
 		})
 	} else {
