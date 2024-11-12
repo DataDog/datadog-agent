@@ -635,8 +635,7 @@ func getCalendarAppEnvVars(name string, otlpEndpoint string, ust bool) []corev1.
 	}, {
 		Name: "OTEL_RESOURCE_ATTRIBUTES",
 		Value: resourceAttrs +
-			",service.name=$(OTEL_SERVICE_NAME)," +
-			fmt.Sprintf("deployment.environment=%v,", env) +
+			fmt.Sprintf(",deployment.environment=%v,", env) +
 			fmt.Sprintf("service.version=%v", version),
 	}}...)
 }
