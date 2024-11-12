@@ -454,6 +454,11 @@ func GetOTelContainerTags(rattrs pcommon.Map, tagKeys []string) []string {
 	return containerTags
 }
 
+// GetOTelEnv returns the environment based on OTel resource attributes.
+func GetOTelEnv(rattrs pcommon.Map) string {
+	return GetOTelAttrVal(rattrs, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
+}
+
 // OTelTraceIDToUint64 converts an OTel trace ID to an uint64
 func OTelTraceIDToUint64(b [16]byte) uint64 {
 	return binary.BigEndian.Uint64(b[len(b)-8:])
