@@ -89,6 +89,7 @@ func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time
 // timeout or if the listener is canceled, it should return a canceledError
 func handlePackets(ctx context.Context, conn rawConnWrapper, listener string, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
 	buf := make([]byte, 1024)
+	tp := newTCPParser()
 	for {
 		select {
 		case <-ctx.Done():
@@ -125,7 +126,7 @@ func handlePackets(ctx context.Context, conn rawConnWrapper, listener string, lo
 				return icmpResponse.SrcIP, 0, icmpResponse.TypeCode, received, nil
 			}
 		} else if listener == "tcp" {
-			tcpResp, err := parseTCP(header, packet)
+			tcpResp, err := tp.parseTCP(header, packet)
 			if err != nil {
 				log.Tracef("failed to parse TCP packet: %s", err.Error())
 				continue
