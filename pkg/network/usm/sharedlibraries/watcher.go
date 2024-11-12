@@ -84,7 +84,7 @@ func NewWatcher(cfg *config.Config, rules ...Rule) (*Watcher, error) {
 		loadEvents:     ebpfProgram.GetPerfHandler(),
 		processMonitor: monitor.GetProcessMonitor(),
 		ebpfProgram:    ebpfProgram,
-		registry:       utils.NewFileRegistry("shared_libraries"),
+		registry:       utils.NewFileRegistry("usm", "shared_libraries"),
 
 		libHits:    telemetry.NewCounter("usm.so_watcher.hits", telemetry.OptPrometheus),
 		libMatches: telemetry.NewCounter("usm.so_watcher.matches", telemetry.OptPrometheus),
@@ -286,5 +286,5 @@ func (w *Watcher) Start() {
 		log.Errorf("error starting shared library detection eBPF program: %s", err)
 	}
 
-	utils.AddAttacher("native", w)
+	utils.AddAttacher("usm", "native", w)
 }

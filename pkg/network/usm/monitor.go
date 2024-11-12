@@ -168,9 +168,9 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 		response["error"] = startupError.Error()
 	}
 
-	response["blocked_processes"] = utils.GetBlockedPathIDsList()
+	response["blocked_processes"] = utils.GetBlockedPathIDsList("usm")
 
-	tracedPrograms := utils.GetTracedProgramList()
+	tracedPrograms := utils.GetTracedProgramList("usm")
 	response["traced_programs"] = tracedPrograms
 
 	if m != nil {

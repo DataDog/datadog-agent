@@ -103,7 +103,7 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 
 	procRoot := kernel.ProcFSRoot()
 	return &istioMonitor{
-		registry: utils.NewFileRegistry("istio"),
+		registry: utils.NewFileRegistry("usm", "istio"),
 		procRoot: procRoot,
 		envoyCmd: c.EnvoyPath,
 		done:     make(chan struct{}),
@@ -187,7 +187,7 @@ func (m *istioMonitor) Start() {
 		}
 	}()
 
-	utils.AddAttacher("istio", m)
+	utils.AddAttacher("usm", "istio", m)
 	log.Info("Istio monitoring enabled")
 }
 

@@ -148,7 +148,7 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 		}
 
 		procMon := monitor.GetProcessMonitor()
-		attacher, err := uprobes.NewUprobeAttacher(GoTLSAttacherName, attacherCfg, m, nil, inspector, procMon)
+		attacher, err := uprobes.NewUprobeAttacher("usm", GoTLSAttacherName, attacherCfg, m, nil, inspector, procMon)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create uprobe attacher: %w", err)
 		}
