@@ -35,8 +35,8 @@ func DialContextFunc(pipeName string) func(context.Context, string, string) (net
 		if err != nil {
 			// This important error may not get reported upstream, making connection failures
 			// very difficult to diagnose. Explicitly log the error here too for diagnostics.
-			var namedPipeErr = fmt.Errorf("error connecting to named pipe %s : %s", pipeName, err)
-			log.Errorf("%s", namedPipeErr.Error())
+			var namedPipeErr = fmt.Errorf("error connecting to named pipe %q: %s", pipeName, err)
+			log.Error(namedPipeErr.Error())
 			return nil, namedPipeErr
 		}
 
