@@ -27,7 +27,7 @@ internal_kubernetes_deploy_experimental:
     - job: k8s-e2e-main # Currently only require container Argo workflow
       artifacts: false
       optional: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     OPTION_AUTOMATIC_ROLLOUT: "true"
@@ -67,5 +67,8 @@ notify-slack:
   needs: ["internal_kubernetes_deploy_experimental"]
   script:
     - export SDM_JWT=$(vault read -field=token identity/oidc/token/sdm)
-    - python3 -m pip install -r tasks/requirements.txt
+    # Python 3.12 changes default behavior how packages are installed.
+    # In particular, --break-system-packages command line option is
+    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
+    - python3 -m pip install -r tasks/requirements.txt --break-system-packages
     - inv pipeline.changelog ${CI_COMMIT_SHORT_SHA} || exit $?
