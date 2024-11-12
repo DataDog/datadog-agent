@@ -6,7 +6,6 @@
 // Package tcp adds a TCP traceroute implementation to the agent
 package tcp
 
-
 import (
 	"fmt"
 	"math/rand"
@@ -16,8 +15,8 @@ import (
 	"golang.org/x/net/ipv4"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/google/gopacket/layers"
 )
+
 // TracerouteSequential runs a traceroute sequentially where a packet is
 // sent and we wait for a response before sending the next packet
 func (t *TCPv4) TracerouteSequential() (*Results, error) {

@@ -9,16 +9,13 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"go.uber.org/multierr"
 	"golang.org/x/net/ipv4"
-
 )
 
 // sendPacket sends a raw IPv4 packet using the passed connection
@@ -29,7 +26,6 @@ func sendPacket(rawConn rawConnWrapper, header *ipv4.Header, payload []byte) err
 
 	return nil
 }
-
 
 // listenPackets takes in raw ICMP and TCP connections and listens for matching ICMP
 // and TCP responses based on the passed in trace information. If neither listener
@@ -87,7 +83,6 @@ func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time
 	// return the TCP response
 	return tcpIP, port, 0, tcpFinished, nil
 }
-
 
 // handlePackets in its current implementation should listen for the first matching
 // packet on the connection and then return. If no packet is received within the

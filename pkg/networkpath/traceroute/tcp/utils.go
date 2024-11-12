@@ -90,7 +90,7 @@ func createRawTCPSyn(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort
 		return nil, nil, err
 	}
 
-	return ipHdr, packet[:hdrlen], nil
+	return ipHdr, packet[hdrlen:], nil
 }
 
 func createRawTCPSynBuffer(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, seqNum uint32, ttl int) (*ipv4.Header, []byte, int, error) {
@@ -135,7 +135,6 @@ func createRawTCPSynBuffer(sourceIP net.IP, sourcePort uint16, destIP net.IP, de
 
 	return &ipHdr, packet, 20, nil
 }
-
 
 // parseICMP takes in an IPv4 header and payload and tries to convert to an ICMP
 // message, it returns all the fields from the packet we need to validate it's the response
