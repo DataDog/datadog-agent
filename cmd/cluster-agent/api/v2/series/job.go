@@ -14,9 +14,48 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/gogen"
 	loadstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
+)
+
+const (
+	subsystem = "autoscaling_workload"
+)
+
+var (
+	commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
+
+	// telemetryWorkloadStoreMemory tracks the total memory usage of the store
+	telemetryWorkloadStoreMemory = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"load_store_memory_usage",
+		nil,
+		"Total memory usage of the store",
+		commonOpts,
+	)
+	telemetryWorkloadMetricEntities = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"load_store_metric_entities",
+		[]string{"metric"},
+		"Number of entities by metric names in the store",
+		commonOpts,
+	)
+	telemetryWorkloadNamespaceEntities = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"load_store_namespace_entities",
+		[]string{"namespace"},
+		"Number of entities by namespaces in the store",
+		commonOpts,
+	)
+	telemetryWorkloadJobQueueLength = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"load_store_job_queue_length",
+		nil,
+		"Length of the job queue",
+		commonOpts,
+	)
 )
 
 // jobQueue is a wrapper around workqueue.DelayingInterface to make it thread-safe.
@@ -61,7 +100,16 @@ func (jq *jobQueue) start(ctx context.Context) {
 			log.Infof("Stopping series payload job queue")
 			return
 		case <-infoTicker.C:
-			log.Infof("Loadstore info: %s", jq.store.GetStoreInfo())
+			info := jq.store.GetStoreInfo()
+			telemetryWorkloadStoreMemory.Set(float64(info.TotalMemoryUsage))
+			for k, v := range info.EntityCountByMetric {
+				telemetryWorkloadMetricEntities.Set(float64(v), k)
+			}
+			for k, v := range info.EntityCountByNamespace {
+				telemetryWorkloadNamespaceEntities.Set(float64(v), k)
+			}
+			telemetryWorkloadJobQueueLength.Set(float64(jq.queue.Len()))
+			log.Debugf("Store info: %+v", info)
 		}
 	}
 }
