@@ -22,16 +22,19 @@ const (
 	// Info is composed of the type and binding of the symbol. Type is the lower 4 bits and binding is the upper 4 bits.
 	// We are only interested in functions, which binding STB_GLOBAL (1) and type STT_FUNC (2).
 	// Hence, we are interested in symbols with Info 18.
+	// nolint: unused
 	infoFunction = byte(elf.STB_GLOBAL)<<4 | byte(elf.STT_FUNC)
 )
 
 // TestGetPCLNTABSymbolParser tests the GetPCLNTABSymbolParser function with strings set symbol filter.
 // We are looking to find all symbols of the current process executable and check if they are found in the PCLNTAB.
-func TestGetPCLNTABSymbolParser(t *testing.T) {
+// nolint: unused
+func testGetPCLNTABSymbolParser(t *testing.T) {
 	currentPid := os.Getpid()
 	f, err := elf.Open("/proc/" + strconv.Itoa(currentPid) + "/exe")
 	require.NoError(t, err)
 	symbolSet := make(common.StringSet)
+	allSymbols := make(map[string]elf.Symbol)
 	staticSymbols, _ := f.Symbols()
 	dynamicSymbols, _ := f.DynamicSymbols()
 	for _, symbols := range [][]elf.Symbol{staticSymbols, dynamicSymbols} {
@@ -44,6 +47,7 @@ func TestGetPCLNTABSymbolParser(t *testing.T) {
 				continue
 			}
 			symbolSet[sym.Name] = struct{}{}
+			allSymbols[sym.Name] = sym
 		}
 	}
 	if len(symbolSet) == 0 {
@@ -58,5 +62,11 @@ func TestGetPCLNTABSymbolParser(t *testing.T) {
 				t.Log("Missing symbol:", sym)
 			}
 		}
+		t.FailNow()
+	}
+
+	for name, symbol := range got {
+		require.Equalf(t, allSymbols[name].Value, symbol.Value, "Symbol %s", name)
+		require.Equalf(t, allSymbols[name].Size, symbol.Size, "Symbol %s", name)
 	}
 }

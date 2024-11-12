@@ -290,8 +290,8 @@ func GetAnySymbolWithPrefixPCLNTAB(elfFile *elf.File, prefix string, maxLength i
 		return nil, err
 	}
 
-	for key := range symbols {
-		return symbols[key], nil
+	for _, value := range symbols {
+		return &value, nil
 	}
 
 	// Shouldn't happen

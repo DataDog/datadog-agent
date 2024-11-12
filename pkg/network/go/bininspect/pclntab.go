@@ -57,6 +57,13 @@ type sectionAccess struct {
 
 // ReadAt reads len(p) bytes from the section starting at the given offset.
 func (s *sectionAccess) ReadAt(outBuffer []byte, offset int64) (int, error) {
+	if offset+int64(len(outBuffer)) > int64(s.section.Size) {
+		readableLength := int64(s.section.Size) - offset
+		if readableLength <= 0 {
+			return 0, io.EOF
+		}
+		return s.section.ReadAt(outBuffer[:readableLength], s.baseOffset+offset)
+	}
 	return s.section.ReadAt(outBuffer, s.baseOffset+offset)
 }
 
@@ -68,6 +75,8 @@ type pclntanSymbolParser struct {
 	// symbolFilter is the filter for the symbols.
 	symbolFilter symbolFilter
 
+	// textAddress is the address of the .text section.
+	textAddress uint64
 	// byteOrderParser is the binary.ByteOrder for the pclntab.
 	byteOrderParser binary.ByteOrder
 	// cachedVersion is the version of the pclntab.
@@ -93,13 +102,17 @@ type pclntanSymbolParser struct {
 }
 
 // GetPCLNTABSymbolParser returns the matching symbols from the pclntab section.
-func GetPCLNTABSymbolParser(f *elf.File, symbolFilter symbolFilter) (map[string]*elf.Symbol, error) {
+func GetPCLNTABSymbolParser(f *elf.File, symbolFilter symbolFilter) (map[string]elf.Symbol, error) {
 	section := f.Section(pclntabSectionName)
 	if section == nil {
 		return nil, ErrMissingPCLNTABSection
 	}
 
-	parser := &pclntanSymbolParser{section: section, symbolFilter: symbolFilter}
+	textSect := f.Section(".text")
+	if textSect == nil {
+		return nil, fmt.Errorf("failed to locate text section")
+	}
+	parser := &pclntanSymbolParser{section: section, symbolFilter: symbolFilter, textAddress: textSect.Addr}
 
 	if err := parser.parsePclntab(); err != nil {
 		return nil, err
@@ -219,9 +232,9 @@ func getFuncTableFieldSize(version version, ptrSize int) int {
 
 // getSymbols returns the symbols from the pclntab section that match the symbol filter.
 // based on https://github.com/golang/go/blob/6a861010be9eed02d5285509cbaf3fb26d2c5041/src/debug/gosym/pclntab.go#L300-L329
-func (p *pclntanSymbolParser) getSymbols() (map[string]*elf.Symbol, error) {
+func (p *pclntanSymbolParser) getSymbols() (map[string]elf.Symbol, error) {
 	numWanted := p.symbolFilter.getNumWanted()
-	symbols := make(map[string]*elf.Symbol, numWanted)
+	symbols := make(map[string]elf.Symbol, numWanted)
 	data := sectionAccess{section: p.section}
 	for currentIdx := uint32(0); currentIdx < p.funcTableSize; currentIdx++ {
 		// based on https://github.com/golang/go/blob/6a861010be9eed02d5285509cbaf3fb26d2c5041/src/debug/gosym/pclntab.go#L315
@@ -237,8 +250,18 @@ func (p *pclntanSymbolParser) getSymbols() (map[string]*elf.Symbol, error) {
 		if funcName == "" {
 			continue
 		}
-		symbols[funcName] = &elf.Symbol{
-			Name: funcName,
+		entryAddress := p.getFuncOffset(currentIdx)
+		if entryAddress == 0 {
+			continue
+		}
+		nextFuncAddress := p.getFuncOffset(currentIdx + 1)
+		if nextFuncAddress == 0 {
+			continue
+		}
+		symbols[funcName] = elf.Symbol{
+			Name:  funcName,
+			Value: entryAddress,
+			Size:  nextFuncAddress - entryAddress,
 		}
 		if len(symbols) == numWanted {
 			break
@@ -305,4 +328,15 @@ func funcNameOffset(ptrSize uint32, version version, binary binary.ByteOrder, da
 		return 0
 	}
 	return binary.Uint32(helper[:4])
+}
+
+func (p *pclntanSymbolParser) getFuncOffset(funcIndex uint32) uint64 {
+	if _, err := p.funcTable.ReadAt(p.funcTableBuffer, int64((2*funcIndex)*uint32(p.funcTableFieldSize))); err != nil {
+		return 0
+	}
+	address := p.uint(p.funcTableBuffer[:p.funcTableFieldSize])
+	if p.cachedVersion >= ver118 {
+		return address + p.textAddress
+	}
+	return address
 }
