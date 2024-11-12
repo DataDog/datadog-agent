@@ -1,9 +1,11 @@
 connectors:
   datadog/connector:
     traces:
+      bucket_interval: 10s
       compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
       ignore_resources: []
+      peer_service_aggregation: false
       peer_tags: []
       peer_tags_aggregation: true
       resource_attributes_as_container_tags: []
@@ -50,7 +52,6 @@ exporters:
         mode: distributions
         send_aggregation_metrics: false
         send_count_sum_metrics: false
-      instrumentation_library_metadata_as_tags: false
       instrumentation_scope_metadata_as_tags: false
       resource_attributes_as_tags: true
       summaries:
@@ -129,13 +130,17 @@ receivers:
         compression_algorithms: []
         cors: null
         endpoint: 0.0.0.0:4318
+        idle_timeout: 0s
         include_metadata: false
         logs_url_path: /v1/logs
         max_request_body_size: 0
         metrics_url_path: /v1/metrics
+        read_header_timeout: 0s
+        read_timeout: 0s
         response_headers: {}
         tls: null
         traces_url_path: /v1/traces
+        write_timeout: 0s
 service:
   extensions: []
   pipelines:
@@ -186,10 +191,17 @@ service:
         thereafter: 100
         tick: 10s
     metrics:
-      address: :8888
+      address: ""
       level: Normal
-      readers: []
+      readers:
+        - pull:
+            exporter:
+              additionalproperties:
+              prometheus:
+                host: "localhost"
+                port: 8888
     resource: {}
     traces:
+      level: Basic
       processors: []
       propagators: []

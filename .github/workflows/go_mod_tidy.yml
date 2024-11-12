@@ -9,16 +9,18 @@ on:
         description: "PR number"
         required: true
         type: number
-permissions:
-  contents: write
+
 jobs:
   mod_tidy_and_generate_licenses:
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.actor == 'dependabot[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-go')) }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           ref: ${{ github.head_ref }}
+          persist-credentials: false
       - name: Checkout PR
         # run only if triggered manually, otherwise we are already on the right branch and we won't have `pr_number`
         if: ${{ github.event_name == 'workflow_dispatch' }}
@@ -31,7 +33,7 @@ jobs:
         with:
           go-version-file: ".go-version"
       - name: Install python
-        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: 3.11
           cache: "pip"

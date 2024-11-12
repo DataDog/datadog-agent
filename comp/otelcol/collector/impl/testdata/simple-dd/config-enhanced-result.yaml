@@ -41,7 +41,6 @@ exporters:
         mode: distributions
         send_aggregation_metrics: false
         send_count_sum_metrics: false
-      instrumentation_library_metadata_as_tags: false
       instrumentation_scope_metadata_as_tags: false
       resource_attributes_as_tags: false
       summaries:
@@ -99,10 +98,14 @@ extensions:
     configstore: {}
     cors: null
     endpoint: localhost:7777
+    idle_timeout: 0s
     include_metadata: false
     max_request_body_size: 0
+    read_header_timeout: 0s
+    read_timeout: 0s
     response_headers: {}
     tls: null
+    write_timeout: 0s
   health_check/dd-autoconfigured:
     auth: null
     check_collector_pipeline:
@@ -112,12 +115,16 @@ extensions:
     compression_algorithms: []
     cors: null
     endpoint: localhost:13133
+    idle_timeout: 0s
     include_metadata: false
     max_request_body_size: 0
     path: /
+    read_header_timeout: 0s
+    read_timeout: 0s
     response_body: null
     response_headers: {}
     tls: null
+    write_timeout: 0s
   pprof/dd-autoconfigured:
     block_profile_fraction: 0
     dialer:
@@ -130,10 +137,14 @@ extensions:
     compression_algorithms: []
     cors: null
     endpoint: localhost:55679
+    idle_timeout: 0s
     include_metadata: false
     max_request_body_size: 0
+    read_header_timeout: 0s
+    read_timeout: 0s
     response_headers: {}
     tls: null
+    write_timeout: 0s
 processors:
   infraattributes/dd-autoconfigured:
     cardinality: 0
@@ -158,6 +169,8 @@ receivers:
           - OpenMetricsText0.0.1
           - PrometheusText0.0.4
         scrape_timeout: 10s
+      runtime:
+        gogc: 75
       scrape_configs:
         - enable_compression: true
           enable_http2: true
@@ -228,7 +241,7 @@ service:
         thereafter: 100
         tick: 10s
     metrics:
-      address: :8888
+      address: ":8888"
       level: Normal
       readers: []
     resource: {}

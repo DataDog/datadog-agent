@@ -226,7 +226,7 @@ def gen_config_from_ci_pipeline(
         if test_job.status == "failed" and job.component == vmconfig_template:
             vm_arch = test_job.arch
             if use_local_if_possible and vm_arch == local_arch:
-                vm_arch = local_arch
+                vm_arch = "local"
 
             results = test_job.get_test_results()
             for test, result in results.items():
@@ -1073,9 +1073,10 @@ def kmt_sysprobe_prepare(
                         # copy command
                         implicit=[testdata_folder],
                         rule="cbin",
-                        variables={
-                            "cc": "clang",
-                        },
+                        # helper binaries need to be compiled statically to avoid problems with
+                        # libc not being found in target VMs/containers (motivating case: running
+                        # these binaries in alpine docker images, which has musl instead of lib)
+                        variables={"cc": "clang", "cflags": "-static"},
                     )
 
     info("[+] Compiling tests...")
@@ -1175,7 +1176,7 @@ def test(
     packages=None,
     run: str | None = None,
     quick=False,
-    retry=2,
+    retry=0,
     run_count=1,
     ssh_key: str | None = None,
     verbose=True,

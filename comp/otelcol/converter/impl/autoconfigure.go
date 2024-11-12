@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.opentelemetry.io/collector/confmap"
 )
 
@@ -116,7 +115,7 @@ func addComponentToPipeline(conf *confmap.Conf, comp component, pipelineName str
 	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
 
-func addCoreAgentConfig(conf *confmap.Conf, coreCfg optional.Option[config.Component]) {
+func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 	stringMapConf := conf.ToStringMap()
 	exporters, ok := stringMapConf["exporters"]
 	if !ok {
@@ -154,13 +153,12 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg optional.Option[config.Compo
 		}
 	}
 
-	ccfg, ok := coreCfg.Get()
-	if ok {
-		apiMap["key"] = ccfg.Get("api_key")
+	if coreCfg != nil {
+		apiMap["key"] = coreCfg.Get("api_key")
 
 		apiSite, ok := apiMap["site"]
 		if ok && apiSite == "" {
-			apiMap["site"] = ccfg.Get("site")
+			apiMap["site"] = coreCfg.Get("site")
 		}
 	}
 
