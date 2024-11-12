@@ -55,6 +55,6 @@ func (v *LinuxFakeintakeSuite) TestWriteTenLogsCheck() {
 		output := v.Env().RemoteHost.MustExecute("sudo cat /opt/datadog-agent/run/integrations/writeTenLogs*.log")
 		newLineCount := strings.Count(output, "\n")
 		assert.Equal(c, newLineCount%10, 0)
-		assert.GreaterOrEqual(c, 10, newLineCount)
+		assert.GreaterOrEqual(c, newLineCount, 10)
 	}, 1*time.Minute, 5*time.Second)
 }
