@@ -6,7 +6,7 @@ class HelloCheck(AgentCheck):
     def check(self, instance):
         data = {}
         data['timestamp'] = get_timestamp()
-        data['message'] = "Wow, this is a custom log message!"
+        data['message'] = "Custom log message"
         data['ddtags'] = "env:dev,bar:foo"
 
         for _ in range(10):

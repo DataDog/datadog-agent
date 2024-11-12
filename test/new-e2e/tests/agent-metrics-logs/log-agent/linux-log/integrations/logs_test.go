@@ -17,21 +17,22 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metrics-logs/log-agent/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
-type LinuxFakeintakeSuite struct {
+type IntegrationsLogsSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-//go:embed fixtures/writeTenLogs.py
+//go:embed fixtures/tenLogs.py
 var writeTenLogsCheck string
 
-//go:embed fixtures/writeTenLogs.yaml
+//go:embed fixtures/tenLogs.yaml
 var writeTenLogsConfig string
 
 // TestLinuxFakeIntakeSuite
-func TestLinuxFakeIntakeSuite(t *testing.T) {
+func TestIntegrationsLogsSuite(t *testing.T) {
 	suiteParams := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(
 			agentparams.WithLogs(),
@@ -42,12 +43,12 @@ func TestLinuxFakeIntakeSuite(t *testing.T) {
 
 	suiteParams = append(suiteParams, e2e.WithDevMode())
 
-	e2e.Run(t, &LinuxFakeintakeSuite{}, suiteParams...)
+	e2e.Run(t, &IntegrationsLogsSuite{}, suiteParams...)
 }
 
 // TestWriteTenLogsCheck ensures a check that logs are written to the file ten
 // logs at a time
-func (v *LinuxFakeintakeSuite) TestWriteTenLogsCheck() {
+func (v *IntegrationsLogsSuite) TestWriteTenLogsCheck() {
 	writeTenLogs := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"writeTenLogs"}))
 	assert.Contains(v.T(), writeTenLogs, "writeTenLogs")
 
@@ -57,4 +58,6 @@ func (v *LinuxFakeintakeSuite) TestWriteTenLogsCheck() {
 		assert.Equal(c, newLineCount%10, 0)
 		assert.GreaterOrEqual(c, newLineCount, 10)
 	}, 1*time.Minute, 5*time.Second)
+
+	utils.CheckLogsExpected(v.T(), v.Env().FakeIntake, "ten_logs_service", "Custom log message", []string{})
 }
