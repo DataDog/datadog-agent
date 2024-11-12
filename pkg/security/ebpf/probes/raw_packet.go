@@ -46,11 +46,13 @@ const (
 // RawPacketProgOpts defines options
 type RawPacketProgOpts struct {
 	*cbpfc.EBPFOpts
+	MaxTailCalls int
+	NopInstLen   int
+
+	// internals
 	sendEventLabel string
 	ctxSave        asm.Register
 	tailCallMapFd  int
-	nopInstLen     int
-	maxTailCalls   int
 }
 
 // DefaultRawPacketProgOpts default options
@@ -69,6 +71,7 @@ var DefaultRawPacketProgOpts = RawPacketProgOpts{
 	},
 	sendEventLabel: "send_event",
 	ctxSave:        asm.R9,
+	MaxTailCalls:   6,
 }
 
 // BPFFilterToInsts compile a bpf filter expression
@@ -98,7 +101,7 @@ func BPFFilterToInsts(index int, filter string, opts RawPacketProgOpts) (asm.Ins
 	resultLabel := cbpfcOpts.ResultLabel
 
 	// add nop insts, used to test the max insts and artificially generate tail calls
-	for i := 0; i != opts.nopInstLen; i++ {
+	for i := 0; i != opts.NopInstLen; i++ {
 		insts = append(insts,
 			asm.JEq.Imm(asm.R9, 0, opts.sendEventLabel).WithSymbol(resultLabel),
 		)
@@ -151,8 +154,8 @@ func rawPacketFiltersToProgs(rawPacketfilters []RawPacketFilter, opts RawPacketP
 			progInsts = append(progInsts, asm.Instructions{})
 			progInsts[currProg] = append(progInsts[currProg], headerInsts...)
 
-			if opts.maxTailCalls != 0 && opts.maxTailCalls >= tailCalls {
-				mErr = multierror.Append(mErr, fmt.Errorf("maximum allowed tail calls reach: %d", opts.maxTailCalls))
+			if opts.MaxTailCalls != 0 && opts.MaxTailCalls >= tailCalls {
+				mErr = multierror.Append(mErr, fmt.Errorf("maximum allowed tail calls reach: %d", opts.MaxTailCalls))
 				break
 			}
 			tailCalls++
