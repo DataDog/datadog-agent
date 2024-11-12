@@ -48,6 +48,7 @@ require (
 	go.opentelemetry.io/collector/confmap/provider/httpprovider v0.111.0
 	go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.111.0
 	go.opentelemetry.io/collector/confmap/provider/yamlprovider v0.111.0
+	go.uber.org/zap v1.27.0
 
 )
 
@@ -60,9 +61,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/env v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.56.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.2 // indirect
@@ -117,7 +118,6 @@ require (
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/fx v1.22.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20241004190924-225e2abe05e6 // indirect
 	golang.org/x/sys v0.26.0 // indirect
 	golang.org/x/text v0.19.0 // indirect

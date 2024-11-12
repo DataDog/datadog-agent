@@ -9,6 +9,8 @@ package converterimpl
 import (
 	"context"
 
+	"go.uber.org/zap"
+
 	"go.opentelemetry.io/collector/confmap"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -17,6 +19,7 @@ import (
 
 type ddConverter struct {
 	coreConfig config.Component
+	logger     *zap.Logger
 }
 
 var (
@@ -33,8 +36,19 @@ type Requires struct {
 	Conf config.Component
 }
 
-// NewConverter currently only supports a single URI in the uris slice, and this URI needs to be a file path.
-func NewConverter(reqs Requires) (converter.Component, error) {
+// NewFactory returns a new converter factory.
+func NewFactory() confmap.ConverterFactory {
+	return confmap.NewConverterFactory(newConverter)
+}
+
+func newConverter(set confmap.ConverterSettings) confmap.Converter {
+	return &ddConverter{
+		logger: set.Logger,
+	}
+}
+
+// NewConverterForAgent currently only supports a single URI in the uris slice, and this URI needs to be a file path.
+func NewConverterForAgent(reqs Requires) (converter.Component, error) {
 	return &ddConverter{
 		coreConfig: reqs.Conf,
 	}, nil

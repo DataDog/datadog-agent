@@ -37,8 +37,8 @@ func newResolver(uris []string) (*confmap.Resolver, error) {
 	})
 }
 
-func TestNewConverter(t *testing.T) {
-	_, err := NewConverter(Requires{})
+func TestNewConverterForAgent(t *testing.T) {
+	_, err := NewConverterForAgent(Requires{})
 	assert.NoError(t, err)
 }
 
@@ -147,7 +147,7 @@ func TestConvert(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			converter, err := NewConverter(Requires{})
+			converter, err := NewConverterForAgent(Requires{})
 			assert.NoError(t, err)
 
 			resolver, err := newResolver(uriFromFile(tc.provided))
