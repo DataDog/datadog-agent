@@ -98,7 +98,13 @@ class GoModule:
         Documentation can be found in <docs/dev/modules.md>.
 
     Args:
+        targets: Directories to unit test.
+        condition: When to execute tests, must be a enumerated field of `GoModule.CONDITIONS`.
+        should_tag: Whether this module should be tagged or not.
+        importable: HACK: Workaround for modules that can be tested, but not imported (eg. gohai), because they define a main package A better solution would be to automatically detect if a module contains a main package, at the cost of spending some time parsing the module.
         independent: specifies whether this modules is supposed to exist independently of the datadog-agent module. If True, a check will run to ensure this is true.
+        lint_targets: Directories to lint.
+        used_by_otel: Whether the module is an otel dependency or not.
 
     Usage:
         A module is defined within the modules.yml file containing the following fields by default (these can be omitted if the default value is used):
@@ -130,7 +136,7 @@ class GoModule:
     path: str
     # Directories to unit test
     targets: list[str] | None = None
-    # When to execute tests, must be a enumerated field of `GoModule.CONDITIONS``
+    # When to execute tests, must be a enumerated field of `GoModule.CONDITIONS`
     condition: str = 'always'
     # Whether this module should be tagged or not
     should_tag: bool = True
@@ -139,7 +145,7 @@ class GoModule:
     # A better solution would be to automatically detect if a module contains a main package,
     # at the cost of spending some time parsing the module.
     importable: bool = True
-    # Whether the module relies on the datadog-agent main module or not
+    # Whether this modules is supposed to exist independently of the datadog-agent module. If True, a check will run to ensure this is true.
     independent: bool = True
     # Directories to lint
     lint_targets: list[str] | None = None
