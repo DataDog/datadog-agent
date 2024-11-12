@@ -647,6 +647,7 @@ type ConnectEvent struct {
 	SyscallEvent
 	Addr       IPPortContext `field:"addr;server.addr"`               // Connection address
 	AddrFamily uint16        `field:"addr.family;server.addr.family"` // SECLDoc[addr.family] Definition:`Address family` SECLDoc[server.addr.family] Definition:`Server address family`
+	Protocol   uint16        `field:"protocol;server.protocol"`       // SECLDoc[protocol] Definition:`Socket Protocol` SECLDoc[server.protocol] Definition:`Socket server Protocol`
 }
 
 // NetDevice represents a network device

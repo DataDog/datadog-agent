@@ -990,6 +990,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "connect.protocol":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Connect.Protocol)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "connect.retval":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1031,6 +1040,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return int(ev.Connect.Addr.Port)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "connect.server.protocol":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Connect.Protocol)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -20711,11 +20729,13 @@ func (ev *Event) GetFields() []eval.Field {
 		"connect.addr.ip",
 		"connect.addr.is_public",
 		"connect.addr.port",
+		"connect.protocol",
 		"connect.retval",
 		"connect.server.addr.family",
 		"connect.server.addr.ip",
 		"connect.server.addr.is_public",
 		"connect.server.addr.port",
+		"connect.server.protocol",
 		"container.created_at",
 		"container.id",
 		"container.runtime",
@@ -22230,6 +22250,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr), nil
 	case "connect.addr.port":
 		return int(ev.Connect.Addr.Port), nil
+	case "connect.protocol":
+		return int(ev.Connect.Protocol), nil
 	case "connect.retval":
 		return int(ev.Connect.SyscallEvent.Retval), nil
 	case "connect.server.addr.family":
@@ -22240,6 +22262,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr), nil
 	case "connect.server.addr.port":
 		return int(ev.Connect.Addr.Port), nil
+	case "connect.server.protocol":
+		return int(ev.Connect.Protocol), nil
 	case "container.created_at":
 		return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)), nil
 	case "container.id":
@@ -28932,6 +28956,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "connect", nil
 	case "connect.addr.port":
 		return "connect", nil
+	case "connect.protocol":
+		return "connect", nil
 	case "connect.retval":
 		return "connect", nil
 	case "connect.server.addr.family":
@@ -28941,6 +28967,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "connect.server.addr.is_public":
 		return "connect", nil
 	case "connect.server.addr.port":
+		return "connect", nil
+	case "connect.server.protocol":
 		return "connect", nil
 	case "container.created_at":
 		return "", nil
@@ -31761,6 +31789,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Bool, nil
 	case "connect.addr.port":
 		return reflect.Int, nil
+	case "connect.protocol":
+		return reflect.Int, nil
 	case "connect.retval":
 		return reflect.Int, nil
 	case "connect.server.addr.family":
@@ -31770,6 +31800,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "connect.server.addr.is_public":
 		return reflect.Bool, nil
 	case "connect.server.addr.port":
+		return reflect.Int, nil
+	case "connect.server.protocol":
 		return reflect.Int, nil
 	case "container.created_at":
 		return reflect.Int, nil
@@ -35099,6 +35131,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Connect.Addr.Port = uint16(rv)
 		return nil
+	case "connect.protocol":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Connect.Protocol"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Connect.Protocol"}
+		}
+		ev.Connect.Protocol = uint16(rv)
+		return nil
 	case "connect.retval":
 		rv, ok := value.(int)
 		if !ok {
@@ -35139,6 +35181,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueOutOfRange{Field: "Connect.Addr.Port"}
 		}
 		ev.Connect.Addr.Port = uint16(rv)
+		return nil
+	case "connect.server.protocol":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Connect.Protocol"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Connect.Protocol"}
+		}
+		ev.Connect.Protocol = uint16(rv)
 		return nil
 	case "container.created_at":
 		if ev.BaseEvent.ContainerContext == nil {

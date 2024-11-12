@@ -33,6 +33,7 @@ struct connect_event_t {
     u64 addr[2];
     u16 family;
     u16 port;
+    u16 protocol;
 };
 
 struct bpf_event_t {
