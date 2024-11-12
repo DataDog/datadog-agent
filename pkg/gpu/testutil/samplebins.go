@@ -55,8 +55,8 @@ type SampleArgs struct {
 	// CudaVisibleDevicesEnv represents the value of the CUDA_VISIBLE_DEVICES environment variable
 	CudaVisibleDevicesEnv string
 
-	// DeviceToSelect represents the device that the CUDA sample will select
-	DeviceToSelect int
+	// SelectedDevice represents the device that the CUDA sample will select
+	SelectedDevice int
 }
 
 func (a *SampleArgs) getEnv() []string {
@@ -71,7 +71,7 @@ func (a *SampleArgs) getCLIArgs() []string {
 	return []string{
 		strconv.Itoa(int(a.StartWaitTimeSec)),
 		strconv.Itoa(int(a.EndWaitTimeSec)),
-		strconv.Itoa(a.DeviceToSelect),
+		strconv.Itoa(a.SelectedDevice),
 	}
 }
 
@@ -106,7 +106,7 @@ func GetDefaultArgs() SampleArgs {
 		StartWaitTimeSec:      5,
 		EndWaitTimeSec:        1, // We need the process to stay active a bit so we can inspect its environment variables, if it ends too quickly we get no information
 		CudaVisibleDevicesEnv: "",
-		DeviceToSelect:        0,
+		SelectedDevice:        0,
 	}
 }
 

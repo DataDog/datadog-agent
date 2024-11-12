@@ -161,7 +161,7 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 		StartWaitTimeSec:      6, // default wait time for WaitForProgramsToBeTraced is 5 seconds, give margin to attach manually to avoid flakes
 		EndWaitTimeSec:        1, // We need the process to stay active a bit so we can inspect its environment variables, if it ends too quickly we get no information
 		CudaVisibleDevicesEnv: "1,2",
-		DeviceToSelect:        1,
+		SelectedDevice:        1,
 	}
 	// Visible devices 1,2 -> selects 1 in that array -> global device index = 2
 	selectedGPU := testutil.GPUUUIDs[2]
