@@ -81,18 +81,13 @@ func GetStaticTags(ctx context.Context) map[string][]string {
 	return sliceToMap(tags)
 }
 
-// GetExtraGlobalEnvTags is similar to GetStaticTags, but returning a map[string][]string containing
-// <key>:<value> pairs for global environment tags not included in GetStaticTags.
-// This includes DD_TAGS and DD_EXTRA_TAGS when not running in Fargate, and
-// includes DD_CLUSTER_CHECKS_EXTRA_TAGS and DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS when on Cluster Agent
-func GetExtraGlobalEnvTags() map[string][]string {
-
-	tags := []string{}
+// GetGlobalEnvTags is similar to GetStaticTags, but returning a map[string][]string containing
+// <key>:<value> pairs for all global environment tags. This includes DD_TAGS and DD_EXTRA_TAGS always,
+// and DD_CLUSTER_CHECKS_EXTRA_TAGS and DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS when on Cluster Agent
+func GetGlobalEnvTags() map[string][]string {
 
 	// DD_TAGS / DD_EXTRA_TAGS
-	if !fargate.IsFargateInstance() {
-		tags = append(tags, configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)...)
-	}
+	tags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
 
 	// DD_CLUSTER_CHECKS_EXTRA_TAGS / DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
 	if flavor.GetFlavor() == flavor.ClusterAgent {

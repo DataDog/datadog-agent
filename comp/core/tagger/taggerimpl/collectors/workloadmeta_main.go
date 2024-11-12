@@ -111,31 +111,31 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context) {
 			c.staticTags[clusterTagNamePrefix] = append(c.staticTags[clusterTagNamePrefix], cluster)
 		}
 	}
-	// These are the missing global tags that should only be applied to the internal global entity
+	// These are the global tags that should only be applied to the internal global entity
 	// Whereas the static tags are applied to containers and pods directly as well.
-	extraGlobalTags := util.GetExtraGlobalEnvTags()
+	globalEnvTags := util.GetGlobalEnvTags()
 
-	for _, tags := range []map[string][]string{c.staticTags, extraGlobalTags} {
-		tagList := taglist.NewTagList()
+	tagList := taglist.NewTagList()
 
+	for _, tags := range []map[string][]string{c.staticTags, globalEnvTags} {
 		for tagKey, valueList := range tags {
 			for _, value := range valueList {
 				tagList.AddLow(tagKey, value)
 			}
 		}
-
-		low, orch, high, standard := tagList.Compute()
-		c.tagProcessor.ProcessTagInfo([]*types.TagInfo{
-			{
-				Source:               staticSource,
-				EntityID:             common.GetGlobalEntityID(),
-				HighCardTags:         high,
-				OrchestratorCardTags: orch,
-				LowCardTags:          low,
-				StandardTags:         standard,
-			},
-		})
 	}
+
+	low, orch, high, standard := tagList.Compute()
+	c.tagProcessor.ProcessTagInfo([]*types.TagInfo{
+		{
+			Source:               staticSource,
+			EntityID:             common.GetGlobalEntityID(),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	})
 }
 
 func (c *WorkloadMetaCollector) stream(ctx context.Context) {
