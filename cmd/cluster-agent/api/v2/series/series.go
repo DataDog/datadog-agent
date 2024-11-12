@@ -29,7 +29,7 @@ const (
 // InstallNodeMetricsEndpoints register handler for node metrics collection
 func InstallNodeMetricsEndpoints(ctx context.Context, r *mux.Router, _ config.Component) {
 	handler := newSeriesHandler(ctx)
-	r.HandleFunc("/series", api.WithTelemetryWrapper("node-agent-load-metrics-handler", handler.handle)).Methods("POST")
+	r.HandleFunc("/series", api.WithTelemetryWrapper("load-metrics-handler", handler.handle)).Methods("POST")
 }
 
 // Handler handles the series request and store the metrics to loadstore
