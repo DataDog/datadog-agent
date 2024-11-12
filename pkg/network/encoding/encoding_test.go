@@ -23,13 +23,13 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -230,7 +230,7 @@ func TestSerialization(t *testing.T) {
 						},
 					},
 					ProtocolStack: protocols.Stack{Application: protocols.HTTP},
-					TLSTags:       ebpf.TLSTags{Chosen_version: 0, Cipher_suite: 1, Offered_versions: 0},
+					TLSTags:       tls.Tags{ChosenVersion: 0, CipherSuite: 0, OfferedVersions: 0},
 				},
 				{ConnectionTuple: network.ConnectionTuple{
 					Source: util.AddressFromString("10.1.1.1"),
@@ -243,7 +243,7 @@ func TestSerialization(t *testing.T) {
 					Direction:     network.LOCAL,
 					StaticTags:    tagOpenSSL | tagTLS,
 					ProtocolStack: protocols.Stack{Application: protocols.HTTP2},
-					TLSTags:       ebpf.TLSTags{Chosen_version: 0, Cipher_suite: 1, Offered_versions: 0},
+					TLSTags:       tls.Tags{ChosenVersion: 0, CipherSuite: 0, OfferedVersions: 0},
 					DNSStats: map[dns.Hostname]map[dns.QueryType]dns.Stats{
 						dns.ToHostname("foo.com"): {
 							dns.TypeA: {

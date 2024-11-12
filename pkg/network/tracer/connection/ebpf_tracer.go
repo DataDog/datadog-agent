@@ -32,6 +32,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failure"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
@@ -763,7 +764,11 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		Encryption:  protocols.Encryption(s.Protocol_stack.Encryption),
 	}
 
-	stats.TLSTags = s.Tls_tags
+	stats.TLSTags = tls.Tags{
+		ChosenVersion:   s.Tls_tags.Chosen_version,
+		CipherSuite:     s.Tls_tags.Cipher_suite,
+		OfferedVersions: s.Tls_tags.Offered_versions,
+	}
 
 	if t.Type() == netebpf.TCP {
 		stats.Type = network.TCP

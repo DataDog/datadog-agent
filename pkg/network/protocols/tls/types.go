@@ -5,11 +5,7 @@
 
 package tls
 
-import (
-	"fmt"
-
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
-)
+import "fmt"
 
 // TLS and SSL version constants
 const (
@@ -21,7 +17,17 @@ const (
 	TLSVersion13 uint16 = 0x0304
 )
 
-// Centralized mapping of version constants to their string representations
+// Bitmask constants for Offered_versions
+const (
+	OfferedSSLVersion20 uint8 = 0x01 // Bit 0
+	OfferedSSLVersion30 uint8 = 0x02 // Bit 1
+	OfferedTLSVersion10 uint8 = 0x04 // Bit 2
+	OfferedTLSVersion11 uint8 = 0x08 // Bit 3
+	OfferedTLSVersion12 uint8 = 0x10 // Bit 4
+	OfferedTLSVersion13 uint8 = 0x20 // Bit 5
+)
+
+// mapping of version constants to their string representations
 var tlsVersionNames = map[uint16]string{
 	SSLVersion20: "SSL 2.0",
 	SSLVersion30: "SSL 3.0",
@@ -30,16 +36,6 @@ var tlsVersionNames = map[uint16]string{
 	TLSVersion12: "TLS 1.2",
 	TLSVersion13: "TLS 1.3",
 }
-
-// Bitmask constants for Offered_versions
-const (
-	OfferedTLSVersion10 uint8 = 0x01 // Bit 0
-	OfferedTLSVersion11 uint8 = 0x02 // Bit 1
-	OfferedTLSVersion12 uint8 = 0x04 // Bit 2
-	OfferedTLSVersion13 uint8 = 0x08 // Bit 3
-	OfferedSSLVersion20 uint8 = 0x10 // Bit 4
-	OfferedSSLVersion30 uint8 = 0x20 // Bit 5
-)
 
 // Mapping of offered version bitmasks to version constants
 var offeredVersionBitmask = []struct {
@@ -56,10 +52,37 @@ var offeredVersionBitmask = []struct {
 
 // Constants for tag keys
 const (
-	tagTLSVersion       = "tls.version:"
+	TagTLSVersion       = "tls.version:"
 	tagTLSCipherSuiteID = "tls.cipher_suite_id:"
 	tagTLSClientVersion = "tls.client_version:"
 )
+
+type Tags struct {
+	ChosenVersion   uint16
+	CipherSuite     uint16
+	OfferedVersions uint8
+}
+
+func (t *Tags) MergeWith(that Tags) {
+	if t.ChosenVersion == 0 {
+		t.ChosenVersion = that.ChosenVersion
+	}
+	if t.CipherSuite == 0 {
+		t.CipherSuite = that.CipherSuite
+	}
+	if t.OfferedVersions == 0 {
+		t.OfferedVersions = that.OfferedVersions
+	}
+
+}
+
+func (t *Tags) IsEmpty() bool {
+	return t.ChosenVersion == 0 && t.CipherSuite == 0 && t.OfferedVersions == 0
+}
+
+func (t *Tags) String() string {
+	return fmt.Sprintf("ChosenVersion: %d, CipherSuite: %d, OfferedVersions: %d", t.ChosenVersion, t.CipherSuite, t.OfferedVersions)
+}
 
 // FormatTLSVersion converts a version uint16 to its string representation
 func FormatTLSVersion(version uint16) string {
@@ -71,7 +94,7 @@ func FormatTLSVersion(version uint16) string {
 
 // parseOfferedVersions parses the Offered_versions bitmask into a slice of version strings
 func parseOfferedVersions(offeredVersions uint8) []string {
-	var versions []string
+	versions := []string{}
 	for _, ov := range offeredVersionBitmask {
 		if (offeredVersions & ov.bitMask) != 0 {
 			if name := tlsVersionNames[ov.version]; name != "" {
@@ -83,22 +106,24 @@ func parseOfferedVersions(offeredVersions uint8) []string {
 }
 
 // GetTLSDynamicTags generates dynamic tags based on TLS information
-func GetTLSDynamicTags(tls *ebpf.TLSTags) map[string]struct{} {
+func GetTLSDynamicTags(tls *Tags) map[string]struct{} {
 	tags := make(map[string]struct{})
 	if tls == nil {
 		return tags
 	}
 
 	// Server chosen version
-	if versionName := FormatTLSVersion(tls.Chosen_version); versionName != "" {
-		tags[tagTLSVersion+versionName] = struct{}{}
+	if versionName := FormatTLSVersion(tls.ChosenVersion); versionName != "" {
+		tags[TagTLSVersion+versionName] = struct{}{}
 	}
 
 	// Cipher suite ID as hex string
-	tags[tagTLSCipherSuiteID+fmt.Sprintf("0x%04X", tls.Cipher_suite)] = struct{}{}
+	if tls.CipherSuite != 0 {
+		tags[tagTLSCipherSuiteID+fmt.Sprintf("0x%04X", tls.CipherSuite)] = struct{}{}
+	}
 
 	// Client offered versions
-	for _, versionName := range parseOfferedVersions(tls.Offered_versions) {
+	for _, versionName := range parseOfferedVersions(tls.OfferedVersions) {
 		tags[tagTLSClientVersion+versionName] = struct{}{}
 	}
 

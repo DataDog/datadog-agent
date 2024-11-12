@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	ddtls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
@@ -1457,9 +1458,8 @@ func (s *TracerSuite) TestTLSClassification() {
 	if !kprobe.ClassificationSupported(cfg) {
 		t.Skip("TLS classification platform not supported")
 	}
-	//testutil.GetFreePort()
-	port := uint16(443)
-	//require.NoError(t, err)
+	port, err := testutil.GetFreePort()
+	require.NoError(t, err)
 	portAsString := strconv.Itoa(int(port))
 
 	tr := setupTracer(t, cfg)
@@ -1471,7 +1471,6 @@ func (s *TracerSuite) TestTLSClassification() {
 	}
 	tests := make([]tlsTest, 0)
 	for _, scenario := range []uint16{tls.VersionTLS10, tls.VersionTLS11, tls.VersionTLS12, tls.VersionTLS13} {
-		//for _, scenario := range []uint16{tls.VersionTLS12} {
 		scenario := scenario
 		tests = append(tests, tlsTest{
 			name: strings.Replace(tls.VersionName(scenario), " ", "-", 1),
@@ -1506,11 +1505,15 @@ func (s *TracerSuite) TestTLSClassification() {
 				require.NoError(t, tlsConn.Handshake())
 			},
 			validation: func(t *testing.T, tr *Tracer) {
-				// Iterate through active connections until we find connection created above
 				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
 					for _, c := range payload.Conns {
-						if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) {
+						if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) && !c.TLSTags.IsEmpty() {
+							expectedTagKey := ddtls.TagTLSVersion + tls.VersionName(scenario)
+							tlsTags := ddtls.GetTLSDynamicTags(&c.TLSTags)
+							if _, ok := tlsTags[expectedTagKey]; !ok {
+								return false
+							}
 							return true
 						}
 					}

@@ -50,22 +50,22 @@ static __always_inline bool is_valid_tls_version(__u16 version) {
 
 static __always_inline void set_tls_offered_version(tls_info_t *tls_info, __u16 version) {
     switch (version) {
-        case TLS_VERSION10:
+        case SSL_VERSION20:
             tls_info->offered_versions |= 0x01; // Bit 0
             break;
-        case TLS_VERSION11:
+        case SSL_VERSION30:
             tls_info->offered_versions |= 0x02; // Bit 1
             break;
-        case TLS_VERSION12:
+        case TLS_VERSION10:
             tls_info->offered_versions |= 0x04; // Bit 2
             break;
-        case TLS_VERSION13:
+        case TLS_VERSION11:
             tls_info->offered_versions |= 0x08; // Bit 3
             break;
-        case SSL_VERSION20:
+        case TLS_VERSION12:
             tls_info->offered_versions |= 0x10; // Bit 4
             break;
-        case SSL_VERSION30:
+        case TLS_VERSION13:
             tls_info->offered_versions |= 0x20; // Bit 5
             break;
         default:

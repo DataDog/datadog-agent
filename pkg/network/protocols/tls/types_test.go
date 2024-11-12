@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 )
 
 func TestFormatTLSVersion(t *testing.T) {
@@ -18,12 +16,12 @@ func TestFormatTLSVersion(t *testing.T) {
 		version  uint16
 		expected string
 	}{
+		{SSLVersion20, "SSL 2.0"},
+		{SSLVersion30, "SSL 3.0"},
 		{TLSVersion10, "TLS 1.0"},
 		{TLSVersion11, "TLS 1.1"},
 		{TLSVersion12, "TLS 1.2"},
 		{TLSVersion13, "TLS 1.3"},
-		{SSLVersion20, "SSL 2.0"},
-		{SSLVersion30, "SSL 3.0"},
 		{0xFFFF, ""}, // Unknown version
 		{0x0000, ""}, // Zero value
 		{0x0305, ""}, // Version just above known versions
@@ -46,15 +44,15 @@ func TestParseOfferedVersions(t *testing.T) {
 		expected        []string
 	}{
 		{0x00, []string{}}, // No versions offered
+		{OfferedSSLVersion20, []string{"SSL 2.0"}},
+		{OfferedSSLVersion30, []string{"SSL 3.0"}},
 		{OfferedTLSVersion10, []string{"TLS 1.0"}},
 		{OfferedTLSVersion11, []string{"TLS 1.1"}},
 		{OfferedTLSVersion12, []string{"TLS 1.2"}},
 		{OfferedTLSVersion13, []string{"TLS 1.3"}},
-		{OfferedSSLVersion20, []string{"SSL 2.0"}},
-		{OfferedSSLVersion30, []string{"SSL 3.0"}},
 		{OfferedTLSVersion10 | OfferedTLSVersion12, []string{"TLS 1.0", "TLS 1.2"}},
-		{OfferedTLSVersion11 | OfferedTLSVersion13 | OfferedSSLVersion30, []string{"TLS 1.1", "TLS 1.3", "SSL 3.0"}},
-		{0xFF, []string{"TLS 1.0", "TLS 1.1", "TLS 1.2", "TLS 1.3", "SSL 2.0", "SSL 3.0"}}, // All bits set
+		{OfferedSSLVersion30 | OfferedTLSVersion11 | OfferedTLSVersion13, []string{"SSL 3.0", "TLS 1.1", "TLS 1.3"}},
+		{0xFF, []string{"SSL 2.0", "SSL 3.0", "TLS 1.0", "TLS 1.1", "TLS 1.2", "TLS 1.3"}}, // All bits set
 		{0x40, []string{}}, // Undefined bit set
 		{0x80, []string{}}, // Undefined bit set
 	}
@@ -72,7 +70,7 @@ func TestParseOfferedVersions(t *testing.T) {
 func TestGetTLSDynamicTags(t *testing.T) {
 	tests := []struct {
 		name     string
-		tlsTags  *ebpf.TLSTags
+		tlsTags  *Tags
 		expected map[string]struct{}
 	}{
 		{
@@ -82,10 +80,10 @@ func TestGetTLSDynamicTags(t *testing.T) {
 		},
 		{
 			name: "All_Fields_Populated",
-			tlsTags: &ebpf.TLSTags{
-				Chosen_version:   TLSVersion12,
-				Cipher_suite:     0x009C,
-				Offered_versions: OfferedTLSVersion11 | OfferedTLSVersion12,
+			tlsTags: &Tags{
+				ChosenVersion:   TLSVersion12,
+				CipherSuite:     0x009C,
+				OfferedVersions: OfferedTLSVersion11 | OfferedTLSVersion12,
 			},
 			expected: map[string]struct{}{
 				"tls.version:TLS 1.2":        {},
@@ -96,10 +94,10 @@ func TestGetTLSDynamicTags(t *testing.T) {
 		},
 		{
 			name: "Unknown_Chosen_Version",
-			tlsTags: &ebpf.TLSTags{
-				Chosen_version:   0xFFFF, // Unknown version
-				Cipher_suite:     0x00FF,
-				Offered_versions: OfferedTLSVersion13,
+			tlsTags: &Tags{
+				ChosenVersion:   0xFFFF, // Unknown version
+				CipherSuite:     0x00FF,
+				OfferedVersions: OfferedTLSVersion13,
 			},
 			expected: map[string]struct{}{
 				"tls.cipher_suite_id:0x00FF": {},
@@ -108,10 +106,10 @@ func TestGetTLSDynamicTags(t *testing.T) {
 		},
 		{
 			name: "No_Offered_Versions",
-			tlsTags: &ebpf.TLSTags{
-				Chosen_version:   TLSVersion13,
-				Cipher_suite:     0x1301,
-				Offered_versions: 0x00,
+			tlsTags: &Tags{
+				ChosenVersion:   TLSVersion13,
+				CipherSuite:     0x1301,
+				OfferedVersions: 0x00,
 			},
 			expected: map[string]struct{}{
 				"tls.version:TLS 1.3":        {},
@@ -120,23 +118,21 @@ func TestGetTLSDynamicTags(t *testing.T) {
 		},
 		{
 			name: "Zero_Cipher_Suite",
-			tlsTags: &ebpf.TLSTags{
-				Chosen_version:   TLSVersion10,
-				Cipher_suite:     0x0000,
-				Offered_versions: OfferedTLSVersion10,
+			tlsTags: &Tags{
+				ChosenVersion:   TLSVersion10,
+				OfferedVersions: OfferedTLSVersion10,
 			},
 			expected: map[string]struct{}{
 				"tls.version:TLS 1.0":        {},
-				"tls.cipher_suite_id:0x0000": {},
 				"tls.client_version:TLS 1.0": {},
 			},
 		},
 		{
 			name: "All_Bits_Set_In_Offered_Versions",
-			tlsTags: &ebpf.TLSTags{
-				Chosen_version:   TLSVersion12,
-				Cipher_suite:     0xC02F,
-				Offered_versions: 0xFF, // All bits set
+			tlsTags: &Tags{
+				ChosenVersion:   TLSVersion12,
+				CipherSuite:     0xC02F,
+				OfferedVersions: 0xFF, // All bits set
 			},
 			expected: map[string]struct{}{
 				"tls.version:TLS 1.2":        {},
