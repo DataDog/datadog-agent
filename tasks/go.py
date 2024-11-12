@@ -23,7 +23,7 @@ from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
 from tasks.libs.common.go import download_go_dependencies
-from tasks.libs.common.gomodules import get_default_modules
+from tasks.libs.common.gomodules import Configuration, GoModule, get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
 from tasks.licenses import get_licenses_list
@@ -537,6 +537,9 @@ def create_module(ctx, path: str, no_verify: bool = False):
     """.replace('    ', '')
 
     try:
+        modules = Configuration.from_file()
+        assert path not in modules.modules, f'Module {path} already exists'
+
         # Create package
         print(color_message(f"Creating package {path}", "blue"))
 
@@ -580,8 +583,9 @@ def create_module(ctx, path: str, no_verify: bool = False):
             for mod in dependent_modules:
                 add_replaces(ctx, mod, [path])
 
-        with open(f"{path}/module.yml", 'w') as f:
-            f.write('independent: true\n')
+        # Add this module as independent in the module configuration
+        modules.modules[path] = GoModule(path, independent=True)
+        modules.to_file()
         print(
             f'{color_message("NOTE", "blue")}: A {path}/module.yml file has been created to mark the module as independent, you can modify this file to change the module configuration.'
         )
