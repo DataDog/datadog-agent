@@ -50,6 +50,7 @@ type RawPacketProgOpts struct {
 	ctxSave        asm.Register
 	tailCallMapFd  int
 	nopInstLen     int
+	maxTailCalls   int
 }
 
 // DefaultRawPacketProgOpts default options
@@ -118,6 +119,7 @@ func rawPacketFiltersToProgs(rawPacketfilters []RawPacketFilter, opts RawPacketP
 		currProg    uint32
 		maxProgSize = 4000
 		mErr        *multierror.Error
+		tailCalls   int
 	)
 
 	progInsts = append(progInsts, asm.Instructions{})
@@ -148,6 +150,12 @@ func rawPacketFiltersToProgs(rawPacketfilters []RawPacketFilter, opts RawPacketP
 			// start a new program
 			progInsts = append(progInsts, asm.Instructions{})
 			progInsts[currProg] = append(progInsts[currProg], headerInsts...)
+
+			if opts.maxTailCalls != 0 && opts.maxTailCalls >= tailCalls {
+				mErr = multierror.Append(mErr, fmt.Errorf("maximum allowed tail calls reach: %d", opts.maxTailCalls))
+				break
+			}
+			tailCalls++
 		}
 		progInsts[currProg] = append(progInsts[currProg], filterInsts...)
 	}
