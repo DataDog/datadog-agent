@@ -36,6 +36,9 @@ jobs:
     steps:
       - name: Checkout branch
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          # credentials are needed to create the PR at the end of the workflow
+          persist-credentials: true
 
       - name: Fetch branch
         env:
@@ -87,6 +90,7 @@ jobs:
         id: update_build_images
         env:
           TEST_VERSION_FLAG: ${{ inputs.test_version && '--test' || '--no-test' }}
+          # INCLUDE_OTEL_MODULES must be used without quotes to be ignored when empty
           INCLUDE_OTEL_MODULES: ${{ inputs.include_otel_modules && '--include-otel-modules' || '' }}
           CURRENT_GO_VERSION: ${{ steps.current_go_version.outputs.GO_VERSION }}
           INPUT_GO_VERSION: ${{ inputs.go_version }}
@@ -143,6 +147,7 @@ jobs:
           IMAGES_ID: ${{ inputs.images_id }}
           CURRENT_GO_VERSION: ${{ steps.current_go_version.outputs.GO_VERSION }}
           INPUT_GO_VERSION: ${{ inputs.go_version }}
+          # INPUT_TEST_VERSION must be used without quotes to be ignored when empty
           INPUT_TEST_VERSION: ${{ inputs.test_version && '--test' || '' }}
           GITHUB_REF: ${{ github.ref }}
         run: |

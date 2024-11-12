@@ -6,6 +6,7 @@ on:
     types: [ labeled ]
 
 permissions:
+  # write permissions are needed to create the comment
   pull-requests: write
 
 jobs:
