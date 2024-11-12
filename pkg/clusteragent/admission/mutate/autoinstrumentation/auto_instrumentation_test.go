@@ -654,7 +654,7 @@ func assertLibReq(t *testing.T, pod *corev1.Pod, lang language, image, envKey, e
 
 func TestExtractLibInfo(t *testing.T) {
 	// TODO: Add new entry when a new language is supported
-	allLatestLibs := []libInfo{
+	allLatestDefaultLibs := []libInfo{
 		{
 			lang:  "java",
 			image: "registry/dd-lib-java-init:v1",
@@ -826,14 +826,14 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:                  common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
 			containerRegistry:    "registry",
 			expectedPodEligible:  pointer.Ptr(true),
-			expectedLibsToInject: allLatestLibs,
+			expectedLibsToInject: allLatestDefaultLibs,
 		},
 		{
 			name:                 "all with mutate_unlabelled off",
 			pod:                  common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
 			containerRegistry:    "registry",
 			expectedPodEligible:  pointer.Ptr(false),
-			expectedLibsToInject: allLatestLibs,
+			expectedLibsToInject: allLatestDefaultLibs,
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 			},
@@ -852,7 +852,7 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 			containerRegistry:    "registry",
 			expectedPodEligible:  pointer.Ptr(true),
-			expectedLibsToInject: allLatestLibs,
+			expectedLibsToInject: allLatestDefaultLibs,
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 			},
@@ -862,7 +862,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:                  common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
 			containerRegistry:    "registry",
 			expectedPodEligible:  pointer.Ptr(false),
-			expectedLibsToInject: allLatestLibs,
+			expectedLibsToInject: allLatestDefaultLibs,
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 			},
@@ -881,7 +881,7 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 			containerRegistry:    "registry",
 			expectedPodEligible:  pointer.Ptr(true),
-			expectedLibsToInject: allLatestLibs,
+			expectedLibsToInject: allLatestDefaultLibs,
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 			},
@@ -891,7 +891,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:                  common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
 			containerRegistry:    "registry",
 			expectedPodEligible:  pointer.Ptr(false),
-			expectedLibsToInject: allLatestLibs,
+			expectedLibsToInject: allLatestDefaultLibs,
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 			},
@@ -910,7 +910,7 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 			containerRegistry:    "registry",
 			expectedPodEligible:  pointer.Ptr(true),
-			expectedLibsToInject: allLatestLibs,
+			expectedLibsToInject: allLatestDefaultLibs,
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 			},
@@ -937,14 +937,14 @@ func TestExtractLibInfo(t *testing.T) {
 			name:                 "all with unsupported version",
 			pod:                  common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "unsupported"),
 			containerRegistry:    "registry",
-			expectedLibsToInject: allLatestLibs,
+			expectedLibsToInject: allLatestDefaultLibs,
 			setupConfig:          func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false) },
 		},
 		{
 			name:                 "single step instrumentation with no pinned versions",
 			pod:                  common.FakePodWithNamespaceAndLabel("ns", "", ""),
 			containerRegistry:    "registry",
-			expectedLibsToInject: allLatestLibs,
+			expectedLibsToInject: allLatestDefaultLibs,
 			setupConfig:          func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
 		},
 		{
@@ -995,6 +995,17 @@ func TestExtractLibInfo(t *testing.T) {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", map[string]string{"java": "v1.20.0"})
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true)
+			},
+		},
+		{
+			name:              "php (opt-in)",
+			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/php-lib.version", "v1"),
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "php",
+					image: "registry/dd-lib-php-init:v1",
+				},
 			},
 		},
 	}
