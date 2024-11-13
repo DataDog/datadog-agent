@@ -19,7 +19,7 @@ func (ev *Event) GetBindAddrFamily() uint16 {
 	if ev.GetEventType().String() != "bind" {
 		return uint16(0)
 	}
-	return ev.Bind.AddrFamily
+	return ev.Bind.Addr.Family
 }
 
 // GetBindAddrIp returns the value of the field, resolving if necessary
@@ -27,7 +27,7 @@ func (ev *Event) GetBindAddrIp() net.IPNet {
 	if ev.GetEventType().String() != "bind" {
 		return net.IPNet{}
 	}
-	return ev.Bind.Addr.IPNet
+	return ev.Bind.Addr.IPPortContext.IPNet
 }
 
 // GetBindAddrIsPublic returns the value of the field, resolving if necessary
@@ -35,7 +35,7 @@ func (ev *Event) GetBindAddrIsPublic() bool {
 	if ev.GetEventType().String() != "bind" {
 		return false
 	}
-	return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr)
+	return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr.IPPortContext)
 }
 
 // GetBindAddrPort returns the value of the field, resolving if necessary
@@ -43,7 +43,7 @@ func (ev *Event) GetBindAddrPort() uint16 {
 	if ev.GetEventType().String() != "bind" {
 		return uint16(0)
 	}
-	return ev.Bind.Addr.Port
+	return ev.Bind.Addr.IPPortContext.Port
 }
 
 // GetBindRetval returns the value of the field, resolving if necessary
@@ -911,7 +911,7 @@ func (ev *Event) GetConnectAddrFamily() uint16 {
 	if ev.GetEventType().String() != "connect" {
 		return uint16(0)
 	}
-	return ev.Connect.AddrFamily
+	return ev.Connect.Addr.Family
 }
 
 // GetConnectAddrIp returns the value of the field, resolving if necessary
@@ -919,7 +919,7 @@ func (ev *Event) GetConnectAddrIp() net.IPNet {
 	if ev.GetEventType().String() != "connect" {
 		return net.IPNet{}
 	}
-	return ev.Connect.Addr.IPNet
+	return ev.Connect.Addr.IPPortContext.IPNet
 }
 
 // GetConnectAddrIsPublic returns the value of the field, resolving if necessary
@@ -927,7 +927,7 @@ func (ev *Event) GetConnectAddrIsPublic() bool {
 	if ev.GetEventType().String() != "connect" {
 		return false
 	}
-	return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
+	return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr.IPPortContext)
 }
 
 // GetConnectAddrPort returns the value of the field, resolving if necessary
@@ -935,7 +935,7 @@ func (ev *Event) GetConnectAddrPort() uint16 {
 	if ev.GetEventType().String() != "connect" {
 		return uint16(0)
 	}
-	return ev.Connect.Addr.Port
+	return ev.Connect.Addr.IPPortContext.Port
 }
 
 // GetConnectRetval returns the value of the field, resolving if necessary
@@ -951,7 +951,7 @@ func (ev *Event) GetConnectServerAddrFamily() uint16 {
 	if ev.GetEventType().String() != "connect" {
 		return uint16(0)
 	}
-	return ev.Connect.AddrFamily
+	return ev.Connect.Addr.Family
 }
 
 // GetConnectServerAddrIp returns the value of the field, resolving if necessary
@@ -959,7 +959,7 @@ func (ev *Event) GetConnectServerAddrIp() net.IPNet {
 	if ev.GetEventType().String() != "connect" {
 		return net.IPNet{}
 	}
-	return ev.Connect.Addr.IPNet
+	return ev.Connect.Addr.IPPortContext.IPNet
 }
 
 // GetConnectServerAddrIsPublic returns the value of the field, resolving if necessary
@@ -967,7 +967,7 @@ func (ev *Event) GetConnectServerAddrIsPublic() bool {
 	if ev.GetEventType().String() != "connect" {
 		return false
 	}
-	return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
+	return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr.IPPortContext)
 }
 
 // GetConnectServerAddrPort returns the value of the field, resolving if necessary
@@ -975,7 +975,7 @@ func (ev *Event) GetConnectServerAddrPort() uint16 {
 	if ev.GetEventType().String() != "connect" {
 		return uint16(0)
 	}
-	return ev.Connect.Addr.Port
+	return ev.Connect.Addr.IPPortContext.Port
 }
 
 // GetContainerCreatedAt returns the value of the field, resolving if necessary

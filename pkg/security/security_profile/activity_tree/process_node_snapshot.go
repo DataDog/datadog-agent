@@ -318,7 +318,7 @@ func (pn *ProcessNode) insertSnapshottedSocket(family uint16, ip net.IP, port ui
 	evt.Type = uint32(model.BindEventType)
 
 	evt.Bind.SyscallEvent.Retval = 0
-	evt.Bind.AddrFamily = family
+	evt.Bind.Addr.Family = family
 	evt.Bind.Addr.IPNet.IP = ip
 	if family == unix.AF_INET {
 		evt.Bind.Addr.IPNet.Mask = net.CIDRMask(32, 32)

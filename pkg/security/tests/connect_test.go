@@ -68,7 +68,7 @@ func TestConnectEvent(t *testing.T) {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "tcp")
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "connect", event.GetType(), "wrong event type")
-			assert.Equal(t, uint16(unix.AF_INET), event.Connect.AddrFamily, "wrong address family")
+			assert.Equal(t, uint16(unix.AF_INET), event.Connect.Addr.Family, "wrong address family")
 			assert.Equal(t, uint16(4242), event.Connect.Addr.Port, "wrong address port")
 			assert.Equal(t, string("0.0.0.0/32"), event.Connect.Addr.IPNet.String(), "wrong address")
 			assert.Equal(t, int64(0), event.Connect.Retval, "wrong retval")
@@ -95,7 +95,7 @@ func TestConnectEvent(t *testing.T) {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "udp")
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "connect", event.GetType(), "wrong event type")
-			assert.Equal(t, uint16(unix.AF_INET), event.Connect.AddrFamily, "wrong address family")
+			assert.Equal(t, uint16(unix.AF_INET), event.Connect.Addr.Family, "wrong address family")
 			assert.Equal(t, uint16(4242), event.Connect.Addr.Port, "wrong address port")
 			assert.Equal(t, string("0.0.0.0/32"), event.Connect.Addr.IPNet.String(), "wrong address")
 			assert.Equal(t, int64(0), event.Connect.Retval, "wrong retval")
@@ -126,7 +126,7 @@ func TestConnectEvent(t *testing.T) {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "tcp")
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "connect", event.GetType(), "wrong event type")
-			assert.Equal(t, uint16(unix.AF_INET6), event.Connect.AddrFamily, "wrong address family")
+			assert.Equal(t, uint16(unix.AF_INET6), event.Connect.Addr.Family, "wrong address family")
 			assert.Equal(t, uint16(4242), event.Connect.Addr.Port, "wrong address port")
 			assert.Equal(t, string("::/128"), event.Connect.Addr.IPNet.String(), "wrong address")
 			assert.Equal(t, int64(0), event.Connect.Retval, "wrong retval")
@@ -157,7 +157,7 @@ func TestConnectEvent(t *testing.T) {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "udp")
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "connect", event.GetType(), "wrong event type")
-			assert.Equal(t, uint16(unix.AF_INET6), event.Connect.AddrFamily, "wrong address family")
+			assert.Equal(t, uint16(unix.AF_INET6), event.Connect.Addr.Family, "wrong address family")
 			assert.Equal(t, uint16(4242), event.Connect.Addr.Port, "wrong address port")
 			assert.Equal(t, string("::/128"), event.Connect.Addr.IPNet.String(), "wrong address")
 			assert.Equal(t, int64(0), event.Connect.Retval, "wrong retval")

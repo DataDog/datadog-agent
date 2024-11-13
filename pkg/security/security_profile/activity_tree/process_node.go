@@ -14,11 +14,12 @@ import (
 	"sort"
 	"strings"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"golang.org/x/exp/slices"
 )
 
 // ProcessNodeParent is an interface used to identify the parent of a process node
@@ -335,7 +336,7 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTag string, genera
 		return false
 	}
 	var newNode bool
-	evtFamily := model.AddressFamily(evt.Bind.AddrFamily).String()
+	evtFamily := model.AddressFamily(evt.Bind.Addr.Family).String()
 
 	// check if a socket of this type already exists
 	var sock *SocketNode

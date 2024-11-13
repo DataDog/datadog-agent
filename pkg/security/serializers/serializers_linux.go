@@ -935,16 +935,16 @@ func newSpliceEventSerializer(e *model.Event) *SpliceEventSerializer {
 
 func newBindEventSerializer(e *model.Event) *BindEventSerializer {
 	bes := &BindEventSerializer{
-		Addr: newIPPortFamilySerializer(&e.Bind.Addr,
-			model.AddressFamily(e.Bind.AddrFamily).String()),
+		Addr: newIPPortFamilySerializer(&e.Bind.Addr.IPPortContext,
+			model.AddressFamily(e.Bind.Addr.Family).String()),
 	}
 	return bes
 }
 
 func newConnectEventSerializer(e *model.Event) *ConnectEventSerializer {
 	ces := &ConnectEventSerializer{
-		Addr: newIPPortFamilySerializer(&e.Connect.Addr,
-			model.AddressFamily(e.Connect.AddrFamily).String()),
+		Addr: newIPPortFamilySerializer(&e.Connect.Addr.IPPortContext,
+			model.AddressFamily(e.Connect.Addr.Family).String()),
 	}
 	return ces
 }

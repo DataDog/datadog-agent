@@ -1261,11 +1261,11 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	var ipRaw [16]byte
 	SliceToArray(data[read:read+16], ipRaw[:])
-	e.AddrFamily = binary.NativeEndian.Uint16(data[read+16 : read+18])
+	e.Addr.Family = binary.NativeEndian.Uint16(data[read+16 : read+18])
 	e.Addr.Port = binary.BigEndian.Uint16(data[read+18 : read+20])
 
 	// readjust IP size depending on the protocol
-	switch e.AddrFamily {
+	switch e.Addr.Family {
 	case 0x2: // unix.AF_INET
 		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[0:4])
 	case 0xa: // unix.AF_INET6
@@ -1288,11 +1288,11 @@ func (e *ConnectEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	var ipRaw [16]byte
 	SliceToArray(data[read:read+16], ipRaw[:])
-	e.AddrFamily = binary.NativeEndian.Uint16(data[read+16 : read+18])
+	e.Addr.Family = binary.NativeEndian.Uint16(data[read+16 : read+18])
 	e.Addr.Port = binary.BigEndian.Uint16(data[read+18 : read+20])
 
 	// readjust IP size depending on the protocol
-	switch e.AddrFamily {
+	switch e.Addr.Family {
 	case 0x2: // unix.AF_INET
 		e.Addr.IPNet = *eval.IPNetFromIP(ipRaw[0:4])
 	case 0xa: // unix.AF_INET6

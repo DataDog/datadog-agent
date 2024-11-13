@@ -87,7 +87,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.Bind.AddrFamily)
+				return int(ev.Bind.Addr.Family)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -96,7 +96,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.CIDREvaluator{
 			EvalFnc: func(ctx *eval.Context) net.IPNet {
 				ev := ctx.Event.(*Event)
-				return ev.Bind.Addr.IPNet
+				return ev.Bind.Addr.IPPortContext.IPNet
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -105,7 +105,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr)
+				return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr.IPPortContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -114,7 +114,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.Bind.Addr.Port)
+				return int(ev.Bind.Addr.IPPortContext.Port)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -958,7 +958,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.Connect.AddrFamily)
+				return int(ev.Connect.Addr.Family)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -967,7 +967,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.CIDREvaluator{
 			EvalFnc: func(ctx *eval.Context) net.IPNet {
 				ev := ctx.Event.(*Event)
-				return ev.Connect.Addr.IPNet
+				return ev.Connect.Addr.IPPortContext.IPNet
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -976,7 +976,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
+				return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr.IPPortContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -985,7 +985,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.Connect.Addr.Port)
+				return int(ev.Connect.Addr.IPPortContext.Port)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1003,7 +1003,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.Connect.AddrFamily)
+				return int(ev.Connect.Addr.Family)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1012,7 +1012,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.CIDREvaluator{
 			EvalFnc: func(ctx *eval.Context) net.IPNet {
 				ev := ctx.Event.(*Event)
-				return ev.Connect.Addr.IPNet
+				return ev.Connect.Addr.IPPortContext.IPNet
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1021,7 +1021,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
+				return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr.IPPortContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1030,7 +1030,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.Connect.Addr.Port)
+				return int(ev.Connect.Addr.IPPortContext.Port)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -21489,13 +21489,13 @@ func (ev *Event) GetFields() []eval.Field {
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
 	case "bind.addr.family":
-		return int(ev.Bind.AddrFamily), nil
+		return int(ev.Bind.Addr.Family), nil
 	case "bind.addr.ip":
-		return ev.Bind.Addr.IPNet, nil
+		return ev.Bind.Addr.IPPortContext.IPNet, nil
 	case "bind.addr.is_public":
-		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr), nil
+		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr.IPPortContext), nil
 	case "bind.addr.port":
-		return int(ev.Bind.Addr.Port), nil
+		return int(ev.Bind.Addr.IPPortContext.Port), nil
 	case "bind.retval":
 		return int(ev.Bind.SyscallEvent.Retval), nil
 	case "bpf.cmd":
@@ -21683,23 +21683,23 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "chown.syscall.uid":
 		return int(ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chown.SyscallContext)), nil
 	case "connect.addr.family":
-		return int(ev.Connect.AddrFamily), nil
+		return int(ev.Connect.Addr.Family), nil
 	case "connect.addr.ip":
-		return ev.Connect.Addr.IPNet, nil
+		return ev.Connect.Addr.IPPortContext.IPNet, nil
 	case "connect.addr.is_public":
-		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr), nil
+		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr.IPPortContext), nil
 	case "connect.addr.port":
-		return int(ev.Connect.Addr.Port), nil
+		return int(ev.Connect.Addr.IPPortContext.Port), nil
 	case "connect.retval":
 		return int(ev.Connect.SyscallEvent.Retval), nil
 	case "connect.server.addr.family":
-		return int(ev.Connect.AddrFamily), nil
+		return int(ev.Connect.Addr.Family), nil
 	case "connect.server.addr.ip":
-		return ev.Connect.Addr.IPNet, nil
+		return ev.Connect.Addr.IPPortContext.IPNet, nil
 	case "connect.server.addr.is_public":
-		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr), nil
+		return ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr.IPPortContext), nil
 	case "connect.server.addr.port":
-		return int(ev.Connect.Addr.Port), nil
+		return int(ev.Connect.Addr.IPPortContext.Port), nil
 	case "container.created_at":
 		return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)), nil
 	case "container.id":
@@ -33855,36 +33855,36 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "bind.addr.family":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Bind.AddrFamily"}
+			return &eval.ErrValueTypeMismatch{Field: "Bind.Addr.Family"}
 		}
 		if rv < 0 || rv > math.MaxUint16 {
-			return &eval.ErrValueOutOfRange{Field: "Bind.AddrFamily"}
+			return &eval.ErrValueOutOfRange{Field: "Bind.Addr.Family"}
 		}
-		ev.Bind.AddrFamily = uint16(rv)
+		ev.Bind.Addr.Family = uint16(rv)
 		return nil
 	case "bind.addr.ip":
 		rv, ok := value.(net.IPNet)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Bind.Addr.IPNet"}
+			return &eval.ErrValueTypeMismatch{Field: "Bind.Addr.IPPortContext.IPNet"}
 		}
-		ev.Bind.Addr.IPNet = rv
+		ev.Bind.Addr.IPPortContext.IPNet = rv
 		return nil
 	case "bind.addr.is_public":
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Bind.Addr.IsPublic"}
+			return &eval.ErrValueTypeMismatch{Field: "Bind.Addr.IPPortContext.IsPublic"}
 		}
-		ev.Bind.Addr.IsPublic = rv
+		ev.Bind.Addr.IPPortContext.IsPublic = rv
 		return nil
 	case "bind.addr.port":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Bind.Addr.Port"}
+			return &eval.ErrValueTypeMismatch{Field: "Bind.Addr.IPPortContext.Port"}
 		}
 		if rv < 0 || rv > math.MaxUint16 {
-			return &eval.ErrValueOutOfRange{Field: "Bind.Addr.Port"}
+			return &eval.ErrValueOutOfRange{Field: "Bind.Addr.IPPortContext.Port"}
 		}
-		ev.Bind.Addr.Port = uint16(rv)
+		ev.Bind.Addr.IPPortContext.Port = uint16(rv)
 		return nil
 	case "bind.retval":
 		rv, ok := value.(int)
@@ -34528,36 +34528,36 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "connect.addr.family":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Connect.AddrFamily"}
+			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.Family"}
 		}
 		if rv < 0 || rv > math.MaxUint16 {
-			return &eval.ErrValueOutOfRange{Field: "Connect.AddrFamily"}
+			return &eval.ErrValueOutOfRange{Field: "Connect.Addr.Family"}
 		}
-		ev.Connect.AddrFamily = uint16(rv)
+		ev.Connect.Addr.Family = uint16(rv)
 		return nil
 	case "connect.addr.ip":
 		rv, ok := value.(net.IPNet)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.IPNet"}
+			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.IPPortContext.IPNet"}
 		}
-		ev.Connect.Addr.IPNet = rv
+		ev.Connect.Addr.IPPortContext.IPNet = rv
 		return nil
 	case "connect.addr.is_public":
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.IsPublic"}
+			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.IPPortContext.IsPublic"}
 		}
-		ev.Connect.Addr.IsPublic = rv
+		ev.Connect.Addr.IPPortContext.IsPublic = rv
 		return nil
 	case "connect.addr.port":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.Port"}
+			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.IPPortContext.Port"}
 		}
 		if rv < 0 || rv > math.MaxUint16 {
-			return &eval.ErrValueOutOfRange{Field: "Connect.Addr.Port"}
+			return &eval.ErrValueOutOfRange{Field: "Connect.Addr.IPPortContext.Port"}
 		}
-		ev.Connect.Addr.Port = uint16(rv)
+		ev.Connect.Addr.IPPortContext.Port = uint16(rv)
 		return nil
 	case "connect.retval":
 		rv, ok := value.(int)
@@ -34569,36 +34569,36 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "connect.server.addr.family":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Connect.AddrFamily"}
+			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.Family"}
 		}
 		if rv < 0 || rv > math.MaxUint16 {
-			return &eval.ErrValueOutOfRange{Field: "Connect.AddrFamily"}
+			return &eval.ErrValueOutOfRange{Field: "Connect.Addr.Family"}
 		}
-		ev.Connect.AddrFamily = uint16(rv)
+		ev.Connect.Addr.Family = uint16(rv)
 		return nil
 	case "connect.server.addr.ip":
 		rv, ok := value.(net.IPNet)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.IPNet"}
+			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.IPPortContext.IPNet"}
 		}
-		ev.Connect.Addr.IPNet = rv
+		ev.Connect.Addr.IPPortContext.IPNet = rv
 		return nil
 	case "connect.server.addr.is_public":
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.IsPublic"}
+			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.IPPortContext.IsPublic"}
 		}
-		ev.Connect.Addr.IsPublic = rv
+		ev.Connect.Addr.IPPortContext.IsPublic = rv
 		return nil
 	case "connect.server.addr.port":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.Port"}
+			return &eval.ErrValueTypeMismatch{Field: "Connect.Addr.IPPortContext.Port"}
 		}
 		if rv < 0 || rv > math.MaxUint16 {
-			return &eval.ErrValueOutOfRange{Field: "Connect.Addr.Port"}
+			return &eval.ErrValueOutOfRange{Field: "Connect.Addr.IPPortContext.Port"}
 		}
-		ev.Connect.Addr.Port = uint16(rv)
+		ev.Connect.Addr.IPPortContext.Port = uint16(rv)
 		return nil
 	case "container.created_at":
 		if ev.BaseEvent.ContainerContext == nil {

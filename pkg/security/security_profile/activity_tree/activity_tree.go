@@ -313,7 +313,7 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 	switch event.GetEventType() {
 	case model.BindEventType:
 		// ignore non IPv4 / IPv6 bind events for now
-		if event.Bind.AddrFamily != unix.AF_INET && event.Bind.AddrFamily != unix.AF_INET6 {
+		if event.Bind.Addr.Family != unix.AF_INET && event.Bind.Addr.Family != unix.AF_INET6 {
 			if !dryRun {
 				at.Stats.counts[model.BindEventType].droppedCount[bindFamilyReason].Inc()
 			}

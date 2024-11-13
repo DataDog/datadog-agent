@@ -235,7 +235,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
 	case "bind":
-		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr)
+		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr.IPPortContext)
 	case "bpf":
 	case "capset":
 	case "chdir":
@@ -298,8 +298,8 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Chown.SyscallContext)
 		}
 	case "connect":
-		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
-		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
+		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr.IPPortContext)
+		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr.IPPortContext)
 	case "dns":
 	case "exec":
 		if ev.Exec.Process.IsNotKworker() {

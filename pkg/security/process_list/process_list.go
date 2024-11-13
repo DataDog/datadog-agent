@@ -16,11 +16,12 @@ import (
 
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // ProcessNodeIface is an interface used to identify the parent of a process context
@@ -162,7 +163,7 @@ func (pl *ProcessList) isEventValid(event *model.Event) (bool, error) {
 	switch event.GetEventType() {
 	case model.BindEventType:
 		// ignore non IPv4 / IPv6 bind events for now
-		if event.Bind.AddrFamily != unix.AF_INET && event.Bind.AddrFamily != unix.AF_INET6 {
+		if event.Bind.Addr.Family != unix.AF_INET && event.Bind.Addr.Family != unix.AF_INET6 {
 			return false, errors.New("invalid event: invalid bind family")
 		}
 	case model.IMDSEventType:

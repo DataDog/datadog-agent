@@ -634,19 +634,24 @@ type NetworkDeviceContext struct {
 	IfName  string `field:"ifname,handler:ResolveNetworkDeviceIfName"` // SECLDoc[ifname] Definition:`Interface ifname`
 }
 
+// SocketAddr represents a socket address
+type SocketAddr struct {
+	IPPortContext
+	Family uint16 `field:"family"` // SECLDoc[family] Definition:`Address family`
+}
+
 // BindEvent represents a bind event
 type BindEvent struct {
 	SyscallEvent
 
-	Addr       IPPortContext `field:"addr"`        // Bound address
-	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
+	Addr SocketAddr `field:"addr"` // Bound address
 }
 
 // ConnectEvent represents a connect event
 type ConnectEvent struct {
 	SyscallEvent
-	Addr       IPPortContext `field:"addr;server.addr"`               // Connection address
-	AddrFamily uint16        `field:"addr.family;server.addr.family"` // SECLDoc[addr.family] Definition:`Address family` SECLDoc[server.addr.family] Definition:`Server address family`
+
+	Addr SocketAddr `field:"addr;server.addr"` // Connection address
 }
 
 // NetDevice represents a network device
