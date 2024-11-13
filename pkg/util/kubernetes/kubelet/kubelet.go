@@ -53,6 +53,7 @@ type KubeUtil struct {
 	filter                 *containers.Filter
 	waitOnMissingContainer time.Duration
 	podUnmarshaller        *podUnmarshaller
+	podResources           *PodResourcesClient
 }
 
 func (ku *KubeUtil) init() error {
@@ -80,6 +81,11 @@ func (ku *KubeUtil) init() error {
 		if ku.kubeletClient.config.token != "" {
 			ku.rawConnectionInfo["token"] = ku.kubeletClient.config.token
 		}
+	}
+
+	ku.podResources, err = NewPodResourcesClient()
+	if err != nil {
+		log.Debugf("Failed to create pod resources client, resource data will not be available: %s", err)
 	}
 
 	return nil
@@ -226,10 +232,55 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 	}
 	pods.Items = tmpSlice
 
+	err = ku.addContainerResourcesData(ctx, pods.Items)
+	if err != nil {
+		log.Errorf("Error adding container resources data: %s", err)
+	}
+
 	// cache the podList to reduce pressure on the kubelet
 	cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
 
 	return &pods, nil
+}
+
+// addContainerResourcesData modifies the given pod list, populating the
+// resources field of each container. If the pod resources API is not available,
+// this is a no-op.
+func (ku *KubeUtil) addContainerResourcesData(ctx context.Context, pods []*Pod) error {
+	if ku.podResources == nil {
+		return nil
+	}
+
+	containerToDevicesMap, err := ku.podResources.GetContainerToDevicesMap(ctx)
+	if err != nil {
+		return fmt.Errorf("error getting container resources data: %w", err)
+	}
+
+	for _, pod := range pods {
+		for _, container := range pod.Status.AllContainers {
+			key := ContainerKey{
+				Namespace:     pod.Metadata.Namespace,
+				PodName:       pod.Metadata.Name,
+				ContainerName: container.Name,
+			}
+			devices, ok := containerToDevicesMap[key]
+			if !ok {
+				continue
+			}
+
+			for _, device := range devices {
+				name := device.GetResourceName()
+				for _, id := range device.GetDeviceIds() {
+					container.Resources = append(container.Resources, ContainerResource{
+						Name: name,
+						ID:   id,
+					})
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 // GetLocalPodList returns the list of pods running on the node.
