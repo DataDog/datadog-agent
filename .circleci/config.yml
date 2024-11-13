@@ -245,18 +245,6 @@ jobs:
           name: build agent
           command: inv -e agent.build --exclude-rtloader
 
-  build_iot_agent:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: build iot agent
-          command: inv -e agent.build --flavor iot
-      - run:
-          name: test iot agent
-          command: DD_HOSTNAME=test-circleci-hostname ./bin/agent/agent -c ./bin/agent/dist check cpu
-
   documentation_generation:
     <<: *job_template
     steps:

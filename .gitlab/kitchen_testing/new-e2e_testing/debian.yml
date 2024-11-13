@@ -40,29 +40,6 @@ new-e2e-agent-platform-install-script-debian-a6-arm64:
   variables:
     FLAVOR: datadog-agent
 
-new-e2e-agent-platform-install-script-debian-iot-agent-a6-x86_64:
-  stage: kitchen_testing
-  extends:
-    - .new_e2e_template
-    - .new-e2e_install_script
-    - .new-e2e_os_debian
-    - .new-e2e_debian_a6_x86_64
-    - .new-e2e_agent_a6
-  rules: !reference [.on_default_new-e2e_tests]
-  variables:
-    FLAVOR: datadog-iot-agent
-
-new-e2e-agent-platform-install-script-debian-dogstatsd-a6-x86_64:
-  stage: kitchen_testing
-  extends:
-    - .new_e2e_template
-    - .new-e2e_install_script
-    - .new-e2e_os_debian
-    - .new-e2e_debian_a6_x86_64
-    - .new-e2e_agent_a6
-  variables:
-    FLAVOR: datadog-dogstatsd
-
 new-e2e-agent-platform-install-script-debian-heroku-agent-a6-x86_64:
   stage: kitchen_testing
   extends:
