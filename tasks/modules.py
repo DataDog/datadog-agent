@@ -132,6 +132,7 @@ DEFAULT_MODULES = {
         ".",
         targets=["./pkg", "./cmd", "./comp"],
     ),
+    "pkg/util/utilizationtracker": GoModule("pkg/util/utilizationtracker", independent=True, used_by_otel=True),
     "pkg/util/defaultpaths": GoModule("pkg/util/defaultpaths", independent=True, used_by_otel=True),
     "comp/api/api/def": GoModule("comp/api/api/def", independent=True, used_by_otel=True),
     "comp/api/authtoken": GoModule("comp/api/authtoken", independent=True, used_by_otel=True),
