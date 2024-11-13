@@ -8,7 +8,10 @@ package common
 
 // DatadogConfig contains the configuration specific to Dogstatsd.
 type DatadogConfig struct {
+	// DogstatsdEntityIDPrecedenceEnabled disable enriching Dogstatsd metrics with tags from "origin detection" when Entity-ID is set.
 	DogstatsdEntityIDPrecedenceEnabled bool
-	DogstatsdOptOutEnabled             bool
-	OriginDetectionUnifiedEnabled      bool
+	// DogstatsdOptOutEnabled If enabled, and cardinality is none no origin detection is performed.
+	DogstatsdOptOutEnabled bool
+	// OriginDetectionUnifiedEnabled If enabled, all origin detection mechanisms will be unified to use the same logic.
+	OriginDetectionUnifiedEnabled bool
 }
