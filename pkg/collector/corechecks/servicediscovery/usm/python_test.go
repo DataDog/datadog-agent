@@ -27,6 +27,7 @@ func TestPythonDetect(t *testing.T) {
 		"apps/app1/__main__.py":                     &fstest.MapFile{},
 		"apps/app2/cmd/run.py":                      &fstest.MapFile{},
 		"apps/app2/setup.py":                        &fstest.MapFile{},
+		"example.py":                                &fstest.MapFile{},
 	}
 	tests := []struct {
 		name     string
@@ -72,6 +73,11 @@ func TestPythonDetect(t *testing.T) {
 			name:     "script in top level dir ",
 			cmd:      "python apps/app2/setup.py",
 			expected: "app2",
+		},
+		{
+			name:     "top level script",
+			cmd:      "python example.py",
+			expected: "example",
 		},
 	}
 	for _, tt := range tests {

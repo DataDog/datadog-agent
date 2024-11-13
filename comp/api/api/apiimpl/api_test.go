@@ -27,8 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
@@ -72,8 +72,8 @@ func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 		fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
 		fetchonlyimpl.MockModule(),
 		fx.Supply(context.Background()),
-		taggerimpl.MockModule(),
-		fx.Provide(func(mock tagger.Mock) tagger.Component {
+		taggermock.Module(),
+		fx.Provide(func(mock taggermock.Mock) tagger.Component {
 			return mock
 		}),
 		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),

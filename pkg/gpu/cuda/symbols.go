@@ -6,8 +6,9 @@
 package cuda
 
 import (
-	"debug/elf"
 	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // Symbols holds all necessary data from a CUDA executable for
@@ -21,7 +22,7 @@ type Symbols struct {
 
 // GetSymbols reads an ELF file from the given path and return the parsed CUDA data
 func GetSymbols(path string) (*Symbols, error) {
-	elfFile, err := elf.Open(path)
+	elfFile, err := safeelf.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("error opening ELF file %s: %w", path, err)
 	}

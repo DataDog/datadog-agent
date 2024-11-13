@@ -198,8 +198,6 @@ const (
 	ConnCloseFlushed BPFMapName = "conn_close_flushed"
 	// ConnCloseEventMap is the map storing connection close events
 	ConnCloseEventMap BPFMapName = "conn_close_event"
-	// FailedConnEventMap is the map for storing failed connection events
-	FailedConnEventMap BPFMapName = "conn_fail_event"
 	// TracerStatusMap is the map storing the status of the tracer
 	TracerStatusMap BPFMapName = "tracer_status"
 	// ConntrackStatusMap is the map storing the status of the conntrack
