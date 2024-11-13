@@ -49,6 +49,68 @@ type (
 	mockTimeoutErr string
 )
 
+func Test_createRawTCPSyn(t *testing.T) {
+	srcIP := net.ParseIP("1.2.3.4")
+	dstIP := net.ParseIP("5.6.7.8")
+	srcPort := uint16(12345)
+	dstPort := uint16(80)
+	seqNum := uint32(1000)
+	ttl := 64
+
+	expectedIPHeader := &ipv4.Header{
+		Version:  4,
+		TTL:      ttl,
+		ID:       41821,
+		Protocol: 6,
+		Dst:      dstIP,
+		Src:      srcIP,
+		Len:      20,
+		TotalLen: 40,
+		Checksum: 51039,
+	}
+
+	expectedPktBytes := []byte{
+		0x30, 0x39, 0x0, 0x50, 0x0, 0x0, 0x3, 0xe8, 0x0, 0x0, 0x0, 0x0, 0x50, 0x2, 0x4, 0x0, 0x67, 0x5e, 0x0, 0x0,
+	}
+
+	ipHeader, pktBytes, err := createRawTCPSyn(srcIP, srcPort, dstIP, dstPort, seqNum, ttl)
+	require.NoError(t, err)
+	assert.Equal(t, expectedIPHeader, ipHeader)
+	assert.Equal(t, expectedPktBytes, pktBytes)
+}
+
+func Test_createRawTCPSynBuffer(t *testing.T) {
+	srcIP := net.ParseIP("1.2.3.4")
+	dstIP := net.ParseIP("5.6.7.8")
+	srcPort := uint16(12345)
+	dstPort := uint16(80)
+	seqNum := uint32(1000)
+	ttl := 64
+
+	expectedIPHeader := &ipv4.Header{
+		Version:  4,
+		TTL:      ttl,
+		ID:       41821,
+		Protocol: 6,
+		Dst:      dstIP,
+		Src:      srcIP,
+		Len:      20,
+		TotalLen: 40,
+		Checksum: 51039,
+	}
+
+	expectedPktBytes := []byte{
+		0x45, 0x0, 0x0, 0x28, 0xa3, 0x5d, 0x0, 0x0, 0x40, 0x6, 0xc7, 0x5f, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x30, 0x39, 0x0, 0x50, 0x0, 0x0, 0x3, 0xe8, 0x0, 0x0, 0x0, 0x0, 0x50, 0x2, 0x4, 0x0, 0x67, 0x5e, 0x0, 0x0,
+	}
+
+	ipHeader, pktBytes, headerLength, err := createRawTCPSynBuffer(srcIP, srcPort, dstIP, dstPort, seqNum, ttl)
+
+	require.NoError(t, err)
+	assert.Equal(t, expectedIPHeader, ipHeader)
+	assert.Equal(t, 20, headerLength)
+	assert.Equal(t, expectedPktBytes, pktBytes)
+}
+
 func Test_handlePackets(t *testing.T) {
 	_, tcpBytes := createMockTCPPacket(createMockIPv4Header(dstIP, srcIP, 6), createMockTCPLayer(443, 12345, 28394, 28395, true, true, true))
 
