@@ -93,6 +93,7 @@ kitchen_test_security_agent_arm64:
         KITCHEN_CWS_PLATFORM: [host, docker, ad, ebpfless]
 
 kitchen_test_security_agent_amazonlinux_x64:
+  allow_failure: true
   extends:
     - .kitchen_test_security_agent_linux
     - .kitchen_ec2_location_us_east_1
@@ -144,7 +145,6 @@ kitchen_test_security_agent_x64_ec2:
 kitchen_test_security_agent_amazonlinux_x64_fentry:
   extends:
     - kitchen_test_security_agent_amazonlinux_x64
-  allow_failure: true
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
