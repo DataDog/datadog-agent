@@ -9,17 +9,17 @@
 package fx
 
 import (
-	compressionnoop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
-	"go.uber.org/fx"
-
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	compressionnoop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(NewMockCompressor),
+		fxutil.ProvideComponentConstructor(
+			NewMockCompressor,
+		),
 	)
 }
 

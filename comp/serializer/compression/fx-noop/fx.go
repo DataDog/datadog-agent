@@ -9,18 +9,18 @@
 package fx
 
 import (
-	compressionnoop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	compressionnoop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Module defines the fx options for the component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(NewCompressor),
+		fxutil.ProvideComponentConstructor(
+			NewCompressor,
+		),
 	)
 }
 
