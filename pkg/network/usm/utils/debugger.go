@@ -74,12 +74,16 @@ func GetClearBlockedEndpoint(moduleName string) func(http.ResponseWriter, *http.
 
 var debugger *tlsDebugger
 
+type attacherMap = map[string]Attacher
+
 type tlsDebugger struct {
 	mux        sync.Mutex
 	registries map[string][]*FileRegistry
-	attachers  map[string]map[string]Attacher
+	// attachers is a mapping from a module name to a map of attacher names to Attacher instances.
+	attachers map[string]attacherMap
 }
 
+// AddRegistry adds a new `FileRegistry` instance to the debugger, and associates it with the given module name.
 func (d *tlsDebugger) AddRegistry(moduleName string, r *FileRegistry) {
 	d.mux.Lock()
 	defer d.mux.Unlock()
@@ -91,6 +95,7 @@ func (d *tlsDebugger) AddRegistry(moduleName string, r *FileRegistry) {
 	}
 }
 
+// GetTracedPrograms returns a list of TracedPrograms for each `FileRegistry` instance belong to the given module.
 func (d *tlsDebugger) GetTracedPrograms(moduleName string) []TracedProgram {
 	d.mux.Lock()
 	defer d.mux.Unlock()

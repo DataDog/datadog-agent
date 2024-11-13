@@ -60,7 +60,7 @@ func IsProgramTraced(moduleName, programType string, pid int) bool {
 	return false
 }
 
-// WaitForProgramsToBeTraced waits for the program to be traced by the debugger
+// WaitForProgramsToBeTraced waits for the program to be traced by the given programs type of the given module.
 func WaitForProgramsToBeTraced(t *testing.T, moduleName, programType string, pid int, traceManually TraceMethod) {
 	// Wait for the program to be traced
 	end := time.Now().Add(time.Second * 5)
