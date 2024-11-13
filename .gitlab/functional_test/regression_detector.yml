@@ -100,8 +100,6 @@ single-machine-performance-regression_detector:
       --comparison-image ${COMPARISON_IMAGE}
       --baseline-sha ${BASELINE_SHA}
       --comparison-sha ${CI_COMMIT_SHA}
-      --replicas 13
-      --total-samples 90
       --target-config-dir test/regression/
       --submission-metadata submission_metadata
     # Wait for job to complete.
@@ -151,28 +149,30 @@ single-machine-performance-regression_detector:
               for check_name, check_data in bounds_checks.items():
                   results = check_data.get('results', {})
                   comparison = results.get('comparison', [])
+                  total_replicates = len(comparison)
                   failed_replicates = [
                       replicate for replicate in comparison if not replicate.get('passed', False)
                   ]
                   if failed_replicates:
-                      replicate_indices = [str(replicate.get('replicate_idx')) for replicate in failed_replicates]
+                      num_failed = len(failed_replicates)
+                      num_passed = total_replicates - num_failed
                       decision_record.append(
-                          f"- **{exp_name}**, bounds check **{check_name}**: Replicates {', '.join(replicate_indices)} **FAILED**."
+                          f"- **{exp_name}**, bounds check **{check_name}**: {num_passed}/{num_total} replicas passed. Failed {num_failed} which is > 0. Gate **FAILED**."
                       )
                       failed = True
                   else:
                       decision_record.append(
-                          f"- **{exp_name}**, bounds check **{check_name}**: All replicates passed."
+                          f"- **{exp_name}**, bounds check **{check_name}**: {num_passed}/{num_total} replicas passed. Gate passed."
                       )
 
       with open('outputs/decision_record.md', 'w') as f:
           # Extra newline since this is appended to another report
           f.write('\n\n## CI Pass/Fail Decision\n\n')
           if failed:
-              f.write('**Failed.** Some Quality Gates were violated.\n\n')
+              f.write('❌ **Failed.** Some Quality Gates were violated.\n\n')
               f.write('\n'.join(decision_record))
           else:
-              f.write('**Passed.** All Quality Gates passed.\n\n')
+              f.write('✅ **Passed.** All Quality Gates passed.\n\n')
               f.write('\n'.join(decision_record))
 
       if failed:
