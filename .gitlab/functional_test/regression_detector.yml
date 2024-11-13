@@ -109,7 +109,7 @@ single-machine-performance-regression_detector:
       --comparison-image ${COMPARISON_IMAGE}
       --baseline-sha ${BASELINE_SHA}
       --comparison-sha ${CI_COMMIT_SHA}
-      --replicas 3
+      --replicas 13
       --total-samples 90
       --target-config-dir test/regression/
       --submission-metadata submission_metadata
