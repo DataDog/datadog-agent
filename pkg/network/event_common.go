@@ -270,7 +270,7 @@ type ConnectionStats struct {
 	}
 	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
 	// TCPFailures stores the number of failures for a POSIX error code
-	TCPFailures map[uint32]uint32
+	TCPFailures map[uint16]uint32
 
 	ConnectionTuple
 

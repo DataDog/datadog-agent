@@ -59,10 +59,6 @@ func TestContainerCreatedAt(t *testing.T) {
 		t.Skip("Skipping created time in containers tests: Docker not available")
 		return
 	}
-
-	if _, err := dockerWrapper.start(); err != nil {
-		t.Fatal(err)
-	}
 	defer dockerWrapper.stop()
 
 	dockerWrapper.Run(t, "container-created-at", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -126,10 +122,6 @@ func TestContainerFlagsDocker(t *testing.T) {
 		t.Skipf("Skipping container test: Docker not available (%s)", err.Error())
 		return
 	}
-
-	if _, err := dockerWrapper.start(); err != nil {
-		t.Fatal(err)
-	}
 	defer dockerWrapper.stop()
 
 	dockerWrapper.Run(t, "container-runtime", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -172,10 +164,6 @@ func TestContainerFlagsPodman(t *testing.T) {
 	if err != nil {
 		t.Skip("Skipping created time in containers tests: podman not available")
 		return
-	}
-
-	if _, err := podmanWrapper.start(); err != nil {
-		t.Fatal(err)
 	}
 	defer podmanWrapper.stop()
 

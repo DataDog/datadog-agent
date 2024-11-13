@@ -254,7 +254,7 @@ func TestSerialization(t *testing.T) {
 							},
 						},
 					},
-					TCPFailures: map[uint32]uint32{
+					TCPFailures: map[uint16]uint32{
 						110: 1,
 					},
 				},

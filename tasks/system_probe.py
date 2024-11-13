@@ -357,16 +357,17 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
 
 
 def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
-    gpu_programs_co_re_dir = Path("pkg/gpu/ebpf/c")
-    gpu_programs_co_re_flags = f"-I{gpu_programs_co_re_dir}"
-    gpu_programs_co_re_programs = ["gpu"]
+    gpu_headers_dir = Path("pkg/gpu/ebpf/c")
+    gpu_c_dir = gpu_headers_dir / "runtime"
+    gpu_flags = f"-I{gpu_headers_dir} -I{gpu_c_dir}"
+    gpu_programs = ["gpu"]
 
-    for prog in gpu_programs_co_re_programs:
-        infile = os.path.join(gpu_programs_co_re_dir, f"{prog}.c")
+    for prog in gpu_programs:
+        infile = os.path.join(gpu_c_dir, f"{prog}.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": gpu_programs_co_re_flags})
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": gpu_flags})
         root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": gpu_programs_co_re_flags + " -DDEBUG=1"})
+        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": gpu_flags + " -DDEBUG=1"})
 
 
 def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
@@ -414,6 +415,7 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
         "pkg/dynamicinstrumentation/codegen/compile.go": "dynamicinstrumentation",
+        "pkg/gpu/compile.go": "gpu",
     }
 
     nw.rule(
@@ -1069,7 +1071,7 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
             source = Path(pkg) / "testdata" / f"{cbin}.c"
             if not is_windows and source.is_file():
                 binary = Path(target_path) / cbin
-                ctx.run(f"clang -o {binary} {source}")
+                ctx.run(f"clang -static -o {binary} {source}")
 
     gopath = os.getenv("GOPATH")
     copy_files = [

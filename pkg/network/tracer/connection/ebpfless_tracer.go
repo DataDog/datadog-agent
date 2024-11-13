@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ebpfless"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failure"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -196,11 +195,20 @@ func (t *ebpfLessTracer) processConnection(
 		conn.Duration = time.Duration(time.Now().UnixNano())
 	}
 
+	if ip4 == nil && ip6 == nil {
+		return nil
+	}
 	var err error
 	switch conn.Type {
 	case network.UDP:
+		if (ip4 != nil && !t.config.CollectUDPv4Conns) || (ip6 != nil && !t.config.CollectUDPv6Conns) {
+			return nil
+		}
 		err = t.udp.process(conn, pktType, udp)
 	case network.TCP:
+		if (ip4 != nil && !t.config.CollectTCPv4Conns) || (ip6 != nil && !t.config.CollectTCPv6Conns) {
+			return nil
+		}
 		err = t.tcp.process(conn, pktType, ip4, ip6, tcp)
 	default:
 		err = fmt.Errorf("unsupported connection type %d", conn.Type)
@@ -243,13 +251,11 @@ func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionSt
 		return
 	}
 
-	if conn.Type == network.TCP {
-		switch pktType {
-		case unix.PACKET_HOST:
-			conn.Direction = network.INCOMING
-		case unix.PACKET_OUTGOING:
-			conn.Direction = network.OUTGOING
-		}
+	switch pktType {
+	case unix.PACKET_HOST:
+		conn.Direction = network.INCOMING
+	case unix.PACKET_OUTGOING:
+		conn.Direction = network.OUTGOING
 	}
 }
 
@@ -328,9 +334,6 @@ func (t *ebpfLessTracer) Describe(_ chan<- *prometheus.Desc) {}
 
 // Collect returns the current state of all metrics of the collector
 func (t *ebpfLessTracer) Collect(_ chan<- prometheus.Metric) {}
-
-// GetFailedConnections returns the underlying map used to store failed connections
-func (t *ebpfLessTracer) GetFailedConnections() *failure.FailedConns { return nil }
 
 var _ Tracer = &ebpfLessTracer{}
 

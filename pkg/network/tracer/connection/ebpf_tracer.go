@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failure"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
@@ -48,6 +47,7 @@ const (
 )
 
 var tcpOngoingConnectMapTTL = 30 * time.Minute.Nanoseconds()
+var connClosedFlushMapTTL = 10 * time.Millisecond.Nanoseconds()
 
 var EbpfTracerTelemetry = struct {
 	connections       telemetry.Gauge
@@ -76,6 +76,7 @@ var EbpfTracerTelemetry = struct {
 	PidCollisions               *telemetry.StatCounterWrapper
 	iterationDups               telemetry.Counter
 	iterationAborts             telemetry.Counter
+	closedConnFlushedCleaned    telemetry.Counter
 
 	lastTcpFailedConnects *atomic.Int64
 	LastTcpSentMiscounts  *atomic.Int64
@@ -121,6 +122,7 @@ var EbpfTracerTelemetry = struct {
 	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
+	telemetry.NewCounter(connTracerModuleName, "closed_conn_flushed_cleaned", []string{}, "Counter measuring the number of conn_close_flushed entries cleaned in userspace"),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
@@ -150,11 +152,10 @@ type ebpfTracer struct {
 
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
-	// tcp failure events
-	failedConnConsumer *failure.TCPFailedConnConsumer
 
 	// periodically clean the ongoing connection pid map
 	ongoingConnectCleaner *ddebpf.MapCleaner[netebpf.SkpConn, netebpf.PidTs]
+	connCloseFlushCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, int64]
 
 	removeTuple *netebpf.ConnTuple
 
@@ -257,25 +258,20 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 
 	closeConsumer := newTCPCloseConsumer(connCloseEventHandler, batchMgr)
 
-	var failedConnConsumer *failure.TCPFailedConnConsumer
 	// Failed connections are not supported on prebuilt
 	if tracerType == TracerTypeKProbePrebuilt {
 		config.TCPFailedConnectionsEnabled = false
 	}
-	if config.FailedConnectionsSupported() {
-		failedConnConsumer = failure.NewFailedConnConsumer(failedConnsHandler, m, config.MaxFailedConnectionsBuffered)
-	}
 
 	tr := &ebpfTracer{
-		m:                  m,
-		config:             config,
-		closeConsumer:      closeConsumer,
-		failedConnConsumer: failedConnConsumer,
-		removeTuple:        &netebpf.ConnTuple{},
-		closeTracer:        closeTracerFn,
-		ebpfTracerType:     tracerType,
-		exitTelemetry:      make(chan struct{}),
-		ch:                 newCookieHasher(),
+		m:              m,
+		config:         config,
+		closeConsumer:  closeConsumer,
+		removeTuple:    &netebpf.ConnTuple{},
+		closeTracer:    closeTracerFn,
+		ebpfTracerType: tracerType,
+		exitTelemetry:  make(chan struct{}),
+		ch:             newCookieHasher(),
 	}
 
 	tr.setupMapCleaner(m)
@@ -329,7 +325,6 @@ func (t *ebpfTracer) Start(callback func(*network.ConnectionStats)) (err error) 
 	}
 
 	t.closeConsumer.Start(callback)
-	t.failedConnConsumer.Start()
 	return nil
 }
 
@@ -350,13 +345,6 @@ func (t *ebpfTracer) FlushPending() {
 	t.closeConsumer.FlushPending()
 }
 
-func (t *ebpfTracer) GetFailedConnections() *failure.FailedConns {
-	if t.failedConnConsumer == nil {
-		return nil
-	}
-	return t.failedConnConsumer.FailedConns
-}
-
 func (t *ebpfTracer) Stop() {
 	t.stopOnce.Do(func() {
 		close(t.exitTelemetry)
@@ -364,8 +352,8 @@ func (t *ebpfTracer) Stop() {
 		ebpftelemetry.UnregisterTelemetry(t.m)
 		_ = t.m.Stop(manager.CleanAll)
 		t.closeConsumer.Stop()
-		t.failedConnConsumer.Stop()
 		t.ongoingConnectCleaner.Stop()
+		t.connCloseFlushCleaner.Stop()
 		if t.closeTracer != nil {
 			t.closeTracer()
 		}
@@ -429,10 +417,10 @@ func (t *ebpfTracer) GetConnections(buffer *network.ConnectionBuffer, filter fun
 		}
 
 		if t.getTCPStats(tcp, key) {
-			updateTCPStats(conn, tcp, 0)
+			updateTCPStats(conn, tcp)
 		}
-		if retrans, ok := t.getTCPRetransmits(key, seen); ok {
-			updateTCPStats(conn, nil, retrans)
+		if retrans, ok := t.getTCPRetransmits(key, seen); ok && conn.Type == network.TCP {
+			conn.Monotonic.Retransmits = retrans
 		}
 
 		*buffer.Next() = *conn
@@ -717,7 +705,7 @@ func (t *ebpfTracer) setupMapCleaner(m *manager.Manager) {
 		return
 	}
 
-	tcpOngoingConnectPidCleaner, err := ddebpf.NewMapCleaner[netebpf.SkpConn, netebpf.PidTs](tcpOngoingConnectPidMap, 1024)
+	tcpOngoingConnectPidCleaner, err := ddebpf.NewMapCleaner[netebpf.SkpConn, netebpf.PidTs](tcpOngoingConnectPidMap, 1024, probes.TCPOngoingConnectPid, "npm_tracer")
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
@@ -732,6 +720,26 @@ func (t *ebpfTracer) setupMapCleaner(m *manager.Manager) {
 	})
 
 	t.ongoingConnectCleaner = tcpOngoingConnectPidCleaner
+
+	if t.config.FailedConnectionsSupported() {
+		connCloseFlushMap, _, err := m.GetMap(probes.ConnCloseFlushed)
+		if err != nil {
+			log.Errorf("error getting %v map: %s", probes.ConnCloseFlushed, err)
+		}
+		connCloseFlushCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, int64](connCloseFlushMap, 1024, probes.ConnCloseFlushed, "npm_tracer")
+		if err != nil {
+			log.Errorf("error creating map cleaner: %s", err)
+			return
+		}
+		connCloseFlushCleaner.Clean(time.Second*1, nil, nil, func(now int64, _ netebpf.ConnTuple, val int64) bool {
+			expired := val > 0 && now-val > connClosedFlushMapTTL
+			if expired {
+				EbpfTracerTelemetry.closedConnFlushedCleaned.Inc()
+			}
+			return expired
+		})
+		t.connCloseFlushCleaner = connCloseFlushCleaner
+	}
 }
 
 func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats, ch *cookieHasher) {
@@ -799,16 +807,21 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 	}
 }
 
-func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats, retransmits uint32) {
+func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats) {
 	if conn.Type != network.TCP {
 		return
 	}
 
-	conn.Monotonic.Retransmits = retransmits
 	if tcpStats != nil {
+		conn.Monotonic.Retransmits = tcpStats.Retransmits
 		conn.Monotonic.TCPEstablished = tcpStats.State_transitions >> netebpf.Established & 1
 		conn.Monotonic.TCPClosed = tcpStats.State_transitions >> netebpf.Close & 1
 		conn.RTT = tcpStats.Rtt
 		conn.RTTVar = tcpStats.Rtt_var
+		if tcpStats.Failure_reason > 0 {
+			conn.TCPFailures = map[uint16]uint32{
+				tcpStats.Failure_reason: 1,
+			}
+		}
 	}
 }
