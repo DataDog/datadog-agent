@@ -57,5 +57,5 @@ func (v *IntegrationsLogsSuite) TestWriteTenLogsCheck() {
 		assert.GreaterOrEqual(c, newLineCount, 10)
 	}, 1*time.Minute, 5*time.Second)
 
-	utils.CheckLogsExpected(v.T(), v.Env().FakeIntake, "ten_logs_service", "Custom log message", []string{})
+	utils.CheckLogsExpected(v.T(), v.Env().FakeIntake, "ten_logs_service", "Custom log message", []string{"env:dev", "bar:foo"})
 }
