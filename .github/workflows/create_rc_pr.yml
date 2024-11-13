@@ -88,7 +88,11 @@ jobs:
                 MATRIX: ${{ matrix.value }}
                 WARNING: ${{ needs.find_release_branches.outputs.warning }}
               run: |
-                echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX" "$WARNING")" >> $GITHUB_OUTPUT
+                if [ -n "${{ needs.find_release_branches.outputs.warning }}" ]; then
+                  echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX" "$WARNING")" >> $GITHUB_OUTPUT
+                else
+                  echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX")" >> $GITHUB_OUTPUT
+                fi
 
             - name: Create RC PR
               if: ${{ steps.check_for_changes.outputs.CHANGES == 'true'}}

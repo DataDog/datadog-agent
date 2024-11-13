@@ -101,10 +101,15 @@ var supportedLanguages = []language{
 	python,
 	dotnet,
 	ruby,
+	php, // PHP only works with injection v2, no environment variables are set in any case
 }
 
 func (l language) isSupported() bool {
 	return slices.Contains(supportedLanguages, l)
+}
+
+func (l language) isEnabledByDefault() bool {
+	return l != "php"
 }
 
 // languageVersions defines the major library versions we consider "default" for each
@@ -117,7 +122,7 @@ var languageVersions = map[language]string{
 	python: "v2", // https://datadoghq.atlassian.net/browse/APMON-1068
 	ruby:   "v2", // https://datadoghq.atlassian.net/browse/APMON-1066
 	js:     "v5", // https://datadoghq.atlassian.net/browse/APMON-1065
-	php:    "v2", // https://datadoghq.atlassian.net/browse/APMON-1128
+	php:    "v1", // https://datadoghq.atlassian.net/browse/APMON-1128
 }
 
 func (l language) defaultLibVersion() string {
