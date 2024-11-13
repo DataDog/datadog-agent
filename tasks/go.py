@@ -442,6 +442,8 @@ def tidy_all(ctx):
 
 @task
 def tidy(ctx):
+    check_valid_mods(ctx)
+
     if os.name != 'nt':  # not windows
         import resource
 
