@@ -40,8 +40,8 @@ func FuzzProcessStats(f *testing.F) {
 	if err != nil {
 		f.Fatalf("Couldn't generate seed corpus: %v", err)
 	}
-	f.Add(stats, "java", "v1")
-	f.Fuzz(func(t *testing.T, stats []byte, lang, version string) {
+	f.Add(stats, "java", "v1", "abc123")
+	f.Fuzz(func(t *testing.T, stats []byte, lang, version, containerID string) {
 		pbStats, err := decode(stats)
 		if err != nil {
 			t.Skipf("Skipping invalid payload: %v", err)
@@ -57,7 +57,7 @@ func FuzzProcessStats(f *testing.F) {
 		if !equal(decPreProcess, pbStats) {
 			t.Fatalf("Inconsistent encoding/decoding before processing: (%v) is different from (%v)", decPreProcess, pbStats)
 		}
-		processedStats := agent.processStats(pbStats, lang, version)
+		processedStats := agent.processStats(pbStats, lang, version, containerID)
 		encPostProcess, err := encode(processedStats)
 		if err != nil {
 			t.Fatalf("processStats returned an invalid stats payload: %v", err)

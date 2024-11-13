@@ -10,14 +10,11 @@ package customresources
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	basemetrics "k8s.io/component-base/metrics"
@@ -25,6 +22,8 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
+
+	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 )
 
 var (
@@ -37,14 +36,14 @@ var (
 
 // NewCustomResourceDefinitionFactory returns a new CustomResourceDefinition
 // metric family generator factory.
-func NewCustomResourceDefinitionFactory(client *dynamic.DynamicClient) customresource.RegistryFactory {
+func NewCustomResourceDefinitionFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &crdFactory{
-		client: client,
+		client: client.CRDInformerClient,
 	}
 }
 
 type crdFactory struct {
-	client *dynamic.DynamicClient
+	client clientset.Interface
 }
 
 func (f *crdFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
@@ -120,41 +119,36 @@ func (f *crdFactory) Name() string {
 }
 
 func (f *crdFactory) CreateClient(_ *rest.Config) (interface{}, error) {
-	return f.client.Resource(schema.GroupVersionResource{
-		Group:    v1.GroupName,
-		Version:  v1.SchemeGroupVersion.Version,
-		Resource: "customresourcedefinitions",
-	}), nil
+	return f.client, nil
 }
 
 func (f *crdFactory) ExpectedType() interface{} {
-	u := unstructured.Unstructured{}
-	u.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind("CustomResourceDefinition"))
-	return &u
+	return &v1.CustomResourceDefinition{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CustomResourceDefinition",
+			APIVersion: v1.SchemeGroupVersion.String(),
+		},
+	}
 }
 
 func (f *crdFactory) ListWatch(customResourceClient interface{}, _ string, fieldSelector string) cache.ListerWatcher {
-	client := customResourceClient.(dynamic.ResourceInterface)
+	client := customResourceClient.(clientset.Interface)
 	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.List(ctx, opts)
+			return client.ApiextensionsV1().CustomResourceDefinitions().List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.Watch(ctx, opts)
+			return client.ApiextensionsV1().CustomResourceDefinitions().Watch(ctx, opts)
 		},
 	}
 }
 
 func wrapCustomResourceDefinition(f func(*v1.CustomResourceDefinition) *metric.Family) func(interface{}) *metric.Family {
 	return func(obj interface{}) *metric.Family {
-		crd := &v1.CustomResourceDefinition{}
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(*unstructured.Unstructured).Object, crd); err != nil {
-			log.Warnf("cannot decode object %q into v1.CustomResourceDefinition, err=%s, skipping", obj.(*unstructured.Unstructured).Object["apiVersion"], err)
-			return nil
-		}
+		crd := obj.(*v1.CustomResourceDefinition)
 
 		metricFamily := f(crd)
 

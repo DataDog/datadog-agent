@@ -768,7 +768,9 @@ func (p *WindowsProbe) Start() error {
 					continue
 				}
 			case notif := <-p.onETWNotification:
-				p.handleETWNotification(ev, notif)
+				if ok := p.handleETWNotification(ev, notif); !ok {
+					continue
+				}
 			}
 
 			p.DispatchEvent(ev)
@@ -849,7 +851,7 @@ func (p *WindowsProbe) handleProcessStop(ev *model.Event, stop *procmon.ProcessS
 	return true
 }
 
-func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotification) {
+func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotification) bool {
 	// handle incoming events here
 	// each event will come in as a different type
 	// parse it with
@@ -870,17 +872,19 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 			userFileName: arg.userFileName,
 		}
 		p.renamePreArgs.Add(uint64(arg.fileObject), fc)
+		return false
 	case *rename29Args:
 		fc := fileCache{
 			fileName:     arg.fileName,
 			userFileName: arg.userFileName,
 		}
 		p.renamePreArgs.Add(uint64(arg.fileObject), fc)
+		return false
 	case *renamePath:
 		fileCache, found := p.renamePreArgs.Get(uint64(arg.fileObject))
 		if !found {
 			log.Debugf("unable to find renamePreArgs for %d", uint64(arg.fileObject))
-			return
+			return false
 		}
 		ev.Type = uint32(model.FileRenameEventType)
 		ev.RenameFile = model.RenameFileEvent{
@@ -964,18 +968,22 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 		}
 	}
 
-	if ev.Type != uint32(model.UnknownEventType) {
-		errRes := p.setProcessContext(notif.pid, ev)
-		if errRes != nil {
-			log.Debugf("%v", errRes)
-		}
+	if ev.Type == uint32(model.UnknownEventType) {
+		log.Errorf("unknown event type: %T", notif.arg)
+		return false
 	}
+
+	errRes := p.setProcessContext(notif.pid, ev)
+	if errRes != nil {
+		log.Debugf("%v", errRes)
+	}
+	return true
 }
 
 func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 	event.PIDContext.Pid = pid
 	err := backoff.Retry(func() error {
-		entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event)
+		entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, nil)
 		event.ProcessCacheEntry = entry
 		// use ProcessCacheEntry process context as process context
 		event.ProcessContext = &event.ProcessCacheEntry.ProcessContext

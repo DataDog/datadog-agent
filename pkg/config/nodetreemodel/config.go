@@ -52,12 +52,30 @@ type ntmConfig struct {
 
 	// ready is whether the schema has been built, which marks the config as ready for use
 	ready *atomic.Bool
+
+	// Bellow are all the different configuration layers. Each layers represents a source for our configuration.
+	// They are merge into the 'root' tree following order of importance (see pkg/model/viper.go:sourcesPriority).
+
 	// defaults contains the settings with a default value
 	defaults InnerNode
-	// envs contains config settings created by environment variables
-	envs InnerNode
+	// unknown contains the settings set at runtime from unknown source. This should only evey be used by tests.
+	unknown InnerNode
 	// file contains the settings pulled from YAML files
 	file InnerNode
+	// envs contains config settings created by environment variables
+	envs InnerNode
+	// runtime contains the settings set from the agent code itself at runtime (self configured values).
+	runtime InnerNode
+	// localConfigProcess contains the settings pulled from the config process (process owning the source of truth
+	// for the coniguration and mirrored by other processes).
+	localConfigProcess InnerNode
+	// remoteConfig contains the settings pulled from Remote Config.
+	remoteConfig InnerNode
+	// fleetPolicies contains the settings pulled from fleetPolicies.
+	fleetPolicies InnerNode
+	// cli contains the settings set by users at runtime through the CLI.
+	cli InnerNode
+
 	// root contains the final configuration, it's the result of merging all other tree by ordre of priority
 	root InnerNode
 
@@ -120,14 +138,6 @@ func (c *ntmConfig) setValueSource(key string, newValue interface{}, source mode
 	}
 }
 
-func (c *ntmConfig) set(key string, value interface{}, tree InnerNode, source model.Source) (bool, error) {
-	if tree == nil {
-		return false, fmt.Errorf("cannot assign to nil Node")
-	}
-	parts := splitKey(key)
-	return tree.SetAt(parts, value, source)
-}
-
 func (c *ntmConfig) setDefault(key string, value interface{}) {
 	parts := splitKey(key)
 	// TODO: Ensure that for default tree, setting nil to a node will not override
@@ -145,16 +155,46 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	switch source {
 	case model.SourceDefault:
 		tree = c.defaults
+	case model.SourceUnknown:
+		tree = c.unknown
 	case model.SourceFile:
 		tree = c.file
+	case model.SourceEnvVar:
+		tree = c.envs
+	case model.SourceAgentRuntime:
+		tree = c.runtime
+	case model.SourceLocalConfigProcess:
+		tree = c.localConfigProcess
+	case model.SourceRC:
+		tree = c.remoteConfig
+	case model.SourceFleetPolicies:
+		tree = c.fleetPolicies
+	case model.SourceCLI:
+		tree = c.cli
 	default:
 		log.Errorf("unknown source tree: %s\n", source)
 	}
 
+	if !c.IsKnown(key) {
+		log.Errorf("could not set '%s' unknown key", key)
+		return
+	}
+
 	c.Lock()
 	previousValue, _ := c.getValue(key)
-	_, _ = c.set(key, newValue, tree, source)
-	updated, _ := c.set(key, newValue, c.root, source)
+
+	parts := splitKey(key)
+
+	_, err := tree.SetAt(parts, newValue, source)
+	if err != nil {
+		log.Errorf("could not set '%s' invalid key: %s", key, err)
+	}
+
+	updated, err := c.root.SetAt(parts, newValue, source)
+	if err != nil {
+		log.Errorf("could not set '%s' invalid key: %s", key, err)
+	}
+
 	receivers := slices.Clone(c.notificationReceivers)
 	c.Unlock()
 
@@ -247,6 +287,31 @@ func (c *ntmConfig) GetKnownKeysLowercased() map[string]interface{} {
 		ret[key] = value
 	}
 	return ret
+}
+
+func (c *ntmConfig) mergeAllLayers() error {
+	treeList := []InnerNode{
+		c.defaults,
+		c.unknown,
+		c.file,
+		c.envs,
+		c.fleetPolicies,
+		c.runtime,
+		c.localConfigProcess,
+		c.remoteConfig,
+		c.cli,
+	}
+
+	root := newInnerNode(nil)
+	for _, tree := range treeList {
+		err := root.Merge(tree)
+		if err != nil {
+			return err
+		}
+	}
+
+	c.root = root
+	return nil
 }
 
 // BuildSchema is called when Setup is complete, and the config is ready to be used
@@ -693,29 +758,21 @@ func (c *ntmConfig) MergeFleetPolicy(configPath string) error {
 	return c.logErrorNotImplemented("MergeFleetPolicy")
 }
 
-// MergeConfigMap merges the configuration from the map given with an existing config.
-// Note that the map given may be modified.
-func (c *ntmConfig) MergeConfigMap(_cfg map[string]any) error {
-	c.Lock()
-	defer c.Unlock()
-	c.logErrorNotImplemented("AllSettings")
-	return nil
-}
-
 // AllSettings returns all settings from the config
 func (c *ntmConfig) AllSettings() map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
-	c.logErrorNotImplemented("AllSettings")
-	return nil
+
+	return c.root.DumpSettings(func(model.Source) bool { return true })
 }
 
 // AllSettingsWithoutDefault returns a copy of the all the settings in the configuration without defaults
 func (c *ntmConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
-	c.logErrorNotImplemented("AllSettingsWithoutDefault")
-	return nil
+
+	// We only want to include leaf with a source higher than SourceDefault
+	return c.root.DumpSettings(func(source model.Source) bool { return source.IsGreaterOrEqualThan(model.SourceUnknown) })
 }
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
@@ -723,9 +780,18 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	c.RLock()
 	defer c.RUnlock()
 
-	res := map[model.Source]interface{}{}
-	c.logErrorNotImplemented("AllSettingsBySource")
-	return res
+	// We don't return include unknown settings
+	return map[model.Source]interface{}{
+		model.SourceDefault:            c.defaults.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceUnknown:            c.unknown.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceFile:               c.file.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceEnvVar:             c.envs.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceFleetPolicies:      c.fleetPolicies.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceAgentRuntime:       c.runtime.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceLocalConfigProcess: c.localConfigProcess.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceRC:                 c.remoteConfig.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceCLI:                c.cli.DumpSettings(func(model.Source) bool { return true }),
+	}
 }
 
 // AddConfigPath adds another config for the given path
@@ -830,14 +896,21 @@ func (c *ntmConfig) Object() model.Reader {
 // NewConfig returns a new Config object.
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
 	config := ntmConfig{
-		ready:         atomic.NewBool(false),
-		noimpl:        &notImplMethodsImpl{},
-		configEnvVars: map[string]string{},
-		knownKeys:     map[string]struct{}{},
-		unknownKeys:   map[string]struct{}{},
-		defaults:      newInnerNode(nil),
-		file:          newInnerNode(nil),
-		envTransform:  make(map[string]func(string) interface{}),
+		ready:              atomic.NewBool(false),
+		noimpl:             &notImplMethodsImpl{},
+		configEnvVars:      map[string]string{},
+		knownKeys:          map[string]struct{}{},
+		unknownKeys:        map[string]struct{}{},
+		defaults:           newInnerNode(nil),
+		file:               newInnerNode(nil),
+		unknown:            newInnerNode(nil),
+		envs:               newInnerNode(nil),
+		runtime:            newInnerNode(nil),
+		localConfigProcess: newInnerNode(nil),
+		remoteConfig:       newInnerNode(nil),
+		fleetPolicies:      newInnerNode(nil),
+		cli:                newInnerNode(nil),
+		envTransform:       make(map[string]func(string) interface{}),
 	}
 
 	config.SetTypeByDefaultValue(true)

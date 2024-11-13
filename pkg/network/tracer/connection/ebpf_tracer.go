@@ -703,7 +703,7 @@ func (t *ebpfTracer) setupMapCleaner(m *manager.Manager) {
 		return
 	}
 
-	tcpOngoingConnectPidCleaner, err := ddebpf.NewMapCleaner[netebpf.SkpConn, netebpf.PidTs](tcpOngoingConnectPidMap, 1024)
+	tcpOngoingConnectPidCleaner, err := ddebpf.NewMapCleaner[netebpf.SkpConn, netebpf.PidTs](tcpOngoingConnectPidMap, 1024, probes.TCPOngoingConnectPid, "npm_tracer")
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
@@ -724,7 +724,7 @@ func (t *ebpfTracer) setupMapCleaner(m *manager.Manager) {
 		if err != nil {
 			log.Errorf("error getting %v map: %s", probes.ConnCloseFlushed, err)
 		}
-		connCloseFlushCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, int64](connCloseFlushMap, 1024)
+		connCloseFlushCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, int64](connCloseFlushMap, 1024, probes.ConnCloseFlushed, "npm_tracer")
 		if err != nil {
 			log.Errorf("error creating map cleaner: %s", err)
 			return

@@ -2277,7 +2277,7 @@ func TestProcessResolution(t *testing.T) {
 			t.Errorf("not able to resolve the entry")
 		}
 
-		mapsEntry := resolver.ResolveFromKernelMaps(pid, pid, inode)
+		mapsEntry := resolver.ResolveFromKernelMaps(pid, pid, inode, nil)
 		if mapsEntry == nil {
 			t.Errorf("not able to resolve the entry")
 		}
@@ -2286,7 +2286,7 @@ func TestProcessResolution(t *testing.T) {
 
 		// This makes use of the cache and do not parse /proc
 		// it still checks the ResolveFromProcfs returns the correct entry
-		procEntry := resolver.ResolveFromProcfs(pid)
+		procEntry := resolver.ResolveFromProcfs(pid, nil)
 		if procEntry == nil {
 			t.Fatalf("not able to resolve the entry")
 		}

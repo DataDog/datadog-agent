@@ -9,7 +9,6 @@ package installer
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
@@ -26,7 +25,7 @@ func Setup(ctx context.Context, env *env.Env) error {
 	for _, url := range defaultPackages {
 		err = cmd.Install(ctx, url, nil)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to install package %s: %v\n", url, err)
+			return fmt.Errorf("failed to install package %s: %w", url, err)
 		}
 	}
 	return nil
