@@ -78,6 +78,8 @@ func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connecti
 	}
 }
 
+// updateTcpStats is designed to mirror the stat tracking in the windows driver's handleFlowProtocolTcp
+// https://github.com/DataDog/datadog-windows-filter/blob/d7560d83eb627117521d631a4c05cd654a01987e/ddfilter/flow/flow_tcp.c#L91
 func (t *TCPProcessor) updateTcpStats(conn *network.ConnectionStats, st *connectionState, pktType uint8, tcp *layers.TCP, payloadLen uint16) {
 	payloadSeq := tcp.Seq + uint32(payloadLen)
 
