@@ -28,8 +28,14 @@ type Key struct {
 	DeviceUUID string `json:"device_uuid"`
 }
 
+// Entry is a single entry in the GPUStats array, as we cannot use a complex key in the map
+type Entry struct {
+	Key                Key
+	UtilizationMetrics UtilizationMetrics
+}
+
 // GPUStats contains the past and current data for all streams, including kernel spans and allocations.
 // This is the data structure that is sent to the agent
 type GPUStats struct {
-	MetricsMap map[Key]UtilizationMetrics `json:"metrics_map"`
+	Metrics []Entry `json:"metrics"`
 }

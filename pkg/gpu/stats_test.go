@@ -20,6 +20,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+func getMetricsEntry(key model.Key, stats *model.GPUStats) *model.UtilizationMetrics {
+	for _, entry := range stats.Metrics {
+		if entry.Key == key {
+			return &entry.UtilizationMetrics
+		}
+	}
+
+	return nil
+}
+
 func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, map[streamKey]*StreamHandler, int64) {
 	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
 	require.NoError(t, err)
@@ -79,10 +89,10 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	checkKtime := ktime + int64(checkDuration)
 	stats := statsGen.getStats(checkKtime)
 	require.NotNil(t, stats)
-	metricsKey := model.Key{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
-	require.Contains(t, stats.MetricsMap, metricsKey)
 
-	metrics := stats.MetricsMap[metricsKey]
+	metricsKey := model.Key{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
+	metrics := getMetricsEntry(metricsKey, stats)
+	require.NotNil(t, metrics)
 	require.Equal(t, allocSize*2, metrics.Memory.CurrentBytes)
 	require.Equal(t, allocSize*2, metrics.Memory.MaxBytes)
 
@@ -132,10 +142,10 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	checkKtime := ktime + int64(checkDuration)
 	stats := statsGen.getStats(checkKtime)
 	require.NotNil(t, stats)
-	metricsKey := model.Key{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
-	require.Contains(t, stats.MetricsMap, metricsKey)
 
-	metrics := stats.MetricsMap[metricsKey]
+	metricsKey := model.Key{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
+	metrics := getMetricsEntry(metricsKey, stats)
+	require.NotNil(t, metrics)
 	require.Equal(t, uint64(0), metrics.Memory.CurrentBytes)
 	require.Equal(t, allocSize, metrics.Memory.MaxBytes)
 
@@ -208,10 +218,10 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	checkKtime := ktime + int64(checkDuration)
 	stats := statsGen.getStats(checkKtime)
 	require.NotNil(t, stats)
-	metricsKey := model.Key{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
-	require.Contains(t, stats.MetricsMap, metricsKey)
 
-	metrics := stats.MetricsMap[metricsKey]
+	metricsKey := model.Key{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
+	metrics := getMetricsEntry(metricsKey, stats)
+	require.NotNil(t, metrics)
 	require.Equal(t, allocSize+shmemSize, metrics.Memory.CurrentBytes)
 	require.Equal(t, allocSize*2+shmemSize, metrics.Memory.MaxBytes)
 

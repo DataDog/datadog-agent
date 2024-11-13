@@ -151,7 +151,9 @@ func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
 		m.activeMetrics[key] = false
 	}
 
-	for key, metrics := range stats.MetricsMap {
+	for _, entry := range stats.Metrics {
+		key := entry.Key
+		metrics := entry.UtilizationMetrics
 		tags := getTagsForKey(key)
 		snd.Gauge(metricNameUtil, metrics.UtilizationPercentage, "", tags)
 		snd.Gauge(metricNameMemory, float64(metrics.Memory.CurrentBytes), "", tags)

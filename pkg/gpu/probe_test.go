@@ -128,12 +128,12 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
 	require.NotNil(t, stats)
-	require.NotEmpty(t, stats.MetricsMap)
+	require.NotEmpty(t, stats.Metrics)
 
 	metricKey := model.Key{PID: uint32(cmd.Process.Pid), DeviceUUID: testutil.DefaultGpuUUID}
-	require.Contains(t, stats.MetricsMap, metricKey)
+	metrics := getMetricsEntry(metricKey, stats)
+	require.NotNil(t, metrics)
 
-	metrics := stats.MetricsMap[metricKey]
 	require.Greater(t, metrics.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, metrics.Memory.MaxBytes, uint64(110))
 }
@@ -165,9 +165,9 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	require.NoError(t, err)
 	require.NotNil(t, stats)
 	metricKey := model.Key{PID: uint32(cmd.Process.Pid), DeviceUUID: selectedGPU}
-	require.Contains(t, stats.MetricsMap, metricKey)
+	metrics := getMetricsEntry(metricKey, stats)
+	require.NotNil(t, metrics)
 
-	metrics := stats.MetricsMap[metricKey]
 	require.Greater(t, metrics.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, metrics.Memory.MaxBytes, uint64(110))
 }
@@ -203,10 +203,9 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	key := model.Key{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID}
 	require.NoError(t, err)
 	require.NotNil(t, stats)
-	require.NotEmpty(t, stats.MetricsMap)
-	require.Contains(t, stats.MetricsMap, key)
+	pidStats := getMetricsEntry(key, stats)
+	require.NotNil(t, pidStats)
 
-	pidStats := stats.MetricsMap[key]
 	require.Greater(t, pidStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
 }

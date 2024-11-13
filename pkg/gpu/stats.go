@@ -60,11 +60,15 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	normFactor := g.getNormalizationFactor()
 
 	stats := &model.GPUStats{
-		MetricsMap: make(map[model.Key]model.UtilizationMetrics),
+		Metrics: make([]model.Entry, 0, len(g.aggregators)),
 	}
 
 	for aggKey, aggr := range g.aggregators {
-		stats.MetricsMap[aggKey] = aggr.getStats(normFactor)
+		entry := model.Entry{
+			Key:                aggKey,
+			UtilizationMetrics: aggr.getStats(normFactor),
+		}
+		stats.Metrics = append(stats.Metrics, entry)
 	}
 
 	g.lastGenerationKTime = g.currGenerationKTime
