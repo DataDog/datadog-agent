@@ -34,6 +34,7 @@ func (n *NoopUtilizationMonitor) Cancel() {}
 type TelemetryUtilizationMonitor struct {
 	name     string
 	instance string
+	started  bool
 	ut       *utilizationtracker.UtilizationTracker
 	cancel   func()
 }
@@ -47,6 +48,7 @@ func NewTelemetryUtilizationMonitor(name, instance string) *TelemetryUtilization
 	t := &TelemetryUtilizationMonitor{
 		name:     name,
 		instance: instance,
+		started:  false,
 		ut:       utilizationTracker,
 		cancel:   cancel,
 	}
@@ -56,11 +58,19 @@ func NewTelemetryUtilizationMonitor(name, instance string) *TelemetryUtilization
 
 // Start tracks a start event in the utilization tracker.
 func (u *TelemetryUtilizationMonitor) Start() {
+	if u.started {
+		return
+	}
+	u.started = true
 	u.ut.Started()
 }
 
 // Stop tracks a finish event in the utilization tracker.
 func (u *TelemetryUtilizationMonitor) Stop() {
+	if !u.started {
+		return
+	}
+	u.started = false
 	u.ut.Finished()
 }
 
