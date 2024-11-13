@@ -35,11 +35,12 @@ single-machine-performance-regression_detector:
   script:
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
-    # Populate the file used to store the failure tag with a default unknown value. Note, the job will not be tagged if it succeeds
-    - echo "unknown" > .smp_job_failure_mode
-    # When the job times out we cant run the after_script (from my current understanding) so we need to assume the failure mode will be a timeout.
-    # We can then overwrite this tag in the after_script with either None, if the job succeeds, or whatever other error we find on the way
-    - datadog-ci tag --level job --tags smp_failure_mode:"timeout"
+    # Start by tagging the failure mode as `unknown`. At each smp command we will catch any failure exit codes and update this tag properly.
+    # If we successfully get to the end of the script with no failures we will update the tag to reflect this.
+    # Note, we cannot apply a tag for timeouts with this approach. In order to identify jobs failed by timing out you can filter by error type.
+    # Note, in situations where the job times out the value of `smp_failure_mode` tag will be `unknown`.
+    # In order to properly filter job failures we should use a combination of the error type and the `smp_failure_mode` tag.
+    - datadog-ci tag --level job --tags smp_failure_mode:"unknown"
     # Ensure output files exist for artifact downloads step
     - mkdir outputs # Also needed for smp job sync step
     # Compute merge base of current commit and `main`
@@ -77,7 +78,7 @@ single-machine-performance-regression_detector:
       if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
       then
           echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
-          echo "old-merge-base" > .smp_job_failure_mode
+          datadog-ci tag --level job --tags smp_failure_mode:"old-merge-base"
           exit 1
       fi
     - echo "Commit ${BASELINE_SHA} is recent enough"
@@ -92,7 +93,7 @@ single-machine-performance-regression_detector:
           if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
           then
               echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
-              echo "old-calculated-merge-base" > .smp_job_failure_mode
+              datadog-ci tag --level job --tags smp_failure_mode:"old-calculated-merge-base"
               exit 1
           fi
           echo "Commit ${BASELINE_SHA} is recent enough"
@@ -112,17 +113,18 @@ single-machine-performance-regression_detector:
     - RUST_LOG="info,aws_config::profile::credentials=error"
     - RUST_LOG_DEBUG="debug,aws_config::profile::credentials=error"
     - |
-      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
-      job submit
-      --baseline-image ${BASELINE_IMAGE}
-      --comparison-image ${COMPARISON_IMAGE}
-      --baseline-sha ${BASELINE_SHA}
-      --comparison-sha ${CI_COMMIT_SHA}
-      --target-config-dir test/regression/
-      --submission-metadata submission_metadata
+      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
+      job submit \
+      --baseline-image ${BASELINE_IMAGE} \
+      --comparison-image ${COMPARISON_IMAGE} \
+      --baseline-sha ${BASELINE_SHA} \
+      --comparison-sha ${CI_COMMIT_SHA} \
+      --target-config-dir test/regression/ \
+      --submission-metadata submission_metadata \
       --tags ${SMP_TAGS} || {
         exit_code=$?
-        echo "job-submit-failure" > .smp_job_failure_mode
+        echo "job submit command failed"
+        datadog-ci tag --level job --tags smp_failure_mode:"job-submit"
         exit $exit_code
       }
     # Get the SMP Job Id from 'submission-metadata' and use 'datadog-ci'
@@ -132,23 +134,25 @@ single-machine-performance-regression_detector:
     - datadog-ci tag --level job --tags smp_job_id:${SMP_JOB_ID}
     # Wait for job to complete.
     - |
-      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
-      job status
-      --wait
-      --wait-delay-seconds 60
+      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
+      job status \
+      --wait \
+      --wait-delay-seconds 60 \
       --submission-metadata submission_metadata || {
         exit_code=$?
-        echo "job-status-failure" > .smp_job_failure_mode
+        echo "job status command failed"
+        datadog-ci tag --level job --tags smp_failure_mode:"job-status"
         exit $exit_code
       }
     # Now that the job is completed pull the analysis report, output it to stdout.
     - |
-      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
-      job sync
-      --submission-metadata submission_metadata
+      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
+      job sync \
+      --submission-metadata submission_metadata \
       --output-path outputs || {
         exit_code=$?
-        echo "job-sync-failure" > .smp_job_failure_mode
+        echo "job sync command failed"
+        datadog-ci tag --level job --tags smp_failure_mode:"job-sync"
         exit $exit_code
       }
     # Replace empty lines in the output with lines containing various unicode
@@ -162,32 +166,17 @@ single-machine-performance-regression_detector:
     - datadog-ci junit upload --service datadog-agent outputs/junit.xml
     # Finally, exit 1 if the job signals a regression else 0.
     - |
-      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
-      job result
+      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
+      job result \
       --submission-metadata submission_metadata || {
         exit_code=$?
-        echo "job-result-failure" > .smp_job_failure_mode
+        echo "job result command failed, this is most likely a result of a regression"
+        datadog-ci tag --level job --tags smp_failure_mode:"job-result"
         exit $exit_code
       }
-    # Get the status code from the job result command.
-  after_script:
-    # `after_script` runs in a separate shell from `script` so we need to redefine environment variables we need here.
-    # after_script also does not run if the job times out so we start by assuming the job times out and update the tag here depending on what we see
-    # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
-    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
-    #tag with failure mode if the script failed
-    - |
-        if [ $CI_JOB_STATUS != 'success' ]; then
-          SMP_FAILURE_MODE=$(cat .smp_job_failure_mode)
-          datadog-ci tag --level job --tags smp_failure_mode:${SMP_FAILURE_MODE}
-            if [ $SMP_FAILURE_MODE == 'job-result-failure' ]; then
-              REGRESSIONS_PRESENT=$(jq -r '.value.regressionsPresent' outputs/regression_signal.json)
-              BOUNDS_REGRESSIONS_PRESENT=$(jq -r '.value.regressionsPresent' outputs/bounds_check_signal.json)
-              datadog-ci tag --level job --tags bounds_check_regression:${BOUNDS_REGRESSIONS_PRESENT} --tags regression:${REGRESSIONS_PRESENT}
-            fi
-        else 
-          datadog-ci tag --level job --tags smp_failure_mode:"no-failure"
-        fi
+    #If we get to this point in the script that means everything prior has succeeded so lets update the failure mode tag.
+    - echo "script successfully executed"
+    - datadog-ci tag --level job --tags smp_failure_mode:"none"
 
 # Shamelessly adapted from golang_deps_commenter job config in
 # golang_deps_diff.yml at commit 01da274032e510d617161cf4e264a53292f44e55.
