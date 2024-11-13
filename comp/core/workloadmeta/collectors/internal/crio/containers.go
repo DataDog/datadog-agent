@@ -79,7 +79,7 @@ func getContainerName(containerMetadata *v1.ContainerMetadata) string {
 }
 
 // getPodNamespace retrieves the namespace for a given pod ID.
-func getPodNamespace(ctx context.Context, client crio.ClientItf, podID string) string {
+func getPodNamespace(ctx context.Context, client crio.Client, podID string) string {
 	pod, err := client.GetPodStatus(ctx, podID)
 	if err != nil || pod == nil || pod.GetMetadata() == nil {
 		log.Errorf("Failed to get pod namespace for pod ID %s: %v", podID, err)
@@ -89,7 +89,7 @@ func getPodNamespace(ctx context.Context, client crio.ClientItf, podID string) s
 }
 
 // getContainerStatus retrieves the status of a container.
-func getContainerStatus(ctx context.Context, client crio.ClientItf, containerID string) (*v1.ContainerStatus, map[string]string) {
+func getContainerStatus(ctx context.Context, client crio.Client, containerID string) (*v1.ContainerStatus, map[string]string) {
 	statusResponse, err := client.GetContainerStatus(ctx, containerID)
 	status := statusResponse.GetStatus()
 	info := statusResponse.GetInfo()
@@ -164,7 +164,7 @@ func getResourceLimits(containerStatus *v1.ContainerStatus, info map[string]stri
 }
 
 // getContainerImage retrieves and converts a container image to workloadmeta format.
-func getContainerImage(ctx context.Context, client crio.ClientItf, imageSpec *v1.ImageSpec) workloadmeta.ContainerImage {
+func getContainerImage(ctx context.Context, client crio.Client, imageSpec *v1.ImageSpec) workloadmeta.ContainerImage {
 	image, err := client.GetContainerImage(ctx, imageSpec)
 	if err != nil || image == nil {
 		log.Warnf("Failed to fetch image: %v", err)

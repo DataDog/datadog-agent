@@ -28,7 +28,7 @@ const (
 
 type collector struct {
 	id      string
-	client  crio.ClientItf
+	client  crio.Client
 	store   workloadmeta.Component
 	catalog workloadmeta.AgentType
 	seen    map[workloadmeta.EntityID]struct{}
