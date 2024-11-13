@@ -12,11 +12,13 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"golang.org/x/sys/unix"
+
 	"github.com/google/gopacket/layers"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 var localhost net.IP = net.ParseIP("127.0.0.1")

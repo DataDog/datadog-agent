@@ -9,10 +9,14 @@ package ebpfless
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/google/gopacket/layers"
-	"golang.org/x/sys/unix"
 	"syscall"
+
+	"golang.org/x/sys/unix"
+
+	"github.com/google/gopacket/layers"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type connectionState struct {
@@ -169,6 +173,10 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4
 	if err != nil {
 		return err
 	}
+
+	log.TraceFunc(func() string {
+		return "tcp processor: " + debugPacketInfo(pktType, tcp, payloadLen)
+	})
 
 	st := t.conns[conn.ConnectionTuple]
 
