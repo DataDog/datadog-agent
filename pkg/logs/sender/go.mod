@@ -44,6 +44,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../util/system
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../util/system/socket
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../util/testutil
+	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker => ../../util/utilizationtracker
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../version
 )
@@ -87,6 +88,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.57.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.57.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.56.0-rc.3 // indirect
 	github.com/DataDog/viper v1.13.5 // indirect

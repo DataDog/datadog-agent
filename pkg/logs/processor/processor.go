@@ -128,6 +128,7 @@ func (p *Processor) Flush(ctx context.Context) {
 func (p *Processor) run() {
 	defer func() {
 		p.done <- struct{}{}
+		p.utilization.Cancel()
 	}()
 
 	for {
