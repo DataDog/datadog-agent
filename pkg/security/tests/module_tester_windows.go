@@ -229,7 +229,8 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	emopts := eventmonitor.Opts{
 		StatsdClient: statsdClient,
 		ProbeOpts: sprobe.Opts{
-			StatsdClient: statsdClient,
+			StatsdClient:       statsdClient,
+			DontDiscardRuntime: true,
 		},
 	}
 	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, nil)
