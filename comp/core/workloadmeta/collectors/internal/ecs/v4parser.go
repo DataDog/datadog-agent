@@ -87,7 +87,7 @@ func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.T
 		func(d time.Duration) time.Duration { return time.Duration(c.metadataRetryTimeoutFactor) * d }),
 	).GetTaskWithTags(ctx)
 	if err != nil {
-		// If it's a timeout error, log it as info to avoid spamming the logs as the data can be fetched in next run
+		// If it's a timeout error, log it as debug to avoid spamming the logs as the data can be fetched in next run
 		if errors.Is(err, context.DeadlineExceeded) {
 			log.Debugf("timeout while getting task with tags from metadata v4 API: %s", err)
 		} else {
