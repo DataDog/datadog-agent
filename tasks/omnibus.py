@@ -343,6 +343,7 @@ def build(
             print(f"{name}: {durations[name].duration}")
 
     send_build_metrics(ctx, durations['Omnibus'].duration)
+    print('Dummy change to test omnibus cache on windows')
 
 
 @task
