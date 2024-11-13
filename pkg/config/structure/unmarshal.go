@@ -164,9 +164,16 @@ func copyStruct(target reflect.Value, source nodetreemodel.Node, fs *featureSet)
 }
 
 func copyMap(target reflect.Value, source nodetreemodel.Node, _ *featureSet) error {
-	// TODO: Should handle maps with more complex types in a future PR
 	ktype := reflect.TypeOf("")
 	vtype := reflect.TypeOf("")
+
+	// TODO: Should handle maps with more complex types in a future PR
+	//
+	// For now we only support map[string]string.
+	if target.Type().Elem() != vtype || target.Type().Key() != ktype {
+		return fmt.Errorf("only map[string]string are supported, not %s", target.Type())
+	}
+
 	mtype := reflect.MapOf(ktype, vtype)
 	results := reflect.MakeMap(mtype)
 
@@ -202,7 +209,7 @@ func copyLeaf(target reflect.Value, source nodetreemodel.LeafNode, _ *featureSet
 	case reflect.Bool:
 		v, err := cast.ToBoolE(source.Get())
 		if err != nil {
-			return err
+			return fmt.Errorf("could not convert %#v to bool", source.Get())
 		}
 		target.SetBool(v)
 		return nil

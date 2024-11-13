@@ -159,12 +159,12 @@ func TestGetStringMapString(t *testing.T) {
 
 func TestGetStringMapStringSlice(t *testing.T) {
 	cfg := NewConfig("test", "", nil)
-	cfg.SetDefault("a", map[string][]interface{}{"a": []interface{}{1, 2}, "b": []interface{}{"b", "bb"}, "c": nil})
+	cfg.SetDefault("a", map[string][]interface{}{"a": {1, 2}, "b": {"b", "bb"}, "c": nil})
 	cfg.SetDefault("b", "{\"a\": [\"test\", \"test2\"]}") // viper handles JSON string implicitly so we have to reproduce this behavior
 	cfg.BuildSchema()
 
-	assert.Equal(t, map[string][]string{"a": []string{"1", "2"}, "b": []string{"b", "bb"}, "c": nil}, cfg.GetStringMapStringSlice("a"))
-	assert.Equal(t, map[string][]string{"a": []string{"test", "test2"}}, cfg.GetStringMapStringSlice("b"))
+	assert.Equal(t, map[string][]string{"a": {"1", "2"}, "b": {"b", "bb"}, "c": nil}, cfg.GetStringMapStringSlice("a"))
+	assert.Equal(t, map[string][]string{"a": {"test", "test2"}}, cfg.GetStringMapStringSlice("b"))
 	assert.Equal(t, map[string][]string{}, cfg.GetStringMapStringSlice("does_not_exists"))
 }
 
