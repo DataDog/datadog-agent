@@ -377,12 +377,48 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 
 func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() *http.Client {
 	return func() *http.Client {
-		return &http.Client{
+		client := &http.Client{
 			Timeout: timeout,
 			// reusing core agent HTTP transport to benefit from proxy settings.
 			Transport: httputils.CreateHTTPTransport(cfg),
 		}
+
+		log.Infof("Log Agent is using %v transport for connection", getTransportProtocol(client))
+		return client
 	}
+}
+
+// getTransportProtocol return the transport type
+func getTransportProtocol(client *http.Client) string {
+	transport, ok := client.Transport.(*http.Transport)
+	// log.Infof("Transport TLSNextProto elements %v", transport.TLSNextProto)
+	// log.Infof("Transport TLSClientConfig.NextProtos elements %v", transport.TLSClientConfig.NextProtos)
+	if !ok || transport == nil {
+		return "unknown"
+	}
+
+	// Check for HTTP/2 explicitly in TLSNextProto
+	if transport.ForceAttemptHTTP2 {
+		return "HTTP/2"
+	}
+
+	// Check for specific protocols in NextProtos
+	if transport.TLSClientConfig != nil {
+		for _, proto := range transport.TLSClientConfig.NextProtos {
+			log.Infof("Transport Protocol is %s", proto)
+			switch proto {
+			// case "h2":
+			// 	return "HTTP/2"
+			case "http/1.1":
+				return "HTTP/1.1"
+			case "http/1.0":
+				return "HTTP/1.0"
+			}
+		}
+	}
+
+	// Default to HTTP/1.1 if no specific protocol is found
+	return "auto negotiation"
 }
 
 // buildURL buils a url from a config endpoint.

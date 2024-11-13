@@ -121,6 +121,32 @@ func CreateHTTPTransport(cfg pkgconfigmodel.Reader) *http.Transport {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
+	// see if we can auto negotiate to lower bound protocol eg: if set to http1.1 then auto negotiate 1 to 1.1 when either fails
+
+	// Configure transport based on user setting
+	switch cfg.Get("logs_config.transport_type") {
+	case "http2":
+		transport.TLSClientConfig = nil
+		transport.DialContext = nil
+		transport.ForceAttemptHTTP2 = true
+		// err := http2.ConfigureTransport(transport)
+		// if err != nil {
+		// 	log.Errorf("Failed to configure HTTP/2 transport: %v", err)
+		// }
+
+	case "http1.1":
+		transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
+		transport.TLSClientConfig.NextProtos = []string{"http/1.1"}
+	case "http1":
+		transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
+		transport.TLSClientConfig.NextProtos = []string{"http/1.0"}
+	case "auto":
+		// Use default ALPN auto-negotiation
+	default:
+		log.Warnf("Invalid transport_type '%s', falling back to 'auto'", cfg.GetString("logs_config.transport_type"))
+		// Use default ALPN auto-negotiation
+	}
+
 	if proxies := cfg.GetProxies(); proxies != nil {
 		transport.Proxy = GetProxyTransportFunc(proxies, cfg)
 	}
