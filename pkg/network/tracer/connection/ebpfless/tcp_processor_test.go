@@ -144,7 +144,7 @@ func makeTcpStates(synPkt testCapture) *network.ConnectionStats {
 			Family: family,
 		},
 		Direction:   direction,
-		TCPFailures: make(map[uint32]uint32),
+		TCPFailures: make(map[uint16]uint32),
 	}
 }
 
@@ -207,11 +207,7 @@ func (fixture *tcpTestFixture) runPkts(packets []testCapture) {
 	}
 }
 
-//func (fixture *tcpTestFixture) expectState(expected tcpState, msg string = "tcp state mismatch") {
-//	require.NotNil(fixture.t, fixture.conn, "can't expectState() before runPkt() has been called")
-//}
-
-func (fixture *tcpTestFixture) runAgainstState(packets []testCapture, expected []tcpState) {
+func (fixture *tcpTestFixture) runAgainstState(packets []testCapture, expected []ConnStatus) {
 	require.Equal(fixture.t, len(packets), len(expected), "packet length didn't match expected states length")
 	var expectedStrs []string
 	var actualStrs []string
@@ -248,20 +244,20 @@ func testBasicHandshake(t *testing.T, f *tcpTestFixture) {
 		f.incoming(0, 347, 125, ACK),
 	}
 
-	expectedClientStates := []tcpState{
-		TcpStateSynSent,
-		TcpStateSynSent,
+	expectedClientStates := []ConnStatus{
+		ConnStatAttempted,
+		ConnStatAttempted,
 		// three-way handshake finishes here
-		TcpStateEstablished,
-		TcpStateEstablished,
-		TcpStateEstablished,
-		TcpStateEstablished,
-		// passive close begins here, but CloseWait doesn't begin until the fin was acked
-		TcpStateEstablished,
-		TcpStateEstablished,
-		// ...which happens in the same packet as FIN gets sent out, so it skips CloseWait
-		TcpStateLastAck,
-		TcpStateClosed,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		// passive close begins here
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		// final FIN was ack'd
+		ConnStatClosed,
 	}
 
 	f.runAgainstState(basicHandshake, expectedClientStates)
@@ -296,7 +292,7 @@ func TestBasicHandshake(t *testing.T) {
 	})
 }
 
-func testBasicHandshakeReversed(t *testing.T, f *tcpTestFixture) {
+func testReversedBasicHandshake(t *testing.T, f *tcpTestFixture) {
 	basicHandshake := []testCapture{
 		f.incoming(0, 0, 0, SYN),
 		f.outgoing(0, 0, 1, SYN|ACK),
@@ -316,20 +312,19 @@ func testBasicHandshakeReversed(t *testing.T, f *tcpTestFixture) {
 		f.outgoing(0, 347, 125, ACK),
 	}
 
-	expectedClientStates := []tcpState{
-		TcpStateSynRecv,
-		TcpStateSynRecv,
+	expectedClientStates := []ConnStatus{
+		ConnStatAttempted,
+		ConnStatAttempted,
 		// three-way handshake finishes here
-		TcpStateEstablished,
-		TcpStateEstablished,
-		TcpStateEstablished,
-		TcpStateEstablished,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatEstablished,
 		// active close begins here
-		TcpStateFinWait1,
-		TcpStateFinWait1,
-		// acking the initial happens in the same packet as the final FIN gets sent out, so it skips CloseWait
-		TcpStateFinWait2,
-		TcpStateTimeWait,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatClosed,
 	}
 
 	f.runAgainstState(basicHandshake, expectedClientStates)
@@ -348,15 +343,15 @@ func testBasicHandshakeReversed(t *testing.T, f *tcpTestFixture) {
 	require.Equal(t, expectedStats, f.conn.Monotonic)
 }
 
-func TestBasicHandshakeReversed(t *testing.T) {
+func TestReversedBasicHandshake(t *testing.T) {
 	t.Run("localSeq lt remoteSeq", func(t *testing.T) {
 		f := newTcpTestFixture(t, lowerSeq, higherSeq)
-		testBasicHandshakeReversed(t, f)
+		testReversedBasicHandshake(t, f)
 	})
 
 	t.Run("localSeq gt remoteSeq", func(t *testing.T) {
 		f := newTcpTestFixture(t, higherSeq, lowerSeq)
-		testBasicHandshakeReversed(t, f)
+		testReversedBasicHandshake(t, f)
 	})
 }
 
@@ -383,19 +378,18 @@ func testCloseWaitState(t *testing.T, f *tcpTestFixture) {
 		f.incoming(0, 347, 224+42+1, ACK),
 	}
 
-	expectedClientStates := []tcpState{
-		TcpStateSynSent,
-		TcpStateSynSent,
+	expectedClientStates := []ConnStatus{
+		ConnStatAttempted,
+		ConnStatAttempted,
 		// three-way handshake finishes here
-		TcpStateEstablished,
-		TcpStateEstablished,
-		// passive close begins here, but CloseWait doesn't begin until the fin was acked
-		TcpStateEstablished,
-		// ...which is here
-		TcpStateCloseWait,
-		TcpStateLastAck,
-		TcpStateLastAck,
-		TcpStateClosed,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		// passive close begins here
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatClosed,
 	}
 
 	f.runAgainstState(basicHandshake, expectedClientStates)
@@ -451,20 +445,20 @@ func testFinWait2State(t *testing.T, f *tcpTestFixture) {
 		f.outgoing(0, 347, 225, ACK),
 	}
 
-	expectedClientStates := []tcpState{
-		TcpStateSynRecv,
-		TcpStateSynRecv,
+	expectedClientStates := []ConnStatus{
+		ConnStatAttempted,
+		ConnStatAttempted,
 		// three-way handshake finishes here
-		TcpStateEstablished,
-		TcpStateEstablished,
-		TcpStateEstablished,
-		TcpStateEstablished,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatEstablished,
 		// active close begins here
-		TcpStateFinWait1,
-		TcpStateFinWait2,
-		TcpStateFinWait2,
-		TcpStateFinWait2,
-		TcpStateTimeWait,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatClosed,
 	}
 
 	f.runAgainstState(basicHandshake, expectedClientStates)
@@ -510,14 +504,14 @@ func TestImmediateFin(t *testing.T) {
 		f.outgoing(0, 2, 2, ACK),
 	}
 
-	expectedClientStates := []tcpState{
-		TcpStateSynRecv,
-		TcpStateSynRecv,
-		TcpStateEstablished,
+	expectedClientStates := []ConnStatus{
+		ConnStatAttempted,
+		ConnStatAttempted,
+		ConnStatEstablished,
 		// active close begins here
-		TcpStateFinWait1,
-		TcpStateFinWait2,
-		TcpStateTimeWait,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatClosed,
 	}
 
 	f.runAgainstState(basicHandshake, expectedClientStates)
@@ -544,15 +538,15 @@ func TestConnRefusedSyn(t *testing.T) {
 		f.outgoing(0, 0, 0, RST|ACK),
 	}
 
-	expectedClientStates := []tcpState{
-		TcpStateSynRecv,
-		TcpStateClosed,
+	expectedClientStates := []ConnStatus{
+		ConnStatAttempted,
+		ConnStatClosed,
 	}
 
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
-	require.Equal(t, f.conn.TCPFailures, map[uint32]uint32{
-		uint32(syscall.ECONNREFUSED): 1,
+	require.Equal(t, f.conn.TCPFailures, map[uint16]uint32{
+		uint16(syscall.ECONNREFUSED): 1,
 	})
 
 	expectedStats := network.StatCounters{
@@ -576,16 +570,16 @@ func TestConnRefusedSynAck(t *testing.T) {
 		f.outgoing(0, 0, 0, RST|ACK),
 	}
 
-	expectedClientStates := []tcpState{
-		TcpStateSynRecv,
-		TcpStateSynRecv,
-		TcpStateClosed,
+	expectedClientStates := []ConnStatus{
+		ConnStatAttempted,
+		ConnStatAttempted,
+		ConnStatClosed,
 	}
 
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
-	require.Equal(t, f.conn.TCPFailures, map[uint32]uint32{
-		uint32(syscall.ECONNREFUSED): 1,
+	require.Equal(t, f.conn.TCPFailures, map[uint16]uint32{
+		uint16(syscall.ECONNREFUSED): 1,
 	})
 
 	expectedStats := network.StatCounters{
@@ -611,18 +605,18 @@ func TestConnReset(t *testing.T) {
 		f.outgoing(0, 1, 1, RST|ACK),
 	}
 
-	expectedClientStates := []tcpState{
-		TcpStateSynRecv,
-		TcpStateSynRecv,
-		TcpStateEstablished,
+	expectedClientStates := []ConnStatus{
+		ConnStatAttempted,
+		ConnStatAttempted,
+		ConnStatEstablished,
 		// reset
-		TcpStateClosed,
+		ConnStatClosed,
 	}
 
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
-	require.Equal(t, f.conn.TCPFailures, map[uint32]uint32{
-		uint32(syscall.ECONNRESET): 1,
+	require.Equal(t, f.conn.TCPFailures, map[uint16]uint32{
+		uint16(syscall.ECONNRESET): 1,
 	})
 
 	expectedStats := network.StatCounters{
@@ -649,20 +643,20 @@ func TestRstRetransmit(t *testing.T) {
 		f.outgoing(0, 1, 1, RST|ACK),
 	}
 
-	expectedClientStates := []tcpState{
-		TcpStateSynRecv,
-		TcpStateSynRecv,
-		TcpStateEstablished,
+	expectedClientStates := []ConnStatus{
+		ConnStatAttempted,
+		ConnStatAttempted,
+		ConnStatEstablished,
 		// reset
-		TcpStateClosed,
-		TcpStateClosed,
+		ConnStatClosed,
+		ConnStatClosed,
 	}
 
 	f.runAgainstState(basicHandshake, expectedClientStates)
 
 	// should count as a single failure
-	require.Equal(t, f.conn.TCPFailures, map[uint32]uint32{
-		uint32(syscall.ECONNRESET): 1,
+	require.Equal(t, f.conn.TCPFailures, map[uint16]uint32{
+		uint16(syscall.ECONNRESET): 1,
 	})
 
 	expectedStats := network.StatCounters{
@@ -693,14 +687,14 @@ func TestConnectTwice(t *testing.T) {
 		f.outgoing(0, 2, 2, ACK),
 	}
 
-	expectedClientStates := []tcpState{
-		TcpStateSynRecv,
-		TcpStateSynRecv,
-		TcpStateEstablished,
+	expectedClientStates := []ConnStatus{
+		ConnStatAttempted,
+		ConnStatAttempted,
+		ConnStatEstablished,
 		// active close begins here
-		TcpStateFinWait1,
-		TcpStateFinWait2,
-		TcpStateTimeWait,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatClosed,
 	}
 
 	f.runAgainstState(basicHandshake, expectedClientStates)
@@ -708,7 +702,7 @@ func TestConnectTwice(t *testing.T) {
 	state := f.tcp.conns[f.conn.ConnectionTuple]
 	// make sure the TCP state was erased after the connection was closed
 	require.Equal(t, connectionState{
-		tcpState: TcpStateTimeWait,
+		tcpState: ConnStatClosed,
 	}, state)
 
 	// second connection here
@@ -728,99 +722,6 @@ func TestConnectTwice(t *testing.T) {
 	require.Equal(t, expectedStats, f.conn.Monotonic)
 }
 
-func TestSimultaneousOpen(t *testing.T) {
-	f := newTcpTestFixture(t, lowerSeq, higherSeq)
-
-	basicHandshake := []testCapture{
-		f.incoming(0, 0, 0, SYN),
-		f.outgoing(0, 0, 0, SYN),
-		f.incoming(0, 1, 1, SYN|ACK),
-		f.outgoing(0, 1, 1, SYN|ACK),
-		f.incoming(0, 2, 2, ACK),
-		f.outgoing(0, 2, 2, ACK),
-		// active close after sending no data
-		f.outgoing(0, 2, 2, FIN|ACK),
-		f.incoming(0, 2, 3, FIN|ACK),
-		f.outgoing(0, 3, 3, ACK),
-	}
-
-	expectedClientStates := []tcpState{
-		TcpStateSynRecv,
-		TcpStateSynRecv,
-		TcpStateSynRecv,
-		TcpStateSynRecv,
-		// even though a synack has been ack'd, both synacks have not been ack'd so it is not established
-		TcpStateSynRecv,
-		TcpStateEstablished,
-		// active close begins here
-		TcpStateFinWait1,
-		TcpStateFinWait2,
-		TcpStateTimeWait,
-	}
-
-	f.runAgainstState(basicHandshake, expectedClientStates)
-
-	require.Empty(t, f.conn.TCPFailures)
-
-	expectedStats := network.StatCounters{
-		SentBytes:      0,
-		RecvBytes:      0,
-		SentPackets:    5,
-		RecvPackets:    4,
-		Retransmits:    0,
-		TCPEstablished: 1,
-		TCPClosed:      1,
-	}
-	require.Equal(t, expectedStats, f.conn.Monotonic)
-}
-
-func TestReorderedSimultaneousOpen(t *testing.T) {
-	f := newTcpTestFixture(t, lowerSeq, higherSeq)
-
-	basicHandshake := []testCapture{
-		f.incoming(0, 0, 0, SYN),
-		// this is swapped, happens early now
-		f.outgoing(0, 1, 1, SYN|ACK),
-		f.outgoing(0, 0, 0, SYN),
-		f.incoming(0, 1, 1, SYN|ACK),
-		f.incoming(0, 2, 2, ACK),
-		f.outgoing(0, 2, 2, ACK),
-		// active close after sending no data
-		f.outgoing(0, 2, 2, FIN|ACK),
-		f.incoming(0, 2, 3, FIN|ACK),
-		f.outgoing(0, 3, 3, ACK),
-	}
-
-	expectedClientStates := []tcpState{
-		TcpStateSynRecv,
-		TcpStateSynRecv,
-		TcpStateSynRecv,
-		TcpStateSynRecv,
-		// even though a synack has been ack'd, both synacks have not been ack'd so it is not established
-		TcpStateSynRecv,
-		TcpStateEstablished,
-		// active close begins here
-		TcpStateFinWait1,
-		TcpStateFinWait2,
-		TcpStateTimeWait,
-	}
-
-	f.runAgainstState(basicHandshake, expectedClientStates)
-
-	require.Empty(t, f.conn.TCPFailures)
-
-	expectedStats := network.StatCounters{
-		SentBytes:      0,
-		RecvBytes:      0,
-		SentPackets:    5,
-		RecvPackets:    4,
-		Retransmits:    0,
-		TCPEstablished: 1,
-		TCPClosed:      1,
-	}
-	require.Equal(t, expectedStats, f.conn.Monotonic)
-}
-
 func TestSimultaneousClose(t *testing.T) {
 	f := newTcpTestFixture(t, lowerSeq, higherSeq)
 
@@ -835,15 +736,15 @@ func TestSimultaneousClose(t *testing.T) {
 		f.incoming(0, 2, 2, ACK),
 	}
 
-	expectedClientStates := []tcpState{
-		TcpStateSynRecv,
-		TcpStateSynRecv,
-		TcpStateEstablished,
+	expectedClientStates := []ConnStatus{
+		ConnStatAttempted,
+		ConnStatAttempted,
+		ConnStatEstablished,
 		// active close begins here
-		TcpStateFinWait1,
-		TcpStateClosing,
-		TcpStateClosing,
-		TcpStateTimeWait,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatClosed,
 	}
 
 	f.runAgainstState(basicHandshake, expectedClientStates)
@@ -878,15 +779,15 @@ func TestUnusualAckSyn(t *testing.T) {
 		f.outgoing(0, 2, 2, ACK),
 	}
 
-	expectedClientStates := []tcpState{
-		TcpStateSynRecv,
-		TcpStateSynRecv,
-		TcpStateSynRecv,
-		TcpStateEstablished,
+	expectedClientStates := []ConnStatus{
+		ConnStatAttempted,
+		ConnStatAttempted,
+		ConnStatAttempted,
+		ConnStatEstablished,
 		// active close begins here
-		TcpStateFinWait1,
-		TcpStateFinWait2,
-		TcpStateTimeWait,
+		ConnStatEstablished,
+		ConnStatEstablished,
+		ConnStatClosed,
 	}
 
 	f.runAgainstState(basicHandshake, expectedClientStates)

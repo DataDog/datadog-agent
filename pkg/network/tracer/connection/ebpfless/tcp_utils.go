@@ -9,46 +9,69 @@ package ebpfless
 
 import (
 	"fmt"
-	"github.com/google/gopacket/layers"
-	"golang.org/x/sys/unix"
 	"strconv"
 	"strings"
+
+	"golang.org/x/sys/unix"
+
+	"github.com/google/gopacket/layers"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
+
+const ebpflessModuleName = "ebpfless_network_tracer"
+
+var statsTelemetry = struct {
+	missedConnections telemetry.Counter
+}{
+	telemetry.NewCounter(ebpflessModuleName, "missed_connections", []string{}, "Counter measuring the number of TCP connections where we missed the SYN handshake"),
+}
 
 const tcpSeqMidpoint = 0x80000000
 
-type tcpState uint8
+type ConnStatus uint8
 
 const (
-	TcpStateClosed tcpState = iota
-	TcpStateSynSent
-	TcpStateSynRecv
-	TcpStateEstablished
-	TcpStateFinWait1
-	TcpStateFinWait2
-	TcpStateCloseWait
-	TcpStateClosing
-	TcpStateLastAck
-	TcpStateTimeWait
+	ConnStatClosed ConnStatus = iota
+	ConnStatAttempted
+	ConnStatEstablished
 )
 
-var TcpStateLabels = []string{
+var connStatusLabels = []string{
 	"Closed",
-	"SynSent",
-	"SynRecv",
+	"Attempted",
 	"Established",
-	"FinWait1",
-	"FinWait2",
-	"CloseWait",
-	"Closing",
-	"LastAck",
-	"TimeWait",
 }
 
-func LabelForState(tcpState tcpState) string {
+type SynState uint8
+
+const (
+	SynStateNone SynState = iota
+	SynStateSent
+	SynStateAcked
+)
+
+func (ss *SynState) update(synFlag, ackFlag bool) {
+	// for simplicity, this does not consider the sequence number of the SYNs and ACKs.
+	// if these matter in the future, change this to store SYN seq numbers
+	if *ss == SynStateNone && synFlag {
+		*ss = SynStateSent
+	}
+	if *ss == SynStateSent && ackFlag {
+		*ss = SynStateAcked
+	}
+	// if we see ACK'd traffic but missed the SYN, assume the connection started before
+	// the datadog-agent starts.
+	if *ss == SynStateNone && ackFlag {
+		statsTelemetry.missedConnections.Inc()
+		*ss = SynStateAcked
+	}
+}
+
+func LabelForState(tcpState ConnStatus) string {
 	idx := int(tcpState)
-	if idx < len(TcpStateLabels) {
-		return TcpStateLabels[idx]
+	if idx < len(connStatusLabels) {
+		return connStatusLabels[idx]
 	}
 	return "BadState-" + strconv.Itoa(idx)
 }
@@ -58,10 +81,6 @@ func isSeqBefore(prev, cur uint32) bool {
 	diff := cur - prev
 	// constrain the maximum difference to half the number space
 	return diff > 0 && diff < tcpSeqMidpoint
-}
-
-func isClosedState(state tcpState) bool {
-	return state == TcpStateClosed || state == TcpStateTimeWait
 }
 
 func debugPacketDir(pktType uint8) string {
@@ -92,23 +111,6 @@ func debugTcpFlags(tcp *layers.TCP) string {
 	return strings.Join(flags, "|")
 }
 
-// getRelativeSeq is used for debugging to visualize
-func getRelativeSeq(seq uint32, hasBase bool, base uint32) uint32 {
-	if !hasBase {
-		return seq
-	}
-	return seq - base
-}
-
-func debugPacketInfo(pktType uint8, tcp *layers.TCP, payloadLen uint16, st connectionState) string {
-	hasStartSeq, startSeq := st.hasSentPacket, st.localStartSeq
-	hasAckSeq, ackSeq := st.hasReceivedPacket, st.remoteStartSeq
-
-	if pktType == unix.PACKET_HOST {
-		hasStartSeq, hasAckSeq = hasAckSeq, hasStartSeq
-		startSeq, ackSeq = ackSeq, startSeq
-	}
-	relativeSeq := getRelativeSeq(tcp.Seq, hasStartSeq, startSeq)
-	relativeAck := getRelativeSeq(tcp.Ack, hasAckSeq, ackSeq)
-	return fmt.Sprintf("pktType=%+v ports=(%+v, %+v) size=%d relSeq=%+v relAck=%+v flags=%s", debugPacketDir(pktType), uint16(tcp.SrcPort), uint16(tcp.DstPort), payloadLen, relativeSeq, relativeAck, debugTcpFlags(tcp))
+func debugPacketInfo(pktType uint8, tcp *layers.TCP, payloadLen uint16) string {
+	return fmt.Sprintf("pktType=%+v ports=(%+v, %+v) size=%d seq=%+v ack=%+v flags=%s", debugPacketDir(pktType), uint16(tcp.SrcPort), uint16(tcp.DstPort), payloadLen, tcp.Seq, tcp.Ack, debugTcpFlags(tcp))
 }
