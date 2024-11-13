@@ -31,7 +31,10 @@ var (
 // An agent core configuration component dep is expected. A nil
 // core config component will prevent enhancing the configuration
 // with core agent config elements if any are missing from the provided
-// OTel configutation.
+// OTel configuration. For example, when building in an environment that
+// requires an argument-less constructor, such as with ocb. In this case,
+// the core config component is not available and the converter will not
+// attempt to enhance the configuration using agent data.
 type Requires struct {
 	Conf config.Component
 }
