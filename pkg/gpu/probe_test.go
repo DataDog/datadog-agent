@@ -71,7 +71,7 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	probe := s.getProbe()
 	cmd := testutil.RunSample(t, testutil.CudaSample)
 
-	utils.WaitForProgramsToBeTraced(t, "gpu", gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
+	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 
 	var handlerStream, handlerGlobal *StreamHandler
 	require.Eventually(t, func() bool {
@@ -108,7 +108,7 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 
 	cmd := testutil.RunSample(t, testutil.CudaSample)
 
-	utils.WaitForProgramsToBeTraced(t, "gpu", gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
+	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 
 	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
 	// so that we can time out correctly
@@ -139,7 +139,7 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	args.EndWaitTimeSec = 1
 	pid, cid := testutil.RunSampleInDockerWithArgs(t, testutil.CudaSample, testutil.MinimalDockerImage, args)
 
-	utils.WaitForProgramsToBeTraced(t, "gpu", gpuAttacherName, pid, utils.ManualTracingFallbackDisabled)
+	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, pid, utils.ManualTracingFallbackDisabled)
 
 	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
 	// so that we can time out correctly
