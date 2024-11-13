@@ -209,6 +209,7 @@ single-machine-performance-regression_detector-pr-comment:
       fi
       exit $exitcode
 
+# Single Machine Performance Quality Gates are mandatory.
 single-machine-performance-quality-gates-only:
   stage: functional_test
   timeout: 1h10m
@@ -232,8 +233,6 @@ single-machine-performance-quality-gates-only:
     when: always
   variables:
     SMP_VERSION: 0.18.1
-  # Single Machine Performance Quality Gates are mandatory.
-  allow_failure: false
   script:
     # Ensure output files exist for artifact downloads step
     - mkdir outputs # Also needed for smp job sync step
