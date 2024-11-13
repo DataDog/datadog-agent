@@ -12,7 +12,7 @@ AGENT_VERSION_CACHE_NAME = "agent-version.cache"
 # Metric Origin Constants:
 # https://github.com/DataDog/dd-source/blob/a060ce7a403c2215c44ebfbcc588e42cd9985aeb/domains/metrics/shared/libs/proto/origin/origin.proto#L144
 ORIGIN_PRODUCT = 17
-ORIGIN_CATEGORY = 0
+ORIGIN_CATEGORY = 29
 ORIGIN_SERVICE = 0
 
 # Message templates for releasing tasks
