@@ -19,76 +19,9 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
-// Helper functions to create pointer values for testing
-func floatPtr(f float64) *float64 {
-	return &f
-}
-
-func uintPtr(u uint64) *uint64 {
-	return &u
-}
-
-// fakeWorkloadmetaStore is a mock implementation of the workloadmeta store.
-type fakeWorkloadmetaStore struct {
-	workloadmeta.Component
-	notifiedEvents []workloadmeta.CollectorEvent
-}
-
-func (store *fakeWorkloadmetaStore) Notify(events []workloadmeta.CollectorEvent) {
-	store.notifiedEvents = append(store.notifiedEvents, events...)
-}
-
-// fakeCRIOClient simulates the CRI-O client for testing purposes.
-type fakeCRIOClient struct {
-	mockGetAllContainers   func(ctx context.Context) ([]*v1.Container, error)
-	mockGetContainerStatus func(ctx context.Context, containerID string) (*v1.ContainerStatus, error)
-	mockGetPodStatus       func(ctx context.Context, podID string) (*v1.PodSandboxStatus, error)
-	mockGetContainerImage  func(ctx context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error)
-	mockRuntimeMetadata    func(ctx context.Context) (*v1.VersionResponse, error)
-}
-
-func (f *fakeCRIOClient) GetAllContainers(ctx context.Context) ([]*v1.Container, error) {
-	if f.mockGetAllContainers != nil {
-		return f.mockGetAllContainers(ctx)
-	}
-	return []*v1.Container{}, nil
-}
-
-func (f *fakeCRIOClient) GetContainerStatus(ctx context.Context, containerID string) (*v1.ContainerStatus, error) {
-	if f.mockGetContainerStatus != nil {
-		return f.mockGetContainerStatus(ctx, containerID)
-	}
-	return &v1.ContainerStatus{}, nil
-}
-
-func (f *fakeCRIOClient) GetPodStatus(ctx context.Context, podID string) (*v1.PodSandboxStatus, error) {
-	if f.mockGetPodStatus != nil {
-		return f.mockGetPodStatus(ctx, podID)
-	}
-	return &v1.PodSandboxStatus{}, nil
-}
-
-func (f *fakeCRIOClient) GetContainerImage(ctx context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error) {
-	if f.mockGetContainerImage != nil {
-		return f.mockGetContainerImage(ctx, imageSpec)
-	}
-	return &v1.Image{}, nil
-}
-
-func (f *fakeCRIOClient) RuntimeMetadata(ctx context.Context) (*v1.VersionResponse, error) {
-	if f.mockRuntimeMetadata != nil {
-		return f.mockRuntimeMetadata(ctx)
-	}
-	return &v1.VersionResponse{RuntimeName: "cri-o", RuntimeVersion: "v1.30.0"}, nil
-}
-
-func (f *fakeCRIOClient) Close() error {
-	return nil
-}
-
 // TestPull tests Pull with valid container data.
 func TestPull(t *testing.T) {
-	client := &fakeCRIOClient{
+	client := &mockCRIOClient{
 		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 			return []*v1.Container{
 				{Id: "container1", PodSandboxId: "pod1", Metadata: &v1.ContainerMetadata{Name: "container1"}},
@@ -97,30 +30,45 @@ func TestPull(t *testing.T) {
 		mockGetPodStatus: func(_ context.Context, _ string) (*v1.PodSandboxStatus, error) {
 			return &v1.PodSandboxStatus{Metadata: &v1.PodSandboxMetadata{Namespace: "default"}}, nil
 		},
-		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatus, error) {
-			return &v1.ContainerStatus{
-				Metadata:  &v1.ContainerMetadata{Name: "container1"},
-				State:     v1.ContainerState_CONTAINER_RUNNING,
-				CreatedAt: time.Now().Add(-10 * time.Minute).UnixNano(),
-				Resources: &v1.ContainerResources{
-					Linux: &v1.LinuxContainerResources{
-						CpuQuota:           50000,
-						CpuPeriod:          100000,
-						MemoryLimitInBytes: 104857600,
+		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
+			return &v1.ContainerStatusResponse{
+				Status: &v1.ContainerStatus{
+					Metadata:  &v1.ContainerMetadata{Name: "container1"},
+					State:     v1.ContainerState_CONTAINER_RUNNING,
+					CreatedAt: time.Now().Add(-10 * time.Minute).UnixNano(),
+					Resources: &v1.ContainerResources{
+						Linux: &v1.LinuxContainerResources{
+							CpuQuota:           50000,
+							CpuPeriod:          100000,
+							MemoryLimitInBytes: 104857600,
+						},
 					},
+				},
+				Info: map[string]string{
+					"info": `{
+						"pid": 12345,
+						"runtimeSpec": {
+							"hostname": "container-host",
+							"linux": {
+								"cgroupsPath": "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4"
+							}
+						}
+					}`,
 				},
 			}, nil
 		},
-		mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec) (*v1.Image, error) {
-			return &v1.Image{
-				Id:          "image123",
-				RepoTags:    []string{"myrepo/myimage:latest"},
-				RepoDigests: []string{"myrepo/myimage@sha256:123abc"},
+		mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec, verbose bool) (*v1.ImageStatusResponse, error) {
+			return &v1.ImageStatusResponse{
+				Image: &v1.Image{
+					Id:          "image123",
+					RepoTags:    []string{"myrepo/myimage:latest"},
+					RepoDigests: []string{"myrepo/myimage@sha256:123abc"},
+				},
 			}, nil
 		},
 	}
 
-	store := &fakeWorkloadmetaStore{}
+	store := &mockWorkloadmetaStore{}
 	crioCollector := collector{
 		client: client,
 		store:  store,
@@ -142,18 +90,18 @@ func TestPull(t *testing.T) {
 
 // TestPullContainerStatusError tests Pull when retrieving container status results in an error.
 func TestPullContainerStatusError(t *testing.T) {
-	client := &fakeCRIOClient{
+	client := &mockCRIOClient{
 		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 			return []*v1.Container{
 				{Id: "container1", PodSandboxId: "pod1"},
 			}, nil
 		},
-		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatus, error) {
+		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
 			return nil, errors.New("container status error")
 		},
 	}
 
-	store := &fakeWorkloadmetaStore{}
+	store := &mockWorkloadmetaStore{}
 	crioCollector := collector{
 		client: client,
 		store:  store,
@@ -172,7 +120,7 @@ func TestPullContainerStatusError(t *testing.T) {
 
 // TestPullNoPodNamespace tests Pull with a missing pod namespace.
 func TestPullNoPodNamespace(t *testing.T) {
-	client := &fakeCRIOClient{
+	client := &mockCRIOClient{
 		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 			return []*v1.Container{
 				{Id: "container1", PodSandboxId: "nonexistent-pod"},
@@ -181,16 +129,29 @@ func TestPullNoPodNamespace(t *testing.T) {
 		mockGetPodStatus: func(_ context.Context, _ string) (*v1.PodSandboxStatus, error) {
 			return nil, errors.New("pod not found")
 		},
-		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatus, error) {
-			return &v1.ContainerStatus{
-				Metadata:  &v1.ContainerMetadata{Name: "container1"},
-				State:     v1.ContainerState_CONTAINER_RUNNING,
-				CreatedAt: time.Now().Add(-10 * time.Minute).UnixNano(),
+		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
+			return &v1.ContainerStatusResponse{
+				Status: &v1.ContainerStatus{
+					Metadata:  &v1.ContainerMetadata{Name: "container1"},
+					State:     v1.ContainerState_CONTAINER_RUNNING,
+					CreatedAt: time.Now().Add(-10 * time.Minute).UnixNano(),
+				},
+				Info: map[string]string{
+					"info": `{
+						"pid": 12345,
+						"runtimeSpec": {
+							"hostname": "container-host",
+							"linux": {
+								"cgroupsPath": "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4"
+							}
+						}
+					}`,
+				},
 			}, nil
 		},
 	}
 
-	store := &fakeWorkloadmetaStore{}
+	store := &mockWorkloadmetaStore{}
 	crioCollector := collector{
 		client: client,
 		store:  store,
@@ -203,32 +164,38 @@ func TestPullNoPodNamespace(t *testing.T) {
 
 // TestPullContainerImageError tests error handling when retrieving container image fails.
 func TestPullContainerImageError(t *testing.T) {
-	client := &fakeCRIOClient{
+	client := &mockCRIOClient{
 		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 			return []*v1.Container{
 				{Id: "container1", PodSandboxId: "pod1"},
 			}, nil
 		},
-		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatus, error) {
-			return &v1.ContainerStatus{
-				Metadata:  &v1.ContainerMetadata{Name: "container1"},
-				State:     v1.ContainerState_CONTAINER_RUNNING,
-				CreatedAt: time.Now().Add(-10 * time.Minute).UnixNano(),
-				Resources: &v1.ContainerResources{
-					Linux: &v1.LinuxContainerResources{
-						CpuQuota:           100000,
-						CpuPeriod:          100000,
-						MemoryLimitInBytes: 104857600,
-					},
+		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
+			return &v1.ContainerStatusResponse{
+				Status: &v1.ContainerStatus{
+					Metadata:  &v1.ContainerMetadata{Name: "container1"},
+					State:     v1.ContainerState_CONTAINER_RUNNING,
+					CreatedAt: time.Now().Add(-10 * time.Minute).UnixNano(),
+				},
+				Info: map[string]string{
+					"info": `{
+						"pid": 12345,
+						"runtimeSpec": {
+							"hostname": "container-host",
+							"linux": {
+								"cgroupsPath": "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4"
+							}
+						}
+					}`,
 				},
 			}, nil
 		},
-		mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec) (*v1.Image, error) {
+		mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec, verbose bool) (*v1.ImageStatusResponse, error) {
 			return nil, errors.New("image retrieval error")
 		},
 	}
 
-	store := &fakeWorkloadmetaStore{}
+	store := &mockWorkloadmetaStore{}
 	crioCollector := collector{
 		client: client,
 		store:  store,
@@ -243,26 +210,40 @@ func TestPullContainerImageError(t *testing.T) {
 	assert.Empty(t, container.Image.RawName)
 }
 
+// TestPullContainerNoImageInfo verifies that Pull handles containers where the image info is missing.
 func TestPullContainerNoImageInfo(t *testing.T) {
-	client := &fakeCRIOClient{
+	client := &mockCRIOClient{
 		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 			return []*v1.Container{
 				{Id: "container1", PodSandboxId: "pod1"},
 			}, nil
 		},
-		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatus, error) {
-			return &v1.ContainerStatus{
-				Metadata:  &v1.ContainerMetadata{Name: "container1"},
-				State:     v1.ContainerState_CONTAINER_RUNNING,
-				CreatedAt: time.Now().Add(-10 * time.Minute).UnixNano(),
+		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
+			return &v1.ContainerStatusResponse{
+				Status: &v1.ContainerStatus{
+					Metadata:  &v1.ContainerMetadata{Name: "container1"},
+					State:     v1.ContainerState_CONTAINER_RUNNING,
+					CreatedAt: time.Now().Add(-10 * time.Minute).UnixNano(),
+				},
+				Info: map[string]string{
+					"info": `{
+						"pid": 12345,
+						"runtimeSpec": {
+							"hostname": "container-host",
+							"linux": {
+								"cgroupsPath": "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4"
+							}
+						}
+					}`,
+				},
 			}, nil
 		},
-		mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec) (*v1.Image, error) {
-			return nil, nil
+		mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec, verbose bool) (*v1.ImageStatusResponse, error) {
+			return &v1.ImageStatusResponse{Image: nil}, nil // Simulate no image info available
 		},
 	}
 
-	store := &fakeWorkloadmetaStore{}
+	store := &mockWorkloadmetaStore{}
 	crioCollector := collector{
 		client: client,
 		store:  store,
@@ -270,21 +251,27 @@ func TestPullContainerNoImageInfo(t *testing.T) {
 
 	err := crioCollector.Pull(context.Background())
 	assert.NoError(t, err)
+	assert.NotEmpty(t, store.notifiedEvents) // Ensure an event is generated
 	event := store.notifiedEvents[0]
 	container := event.Entity.(*workloadmeta.Container)
 
+	// Assert that image information is empty due to missing image info
 	assert.Empty(t, container.Image.ID)
 	assert.Empty(t, container.Image.RawName)
+	assert.Equal(t, 12345, container.PID)
+	assert.Equal(t, "container-host", container.Hostname)
+	assert.Equal(t, "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4", container.CgroupPath)
 }
 
+// TestPullNoContainers verifies that Pull handles an empty container list gracefully.
 func TestPullNoContainers(t *testing.T) {
-	client := &fakeCRIOClient{
+	client := &mockCRIOClient{
 		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
-			return []*v1.Container{}, nil
+			return []*v1.Container{}, nil // Empty list
 		},
 	}
 
-	store := &fakeWorkloadmetaStore{}
+	store := &mockWorkloadmetaStore{}
 	crioCollector := collector{
 		client: client,
 		store:  store,
@@ -295,14 +282,15 @@ func TestPullNoContainers(t *testing.T) {
 	assert.Empty(t, store.notifiedEvents) // Should have no events
 }
 
+// TestPullContainerRetrievalError verifies that Pull handles an error when retrieving containers.
 func TestPullContainerRetrievalError(t *testing.T) {
-	client := &fakeCRIOClient{
+	client := &mockCRIOClient{
 		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 			return nil, errors.New("failed to retrieve containers")
 		},
 	}
 
-	store := &fakeWorkloadmetaStore{}
+	store := &mockWorkloadmetaStore{}
 	crioCollector := collector{
 		client: client,
 		store:  store,
@@ -313,21 +301,35 @@ func TestPullContainerRetrievalError(t *testing.T) {
 	assert.Empty(t, store.notifiedEvents) // No events should be generated
 }
 
+// TestPullContainerMissingMetadata verifies that Pull handles containers with missing metadata.
 func TestPullContainerMissingMetadata(t *testing.T) {
-	client := &fakeCRIOClient{
+	client := &mockCRIOClient{
 		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 			return []*v1.Container{
 				{Id: "container1", PodSandboxId: "pod1", Metadata: nil}, // Missing metadata
 			}, nil
 		},
-		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatus, error) {
-			return &v1.ContainerStatus{
-				State: v1.ContainerState_CONTAINER_RUNNING,
+		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
+			return &v1.ContainerStatusResponse{
+				Status: &v1.ContainerStatus{
+					State: v1.ContainerState_CONTAINER_RUNNING,
+				},
+				Info: map[string]string{
+					"info": `{
+						"pid": 12345,
+						"runtimeSpec": {
+							"hostname": "container-host",
+							"linux": {
+								"cgroupsPath": "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4"
+							}
+						}
+					}`,
+				},
 			}, nil
 		},
 	}
 
-	store := &fakeWorkloadmetaStore{}
+	store := &mockWorkloadmetaStore{}
 	crioCollector := collector{
 		client: client,
 		store:  store,
@@ -338,26 +340,40 @@ func TestPullContainerMissingMetadata(t *testing.T) {
 	assert.Equal(t, "", store.notifiedEvents[0].Entity.(*workloadmeta.Container).EntityMeta.Name) // Default to unknown name
 }
 
+// TestPullContainerDefaultResourceLimits verifies that Pull handles containers with default resource limits.
 func TestPullContainerDefaultResourceLimits(t *testing.T) {
-	client := &fakeCRIOClient{
+	client := &mockCRIOClient{
 		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 			return []*v1.Container{
 				{Id: "container1", PodSandboxId: "pod1"},
 			}, nil
 		},
-		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatus, error) {
-			return &v1.ContainerStatus{
-				Metadata: &v1.ContainerMetadata{Name: "container1"},
-				Resources: &v1.ContainerResources{
-					Linux: &v1.LinuxContainerResources{
-						CpuQuota: 0, CpuPeriod: 0, MemoryLimitInBytes: 0,
+		mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
+			return &v1.ContainerStatusResponse{
+				Status: &v1.ContainerStatus{
+					Metadata: &v1.ContainerMetadata{Name: "container1"},
+					Resources: &v1.ContainerResources{
+						Linux: &v1.LinuxContainerResources{
+							CpuQuota: 0, CpuPeriod: 0, MemoryLimitInBytes: 0,
+						},
 					},
+				},
+				Info: map[string]string{
+					"info": `{
+						"pid": 12345,
+						"runtimeSpec": {
+							"hostname": "container-host",
+							"linux": {
+								"cgroupsPath": "/crio/crio-45e0df1c6e04fda693f5ef2654363c1ff5667bee7f8a9042ff5c629d48fbcbc4"
+							}
+						}
+					}`,
 				},
 			}, nil
 		},
 	}
 
-	store := &fakeWorkloadmetaStore{}
+	store := &mockWorkloadmetaStore{}
 	crioCollector := collector{
 		client: client,
 		store:  store,

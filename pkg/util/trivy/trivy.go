@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	containersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
+	"github.com/DataDog/datadog-agent/pkg/util/crio"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
@@ -404,6 +405,24 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 	return c.scanFilesystem(ctx, os.DirFS("/"), imagePath, imgMeta, scanOptions)
 }
 
+// ScanCRIOImageFromFilesystem scans the CRI-O image layers using OverlayFS.
+func (c *Collector) ScanCRIOImageFromFilesystem(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client crio.Client, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	lowerDirs, err := client.GetCRIOImageLayers(imgMeta)
+	if err != nil {
+		log.Errorf("Failed to retrieve layer directories: %v", err)
+		return nil, fmt.Errorf("failed to retrieve layer directories: %w", err)
+	}
+
+	report, err := c.scanOverlayFS(ctx, lowerDirs, imgMeta, scanOptions)
+	if err != nil {
+		log.Errorf("Error scanning overlay filesystem for image %s: %v", imgMeta.ID, err)
+		return nil, err
+	}
+
+	return report, nil
+}
+
+// scanFilesystem scans the specified directory and logs detailed scan steps.
 func (c *Collector) scanFilesystem(ctx context.Context, fsys fs.FS, path string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	// For filesystem scans, it is required to walk the filesystem to get the persistentCache key so caching does not add any value.
 	// TODO: Cache directly the trivy report for container images
