@@ -121,12 +121,12 @@ use (
 )
 
 use (
-	// internal/tools
-	// internal/tools/independent-lint
-	// internal/tools/modformatter
-	// internal/tools/modparser
-	// internal/tools/proto
-	// pkg/linters/components/pkgconfigusage
+	internal/tools
+	internal/tools/independent-lint
+	internal/tools/modformatter
+	internal/tools/modparser
+	internal/tools/proto
+	pkg/linters/components/pkgconfigusage
 	test/fakeintake
 	test/new-e2e
 	test/otel
