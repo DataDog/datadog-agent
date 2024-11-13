@@ -175,12 +175,13 @@ single-machine-performance-regression_detector:
                       )
 
       with open('outputs/decision_record.md', 'w') as f:
-          f.write('\n## Decision Record\n\n')
+          # Extra newline since this is appended to another report
+          f.write('\n\n## CI Pass/Fail Decision\n\n')
           if failed:
-              f.write('**Quality gate failed.**\n\n')
+              f.write('**Failed.** Some Quality Gates were violated.\n\n')
               f.write('\n'.join(decision_record))
           else:
-              f.write('**Quality gate passed.**\n\n')
+              f.write('**Passed.** All Quality Gates passed.\n\n')
               f.write('\n'.join(decision_record))
 
       if failed:
