@@ -5,6 +5,7 @@
 
 //go:build test
 
+// Package mock provides the mock component for serializer/compression
 package mock
 
 import def "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
