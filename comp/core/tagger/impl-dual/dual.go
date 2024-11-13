@@ -46,7 +46,6 @@ func NewComponent(req Requires) (Provides, error) {
 			Config:    req.Config,
 			Log:       req.Log,
 			Telemetry: req.Telemetry,
-			Wmeta:     req.Wmeta,
 		}
 
 		provide, err := remote.NewComponent(remoteRequires)
