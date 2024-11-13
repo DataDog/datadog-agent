@@ -13,6 +13,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
 	github.com/DataDog/viper v1.13.5
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
+	github.com/spf13/cast v1.3.0
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/atomic v1.11.0
 	golang.org/x/exp v0.0.0-20241004190924-225e2abe05e6
@@ -30,7 +31,6 @@ require (
 	github.com/pelletier/go-toml v1.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
-	github.com/spf13/cast v1.3.0 // indirect
 	github.com/spf13/jwalterweatherman v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.3 // indirect
 	golang.org/x/sys v0.26.0 // indirect

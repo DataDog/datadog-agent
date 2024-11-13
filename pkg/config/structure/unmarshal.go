@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/spf13/cast"
 )
 
 // features allowed for handling edge-cases
@@ -78,7 +79,7 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 		return copyStruct(outValue, source, fs)
 	case reflect.Slice:
 		if leaf, ok := source.(nodetreemodel.LeafNode); ok {
-			thing, _ := leaf.GetAny()
+			thing := leaf.Get()
 			if arr, ok := thing.([]interface{}); ok {
 				return copyList(outValue, makeNodeArray(arr), fs)
 			}
@@ -182,7 +183,7 @@ func copyMap(target reflect.Value, source nodetreemodel.Node, _ *featureSet) err
 			continue
 		}
 		if scalar, ok := child.(nodetreemodel.LeafNode); ok {
-			if mval, err := scalar.GetString(); err == nil {
+			if mval, err := cast.ToStringE(scalar.Get()); err == nil {
 				results.SetMapIndex(reflect.ValueOf(mkey), reflect.ValueOf(mval))
 			} else {
 				return fmt.Errorf("TODO: only map[string]string supported currently")
@@ -199,35 +200,35 @@ func copyLeaf(target reflect.Value, source nodetreemodel.LeafNode, _ *featureSet
 	}
 	switch target.Kind() {
 	case reflect.Bool:
-		v, err := source.GetBool()
+		v, err := cast.ToBoolE(source.Get())
 		if err != nil {
 			return err
 		}
 		target.SetBool(v)
 		return nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		v, err := source.GetInt()
+		v, err := cast.ToIntE(source.Get())
 		if err != nil {
 			return err
 		}
 		target.SetInt(int64(v))
 		return nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		v, err := source.GetInt()
+		v, err := cast.ToIntE(source.Get())
 		if err != nil {
 			return err
 		}
 		target.SetUint(uint64(v))
 		return nil
 	case reflect.Float32, reflect.Float64:
-		v, err := source.GetFloat()
+		v, err := cast.ToFloat64E(source.Get())
 		if err != nil {
 			return err
 		}
 		target.SetFloat(float64(v))
 		return nil
 	case reflect.String:
-		v, err := source.GetString()
+		v, err := cast.ToStringE(source.Get())
 		if err != nil {
 			return err
 		}
@@ -276,7 +277,7 @@ func copyAny(target reflect.Value, source nodetreemodel.Node, fs *featureSet) er
 		return copyStruct(target, source, fs)
 	} else if target.Kind() == reflect.Slice {
 		if leaf, ok := source.(nodetreemodel.LeafNode); ok {
-			thing, _ := leaf.GetAny()
+			thing := leaf.Get()
 			if arr, ok := thing.([]interface{}); ok {
 				return copyList(target, makeNodeArray(arr), fs)
 			}
@@ -299,7 +300,7 @@ func makeNodeArray(vals []interface{}) []nodetreemodel.Node {
 
 func isEmptyString(source nodetreemodel.Node) bool {
 	if leaf, ok := source.(nodetreemodel.LeafNode); ok {
-		if str, err := leaf.GetString(); err == nil {
+		if str, err := cast.ToStringE(leaf.Get()); err == nil {
 			return str == ""
 		}
 	}
