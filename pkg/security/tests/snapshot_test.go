@@ -35,6 +35,17 @@ func TestSnapshot(t *testing.T) {
 			snapshotRuleMatchHandler: func(testMod *testModule, e *model.Event, r *rules.Rule) {
 				assertTriggeredRule(t, r, "test_rule_snapshot_host")
 				testMod.validateExecSchema(t, e)
+				validateProcessContext(t, e)
+
+				// validate that pid 1 is reported as an exec
+				ancestor := e.ProcessContext.Ancestor
+				for ancestor != nil {
+					if ancestor.Pid == 1 && !ancestor.IsExec {
+						t.Errorf("pid1 should be reported as an Exec: %+v", e)
+					}
+					ancestor = ancestor.Ancestor
+				}
+
 				gotEvent.Store(true)
 			},
 		}))
@@ -80,6 +91,7 @@ func TestSnapshot(t *testing.T) {
 			snapshotRuleMatchHandler: func(testMod *testModule, e *model.Event, r *rules.Rule) {
 				assertTriggeredRule(t, r, "test_rule_snapshot_container")
 				testMod.validateExecSchema(t, e)
+				validateProcessContext(t, e)
 				gotEvent.Store(true)
 			},
 		}))
