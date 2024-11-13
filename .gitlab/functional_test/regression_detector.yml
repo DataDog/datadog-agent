@@ -20,7 +20,7 @@ single-machine-performance-regression_detector:
       - outputs/quality_gates_report.json # for debugging, also on S3
       - outputs/junit.xml # for debugging, also on S3
       - outputs/report.json # for debugging, also on S3
-      - outputs/decision_record.json # for posterity, this is appended to final PR comment
+      - outputs/decision_record.md # for posterity, this is appended to final PR comment
     when: always
   variables:
     SMP_VERSION: 0.18.1
