@@ -46,8 +46,13 @@ const (
 // RawPacketProgOpts defines options
 type RawPacketProgOpts struct {
 	*cbpfc.EBPFOpts
+
+	// MaxTailCalls maximun number of tail calls generated
 	MaxTailCalls int
-	NopInstLen   int
+	// number of instructions
+	MaxProgSize int
+	// Number of nop instruction inserted in each program
+	NopInstLen int
 
 	// internals
 	sendEventLabel string
@@ -72,6 +77,7 @@ var DefaultRawPacketProgOpts = RawPacketProgOpts{
 	sendEventLabel: "send_event",
 	ctxSave:        asm.R9,
 	MaxTailCalls:   6,
+	MaxProgSize:    4000,
 }
 
 // BPFFilterToInsts compile a bpf filter expression
@@ -118,11 +124,10 @@ func BPFFilterToInsts(index int, filter string, opts RawPacketProgOpts) (asm.Ins
 
 func rawPacketFiltersToProgs(rawPacketfilters []RawPacketFilter, opts RawPacketProgOpts, headerInsts, senderInsts asm.Instructions) ([]asm.Instructions, *multierror.Error) {
 	var (
-		progInsts   []asm.Instructions
-		currProg    uint32
-		maxProgSize = 4000
-		mErr        *multierror.Error
-		tailCalls   int
+		progInsts []asm.Instructions
+		currProg  uint32
+		mErr      *multierror.Error
+		tailCalls int
 	)
 
 	progInsts = append(progInsts, asm.Instructions{})
@@ -144,7 +149,7 @@ func rawPacketFiltersToProgs(rawPacketfilters []RawPacketFilter, opts RawPacketP
 		}
 
 		// max size exceeded, generate a new tail call
-		if len(progInsts[currProg])+len(tailCallInsts)+len(senderInsts) > maxProgSize {
+		if len(progInsts[currProg])+len(tailCallInsts)+len(senderInsts) > opts.MaxProgSize {
 			// insert tail call to the previews filter
 			progInsts[currProg] = append(progInsts[currProg], tailCallInsts...)
 			progInsts[currProg] = append(progInsts[currProg], senderInsts...)
@@ -154,7 +159,7 @@ func rawPacketFiltersToProgs(rawPacketfilters []RawPacketFilter, opts RawPacketP
 			progInsts = append(progInsts, asm.Instructions{})
 			progInsts[currProg] = append(progInsts[currProg], headerInsts...)
 
-			if opts.MaxTailCalls != 0 && opts.MaxTailCalls >= tailCalls {
+			if opts.MaxTailCalls != 0 && tailCalls >= opts.MaxTailCalls {
 				mErr = multierror.Append(mErr, fmt.Errorf("maximum allowed tail calls reach: %d", opts.MaxTailCalls))
 				break
 			}
@@ -177,8 +182,8 @@ type RawPacketFilter struct {
 	BPFFilter string
 }
 
-// RawPacketTCFiltersToCollectionSpec returns a collection spec from raw packet filters definitions
-func RawPacketTCFiltersToCollectionSpec(rawPacketEventMapFd, clsRouterMapFd int, rawpPacketFilters []RawPacketFilter) (*ebpf.CollectionSpec, error) {
+// RawPacketTCFiltersToProgramSpecs returns list of program spec from raw packet filters definitions
+func RawPacketTCFiltersToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, rawpPacketFilters []RawPacketFilter, opts RawPacketProgOpts) ([]*ebpf.ProgramSpec, error) {
 	var mErr *multierror.Error
 
 	const (
@@ -187,7 +192,6 @@ func RawPacketTCFiltersToCollectionSpec(rawPacketEventMapFd, clsRouterMapFd int,
 		dataOffset = 164
 	)
 
-	opts := DefaultRawPacketProgOpts
 	opts.tailCallMapFd = clsRouterMapFd
 
 	headerInsts := append(asm.Instructions{},
@@ -218,35 +222,31 @@ func RawPacketTCFiltersToCollectionSpec(rawPacketEventMapFd, clsRouterMapFd int,
 	}
 
 	// compile and convert to eBPF progs
-	progs, err := rawPacketFiltersToProgs(rawpPacketFilters, opts, headerInsts, senderInsts)
+	progInsts, err := rawPacketFiltersToProgs(rawpPacketFilters, opts, headerInsts, senderInsts)
 	if err.ErrorOrNil() != nil {
 		mErr = multierror.Append(mErr, err)
 	}
 
 	// should be possible
-	if len(progs) == 0 {
+	if len(progInsts) == 0 {
 		return nil, errors.New("no program were generated")
 	}
 
-	// entry program and maybe the only one
-	colSpec := &ebpf.CollectionSpec{
-		Programs: map[string]*ebpf.ProgramSpec{
-			RawPacketFilterEntryProg: {
-				Type:         ebpf.SchedCLS,
-				Instructions: progs[0],
-				License:      "GPL",
-			},
-		},
-	}
+	progSpecs := make([]*ebpf.ProgramSpec, len(progInsts))
 
-	for i, insts := range progs[1:] {
-		name := fmt.Sprintf("%s_%d", RawPacketFilterProgPrefix, i+1)
-		colSpec.Programs[name] = &ebpf.ProgramSpec{
+	for i, insts := range progInsts {
+		name := RawPacketFilterEntryProg
+		if i > 0 {
+			name = fmt.Sprintf("%s%d", RawPacketFilterProgPrefix, i+1)
+		}
+
+		progSpecs[i] = &ebpf.ProgramSpec{
+			Name:         name,
 			Type:         ebpf.SchedCLS,
 			Instructions: insts,
 			License:      "GPL",
 		}
 	}
 
-	return colSpec, mErr.ErrorOrNil()
+	return progSpecs, mErr.ErrorOrNil()
 }

@@ -376,29 +376,48 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 		p.rawPacketFilterCollection.Close()
 	}
 
+	// adapt max instruction limits depending of the kernel version
+	opts := probes.DefaultRawPacketProgOpts
+	if p.kernelVersion.Code >= kernel.Kernel5_2 {
+		opts.MaxProgSize = 1_000_000
+	}
+	seclog.Debugf("generate rawpacker filter programs with a limit of %d max instructions", opts.MaxProgSize)
+
 	// compile the filters
-	colSpec, err := probes.RawPacketTCFiltersToCollectionSpec(rawPacketEventMap.FD(), routerMap.FD(), rawPacketFilters)
+	progSpecs, err := probes.RawPacketTCFiltersToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), rawPacketFilters, opts)
 	if err != nil {
 		return err
 	}
 
-	col, err := lib.NewCollection(colSpec)
+	if len(progSpecs) == 0 {
+		return nil
+	}
+
+	colSpec := lib.CollectionSpec{
+		Programs: make(map[string]*lib.ProgramSpec),
+	}
+	for _, progSpec := range progSpecs {
+		colSpec.Programs[progSpec.Name] = progSpec
+	}
+
+	col, err := lib.NewCollection(&colSpec)
 	if err != nil {
 		return fmt.Errorf("failed to load program: %w", err)
 	}
 	p.rawPacketFilterCollection = col
 
-	if len(col.Programs) == 0 {
-		return nil
+	// setup tail calls
+	for i, progSpec := range progSpecs {
+		if err := p.Manager.UpdateTailCallRoutes(manager.TailCallRoute{
+			Program:       col.Programs[progSpec.Name],
+			Key:           probes.TCRawPacketFilterKey + uint32(i),
+			ProgArrayName: "classifier_router",
+		}); err != nil {
+			return err
+		}
 	}
 
-	return p.Manager.UpdateTailCallRoutes(
-		manager.TailCallRoute{
-			Program:       col.Programs[probes.RawPacketFilterEntryProg],
-			Key:           probes.TCRawPacketFilterKey,
-			ProgArrayName: "classifier_router",
-		},
-	)
+	return nil
 }
 
 // Setup the probe
