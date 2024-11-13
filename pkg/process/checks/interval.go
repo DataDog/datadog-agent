@@ -23,7 +23,7 @@ const (
 	//nolint:revive // TODO(PROC) Fix revive linter
 	RTContainerCheckDefaultInterval = 2 * time.Second
 	//nolint:revive // TODO(PROC) Fix revive linter
-	ConnectionsCheckDefaultInterval = 30 * time.Second
+	ConnectionsCheckDefaultInterval = 10 * time.Second
 	//nolint:revive // TODO(PROC) Fix revive linter
 	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
 
