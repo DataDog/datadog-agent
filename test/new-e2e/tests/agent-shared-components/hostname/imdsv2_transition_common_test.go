@@ -7,6 +7,7 @@
 package hostname
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -25,11 +26,8 @@ import (
 )
 
 type Meta struct {
-	Hostname                  string   `json:"hostname"`
-	HostAliases               []string `json:"host_aliases"`
-	InstanceID                string   `json:"instance-id"`
-	LegacyResolutionHostname  string   `json:"legacy-resolution-hostname,omitempty"`
-	HostnameResolutionVersion int      `json:"hostname-resolution-version,omitempty"`
+	Hostname                 string `json:"hostname"`
+	LegacyResolutionHostname string `json:"legacy-resolution-hostname,omitempty"`
 }
 
 type baseHostnameSuite struct {
@@ -39,14 +37,13 @@ type baseHostnameSuite struct {
 }
 
 func TestBaseHostnameSuite(t *testing.T) {
-	t.Parallel()
-
 	e2e.Run(t, &baseHostnameSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
 func requestAgentHostnameMetadataPayload(v *baseHostnameSuite) {
 	v.T().Helper()
 
+	// Get the hostname and legacy-resolution-hostname from the agent status
 	statusArgs := agentclient.WithArgs([]string{"header", "--json"})
 	statusPayload := v.Env().Agent.Client.Status(statusArgs)
 
@@ -60,11 +57,14 @@ func requestAgentHostnameMetadataPayload(v *baseHostnameSuite) {
 		v.T().Fatal(err)
 	}
 
-	if err := json.Unmarshal(metaData, &v.hostnameMetadata); err != nil {
+	var hostnameMeta Meta
+	if err := json.Unmarshal(metaData, &hostnameMeta); err != nil {
 		v.T().Fatal(err)
 	}
+	v.hostnameMetadata = hostnameMeta
 }
 
+// retrieveMetadata retrieves the instance ID and OS hostname from the EC2 metadata
 func retrieveMetadata(v *baseHostnameSuite) (string, string) {
 	metadata := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 	instanceID := metadata.Get("instance-id")
@@ -72,21 +72,23 @@ func retrieveMetadata(v *baseHostnameSuite) (string, string) {
 	return instanceID, osHostname
 }
 
-func runHostnameTest(v *baseHostnameSuite, instanceOpts []awshost.ProvisionerOption, tt struct {
-	name                 string
-	agentConfig          string
-	imdsEnabled          bool
-	expectLegacyHostname bool
+// runHostnameTest runs the hostname test with the given parameters
+func runHostnameTest(v *baseHostnameSuite, instanceOpts []awshost.ProvisionerOption, imdsV1Enable bool, tt struct {
+	name                     string
+	ec2PreferIMDSv2          bool
+	legacyResolutionHostname bool
 }) {
 	v.T().Run(tt.name, func(t *testing.T) {
 		v.UpdateEnv(awshost.ProvisionerNoFakeIntake(instanceOpts...))
+
 		requestAgentHostnameMetadataPayload(v)
 
 		instanceID, osHostname := retrieveMetadata(v)
 
 		assert.NotEmpty(t, v.hostnameMetadata.Hostname)
 
-		if tt.expectLegacyHostname && !tt.imdsEnabled {
+		// legacy-resolution-hostname should only be set when IMDSv1 is disabled, ec2_prefer_imdsv2 is disabled and legacy-resolution-hostname is enabled
+		if tt.legacyResolutionHostname && !imdsV1Enable && !tt.ec2PreferIMDSv2 {
 			assert.NotEmpty(t, v.hostnameMetadata.LegacyResolutionHostname)
 			assert.NotEqual(t, v.hostnameMetadata.Hostname, v.hostnameMetadata.LegacyResolutionHostname)
 			assert.Equal(t, v.hostnameMetadata.LegacyResolutionHostname, osHostname)
@@ -94,61 +96,100 @@ func runHostnameTest(v *baseHostnameSuite, instanceOpts []awshost.ProvisionerOpt
 			assert.Empty(t, v.hostnameMetadata.LegacyResolutionHostname)
 		}
 
-		if tt.imdsEnabled {
-			assert.Equal(t, v.hostnameMetadata.Hostname, instanceID)
+		// The hostname should be the instance ID when IMDSv1 or IMDSv2 is enabled
+		if imdsV1Enable || tt.ec2PreferIMDSv2 || tt.legacyResolutionHostname {
+			assert.Equal(t, instanceID, v.hostnameMetadata.Hostname)
 		} else {
-			assert.Equal(t, v.hostnameMetadata.Hostname, osHostname)
+			assert.Equal(t, osHostname, v.hostnameMetadata.Hostname)
 		}
 	})
 }
 
-func (v *baseHostnameSuite) TestIMDSv1Enable() {
+// TestWithIMDSv1 tests the default hostname resolution for ec2 instances when IMDSv1 is enabled which means the hostname should always be the instance ID
+func (v *baseHostnameSuite) TestWithIMDSv1() {
 	tests := []struct {
-		name                 string
-		agentConfig          string
-		imdsEnabled          bool
-		expectLegacyHostname bool
+		name                     string
+		ec2PreferIMDSv2          bool
+		legacyResolutionHostname bool
 	}{
-		{"IMDSv2TransitionEnabled", `ec2_prefer_imdsv2: false
-ec2_imdsv2_transition_payload_enabled: true`, true, true},
-		{"IMDSv2Disabled", `ec2_prefer_imdsv2: false
-ec2_imdsv2_transition_payload_enabled: false`, true, false},
-		{"IMDSv2Forced", `ec2_prefer_imdsv2: true
-ec2_imdsv2_transition_payload_enabled: true`, true, false},
-		{"IMDSv2Enable", `ec2_prefer_imdsv2: true
-ec2_imdsv2_transition_payload_enabled: false`, true, false},
+		// IMDSv1 is enable, transition to IMDSv2 should not change any behavior, legacy-resolution-hostname should be ignored and not set
+		{
+			name:                     "WithIMDSv1_IMDSv2Transition_NoLegacy",
+			ec2PreferIMDSv2:          false,
+			legacyResolutionHostname: true,
+		},
+		// IMDSv1 is enabled, IMDSv2 disabled, the hostname should be the instance ID
+		{
+			name:                     "WithIMDSv1_IMDSv2Disabled_InstanceIDHostname",
+			ec2PreferIMDSv2:          false,
+			legacyResolutionHostname: false,
+		},
+		// IMDSv2 if forced, the hostname should be the instance ID and legacy-resolution-hostname should be ignored and not set
+		{
+			name:                     "WithIMDSv1_IMDSv2Forced_NoLegacy",
+			ec2PreferIMDSv2:          true,
+			legacyResolutionHostname: true,
+		},
+		// IMDSv2 is forced, the hostname should be the instance ID
+		{
+			name:                     "WithIMDSv1_IMDSv2Enabled_InstanceIDHostname",
+			ec2PreferIMDSv2:          true,
+			legacyResolutionHostname: false,
+		},
 	}
 
 	for _, tt := range tests {
+		agentConfig := fmt.Sprintf(`ec2_prefer_imdsv2: %t
+ec2_imdsv2_transition_payload_enabled: %t`, tt.ec2PreferIMDSv2, tt.legacyResolutionHostname)
+
 		instanceOpts := []awshost.ProvisionerOption{
-			awshost.WithAgentOptions(agentparams.WithAgentConfig(tt.agentConfig)),
+			awshost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
 		}
-		runHostnameTest(v, instanceOpts, tt)
+		runHostnameTest(v, instanceOpts, true, tt)
 	}
 }
 
-func (v *baseHostnameSuite) TestIMDSv1Disable() {
+// TestWithoutIMDSv1 tests the default hostname resolution for ec2 instances when IMDSv1 is disabled which means the hostname should be the OS hostname when IMDS (v1 or v2) is disabled
+func (v *baseHostnameSuite) TestWithoutIMDSv1() {
 	tests := []struct {
-		name                 string
-		agentConfig          string
-		imdsEnabled          bool
-		expectLegacyHostname bool
+		name                     string
+		ec2PreferIMDSv2          bool
+		legacyResolutionHostname bool
 	}{
-		{"IMDSv2TransitionEnabled", `ec2_prefer_imdsv2: false
-ec2_imdsv2_transition_payload_enabled: true`, true, true},
-		{"IMDSv2Disabled", `ec2_prefer_imdsv2: false
-ec2_imdsv2_transition_payload_enabled: false`, false, false},
-		{"IMDSv2Forced", `ec2_prefer_imdsv2: true
-ec2_imdsv2_transition_payload_enabled: true`, true, false},
-		{"IMDSv2Enable", `ec2_prefer_imdsv2: true
-ec2_imdsv2_transition_payload_enabled: false`, true, false},
+		// IMDSv1 is disabled, IMDSv2 transition enabled, the hostname should be the instance ID and legacy-resolution-hostname should be set to the OS hostname
+		{
+			name:                     "WithoutIMDSv1_IMDSv2Transition_OSLegacyHostname",
+			ec2PreferIMDSv2:          false,
+			legacyResolutionHostname: true,
+		},
+		// IMDSv1 and INDSv2 are disabled, the hostname should be the OS hostname
+		{
+			name:                     "WithoutIMDSv1_IMDSv2Disabled_OSHostname",
+			ec2PreferIMDSv2:          false,
+			legacyResolutionHostname: false,
+		},
+		// IMDSv2 is forced, the hostname should be the instance ID and legacy-resolution-hostname should be ignored and not set
+		{
+			name:                     "WithoutIMDSv1_IMDSv2Forced_NoLegacy",
+			ec2PreferIMDSv2:          true,
+			legacyResolutionHostname: true,
+		},
+		// IMDSv2 is forced, the hostname should be the instance ID
+		{
+			name:                     "WithoutIMDSv1_IMDSv2Enabled_InstanceIDHostname",
+			ec2PreferIMDSv2:          true,
+			legacyResolutionHostname: false,
+		},
 	}
 
 	for _, tt := range tests {
+		agentConfig := fmt.Sprintf(`ec2_prefer_imdsv2: %t
+ec2_imdsv2_transition_payload_enabled: %t`, tt.ec2PreferIMDSv2, tt.legacyResolutionHostname)
+
 		instanceOpts := []awshost.ProvisionerOption{
-			awshost.WithAgentOptions(agentparams.WithAgentConfig(tt.agentConfig)),
-			awshost.WithEC2InstanceOptions(ec2.WithIMDSv1Disabled()),
+			awshost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
+			awshost.WithEC2InstanceOptions(ec2.WithIMDSv1Disable()),
 		}
-		runHostnameTest(v, instanceOpts, tt)
+		runHostnameTest(v, instanceOpts, false, tt)
 	}
 }
