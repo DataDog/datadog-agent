@@ -1,8 +1,6 @@
 module github.com/DataDog/datadog-agent/test/new-e2e
 
-go 1.22.5
-
-toolchain go1.22.8
+go 1.23.0
 
 // Do not upgrade Pulumi plugins to versions different from `test-infra-definitions`.
 // The plugin versions NEED to be aligned.
