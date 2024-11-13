@@ -33,6 +33,7 @@ func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_cached.log"), getSystemProbeConntrackCached)
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_host.log"), getSystemProbeConntrackHost)
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "ebpf_btf_loader.log"), getSystemProbeBTFLoaderInfo)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "selinux_sestatus.log"), getSystemProbeSelinuxSestatus)
 	}
 }
 
@@ -141,5 +142,11 @@ func getSystemProbeConntrackHost() ([]byte, error) {
 func getSystemProbeBTFLoaderInfo() ([]byte, error) {
 	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
 	url := sysprobeclient.DebugURL("/ebpf_btf_loader_info")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeSelinuxSestatus() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	url := sysprobeclient.DebugURL("/debug/selinux_sestatus")
 	return getHTTPData(sysProbeClient, url)
 }
