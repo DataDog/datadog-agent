@@ -197,6 +197,7 @@ int BPF_URETPROBE(uretprobe__cudaSetDevice) {
     }
 
     fill_header(&event.header, 0, cuda_set_device);
+    event.device = *device;
 
     log_debug("cudaSetDevice: EMIT pid_tgid=%llu, device=%d", event.header.pid_tgid, *device);
     bpf_ringbuf_output(&cuda_events, &event, sizeof(event), 0);
