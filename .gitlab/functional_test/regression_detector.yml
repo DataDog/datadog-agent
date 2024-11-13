@@ -149,13 +149,13 @@ single-machine-performance-regression_detector:
               for check_name, check_data in bounds_checks.items():
                   results = check_data.get('results', {})
                   comparison = results.get('comparison', [])
-                  total_replicates = len(comparison)
+                  num_total = len(comparison)
                   failed_replicates = [
                       replicate for replicate in comparison if not replicate.get('passed', False)
                   ]
+                  num_failed = len(failed_replicates)
+                  num_passed = num_total - num_failed
                   if failed_replicates:
-                      num_failed = len(failed_replicates)
-                      num_passed = total_replicates - num_failed
                       decision_record.append(
                           f"- **{exp_name}**, bounds check **{check_name}**: {num_passed}/{num_total} replicas passed. Failed {num_failed} which is > 0. Gate **FAILED**."
                       )
