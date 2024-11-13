@@ -223,6 +223,7 @@ func (s *sdsProcessor) resetBuffer() {
 
 func (p *Processor) processMessage(msg *message.Message) {
 	p.utilization.Start()
+	defer p.utilization.Stop()
 	defer p.pipelineMonitor.ReportComponentEgress(msg, "processor")
 	metrics.LogsDecoded.Add(1)
 	metrics.TlmLogsDecoded.Inc()
@@ -235,7 +236,6 @@ func (p *Processor) processMessage(msg *message.Message) {
 		rendered, err := msg.Render()
 		if err != nil {
 			log.Error("can't render the msg", err)
-			p.utilization.Stop()
 			return
 		}
 		msg.SetRendered(rendered)
@@ -246,15 +246,12 @@ func (p *Processor) processMessage(msg *message.Message) {
 		// encode the message to its final format, it is done in-place
 		if err := p.encoder.Encode(msg, p.GetHostname(msg)); err != nil {
 			log.Error("unable to encode msg ", err)
-			p.utilization.Stop()
 			return
 		}
 
-		p.utilization.Stop()
+		p.utilization.Stop() // Explicitly call stop here to avoid counting writing on the output channel as processing time
 		p.outputChan <- msg
 		p.pipelineMonitor.ReportComponentIngress(msg, "strategy")
-	} else {
-		p.utilization.Stop()
 	}
 
 }
