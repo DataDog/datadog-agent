@@ -15,18 +15,18 @@ import (
 // statsGenerator connects to the active stream handlers and generates stats for the GPU monitoring, by distributing
 // the data to the aggregators which are responsible for computing the metrics.
 type statsGenerator struct {
-	streamHandlers      map[streamKey]*StreamHandler // streamHandlers contains the map of active stream handlers.
-	lastGenerationKTime int64                        // lastGenerationTime is the kernel time of the last stats generation.
-	currGenerationKTime int64                        // currGenerationTime is the kernel time of the current stats generation.
-	aggregators         map[model.Key]*aggregator    // aggregators contains the map of aggregators
-	sysCtx              *systemContext               // sysCtx is the system context with global GPU-system data
+	streamHandlers      map[streamKey]*StreamHandler   // streamHandlers contains the map of active stream handlers.
+	lastGenerationKTime int64                          // lastGenerationTime is the kernel time of the last stats generation.
+	currGenerationKTime int64                          // currGenerationTime is the kernel time of the current stats generation.
+	aggregators         map[model.StatsKey]*aggregator // aggregators contains the map of aggregators
+	sysCtx              *systemContext                 // sysCtx is the system context with global GPU-system data
 }
 
 func newStatsGenerator(sysCtx *systemContext, streamHandlers map[streamKey]*StreamHandler) *statsGenerator {
 	currKTime, _ := ddebpf.NowNanoseconds()
 	return &statsGenerator{
 		streamHandlers:      streamHandlers,
-		aggregators:         make(map[model.Key]*aggregator),
+		aggregators:         make(map[model.StatsKey]*aggregator),
 		lastGenerationKTime: currKTime,
 		currGenerationKTime: currKTime,
 		sysCtx:              sysCtx,
@@ -60,11 +60,11 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 	normFactor := g.getNormalizationFactor()
 
 	stats := &model.GPUStats{
-		Metrics: make([]model.Entry, 0, len(g.aggregators)),
+		Metrics: make([]model.StatsTuple, 0, len(g.aggregators)),
 	}
 
 	for aggKey, aggr := range g.aggregators {
-		entry := model.Entry{
+		entry := model.StatsTuple{
 			Key:                aggKey,
 			UtilizationMetrics: aggr.getStats(normFactor),
 		}
@@ -77,7 +77,7 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 }
 
 func (g *statsGenerator) getOrCreateAggregator(sKey streamKey) *aggregator {
-	aggKey := model.Key{
+	aggKey := model.StatsKey{
 		PID:        sKey.pid,
 		DeviceUUID: sKey.gpuUUID,
 	}

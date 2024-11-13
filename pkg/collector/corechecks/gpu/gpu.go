@@ -40,7 +40,7 @@ type Check struct {
 	core.CheckBase
 	config        *CheckConfig            // config for the check
 	sysProbeUtil  processnet.SysProbeUtil // sysProbeUtil is used to communicate with system probe
-	activeMetrics map[model.Key]bool      // activeMetrics is a set of metrics that have been seen in the current check run
+	activeMetrics map[model.StatsKey]bool // activeMetrics is a set of metrics that have been seen in the current check run
 	collectors    []nvidia.Collector      // collectors for NVML metrics
 	nvmlLib       nvml.Interface          // NVML library interface
 }
@@ -54,7 +54,7 @@ func newCheck() check.Check {
 	return &Check{
 		CheckBase:     core.NewCheckBase(CheckName),
 		config:        &CheckConfig{},
-		activeMetrics: make(map[model.Key]bool),
+		activeMetrics: make(map[model.StatsKey]bool),
 	}
 }
 
@@ -177,7 +177,7 @@ func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
 	return nil
 }
 
-func getTagsForKey(key model.Key) []string {
+func getTagsForKey(key model.StatsKey) []string {
 	// Per-PID metrics are subject to change due to high cardinality
 	return []string{
 		fmt.Sprintf("pid:%d", key.PID),

@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func getMetricsEntry(key model.Key, stats *model.GPUStats) *model.UtilizationMetrics {
+func getMetricsEntry(key model.StatsKey, stats *model.GPUStats) *model.UtilizationMetrics {
 	for _, entry := range stats.Metrics {
 		if entry.Key == key {
 			return &entry.UtilizationMetrics
@@ -90,7 +90,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	stats := statsGen.getStats(checkKtime)
 	require.NotNil(t, stats)
 
-	metricsKey := model.Key{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
+	metricsKey := model.StatsKey{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
 	metrics := getMetricsEntry(metricsKey, stats)
 	require.NotNil(t, metrics)
 	require.Equal(t, allocSize*2, metrics.Memory.CurrentBytes)
@@ -143,7 +143,7 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	stats := statsGen.getStats(checkKtime)
 	require.NotNil(t, stats)
 
-	metricsKey := model.Key{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
+	metricsKey := model.StatsKey{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
 	metrics := getMetricsEntry(metricsKey, stats)
 	require.NotNil(t, metrics)
 	require.Equal(t, uint64(0), metrics.Memory.CurrentBytes)
@@ -219,7 +219,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	stats := statsGen.getStats(checkKtime)
 	require.NotNil(t, stats)
 
-	metricsKey := model.Key{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
+	metricsKey := model.StatsKey{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
 	metrics := getMetricsEntry(metricsKey, stats)
 	require.NotNil(t, metrics)
 	require.Equal(t, allocSize+shmemSize, metrics.Memory.CurrentBytes)

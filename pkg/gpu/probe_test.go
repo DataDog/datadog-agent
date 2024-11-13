@@ -130,7 +130,7 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	require.NotNil(t, stats)
 	require.NotEmpty(t, stats.Metrics)
 
-	metricKey := model.Key{PID: uint32(cmd.Process.Pid), DeviceUUID: testutil.DefaultGpuUUID}
+	metricKey := model.StatsKey{PID: uint32(cmd.Process.Pid), DeviceUUID: testutil.DefaultGpuUUID}
 	metrics := getMetricsEntry(metricKey, stats)
 	require.NotNil(t, metrics)
 
@@ -164,7 +164,7 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
 	require.NotNil(t, stats)
-	metricKey := model.Key{PID: uint32(cmd.Process.Pid), DeviceUUID: selectedGPU}
+	metricKey := model.StatsKey{PID: uint32(cmd.Process.Pid), DeviceUUID: selectedGPU}
 	metrics := getMetricsEntry(metricKey, stats)
 	require.NotNil(t, metrics)
 
@@ -200,7 +200,7 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	}
 
 	stats, err := probe.GetAndFlush()
-	key := model.Key{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID}
+	key := model.StatsKey{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID}
 	require.NoError(t, err)
 	require.NotNil(t, stats)
 	pidStats := getMetricsEntry(key, stats)
