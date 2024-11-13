@@ -21,7 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
-	v1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
+	v1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1beta2"
 	"k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -338,11 +338,11 @@ func (f *vpaFactory) ListWatch(customResourceClient interface{}, ns string, fiel
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return vpaClient.AutoscalingV1().VerticalPodAutoscalers(ns).List(ctx, opts)
+			return vpaClient.AutoscalingV1beta2().VerticalPodAutoscalers(ns).List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return vpaClient.AutoscalingV1().VerticalPodAutoscalers(ns).Watch(ctx, opts)
+			return vpaClient.AutoscalingV1beta2().VerticalPodAutoscalers(ns).Watch(ctx, opts)
 		},
 	}
 }
