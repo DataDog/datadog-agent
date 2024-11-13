@@ -24,17 +24,8 @@ single-machine-performance-regression_detector:
     when: always
   variables:
     SMP_VERSION: 0.18.1
-  # At present we require two artifacts to exist for the 'baseline' and the
-  # 'comparison'. We are guaranteed by the structure of the pipeline that
-  # 'comparison' exists, not so much with 'baseline' as it has to come from main
-  # merge pipeline run. This is solved in datadog-agent by updating a file in S3
-  # with the SHA of the merge base from main. It's solved in Vector by
-  # building Vector twice for each Regression Detector run.
-  #
-  # We allow failure for now. _Unfortunately_ this also means that if the
-  # Regression Detector finds a performance issue with a PR it will not be
-  # flagged.
-  allow_failure: true
+  # See 'decision_record.md' for the determination of whether this job passes or fails.
+  allow_failure: false
   script:
     # Ensure output files exist for artifact downloads step
     - mkdir outputs # Also needed for smp job sync step
