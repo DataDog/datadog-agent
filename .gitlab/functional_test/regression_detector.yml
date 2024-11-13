@@ -157,12 +157,12 @@ single-machine-performance-regression_detector:
                   if failed_replicates:
                       replicate_indices = [str(replicate.get('replicate_idx')) for replicate in failed_replicates]
                       decision_record.append(
-                          f"- **{exp_name}**, check **{check_name}**: Replicates {', '.join(replicate_indices)} **FAILED**."
+                          f"- **{exp_name}**, bounds check **{check_name}**: Replicates {', '.join(replicate_indices)} **FAILED**."
                       )
                       failed = True
                   else:
                       decision_record.append(
-                          f"- **{exp_name}**, check **{check_name}**: All replicates **PASSED**."
+                          f"- **{exp_name}**, bounds check **{check_name}**: All replicates passed."
                       )
 
       with open('outputs/decision_record.md', 'w') as f:
