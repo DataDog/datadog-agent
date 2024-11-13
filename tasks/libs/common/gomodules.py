@@ -102,7 +102,7 @@ class GoModule:
         condition: When to execute tests, must be a enumerated field of `GoModule.CONDITIONS`.
         should_tag: Whether this module should be tagged or not.
         importable: HACK: Workaround for modules that can be tested, but not imported (eg. gohai), because they define a main package A better solution would be to automatically detect if a module contains a main package, at the cost of spending some time parsing the module.
-        independent: specifies whether this modules is supposed to exist independently of the datadog-agent module. If True, a check will run to ensure this is true.
+        independent: Specifies whether this modules is supposed to exist independently of the datadog-agent module. If True, a check will run to ensure this is true.
         lint_targets: Directories to lint.
         used_by_otel: Whether the module is an otel dependency or not.
 
