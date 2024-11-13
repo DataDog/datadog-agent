@@ -22,6 +22,26 @@ static __always_inline __u64 offset_rtt();
 static __always_inline __u64 offset_rtt_var();
 #endif
 
+// merge_tls_info modifies `this` by merging it with `that`
+static __always_inline void merge_tls_info(tls_info_t *this, tls_info_t *that) {
+    if (!this || !that) {
+        return;
+    }
+
+    // Merge chosen_version if not already set
+    if (this->chosen_version == 0 && that->chosen_version != 0) {
+        this->chosen_version = that->chosen_version;
+    }
+
+    // Merge cipher_suite if not already set
+    if (this->cipher_suite == 0 && that->cipher_suite != 0) {
+        this->cipher_suite = that->cipher_suite;
+    }
+
+    // Merge offered_versions bitmask
+    this->offered_versions |= that->offered_versions;
+}
+
 static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct sock *sk) {
     conn_stats_ts_t *cs = bpf_map_lookup_elem(&conn_stats, t);
     if (cs) {
@@ -109,11 +129,9 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
     mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
-    // lookup from new map and add info to the connection
+
     tls_info_t *tls_tags = get_tls_enhanced_tags(&conn_tuple_copy);
-    if (tls_tags) {
-        stats->tls_tags = *tls_tags;
-    }
+    merge_tls_info(&stats->tls_tags, tls_tags);
 
     conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
     if (!cached_skb_conn_tup_ptr) {
@@ -125,12 +143,9 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
     mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
-    // lookup from new map and add info to the connection
+
     tls_tags = get_tls_enhanced_tags(&conn_tuple_copy);
-    // TODO: we should merge the tags
-    if (tls_tags) {
-        stats->tls_tags = *tls_tags;
-    }
+    merge_tls_info(&stats->tls_tags, tls_tags);
 }
 
 static __always_inline void determine_connection_direction(conn_tuple_t *t, conn_stats_ts_t *conn_stats) {
