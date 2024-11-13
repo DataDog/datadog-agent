@@ -92,6 +92,8 @@ COPY test.bin /test.bin
             '/proc': {'bind': '/host/proc', 'mode': 'ro'},
             '/sys/fs/cgroup': {'bind': '/host/sys/fs/cgroup', 'mode': 'ro'},
             scratch_volume.name: {'bind': '/tmp/scratch', 'mode': 'rw'},
+            # Forwarding the Docker config to the container not to hit rate limits
+            '/root/.docker/config.json': {'bind': '/root/.docker/config.json', 'mode': 'ro'},
         },
     )
 
