@@ -299,6 +299,7 @@ github.com/DataDog/datadog-agent/pkg/util/sync
 github.com/DataDog/datadog-agent/pkg/util/system
 github.com/DataDog/datadog-agent/pkg/util/system/socket
 github.com/DataDog/datadog-agent/pkg/util/tmplvar
+github.com/DataDog/datadog-agent/pkg/util/utilizationtracker
 github.com/DataDog/datadog-agent/pkg/version
 github.com/DataDog/datadog-api-client-go/v2
 github.com/DataDog/datadog-api-client-go/v2/api/datadog
@@ -341,7 +342,6 @@ github.com/DataDog/sketches-go/ddsketch/stat
 github.com/DataDog/sketches-go/ddsketch/store
 github.com/DataDog/viper
 github.com/DataDog/zstd
-github.com/VividCortex/ewma
 github.com/aws/aws-lambda-go/events
 github.com/aws/aws-sdk-go-v2/aws
 github.com/aws/aws-sdk-go-v2/aws/arn

@@ -217,6 +217,7 @@ func (d *Destination) run(input chan *message.Payload, output chan *message.Payl
 	d.wg.Wait()
 
 	d.updateRetryState(nil, isRetrying)
+	d.utilization.Cancel()
 	stopChan <- struct{}{}
 }
 

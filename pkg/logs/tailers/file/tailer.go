@@ -364,7 +364,6 @@ func (t *Tailer) forwardMessages() {
 			continue
 		}
 
-		// XXX(remy): is it ok recreating a message like this here?
 		msg := message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
 		// Make the write to the output chan cancellable to be able to stop the tailer
 		// after a file rotation when it is stuck on it.
