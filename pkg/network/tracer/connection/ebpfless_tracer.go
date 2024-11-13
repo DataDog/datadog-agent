@@ -150,7 +150,7 @@ func (t *ebpfLessTracer) processConnection(
 ) error {
 	t.scratchConn.Source, t.scratchConn.Dest = util.Address{}, util.Address{}
 	t.scratchConn.SPort, t.scratchConn.DPort = 0, 0
-	t.scratchConn.TCPFailures = make(map[uint32]uint32)
+	t.scratchConn.TCPFailures = make(map[uint16]uint32)
 	var udpPresent, tcpPresent bool
 	for _, layerType := range decoded {
 		switch layerType {
