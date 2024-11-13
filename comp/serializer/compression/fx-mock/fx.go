@@ -9,7 +9,7 @@
 package fx
 
 import (
-	strategy_noop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
+	compressionnoop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
 	"go.uber.org/fx"
 
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
@@ -25,5 +25,5 @@ func MockModule() fxutil.Module {
 
 // NewMockCompressor returns a new Mock
 func NewMockCompressor() compression.Component {
-	return strategy_noop.NewNoopStrategy()
+	return compressionnoop.NewNoopStrategy()
 }

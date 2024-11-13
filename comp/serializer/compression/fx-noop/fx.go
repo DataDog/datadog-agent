@@ -9,7 +9,7 @@
 package fx
 
 import (
-	strategy_noop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
+	compressionnoop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -27,5 +27,5 @@ func Module() fxutil.Module {
 // NewCompressor returns a new Compressor based on serializer_compressor_kind
 // This function is called only when the zlib build tag is included
 func NewCompressor(_ config.Component) compression.Component {
-	return strategy_noop.NewNoopStrategy()
+	return compressionnoop.NewNoopStrategy()
 }
