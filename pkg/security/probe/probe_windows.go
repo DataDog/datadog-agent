@@ -1223,7 +1223,7 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 	}
 
 	// only allow 1 write event per second per file per process
-	writeRateLimiter, err := utils.NewLimiter[writeRateLimiterKey](4096, 1, 1*time.Second)
+	writeRateLimiter, err := utils.NewLimiter[writeRateLimiterKey](config.RuntimeSecurity.WindowsWriteEventRateLimiterMaxAllowed, 1, config.RuntimeSecurity.WindowsWriteEventRateLimiterPeriod)
 	if err != nil {
 		return nil, err
 	}
