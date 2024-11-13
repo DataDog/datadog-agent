@@ -102,9 +102,6 @@ def get_omnibus_env(
     if go_mod_cache:
         env['OMNIBUS_GOMODCACHE'] = go_mod_cache
 
-    if int(major_version) > 6:
-        env['OMNIBUS_OPENSSL_SOFTWARE'] = 'openssl3'
-
     env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_RUBY_VERSION', 'OMNIBUS_SOFTWARE_VERSION']
     for key in env_override:
         value = os.environ.get(key)

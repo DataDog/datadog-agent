@@ -80,6 +80,8 @@ type RuntimeSecurityConfig struct {
 	OnDemandEnabled bool
 	// OnDemandRateLimiterEnabled defines whether the on-demand probes rate limit getting hit disabled the on demand probes
 	OnDemandRateLimiterEnabled bool
+	// ReducedProcPidCacheSize defines whether the `proc_cache` and `pid_cache` map should use reduced size
+	ReducedProcPidCacheSize bool
 
 	// InternalMonitoringEnabled determines if the monitoring events of the agent should be sent to Datadog
 	InternalMonitoringEnabled bool
@@ -327,7 +329,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		WindowsFilenameCacheSize:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_filename_cache_max"),
 		WindowsRegistryCacheSize:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_registry_cache_max"),
 		ETWEventsChannelSize:           pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.etw_events_channel_size"),
-		ETWEventsMaxBuffers:            pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.etw_events_max_buffers"),
 		WindowsProbeBlockOnChannelSend: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.windows_probe_block_on_channel_send"),
 
 		SocketPath:           pkgconfigsetup.SystemProbe().GetString("runtime_security_config.socket"),
@@ -342,6 +343,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		OnDemandEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.on_demand.enabled"),
 		OnDemandRateLimiterEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.on_demand.rate_limiter.enabled"),
+		ReducedProcPidCacheSize:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.reduced_proc_pid_cache_size"),
 
 		// policy & ruleset
 		PoliciesDir:                         pkgconfigsetup.SystemProbe().GetString("runtime_security_config.policies.dir"),

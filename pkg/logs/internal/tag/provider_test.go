@@ -24,7 +24,7 @@ func TestProviderExpectedTags(t *testing.T) {
 	m := configmock.New(t)
 	clock := clock.NewMock()
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
+
 	oldStartTime := pkgconfigsetup.StartTime
 	then := clock.Now()
 	pkgconfigsetup.StartTime = then

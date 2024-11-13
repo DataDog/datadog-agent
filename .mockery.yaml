@@ -46,7 +46,7 @@ packages:
             - github.com/DataDog/datadog-agent/pkg/serializer/types.stubMessageBody=github.com/DataDog/datadog-agent/pkg/serializer/types.ProcessMessageBody
 
   # gpu
-  github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvmlmetrics:
+  github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia:
     interfaces:
       Collector:
         config:
@@ -56,5 +56,5 @@ packages:
           inpackage: true
           dir: "{{.InterfaceDir}}"
           filename: "mocks.go"
-          outpkg: nvmlmetrics
+          outpkg: nvidia
           mockname: mockCollector

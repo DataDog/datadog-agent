@@ -29,16 +29,18 @@ import (
 var sourceAgent = "agent"
 
 type processor struct {
-	queue chan *model.ContainerImage
+	queue  chan *model.ContainerImage
+	tagger tagger.Component
 }
 
-func newProcessor(sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration) *processor {
+func newProcessor(sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration, tagger tagger.Component) *processor {
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %v", err)
 	}
 
 	return &processor{
+		tagger: tagger,
 		queue: queue.NewQueue(maxNbItem, maxRetentionTime, func(images []*model.ContainerImage) {
 			encoded, err := proto.Marshal(&model.ContainerImagePayload{
 				Version: "v1",
@@ -75,7 +77,7 @@ func (p *processor) processRefresh(allImages []*workloadmeta.ContainerImageMetad
 
 func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 	entityID := types.NewEntityID(types.ContainerImageMetadata, img.ID)
-	ddTags, err := tagger.Tag(entityID, types.HighCardinality)
+	ddTags, err := p.tagger.Tag(entityID, types.HighCardinality)
 	if err != nil {
 		log.Errorf("Could not retrieve tags for container image %s: %v", img.ID, err)
 	}

@@ -507,11 +507,12 @@ class VM:
 
 
 class VMSet:
-    def __init__(self, arch: KMTArchNameOrLocal, recipe: Recipe, tags: set[str]):
+    def __init__(self, arch: KMTArchNameOrLocal, recipe: Recipe, testset: str, tags: set[str]):
         self.arch: KMTArchNameOrLocal = arch
         self.recipe: Recipe = recipe
         self.tags: set[str] = tags
         self.vms: list[VM] = []
+        self.testset: str = testset
 
     def __eq__(self, other: Any):
         if not isinstance(other, VMSet):
@@ -531,7 +532,7 @@ class VMSet:
             vm_str.append(vm.version)
         return f"<VMSet> tags={'-'.join(self.tags)} arch={self.arch} vms={','.join(vm_str)}"
 
-    def add_vm_if_belongs(self, recipe: Recipe, version: str, arch: KMTArchNameOrLocal):
+    def add_vm_if_belongs(self, recipe: Recipe, version: str, arch: KMTArchNameOrLocal, testset: str):
         if recipe == "custom":
             expected_tag = custom_version_prefix(version)
             found = False
@@ -542,7 +543,7 @@ class VMSet:
             if not found:
                 return
 
-        if self.recipe == recipe and self.arch == arch:
+        if self.recipe == recipe and self.arch == arch and self.testset == testset:
             self.vms.append(VM(version))
 
 
@@ -550,39 +551,32 @@ def custom_version_prefix(version: str) -> str:
     return "lte_414" if lte_414(version) else "gt_414"
 
 
-def build_vmsets(normalized_vm_defs: list[VMDef], sets: list[str]) -> set[VMSet]:
+def build_vmsets(normalized_vm_defs_by_set: dict[str, list[VMDef]]) -> set[VMSet]:
     vmsets: set[VMSet] = set()
-    for recipe, version, arch in normalized_vm_defs:
-        if recipe == "custom":
-            sets.append(custom_version_prefix(version))
-
-        # duplicate vm if multiple sets provided by user
-        for s in sets:
-            vmsets.add(VMSet(arch, recipe, {vmset_name(arch, recipe), s}))
-
-        if len(sets) == 0:
-            vmsets.add(VMSet(arch, recipe, {vmset_name(arch, recipe)}))
+    for testset in normalized_vm_defs_by_set:
+        for recipe, _, arch in normalized_vm_defs_by_set[testset]:
+            vmsets.add(VMSet(arch, recipe, testset, {vmset_name(arch, recipe), testset}))
 
     # map vms to vmsets
-    for recipe, version, arch in normalized_vm_defs:
-        for vmset in vmsets:
-            vmset.add_vm_if_belongs(recipe, version, arch)
+    for testset in normalized_vm_defs_by_set:
+        for recipe, version, arch in normalized_vm_defs_by_set[testset]:
+            for vmset in vmsets:
+                vmset.add_vm_if_belongs(recipe, version, arch, testset)
 
     return vmsets
 
 
 def generate_vmconfig(
     vm_config: VMConfig,
-    normalized_vm_defs: list[VMDef],
+    normalized_vm_defs_by_set: list[VMDef],
     vcpu: list[int],
     memory: list[int],
-    sets: list[str],
     ci: bool,
     template: str,
 ) -> VMConfig:
     platforms = get_platforms()
     vmconfig_template = get_vmconfig_template(template)
-    vmsets = build_vmsets(normalized_vm_defs, sets)
+    vmsets = build_vmsets(normalized_vm_defs_by_set)
 
     # add new vmsets to new vm_config
     for vmset in vmsets:
@@ -623,13 +617,22 @@ def ls_to_int(ls: list[Any]) -> list[int]:
     return int_ls
 
 
-def build_normalized_vm_def_set(vms: str) -> list[VMDef]:
+def build_normalized_vm_def_by_set(vms: str, sets: list[str]) -> dict[str, list[VMDef]]:
     vm_types = vms.split(',')
     if len(vm_types) == 0:
         raise Exit("No VMs to boot provided")
 
     possible = list_possible()
-    return [normalize_vm_def(possible, vm) for vm in vm_types]
+    normalized = [normalize_vm_def(possible, vm) for vm in vm_types]
+
+    if len(sets) == 0:
+        sets = ["default"]
+
+    normalized_by_set = {}
+    for s in sets:
+        normalized_by_set[s] = normalized
+
+    return normalized_by_set
 
 
 def gen_config_for_stack(
@@ -670,7 +673,7 @@ def gen_config_for_stack(
         orig_vm_config = f.read()
     vm_config = json.loads(orig_vm_config)
 
-    vm_config = generate_vmconfig(vm_config, build_normalized_vm_def_set(vms), vcpu, memory, sets, ci, template)
+    vm_config = generate_vmconfig(vm_config, build_normalized_vm_def_by_set(vms, sets), vcpu, memory, ci, template)
     vm_config_str = json.dumps(vm_config, indent=4)
 
     tmpfile = "/tmp/vm.json"
@@ -705,15 +708,19 @@ def gen_config_for_stack(
     info(f"[+] vmconfig @ {vmconfig_file}")
 
 
-def list_all_distro_normalized_vms(archs: list[KMTArchName], component: Component | None = None):
+def list_all_distro_normalized_vms_by_test_set(archs: list[KMTArchName], component: Component | None = None):
     platforms = get_platforms()
     if component is not None:
-        platforms = filter_by_ci_component(platforms, component)
+        platforms_by_test_set = filter_by_ci_component(platforms, component)
 
-    vms: list[VMDef] = []
-    for arch in archs:
-        for distro in platforms[arch]:
-            vms.append(("distro", distro, arch))
+    vms = {}
+    for testset in platforms_by_test_set:
+        for arch in archs:
+            for distro in platforms_by_test_set[testset][arch]:
+                if testset not in vms:
+                    vms[testset] = []
+
+                vms[testset].append(("distro", distro, arch))
 
     return vms
 
@@ -750,10 +757,16 @@ def gen_config(
     if arch != "":
         arch_ls = [Arch.from_str(arch).kmt_arch]
 
-    vms_to_generate = list_all_distro_normalized_vms(arch_ls, template)
+    vms_to_generate = list_all_distro_normalized_vms_by_test_set(arch_ls, template)
     vm_config = generate_vmconfig(
-        {"vmsets": []}, vms_to_generate, ls_to_int(vcpu_ls), ls_to_int(memory_ls), set_ls, ci, template
+        {"vmsets": []}, vms_to_generate, ls_to_int(vcpu_ls), ls_to_int(memory_ls), ci, template
     )
+
+    print("Generated VMSets with tags:")
+    for vmset in vm_config["vmsets"]:
+        tags = vmset["tags"]
+        tags.sort()
+        print(f"- {', '.join(tags)}")
 
     with open(output_file, "w") as f:
         f.write(json.dumps(vm_config, indent=4))

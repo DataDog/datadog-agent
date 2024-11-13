@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -16,7 +17,7 @@ import (
 // newBundledTransformer returns a transformer that bundles together docker
 // events from containers that share the same image. that's a behavior that no
 // longer makes sense, and we'd like to remove it in Agent 8.
-func newBundledTransformer(hostname string, types []string) eventTransformer {
+func newBundledTransformer(hostname string, types []string, tagger tagger.Component) eventTransformer {
 	filteredEventTypes := make(map[string]struct{}, len(types))
 	for _, t := range types {
 		filteredEventTypes[t] = struct{}{}
@@ -25,12 +26,14 @@ func newBundledTransformer(hostname string, types []string) eventTransformer {
 	return &bundledTransformer{
 		hostname:           hostname,
 		filteredEventTypes: filteredEventTypes,
+		tagger:             tagger,
 	}
 }
 
 type bundledTransformer struct {
 	hostname           string
 	filteredEventTypes map[string]struct{}
+	tagger             tagger.Component
 }
 
 func (t *bundledTransformer) Transform(events []*docker.ContainerEvent) ([]event.Event, []error) {
@@ -67,7 +70,7 @@ func (t *bundledTransformer) aggregateEvents(events []*docker.ContainerEvent) ma
 
 		bundle, found := eventsByImage[event.ImageName]
 		if !found {
-			bundle = newDockerEventBundler(event.ImageName)
+			bundle = newDockerEventBundler(event.ImageName, t.tagger)
 			eventsByImage[event.ImageName] = bundle
 		}
 

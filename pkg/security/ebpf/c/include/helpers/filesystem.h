@@ -107,6 +107,17 @@ void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file
     bpf_probe_read(&file->metadata.uid, sizeof(file->metadata.uid), &d_inode->i_uid);
     bpf_probe_read(&file->metadata.gid, sizeof(file->metadata.gid), &d_inode->i_gid);
 
+    u64 inode_ctime_sec_offset;
+    LOAD_CONSTANT("inode_ctime_sec_offset", inode_ctime_sec_offset);
+    u64 inode_ctime_nsec_offset;
+    LOAD_CONSTANT("inode_ctime_nsec_offset", inode_ctime_nsec_offset);
+
+	if (inode_ctime_sec_offset && inode_ctime_nsec_offset) {
+		bpf_probe_read(&file->metadata.ctime.tv_sec, sizeof(file->metadata.ctime.tv_sec), (void *)d_inode + inode_ctime_sec_offset);
+		u32 nsec;
+		bpf_probe_read(&nsec, sizeof(nsec), (void *)d_inode + inode_ctime_nsec_offset);
+		file->metadata.ctime.tv_nsec = nsec;
+	} else {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)
     bpf_probe_read(&file->metadata.ctime, sizeof(file->metadata.ctime), &d_inode->i_ctime);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
@@ -115,7 +126,19 @@ void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file
     bpf_probe_read(&file->metadata.ctime.tv_sec, sizeof(file->metadata.ctime.tv_sec), &d_inode->i_ctime_sec);
     bpf_probe_read(&file->metadata.ctime.tv_nsec, sizeof(file->metadata.ctime.tv_nsec), &d_inode->i_ctime_nsec);
 #endif
+	}
 
+    u64 inode_mtime_sec_offset;
+    LOAD_CONSTANT("inode_mtime_sec_offset", inode_mtime_sec_offset);
+    u64 inode_mtime_nsec_offset;
+    LOAD_CONSTANT("inode_mtime_nsec_offset", inode_mtime_nsec_offset);
+
+	if (inode_mtime_sec_offset && inode_mtime_nsec_offset) {
+		bpf_probe_read(&file->metadata.mtime.tv_sec, sizeof(file->metadata.mtime.tv_sec), (void *)d_inode + inode_mtime_sec_offset);
+		u32 nsec;
+		bpf_probe_read(&nsec, sizeof(nsec), (void *)d_inode + inode_mtime_nsec_offset);
+		file->metadata.mtime.tv_nsec = nsec;
+	} else {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 7, 0)
     bpf_probe_read(&file->metadata.mtime, sizeof(file->metadata.mtime), &d_inode->i_mtime);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
@@ -124,6 +147,7 @@ void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file
     bpf_probe_read(&file->metadata.mtime.tv_sec, sizeof(file->metadata.mtime.tv_sec), &d_inode->i_mtime_sec);
     bpf_probe_read(&file->metadata.mtime.tv_nsec, sizeof(file->metadata.mtime.tv_nsec), &d_inode->i_mtime_nsec);
 #endif
+	}
 }
 
 #define get_dentry_key_path(dentry, path)                                  \

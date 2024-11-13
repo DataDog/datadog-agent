@@ -32,6 +32,7 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 		for k, v := range span.Meta {
 			newV := o.ObfuscateCreditCardNumber(k, v)
 			if v != newV {
+				log.Debugf("obfuscating possible credit card under key %s from service %s", k, span.Service)
 				span.Meta[k] = newV
 			}
 		}

@@ -12,56 +12,64 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
-func TestProbeCanLoad(t *testing.T) {
-	kver, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if kver < minimumKernelVersion {
-		t.Skipf("minimum kernel version %s not met, read %s", minimumKernelVersion, kver)
+type probeTestSuite struct {
+	suite.Suite
+}
+
+func TestProbe(t *testing.T) {
+	if err := config.CheckGPUSupported(); err != nil {
+		t.Skipf("minimum kernel version not met, %v", err)
 	}
 
-	nvmlMock := testutil.GetBasicNvmlMock()
-	probe, err := NewProbe(NewConfig(), ProbeDependencies{NvmlLib: nvmlMock})
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.CORE, ebpftest.RuntimeCompiled}, "", func(t *testing.T) {
+		suite.Run(t, new(probeTestSuite))
+	})
+}
+
+func (s *probeTestSuite) getProbe() *Probe {
+	t := s.T()
+
+	cfg := config.New()
+
+	// Avoid waiting for the initial sync to finish in tests, we don't need it
+	cfg.InitialProcessSync = false
+
+	deps := ProbeDependencies{
+		NvmlLib:        testutil.GetBasicNvmlMock(),
+		ProcessMonitor: consumerstestutil.NewTestProcessConsumer(t),
+	}
+	probe, err := NewProbe(cfg, deps)
 	require.NoError(t, err)
 	require.NotNil(t, probe)
 	t.Cleanup(probe.Close)
 
+	return probe
+}
+
+func (s *probeTestSuite) TestCanLoad() {
+	t := s.T()
+
+	probe := s.getProbe()
 	data, err := probe.GetAndFlush()
 	require.NoError(t, err)
 	require.NotNil(t, data)
 }
 
-func TestProbeCanReceiveEvents(t *testing.T) {
-	kver, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if kver < minimumKernelVersion {
-		t.Skipf("minimum kernel version %s not met, read %s", minimumKernelVersion, kver)
-	}
+func (s *probeTestSuite) TestCanReceiveEvents() {
+	t := s.T()
 
-	procMon := monitor.GetProcessMonitor()
-	require.NotNil(t, procMon)
-	require.NoError(t, procMon.Initialize(false))
-	t.Cleanup(procMon.Stop)
-
-	cfg := NewConfig()
-	cfg.InitialProcessSync = false
-	cfg.BPFDebug = true
-
-	nvmlMock := testutil.GetBasicNvmlMock()
-
-	probe, err := NewProbe(cfg, ProbeDependencies{NvmlLib: nvmlMock})
-	require.NoError(t, err)
-	require.NotNil(t, probe)
-	t.Cleanup(probe.Close)
-
-	cmd, err := testutil.RunSample(t, testutil.CudaSample)
-	require.NoError(t, err)
+	probe := s.getProbe()
+	cmd := testutil.RunSample(t, testutil.CudaSample)
 
 	utils.WaitForProgramsToBeTraced(t, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 
@@ -93,31 +101,12 @@ func TestProbeCanReceiveEvents(t *testing.T) {
 	require.Greater(t, alloc.endKtime, alloc.startKtime)
 }
 
-func TestProbeCanGenerateStats(t *testing.T) {
-	kver, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if kver < minimumKernelVersion {
-		t.Skipf("minimum kernel version %s not met, read %s", minimumKernelVersion, kver)
-	}
+func (s *probeTestSuite) TestCanGenerateStats() {
+	t := s.T()
 
-	procMon := monitor.GetProcessMonitor()
-	require.NotNil(t, procMon)
-	require.NoError(t, procMon.Initialize(false))
-	t.Cleanup(procMon.Stop)
+	probe := s.getProbe()
 
-	cfg := NewConfig()
-	cfg.InitialProcessSync = false
-	cfg.BPFDebug = true
-
-	nvmlMock := testutil.GetBasicNvmlMock()
-
-	probe, err := NewProbe(cfg, ProbeDependencies{NvmlLib: nvmlMock})
-	require.NoError(t, err)
-	require.NotNil(t, probe)
-	t.Cleanup(probe.Close)
-
-	cmd, err := testutil.RunSample(t, testutil.CudaSample)
-	require.NoError(t, err)
+	cmd := testutil.RunSample(t, testutil.CudaSample)
 
 	utils.WaitForProgramsToBeTraced(t, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 
@@ -126,7 +115,6 @@ func TestProbeCanGenerateStats(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return !utils.IsProgramTraced(gpuAttacherName, cmd.Process.Pid)
 	}, 20*time.Second, 500*time.Millisecond, "process not stopped")
-	require.NoError(t, err)
 
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
@@ -136,6 +124,43 @@ func TestProbeCanGenerateStats(t *testing.T) {
 
 	pidStats := stats.ProcessStats[uint32(cmd.Process.Pid)]
 	require.Greater(t, pidStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
-	require.Equal(t, pidStats.MaxMemoryBytes, uint64(100))
+	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
+}
 
+func (s *probeTestSuite) TestDetectsContainer() {
+	t := s.T()
+
+	// Flaky test in CI, avoid failures on main for now.
+	flake.Mark(t)
+
+	probe := s.getProbe()
+
+	args := testutil.GetDefaultArgs()
+	args.EndWaitTimeSec = 1
+	pid, cid := testutil.RunSampleInDockerWithArgs(t, testutil.CudaSample, testutil.MinimalDockerImage, args)
+
+	utils.WaitForProgramsToBeTraced(t, gpuAttacherName, pid, utils.ManualTracingFallbackDisabled)
+
+	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
+	// so that we can time out correctly
+	require.Eventually(t, func() bool {
+		return !utils.IsProgramTraced(gpuAttacherName, pid)
+	}, 20*time.Second, 500*time.Millisecond, "process not stopped")
+
+	// Check that the stream handlers have the correct container ID assigned
+	for key, handler := range probe.consumer.streamHandlers {
+		if key.pid == uint32(pid) {
+			require.Equal(t, cid, handler.containerID)
+		}
+	}
+
+	stats, err := probe.GetAndFlush()
+	require.NoError(t, err)
+	require.NotNil(t, stats)
+	require.NotEmpty(t, stats.ProcessStats)
+	require.Contains(t, stats.ProcessStats, uint32(pid))
+
+	pidStats := stats.ProcessStats[uint32(pid)]
+	require.Greater(t, pidStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
+	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
 }

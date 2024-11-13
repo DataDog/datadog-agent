@@ -443,7 +443,7 @@ func (s *TracerSuite) TestConntrackExpiration() {
 		if !assert.True(collect, ok, "connection not found") {
 			return
 		}
-		assert.NotNil(collect, tr.conntracker.GetTranslationForConn(conn), "connection does not have NAT translation")
+		assert.NotNil(collect, tr.conntracker.GetTranslationForConn(&conn.ConnectionTuple), "connection does not have NAT translation")
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection translation")
 
 	// This will force the connection to be expired next time we call getConnections, but
@@ -452,7 +452,7 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	tr.config.TCPConnTimeout = time.Duration(-1)
 	_ = getConnections(t, tr)
 
-	assert.NotNil(t, tr.conntracker.GetTranslationForConn(conn), "translation should not have been deleted")
+	assert.NotNil(t, tr.conntracker.GetTranslationForConn(&conn.ConnectionTuple), "translation should not have been deleted")
 
 	// delete the connection from system conntrack
 	cmd := exec.Command("conntrack", "-D", "-s", c.LocalAddr().(*net.TCPAddr).IP.String(), "-d", c.RemoteAddr().(*net.TCPAddr).IP.String(), "-p", "tcp")
@@ -460,7 +460,7 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	require.NoError(t, err, "conntrack delete failed, output: %s", out)
 	_ = getConnections(t, tr)
 
-	assert.Nil(t, tr.conntracker.GetTranslationForConn(conn), "translation should have been deleted")
+	assert.Nil(t, tr.conntracker.GetTranslationForConn(&conn.ConnectionTuple), "translation should have been deleted")
 
 	// write newline so server connections will exit
 	_, err = c.Write([]byte("\n"))
@@ -502,7 +502,7 @@ func (s *TracerSuite) TestConntrackDelays() {
 	require.Eventually(t, func() bool {
 		connections := getConnections(t, tr)
 		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		return ok && tr.conntracker.GetTranslationForConn(conn) != nil
+		return ok && tr.conntracker.GetTranslationForConn(&conn.ConnectionTuple) != nil
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection with translation")
 
 	// write newline so server connections will exit
@@ -542,16 +542,16 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	// wait for conntrack update
 	laddr := c.LocalAddr().(*net.TCPAddr)
 	raddr := c.RemoteAddr().(*net.TCPAddr)
-	cs := network.ConnectionStats{
+	cs := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 		DPort:  uint16(raddr.Port),
 		Dest:   util.AddressFromNetIP(raddr.IP),
 		Family: network.AFINET,
 		SPort:  uint16(laddr.Port),
 		Source: util.AddressFromNetIP(laddr.IP),
 		Type:   network.TCP,
-	}
+	}}
 	require.Eventually(t, func() bool {
-		return tr.conntracker.GetTranslationForConn(&cs) != nil
+		return tr.conntracker.GetTranslationForConn(&cs.ConnectionTuple) != nil
 	}, 3*time.Second, 100*time.Millisecond, "timed out waiting for conntrack update")
 
 	// Assert that the connection to 2.2.2.2 has an IPTranslation object bound to it
@@ -576,24 +576,31 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv6() {
 	tr := setupTracer(t, cfg)
 	linkLocal, err := offsetguess.GetIPv6LinkLocalAddress()
 	require.NoError(t, err)
+	remoteAddr := linkLocal[0]
+	remoteAddr.Port = rand.Int()%5000 + 15000
 
-	remotePort := rand.Int()%5000 + 15000
-	remoteAddr := &net.UDPAddr{IP: net.ParseIP(offsetguess.InterfaceLocalMulticastIPv6), Port: remotePort}
-	conn, err := net.ListenUDP("udp6", linkLocal[0])
+	conn, err := net.ListenUDP("udp6", remoteAddr)
 	require.NoError(t, err)
 	defer conn.Close()
 	message := []byte("payload")
 	bytesSent, err := conn.WriteTo(message, remoteAddr)
 	require.NoError(t, err)
 
-	connections := getConnections(t, tr)
-	outgoing := network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
-		return cs.DPort == uint16(remotePort)
-	})
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		connections := getConnections(t, tr)
+		outgoing := network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
+			if cs.Type != network.UDP {
+				return false
+			}
+			return cs.DPort == uint16(remoteAddr.Port)
+		})
+		if !assert.Len(ct, outgoing, 1) {
+			return
+		}
+		assert.Equal(ct, remoteAddr.IP.String(), outgoing[0].Dest.String())
+		assert.Equal(ct, bytesSent, int(outgoing[0].Monotonic.SentBytes))
+	}, 3*time.Second, 100*time.Millisecond)
 
-	require.Len(t, outgoing, 1)
-	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
-	assert.Equal(t, bytesSent, int(outgoing[0].Monotonic.SentBytes))
 }
 
 func (s *TracerSuite) TestGatewayLookupNotEnabled() {
@@ -1353,8 +1360,7 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 
 	t.Logf("port is %d", port)
 
-	conns := map[string]network.ConnectionStats{}
-	buf := make([]byte, network.ConnectionByteKeyMaxLen)
+	conns := map[network.ConnectionTuple]network.ConnectionStats{}
 	require.Eventually(t, func() bool {
 		_conns := network.FilterConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
 			return cs.Type == network.UDP &&
@@ -1364,7 +1370,7 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 		})
 
 		for _, c := range _conns {
-			conns[string(c.ByteKey(buf))] = c
+			conns[c.ConnectionTuple] = c
 		}
 
 		t.Log(conns)
@@ -1472,28 +1478,35 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	t.Logf("port: %d", assignedPort)
+
+	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
+		// use t instead of ct because getConnections uses require (not assert), and we get a better error message that way
+		connections := getConnections(t, tr)
+
+		incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		if assert.True(t, ok, "unable to find incoming connection") {
+			assert.Equal(t, network.INCOMING, incoming.Direction)
+
+			// make sure the inverse values are seen for the other message
+			assert.Equal(t, serverMessageSize, int(incoming.Monotonic.SentBytes), "incoming sent")
+			assert.Equal(t, clientMessageSize, int(incoming.Monotonic.RecvBytes), "incoming recv")
+			assert.True(t, incoming.IntraHost, "incoming intrahost")
+		}
+
+		outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		if assert.True(t, ok, "unable to find outgoing connection") {
+			assert.Equal(t, network.OUTGOING, outgoing.Direction)
+
+			assert.Equal(t, clientMessageSize, int(outgoing.Monotonic.SentBytes), "outgoing sent")
+			assert.Equal(t, serverMessageSize, int(outgoing.Monotonic.RecvBytes), "outgoing recv")
+			assert.True(t, outgoing.IntraHost, "outgoing intrahost")
+		}
+	}, 3*time.Second, 100*time.Millisecond)
+
+	// log the connections at the end in case the test failed
 	connections := getConnections(t, tr)
 	for _, c := range connections.Conns {
 		t.Log(c)
-	}
-
-	incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-	if assert.True(t, ok, "unable to find incoming connection") {
-		assert.Equal(t, network.INCOMING, incoming.Direction)
-
-		// make sure the inverse values are seen for the other message
-		assert.Equal(t, serverMessageSize, int(incoming.Monotonic.SentBytes), "incoming sent")
-		assert.Equal(t, clientMessageSize, int(incoming.Monotonic.RecvBytes), "incoming recv")
-		assert.True(t, incoming.IntraHost, "incoming intrahost")
-	}
-
-	outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	if assert.True(t, ok, "unable to find outgoing connection") {
-		assert.Equal(t, network.OUTGOING, outgoing.Direction)
-
-		assert.Equal(t, clientMessageSize, int(outgoing.Monotonic.SentBytes), "outgoing sent")
-		assert.Equal(t, serverMessageSize, int(outgoing.Monotonic.RecvBytes), "outgoing recv")
-		assert.True(t, outgoing.IntraHost, "outgoing intrahost")
 	}
 }
 
@@ -2048,7 +2061,7 @@ func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *confi
 	assert.Zero(t, m.SentPackets, "sent packets should be 0")
 	assert.Zero(t, m.RecvPackets, "recv packets should be 0")
 	assert.Zero(t, m.TCPEstablished, "tcp established should be 0")
-	assert.Equal(t, uint32(1), m.TCPClosed, "tcp closed should be 1")
+	assert.Equal(t, uint16(1), m.TCPClosed, "tcp closed should be 1")
 	assert.Equal(t, network.INCOMING, conn.Direction, "connection direction should be incoming")
 }
 
@@ -2111,13 +2124,13 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 	}
 
 	type testCase struct {
-		enableCORE               bool
-		allowRuntimeFallback     bool
-		enableRuntimeCompiler    bool
-		allowPrecompiledFallback bool
-		coreError                bool
-		rcError                  bool
-		prebuiltError            bool
+		enableCORE            bool
+		allowRuntimeFallback  bool
+		enableRuntimeCompiler bool
+		allowPrebuiltFallback bool
+		coreError             bool
+		rcError               bool
+		prebuiltError         bool
 
 		err        error
 		isPrebuilt bool
@@ -2127,18 +2140,18 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 	for _, enableCORE := range []bool{false, true} {
 		for _, allowRuntimeFallback := range []bool{false, true} {
 			for _, enableRuntimeCompiler := range []bool{false, true} {
-				for _, allowPrecompiledFallback := range []bool{false, true} {
+				for _, allowPrebuiltFallback := range []bool{false, true} {
 					for _, coreError := range coreErrorValues {
 						for _, rcError := range []bool{false, true} {
 							for _, prebuiltError := range prebuiltErrorValues {
 								tc := testCase{
-									enableCORE:               enableCORE,
-									allowRuntimeFallback:     allowRuntimeFallback,
-									enableRuntimeCompiler:    enableRuntimeCompiler,
-									allowPrecompiledFallback: allowPrecompiledFallback,
-									coreError:                coreError,
-									rcError:                  rcError,
-									prebuiltError:            prebuiltError,
+									enableCORE:            enableCORE,
+									allowRuntimeFallback:  allowRuntimeFallback,
+									enableRuntimeCompiler: enableRuntimeCompiler,
+									allowPrebuiltFallback: allowPrebuiltFallback,
+									coreError:             coreError,
+									rcError:               rcError,
+									prebuiltError:         prebuiltError,
 
 									isPrebuilt: !prebuiltError,
 								}
@@ -2159,7 +2172,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 								}
 
 								pberr := prebuiltError
-								if (enableCORE || rcEnabled) && !allowPrecompiledFallback {
+								if (enableCORE || rcEnabled) && !allowPrebuiltFallback {
 									pberr = true // not enabled, so assume always failed
 									tc.isPrebuilt = false
 								}
@@ -2198,7 +2211,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 			cfg.EnableCORE = te.enableCORE
 			cfg.AllowRuntimeCompiledFallback = te.allowRuntimeFallback
 			cfg.EnableRuntimeCompiler = te.enableRuntimeCompiler
-			cfg.AllowPrecompiledFallback = te.allowPrecompiledFallback
+			cfg.AllowPrebuiltFallback = te.allowPrebuiltFallback
 
 			ebpfConntrackerPrebuiltCreator = getPrebuiltConntracker
 			ebpfConntrackerRCCreator = getRCConntracker
