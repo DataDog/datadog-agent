@@ -256,7 +256,9 @@ func (s *TracerSuite) TestTCPShortLived() {
 	assert.Equal(t, clientMessageSize, int(m.SentBytes))
 	assert.Equal(t, serverMessageSize, int(m.RecvBytes))
 	assert.Equal(t, 0, int(m.Retransmits))
-	assert.Equal(t, os.Getpid(), int(conn.Pid))
+	if !tr.config.EnableEbpfless {
+		assert.Equal(t, os.Getpid(), int(conn.Pid))
+	}
 	assert.Equal(t, addrPort(server.Address()), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
 	assert.True(t, conn.IntraHost)
@@ -318,7 +320,9 @@ func (s *TracerSuite) TestTCPOverIPv6() {
 	assert.Equal(t, clientMessageSize, int(m.SentBytes))
 	assert.Equal(t, serverMessageSize, int(m.RecvBytes))
 	assert.Equal(t, 0, int(m.Retransmits))
-	assert.Equal(t, os.Getpid(), int(conn.Pid))
+	if !tr.config.EnableEbpfless {
+		assert.Equal(t, os.Getpid(), int(conn.Pid))
+	}
 	assert.Equal(t, ln.Addr().(*net.TCPAddr).Port, int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
 	assert.True(t, conn.IntraHost)
