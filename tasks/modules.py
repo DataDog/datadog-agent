@@ -18,6 +18,7 @@ from tasks.libs.common.gomodules import (
     Configuration,
     GoModule,
     get_default_modules,
+    validate_module,
 )
 
 AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
@@ -184,31 +185,6 @@ def validate(ctx: Context, base_dir='.', fix_format=False):
                     f'{color_message("Error", Color.RED)}: Configuration file is not formatted correctly, use `invoke modules.validate --fix-format` to fix it'
                 )
 
-    def validate_module(module: GoModule, attributes: str | dict[str, object]):
-        assert (base_dir / module.path / 'go.mod').is_file(), "Configuration is not next to a go.mod file"
-
-        if isinstance(attributes, str):
-            assert attributes in ('ignored', 'default'), f"Configuration has an unknown value: {attributes}"
-            return
-
-        # Verify attributes
-        assert set(default_attributes).issuperset(
-            attributes
-        ), f"Configuration contains unknown attributes ({set(attributes).difference(default_attributes)})"
-        for key, value in attributes.items():
-            assert (
-                attributes[key] != default_attributes[key]
-            ), f"Configuration has a default value which must be removed for {key}: {value}"
-
-        # Verify values
-        for target in module.targets:
-            assert (base_dir / module.path / target).is_dir(), f"Configuration has an unknown target: {target}"
-
-        for target in module.lint_targets:
-            assert (base_dir / module.path / target).is_dir(), f"Configuration has an unknown lint_target: {target}"
-
-        assert module.condition in GoModule.CONDITIONS, f"Configuration has an unknown condition: {module.condition}"
-
     with open(base_dir / Configuration.FILE_NAME) as f:
         config_attributes = yaml.safe_load(f)['modules']
 
@@ -216,7 +192,7 @@ def validate(ctx: Context, base_dir='.', fix_format=False):
     errors = []
     for module in config.modules.values():
         try:
-            validate_module(module, config_attributes[module.path])
+            validate_module(module, config_attributes[module.path], base_dir, default_attributes)
         except AssertionError as e:
             errors.append((module.path, e))
 

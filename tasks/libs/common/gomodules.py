@@ -309,3 +309,33 @@ def get_default_modules(base_dir: Path | None = None) -> dict[str, GoModule]:
     """
 
     return Configuration.from_file(base_dir).modules
+
+
+def validate_module(
+    module: GoModule, attributes: str | dict[str, object], base_dir: Path, default_attributes: dict[str, object]
+):
+    """Lints a module."""
+
+    assert (base_dir / module.path / 'go.mod').is_file(), "Configuration is not next to a go.mod file"
+
+    if isinstance(attributes, str):
+        assert attributes in ('ignored', 'default'), f"Configuration has an unknown value: {attributes}"
+        return
+
+    # Verify attributes
+    assert set(default_attributes).issuperset(
+        attributes
+    ), f"Configuration contains unknown attributes ({set(attributes).difference(default_attributes)})"
+    for key, value in attributes.items():
+        assert (
+            attributes[key] != default_attributes[key]
+        ), f"Configuration has a default value which must be removed for {key}: {value}"
+
+    # Verify values
+    for target in module.targets:
+        assert (base_dir / module.path / target).is_dir(), f"Configuration has an unknown target: {target}"
+
+    for target in module.lint_targets:
+        assert (base_dir / module.path / target).is_dir(), f"Configuration has an unknown lint_target: {target}"
+
+    assert module.condition in GoModule.CONDITIONS, f"Configuration has an unknown condition: {module.condition}"
