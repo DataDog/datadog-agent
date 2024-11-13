@@ -147,7 +147,6 @@ type Compound interface {
 	ReadInConfig() error
 	ReadConfig(in io.Reader) error
 	MergeConfig(in io.Reader) error
-	MergeConfigMap(cfg map[string]any) error
 	MergeFleetPolicy(configPath string) error
 }
 

@@ -169,7 +169,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 		return false
 	}
 
-	entry, exists := ev.ResolveProcessCacheEntry()
+	entry, exists := ev.ResolveProcessCacheEntry(nil)
 	if !exists {
 		return false
 	}

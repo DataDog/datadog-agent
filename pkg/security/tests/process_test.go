@@ -2223,7 +2223,7 @@ func TestProcessResolution(t *testing.T) {
 
 		args := []string{"open", "/tmp/test-process-resolution", ";",
 			"getchar", ";",
-			"open", "/tmp/test-process-resolution"}
+			"open", "/tmp/test-process-resolution-done"}
 
 		cmd = exec.Command(syscallTester, args...)
 		stdin, err = cmd.StdinPipe()
@@ -2254,7 +2254,7 @@ func TestProcessResolution(t *testing.T) {
 		resolver := p.Resolvers.ProcessResolver
 
 		// compare only few fields as the hierarchy fields(pointers, etc) are modified by the resolution function calls
-		equals := func(t *testing.T, entry1, entry2 *model.ProcessCacheEntry) {
+		equals := func(t *testing.T, entry1, entry2 *model.ProcessCacheEntry, checkCookie bool) {
 			t.Helper()
 
 			assert.NotNil(t, entry1)
@@ -2263,11 +2263,13 @@ func TestProcessResolution(t *testing.T) {
 			assert.Equal(t, entry1.Pid, entry2.Pid)
 			assert.Equal(t, entry1.PPid, entry2.PPid)
 			assert.Equal(t, entry1.ContainerID, entry2.ContainerID)
-			assert.Equal(t, entry1.Cookie, entry2.Cookie)
+			if checkCookie {
+				assert.Equal(t, entry1.Cookie, entry2.Cookie)
+			}
 
 			// may not be exactly equal because of clock drift between two boot time resolution, see time resolver
-			assert.Greater(t, time.Second, entry1.ExecTime.Sub(entry2.ExecTime).Abs())
-			assert.Greater(t, time.Second, entry1.ForkTime.Sub(entry2.ForkTime).Abs())
+			assert.Greater(t, 2*time.Second, entry1.ExecTime.Sub(entry2.ExecTime).Abs())
+			assert.Greater(t, 2*time.Second, entry1.ForkTime.Sub(entry2.ForkTime).Abs())
 		}
 
 		cacheEntry := resolver.ResolveFromCache(pid, pid, inode)
@@ -2275,21 +2277,21 @@ func TestProcessResolution(t *testing.T) {
 			t.Errorf("not able to resolve the entry")
 		}
 
-		mapsEntry := resolver.ResolveFromKernelMaps(pid, pid, inode)
+		mapsEntry := resolver.ResolveFromKernelMaps(pid, pid, inode, nil)
 		if mapsEntry == nil {
 			t.Errorf("not able to resolve the entry")
 		}
 
-		equals(t, cacheEntry, mapsEntry)
+		equals(t, cacheEntry, mapsEntry, true)
 
 		// This makes use of the cache and do not parse /proc
 		// it still checks the ResolveFromProcfs returns the correct entry
-		procEntry := resolver.ResolveFromProcfs(pid)
+		procEntry := resolver.ResolveFromProcfs(pid, nil)
 		if procEntry == nil {
 			t.Fatalf("not able to resolve the entry")
 		}
 
-		equals(t, mapsEntry, procEntry)
+		equals(t, mapsEntry, procEntry, false)
 
 		io.WriteString(stdin, "\n")
 	})

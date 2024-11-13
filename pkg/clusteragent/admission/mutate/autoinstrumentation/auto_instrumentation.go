@@ -302,10 +302,14 @@ func (w *Webhook) getLibrariesLanguageDetection(pod *corev1.Pod) *libInfoLanguag
 	}
 }
 
-// getAllLatestLibraries returns all supported by APM Instrumentation tracing libraries
-func (w *Webhook) getAllLatestLibraries() []libInfo {
+// getAllLatestDefaultLibraries returns all supported by APM Instrumentation tracing libraries
+// that should be enabled by default
+func (w *Webhook) getAllLatestDefaultLibraries() []libInfo {
 	var libsToInject []libInfo
 	for _, lang := range supportedLanguages {
+		if !lang.isEnabledByDefault() {
+			continue
+		}
 		libsToInject = append(libsToInject, lang.defaultLibInfo(w.config.containerRegistry, ""))
 	}
 
@@ -430,7 +434,7 @@ func (w *Webhook) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	}
 
 	if extracted.source.isSingleStep() {
-		return extracted.withLibs(w.getAllLatestLibraries())
+		return extracted.withLibs(w.getAllLatestDefaultLibraries())
 	}
 
 	// Get libraries to inject for Remote Instrumentation
@@ -444,7 +448,7 @@ func (w *Webhook) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 			log.Warnf("Ignoring version %q. To inject all libs, the only supported version is latest for now", version)
 		}
 
-		return extracted.withLibs(w.getAllLatestLibraries())
+		return extracted.withLibs(w.getAllLatestDefaultLibraries())
 	}
 
 	return extractedPodLibInfo{}
@@ -603,6 +607,11 @@ func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 	return ressourceRequirement
 }
 
+type injectionResourceRequirementsDecision struct {
+	skipInjection bool
+	message       string
+}
+
 // initContainerResourceRequirements computes init container cpu/memory requests and limits.
 // There are two cases:
 //
@@ -618,23 +627,19 @@ func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
 //     so our init container will also have request == limit.
 //
 //     In the 2nd case, of we wouldn't have enough memory, we bail on injection
-func initContainerResourceRequirements(pod *corev1.Pod, conf initResourceRequirementConfiguration) (requirements corev1.ResourceRequirements, skipInjection bool) {
+func initContainerResourceRequirements(pod *corev1.Pod, conf initResourceRequirementConfiguration) (requirements corev1.ResourceRequirements, decision injectionResourceRequirementsDecision) {
 	requirements = corev1.ResourceRequirements{
 		Limits:   corev1.ResourceList{},
 		Requests: corev1.ResourceList{},
 	}
 	podRequirements := podSumRessourceRequirements(pod)
-	var shouldSkipInjection bool
+	insufficientResourcesMessage := "The overall pod's containers limit is too low"
 	for _, k := range [2]corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory} {
 		if q, ok := conf[k]; ok {
 			requirements.Limits[k] = q
 			requirements.Requests[k] = q
 		} else {
 			if maxPodLim, ok := podRequirements.Limits[k]; ok {
-				val, ok := maxPodLim.AsInt64()
-				if !ok {
-					log.Debugf("Unable do convert resource value to int64, raw value: %v", maxPodLim)
-				}
 				// If the pod before adding instrumentation init containers would have had a limits smaller than
 				// a certain amount, we just don't do anything, for two reasons:
 				// 1. The init containers need quite a lot of memory/CPU in order to not OOM or initialize in reasonnable time
@@ -642,14 +647,14 @@ func initContainerResourceRequirements(pod *corev1.Pod, conf initResourceRequire
 				//   non trivial amount, and we don't want to cause issues for constrained apps
 				switch k {
 				case corev1.ResourceMemory:
-					if val < minimumMemoryLimit {
-						log.Debugf("The memory limit is too low to acceptable for the datadog library init-container: %v", val)
-						shouldSkipInjection = true
+					if minimumMemoryLimit.Cmp(maxPodLim) == 1 {
+						decision.skipInjection = true
+						insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), minimumMemoryLimit.String())
 					}
 				case corev1.ResourceCPU:
-					if val < minimumCPULimit {
-						log.Debugf("The cpu limit is too low to acceptable for the datadog library init-container: %v", val)
-						shouldSkipInjection = true
+					if minimumCPULimit.Cmp(maxPodLim) == 1 {
+						decision.skipInjection = true
+						insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), minimumCPULimit.String())
 					}
 				default:
 					// We don't support other resources
@@ -661,22 +666,23 @@ func initContainerResourceRequirements(pod *corev1.Pod, conf initResourceRequire
 			}
 		}
 	}
-	if shouldSkipInjection {
-		return corev1.ResourceRequirements{}, shouldSkipInjection
+	if decision.skipInjection {
+		log.Debug(insufficientResourcesMessage)
+		decision.message = insufficientResourcesMessage
 	}
-	return requirements, false
+	return requirements, decision
 }
 
 func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, config extractedPodLibInfo) error {
 	if len(config.libs) == 0 {
 		return nil
 	}
-	requirements, skipInjection := initContainerResourceRequirements(pod, w.config.defaultResourceRequirements)
-	if skipInjection {
+	requirements, injectionDecision := initContainerResourceRequirements(pod, w.config.defaultResourceRequirements)
+	if injectionDecision.skipInjection {
 		if pod.Annotations == nil {
 			pod.Annotations = make(map[string]string)
 		}
-		pod.Annotations[apmInjectionErrorAnnotationKey] = "The overall pod's containers memory limit is too low to acceptable for the datadog library init-container"
+		pod.Annotations[apmInjectionErrorAnnotationKey] = injectionDecision.message
 		return nil
 	}
 

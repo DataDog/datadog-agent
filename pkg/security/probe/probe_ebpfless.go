@@ -700,6 +700,8 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 	}
 	p.fieldHandlers = fh
 
+	p.event = p.NewEvent()
+
 	// be sure to zero the probe event before everything else
 	p.zeroEvent()
 
