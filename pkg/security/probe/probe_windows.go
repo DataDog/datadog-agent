@@ -716,6 +716,15 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 
 }
 
+func shouldEarlyDropNotif(n interface{}) bool {
+	switch n.(type) {
+	case *closeArgs, *cleanupArgs, *createHandleArgs:
+		return true
+	default:
+		return false
+	}
+}
+
 // Start processing events
 func (p *WindowsProbe) Start() error {
 
@@ -728,6 +737,10 @@ func (p *WindowsProbe) Start() error {
 		go func() {
 			defer p.fimwg.Done()
 			err := p.setupEtw(func(n interface{}, pid uint32) {
+				if shouldEarlyDropNotif(n) {
+					return
+				}
+
 				if p.blockonchannelsend {
 					p.onETWNotification <- etwNotification{n, pid}
 				} else {
