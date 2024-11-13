@@ -24,6 +24,11 @@ import (
 )
 
 func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
+	systemProbeConfigBPFDir := pkgconfigsetup.SystemProbe().GetString("system_probe_config.bpf_dir")
+	if systemProbeConfigBPFDir != "" {
+		fb.RegisterDirPerm(systemProbeConfigBPFDir)
+	}
+
 	sysprobeSocketLocation := getSystemProbeSocketPath()
 	if sysprobeSocketLocation != "" {
 		fb.RegisterDirPerm(filepath.Dir(sysprobeSocketLocation))
