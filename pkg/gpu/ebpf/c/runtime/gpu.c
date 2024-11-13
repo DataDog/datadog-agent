@@ -81,7 +81,7 @@ int BPF_UPROBE(uprobe__cudaMalloc, void **devPtr, size_t size) {
     cuda_alloc_request_args_t args = { .devPtr = devPtr, .size = size };
 
     log_debug("cudaMalloc: pid=%llu, devPtr=%llx, size=%lu", pid_tgid, (__u64)devPtr, size);
-    bpf_map_update_with_telemetry(&cuda_alloc_cache, &pid_tgid, &args, BPF_ANY);
+    bpf_map_update_with_telemetry(cuda_alloc_cache, &pid_tgid, &args, BPF_ANY);
 
     return 0;
 }
@@ -137,7 +137,7 @@ int BPF_UPROBE(uprobe__cudaStreamSynchronize, __u64 stream) {
     __u64 pid_tgid = bpf_get_current_pid_tgid();
 
     log_debug("cudaStreamSynchronize: pid=%llu, stream=%llu", pid_tgid, stream);
-    bpf_map_update_with_telemetry(&cuda_sync_cache, &pid_tgid, &stream, BPF_ANY);
+    bpf_map_update_with_telemetry(cuda_sync_cache, &pid_tgid, &stream, BPF_ANY);
 
     return 0;
 }
@@ -171,7 +171,7 @@ int BPF_UPROBE(uprobe__cudaSetDevice, int device) {
     __u64 pid_tgid = bpf_get_current_pid_tgid();
 
     log_debug("cudaSetDevice: pid_tgid=%llu, device=%u", pid_tgid, device);
-    bpf_map_update_with_telemetry(&cuda_set_device_cache, &pid_tgid, &device, BPF_ANY);
+    bpf_map_update_with_telemetry(cuda_set_device_cache, &pid_tgid, &device, BPF_ANY);
 
     return 0;
 }
