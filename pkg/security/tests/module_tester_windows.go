@@ -277,7 +277,9 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
 			opts.staticOpts.snapshotRuleMatchHandler(testMod, e, r)
 		})
-		defer testMod.RegisterRuleEventHandler(nil)
+		t.Cleanup(func() {
+			testMod.RegisterRuleEventHandler(nil)
+		})
 	}
 
 	if err := testMod.eventMonitor.Start(); err != nil {
