@@ -141,10 +141,6 @@ func provideConfigDump(fb flaretypes.FlareBuilder) error {
 }
 
 func provideSystemProbe(fb flaretypes.FlareBuilder) error {
-	systemProbeConfigBPFDir := pkgconfigsetup.SystemProbe().GetString("system_probe_config.bpf_dir")
-	if systemProbeConfigBPFDir != "" {
-		fb.RegisterDirPerm(systemProbeConfigBPFDir)
-	}
 	addSystemProbePlatformSpecificEntries(fb)
 
 	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
