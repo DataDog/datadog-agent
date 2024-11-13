@@ -8,10 +8,10 @@
 package bininspect
 
 import (
-	"debug/elf"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // symbolFilter is an interface for filtering symbols read from ELF files.
@@ -24,7 +24,7 @@ type symbolFilter interface {
 	want(symbol string) bool
 	// findMissing returns the list of symbol names which the filter wanted but were not found in the
 	// symbol map. This is only used for error messages.
-	findMissing(map[string]elf.Symbol) []string
+	findMissing(map[string]safeelf.Symbol) []string
 }
 
 // stringSetSymbolFilter is a symbol filter which finds all the symbols in a
@@ -58,7 +58,7 @@ func (f stringSetSymbolFilter) want(symbol string) bool {
 }
 
 // findMissing gets the list of symbols which were missing. Only used for error prints.
-func (f stringSetSymbolFilter) findMissing(symbolByName map[string]elf.Symbol) []string {
+func (f stringSetSymbolFilter) findMissing(symbolByName map[string]safeelf.Symbol) []string {
 	missingSymbols := make([]string, 0, max(0, len(f.symbolSet)-len(symbolByName)))
 	for symbolName := range f.symbolSet {
 		if _, ok := symbolByName[symbolName]; !ok {
@@ -97,6 +97,6 @@ func (f prefixSymbolFilter) want(symbol string) bool {
 
 // findMissing gets the list of symbols which were missing. Only used for error
 // prints. Since we only know we were looking for a prefix, return that.
-func (f prefixSymbolFilter) findMissing(_ map[string]elf.Symbol) []string {
+func (f prefixSymbolFilter) findMissing(_ map[string]safeelf.Symbol) []string {
 	return []string{f.prefix}
 }

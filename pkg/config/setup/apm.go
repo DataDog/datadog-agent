@@ -152,6 +152,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnv("apm_config.install_time", "DD_INSTRUMENTATION_INSTALL_TIME")
 	config.BindEnv("apm_config.obfuscation.credit_cards.enabled", "DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED")
 	config.BindEnv("apm_config.obfuscation.credit_cards.luhn", "DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN")
+	config.BindEnv("apm_config.obfuscation.credit_cards.keep_values", "DD_APM_OBFUSCATION_CREDIT_CARDS_KEEP_VALUES")
 	config.BindEnvAndSetDefault("apm_config.debug.port", 5012, "DD_APM_DEBUG_PORT")
 	config.BindEnv("apm_config.features", "DD_APM_FEATURES")
 	config.ParseEnvAsStringSlice("apm_config.features", func(s string) []string {
@@ -183,7 +184,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.ParseEnvAsStringSlice("apm_config.filter_tags.reject", parseKVList("apm_config.filter_tags.reject"))
 	config.ParseEnvAsStringSlice("apm_config.filter_tags_regex.require", parseKVList("apm_config.filter_tags_regex.require"))
 	config.ParseEnvAsStringSlice("apm_config.filter_tags_regex.reject", parseKVList("apm_config.filter_tags_regex.reject"))
-
+	config.ParseEnvAsStringSlice("apm_config.obfuscation.credit_cards.keep_values", parseKVList("apm_config.obfuscation.credit_cards.keep_values"))
 	config.ParseEnvAsSliceMapString("apm_config.replace_tags", func(in string) []map[string]string {
 		var out []map[string]string
 		if err := json.Unmarshal([]byte(in), &out); err != nil {

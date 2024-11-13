@@ -123,6 +123,78 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 	}
 }
 
+// TestTracesWithSpanReceiverV2 tests that OTLP traces are received through OTel pipelines as expected with updated OTLP span receiver
+func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+
+	var traces []*aggregator.TracePayload
+	s.T().Log("Waiting for traces")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		traces, err = s.Env().FakeIntake.Client().GetTraces()
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.NotEmpty(c, traces) {
+			return
+		}
+		trace := traces[0]
+		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
+			return
+		}
+		tp := trace.TracerPayloads[0]
+		if !assert.NotEmpty(s.T(), tp.Chunks) {
+			return
+		}
+		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
+			return
+		}
+		assert.Equal(s.T(), telemetrygenService, tp.Chunks[0].Spans[0].Service)
+	}, 5*time.Minute, 10*time.Second)
+	require.NotEmpty(s.T(), traces)
+	s.T().Log("Got traces", s.T().Name(), traces)
+
+	// Verify tags on traces and spans
+	tp := traces[0].TracerPayloads[0]
+	assert.Equal(s.T(), env, tp.Env)
+	assert.Equal(s.T(), version, tp.AppVersion)
+	assert.Empty(s.T(), tp.ContainerID)
+	require.NotEmpty(s.T(), tp.Chunks)
+	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
+	spans := tp.Chunks[0].Spans
+	ctags, ok := getContainerTags(s.T(), tp)
+
+	for _, sp := range spans {
+		assert.Equal(s.T(), telemetrygenService, sp.Service)
+		assert.Equal(s.T(), env, sp.Meta["env"])
+		assert.Equal(s.T(), version, sp.Meta["version"])
+		assert.Equal(s.T(), customAttributeValue, sp.Meta[customAttribute])
+		if sp.Meta["span.kind"] == "client" {
+			assert.Equal(s.T(), "telemetrygen.client", sp.Name)
+			assert.Equal(s.T(), "lets-go", sp.Resource)
+			assert.Equal(s.T(), "http", sp.Type)
+			assert.Zero(s.T(), sp.ParentID)
+		} else {
+			assert.Equal(s.T(), "server", sp.Meta["span.kind"])
+			assert.Equal(s.T(), "telemetrygen.server", sp.Name)
+			assert.Equal(s.T(), "okey-dokey-0", sp.Resource)
+			assert.Equal(s.T(), "web", sp.Type)
+			assert.IsType(s.T(), uint64(0), sp.ParentID)
+			assert.NotZero(s.T(), sp.ParentID)
+		}
+		assert.IsType(s.T(), uint64(0), sp.TraceID)
+		assert.NotZero(s.T(), sp.TraceID)
+		assert.IsType(s.T(), uint64(0), sp.SpanID)
+		assert.NotZero(s.T(), sp.SpanID)
+		assert.Equal(s.T(), "telemetrygen", sp.Meta["otel.library.name"])
+		assert.Equal(s.T(), sp.Meta["k8s.node.name"], tp.Hostname)
+		assert.True(s.T(), ok)
+		assert.Equal(s.T(), sp.Meta["k8s.container.name"], ctags["kube_container_name"])
+		assert.Equal(s.T(), sp.Meta["k8s.namespace.name"], ctags["kube_namespace"])
+		assert.Equal(s.T(), sp.Meta["k8s.pod.name"], ctags["pod_name"])
+	}
+}
+
 // TestMetrics tests that OTLP metrics are received through OTel pipelines as expected
 func TestMetrics(s OTelTestSuite, iaParams IAParams) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
@@ -257,15 +329,9 @@ func TestHosts(s OTelTestSuite) {
 
 // TestSampling tests that APM stats are correct when using probabilistic sampling
 func TestSampling(s OTelTestSuite, computeTopLevelBySpanKind bool) {
-	ctx := context.Background()
-	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	require.NoError(s.T(), err)
-	numTraces := 10
+	SetupSampleTraces(s)
 
-	s.T().Log("Starting telemetrygen")
-	createTelemetrygenJob(ctx, s, "traces", []string{"--traces", fmt.Sprint(numTraces)})
-
-	TestAPMStats(s, numTraces, computeTopLevelBySpanKind)
+	TestAPMStats(s, 10, computeTopLevelBySpanKind)
 }
 
 // TestAPMStats checks that APM stats are received with the correct number of hits per traces given
@@ -319,6 +385,17 @@ func TestPrometheusMetrics(s OTelTestSuite) {
 	s.T().Log("Got otelcol_datadog_trace_agent_trace_writer_spans", traceAgentMetrics)
 }
 
+// SetupSampleTraces flushes the intake server and starts a telemetrygen job to generate traces
+func SetupSampleTraces(s OTelTestSuite) {
+	ctx := context.Background()
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+	numTraces := 10
+
+	s.T().Log("Starting telemetrygen")
+	createTelemetrygenJob(ctx, s, "traces", []string{"--traces", fmt.Sprint(numTraces)})
+}
+
 func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry string, options []string) {
 	var ttlSecondsAfterFinished int32 = 0 //nolint:revive // We want to see this is explicitly set to 0
 	var backOffLimit int32 = 4
@@ -356,6 +433,7 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 							Command: append([]string{
 								"/telemetrygen", telemetry, "--otlp-endpoint", otlpEndpoint, "--otlp-insecure",
 								"--telemetry-attributes", fmt.Sprintf("%v=%v", customAttribute, customAttributeValue),
+								"--telemetry-attributes", "k8s.pod.uid=\"$(OTEL_K8S_POD_ID)\"",
 								"--otlp-attributes", "service.name=\"$(OTEL_SERVICE_NAME)\"",
 								"--otlp-attributes", "host.name=\"$(OTEL_K8S_NODE_NAME)\"",
 								"--otlp-attributes", fmt.Sprintf("deployment.environment=\"%v\"", env),
@@ -363,7 +441,6 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 								"--otlp-attributes", "k8s.namespace.name=\"$(OTEL_K8S_NAMESPACE)\"",
 								"--otlp-attributes", "k8s.node.name=\"$(OTEL_K8S_NODE_NAME)\"",
 								"--otlp-attributes", "k8s.pod.name=\"$(OTEL_K8S_POD_NAME)\"",
-								"--otlp-attributes", "k8s.pod.uid=\"$(OTEL_K8S_POD_ID)\"",
 								"--otlp-attributes", "k8s.container.name=\"telemetrygen-job\"",
 							}, options...),
 						},

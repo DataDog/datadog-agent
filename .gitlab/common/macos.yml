@@ -19,14 +19,19 @@
 
 .select_python_env_commands:
   # Select the virtualenv using the current Python version. Create it if it doesn't exist.
+  - PYTHON_VERSION=$(python3 --version | awk '{print $2}')
+  - VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
+  - VENV_PATH="$(pyenv root)/versions/$VENV_NAME"
+  - echo "Using Python $PYTHON_VERSION..."
   - |
-    PYTHON_VERSION=$(python3 --version | awk '{print $2}')
-    VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
-    echo "Using Python $PYTHON_VERSION..."
-    if ! pyenv virtualenvs --bare | grep -q "${VENV_NAME}$"; then
-      pyenv virtualenv $PYTHON_VERSION $VENV_NAME
+    # Check if the virtual environment directory exists
+    if [ ! -d "$VENV_PATH" ]; then
+      echo "Creating virtual environment '$VENV_NAME'..."
+      pyenv virtualenv "$PYTHON_VERSION" "$VENV_NAME"
+    else
+      echo "Virtual environment '$VENV_NAME' already exists. Skipping creation."
     fi
-    pyenv activate $VENV_NAME
+  - pyenv activate $VENV_NAME
 
 .macos_gitlab:
   before_script:
@@ -40,7 +45,10 @@
     - !reference [.list_go_versions_commands]
     - !reference [.list_python_versions_commands]
     # Installing the job dependencies
-    - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt
+    # Python 3.12 changes default behavior how packages are installed.
+    # In particular, --break-system-packages command line option is
+    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
+    - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt --break-system-packages
     - pyenv rehash
     - inv -e rtloader.make
     - inv -e rtloader.install

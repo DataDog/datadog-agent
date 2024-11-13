@@ -425,7 +425,7 @@ func (p *EBPFProbe) Start() error {
 // PlaySnapshot plays a snapshot
 func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 	seclog.Debugf("playing the snapshot")
-	// Get the snapshotted data
+
 	var events []*model.Event
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
@@ -433,14 +433,8 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 			return
 		}
 		entry.Retain()
-		event := NewEBPFEvent(p.fieldHandlers)
-		event.Type = uint32(model.ExecEventType)
-		event.TimestampRaw = uint64(time.Now().UnixNano())
-		event.ProcessCacheEntry = entry
-		event.ProcessContext = &entry.ProcessContext
-		event.Exec.Process = &entry.Process
-		event.ProcessContext.Process.ContainerID = entry.ContainerID
-		event.ProcessContext.Process.CGroup = entry.CGroup
+
+		event := newEBPFEventFromPCE(entry, p.fieldHandlers)
 
 		if _, err := entry.HasValidLineage(); err != nil {
 			event.Error = &model.ErrProcessBrokenLineage{Err: err}
@@ -600,8 +594,8 @@ func (p *EBPFProbe) onEventLost(perfMapName string, perEvent map[string]uint64) 
 }
 
 // setProcessContext set the process context, should return false if the event shouldn't be dispatched
-func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event) bool {
-	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event)
+func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, newEntryCb)
 	event.ProcessCacheEntry = entry
 	if event.ProcessCacheEntry == nil {
 		panic("should always return a process cache entry")
@@ -646,10 +640,31 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		p.playSnapshot(false)
 	}
 
-	offset := 0
-	event := p.zeroEvent()
+	var (
+		offset        = 0
+		event         = p.zeroEvent()
+		dataLen       = uint64(len(data))
+		relatedEvents []*model.Event
+		newEntryCb    = func(entry *model.ProcessCacheEntry, err error) {
+			// all Execs will be forwarded since used by AD. Forks will be forwarded all if there are consumers
+			if !entry.IsExec && p.probe.eventConsumers[model.ForkEventType] == nil {
+				return
+			}
 
-	dataLen := uint64(len(data))
+			relatedEvent := newEBPFEventFromPCE(entry, p.fieldHandlers)
+
+			if err != nil {
+				var errResolution *path.ErrPathResolution
+				if errors.As(err, &errResolution) {
+					relatedEvent.SetPathResolutionError(&relatedEvent.ProcessCacheEntry.FileEvent, err)
+				} else {
+					return
+				}
+			}
+
+			relatedEvents = append(relatedEvents, relatedEvent)
+		}
+	)
 
 	read, err := event.UnmarshalBinary(data)
 	if err != nil {
@@ -710,7 +725,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-		pce := p.Resolvers.ProcessResolver.Resolve(event.CgroupWrite.Pid, event.CgroupWrite.Pid, 0, false)
+
+		pce := p.Resolvers.ProcessResolver.Resolve(event.CgroupWrite.Pid, event.CgroupWrite.Pid, 0, false, newEntryCb)
 		if pce != nil {
 			path, err := p.Resolvers.DentryResolver.Resolve(event.CgroupWrite.File.PathKey, true)
 			if err == nil && path != "" {
@@ -770,7 +786,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		p.Resolvers.ProcessResolver.ApplyBootTime(event.ProcessCacheEntry)
 		event.ProcessCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
 
-		p.Resolvers.ProcessResolver.AddForkEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode)
+		p.Resolvers.ProcessResolver.AddForkEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode, newEntryCb)
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
 		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
@@ -792,7 +808,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		event.Exec.Process = &event.ProcessCacheEntry.Process
 	}
 
-	if !p.setProcessContext(eventType, event) {
+	if !p.setProcessContext(eventType, event, newEntryCb) {
 		return
 	}
 
@@ -902,7 +918,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 
 		var exists bool
-		event.ProcessCacheEntry, exists = p.fieldHandlers.GetProcessCacheEntry(event)
+		event.ProcessCacheEntry, exists = p.fieldHandlers.GetProcessCacheEntry(event, newEntryCb)
 		if !exists {
 			// no need to dispatch an exit event that don't have the corresponding cache entry
 			return
@@ -983,7 +999,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if event.PTrace.PID == 0 { // pid can be 0 for a PTRACE_TRACEME request
 			pce = newPlaceholderProcessCacheEntryPTraceMe()
 		} else {
-			pce = p.Resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0, false)
+			pce = p.Resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0, false, newEntryCb)
 			if pce == nil {
 				pce = model.NewPlaceholderProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
 			}
@@ -1028,7 +1044,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// resolve target process context
 		var pce *model.ProcessCacheEntry
 		if event.Signal.PID > 0 { // Linux accepts a kill syscall with both negative and zero pid
-			pce = p.Resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0, false)
+			pce = p.Resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0, false, newEntryCb)
 		}
 		if pce == nil {
 			pce = model.NewPlaceholderProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
@@ -1115,6 +1131,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	// resolve the container context
 	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
+
+	// send related events
+	for _, relatedEvent := range relatedEvents {
+		p.DispatchEvent(relatedEvent, true)
+	}
+	relatedEvents = relatedEvents[0:0]
 
 	p.DispatchEvent(event, true)
 
@@ -1721,7 +1743,7 @@ func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 
 // NewEvent returns a new event
 func (p *EBPFProbe) NewEvent() *model.Event {
-	return NewEBPFEvent(p.fieldHandlers)
+	return newEBPFEvent(p.fieldHandlers)
 }
 
 // GetFieldHandlers returns the field handlers
@@ -2021,7 +2043,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 		}
 	}
 
-	p.fieldHandlers = &EBPFFieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname, onDemand: p.onDemandManager}
+	fh, err := NewEBPFFieldHandlers(config, p.Resolvers, hostname, p.onDemandManager)
+	if err != nil {
+		return nil, err
+	}
+	p.fieldHandlers = fh
 
 	if useRingBuffers {
 		p.eventStream = ringbuffer.New(p.handleEvent)

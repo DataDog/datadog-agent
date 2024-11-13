@@ -90,8 +90,10 @@ type SecurityProfileContext struct {
 
 // IPPortContext is used to hold an IP and Port
 type IPPortContext struct {
-	IPNet net.IPNet `field:"ip"`   // SECLDoc[ip] Definition:`IP address`
-	Port  uint16    `field:"port"` // SECLDoc[port] Definition:`Port number`
+	IPNet            net.IPNet `field:"ip"`                                  // SECLDoc[ip] Definition:`IP address`
+	Port             uint16    `field:"port"`                                // SECLDoc[port] Definition:`Port number`
+	IsPublic         bool      `field:"is_public,handler:ResolveIsIPPublic"` // SECLDoc[is_public] Definition:`Whether the IP address belongs to a public network`
+	IsPublicResolved bool      `field:"-"`
 }
 
 // NetworkContext represents the network context of the event
@@ -280,8 +282,8 @@ func (e *Event) Release() {
 }
 
 // ResolveProcessCacheEntry uses the field handler
-func (e *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
-	return e.FieldHandlers.ResolveProcessCacheEntry(e)
+func (e *Event) ResolveProcessCacheEntry(newEntryCb func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool) {
+	return e.FieldHandlers.ResolveProcessCacheEntry(e, newEntryCb)
 }
 
 // ResolveEventTime uses the field handler
@@ -612,12 +614,12 @@ type AWSSecurityCredentials struct {
 
 // BaseExtraFieldHandlers handlers not hold by any field
 type BaseExtraFieldHandlers interface {
-	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
+	ResolveProcessCacheEntry(ev *Event, newEntryCb func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool)
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
 }
 
 // ResolveProcessCacheEntry stub implementation
-func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(_ *Event) (*ProcessCacheEntry, bool) {
+func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(_ *Event, _ func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool) {
 	return nil, false
 }
 

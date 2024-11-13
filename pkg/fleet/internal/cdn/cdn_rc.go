@@ -31,6 +31,7 @@ type cdnRC struct {
 	clientUUID          string
 	configDBPath        string
 	firstRequest        bool
+	hostTagsGetter      hostTagsGetter
 }
 
 // newCDNRC creates a new CDN with RC: it fetches the configuration from the remote config service instead of cloudfront
@@ -84,6 +85,7 @@ func newCDNRC(env *env.Env, configDBPath string) (CDN, error) {
 		clientUUID:          uuid.New().String(),
 		configDBPath:        configDBPathTemp,
 		firstRequest:        true,
+		hostTagsGetter:      ht,
 	}
 	service.Start()
 	return cdn, nil
@@ -92,7 +94,13 @@ func newCDNRC(env *env.Env, configDBPath string) (CDN, error) {
 func (c *cdnRC) Get(ctx context.Context, pkg string) (cfg Config, err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "cdn.Get")
 	span.SetTag("cdn_type", "remote_config")
-	defer func() { span.Finish(tracer.WithError(err)) }()
+	defer func() {
+		spanErr := err
+		if spanErr == ErrProductNotSupported {
+			spanErr = nil
+		}
+		span.Finish(tracer.WithError(spanErr))
+	}()
 
 	switch pkg {
 	case "datadog-agent":
@@ -101,6 +109,15 @@ func (c *cdnRC) Get(ctx context.Context, pkg string) (cfg Config, err error) {
 			return nil, err
 		}
 		cfg, err = newAgentConfig(orderConfig, layers...)
+		if err != nil {
+			return nil, err
+		}
+	case "datadog-apm-inject":
+		orderConfig, layers, err := c.get(ctx)
+		if err != nil {
+			return nil, err
+		}
+		cfg, err = newAPMConfig(c.hostTagsGetter.get(), orderConfig, layers...)
 		if err != nil {
 			return nil, err
 		}
