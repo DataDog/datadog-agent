@@ -13,15 +13,25 @@ import (
 	"github.com/DataDog/zstd"
 )
 
+type Requires struct{
+	Level int
+}
+
+type Provides struct {
+	Comp compression.Component
+}
+
 // ZstdStrategy is the strategy for when serializer_compressor_kind is zstd
 type ZstdStrategy struct {
 	level int
 }
 
-// NewZstdStrategy returns a new ZstdStrategy
-func NewZstdStrategy(level int) *ZstdStrategy {
-	return &ZstdStrategy{
-		level: level,
+// NewComponent returns a new ZstdStrategy
+func NewComponent(reqs Requires) Provides {
+	return Provides{
+		Comp: &ZstdStrategy{
+			level: reqs.Level,
+		},
 	}
 }
 

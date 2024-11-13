@@ -27,5 +27,5 @@ func Module() fxutil.Module {
 // NewCompressor returns a new Compressor based on serializer_compressor_kind
 // This function is called only when the zlib build tag is included
 func NewCompressor(_ config.Component) compression.Component {
-	return compressionnoop.NewNoopStrategy()
+	return compressionnoop.NewComponent().Comp
 }

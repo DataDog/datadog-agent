@@ -32,15 +32,15 @@ func Module() fxutil.Module {
 func NewCompressor(cfg config.Component) compression.Component {
 	switch cfg.GetString("serializer_compressor_kind") {
 	case common.ZlibKind:
-		return compressionzlib.NewZlibStrategy()
+		return compressionzlib.NewComponent().Comp
 	case common.ZstdKind:
 		log.Warn("zstd build tag not included. using zlib")
-		return compressionzlib.NewZlibStrategy()
+		return compressionzlib.NewComponent().Comp
 	case common.NoneKind:
 		log.Warn("no serializer_compressor_kind set. use zlib or zstd")
-		return compressionnoop.NewNoopStrategy()
+		return compressionnoop.NewComponent().Comp
 	default:
 		log.Warn("invalid serializer_compressor_kind detected. use zlib or zstd")
-		return compressionnoop.NewNoopStrategy()
+		return compressionnoop.NewComponent().Comp
 	}
 }

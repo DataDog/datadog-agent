@@ -12,13 +12,19 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 )
 
+type Provides struct {
+	Comp compression.Component
+}
+
 // NoopStrategy is the strategy for when serializer_compressor_kind is neither zlib nor zstd
 type NoopStrategy struct {
 }
 
-// NewNoopStrategy returns a new NoopStrategy for when kind is neither zlib nor zstd
-func NewNoopStrategy() *NoopStrategy {
-	return &NoopStrategy{}
+// NewComponent returns a new NoopStrategy for when kind is neither zlib nor zstd
+func NewComponent() Provides {
+	return Provides{
+		Comp: &NoopStrategy{},
+	}
 }
 
 // Compress implements the Compress method for NoopStrategy to satisfy the Compressor interface

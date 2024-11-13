@@ -148,7 +148,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		}),
 		logsagentpipelineimpl.Module(),
 		// We create strategy.ZlibStrategy directly to avoid build tags
-		fx.Provide(implzlib.NewZlibStrategy),
+		fx.Provide(implzlib.NewComponent),
 		fx.Provide(func(s *implzlib.ZlibStrategy) compression.Component {
 			return s
 		}),
