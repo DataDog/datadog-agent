@@ -111,9 +111,6 @@
         },
         "metric_tags": {
           "$ref": "#/$defs/MetricTagConfigList"
-        },
-        "metric_type": {
-          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -162,11 +159,7 @@
         }
       },
       "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "name",
-        "version"
-      ]
+      "type": "object"
     },
     "StringArray": {
       "items": {
@@ -183,6 +176,12 @@
           "type": "string"
         },
         "extract_value": {
+          "type": "string"
+        },
+        "match_pattern": {
+          "type": "string"
+        },
+        "match_value": {
           "type": "string"
         },
         "scale_factor": {
@@ -210,6 +209,12 @@
           "type": "string"
         },
         "extract_value": {
+          "type": "string"
+        },
+        "match_pattern": {
+          "type": "string"
+        },
+        "match_value": {
           "type": "string"
         },
         "scale_factor": {
