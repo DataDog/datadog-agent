@@ -209,6 +209,20 @@ func (suite *k8sSuite) TestAdmissionControllerWebhooksExist() {
 		}
 		suite.Require().True(found, fmt.Sprintf("None of the mutating webhook configurations have the name '%s'", expectedWebhookName))
 	})
+
+	suite.Run("agent registered validating webhook configuration", func() {
+		validatingConfigs, err := suite.K8sClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().List(ctx, metav1.ListOptions{})
+		suite.Require().NoError(err)
+		suite.NotEmpty(validatingConfigs.Items, "No validating webhook configuration found")
+		found := false
+		for _, validatingConfig := range validatingConfigs.Items {
+			if validatingConfig.Name == expectedWebhookName {
+				found = true
+				break
+			}
+		}
+		suite.Require().True(found, fmt.Sprintf("None of the validating webhook configurations have the name '%s'", expectedWebhookName))
+	})
 }
 
 func (suite *k8sSuite) TestVersion() {
