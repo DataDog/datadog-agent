@@ -76,6 +76,7 @@ tests_macos_gitlab_amd64:
   extends: .tests_macos_gitlab
   tags: ["macos:monterey-amd64", "specific:true"]
   after_script:
+    - !reference [.vault_login]
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
 
@@ -85,5 +86,6 @@ tests_macos_gitlab_arm64:
     !reference [.manual]
   tags: ["macos:monterey-arm64", "specific:true"]
   after_script:
+    - !reference [.vault_login]
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
