@@ -34,6 +34,7 @@ import (
 	redisdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/redis/debugging"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
+	usmconsts "github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -293,11 +294,11 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/usm_telemetry", telemetry.Handler)
-	httpMux.HandleFunc("/debug/usm/traced_programs", usm.GetTracedProgramsEndpoint("usm"))
-	httpMux.HandleFunc("/debug/usm/blocked_processes", usm.GetBlockedPathIDEndpoint("usm"))
-	httpMux.HandleFunc("/debug/usm/clear_blocked", usm.GetClearBlockedEndpoint("usm"))
-	httpMux.HandleFunc("/debug/usm/attach-pid", usm.GetAttachPIDEndpoint("usm"))
-	httpMux.HandleFunc("/debug/usm/detach-pid", usm.GetDetachPIDEndpoint("usm"))
+	httpMux.HandleFunc("/debug/usm/traced_programs", usm.GetTracedProgramsEndpoint(usmconsts.USMModuleName))
+	httpMux.HandleFunc("/debug/usm/blocked_processes", usm.GetBlockedPathIDEndpoint(usmconsts.USMModuleName))
+	httpMux.HandleFunc("/debug/usm/clear_blocked", usm.GetClearBlockedEndpoint(usmconsts.USMModuleName))
+	httpMux.HandleFunc("/debug/usm/attach-pid", usm.GetAttachPIDEndpoint(usmconsts.USMModuleName))
+	httpMux.HandleFunc("/debug/usm/detach-pid", usm.GetDetachPIDEndpoint(usmconsts.USMModuleName))
 
 	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.
 	// This should be helpful for customers + support to debug the underlying issue.
