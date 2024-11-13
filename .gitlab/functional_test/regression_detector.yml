@@ -20,6 +20,7 @@ single-machine-performance-regression_detector:
       - outputs/quality_gates_report.json # for debugging, also on S3
       - outputs/junit.xml # for debugging, also on S3
       - outputs/report.json # for debugging, also on S3
+      - outputs/decision_record.json # for posterity, this is appended to final PR comment
     when: always
   variables:
     SMP_VERSION: 0.18.1
@@ -133,7 +134,7 @@ single-machine-performance-regression_detector:
     # uploading JUnit XML, so the upload command below respects that convention.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     - datadog-ci junit upload --service datadog-agent outputs/junit.xml
-      # Run quality gate check script
+    # Run quality gate check script
     - |
       python3 <<'EOF'
       import json
@@ -151,6 +152,7 @@ single-machine-performance-regression_detector:
 
       experiments = data.get('experiments', {})
       failed = False
+      decision_record = []
 
       for exp_name, exp_data in experiments.items():
           if exp_name.startswith('quality_gate_'):
@@ -158,18 +160,31 @@ single-machine-performance-regression_detector:
               for check_name, check_data in bounds_checks.items():
                   results = check_data.get('results', {})
                   comparison = results.get('comparison', [])
-                  for replicate in comparison:
-                      if not replicate.get('passed', False):
-                          print(f"Failed replicate in experiment '{exp_name}', check '{check_name}', replicate index {replicate.get('replicate_idx')}")
-                          failed = True
-                          break
-                  if failed:
-                      break
-              if failed:
-                  break
+                  failed_replicates = [
+                      replicate for replicate in comparison if not replicate.get('passed', False)
+                  ]
+                  if failed_replicates:
+                      replicate_indices = [str(replicate.get('replicate_idx')) for replicate in failed_replicates]
+                      decision_record.append(
+                          f"- **{exp_name}**, check **{check_name}**: Replicates {', '.join(replicate_indices)} **FAILED**."
+                      )
+                      failed = True
+                  else:
+                      decision_record.append(
+                          f"- **{exp_name}**, check **{check_name}**: All replicates **PASSED**."
+                      )
+
+      with open('outputs/decision_record.md', 'w') as f:
+          f.write('\n## Decision Record\n\n')
+          if failed:
+              f.write('**Quality gate failed.**\n\n')
+              f.write('\n'.join(decision_record))
+          else:
+              f.write('**Quality gate passed.**\n\n')
+              f.write('\n'.join(decision_record))
 
       if failed:
-          print("Quality gate failed.")
+          print("Quality gate failed, see decision record")
           sys.exit(1)
       else:
           print("Quality gate passed.")
@@ -218,7 +233,8 @@ single-machine-performance-regression_detector-pr-comment:
     # to escape double quotes to distinguish literal quotes in the report from
     # the double quotes that delimit the value of the "message" field in the
     # payload.
-    - cat outputs/report.md | sed -z 's/\n/\\n/g' | sed -z 's/"/\\"/g' > report_as_json_string.txt
+    # Appends the Decision Record to final report
+    - cat outputs/report.md outputs/decision_record.md | sed -z 's/\n/\\n/g' | sed -z 's/"/\\"/g' > report_as_json_string.txt
     - cat report_as_json_string.txt
     # Transforming the Markdown report to a valid JSON string is easy to foul
     # up, so to make debugging easier, we store the payload in a variable to
