@@ -113,7 +113,7 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
 	// so that we can time out correctly
 	require.Eventually(t, func() bool {
-		return !utils.IsProgramTraced("gpu", gpuAttacherName, cmd.Process.Pid)
+		return !utils.IsProgramTraced(gpuModuleName, gpuAttacherName, cmd.Process.Pid)
 	}, 20*time.Second, 500*time.Millisecond, "process not stopped")
 
 	stats, err := probe.GetAndFlush()
@@ -144,7 +144,7 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
 	// so that we can time out correctly
 	require.Eventually(t, func() bool {
-		return !utils.IsProgramTraced("gpu", gpuAttacherName, pid)
+		return !utils.IsProgramTraced(gpuModuleName, gpuAttacherName, pid)
 	}, 20*time.Second, 500*time.Millisecond, "process not stopped")
 
 	// Check that the stream handlers have the correct container ID assigned
