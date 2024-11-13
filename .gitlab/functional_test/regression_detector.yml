@@ -336,7 +336,7 @@ single-machine-performance-quality-gates-only:
     # Finally, exit 1 if the job signals a regression else 0.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
       job result
-      --submission-metadata submission_metadata
+      --submission-metadata submission_metadata --signal bounds-check
 
 # Shamelessly adapted from golang_deps_commenter job config in
 # golang_deps_diff.yml at commit 01da274032e510d617161cf4e264a53292f44e55.
