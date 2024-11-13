@@ -17,8 +17,10 @@ import (
 	"go.uber.org/multierr"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/go-viper/mapstructure/v2"
 )
 
 func portToUint(v int) (port uint, err error) {
@@ -94,6 +96,10 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	if tags != "" {
 		metricsConfigMap["tags"] = tags
 	}
+	mc, err := normalizeMetricsConfig(metricsConfigMap, false)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("failed to normalize metrics config: %w", err))
+	}
 
 	debugConfig := readConfigSection(cfg, coreconfig.OTLPDebug)
 
@@ -103,9 +109,37 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 		MetricsEnabled:     metricsEnabled,
 		TracesEnabled:      tracesEnabled,
 		LogsEnabled:        logsEnabled,
-		Metrics:            metricsConfigMap,
+		Metrics:            mc,
 		Debug:              debugConfig.ToStringMap(),
 	}, multierr.Combine(errs...)
+}
+
+func normalizeMetricsConfig(metricsConfigMap map[string]interface{}, strict bool) (map[string]interface{}, error) {
+	// metricsConfigMap doesn't strictly match the types present in MetricsConfig struct
+	// so to get properly type map we need to decode it twice
+
+	// We need to start with default config to get the corrent default values
+	cf := serializerexporter.NewFactory(nil, nil, nil, nil, nil).CreateDefaultConfig()
+
+	x := cf.(*serializerexporter.ExporterConfig).Metrics
+	if strict {
+		err := mapstructure.Decode(metricsConfigMap, &x)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+
+		err := mapstructure.WeakDecode(metricsConfigMap, &x)
+		if err != nil {
+			return nil, err
+		}
+	}
+	mc := make(map[string]interface{})
+	err := mapstructure.WeakDecode(x, &mc)
+	if err != nil {
+		return nil, err
+	}
+	return mc, nil
 }
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.

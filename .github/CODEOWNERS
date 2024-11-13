@@ -306,7 +306,6 @@
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
 /comp/checks/windowseventlog @DataDog/windows-agent
 /comp/checks/winregistry @DataDog/windows-agent
-/comp/core/agenttelemetry @DataDog/agent-metrics-logs
 /comp/core/autodiscovery @DataDog/container-platform
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/tagger @DataDog/container-platform
@@ -320,6 +319,9 @@
 /comp/serializer/compression @DataDog/agent-metrics-logs
 /comp/snmpscan @DataDog/ndm-core
 # END COMPONENTS
+
+# Additional notification to  @iglendd about Agent Telemetry changes for optional approval and governance acknowledgement
+/comp/core/agenttelemetry               @DataDog/agent-shared-components @iglendd
 
 # pkg
 /pkg/                                   @DataDog/agent-shared-components
@@ -442,6 +444,7 @@
 /pkg/util/ecs/                          @DataDog/container-integrations
 /pkg/util/funcs/                        @DataDog/ebpf-platform
 /pkg/util/kernel/                       @DataDog/ebpf-platform
+/pkg/util/safeelf/                      @DataDog/ebpf-platform
 /pkg/util/ktime                         @DataDog/agent-security
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-platform @DataDog/container-app
 /pkg/util/podman/                       @DataDog/container-integrations
