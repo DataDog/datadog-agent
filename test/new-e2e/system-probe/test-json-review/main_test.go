@@ -55,7 +55,7 @@ func TestFlakeInOutput(t *testing.T) {
 	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(flakeTestData)), nil, nil)
 	require.NoError(t, err)
 	assert.Empty(t, out.Failed)
-	assert.Equal(t, fmt.Sprintf(flakyFormat, "a/b/c", "testname"), out.Flaky)
+	assert.Equal(t, fmt.Sprintf(flakyFormat, "a/b/c", "testname")+"\n", out.Flaky)
 	assert.Empty(t, out.ReRuns)
 }
 
@@ -72,13 +72,13 @@ func TestRerunInOutput(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, out.Failed)
 	assert.Empty(t, out.Flaky)
-	assert.Equal(t, fmt.Sprintf(rerunFormat, "a/b/c", "testname", "pass"), out.ReRuns)
+	assert.Equal(t, fmt.Sprintf(rerunFormat, "a/b/c", "testname", "pass")+"\n", out.ReRuns)
 }
 
 func TestOnlyParentOfFlakeFailed(t *testing.T) {
 	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(onlyParentOfFlakeFailed)), nil, nil)
 	require.NoError(t, err)
-	assert.Equal(t, fmt.Sprintf(failFormat, "a/b/c", "testparent"), out.Failed)
+	assert.Equal(t, fmt.Sprintf(failFormat, "a/b/c", "testparent")+"\n", out.Failed)
 	assert.Empty(t, out.Flaky)
 	assert.Empty(t, out.ReRuns)
 }
