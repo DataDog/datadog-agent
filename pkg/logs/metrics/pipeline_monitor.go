@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const ewmaAlpha = 2 / (float64(30) + 1) // ~ 0.0645 for a 30s window
+
 // MeasurablePayload represents a payload that can be measured in bytes and count
 type MeasurablePayload interface {
 	Size() int64

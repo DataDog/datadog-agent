@@ -341,7 +341,6 @@ github.com/DataDog/sketches-go/ddsketch/stat
 github.com/DataDog/sketches-go/ddsketch/store
 github.com/DataDog/viper
 github.com/DataDog/zstd
-github.com/VividCortex/ewma
 github.com/aws/aws-lambda-go/events
 github.com/aws/aws-sdk-go-v2/aws
 github.com/aws/aws-sdk-go-v2/aws/arn
