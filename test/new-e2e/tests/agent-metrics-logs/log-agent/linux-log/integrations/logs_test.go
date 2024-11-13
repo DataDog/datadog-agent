@@ -41,8 +41,6 @@ func TestIntegrationsLogsSuite(t *testing.T) {
 			agentparams.WithFile("/etc/datadog-agent/checks.d/writeTenLogs.py", writeTenLogsCheck, true),
 			agentparams.WithFile("/etc/datadog-agent/conf.d/writeTenLogs.yaml", writeTenLogsConfig, true))))}
 
-	suiteParams = append(suiteParams, e2e.WithDevMode())
-
 	e2e.Run(t, &IntegrationsLogsSuite{}, suiteParams...)
 }
 
