@@ -197,31 +197,15 @@ func (suite *k8sSuite) TestAdmissionControllerWebhooksExist() {
 	expectedWebhookName := "datadog-webhook"
 
 	suite.Run("agent registered mutating webhook configuration", func() {
-		mutatingConfigs, err := suite.K8sClient.AdmissionregistrationV1().MutatingWebhookConfigurations().List(ctx, metav1.ListOptions{})
+		mutatingConfig, err := suite.K8sClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(ctx, expectedWebhookName, metav1.GetOptions{})
 		suite.Require().NoError(err)
-		suite.NotEmpty(mutatingConfigs.Items, "No mutating webhook configuration found")
-		found := false
-		for _, mutatingConfig := range mutatingConfigs.Items {
-			if mutatingConfig.Name == expectedWebhookName {
-				found = true
-				break
-			}
-		}
-		suite.Require().True(found, fmt.Sprintf("None of the mutating webhook configurations have the name '%s'", expectedWebhookName))
+		suite.NotNilf(mutatingConfig, "None of the mutating webhook configurations have the name '%s'", expectedWebhookName)
 	})
 
 	suite.Run("agent registered validating webhook configuration", func() {
-		validatingConfigs, err := suite.K8sClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().List(ctx, metav1.ListOptions{})
+		validatingConfig, err := suite.K8sClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, expectedWebhookName, metav1.GetOptions{})
 		suite.Require().NoError(err)
-		suite.NotEmpty(validatingConfigs.Items, "No validating webhook configuration found")
-		found := false
-		for _, validatingConfig := range validatingConfigs.Items {
-			if validatingConfig.Name == expectedWebhookName {
-				found = true
-				break
-			}
-		}
-		suite.Require().True(found, fmt.Sprintf("None of the validating webhook configurations have the name '%s'", expectedWebhookName))
+		suite.NotNilf(validatingConfig, "None of the validating webhook configurations have the name '%s'", expectedWebhookName)
 	})
 }
 
