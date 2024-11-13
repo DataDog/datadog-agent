@@ -45,7 +45,7 @@ def generate_dummy_package(ctx, folder):
     try:
         import_paths = []
         for mod in get_default_modules().values():
-            if mod.path != "." and mod.verify_condition() and mod.importable:
+            if mod.path != "." and mod.should_test() and mod.importable:
                 import_paths.append(mod.import_path)
 
         os.mkdir(folder)
@@ -112,7 +112,7 @@ def go_work(_: Context):
     with open("go.work", "w") as f:
         f.write(f"go {go_version}\n\nuse (\n")
         for mod in get_default_modules().values():
-            prefix = "" if mod.verify_condition() else "//"
+            prefix = "" if mod.should_test() else "//"
             f.write(f"\t{prefix}{mod.path}\n")
         f.write(")\n")
 
@@ -137,12 +137,12 @@ def for_each(
     for mod in get_default_modules().values():
         if skip_untagged and not mod.should_tag:
             continue
-        if skip_condition and not mod.verify_condition():
+        if skip_condition and not mod.should_test():
             continue
 
         targets = [mod.full_path()]
         if use_targets_path:
-            targets = [os.path.join(mod.full_path(), target) for target in mod.targets]
+            targets = [os.path.join(mod.full_path(), target) for target in mod.test_targets]
         if use_lint_targets_path:
             targets = [os.path.join(mod.full_path(), target) for target in mod.lint_targets]
 

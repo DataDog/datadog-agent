@@ -67,7 +67,7 @@ modules:
     - ./pkg
     - ./cmd
     - ./comp
-    targets:
+    test_targets:
     - ./pkg
     - ./cmd
     - ./comp
@@ -76,7 +76,7 @@ modules:
   comp/api/authtoken: default
   test/integration/serverless/src: ignored
   tools/retry_file_dump:
-    condition: never
+    should_test_condition: never
     independent: false
     should_tag: false
 ```

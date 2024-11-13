@@ -113,25 +113,25 @@ class TestModules(unittest.TestCase):
 
 class TestGoModuleCondition(unittest.TestCase):
     def test_always(self):
-        mod = GoModule(path='pkg/my/module', targets=['.'], lint_targets=['.'], condition='always')
-        self.assertTrue(mod.verify_condition())
+        mod = GoModule(path='pkg/my/module', test_targets=['.'], lint_targets=['.'], should_test_condition='always')
+        self.assertTrue(mod.should_test())
 
     def test_never(self):
-        mod = GoModule(path='pkg/my/module', targets=['.'], lint_targets=['.'], condition='never')
-        self.assertFalse(mod.verify_condition())
+        mod = GoModule(path='pkg/my/module', test_targets=['.'], lint_targets=['.'], should_test_condition='never')
+        self.assertFalse(mod.should_test())
 
     def test_error(self):
-        mod = GoModule(path='pkg/my/module', targets=['.'], lint_targets=['.'], condition='???')
-        self.assertRaises(KeyError, mod.verify_condition)
+        mod = GoModule(path='pkg/my/module', test_targets=['.'], lint_targets=['.'], should_test_condition='???')
+        self.assertRaises(KeyError, mod.should_test)
 
 
 class TestGoModuleSerialization(unittest.TestCase):
     def test_to_dict(self):
         module = GoModule(
             path='pkg/my/module',
-            targets=['.'],
+            test_targets=['.'],
             lint_targets=['.'],
-            condition='always',
+            should_test_condition='always',
             should_tag=True,
             importable=True,
             independent=True,
@@ -139,25 +139,25 @@ class TestGoModuleSerialization(unittest.TestCase):
         )
         d = module.to_dict(remove_defaults=False)
         self.assertEqual(d['path'], module.path)
-        self.assertEqual(d['condition'], module.condition)
+        self.assertEqual(d['should_test_condition'], module.should_test_condition)
         self.assertEqual(d['used_by_otel'], module.used_by_otel)
 
     def test_to_dict_defaults(self):
         module = GoModule(
             path='pkg/my/module',
-            condition='never',
+            should_test_condition='never',
         )
         d = module.to_dict()
 
         # Default values are not present
-        self.assertDictEqual(d, {'path': module.path, 'condition': module.condition})
+        self.assertDictEqual(d, {'path': module.path, 'should_test_condition': module.should_test_condition})
 
     def test_from_dict(self):
         d = {
             'path': 'pkg/my/module',
-            'targets': ['.'],
+            'test_targets': ['.'],
             'lint_targets': ['.'],
-            'condition': 'always',
+            'should_test_condition': 'always',
             'should_tag': True,
             'importable': True,
             'independent': True,
@@ -166,7 +166,7 @@ class TestGoModuleSerialization(unittest.TestCase):
         module = GoModule.from_dict(d['path'], d)
 
         self.assertEqual(d['path'], module.path)
-        self.assertEqual(d['condition'], module.condition)
+        self.assertEqual(d['should_test_condition'], module.should_test_condition)
         self.assertEqual(d['used_by_otel'], module.used_by_otel)
 
     def test_from_dict_defaults(self):
@@ -181,9 +181,9 @@ class TestGoModuleSerialization(unittest.TestCase):
     def test_from_to(self):
         d = {
             'path': 'pkg/my/module',
-            'targets': ['.'],
+            'test_targets': ['.'],
             'lint_targets': ['.'],
-            'condition': 'always',
+            'should_test_condition': 'always',
             'should_tag': True,
             'importable': True,
             'independent': True,
@@ -196,7 +196,7 @@ class TestGoModuleSerialization(unittest.TestCase):
         module2 = GoModule.from_dict(d2['path'], d2)
 
         self.assertEqual(module2.path, module.path)
-        self.assertEqual(module2.condition, module.condition)
+        self.assertEqual(module2.should_test_condition, module.should_test_condition)
         self.assertEqual(module2.used_by_otel, module.used_by_otel)
 
     def test_get_default_modules(self):
@@ -224,7 +224,11 @@ class TestGoModuleSerialization(unittest.TestCase):
             # Create modules
             modules = {
                 path: GoModule(
-                    path=path, targets=['.'], lint_targets=['.'], condition=condition, used_by_otel=used_by_otel
+                    path=path,
+                    test_targets=['.'],
+                    lint_targets=['.'],
+                    should_test_condition=condition,
+                    used_by_otel=used_by_otel,
                 )
                 for (path, condition, used_by_otel) in zip(paths, conditions, used_by_otel, strict=True)
             }
@@ -242,18 +246,26 @@ class TestGoModuleConfiguration(unittest.TestCase):
     def test_from(self):
         config = {
             'modules': {
-                '.': {'targets': ['pkg/my/module'], 'lint_targets': ['pkg/my/module'], 'condition': 'always'},
+                '.': {
+                    'test_targets': ['pkg/my/module'],
+                    'lint_targets': ['pkg/my/module'],
+                    'should_test_condition': 'always',
+                },
             }
         }
         modules = Configuration.from_dict(config).modules
 
         self.assertEqual(len(modules), 1)
-        self.assertEqual(modules['.'].condition, 'always')
+        self.assertEqual(modules['.'].should_test_condition, 'always')
 
     def test_from_default(self):
         config = {
             'modules': {
-                '.': {'targets': ['pkg/my/module'], 'lint_targets': ['pkg/my/module'], 'condition': 'always'},
+                '.': {
+                    'test_targets': ['pkg/my/module'],
+                    'lint_targets': ['pkg/my/module'],
+                    'should_test_condition': 'always',
+                },
                 'default': 'default',
             }
         }
@@ -261,12 +273,16 @@ class TestGoModuleConfiguration(unittest.TestCase):
 
         self.assertEqual(len(modules), 2)
         self.assertEqual(modules['default'].to_dict(), {'path': 'default'})
-        self.assertEqual(modules['default'].condition, GoModule('').condition)
+        self.assertEqual(modules['default'].should_test_condition, GoModule('').should_test_condition)
 
     def test_from_ignored(self):
         config = {
             'modules': {
-                '.': {'targets': ['pkg/my/module'], 'lint_targets': ['pkg/my/module'], 'condition': 'always'},
+                '.': {
+                    'test_targets': ['pkg/my/module'],
+                    'lint_targets': ['pkg/my/module'],
+                    'should_test_condition': 'always',
+                },
                 'ignored': 'ignored',
             }
         }
@@ -277,17 +293,17 @@ class TestGoModuleConfiguration(unittest.TestCase):
 
     def test_to(self):
         c = Configuration(
-            base_dir=Path.cwd(), modules={'mod': GoModule('mod', condition='never')}, ignored_modules=set()
+            base_dir=Path.cwd(), modules={'mod': GoModule('mod', should_test_condition='never')}, ignored_modules=set()
         )
         config = c.to_dict()
 
         self.assertEqual(len(config['modules']), 1)
-        self.assertDictEqual(config['modules']['mod'], {'condition': 'never'})
+        self.assertDictEqual(config['modules']['mod'], {'should_test_condition': 'never'})
 
     def test_to_default(self):
         c = Configuration(
             base_dir=Path.cwd(),
-            modules={'mod': GoModule('mod', condition='never'), 'default': GoModule('default')},
+            modules={'mod': GoModule('mod', should_test_condition='never'), 'default': GoModule('default')},
             ignored_modules=set(),
         )
         config = c.to_dict()
@@ -297,7 +313,9 @@ class TestGoModuleConfiguration(unittest.TestCase):
 
     def test_to_ignored(self):
         c = Configuration(
-            base_dir=Path.cwd(), modules={'mod': GoModule('mod', condition='never')}, ignored_modules={'ignored'}
+            base_dir=Path.cwd(),
+            modules={'mod': GoModule('mod', should_test_condition='never')},
+            ignored_modules={'ignored'},
         )
         config = c.to_dict()
 

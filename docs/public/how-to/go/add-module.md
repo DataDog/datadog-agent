@@ -33,13 +33,13 @@ The repository contains a few submodules. To add a new one and ensure it is test
     path/to/mymodule:
         independent: true
         should_tag: false
-        targets:
+        test_targets:
         - .
     ```
 
     - `independent`: Should it be importable as an independent module?
     - `should_tag`: Should the Agent pipeline tag it?
-    - `targets`: Should `go test` target specific subfolders?
+    - `test_targets`: Should `go test` target specific subfolders?
 
 
 5.  If you use your module in another module within `datadog-agent`, add the `require` and `replace` directives in `go.mod`.

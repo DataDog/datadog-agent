@@ -146,9 +146,9 @@ def test_core(
         if not skip_module_class:
             module_result = module_class(path=module.full_path())
         if not headless_mode:
-            skipped_header = "[Skipped]" if not module.verify_condition() else ""
+            skipped_header = "[Skipped]" if not module.should_test() else ""
             print(f"----- {skipped_header} Module '{module.full_path()}'")
-        if not module.verify_condition():
+        if not module.should_test():
             continue
 
         command(modules_results, module, module_result)
@@ -181,11 +181,11 @@ def process_input_args(
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         if isinstance(input_targets, str):
-            modules = [GoModule(input_module, targets=input_targets.split(','))]
+            modules = [GoModule(input_module, test_targets=input_targets.split(','))]
         else:
             modules = [m for m in get_default_modules().values() if m.path == input_module]
     elif isinstance(input_targets, str):
-        modules = [GoModule(".", targets=input_targets.split(','))]
+        modules = [GoModule(".", test_targets=input_targets.split(','))]
     else:
         if not headless_mode:
             print("Using default modules and targets")

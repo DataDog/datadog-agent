@@ -98,8 +98,8 @@ class GoModule:
         Documentation can be found in <docs/dev/modules.md>.
 
     Args:
-        targets: Directories to unit test.
-        condition: When to execute tests, must be a enumerated field of `GoModule.CONDITIONS`.
+        test_targets: Directories to unit test.
+        should_test_condition: When to execute tests, must be a enumerated field of `GoModule.CONDITIONS`.
         should_tag: Whether this module should be tagged or not.
         importable: HACK: Workaround for modules that can be tested, but not imported (eg. gohai), because they define a main package A better solution would be to automatically detect if a module contains a main package, at the cost of spending some time parsing the module.
         independent: Specifies whether this modules is supposed to exist independently of the datadog-agent module. If True, a check will run to ensure this is true.
@@ -108,13 +108,13 @@ class GoModule:
 
     Usage:
         A module is defined within the modules.yml file containing the following fields by default (these can be omitted if the default value is used):
-        > condition: always
+        > should_test_condition: always
         > importable: true
         > independent: true
         > lint_targets:
         > - .
         > should_tag: true
-        > targets:
+        > test_targets:
         > - .
         > used_by_otel: false
 
@@ -125,8 +125,8 @@ class GoModule:
         > my/module: ignored
     """
 
-    # Possible conditions for GoModule.condition
-    CONDITIONS: ClassVar[dict[str, Callable]] = {
+    # Possible conditions for GoModule.should_test_condition
+    SHOULD_TEST_CONDITIONS: ClassVar[dict[str, Callable]] = {
         'always': lambda: True,
         'never': lambda: False,
         'is_linux': lambda: sys.platform == "linux",
@@ -135,9 +135,9 @@ class GoModule:
     # Posix path of the module's directory
     path: str
     # Directories to unit test
-    targets: list[str] | None = None
-    # When to execute tests, must be a enumerated field of `GoModule.CONDITIONS`
-    condition: str = 'always'
+    test_targets: list[str] | None = None
+    # When to execute tests, must be a enumerated field of `GoModule.SHOULD_TEST_CONDITIONS`
+    should_test_condition: str = 'always'
     # Whether this module should be tagged or not
     should_tag: bool = True
     # HACK: Workaround for modules that can be tested, but not imported (eg. gohai), because
@@ -158,9 +158,9 @@ class GoModule:
 
         return GoModule(
             path=path,
-            targets=data.get("targets", default["targets"]),
+            test_targets=data.get("test_targets", default["test_targets"]),
             lint_targets=data.get("lint_targets", default["lint_targets"]),
-            condition=data.get("condition", default["condition"]),
+            should_test_condition=data.get("should_test_condition", default["should_test_condition"]),
             should_tag=data.get("should_tag", default["should_tag"]),
             importable=data.get("importable", default["importable"]),
             independent=data.get("independent", default["independent"]),
@@ -175,8 +175,8 @@ class GoModule:
         return attrs
 
     def __post_init__(self):
-        self.targets = self.targets or ["."]
-        self.lint_targets = self.lint_targets or self.targets
+        self.test_targets = self.test_targets or ["."]
+        self.lint_targets = self.lint_targets or self.test_targets
 
         self._dependencies = None
 
@@ -190,9 +190,9 @@ class GoModule:
 
         attrs = {
             "path": self.path,
-            "targets": self.targets,
+            "test_targets": self.test_targets,
             "lint_targets": self.lint_targets,
-            "condition": self.condition,
+            "should_test_condition": self.should_test_condition,
             "should_tag": self.should_tag,
             "importable": self.importable,
             "independent": self.independent,
@@ -211,9 +211,10 @@ class GoModule:
 
         return attrs
 
-    def verify_condition(self) -> bool:
-        """Verify that the module condition is met."""
-        function = GoModule.CONDITIONS[self.condition]
+    def should_test(self) -> bool:
+        """Verify that the module test condition is met from should_test_condition."""
+
+        function = GoModule.SHOULD_TEST_CONDITIONS[self.should_test_condition]
 
         return function()
 
@@ -332,10 +333,12 @@ def validate_module(
         ), f"Configuration has a default value which must be removed for {key}: {value}"
 
     # Verify values
-    for target in module.targets:
+    for target in module.test_targets:
         assert (base_dir / module.path / target).is_dir(), f"Configuration has an unknown target: {target}"
 
     for target in module.lint_targets:
         assert (base_dir / module.path / target).is_dir(), f"Configuration has an unknown lint_target: {target}"
 
-    assert module.condition in GoModule.CONDITIONS, f"Configuration has an unknown condition: {module.condition}"
+    assert (
+        module.should_test_condition in GoModule.SHOULD_TEST_CONDITIONS
+    ), f"Configuration has an unknown should_test_condition: {module.should_test_condition}"

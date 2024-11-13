@@ -77,9 +77,9 @@ def run(
         )
 
     e2e_module = get_default_modules()["test/new-e2e"]
-    e2e_module.condition = 'always'
+    e2e_module.should_test_condition = 'always'
     if targets:
-        e2e_module.targets = targets
+        e2e_module.test_targets = targets
 
     env_vars = {}
     if profile:
