@@ -84,6 +84,7 @@ func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("failed to build NVML collectors: %w", err)
 	}
 
+	m.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	return nil
 }
 
@@ -94,12 +95,6 @@ func (m *Check) Cancel() {
 	}
 
 	m.CheckBase.Cancel()
-}
-
-func (m *Check) ensureSysprobeUtil() {
-	if m.sysProbeClient == nil {
-		m.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
-	}
 }
 
 // Run executes the check
@@ -123,7 +118,6 @@ func (m *Check) Run() error {
 }
 
 func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
-	m.ensureSysprobeUtil()
 	stats, err := sysprobeclient.GetCheck[model.GPUStats](m.sysProbeClient, sysconfig.GPUMonitoringModule)
 	if err != nil {
 		return fmt.Errorf("cannot get data from system-probe: %w", err)

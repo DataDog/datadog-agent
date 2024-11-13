@@ -69,15 +69,12 @@ func (m *EBPFCheck) Configure(senderManager sender.SenderManager, _ uint64, conf
 	if err := m.config.Parse(config); err != nil {
 		return fmt.Errorf("ebpf check config: %s", err)
 	}
+	m.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	return nil
 }
 
 // Run executes the check
 func (m *EBPFCheck) Run() error {
-	if m.sysProbeClient == nil {
-		m.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
-	}
-
 	stats, err := sysprobeclient.GetCheck[ebpfcheck.EBPFStats](m.sysProbeClient, sysconfig.EBPFModule)
 	if err != nil {
 		return fmt.Errorf("get ebpf check: %s", err)
