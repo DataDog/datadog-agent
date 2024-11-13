@@ -47,7 +47,6 @@ func getCurrentECSTaskTags() (map[string]string, error) {
 		"task_family":  task.Family,
 		"task_arn":     task.TaskARN,
 		"task_version": task.Version,
-		"container_id": cont.DockerID,
 		"image_name":   imageName,
 		"image_tag":    imageTag,
 	}, nil
