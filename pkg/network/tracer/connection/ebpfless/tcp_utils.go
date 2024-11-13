@@ -22,9 +22,13 @@ import (
 const ebpflessModuleName = "ebpfless_network_tracer"
 
 var statsTelemetry = struct {
-	missedConnections telemetry.Counter
+	missedTCPConnections telemetry.Counter
+	missingTCPFlags      telemetry.Counter
+	tcpSynAndFin         telemetry.Counter
 }{
-	telemetry.NewCounter(ebpflessModuleName, "missed_connections", []string{}, "Counter measuring the number of TCP connections where we missed the SYN handshake"),
+	telemetry.NewCounter(ebpflessModuleName, "missed_tcp_connections", []string{}, "Counter measuring the number of TCP connections where we missed the SYN handshake"),
+	telemetry.NewCounter(ebpflessModuleName, "missing_tcp_flags", []string{}, "Counter measuring packets encountered with none of SYN, FIN, ACK, RST set"),
+	telemetry.NewCounter(ebpflessModuleName, "tcp_syn_and_fin", []string{}, "Counter measuring packets encountered with SYN+FIN together"),
 }
 
 const tcpSeqMidpoint = 0x80000000
@@ -63,7 +67,7 @@ func (ss *SynState) update(synFlag, ackFlag bool) {
 	// if we see ACK'd traffic but missed the SYN, assume the connection started before
 	// the datadog-agent starts.
 	if *ss == SynStateNone && ackFlag {
-		statsTelemetry.missedConnections.Inc()
+		statsTelemetry.missedTCPConnections.Inc()
 		*ss = SynStateAcked
 	}
 }

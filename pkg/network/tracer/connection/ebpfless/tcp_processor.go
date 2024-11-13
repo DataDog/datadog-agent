@@ -178,6 +178,19 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, pktType uint8, ip4
 		return "tcp processor: " + debugPacketInfo(pktType, tcp, payloadLen)
 	})
 
+	// skip invalid packets we don't recognize:
+	noFlagsCombo := !tcp.SYN && !tcp.FIN && !tcp.ACK && !tcp.RST
+	if noFlagsCombo {
+		// no flags at all (I think this can happen for expanding the TCP window sometimes?)
+		statsTelemetry.missingTCPFlags.Inc()
+		return nil
+	}
+	synFinCombo := tcp.SYN && tcp.FIN
+	if synFinCombo {
+		statsTelemetry.tcpSynAndFin.Inc()
+		return nil
+	}
+
 	st := t.conns[conn.ConnectionTuple]
 
 	t.updateSynFlag(conn, &st, pktType, tcp, payloadLen)
