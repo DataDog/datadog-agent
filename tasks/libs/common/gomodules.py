@@ -264,7 +264,7 @@ class GoModule:
 
     def full_path(self):
         """Return the absolute path of the Go module."""
-        return str(self.path)
+        return os.path.abspath(self.path)
 
     def go_mod_path(self):
         """Return the absolute path of the Go module go.mod file."""
