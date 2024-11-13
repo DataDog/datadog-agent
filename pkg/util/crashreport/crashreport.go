@@ -10,6 +10,7 @@ package crashreport
 
 import (
 	"fmt"
+	"net/http"
 
 	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -27,6 +28,7 @@ type WinCrashReporter struct {
 	baseKey          string
 	startupWarnCount int
 	hasRunOnce       bool
+	sysProbeClient   *http.Client
 }
 
 const (
@@ -38,8 +40,9 @@ const (
 // crash registry keys
 func NewWinCrashReporter(hive registry.Key, key string) (*WinCrashReporter, error) {
 	wcr := &WinCrashReporter{
-		hive:    hive,
-		baseKey: key,
+		hive:           hive,
+		baseKey:        key,
+		sysProbeClient: sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
 	}
 	return wcr, nil
 }
@@ -102,8 +105,7 @@ func (wcr *WinCrashReporter) CheckForCrash() (*probe.WinCrashStatus, error) {
 		return nil, nil
 	}
 
-	client := sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
-	crash, err := sysprobeclient.GetCheck[probe.WinCrashStatus](client, sysconfig.WindowsCrashDetectModule)
+	crash, err := sysprobeclient.GetCheck[probe.WinCrashStatus](wcr.sysProbeClient, sysconfig.WindowsCrashDetectModule)
 	if err != nil {
 		return nil, wcr.handleStartupError(err)
 	}

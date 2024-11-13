@@ -38,6 +38,8 @@ type linuxImpl struct {
 	ignoreProcs       map[int]bool
 	aliveServices     map[int]*serviceInfo
 	potentialServices map[int]*serviceInfo
+
+	sysProbeClient *http.Client
 }
 
 func newLinuxImpl(ignoreCfg map[string]bool, containerProvider proccontainers.ContainerProvider) (osImpl, error) {
@@ -49,6 +51,7 @@ func newLinuxImpl(ignoreCfg map[string]bool, containerProvider proccontainers.Co
 		ignoreProcs:          make(map[int]bool),
 		aliveServices:        make(map[int]*serviceInfo),
 		potentialServices:    make(map[int]*serviceInfo),
+		sysProbeClient:       sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
 	}, nil
 }
 
@@ -77,10 +80,7 @@ func getDiscoveryServices(client *http.Client) (*model.ServicesResponse, error) 
 }
 
 func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
-	socket := pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")
-	sysProbe := sysprobeclient.Get(socket)
-
-	response, err := li.getDiscoveryServices(sysProbe)
+	response, err := li.getDiscoveryServices(li.sysProbeClient)
 	if err != nil {
 		return nil, errWithCode{
 			err:  err,

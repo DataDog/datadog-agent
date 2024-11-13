@@ -10,6 +10,7 @@ package oomkill
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 
 	yaml "gopkg.in/yaml.v2"
@@ -43,8 +44,9 @@ type OOMKillConfig struct {
 // OOMKillCheck grabs OOM Kill metrics
 type OOMKillCheck struct {
 	core.CheckBase
-	instance *OOMKillConfig
-	tagger   tagger.Component
+	instance       *OOMKillConfig
+	tagger         tagger.Component
+	sysProbeClient *http.Client
 }
 
 // Factory creates a new check factory
@@ -76,6 +78,7 @@ func (m *OOMKillCheck) Configure(senderManager sender.SenderManager, _ uint64, c
 	if err != nil {
 		return err
 	}
+	m.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 
 	return m.instance.Parse(config)
 }
@@ -86,8 +89,7 @@ func (m *OOMKillCheck) Run() error {
 		return nil
 	}
 
-	client := sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
-	oomkillStats, err := sysprobeclient.GetCheck[[]model.OOMKillStats](client, sysconfig.OOMKillProbeModule)
+	oomkillStats, err := sysprobeclient.GetCheck[[]model.OOMKillStats](m.sysProbeClient, sysconfig.OOMKillProbeModule)
 	if err != nil {
 		return err
 	}
