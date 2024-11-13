@@ -1,4 +1,6 @@
-go 1.22.8
+go 1.22.5
+
+toolchain go1.22.7
 
 use (
 	.
@@ -43,11 +45,6 @@ use (
 	comp/trace/compression/def
 	comp/trace/compression/impl-gzip
 	comp/trace/compression/impl-zstd
-	internal/tools
-	internal/tools/independent-lint
-	internal/tools/modformatter
-	internal/tools/modparser
-	internal/tools/proto
 	pkg/aggregator/ckey
 	pkg/api
 	pkg/collector/check/defaults
@@ -62,7 +59,6 @@ use (
 	pkg/config/utils
 	pkg/errors
 	pkg/gohai
-	pkg/linters/components/pkgconfigusage
 	pkg/logs/auditor
 	pkg/logs/client
 	pkg/logs/diagnostic
@@ -121,8 +117,17 @@ use (
 	pkg/util/uuid
 	pkg/util/winutil
 	pkg/version
+//tools/retry_file_dump
+)
+
+use (
+	internal/tools
+	internal/tools/independent-lint
+	internal/tools/modformatter
+	internal/tools/modparser
+	internal/tools/proto
+	pkg/linters/components/pkgconfigusage
 	test/fakeintake
 	test/new-e2e
 	test/otel
-//tools/retry_file_dump
 )

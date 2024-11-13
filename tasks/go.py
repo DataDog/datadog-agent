@@ -122,19 +122,22 @@ def deps_vendored(ctx, verbose=False):
     """
     Vendor Go dependencies
     """
+    os.environ["GOWORK"] = (
+        "off"  # We only want the license from libraries imported by the agent itself, not the whole workspace.
+    )
 
     print("vendoring dependencies")
-    with timed("go work vendor"):
+    with timed("go mod vendor"):
         verbosity = ' -v' if verbose else ''
 
-        ctx.run(f"go work vendor{verbosity}")
+        ctx.run(f"go mod vendor{verbosity}")
         ctx.run(f"go mod tidy{verbosity}")
 
         # "go mod vendor" doesn't copy files that aren't in a package: https://github.com/golang/go/issues/26366
         # This breaks when deps include other files that are needed (eg: .java files from gomobile): https://github.com/golang/go/issues/43736
         # For this reason, we need to use a 3rd party tool to copy these files.
         # We won't need this if/when we change to non-vendored modules
-        ctx.run(f'modvendor -copy="**/*.c **/*.h **/*.proto **/*.java"{verbosity}')
+        # ctx.run(f'modvendor -copy="**/*.c **/*.h **/*.proto **/*.java"{verbosity}')
 
         # If github.com/DataDog/datadog-agent gets vendored too - nuke it
         # This may happen because of the introduction of nested modules
