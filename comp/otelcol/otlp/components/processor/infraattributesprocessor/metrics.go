@@ -36,56 +36,7 @@ func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md
 	rms := md.ResourceMetrics()
 	for i := 0; i < rms.Len(); i++ {
 		resourceAttributes := rms.At(i).Resource().Attributes()
-		entityIDs := entityIDsFromAttributes(resourceAttributes, iamp.generateID)
-		tagMap := make(map[string]string)
-
-		// Get all unique tags from resource attributes and global tags
-		for _, entityID := range entityIDs {
-			entityTags, err := iamp.tagger.Tag(entityID, iamp.cardinality)
-			if err != nil {
-				iamp.logger.Error("Cannot get tags for entity", zap.String("entityID", entityID.String()), zap.Error(err))
-				continue
-			}
-			for _, tag := range entityTags {
-				k, v := splitTag(tag)
-				_, hasTag := tagMap[k]
-				if k != "" && v != "" && !hasTag {
-					tagMap[k] = v
-				}
-			}
-		}
-		globalTags, err := iamp.tagger.GlobalTags(iamp.cardinality)
-		if err != nil {
-			iamp.logger.Error("Cannot get global tags", zap.Error(err))
-		}
-		for _, tag := range globalTags {
-			k, v := splitTag(tag)
-			_, hasTag := tagMap[k]
-			if k != "" && v != "" && !hasTag {
-				tagMap[k] = v
-			}
-		}
-
-		// Add all tags as resource attributes
-		for k, v := range tagMap {
-			otelAttrs, ust := unifiedServiceTagMap[k]
-			if !ust {
-				resourceAttributes.PutStr(k, v)
-				continue
-			}
-
-			// Add OTel semantics for unified service tags which are required in mapping
-			hasOTelAttr := false
-			for _, otelAttr := range otelAttrs {
-				if _, ok := resourceAttributes.Get(otelAttr); ok {
-					hasOTelAttr = true
-					break
-				}
-			}
-			if !hasOTelAttr {
-				resourceAttributes.PutStr(otelAttrs[0], v)
-			}
-		}
+		processInfraTags(iamp.logger, iamp.tagger, iamp.cardinality, iamp.generateID, resourceAttributes)
 	}
 	return md, nil
 }

@@ -7,6 +7,7 @@ package infraattributesprocessor
 
 import (
 	"fmt"
+	"go.uber.org/zap"
 	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -24,6 +25,66 @@ var unifiedServiceTagMap = map[string][]string{
 
 // GenerateKubeMetadataEntityID is a function that generates an entity ID for a Kubernetes resource.
 type GenerateKubeMetadataEntityID func(group, resource, namespace, name string) string
+
+// processInfraTags collects entities/tags from resourceAttributes and adds infra tags to resourceAttributes
+func processInfraTags(
+	logger *zap.Logger,
+	tagger taggerClient,
+	cardinality types.TagCardinality,
+	generateID GenerateKubeMetadataEntityID,
+	resourceAttributes pcommon.Map,
+) {
+	entityIDs := entityIDsFromAttributes(resourceAttributes, generateID)
+	tagMap := make(map[string]string)
+
+	// Get all unique tags from resource attributes and global tags
+	for _, entityID := range entityIDs {
+		entityTags, err := tagger.Tag(entityID, cardinality)
+		if err != nil {
+			logger.Error("Cannot get tags for entity", zap.String("entityID", entityID.String()), zap.Error(err))
+			continue
+		}
+		for _, tag := range entityTags {
+			k, v := splitTag(tag)
+			_, hasTag := tagMap[k]
+			if k != "" && v != "" && !hasTag {
+				tagMap[k] = v
+			}
+		}
+	}
+	globalTags, err := tagger.GlobalTags(cardinality)
+	if err != nil {
+		logger.Error("Cannot get global tags", zap.Error(err))
+	}
+	for _, tag := range globalTags {
+		k, v := splitTag(tag)
+		_, hasTag := tagMap[k]
+		if k != "" && v != "" && !hasTag {
+			tagMap[k] = v
+		}
+	}
+
+	// Add all tags as resource attributes
+	for k, v := range tagMap {
+		otelAttrs, ust := unifiedServiceTagMap[k]
+		if !ust {
+			resourceAttributes.PutStr(k, v)
+			continue
+		}
+
+		// Add OTel semantics for unified service tags which are required in mapping
+		hasOTelAttr := false
+		for _, otelAttr := range otelAttrs {
+			if _, ok := resourceAttributes.Get(otelAttr); ok {
+				hasOTelAttr = true
+				break
+			}
+		}
+		if !hasOTelAttr {
+			resourceAttributes.PutStr(otelAttrs[0], v)
+		}
+	}
+}
 
 // TODO: Replace OriginIDFromAttributes in opentelemetry-mapping-go with this method
 // entityIDsFromAttributes gets the entity IDs from resource attributes.
