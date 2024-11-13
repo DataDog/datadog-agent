@@ -11,19 +11,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/remote"
-	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// Listener is used to propagate tags events
-type Listener func(workload *cgroupModel.CacheEntry)
 
 // LinuxResolver represents a default resolver based directly on the underlying tagger
 type LinuxResolver struct {
@@ -82,12 +74,7 @@ func (t *LinuxResolver) checkTags(workload *cgroupModel.CacheEntry) {
 		}
 	}
 
-	// notify listeners
-	t.listenersLock.Lock()
-	defer t.listenersLock.Unlock()
-	for _, l := range t.listeners[WorkloadSelectorResolved] {
-		l(workload)
-	}
+	t.NotifyListener(WorkloadSelectorResolved, workload)
 }
 
 // fetchTags fetches tags for the provided workload
@@ -102,20 +89,10 @@ func (t *LinuxResolver) fetchTags(container *cgroupModel.CacheEntry) error {
 
 // NewResolver returns a new tags resolver
 func NewResolver(config *config.Config, telemetry telemetry.Component, cgroupsResolver *cgroup.Resolver) Resolver {
-	defaultResolver := NewDefaultResolver(config, telemetry)
-	workloadsWithoutTags := make(chan *cgroupModel.CacheEntry, 100)
 	resolver := &LinuxResolver{
-		DefaultResolver:      defaultResolver,
-		workloadsWithoutTags: workloadsWithoutTags,
+		DefaultResolver:      NewDefaultResolver(config, telemetry),
+		workloadsWithoutTags: make(chan *cgroupModel.CacheEntry, 100),
 		cgroupResolver:       cgroupsResolver,
-	}
-	if config.RemoteTaggerEnabled {
-		options, err := remote.NodeAgentOptionsForSecurityResolvers(pkgconfigsetup.Datadog())
-		if err != nil {
-			log.Errorf("unable to configure the remote tagger: %s", err)
-		} else {
-			resolver.tagger = remote.NewTagger(options, pkgconfigsetup.Datadog(), taggerTelemetry.NewStore(telemetry), types.NewMatchAllFilter())
-		}
 	}
 	return resolver
 }

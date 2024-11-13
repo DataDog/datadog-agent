@@ -10,7 +10,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -20,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -53,10 +53,6 @@ func (n *nullTagger) Tag(_ types.EntityID, _ types.TagCardinality) ([]string, er
 	return nil, nil
 }
 
-func (n *nullTagger) RegisterListener(_ Event, _ Listener) error {
-	return nil
-}
-
 // Resolver represents a cache resolver
 type Resolver interface {
 	Start(ctx context.Context) error
@@ -64,14 +60,13 @@ type Resolver interface {
 	Resolve(id string) []string
 	ResolveWithErr(id string) ([]string, error)
 	GetValue(id string, tag string) string
-	RegisterListener(event Event, listener Listener) error
+	RegisterListener(event Event, listener utils.Listener[*cgroupModel.CacheEntry]) error
 }
 
 // DefaultResolver represents a default resolver based directly on the underlying tagger
 type DefaultResolver struct {
-	tagger        Tagger
-	listenersLock sync.Mutex
-	listeners     map[Event][]Listener
+	*utils.Notifier[Event, *cgroupModel.CacheEntry]
+	tagger Tagger
 }
 
 // Resolve returns the tags for the given id
@@ -119,26 +114,12 @@ func (t *DefaultResolver) Stop() error {
 	return t.tagger.Stop()
 }
 
-// RegisterListener registers a tags event listener
-func (t *DefaultResolver) RegisterListener(event Event, listener Listener) error {
-	t.listenersLock.Lock()
-	defer t.listenersLock.Unlock()
-
-	if t.listeners != nil {
-		t.listeners[event] = append(t.listeners[event], listener)
-	} else {
-		return fmt.Errorf("a listener was inserted before initialization")
-	}
-	return nil
-}
-
 // NewDefaultResolver returns a new default tags resolver
 func NewDefaultResolver(config *config.Config, telemetry telemetry.Component) *DefaultResolver {
 	ddConfig := pkgconfigsetup.Datadog()
-	listeners := make(map[Event][]Listener)
 	resolver := &DefaultResolver{
-		tagger:    &nullTagger{},
-		listeners: listeners,
+		tagger:   &nullTagger{},
+		Notifier: utils.NewNotifier[Event, *cgroupModel.CacheEntry](),
 	}
 
 	if config.RemoteTaggerEnabled {

@@ -10,7 +10,6 @@ package cgroup
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -18,6 +17,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // Event defines the cgroup event type
@@ -32,32 +32,23 @@ const (
 	CGroupMaxEvent
 )
 
-// Listener is used to propagate CGroup events
-type Listener func(workload *cgroupModel.CacheEntry)
-
 // Resolver defines a cgroup monitor
 type Resolver struct {
+	*utils.Notifier[Event, *cgroupModel.CacheEntry]
 	sync.RWMutex
 	workloads *simplelru.LRU[string, *cgroupModel.CacheEntry]
-
-	listenersLock sync.Mutex
-	listeners     map[Event][]Listener
 }
 
 // NewResolver returns a new cgroups monitor
 func NewResolver() (*Resolver, error) {
 	cr := &Resolver{
-		listeners: make(map[Event][]Listener),
+		Notifier: utils.NewNotifier[Event, *cgroupModel.CacheEntry](),
 	}
 	workloads, err := simplelru.NewLRU(1024, func(_ string, value *cgroupModel.CacheEntry) {
 		value.CallReleaseCallback()
 		value.Deleted.Store(true)
 
-		cr.listenersLock.Lock()
-		defer cr.listenersLock.Unlock()
-		for _, l := range cr.listeners[CGroupDeleted] {
-			l(value)
-		}
+		cr.NotifyListener(CGroupDeleted, value)
 	})
 	if err != nil {
 		return nil, err
@@ -68,23 +59,6 @@ func NewResolver() (*Resolver, error) {
 
 // Start starts the goroutine of the SBOM resolver
 func (cr *Resolver) Start(_ context.Context) {
-}
-
-// RegisterListener registers a CGroup event listener
-func (cr *Resolver) RegisterListener(event Event, listener Listener) error {
-	if event >= CGroupMaxEvent || event < 0 {
-		return fmt.Errorf("invalid Event: %v", event)
-	}
-
-	cr.listenersLock.Lock()
-	defer cr.listenersLock.Unlock()
-
-	if cr.listeners != nil {
-		cr.listeners[event] = append(cr.listeners[event], listener)
-	} else {
-		return fmt.Errorf("a Listener was inserted before initialization")
-	}
-	return nil
 }
 
 // AddPID associates a container id and a pid which is expected to be the pid 1
@@ -110,12 +84,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	// add the new CGroup to the cache
 	cr.workloads.Add(string(process.ContainerID), newCGroup)
 
-	// notify listeners
-	cr.listenersLock.Lock()
-	for _, l := range cr.listeners[CGroupCreated] {
-		l(newCGroup)
-	}
-	cr.listenersLock.Unlock()
+	cr.NotifyListener(CGroupCreated, newCGroup)
 }
 
 // GetWorkload returns the workload referenced by the provided ID

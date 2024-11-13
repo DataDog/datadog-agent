@@ -23,6 +23,7 @@ import (
 // FakeResolver represents a fake cache resolver
 type FakeResolver struct {
 	sync.Mutex
+	*utils.Notifier[tags.Event, *cgroupModel.CacheEntry]
 	containerIDs []string
 }
 
@@ -62,20 +63,18 @@ func (fr *FakeResolver) GetValue(id string, tag string) string {
 	return utils.GetTagValue(tag, fr.Resolve(id))
 }
 
-// RegisterListener registers a tags event listener
-func (fr *FakeResolver) RegisterListener(_ tags.Event, _ tags.Listener) error {
-	return nil
-}
-
 // NewFakeResolverDifferentImageNames returns a new tags resolver
 func NewFakeResolverDifferentImageNames() tags.Resolver {
-	return &FakeResolver{}
+	return &FakeResolver{
+		Notifier: utils.NewNotifier[tags.Event, *cgroupModel.CacheEntry](),
+	}
 }
 
 // This fake resolver will allways give the same image_name, no matter the container ID
 
 // FakeMonoResolver represents a fake mono resolver
 type FakeMonoResolver struct {
+	*utils.Notifier[tags.Event, *cgroupModel.CacheEntry]
 }
 
 // Start the resolver
@@ -103,14 +102,11 @@ func (fmr *FakeMonoResolver) GetValue(id string, tag string) string {
 	return utils.GetTagValue(tag, fmr.Resolve(id))
 }
 
-// RegisterListener registers a tags event listener
-func (fmr *FakeMonoResolver) RegisterListener(_ tags.Event, _ tags.Listener) error {
-	return nil
-}
-
 // NewFakeMonoResolver returns a new tags resolver
 func NewFakeMonoResolver() tags.Resolver {
-	return &FakeMonoResolver{}
+	return &FakeMonoResolver{
+		Notifier: utils.NewNotifier[tags.Event, *cgroupModel.CacheEntry](),
+	}
 }
 
 // This fake resolver will let us specify the next containerID to be resolved
@@ -118,6 +114,7 @@ func NewFakeMonoResolver() tags.Resolver {
 // FakeManualResolver represents a fake manual resolver
 type FakeManualResolver struct {
 	sync.Mutex
+	*utils.Notifier[tags.Event, *cgroupModel.CacheEntry]
 	containerToSelector map[string]*cgroupModel.WorkloadSelector
 	cpt                 int
 	nextSelectors       []*cgroupModel.WorkloadSelector
@@ -189,14 +186,10 @@ func (fmr *FakeManualResolver) GetValue(id string, tag string) string {
 	return utils.GetTagValue(tag, fmr.Resolve(id))
 }
 
-// RegisterListener registers a tags event listener
-func (fmr *FakeManualResolver) RegisterListener(_ tags.Event, _ tags.Listener) error {
-	return nil
-}
-
 // NewFakeManualResolver returns a new tags resolver
 func NewFakeManualResolver() *FakeManualResolver {
 	return &FakeManualResolver{
+		Notifier:            utils.NewNotifier[tags.Event, *cgroupModel.CacheEntry](),
 		containerToSelector: make(map[string]*cgroupModel.WorkloadSelector),
 	}
 }
