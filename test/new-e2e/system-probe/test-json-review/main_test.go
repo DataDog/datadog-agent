@@ -50,6 +50,16 @@ const flakyFailWithParentFail = `{"Time":"2024-06-14T22:24:52.156240262Z","Actio
 {"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Test":"testparent/testname","Elapsed":26.25}
 {"Time":"2024-06-14T22:26:03.039003529Z","Action":"fail","Package":"a/b/c","Test":"testparent","Elapsed":28.25}
 `
+const parentWithFlakyAndNormalFail = `{"Time":"2024-06-14T22:24:52.156240262Z","Action":"run","Package":"a/b/c","Test":"testparent"}
+{"Time":"2024-06-14T22:24:53.156240262Z","Action":"run","Package":"a/b/c","Test":"testparent/testname"}
+{"Time":"2024-06-14T22:24:53.156263319Z","Action":"output","Package":"a/b/c","Test":"testparent/testname","Output":"=== RUN   testparent/testname\n"}
+{"Time":"2024-06-14T22:24:53.156271614Z","Action":"output","Package":"a/b/c","Test":"testparent/testname","Output":"    file_test.go:10: flakytest: this is a known flaky test\n"}
+{"Time":"2024-06-14T22:24:54.039003529Z","Action":"fail","Package":"a/b/c","Test":"testparent/testname","Elapsed":26.25}
+{"Time":"2024-06-14T22:24:55.156240262Z","Action":"run","Package":"a/b/c","Test":"testparent/testname2"}
+{"Time":"2024-06-14T22:24:55.156263319Z","Action":"output","Package":"a/b/c","Test":"testparent/testname2","Output":"=== RUN   testparent/testname2\n"}
+{"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Test":"testparent/testname2","Elapsed":26.25}
+{"Time":"2024-06-14T22:26:03.039003529Z","Action":"fail","Package":"a/b/c","Test":"testparent","Elapsed":28.25}
+`
 
 func TestFlakeInOutput(t *testing.T) {
 	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(flakeTestData)), nil, nil)
@@ -62,7 +72,7 @@ func TestFlakeInOutput(t *testing.T) {
 func TestFailedInOutput(t *testing.T) {
 	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(failedTestData)), nil, nil)
 	require.NoError(t, err)
-	assert.Equal(t, fmt.Sprintf(failFormat, "a/b/c", "testname"), out.Failed)
+	assert.Equal(t, fmt.Sprintf(failFormat, "a/b/c", "testname")+"\n", out.Failed)
 	assert.Empty(t, out.Flaky)
 	assert.Empty(t, out.ReRuns)
 }
@@ -92,5 +102,19 @@ func TestParentOfFlakeIsFlake(t *testing.T) {
 
 	assert.Empty(t, out.Failed)
 	assert.Equal(t, fmt.Sprintf("%s\n%s\n", flakyParent, flakyChild), out.Flaky)
+	assert.Empty(t, out.ReRuns)
+}
+
+func TestParentOfFlakeAndFailIsFailed(t *testing.T) {
+	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(parentWithFlakyAndNormalFail)), nil, nil)
+	require.NoError(t, err)
+
+	flakyChild := fmt.Sprintf(flakyFormat, "a/b/c", "testparent/testname")
+	failChild := fmt.Sprintf(failFormat, "a/b/c", "testparent/testname2")
+	failParent := fmt.Sprintf(failFormat, "a/b/c", "testparent")
+	failStr := fmt.Sprintf("%s\n%s\n", failParent, failChild)
+
+	assert.Equal(t, failStr, out.Failed)
+	assert.Equal(t, flakyChild+"\n", out.Flaky)
 	assert.Empty(t, out.ReRuns)
 }
