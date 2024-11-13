@@ -65,6 +65,19 @@ int hook_security_socket_connect(ctx_t *ctx) {
     struct pid_route_t key = {};
     u16 family = 0;
     u16 protocol = 0;
+    
+    u64 socket_sock_offset;
+    u64 sk_protocol_offset;
+    u64 sk_protocol_size;
+
+
+    LOAD_CONSTANT("socket_sock_offset", socket_sock_offset);
+    LOAD_CONSTANT("sock_sk_protocol_offset", sk_protocol_offset);
+    LOAD_CONSTANT("sk_protocol_size", sk_protocol_size);
+
+    __bpf_printk("-------------------- sk_protocol_offset: %d", socket_sock_offset);
+    __bpf_printk("-------------------- sk_protocol_offset: %d", sk_protocol_offset);
+    __bpf_printk("-------------------- sk_protocol_size: %d", sk_protocol_size);
 
 
     // Extract IP and port from the sockaddr structure
@@ -80,9 +93,10 @@ int hook_security_socket_connect(ctx_t *ctx) {
         bpf_probe_read(&key.addr, sizeof(u64) * 2, (char *)addr_in6 + offsetof(struct sockaddr_in6, sin6_addr));
     }
 
-    struct sock *sk_sock;
-    bpf_probe_read(&sk_sock, sizeof(sk_sock), &sk->sk);
-    bpf_probe_read(&protocol, sizeof(protocol), &sk_sock->sk_protocol);
+    struct sock *sk_sock = NULL;
+    bpf_probe_read(&sk_sock, sizeof(sk_sock),(void *) sk + socket_sock_offset);
+    bpf_probe_read(&protocol, sk_protocol_size, (void *) sk_sock + sk_protocol_offset);
+    // bpf_probe_read(&protocol, sizeof(protocol), &sk_sock->sk_protocol);
 
     // fill syscall_cache if necessary
     struct syscall_cache_t *syscall = peek_syscall(EVENT_CONNECT);
@@ -99,27 +113,6 @@ int hook_security_socket_connect(ctx_t *ctx) {
         return 0;
     }
 
-    // Register service PID
-    if (key.port != 0) {
-        u64 id = bpf_get_current_pid_tgid();
-        u32 tid = (u32)id;
-
-        // add netns information
-        key.netns = get_netns_from_socket(sk);
-        if (key.netns != 0) {
-            bpf_map_update_elem(&netns_cache, &tid, &key.netns, BPF_ANY);
-        }
-
-#ifndef DO_NOT_USE_TC
-        u32 pid = id >> 32;
-        bpf_map_update_elem(&flow_pid, &key, &pid, BPF_ANY);
-#endif
-
-#if defined(DEBUG_CONNECT)
-        __bpf_printk("------------# registered (connect) pid:%d", pid);
-        __bpf_printk("------------# p:%d a:%d a:%d", key.port, key.addr[0], key.addr[1]);
-#endif
-    }
     return 0;
 }
 

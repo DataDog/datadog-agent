@@ -266,6 +266,10 @@ enum libbpf_tristate {
 		     ___param, sizeof(___param));		\
 })
 
+#ifndef BPF_NO_GLOBAL_DATA
+#define BPF_NO_GLOBAL_DATA 1
+#endif
+
 #ifdef BPF_NO_GLOBAL_DATA
 #define BPF_PRINTK_FMT_MOD
 #else
