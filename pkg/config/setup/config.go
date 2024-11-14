@@ -352,10 +352,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Defaults to safe YAML methods in base and custom checks.
 	config.BindEnvAndSetDefault("disable_unsafe_yaml", true)
 
-	// Yaml keys which values are stripped from flare
-	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
-	config.BindEnvAndSetDefault("scrubber.additional_keys", []string{})
-
 	// flare configs
 	config.BindEnvAndSetDefault("flare_provider_timeout", 10*time.Second)
 
@@ -1100,6 +1096,10 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Use to output logs in JSON format
 	config.BindEnvAndSetDefault("log_format_json", false)
+
+	// Yaml keys which values are stripped from flare
+	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
+	config.BindEnvAndSetDefault("scrubber.additional_keys", []string{})
 
 	// Agent GUI access host
 	// 		'http://localhost' is preferred over 'http://127.0.0.1' due to Internet Explorer behavior.
