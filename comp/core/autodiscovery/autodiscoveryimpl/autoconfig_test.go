@@ -28,8 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -600,5 +600,5 @@ type Deps struct {
 }
 
 func createDeps(t *testing.T) Deps {
-	return fxutil.Test[Deps](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()), fx.Supply(tagger.NewFakeTaggerParams()), taggerimpl.Module())
+	return fxutil.Test[Deps](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()), taggerfx.Module(tagger.Params{UseFakeTagger: true}))
 }
