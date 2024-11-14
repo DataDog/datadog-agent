@@ -22,17 +22,12 @@ func adjustUSM(cfg model.Config) {
 		applyDefault(cfg, netNS("enable_https_monitoring"), true)
 		applyDefault(cfg, spNS("enable_runtime_compiler"), true)
 		applyDefault(cfg, spNS("enable_kernel_header_download"), true)
-
-		// Preserve backward compatibility by allowing legacy option to take
-		// precedence over default
-		if !cfg.IsSet(smNS("enable_go_tls_support")) {
-			applyDefault(cfg, smNS("tls", "go", "enabled"), true)
-		}
 	}
 
 	deprecateBool(cfg, netNS("enable_http_monitoring"), smNS("enable_http_monitoring"))
 	deprecateBool(cfg, netNS("enable_https_monitoring"), smNS("tls", "native", "enabled"))
 	deprecateBool(cfg, smNS("enable_go_tls_support"), smNS("tls", "go", "enabled"))
+	applyDefault(cfg, smNS("tls", "go", "enabled"), true)
 	deprecateGeneric(cfg, netNS("http_replace_rules"), smNS("http_replace_rules"))
 	deprecateInt64(cfg, netNS("max_tracked_http_connections"), smNS("max_tracked_http_connections"))
 	applyDefault(cfg, smNS("max_tracked_http_connections"), 1024)
