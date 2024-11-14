@@ -24,14 +24,22 @@ var (
 	imdsNetworkMacs = "/network/interfaces/macs"
 )
 
-// imdsVersion is an enum to determine how to interact with the IMDSv2 option
-type imdsVersion int
+// ec2IMDSVersionConfig is an enum to determine how to interact with the IMDSv2 option
+type ec2IMDSVersionConfig int
 
 const (
-	imdsV1 imdsVersion = iota
+	imdsV1 ec2IMDSVersionConfig = iota
 	imdsAllVersions
 	imdsV2
 )
+
+func (v ec2IMDSVersionConfig) V2Allowed() bool {
+	return v == imdsAllVersions || v == imdsV2
+}
+
+func (v ec2IMDSVersionConfig) V2Only() bool {
+	return v == imdsV2
+}
 
 func getToken(ctx context.Context) (string, time.Time, error) {
 	tokenLifetime := time.Duration(pkgconfigsetup.Datadog().GetInt("ec2_metadata_token_lifetime")) * time.Second
@@ -53,7 +61,7 @@ func getToken(ctx context.Context) (string, time.Time, error) {
 	return res, expirationDate, nil
 }
 
-func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, allowedIMDSVersions imdsVersion, updateMetadataSource bool) (string, error) {
+func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, allowedIMDSVersions ec2IMDSVersionConfig, updateMetadataSource bool) (string, error) {
 	result, err := getMetadataItem(ctx, endpoint, allowedIMDSVersions, updateMetadataSource)
 	if err != nil {
 		return result, err
@@ -66,7 +74,7 @@ func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, allowedI
 	return result, err
 }
 
-func getMetadataItem(ctx context.Context, endpoint string, allowedIMDSVersions imdsVersion, updateMetadataSource bool) (string, error) {
+func getMetadataItem(ctx context.Context, endpoint string, allowedIMDSVersions ec2IMDSVersionConfig, updateMetadataSource bool) (string, error) {
 	if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
@@ -74,42 +82,35 @@ func getMetadataItem(ctx context.Context, endpoint string, allowedIMDSVersions i
 	return doHTTPRequest(ctx, metadataURL+endpoint, allowedIMDSVersions, updateMetadataSource)
 }
 
-// getIMDSVersion returns true if the agent should use IMDSv2
-func getIMDSVersion(force bool, disable bool) imdsVersion {
-	// if force is set, we use IMDSv2, highest priority
-	if force {
-		return imdsV2
-		// if disable is set, we disable IMDSv2
-	} else if disable {
-		return imdsV1
-		// if ec2_prefer_imdsv2 is set, we use IMDSv2
-	} else if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || pkgconfigsetup.Datadog().GetBool("ec2_imdsv2_transition_payload_enabled") {
+// useIMDSv2 returns true if the agent should use IMDSv2
+func useIMDSv2() ec2IMDSVersionConfig {
+	if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || pkgconfigsetup.Datadog().GetBool("ec2_imdsv2_transition_payload_enabled") {
 		return imdsAllVersions
 	}
 	// if nothing indicates to use IMDSv2, we default to IMDSv1
 	return imdsV1
 }
 
-func doHTTPRequest(ctx context.Context, url string, allowedIMDSVersions imdsVersion, updateMetadataSource bool) (string, error) {
+func doHTTPRequest(ctx context.Context, url string, allowedIMDSVersions ec2IMDSVersionConfig, updateMetadataSource bool) (string, error) {
 	source := metadataSourceIMDSv1
 	headers := map[string]string{}
-	if allowedIMDSVersions == imdsAllVersions || allowedIMDSVersions == imdsV2 {
+	if allowedIMDSVersions.V2Allowed() {
 		tokenValue, err := token.Get(ctx)
 		if err != nil {
-			if allowedIMDSVersions == imdsV2 {
+			if allowedIMDSVersions.V2Only() {
 				return "", fmt.Errorf("could not fetch token from IMDSv2")
 			}
 			log.Warnf("ec2_prefer_imdsv2 is set to true in the configuration but the agent was unable to proceed: %s", err)
 		} else {
 			headers["X-aws-ec2-metadata-token"] = tokenValue
-			if allowedIMDSVersions != imdsV2 {
+			if !allowedIMDSVersions.V2Only() {
 				source = metadataSourceIMDSv2
 			}
 		}
 	}
 	res, err := httputils.Get(ctx, url, headers, time.Duration(pkgconfigsetup.Datadog().GetInt("ec2_metadata_timeout"))*time.Millisecond, pkgconfigsetup.Datadog())
 	// We don't want to register the source when we force imdsv2
-	if err == nil && allowedIMDSVersions != imdsV2 && updateMetadataSource {
+	if err == nil && !allowedIMDSVersions.V2Only() && updateMetadataSource {
 		setCloudProviderSource(source)
 	}
 	return res, err

@@ -15,8 +15,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -337,7 +337,12 @@ func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAge
 
 func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon, tagger tagger.Component) {
 	defer wg.Done()
-	traceAgent := trace.StartServerlessTraceAgent(pkgconfigsetup.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger}, lambdaSpanChan, coldStartSpanId)
+	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
+		Enabled:         pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
+		LoadConfig:      &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
+		LambdaSpanChan:  lambdaSpanChan,
+		ColdStartSpanID: coldStartSpanId,
+	})
 	serverlessDaemon.SetTraceAgent(traceAgent)
 }
 

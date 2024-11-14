@@ -358,6 +358,7 @@ func (lp *LifecycleProcessor) newRequest(lambdaPayloadString []byte, startTime t
 			SpanID: inferredspan.GenerateSpanId(),
 		},
 	}
+	lp.requestHandler.inferredSpans[1] = nil
 	lp.requestHandler.triggerTags = make(map[string]string)
 	lp.requestHandler.triggerMetrics = make(map[string]float64)
 }

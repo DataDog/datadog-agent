@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
@@ -63,7 +63,7 @@ func TestProcessAgentComponent(t *testing.T) {
 				runnerimpl.Module(),
 				hostinfoimpl.MockModule(),
 				submitterimpl.MockModule(),
-				taggerimpl.MockModule(),
+				taggermock.Module(),
 				statsd.MockModule(),
 				Module(),
 			}

@@ -297,6 +297,7 @@ const (
 	MetricSourceKubeflow
 	MetricSourceAppgateSDP
 	MetricSourceAnyscale
+	MetricSourceMilvus
 )
 
 // String returns a string representation of MetricSource
@@ -852,6 +853,8 @@ func (ms MetricSource) String() string {
 		return "zenoh_router"
 	case MetricSourceAwsNeuron:
 		return "aws_neuron"
+	case MetricSourceMilvus:
+		return "milvus"
 	default:
 		return "<unknown>"
 	}
@@ -1384,6 +1387,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceSlurm
 	case "tibco_ems":
 		return MetricSourceTibcoEMS
+	case "milvus":
+		return MetricSourceMilvus
 	default:
 		return MetricSourceUnknown
 	}
