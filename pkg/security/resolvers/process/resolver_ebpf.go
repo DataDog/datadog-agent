@@ -1268,6 +1268,10 @@ func (p *EBPFResolver) newEntryFromProcfsAndSyncKernelMaps(proc *process.Process
 		} else { // exec
 			entry.SetExecParent(parent)
 		}
+	} else if pid == 1 {
+		entry.SetAsExec()
+	} else {
+		seclog.Debugf("unable to set the type of process, not pid 1, no parent in cache: %+v", entry)
 	}
 
 	p.insertEntry(entry, p.entryCache[pid], source)

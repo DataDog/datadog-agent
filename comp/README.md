@@ -182,7 +182,7 @@ component temporarily wraps pkg/config.
 
 *Datadog Team*: container-platform
 
-Package tagger provides the tagger component for the Datadog Agent
+Package tagger provides the tagger interface for the Datadog Agent
 
 ### [comp/core/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/telemetry)
 
