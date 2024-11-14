@@ -12,11 +12,13 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 // SetUpLaunchers creates intializes the launcher. The launchers schedule the tailers to read the log files provided by the logs-analyze command
@@ -43,6 +45,13 @@ func SetUpLaunchers(conf configComponent.Component) {
 		nil)
 	sourceProvider := sources.GetInstance()
 	tracker := tailers.NewTailerTracker()
-	fileLauncher.Start(sourceProvider, pipelineProvider, nil, tracker)
+
+	DefaultAuditorTTL := 23
+	defaultRunPath := "/opt/datadog-agent/run"
+	health := health.RegisterLiveness("logs-agent")
+
+	auditorTTL := time.Duration(DefaultAuditorTTL) * time.Hour
+	auditor := auditor.New(defaultRunPath, auditor.DefaultRegistryFilename, auditorTTL, health)
+	fileLauncher.Start(sourceProvider, pipelineProvider, auditor, tracker)
 	lnchrs.AddLauncher(fileLauncher)
 }
