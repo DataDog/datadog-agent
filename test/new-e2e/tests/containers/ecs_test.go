@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -72,7 +73,12 @@ func (suite *ecsSuite) SetupSuite() {
 	suite.Require().NoError(fakeintake.Init(suite))
 	suite.Fakeintake = fakeintake.Client()
 
-	suite.ecsClusterName = stackOutput.Outputs["ecs-cluster-name"].Value.(string)
+	clusterSerialized, err := json.Marshal(stackOutput.Outputs["dd-Cluster-ecs"].Value)
+	suite.Require().NoError(err)
+	ecsCluster := &ecsComp.ClusterOutput{}
+	suite.Require().NoError(ecsCluster.Import(clusterSerialized, ecsCluster))
+
+	suite.ecsClusterName = ecsCluster.ClusterName
 	suite.clusterName = suite.ecsClusterName
 
 	suite.baseSuite.SetupSuite()
