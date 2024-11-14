@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,10 +56,10 @@ func (n *nullTagger) Tag(_ types.EntityID, _ types.TagCardinality) ([]string, er
 
 // Resolver represents a cache resolver
 type Resolver interface {
-	Start(ctx context.Context) error
+	Start(ctx context.Context, cgroupManager cgroup.ResolverInterface) error
 	Stop() error
 	Resolve(id string) []string
-	ResolveWithErr(id string) ([]string, error)
+	ResolveWithErr(fid string) ([]string, error)
 	GetValue(id string, tag string) string
 	RegisterListener(event Event, listener utils.Listener[*cgroupModel.CacheEntry]) error
 }
@@ -94,7 +95,7 @@ func (t *DefaultResolver) GetValue(id string, tag string) string {
 }
 
 // Start the resolver
-func (t *DefaultResolver) Start(ctx context.Context) error {
+func (t *DefaultResolver) Start(ctx context.Context, _ cgroup.ResolverInterface) error {
 	go func() {
 		if err := t.tagger.Start(ctx); err != nil {
 			log.Errorf("failed to init tagger: %s", err)

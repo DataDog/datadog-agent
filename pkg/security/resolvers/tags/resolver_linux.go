@@ -25,12 +25,12 @@ type LinuxResolver struct {
 }
 
 // Start the resolver
-func (t *LinuxResolver) Start(ctx context.Context) error {
-	if err := t.DefaultResolver.Start(ctx); err != nil {
+func (t *LinuxResolver) Start(ctx context.Context, cgroupResolver cgroup.ResolverInterface) error {
+	if err := t.DefaultResolver.Start(ctx, cgroupResolver); err != nil {
 		return err
 	}
 
-	if err := t.cgroupResolver.RegisterListener(cgroup.CGroupCreated, t.checkTags); err != nil {
+	if err := cgroupResolver.RegisterListener(cgroup.CGroupCreated, t.checkTags); err != nil {
 		return err
 	}
 
@@ -74,7 +74,7 @@ func (t *LinuxResolver) checkTags(workload *cgroupModel.CacheEntry) {
 		}
 	}
 
-	t.NotifyListener(WorkloadSelectorResolved, workload)
+	t.NotifyListeners(WorkloadSelectorResolved, workload)
 }
 
 // fetchTags fetches tags for the provided workload

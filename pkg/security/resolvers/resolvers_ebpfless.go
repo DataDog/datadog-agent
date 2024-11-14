@@ -73,7 +73,7 @@ func (r *EBPFLessResolvers) Start(ctx context.Context) error {
 		return err
 	}
 
-	if err := r.TagsResolver.Start(ctx); err != nil {
+	if err := r.TagsResolver.Start(ctx, nil); err != nil {
 		return err
 	}
 

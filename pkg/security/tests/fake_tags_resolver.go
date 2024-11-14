@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -27,9 +28,14 @@ type FakeResolver struct {
 	containerIDs []string
 }
 
+// checkTags checks if the tags of a workload were properly set
+func (fr *FakeResolver) checkTags(workload *cgroupModel.CacheEntry) {
+	fr.NotifyListeners(tags.WorkloadSelectorResolved, workload)
+}
+
 // Start the resolver
-func (fr *FakeResolver) Start(_ context.Context) error {
-	return nil
+func (fr *FakeResolver) Start(_ context.Context, cgroupResolver cgroup.ResolverInterface) error {
+	return cgroupResolver.RegisterListener(cgroup.CGroupCreated, fr.checkTags)
 }
 
 // Stop the resolver
@@ -77,9 +83,14 @@ type FakeMonoResolver struct {
 	*utils.Notifier[tags.Event, *cgroupModel.CacheEntry]
 }
 
+// checkTags checks if the tags of a workload were properly set
+func (fmr *FakeMonoResolver) checkTags(workload *cgroupModel.CacheEntry) {
+	fmr.NotifyListeners(tags.WorkloadSelectorResolved, workload)
+}
+
 // Start the resolver
-func (fmr *FakeMonoResolver) Start(_ context.Context) error {
-	return nil
+func (fmr *FakeMonoResolver) Start(_ context.Context, cgroupResolver cgroup.ResolverInterface) error {
+	return cgroupResolver.RegisterListener(cgroup.CGroupCreated, fmr.checkTags)
 }
 
 // Stop the resolver
@@ -120,9 +131,14 @@ type FakeManualResolver struct {
 	nextSelectors       []*cgroupModel.WorkloadSelector
 }
 
+// checkTags checks if the tags of a workload were properly set
+func (fmr *FakeManualResolver) checkTags(workload *cgroupModel.CacheEntry) {
+	fmr.NotifyListeners(tags.WorkloadSelectorResolved, workload)
+}
+
 // Start the resolver
-func (fmr *FakeManualResolver) Start(_ context.Context) error {
-	return nil
+func (fmr *FakeManualResolver) Start(_ context.Context, cgroupResolver cgroup.ResolverInterface) error {
+	return cgroupResolver.RegisterListener(cgroup.CGroupCreated, fmr.checkTags)
 }
 
 // Stop the resolver

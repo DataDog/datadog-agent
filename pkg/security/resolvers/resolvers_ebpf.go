@@ -195,7 +195,7 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 		return err
 	}
 
-	if err := r.TagsResolver.Start(ctx); err != nil {
+	if err := r.TagsResolver.Start(ctx, r.CGroupResolver); err != nil {
 		return err
 	}
 

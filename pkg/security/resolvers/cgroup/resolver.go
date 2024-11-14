@@ -32,6 +32,17 @@ const (
 	CGroupMaxEvent
 )
 
+// ResolverInterface defines the interface implemented by a cgroup resolver
+type ResolverInterface interface {
+	Start(context.Context)
+	AddPID(*model.ProcessCacheEntry)
+	GetWorkload(string) (*cgroupModel.CacheEntry, bool)
+	DelPID(uint32)
+	DelPIDWithID(string, uint32)
+	Len() int
+	RegisterListener(Event, utils.Listener[*cgroupModel.CacheEntry]) error
+}
+
 // Resolver defines a cgroup monitor
 type Resolver struct {
 	*utils.Notifier[Event, *cgroupModel.CacheEntry]
@@ -48,7 +59,7 @@ func NewResolver() (*Resolver, error) {
 		value.CallReleaseCallback()
 		value.Deleted.Store(true)
 
-		cr.NotifyListener(CGroupDeleted, value)
+		cr.NotifyListeners(CGroupDeleted, value)
 	})
 	if err != nil {
 		return nil, err
@@ -84,7 +95,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	// add the new CGroup to the cache
 	cr.workloads.Add(string(process.ContainerID), newCGroup)
 
-	cr.NotifyListener(CGroupCreated, newCGroup)
+	cr.NotifyListeners(CGroupCreated, newCGroup)
 }
 
 // GetWorkload returns the workload referenced by the provided ID

@@ -35,7 +35,8 @@ func (n *Notifier[E, O]) RegisterListener(event E, listener Listener[O]) error {
 	return nil
 }
 
-func (n *Notifier[E, O]) NotifyListener(event E, obj O) {
+// NotifyListeners notifies all listeners of an event type
+func (n *Notifier[E, O]) NotifyListeners(event E, obj O) {
 	// notify listeners
 	n.listenersLock.RLock()
 	for _, l := range n.listeners[event] {
