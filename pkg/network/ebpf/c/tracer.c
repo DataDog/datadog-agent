@@ -1026,7 +1026,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *skp) 
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(ctx, &tup, skp, 0);
+        cleanup_conn(ctx, &tup, skp, 0, true);
         lport = tup.sport;
     } else {
         lport = read_sport(skp);
