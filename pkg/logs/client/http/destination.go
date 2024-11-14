@@ -381,7 +381,7 @@ func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() 
 		// happen at the senders level, but we don't want to open more
 		// connections to the intake.
 		transport := httputils.CreateHTTPTransport(cfg)
-		transport.MaxConnsPerHost = 1
+		transport.MaxConnsPerHost = 2
 
 		return &http.Client{
 			Timeout: timeout,
