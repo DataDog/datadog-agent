@@ -16,13 +16,11 @@ import (
 	remoteTagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Tagger defines a Tagger for the Tags Resolver
@@ -120,7 +118,7 @@ func NewResolver(config *config.Config, telemetry telemetry.Component) Resolver 
 			},
 		}
 
-		tagger, _ := remoteTagger.NewRemoteTagger(params, ddConfig, log.NewWrapper(2), telemetry, optional.NewNoneOption[workloadmeta.Component]())
+		tagger, _ := remoteTagger.NewRemoteTagger(params, ddConfig, log.NewWrapper(2), telemetry)
 
 		return &DefaultResolver{
 			// TODO: (components) use the actual remote tagger instance from the Fx entry point
