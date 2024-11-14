@@ -241,7 +241,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv(join(smNS, "tls", "native", "enabled"))
 
 	// For backward compatibility
-	cfg.BindEnv(join(smNS, "enable_go_tls_support"))
+	cfg.BindEnvAndSetDefault(join(smNS, "enable_go_tls_support"), true)
 	cfg.BindEnv(join(smNS, "tls", "go", "enabled"))
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "go", "exclude_self"), true)
 

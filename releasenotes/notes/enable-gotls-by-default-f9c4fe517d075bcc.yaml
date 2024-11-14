@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Enable USM Go TLS monitoring by default, if USM is enabled.
