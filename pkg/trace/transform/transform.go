@@ -119,9 +119,8 @@ func OtelSpanToDDSpan(
 		}
 	}
 
-	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
 	if _, ok := ddspan.Meta["env"]; !ok {
-		if env := traceutil.GetOTelEnv(otelres.Attributes()); env != "" {
+		if env := traceutil.GetOTelEnv(otelres); env != "" {
 			ddspan.Meta["env"] = env
 		}
 	}
