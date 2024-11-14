@@ -24,7 +24,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
