@@ -85,7 +85,7 @@ func NewHTTPClient(auth Auth, cfg model.Reader, baseURL *url.URL) (*HTTPClient, 
 		if transport.TLSClientConfig.InsecureSkipVerify && !cfg.GetBool("remote_configuration.no_tls_validation") {
 			return nil, fmt.Errorf("remote Configuration does not allow skipping TLS validation by default (currently skipped because `skip_ssl_validation` is set to true). While it is not advised, the `remote_configuration.no_tls_validation` config option can be set to `true` to disable this protection")
 		}
-		return nil, fmt.Errorf("no tls")
+		return nil, fmt.Errorf("no tlsclientconfig")
 	}
 
 	return &HTTPClient{

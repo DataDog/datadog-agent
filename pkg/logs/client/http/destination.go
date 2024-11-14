@@ -407,8 +407,8 @@ func getTransportProtocol(client *http.Client) string {
 		for _, proto := range transport.TLSClientConfig.NextProtos {
 			log.Infof("Transport Protocol is %s", proto)
 			switch proto {
-			// case "h2":
-			// 	return "HTTP/2"
+			case "h2":
+				return "HTTP/2"
 			case "http/1.1":
 				return "HTTP/1.1"
 			case "http/1.0":
