@@ -12,9 +12,10 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
+from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.utils import get_build_flags, timed
 from tasks.licenses import get_licenses_list
-from tasks.modules import DEFAULT_MODULES, generate_dummy_package
+from tasks.modules import generate_dummy_package
 
 GOOS_MAPPING = {
     "win32": "windows",
@@ -96,7 +97,7 @@ def internal_deps_checker(ctx, formatFile=False):
     Check that every required internal dependencies are correctly replaced
     """
     extra_params = "--formatFile true" if formatFile else ""
-    for mod in DEFAULT_MODULES.values():
+    for mod in get_default_modules().values():
         ctx.run(f"go run ./internal/tools/modformatter/modformatter.go --path={mod.full_path()} {extra_params}")
 
 
@@ -109,7 +110,7 @@ def deps(ctx, verbose=False):
     print("downloading dependencies")
     with timed("go mod download"):
         verbosity = ' -x' if verbose else ''
-        for mod in DEFAULT_MODULES.values():
+        for mod in get_default_modules().values():
             with ctx.cd(mod.full_path()):
                 ctx.run(f"go mod download{verbosity}")
 
@@ -358,7 +359,7 @@ def reset(ctx):
 def check_mod_tidy(ctx, test_folder="testmodule"):
     with generate_dummy_package(ctx, test_folder) as dummy_folder:
         errors_found = []
-        for mod in DEFAULT_MODULES.values():
+        for mod in get_default_modules().values():
             with ctx.cd(mod.full_path()):
                 ctx.run("go mod tidy")
 
@@ -371,7 +372,7 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
                 if res.exited is None or res.exited > 0:
                     errors_found.append(f"go.mod or go.sum for {mod.import_path} module is out of sync")
 
-        for mod in DEFAULT_MODULES.values():
+        for mod in get_default_modules().values():
             # Ensure that none of these modules import the datadog-agent main module.
             if mod.independent:
                 ctx.run(f"go run ./internal/tools/independent-lint/independent.go --path={mod.full_path()}")
@@ -392,7 +393,7 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
 
 @task
 def tidy_all(ctx):
-    for mod in DEFAULT_MODULES.values():
+    for mod in get_default_modules().values():
         with ctx.cd(mod.full_path()):
             ctx.run("go mod tidy")
 
@@ -419,7 +420,7 @@ def go_fix(ctx, fix=None):
         fixarg = f" -fix {fix}"
     oslist = ["linux", "windows", "darwin"]
 
-    for mod in DEFAULT_MODULES.values():
+    for mod in get_default_modules().values():
         with ctx.cd(mod.full_path()):
             for osname in oslist:
                 tags = set(ALL_TAGS).union({osname, "ebpf_bindata"})

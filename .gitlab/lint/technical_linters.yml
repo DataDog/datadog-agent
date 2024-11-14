@@ -1,0 +1,11 @@
+.lint:
+  stage: lint
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+
+validate_modules:
+  extends: .lint
+  needs: []
+  script:
+    - inv -e modules.validate
+    - inv -e modules.validate-used-by-otel

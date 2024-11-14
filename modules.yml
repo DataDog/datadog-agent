@@ -1,0 +1,144 @@
+# This file contains the go modules configuration.
+# See tasks/libs/common/gomodules.py for more information.
+
+modules:
+  .:
+    independent: false
+    lint_targets:
+    - ./pkg
+    - ./cmd
+    - ./comp
+    test_targets:
+    - ./pkg
+    - ./cmd
+    - ./comp
+  cmd/agent/common/path: default
+  comp/core/config: default
+  comp/core/flare/types: default
+  comp/core/hostname/hostnameinterface: default
+  comp/core/log: default
+  comp/core/secrets: default
+  comp/core/status: default
+  comp/core/status/statusimpl: default
+  comp/core/telemetry: default
+  comp/forwarder/defaultforwarder: default
+  comp/forwarder/orchestrator/orchestratorinterface: default
+  comp/logs/agent/config: default
+  comp/otelcol/otlp/components/exporter/serializerexporter: default
+  comp/otelcol/otlp/example/metric: ignored
+  internal/tools:
+    independent: false
+    should_tag: false
+    should_test_condition: never
+  internal/tools/independent-lint:
+    independent: false
+    should_tag: false
+    should_test_condition: never
+  internal/tools/modformatter:
+    independent: false
+    should_tag: false
+    should_test_condition: never
+  internal/tools/modparser:
+    should_tag: false
+    should_test_condition: never
+  internal/tools/modparser/testdata/badformat: ignored
+  internal/tools/modparser/testdata/match: ignored
+  internal/tools/modparser/testdata/nomatch: ignored
+  internal/tools/modparser/testdata/patchgoversion: ignored
+  internal/tools/proto:
+    independent: false
+    should_tag: false
+    should_test_condition: never
+  pkg/aggregator/ckey: default
+  pkg/api: default
+  pkg/collector/check/defaults: default
+  pkg/config/env: default
+  pkg/config/logs: default
+  pkg/config/model: default
+  pkg/config/remote: default
+  pkg/config/setup: default
+  pkg/config/utils: default
+  pkg/errors: default
+  pkg/gohai:
+    importable: false
+  pkg/logs/auditor: default
+  pkg/logs/client: default
+  pkg/logs/diagnostic: default
+  pkg/logs/message: default
+  pkg/logs/metrics: default
+  pkg/logs/pipeline: default
+  pkg/logs/processor: default
+  pkg/logs/sender: default
+  pkg/logs/sources: default
+  pkg/logs/status/statusinterface: default
+  pkg/logs/status/utils: default
+  pkg/logs/util/testutils: default
+  pkg/metrics: default
+  pkg/networkdevice/profile: default
+  pkg/obfuscate:
+    used_by_otel: true
+  pkg/orchestrator/model: default
+  pkg/process/procutil/resources: ignored
+  pkg/process/util/api: default
+  pkg/proto:
+    used_by_otel: true
+  pkg/remoteconfig/state:
+    used_by_otel: true
+  pkg/security/secl:
+    legacy_go_mod_version: true
+  pkg/security/seclwin:
+    legacy_go_mod_version: true
+    should_test_condition: never
+  pkg/serializer: default
+  pkg/status/health: default
+  pkg/tagger: default
+  pkg/tagset: default
+  pkg/telemetry: default
+  pkg/trace:
+    used_by_otel: true
+  pkg/updater/service/helper: ignored
+  pkg/util/backoff: default
+  pkg/util/buf: default
+  pkg/util/cache: default
+  pkg/util/cgroups:
+    should_test_condition: is_linux
+    used_by_otel: true
+  pkg/util/common: default
+  pkg/util/executable: default
+  pkg/util/filesystem: default
+  pkg/util/flavor: default
+  pkg/util/fxutil: default
+  pkg/util/grpc: default
+  pkg/util/hostname/validate: default
+  pkg/util/http: default
+  pkg/util/json: default
+  pkg/util/log:
+    used_by_otel: true
+  pkg/util/optional: default
+  pkg/util/pointer:
+    used_by_otel: true
+  pkg/util/scrubber:
+    used_by_otel: true
+  pkg/util/sort: default
+  pkg/util/startstop: default
+  pkg/util/statstracker: default
+  pkg/util/system: default
+  pkg/util/system/socket: default
+  pkg/util/testutil: default
+  pkg/util/uuid: default
+  pkg/util/winutil: default
+  pkg/version: default
+  tasks/unit-tests/testdata/go_mod_formatter/invalid_package: ignored
+  tasks/unit-tests/testdata/go_mod_formatter/valid_package: ignored
+  test/e2e/containers/otlp_sender:
+    independent: false
+    should_tag: false
+    should_test_condition: never
+  test/fakeintake: default
+  test/integration/serverless/recorder-extension: ignored
+  test/integration/serverless/src: ignored
+  test/new-e2e:
+    test_targets:
+    - ./pkg/runner
+    - ./pkg/utils/e2e/client
+  tools/retry_file_dump: ignored

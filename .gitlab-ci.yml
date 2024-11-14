@@ -97,6 +97,7 @@ stages:
   - functional_test_cleanup
   - junit_upload
   - internal_kubernetes_deploy
+  - lint
   - post_rc_build
   - check_merge
   - notify

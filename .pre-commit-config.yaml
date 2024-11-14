@@ -91,3 +91,10 @@ repos:
       pass_filenames: false
       # inv tidy-all takes several seconds so only run it on pre-push
       stages: [pre-push]
+    - id: check-go-modules-in-python
+      name: check-go-modules-in-python
+      description: Validate all go modules are declared in Invoke tasks
+      entry: 'inv modules.validate --fix-format'
+      language: system
+      pass_filenames: false
+      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py)$

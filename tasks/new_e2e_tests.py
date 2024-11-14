@@ -17,9 +17,9 @@ from invoke.tasks import task
 
 from tasks.flavor import AgentFlavor
 from tasks.go_test import test_flavor
+from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.utils import REPO_PATH, get_git_commit
 from tasks.libs.junit_upload_core import produce_junit_tar
-from tasks.modules import DEFAULT_MODULES
 
 
 @task(
@@ -66,10 +66,10 @@ def run(
             1,
         )
 
-    e2e_module = DEFAULT_MODULES["test/new-e2e"]
-    e2e_module.condition = lambda: True
+    e2e_module = get_default_modules()["test/new-e2e"]
+    e2e_module.should_test_condition = 'always'
     if targets:
-        e2e_module.targets = targets
+        e2e_module.test_targets = targets
 
     envVars = dict()
     if profile:
