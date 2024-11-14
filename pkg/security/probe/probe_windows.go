@@ -716,6 +716,29 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 
 }
 
+func (p *WindowsProbe) preChanETWHandle(arg interface{}) bool {
+	switch arg := arg.(type) {
+	case *closeArgs, *cleanupArgs, *createHandleArgs:
+		return false
+	case *renameArgs:
+		fc := fileCache{
+			fileName:     arg.fileName,
+			userFileName: arg.userFileName,
+		}
+		p.renamePreArgs.Add(uint64(arg.fileObject), fc)
+		return false
+	case *rename29Args:
+		fc := fileCache{
+			fileName:     arg.fileName,
+			userFileName: arg.userFileName,
+		}
+		p.renamePreArgs.Add(uint64(arg.fileObject), fc)
+		return false
+	default:
+		return true
+	}
+}
+
 // Start processing events
 func (p *WindowsProbe) Start() error {
 
@@ -728,6 +751,10 @@ func (p *WindowsProbe) Start() error {
 		go func() {
 			defer p.fimwg.Done()
 			err := p.setupEtw(func(n interface{}, pid uint32) {
+				if !p.preChanETWHandle(n) {
+					return
+				}
+
 				if p.blockonchannelsend {
 					p.onETWNotification <- etwNotification{n, pid}
 				} else {
@@ -879,20 +906,6 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 				BasenameStr:     filepath.Base(arg.fileName),
 			},
 		}
-	case *renameArgs:
-		fc := fileCache{
-			fileName:     arg.fileName,
-			userFileName: arg.userFileName,
-		}
-		p.renamePreArgs.Add(uint64(arg.fileObject), fc)
-		return false
-	case *rename29Args:
-		fc := fileCache{
-			fileName:     arg.fileName,
-			userFileName: arg.userFileName,
-		}
-		p.renamePreArgs.Add(uint64(arg.fileObject), fc)
-		return false
 	case *renamePath:
 		fileCache, found := p.renamePreArgs.Get(uint64(arg.fileObject))
 		if !found {
@@ -982,7 +995,7 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 	}
 
 	if ev.Type == uint32(model.UnknownEventType) {
-		log.Errorf("unknown event type: %T", notif.arg)
+		log.Debugf("unknown event type: %T", notif.arg)
 		return false
 	}
 
