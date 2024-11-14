@@ -1,7 +1,7 @@
 benchmark:
   stage: benchmarks
   # This base image is created here: https://gitlab.ddbuild.io/DataDog/apm-reliability/relenv-microbenchmarking-platform
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:trace-agent_microbenchmarks@sha256:98f4082de2ee98106eb9be9a6f4eb14d22a722b6f25edf916ae15d5c71a11591
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:trace-agent_microbenchmarks
   timeout: 1h
   rules:
     !reference [.on_trace_agent_changes_or_manual]
