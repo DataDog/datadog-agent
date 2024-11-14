@@ -11,8 +11,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -31,33 +29,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
-
-const (
-	// External Data Prefixes
-	// These prefixes are used to build the External Data Environment Variable.
-	// This variable is then used for Origin Detection.
-	externalDataInitPrefix          = "it-"
-	externalDataContainerNamePrefix = "cn-"
-	externalDataPodUIDPrefix        = "pu-"
-)
-
-type externalData struct {
-	init          bool
-	containerName string
-	podUID        string
-}
 
 const (
 	noTimeout         = 0 * time.Minute
@@ -75,7 +53,6 @@ type Requires struct {
 	Log       log.Component
 	Params    tagger.RemoteParams
 	Telemetry coretelemetry.Component
-	Wmeta     optional.Option[workloadmeta.Component]
 }
 
 // Provides contains the fields provided by the remote tagger constructor.
@@ -90,9 +67,8 @@ type remoteTagger struct {
 	ready   bool
 	options Options
 
-	cfg   config.Component
-	log   log.Component
-	wmeta optional.Option[workloadmeta.Component]
+	cfg config.Component
+	log log.Component
 
 	conn   *grpc.ClientConn
 	client pb.AgentSecureClient
@@ -108,11 +84,8 @@ type remoteTagger struct {
 	telemetryTicker *time.Ticker
 	telemetryStore  *telemetry.Store
 
-	datadogConfig taggercommon.DatadogConfig
-
-	checksCardinality          types.TagCardinality
-	dogstatsdCardinality       types.TagCardinality
-	tlmUDPOriginDetectionError coretelemetry.Counter
+	checksCardinality    types.TagCardinality
+	dogstatsdCardinality types.TagCardinality
 }
 
 // Options contains the options needed to configure the remote tagger.
@@ -124,7 +97,7 @@ type Options struct {
 
 // NewComponent returns a remote tagger
 func NewComponent(req Requires) (Provides, error) {
-	remoteTagger, err := NewRemoteTagger(req.Params, req.Config, req.Log, req.Telemetry, req.Wmeta)
+	remoteTagger, err := NewRemoteTagger(req.Params, req.Config, req.Log, req.Telemetry)
 
 	if err != nil {
 		return Provides{}, err
@@ -145,7 +118,7 @@ func NewComponent(req Requires) (Provides, error) {
 
 // NewRemoteTagger creates a new remote tagger.
 // TODO: (components) remove once we pass the remote tagger instance to pkg/security/resolvers/tags/resolver.go
-func NewRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.Component, telemetryComp coretelemetry.Component, wmeta optional.Option[workloadmeta.Component]) (tagger.Component, error) {
+func NewRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.Component, telemetryComp coretelemetry.Component) (tagger.Component, error) {
 	telemetryStore := telemetry.NewStore(telemetryComp)
 
 	target, err := params.RemoteTarget(cfg)
@@ -178,16 +151,6 @@ func NewRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.C
 		log.Warnf("failed to parse dogstatsd tag cardinality, defaulting to low. Error: %s", err)
 		remotetagger.dogstatsdCardinality = types.LowCardinality
 	}
-
-	remotetagger.datadogConfig.DogstatsdEntityIDPrecedenceEnabled = cfg.GetBool("dogstatsd_entity_id_precedence")
-	remotetagger.datadogConfig.OriginDetectionUnifiedEnabled = cfg.GetBool("origin_detection_unified")
-	remotetagger.datadogConfig.DogstatsdOptOutEnabled = cfg.GetBool("dogstatsd_origin_optout_enabled")
-	// we use to pull tagger metrics in dogstatsd. Pulling it later in the
-	// pipeline improve memory allocation. We kept the old name to be
-	// backward compatible and because origin detection only affect
-	// dogstatsd metrics.
-	remotetagger.tlmUDPOriginDetectionError = telemetryComp.NewCounter("dogstatsd", "udp_origin_detection_error", nil, "Dogstatsd UDP origin detection error count")
-	remotetagger.wmeta = wmeta
 
 	return remotetagger, nil
 }
@@ -352,18 +315,16 @@ func (t *remoteTagger) GetEntityHash(entityID types.EntityID, cardinality types.
 	return utils.ComputeTagsHash(tags)
 }
 
-func (t *remoteTagger) AgentTags(cardinality types.TagCardinality) ([]string, error) {
-	ctrID, err := metrics.GetProvider(t.wmeta).GetMetaCollector().GetSelfContainerID()
-	if err != nil {
-		return nil, err
-	}
-
-	if ctrID == "" {
-		return nil, nil
-	}
-
-	entityID := types.NewEntityID(types.ContainerID, ctrID)
-	return t.Tag(entityID, cardinality)
+// AgentTags is a no-op in the remote tagger.
+// Agents using the remote tagger are not supposed to rely on this function,
+// because to get the container ID where the agent is running we'd need to
+// introduce some dependencies that we don't want to have in the remote
+// tagger.
+// The only user of this function that uses the remote tagger is the cluster
+// check runner, but it gets its tags from the cluster-agent which doesn't
+// store tags for containers. So this function is a no-op.
+func (t *remoteTagger) AgentTags(_ types.TagCardinality) ([]string, error) {
+	return nil, nil
 }
 
 func (t *remoteTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
@@ -374,174 +335,15 @@ func (t *remoteTagger) SetNewCaptureTagger(tagger.Component) {}
 
 func (t *remoteTagger) ResetCaptureTagger() {}
 
-func (t *remoteTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
-	cardinality := taggerCardinality(originInfo.Cardinality, t.dogstatsdCardinality, t.log)
-
-	productOrigin := originInfo.ProductOrigin
-	// If origin_detection_unified is disabled, we use DogStatsD's Legacy Origin Detection.
-	// TODO: remove this when origin_detection_unified is enabled by default
-	if !t.datadogConfig.OriginDetectionUnifiedEnabled && productOrigin == taggertypes.ProductOriginDogStatsD {
-		productOrigin = taggertypes.ProductOriginDogStatsDLegacy
-	}
-
-	containerIDFromSocketCutIndex := len(types.ContainerID) + types.GetSeparatorLengh()
-
-	switch productOrigin {
-	case taggertypes.ProductOriginDogStatsDLegacy:
-		// The following was moved from the dogstatsd package
-		// originFromUDS is the origin discovered via UDS origin detection (container ID).
-		// originFromTag is the origin sent by the client via the dd.internal.entity_id tag (non-prefixed pod uid).
-		// originFromMsg is the origin sent by the client via the container field (non-prefixed container ID).
-		// entityIDPrecedenceEnabled refers to the dogstatsd_entity_id_precedence parameter.
-		//
-		//	---------------------------------------------------------------------------------
-		//
-		// | originFromUDS | originFromTag | entityIDPrecedenceEnabled || Result: udsOrigin  |
-		// |---------------|---------------|---------------------------||--------------------|
-		// | any           | any           | false                     || originFromUDS      |
-		// | any           | any           | true                      || empty              |
-		// | any           | empty         | any                       || originFromUDS      |
-		//
-		//	---------------------------------------------------------------------------------
-		//
-		//	---------------------------------------------------------------------------------
-		//
-		// | originFromTag          | originFromMsg   || Result: originFromClient            |
-		// |------------------------|-----------------||-------------------------------------|
-		// | not empty && not none  | any             || pod prefix + originFromTag          |
-		// | empty                  | empty           || empty                               |
-		// | none                   | empty           || empty                               |
-		// | empty                  | not empty       || container prefix + originFromMsg    |
-		// | none                   | not empty       || container prefix + originFromMsg    |
-		if t.datadogConfig.DogstatsdOptOutEnabled && originInfo.Cardinality == "none" {
-			originInfo.ContainerIDFromSocket = packets.NoOrigin
-			originInfo.PodUID = ""
-			originInfo.ContainerID = ""
-			return
-		}
-
-		// We use the UDS socket origin if no origin ID was specify in the tags
-		// or 'dogstatsd_entity_id_precedence' is set to False (default false).
-		if originInfo.ContainerIDFromSocket != packets.NoOrigin &&
-			(originInfo.PodUID == "" || !t.datadogConfig.DogstatsdEntityIDPrecedenceEnabled) &&
-			len(originInfo.ContainerIDFromSocket) > containerIDFromSocketCutIndex {
-			containerID := originInfo.ContainerIDFromSocket[containerIDFromSocketCutIndex:]
-			originFromClient := types.NewEntityID(types.ContainerID, containerID)
-			if err := t.AccumulateTagsFor(originFromClient, cardinality, tb); err != nil {
-				t.log.Errorf("%s", err.Error())
-			}
-		}
-
-		// originFromClient can either be originInfo.FromTag or originInfo.FromMsg
-		var originFromClient types.EntityID
-		if originInfo.PodUID != "" && originInfo.PodUID != "none" {
-			// Check if the value is not "none" in order to avoid calling the tagger for entity that doesn't exist.
-			// Currently only supported for pods
-			originFromClient = types.NewEntityID(types.KubernetesPodUID, originInfo.PodUID)
-		} else if originInfo.PodUID == "" && len(originInfo.ContainerID) > 0 {
-			// originInfo.FromMsg is the container ID sent by the newer clients.
-			originFromClient = types.NewEntityID(types.ContainerID, originInfo.ContainerID)
-		}
-
-		if !originFromClient.Empty() {
-			if err := t.AccumulateTagsFor(originFromClient, cardinality, tb); err != nil {
-				t.tlmUDPOriginDetectionError.Inc()
-				t.log.Tracef("Cannot get tags for entity %s: %s", originFromClient, err)
-			}
-		}
-	default:
-		// Tag using Local Data
-		if originInfo.ContainerIDFromSocket != packets.NoOrigin && len(originInfo.ContainerIDFromSocket) > containerIDFromSocketCutIndex {
-			containerID := originInfo.ContainerIDFromSocket[containerIDFromSocketCutIndex:]
-			originFromClient := types.NewEntityID(types.ContainerID, containerID)
-			if err := t.AccumulateTagsFor(originFromClient, cardinality, tb); err != nil {
-				t.log.Errorf("%s", err.Error())
-			}
-		}
-
-		if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, originInfo.ContainerID), cardinality, tb); err != nil {
-			t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.ContainerID, err)
-		}
-
-		if err := t.AccumulateTagsFor(types.NewEntityID(types.KubernetesPodUID, originInfo.PodUID), cardinality, tb); err != nil {
-			t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.PodUID, err)
-		}
-
-		// Tag using External Data.
-		// External Data is a list that contain prefixed-items, split by a ','. Current items are:
-		// * "it-<init>" if the container is an init container.
-		// * "cn-<container-name>" for the container name.
-		// * "pu-<pod-uid>" for the pod UID.
-		// Order does not matter.
-		// Possible values:
-		// * "it-false,cn-nginx,pu-3413883c-ac60-44ab-96e0-9e52e4e173e2"
-		// * "cn-init,pu-cb4aba1d-0129-44f1-9f1b-b4dc5d29a3b3,it-true"
-		if originInfo.ExternalData != "" {
-			// Parse the external data and get the tags for the entity
-			var parsedExternalData externalData
-			var initParsingError error
-			for _, item := range strings.Split(originInfo.ExternalData, ",") {
-				switch {
-				case strings.HasPrefix(item, externalDataInitPrefix):
-					parsedExternalData.init, initParsingError = strconv.ParseBool(item[len(externalDataInitPrefix):])
-					if initParsingError != nil {
-						t.log.Tracef("Cannot parse bool from %s: %s", item[len(externalDataInitPrefix):], initParsingError)
-					}
-				case strings.HasPrefix(item, externalDataContainerNamePrefix):
-					parsedExternalData.containerName = item[len(externalDataContainerNamePrefix):]
-				case strings.HasPrefix(item, externalDataPodUIDPrefix):
-					parsedExternalData.podUID = item[len(externalDataPodUIDPrefix):]
-				}
-			}
-
-			// Accumulate tags for pod UID
-			if parsedExternalData.podUID != "" {
-				if err := t.AccumulateTagsFor(types.NewEntityID(types.KubernetesPodUID, parsedExternalData.podUID), cardinality, tb); err != nil {
-					t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.ContainerID, err)
-				}
-			}
-
-			// Generate container ID from External Data
-			generatedContainerID, err := t.generateContainerIDFromExternalData(parsedExternalData, metrics.GetProvider(t.wmeta).GetMetaCollector())
-			if err != nil {
-				t.log.Tracef("Failed to generate container ID from %s: %s", originInfo.ExternalData, err)
-			}
-
-			// Accumulate tags for generated container ID
-			if generatedContainerID != "" {
-				if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, generatedContainerID), cardinality, tb); err != nil {
-					t.log.Tracef("Cannot get tags for entity %s: %s", generatedContainerID, err)
-				}
-			}
-		}
-	}
-
-	if err := t.AccumulateTagsFor(taggercommon.GetGlobalEntityID(), cardinality, tb); err != nil {
+// EnrichTags enriches the tags with the global tags.
+// Agents running the remote tagger don't have the ability to enrich tags based
+// on the origin info. Only the core agent or dogstatsd can have origin info,
+// and they always use the local tagger.
+// This function can only add the global tags.
+func (t *remoteTagger) EnrichTags(tb tagset.TagsAccumulator, _ taggertypes.OriginInfo) {
+	if err := t.AccumulateTagsFor(taggercommon.GetGlobalEntityID(), t.dogstatsdCardinality, tb); err != nil {
 		t.log.Error(err.Error())
 	}
-}
-
-// generateContainerIDFromExternalData generates a container ID from the external data
-func (t *remoteTagger) generateContainerIDFromExternalData(e externalData, metricsProvider provider.ContainerIDForPodUIDAndContNameRetriever) (string, error) {
-	return metricsProvider.ContainerIDForPodUIDAndContName(e.podUID, e.containerName, e.init, time.Second)
-}
-
-// taggerCardinality converts tagger cardinality string to types.TagCardinality
-// It should be defaulted to DogstatsdCardinality if the string is empty or unknown
-func taggerCardinality(cardinality string,
-	defaultCardinality types.TagCardinality,
-	l log.Component) types.TagCardinality {
-	if cardinality == "" {
-		return defaultCardinality
-	}
-
-	taggerCardinality, err := types.StringToTagCardinality(cardinality)
-	if err != nil {
-		l.Tracef("Couldn't convert cardinality tag: %v", err)
-		return defaultCardinality
-	}
-
-	return taggerCardinality
 }
 
 func (t *remoteTagger) ChecksCardinality() types.TagCardinality {
