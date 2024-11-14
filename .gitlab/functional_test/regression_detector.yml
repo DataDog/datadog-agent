@@ -190,7 +190,7 @@ single-machine-performance-regression_detector:
 single-machine-performance-regression_detector-pr-comment:
   stage: functional_test
   rules:
-    - !reference [.except_main_or_release_branch]
+    - !reference [.except_release_branch]
     - when: always
   image:
     name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3"
