@@ -9,7 +9,7 @@ package traceroute
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -40,7 +40,7 @@ func New(cfg Config, telemetry telemetry.Component) (*MacTraceroute, error) {
 	// TCP is not supported at the moment due to the
 	// way go listensn for TCP in our implementation on BSD systems
 	if cfg.Protocol == payload.ProtocolTCP {
-		return nil, fmt.Errorf(tcpNotSupportedMsg)
+		return nil, errors.New(tcpNotSupportedMsg)
 	}
 
 	return &MacTraceroute{
@@ -58,7 +58,7 @@ func (m *MacTraceroute) Run(ctx context.Context) (payload.NetworkPath, error) {
 	// TCP is not supported at the moment due to the
 	// way go listens for TCP in our implementation on BSD systems
 	if m.cfg.Protocol == payload.ProtocolTCP {
-		return payload.NetworkPath{}, fmt.Errorf(tcpNotSupportedMsg)
+		return payload.NetworkPath{}, errors.New(tcpNotSupportedMsg)
 	}
 
 	return m.runner.RunTraceroute(ctx, m.cfg)
