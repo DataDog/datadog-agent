@@ -77,8 +77,8 @@ func NewAgentContainerContext() (*events.AgentContainerContext, error) {
 	}
 
 	cid, err := utils.GetProcContainerID(uint32(pid), uint32(pid))
-	if err != nil { // could fail if not in container
-		return acc, nil
+	if err != nil {
+		return nil, err
 	}
 	acc.ContainerID = cid
 	return acc, nil
