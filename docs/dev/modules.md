@@ -25,7 +25,7 @@ After you have refactored, if needed, and listed the packages that you want to e
  	    github.com/DataDog/datadog-agent/path/to/module => ./path/to/module
     )
     ```
-1. Update the `modules.yml` file at the root of the repository. See the GoModule documentation [here](tasks/libs/common/gomodule.py) for attributes that can be defined. The dependencies are computed automatically. Here are two example configurations:
+1. Update the `modules.yml` file at the root of the repository. See the GoModule documentation [here](/tasks/libs/common/gomodule.py) for attributes that can be defined. The dependencies are computed automatically. Here are two example configurations:
 
     ```yaml
     my/module:
