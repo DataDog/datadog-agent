@@ -75,9 +75,10 @@ github.com/DataDog/datadog-agent/comp/core/log/def
 github.com/DataDog/datadog-agent/comp/core/log/impl
 github.com/DataDog/datadog-agent/comp/core/secrets
 github.com/DataDog/datadog-agent/comp/core/status
-github.com/DataDog/datadog-agent/comp/core/tagger
 github.com/DataDog/datadog-agent/comp/core/tagger/common
-github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl
+github.com/DataDog/datadog-agent/comp/core/tagger/def
+github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop
+github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop
 github.com/DataDog/datadog-agent/comp/core/tagger/telemetry
 github.com/DataDog/datadog-agent/comp/core/tagger/types
 github.com/DataDog/datadog-agent/comp/core/tagger/utils

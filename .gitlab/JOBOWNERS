@@ -132,6 +132,7 @@ trigger_auto_staging_release           @DataDog/agent-delivery
 integration_tests_windows*    @DataDog/windows-agent
 integration_tests_otel        @DataDog/opentelemetry
 docker_image_build_otel       @DataDog/opentelemetry
+ddflare_extension_ocb_build   @DataDog/opentelemetry
 agent_integration_tests       @DataDog/container-integrations
 docker_integration_tests      @DataDog/container-integrations
 

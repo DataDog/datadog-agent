@@ -17,13 +17,14 @@
 package cuda
 
 import (
-	"debug/elf"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"unsafe"
 
 	"github.com/pierrec/lz4/v4"
+
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 type fatbinDataKind uint16
@@ -104,7 +105,7 @@ func (fbd *fatbinData) validate() error {
 
 // ParseFatbinFromELFFilePath opens the given path and parses the resulting ELF for CUDA kernels
 func ParseFatbinFromELFFilePath(path string) (*Fatbin, error) {
-	elfFile, err := elf.Open(path)
+	elfFile, err := safeelf.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open ELF file %s: %w", path, err)
 	}
@@ -119,7 +120,7 @@ func getBufferOffset(buf io.Seeker) int64 {
 }
 
 // ParseFatbinFromELFFile parses the fatbin sections of the given ELF file and returns the information found in it
-func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
+func ParseFatbinFromELFFile(elfFile *safeelf.File) (*Fatbin, error) {
 	fatbin := &Fatbin{
 		Kernels: make(map[CubinKernelKey]*CubinKernel),
 	}

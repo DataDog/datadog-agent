@@ -452,26 +452,29 @@ func testUDPSendAndReceive(t *testing.T, tr *Tracer, addr string) {
 	require.NoError(t, err)
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections := getConnections(t, tr)
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		// use t instead of ct because getConnections uses require (not assert), and we get a better error message
+		connections := getConnections(t, tr)
+		incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		if assert.True(ct, ok, "unable to find incoming connection") {
+			assert.Equal(ct, network.INCOMING, incoming.Direction)
 
-	incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-	if assert.True(t, ok, "unable to find incoming connection") {
-		assert.Equal(t, network.INCOMING, incoming.Direction)
+			// make sure the inverse values are seen for the other message
+			assert.Equal(ct, serverMessageSize, int(incoming.Monotonic.SentBytes), "incoming sent")
+			assert.Equal(ct, clientMessageSize, int(incoming.Monotonic.RecvBytes), "incoming recv")
+			assert.True(ct, incoming.IntraHost, "incoming intrahost")
+		}
 
-		// make sure the inverse values are seen for the other message
-		assert.Equal(t, serverMessageSize, int(incoming.Monotonic.SentBytes), "incoming sent")
-		assert.Equal(t, clientMessageSize, int(incoming.Monotonic.RecvBytes), "incoming recv")
-		assert.True(t, incoming.IntraHost, "incoming intrahost")
-	}
+		outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		if assert.True(t, ok, "unable to find outgoing connection") {
+			assert.Equal(t, network.OUTGOING, outgoing.Direction)
 
-	outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	if assert.True(t, ok, "unable to find outgoing connection") {
-		assert.Equal(t, network.OUTGOING, outgoing.Direction)
+			assert.Equal(t, clientMessageSize, int(outgoing.Monotonic.SentBytes), "outgoing sent")
+			assert.Equal(t, serverMessageSize, int(outgoing.Monotonic.RecvBytes), "outgoing recv")
+			assert.True(t, outgoing.IntraHost, "outgoing intrahost")
+		}
 
-		assert.Equal(t, clientMessageSize, int(outgoing.Monotonic.SentBytes), "outgoing sent")
-		assert.Equal(t, serverMessageSize, int(outgoing.Monotonic.RecvBytes), "outgoing recv")
-		assert.True(t, outgoing.IntraHost, "outgoing intrahost")
-	}
+	}, 3*time.Second, 100*time.Millisecond)
 }
 
 func (s *TracerSuite) TestUDPDisabled() {
@@ -1141,13 +1144,15 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv4() {
 	bytesSent, err := conn.WriteTo(message, remoteAddr)
 	require.NoError(t, err)
 
-	connections := getConnections(t, tr)
-	outgoing := network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
-		return cs.DPort == uint16(remotePort)
-	})
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		connections := getConnections(t, tr)
+		outgoing := network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
+			return cs.DPort == uint16(remotePort)
+		})
 
-	require.Len(t, outgoing, 1)
-	assert.Equal(t, bytesSent, int(outgoing[0].Monotonic.SentBytes))
+		assert.Len(ct, outgoing, 1)
+		assert.Equal(ct, bytesSent, int(outgoing[0].Monotonic.SentBytes))
+	}, 3*time.Second, 100*time.Millisecond)
 }
 
 func (s *TracerSuite) TestConnectedUDPSendIPv6() {
@@ -1168,18 +1173,19 @@ func (s *TracerSuite) TestConnectedUDPSendIPv6() {
 	require.NoError(t, err)
 
 	var outgoing []network.ConnectionStats
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		connections := getConnections(t, tr)
 		outgoing = network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
 			return cs.DPort == uint16(remotePort)
 		})
+		if !assert.Len(ct, outgoing, 1) {
+			return
+		}
 
-		return len(outgoing) == 1
+		assert.Equal(ct, remoteAddr.IP.String(), outgoing[0].Dest.String())
+		assert.Equal(ct, bytesSent, int(outgoing[0].Monotonic.SentBytes))
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection")
 
-	require.Len(t, outgoing, 1)
-	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
-	assert.Equal(t, bytesSent, int(outgoing[0].Monotonic.SentBytes))
 }
 
 func (s *TracerSuite) TestTCPDirection() {

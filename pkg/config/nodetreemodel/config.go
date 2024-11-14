@@ -21,8 +21,8 @@ import (
 
 	"github.com/DataDog/viper"
 	"github.com/mohae/deepcopy"
-	"github.com/spf13/afero"
 	"go.uber.org/atomic"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -390,25 +390,20 @@ func (c *ntmConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
-// SetFs assigns a filesystem to the config
-func (c *ntmConfig) SetFs(fs afero.Fs) {
-	c.Lock()
-	defer c.Unlock()
-	c.noimpl.SetFs(fs)
-}
-
 // IsSet checks if a key is set in the config
 func (c *ntmConfig) IsSet(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
-	return c.noimpl.IsSet(key)
+
+	return c.IsKnown(key)
 }
 
 // AllKeysLowercased returns all keys lower-cased
 func (c *ntmConfig) AllKeysLowercased() []string {
 	c.RLock()
 	defer c.RUnlock()
-	return c.noimpl.AllKeys()
+
+	return maps.Keys(c.knownKeys)
 }
 
 func (c *ntmConfig) leafAtPath(key string) LeafNode {
@@ -762,16 +757,17 @@ func (c *ntmConfig) MergeFleetPolicy(configPath string) error {
 func (c *ntmConfig) AllSettings() map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
-	c.logErrorNotImplemented("AllSettings")
-	return nil
+
+	return c.root.DumpSettings(func(model.Source) bool { return true })
 }
 
 // AllSettingsWithoutDefault returns a copy of the all the settings in the configuration without defaults
 func (c *ntmConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
-	c.logErrorNotImplemented("AllSettingsWithoutDefault")
-	return nil
+
+	// We only want to include leaf with a source higher than SourceDefault
+	return c.root.DumpSettings(func(source model.Source) bool { return source.IsGreaterOrEqualThan(model.SourceUnknown) })
 }
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
@@ -779,9 +775,18 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	c.RLock()
 	defer c.RUnlock()
 
-	res := map[model.Source]interface{}{}
-	c.logErrorNotImplemented("AllSettingsBySource")
-	return res
+	// We don't return include unknown settings
+	return map[model.Source]interface{}{
+		model.SourceDefault:            c.defaults.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceUnknown:            c.unknown.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceFile:               c.file.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceEnvVar:             c.envs.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceFleetPolicies:      c.fleetPolicies.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceAgentRuntime:       c.runtime.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceLocalConfigProcess: c.localConfigProcess.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceRC:                 c.remoteConfig.DumpSettings(func(model.Source) bool { return true }),
+		model.SourceCLI:                c.cli.DumpSettings(func(model.Source) bool { return true }),
+	}
 }
 
 // AddConfigPath adds another config for the given path

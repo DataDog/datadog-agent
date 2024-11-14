@@ -9,13 +9,9 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/spf13/afero"
 )
 
 type notImplementedMethods interface {
-	SetFs(afero.Fs)
-	IsSet(string) bool
-	AllKeys() []string
 	GetStringSliceE(string) ([]string, error)
 	GetStringMapE(string) (map[string]interface{}, error)
 	GetStringMapStringE(string) (map[string]string, error)
@@ -24,20 +20,6 @@ type notImplementedMethods interface {
 }
 
 type notImplMethodsImpl struct{}
-
-func (n *notImplMethodsImpl) SetFs(afero.Fs) {
-	n.logErrorNotImplemented("SetFs")
-}
-
-func (n *notImplMethodsImpl) IsSet(string) bool {
-	n.logErrorNotImplemented("IsSet")
-	return false
-}
-
-func (n *notImplMethodsImpl) AllKeys() []string {
-	n.logErrorNotImplemented("AllKeys")
-	return nil
-}
 
 func (n *notImplMethodsImpl) GetStringSliceE(string) ([]string, error) {
 	return nil, n.logErrorNotImplemented("GetStringSliceE")

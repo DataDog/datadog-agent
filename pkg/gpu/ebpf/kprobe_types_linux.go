@@ -39,9 +39,16 @@ type CudaMemEvent struct {
 }
 type CudaMemEventType uint32
 
+type CudaSetDeviceEvent struct {
+	Header    CudaEventHeader
+	Device    int32
+	Pad_cgo_0 [4]byte
+}
+
 const CudaEventTypeKernelLaunch = 0x0
 const CudaEventTypeMemory = 0x1
 const CudaEventTypeSync = 0x2
+const CudaEventTypeSetDevice = 0x3
 
 const CudaMemAlloc = 0x0
 const CudaMemFree = 0x1
@@ -50,3 +57,4 @@ const SizeofCudaKernelLaunch = 0xd0
 const SizeofCudaMemEvent = 0xc0
 const SizeofCudaEventHeader = 0xa8
 const SizeofCudaSync = 0xa8
+const SizeofCudaSetDeviceEvent = 0xb0
