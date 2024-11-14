@@ -1130,3 +1130,4 @@ workflow:
         - .gitlab-ci.yml
         - .gitlab/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
