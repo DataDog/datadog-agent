@@ -1520,12 +1520,19 @@ func TestUSMTLSGoEnabled(t *testing.T) {
 		require.True(t, cfg.EnableGoTLSSupport)
 	})
 
-	t.Run("Not enabled", func(t *testing.T) {
+	t.Run("Not enabled if USM is disabled", func(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
 
-		// Default value.
 		require.False(t, cfg.EnableGoTLSSupport)
+	})
+
+	t.Run("Enabled by default with USM", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.enabled", true)
+		cfg := New()
+
+		require.True(t, cfg.EnableGoTLSSupport)
 	})
 }
 
