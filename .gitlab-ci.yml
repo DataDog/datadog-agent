@@ -30,6 +30,7 @@ include:
   - /.gitlab/kitchen_cleanup/include.yml
   - /.gitlab/kitchen_deploy/kitchen_deploy.yml
   - /.gitlab/kitchen_testing/include.yml
+  - /.gitlab/lint/include.yml
   - /.gitlab/maintenance_jobs/include.yml
   - /.gitlab/notify/notify.yml
   - /.gitlab/package_build/include.yml
