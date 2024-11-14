@@ -20,7 +20,7 @@ func adjustUSM(cfg model.Config) {
 	if cfg.GetBool(smNS("enabled")) {
 		applyDefault(cfg, netNS("enable_http_monitoring"), true)
 		applyDefault(cfg, netNS("enable_https_monitoring"), true)
-		applyDefault(cfg, spNS("enable_go_tls_support"), true)
+		applyDefault(cfg, smNS("enable_go_tls_support"), true)
 		applyDefault(cfg, spNS("enable_runtime_compiler"), true)
 		applyDefault(cfg, spNS("enable_kernel_header_download"), true)
 	}
