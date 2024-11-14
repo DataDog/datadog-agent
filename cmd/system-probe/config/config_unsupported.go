@@ -17,7 +17,7 @@ const (
 	defaultConfigDir = ""
 )
 
-// ValidateSocketAddress validates that the sysprobe socket config option is of the correct format.
+// ValidateSocketAddress is not supported on this platform
 func ValidateSocketAddress(sockPath string) error {
 	return errors.New("system-probe unsupported")
 }
