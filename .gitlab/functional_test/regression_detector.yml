@@ -2,7 +2,7 @@ single-machine-performance-regression_detector:
   stage: functional_test
   timeout: 1h10m
   rules:
-    - !reference [.except_main_or_release_branch]
+    - !reference [.except_release_branch]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -26,6 +26,9 @@ single-machine-performance-regression_detector:
   # See 'decision_record.md' for the determination of whether this job passes or fails.
   allow_failure: false
   script:
+    # This job must run on the `main` branch for compatibility with github's required
+    # branch protection rules. This is a no-op for the `main` branch.
+    - $CI_COMMIT_BRANCH == "main" && echo "No-op for main branch" && exit 0
     # Ensure output files exist for artifact downloads step
     - mkdir outputs # Also needed for smp job sync step
     # Compute merge base of current commit and `main`
