@@ -1016,6 +1016,9 @@ replace (
 // Fork to remove some text/template usage, https://github.com/paulcacheux/opa/tree/lightweight
 replace github.com/open-policy-agent/opa => github.com/paulcacheux/opa v0.0.0-20250507091703-12dadb609ad1
 
+// Fork to remove ~10MiB of character mapping tables.
+replace github.com/sijms/go-ora/v2 => github.com/paulcacheux/go-ora/v2 v2.0.0-20250227181812-8c92f03dd162
+
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
