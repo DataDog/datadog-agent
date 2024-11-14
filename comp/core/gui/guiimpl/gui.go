@@ -6,6 +6,7 @@
 package guiimpl
 
 import (
+	"compress/gzip"
 	"context"
 	"crypto/rand"
 	"embed"
@@ -19,6 +20,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"go.uber.org/fx"
@@ -95,6 +97,10 @@ type provides struct {
 // @param deps dependencies needed to construct the gui, bundled in a struct
 // @return an optional, depending of "GUI_port" configuration value
 func newGui(deps dependencies) provides {
+	_ = mime.AddExtensionType(".eot", "application/vnd.ms-fontobject")
+	_ = mime.AddExtensionType(".ttf", "application/font-sfnt")
+	_ = mime.AddExtensionType(".woff", "font/woff")
+	_ = mime.AddExtensionType(".woff2", "font/woff2")
 
 	p := provides{
 		Comp: optional.NewNoneOption[guicomp.Component](),
@@ -228,9 +234,45 @@ func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
+func serveAsset(w http.ResponseWriter, req *http.Request, assetPath string) ([]byte, error) {
+	var rdr io.ReadCloser
+	isGzipped := true
+	rdr, err := viewsFS.Open(assetPath + ".gz")
+	if err != nil && os.IsNotExist(err) {
+		isGzipped = false
+		rdr, err = viewsFS.Open(assetPath)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rdr.Close()
+
+	if isGzipped {
+		// if client supports gzip, return as-is
+		if strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") {
+			w.Header().Set("Content-Encoding", "gzip")
+		} else {
+			// ungzip on the fly
+			gzReader, err := gzip.NewReader(rdr)
+			if err != nil {
+				return nil, err
+			}
+			// ensure underlying io.Reader is closed
+			defer gzReader.Close()
+			rdr = gzReader
+		}
+	}
+
+	data, err := io.ReadAll(rdr)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
 func serveAssets(w http.ResponseWriter, req *http.Request) {
-	path := path.Join("views", "private", req.URL.Path)
-	data, err := viewsFS.ReadFile(path)
+	assetPath := path.Join("views", "private", req.URL.Path)
+	data, err := serveAsset(w, req, assetPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -239,13 +281,10 @@ func serveAssets(w http.ResponseWriter, req *http.Request) {
 		}
 		return
 	}
-	ctype := mime.TypeByExtension(filepath.Ext(path))
-	if ctype == "" {
-		ctype = http.DetectContentType(data)
-	}
-	w.Header().Set("Content-Type", ctype)
+
+	w.Header().Set("Content-Type", mime.TypeByExtension(filepath.Ext(assetPath)))
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
-	w.Write(data)
+	_, _ = w.Write(data)
 }
 
 func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
