@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Enable USM Istio TLS monitoring by default, if USM is enabled.
