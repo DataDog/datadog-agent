@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/zstd"
 )
 
+// Requires contains the compression level for zstd compression
 type Requires struct {
 	Level int
 }
