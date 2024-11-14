@@ -44,8 +44,6 @@ const (
 	defaultJavaBinPath                = "java"
 	defaultLogLevel                   = "info"
 	jmxAllowAttachSelf                = " -Djdk.attach.allowAttachSelf=true"
-
-	embeddedFIPSPath = "/opt/bouncycastle-fips"
 )
 
 var (
@@ -532,4 +530,7 @@ func (j *JMXFetch) setupFIPS(subprocessArgs *[]string, classpath *string) {
 
 	// Double equals sign instructs JVM to replace stock security configuration rather than modify it.
 	*subprocessArgs = append(*subprocessArgs, fmt.Sprintf("-Djava.security.properties==%s", configPath))
+
+	policyPath := path.Join(embeddedFIPSPath, "bc-fips.policy")
+	*subprocessArgs = append(*subprocessArgs, fmt.Sprintf("-Dpolicy.url.2=file:%s", policyPath))
 }

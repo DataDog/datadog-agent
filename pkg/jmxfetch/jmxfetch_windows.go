@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const embeddedFIPSPath = "C:\\Program Files\\Datadog\\BouncyCastle FIPS"
+
 // Stop stops the JMXFetch process
 func (j *JMXFetch) Stop() error {
 	var stopChan chan struct{}
