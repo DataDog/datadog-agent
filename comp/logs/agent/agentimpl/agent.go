@@ -254,7 +254,6 @@ func (a *logAgent) startPipeline() {
 		a.diagnosticMessageReceiver,
 		a.launchers,
 	)
-	fmt.Println("andrewq agentimpl/agent.go startPipeline XDDDD?")
 	starter.Start()
 
 	if !sds.ShouldBlockCollectionUntilSDSConfiguration(a.config) {

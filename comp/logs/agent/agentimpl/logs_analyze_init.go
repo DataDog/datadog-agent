@@ -8,7 +8,6 @@
 package agentimpl
 
 import (
-	"fmt"
 	"time"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
@@ -20,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
 
-// SetUpLaunchers creates launchers set up tailers to tail files provided by the logs-analyze command
+// SetUpLaunchers creates intializes the launcher. The launchers schedule the tailers to read the log files provided by the logs-analyze command
 func SetUpLaunchers(conf configComponent.Component) {
 	processingRules, err := config.GlobalProcessingRules(conf)
 	if err != nil {
@@ -43,7 +42,6 @@ func SetUpLaunchers(conf configComponent.Component) {
 		nil,
 		nil)
 	sourceProvider := sources.GetInstance()
-	fmt.Printf("logs_analyze_init SourcerProvider address is %p \n", sourceProvider)
 	tracker := tailers.NewTailerTracker()
 	fileLauncher.Start(sourceProvider, pipelineProvider, nil, tracker)
 	lnchrs.AddLauncher(fileLauncher)

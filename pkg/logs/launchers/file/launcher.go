@@ -7,7 +7,6 @@
 package file
 
 import (
-	"fmt"
 	"regexp"
 	"time"
 
@@ -90,11 +89,8 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	s.pipelineProvider = pipelineProvider
 	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.FileType)
-	fmt.Println("launcher added sources is ", s.addedSources)
-	fmt.Printf("launcher added sources channel address is %p \n", s.addedSources)
 	s.registry = registry
 	tracker.Add(s.tailers)
-	fmt.Println("launcher.go tailers are ", s.tailers)
 	go s.run()
 }
 
@@ -253,7 +249,6 @@ func (s *Launcher) cleanUpRotatedTailers() {
 
 // addSource keeps track of the new source and launch new tailers for this source.
 func (s *Launcher) addSource(source *sources.LogSource) {
-	fmt.Println("andrewq launcher.go: addSource", source)
 	s.activeSources = append(s.activeSources, source)
 	s.launchTailers(source)
 }

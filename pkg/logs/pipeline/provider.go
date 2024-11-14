@@ -57,6 +57,7 @@ type provider struct {
 	cfg      pkgconfigmodel.Reader
 }
 
+// processorOnlyProvider implements the Provider provider interface and only contains the processor
 type processorOnlyProvider struct {
 	processor *processor.Processor
 }
@@ -71,14 +72,14 @@ func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, diagn
 	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, true, status, hostname, cfg)
 }
 
-// NewProcessorOnlyProvider returns a new Provider with only the processor
+// Used by the logs check subcommand as the feature does not require the functionalities of the log pipeline other then the processor.
 func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, cfg pkgconfigmodel.Reader, hostname hostnameinterface.Component) Provider {
 	strategyInput := make(chan *message.Message, config.ChanSize)
 	encoder := processor.JSONServerlessEncoder
 	inputChan := make(chan *message.Message, config.ChanSize)
-	pipelineId := 0
+	pipelineID := 0
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, pipelineId)
+		encoder, diagnosticMessageReceiver, hostname, pipelineID)
 
 	return &processorOnlyProvider{
 		processor: processor,

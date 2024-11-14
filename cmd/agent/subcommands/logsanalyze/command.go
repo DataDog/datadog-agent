@@ -19,9 +19,7 @@ import (
 
 const defaultCoreConfigPath = "bin/agent/dist/datadog.yaml"
 
-// const defaultCoreConfigPath = "dev/dist/conf.d/random_logs.d/conf.yaml"
-
-// CliParams holds the command-line arguments for the logs-analyze subcommand.
+// CliParams holds the command-line argument and dependencies for the logs-analyze subcommand.
 type CliParams struct {
 	*command.GlobalParams
 
@@ -65,7 +63,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
-// runLogsAnalyze handles the logs check operation.
+// runLogsAnalyze initializes the launcher and sends the log config file path to the source provider.
 func runLogsAnalyze(config config.Component, cliParams *CliParams) error {
 	agentimpl.SetUpLaunchers(config)
 

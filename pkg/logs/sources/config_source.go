@@ -6,7 +6,6 @@
 package sources
 
 import (
-	"fmt"
 	"os"
 	"sync"
 
@@ -14,17 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ConfigSources serves as the interface between Schedulers and Launchers, distributing
-// notifications of added/removed LogSources to subscribed Launchers.
-//
-// Each subscription receives its own unbuffered channel for sources, and should
-// consume from the channel quickly to avoid blocking other goroutines.  There is
-// no means to unsubscribe.
-//
-// If any sources have been added when GetAddedForType is called, then those sources
-// are immediately sent to the channel.
-//
-// This type is threadsafe, and all of its methods can be called concurrently.
+// ConfigSources receives file paths to log configs and creates sources. The sources are added to a channel and read by the launcher.
 type ConfigSources struct {
 	mu            sync.Mutex
 	sources       []*LogSource
@@ -53,7 +42,6 @@ func GetInstance() *ConfigSources {
 // AddFileSource gets a file from a file path and adds it as a source.
 func (s *ConfigSources) AddFileSource(path string) error {
 
-	// Step 1: Read the file content as bytes
 	wd, err := os.Getwd()
 	if err != nil {
 		return err
@@ -65,7 +53,6 @@ func (s *ConfigSources) AddFileSource(path string) error {
 		return err
 	}
 
-	// Step 2: Parse the YAML data into LogsConfig structs
 	logsConfig, err := logsConfig.ParseYAML(data)
 	if err != nil {
 		return err
@@ -73,14 +60,6 @@ func (s *ConfigSources) AddFileSource(path string) error {
 	configSource := GetInstance()
 	for _, cfg := range logsConfig {
 		source := NewLogSource(cfg.Name, cfg)
-		// NOT SURE IF THIS IS NEEDED?
-		// if source.Config.IntegrationName == "" {
-		// 	// If the log integration comes from a config file, we try to match it with the config name
-		// 	// that is most likely the integration name.
-		// 	// If it comes from a container environment, the name was computed based on the `check_names`
-		// 	// labels attached to the same container.
-		// 	source.Config.IntegrationName = cfg.Name
-		// }
 		configSource.AddSource(source)
 	}
 
@@ -88,7 +67,6 @@ func (s *ConfigSources) AddFileSource(path string) error {
 }
 
 // AddSource adds a new source.
-//
 // All of the subscribers registered for this source's type (src.Config.Type) will be
 // notified.
 func (s *ConfigSources) AddSource(source *LogSource) {
@@ -98,16 +76,12 @@ func (s *ConfigSources) AddSource(source *LogSource) {
 	configSource.sources = append(configSource.sources, source)
 	if source.Config == nil || source.Config.Validate() != nil {
 		configSource.mu.Unlock()
-		fmt.Println("andrewq config_source.go: source config isnt valid")
 		return
 	}
 	streams := configSource.added
 	streamsForType := configSource.addedByType[source.Config.Type]
 
 	configSource.mu.Unlock()
-	fmt.Println("channel 1 ", streams)
-	fmt.Println("channel 2 ", streamsForType)
-	fmt.Println("config_source.go source is : ", source)
 	for _, stream := range streams {
 		stream <- source
 	}
