@@ -391,7 +391,7 @@ def raise_if_errors(errors_found, suggestion_msg=None):
 
 def check_valid_mods(ctx):
     errors_found = []
-    for mod in DEFAULT_MODULES.values():
+    for mod in get_default_modules().values():
         pattern = os.path.join(mod.full_path(), '*.go')
         if not glob.glob(pattern):
             errors_found.append(f"module {mod.import_path} does not contain *.go source files, so it is not a package")
