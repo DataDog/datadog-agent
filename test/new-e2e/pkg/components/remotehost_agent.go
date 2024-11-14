@@ -6,7 +6,10 @@
 package components
 
 import (
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 )
@@ -15,6 +18,14 @@ import (
 type RemoteHostAgent struct {
 	agent.HostAgentOutput
 
-	// Client cannot be initialized inline as it requires other information to create client
-	Client agentclient.Agent
+	Client        agentclient.Agent
+	ClientOptions []agentclientparams.Option
+}
+
+var _ e2e.Initializable = (*RemoteHostAgent)(nil)
+
+// Init is called by e2e test Suite after the component is provisioned.
+func (a *RemoteHostAgent) Init(ctx e2e.Context) (err error) {
+	a.Client, err = client.NewHostAgentClientWithParams(ctx, a.HostAgentOutput.Host, a.ClientOptions...)
+	return err
 }

@@ -3,7 +3,7 @@
 # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
 # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
 # include:
-#   - /.gitlab/kitchen_testing/testing.yml
+#   - .gitlab/kitchen_testing/testing.yml
 
 # Expect warning: github.com/DataDog/datadog-agent/pkg/config.LoadCustom:1501 Unknown environment variable: DD_SYSTEM_PROBE_BPF_DIR
 .kitchen_test_security_agent_linux:
@@ -93,6 +93,7 @@ kitchen_test_security_agent_arm64:
         KITCHEN_CWS_PLATFORM: [host, docker, ad, ebpfless]
 
 kitchen_test_security_agent_amazonlinux_x64:
+  allow_failure: true
   extends:
     - .kitchen_test_security_agent_linux
     - .kitchen_ec2_location_us_east_1
@@ -144,7 +145,6 @@ kitchen_test_security_agent_x64_ec2:
 kitchen_test_security_agent_amazonlinux_x64_fentry:
   extends:
     - kitchen_test_security_agent_amazonlinux_x64
-  allow_failure: true
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
@@ -162,7 +162,7 @@ kitchen_stress_security_agent:
   stage: functional_test
   needs: ["tests_ebpf_x64", "prepare_ebpf_functional_tests_x64"]
   variables:
-    AGENT_MAJOR_VERSION: 7
+    AGENT_MAJOR_VERSION: 6
     DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
   before_script:
     - pushd $DD_AGENT_TESTING_DIR
@@ -189,9 +189,9 @@ kitchen_test_security_agent_windows_x64:
     KITCHEN_OSVERS: "win2016"
     CHEF_VERSION: 14.12.9 # newer versions error out during kitchen setup of azure VM
   before_script:
-    - export WINDOWS_DDPROCMON_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDPROCMON_DRIVER")
-    - export WINDOWS_DDPROCMON_VERSION=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDPROCMON_VERSION")
-    - export WINDOWS_DDPROCMON_SHASUM=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDPROCMON_SHASUM")
+    - export WINDOWS_DDPROCMON_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION_6::WINDOWS_DDPROCMON_DRIVER")
+    - export WINDOWS_DDPROCMON_VERSION=$(inv release.get-release-json-value "$RELEASE_VERSION_6::WINDOWS_DDPROCMON_VERSION")
+    - export WINDOWS_DDPROCMON_SHASUM=$(inv release.get-release-json-value "$RELEASE_VERSION_6::WINDOWS_DDPROCMON_SHASUM")
     - pushd $DD_AGENT_TESTING_DIR
     - tasks/kitchen_setup.sh
   script:

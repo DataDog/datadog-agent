@@ -32,7 +32,7 @@ func TestVMSuiteEx2(t *testing.T) {
 }
 
 func (v *vmSuiteEx2) TestAmiMatch() {
-	ec2Metadata := client.NewEC2Metadata(v.Env().RemoteHost)
+	ec2Metadata := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 	amiID := ec2Metadata.Get("ami-id")
 	assert.Equal(v.T(), amiID, "ami-05fab674de2157a80")
 }

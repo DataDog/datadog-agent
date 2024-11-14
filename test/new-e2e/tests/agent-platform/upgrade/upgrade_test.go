@@ -84,8 +84,8 @@ func TestUpgradeScript(t *testing.T) {
 
 func (is *upgradeSuite) TestUpgrade() {
 	fileManager := filemanager.NewUnix(is.Env().RemoteHost)
-
-	agentClient, err := client.NewHostAgentClient(is.T(), is.Env().RemoteHost, false)
+	host := is.Env().RemoteHost
+	agentClient, err := client.NewHostAgentClient(is, host.HostOutput, false)
 	require.NoError(is.T(), err)
 
 	unixHelper := helpers.NewUnix()

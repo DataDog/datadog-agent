@@ -134,7 +134,7 @@ class TestSendNotification(unittest.TestCase):
         alert_jobs = {"consecutive": ["foo"], "cumulative": []}
         notify.send_notification(alert_jobs)
         mock_slack.assert_called_with(
-            "#agent-platform-ops", f"Job(s) `foo` failed {notify.CONSECUTIVE_THRESHOLD} times in a row.\n"
+            "#agent-agent6-ops", f"Job(s) `foo` failed {notify.CONSECUTIVE_THRESHOLD} times in a row.\n"
         )
 
     @patch('tasks.notify.send_slack_message')
@@ -142,7 +142,7 @@ class TestSendNotification(unittest.TestCase):
         alert_jobs = {"consecutive": [], "cumulative": ["bar", "baz"]}
         notify.send_notification(alert_jobs)
         mock_slack.assert_called_with(
-            "#agent-platform-ops",
+            "#agent-agent6-ops",
             f"Job(s) `bar`, `baz` failed {notify.CUMULATIVE_THRESHOLD} times in last {notify.CUMULATIVE_LENGTH} executions.\n",
         )
 
@@ -151,7 +151,7 @@ class TestSendNotification(unittest.TestCase):
         alert_jobs = {"consecutive": ["foo"], "cumulative": ["bar", "baz"]}
         notify.send_notification(alert_jobs)
         mock_slack.assert_called_with(
-            "#agent-platform-ops",
+            "#agent-agent6-ops",
             f"Job(s) `foo` failed {notify.CONSECUTIVE_THRESHOLD} times in a row.\nJob(s) `bar`, `baz` failed {notify.CUMULATIVE_THRESHOLD} times in last {notify.CUMULATIVE_LENGTH} executions.\n",
         )
 

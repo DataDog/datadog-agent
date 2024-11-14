@@ -179,9 +179,9 @@ func (lp *languagePatcher) handleDeploymentEvent(event workloadmeta.Event) {
 	deploymentID := event.Entity.(*workloadmeta.KubernetesDeployment).ID
 
 	// extract deployment name and namespace from entity id
-	deploymentIds := strings.Split(deploymentID, "/")
-	namespace := deploymentIds[0]
-	deploymentName := deploymentIds[1]
+	deploymentIDs := strings.Split(deploymentID, "/")
+	namespace := deploymentIDs[0]
+	deploymentName := deploymentIDs[1]
 
 	// get the complete entity
 	deployment, err := lp.store.GetKubernetesDeployment(deploymentID)

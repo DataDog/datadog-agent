@@ -708,7 +708,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 			},
 		},
 		"profile2": profile.ProfileConfig{
@@ -716,7 +716,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.10"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.10"},
 			},
 		},
 		"profile3": profile.ProfileConfig{
@@ -724,7 +724,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.5.*"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.5.*"},
 			},
 		},
 	}
@@ -734,7 +734,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.***.*"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.***.*"},
 			},
 		},
 	}
@@ -744,7 +744,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.[.*"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.[.*"},
 			},
 		},
 	}
@@ -754,7 +754,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
 			},
 		},
 		"profile2": profile.ProfileConfig{
@@ -762,7 +762,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
 			},
 		},
 		"profile3": profile.ProfileConfig{
@@ -770,7 +770,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.4"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.4"},
 			},
 		},
 	}
@@ -780,7 +780,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "userMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
 			},
 			IsUserProfile: true,
 		},
@@ -789,7 +789,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "defaultMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
 			},
 		},
 	}
@@ -799,7 +799,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "defaultMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
 			},
 		},
 		"user-profile": profile.ProfileConfig{
@@ -807,7 +807,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "userMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
 			},
 			IsUserProfile: true,
 		},
@@ -818,7 +818,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "defaultMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.*"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.*"},
 			},
 		},
 		"user-profile": profile.ProfileConfig{
@@ -826,7 +826,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "userMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.*"},
+				SysObjectIDs: profiledefinition.StringArray{"1.*"},
 			},
 			IsUserProfile: true,
 		},
@@ -837,7 +837,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
 			},
 			IsUserProfile: true,
 		},
@@ -846,7 +846,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
 			},
 			IsUserProfile: true,
 		},
@@ -1120,7 +1120,7 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 				},
 			},
 		},
-		SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
+		SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 	}
 	profile2 := profiledefinition.ProfileDefinition{
 		Device:  profiledefinition.DeviceMeta{Vendor: "b-vendor"},
@@ -1171,7 +1171,7 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 				},
 			},
 		},
-		SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
+		SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 	}
 
 	mockProfiles := profile.ProfileConfigMap{

@@ -36,7 +36,6 @@ func hostDockerHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) e2e.Pulum
 		if err != nil {
 			return err
 		}
-		env.Host.AwsEnvironment = &awsEnv
 
 		opts := []awshost.ProvisionerOption{
 			awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
@@ -45,7 +44,7 @@ func hostDockerHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) e2e.Pulum
 			opts = append(opts, opt...)
 		}
 		params := awshost.GetProvisionerParams(opts...)
-		awshost.Run(ctx, &env.Host, params)
+		awshost.Run(ctx, &env.Host, awshost.RunParams{Environment: &awsEnv, ProvisionerParams: params})
 
 		vmName := "httpbinvm"
 
@@ -59,7 +58,7 @@ func hostDockerHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) e2e.Pulum
 		}
 
 		// install docker.io
-		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, nginxHost)
+		manager, err := docker.NewManager(&awsEnv, nginxHost)
 		if err != nil {
 			return err
 		}
@@ -91,7 +90,7 @@ func (v *ec2VMSuite) SetupSuite() {
 
 	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils docker.io")
 	v.Env().RemoteHost.MustExecute("sudo usermod -a -G docker ubuntu")
-	v.Env().RemoteHost.ReconnectSSH()
+	v.Env().RemoteHost.Reconnect()
 
 	// prefetch docker image locally
 	v.Env().RemoteHost.MustExecute("docker pull ghcr.io/datadog/apps-npm-tools:main")

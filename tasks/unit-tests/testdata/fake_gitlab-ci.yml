@@ -1,50 +1,50 @@
 ---
 include:
-  - /.gitlab/setup.yml
-  - /.gitlab/shared.yml
-  - /.gitlab/maintenance_jobs.yml
-  - /.gitlab/deps_build.yml
-  - /.gitlab/package_deps_build.yml
-  - /.gitlab/deps_fetch.yml
-  - /.gitlab/source_test.yml
-  - /.gitlab/source_test_junit_upload.yml
-  - /.gitlab/binary_build.yml
-  - /.gitlab/cancel-prev-pipelines.yml
-  - /.gitlab/do_not_merge.yml
-  - /.gitlab/integration_test.yml
-  - /.gitlab/package_build.yml
-  - /.gitlab/kitchen_deploy.yml
-  - /.gitlab/kitchen_testing.yml
-  - /.gitlab/kitchen_tests_upload.yml
-  - /.gitlab/new-e2e_testing.yml
-  - /.gitlab/new-e2e_common/testing.yml
-  - /.gitlab/install_script_testing.yml
-  - /.gitlab/pkg_metrics.yml
-  - /.gitlab/container_build.yml
-  - /.gitlab/container_scan.yml
-  - /.gitlab/check_deploy.yml
-  - /.gitlab/dev_container_deploy.yml
-  - /.gitlab/deploy_common.yml
-  - /.gitlab/deploy_containers.yml
-  - /.gitlab/deploy_packages.yml
-  - /.gitlab/deploy_dca.yml
-  - /.gitlab/choco_build.yml
-  - /.gitlab/choco_deploy.yml
-  - /.gitlab/internal_image_deploy.yml
-  - /.gitlab/trigger_release.yml
-  - /.gitlab/e2e.yml
-  - /.gitlab/e2e_test_junit_upload.yml
-  - /.gitlab/fakeintake.yml
-  - /.gitlab/kitchen_cleanup.yml
-  - /.gitlab/functional_test.yml
-  - /.gitlab/functional_test_cleanup.yml
-  - /.gitlab/functional_test_junit_upload.yml
-  - /.gitlab/internal_kubernetes_deploy.yml
-  - /.gitlab/notify.yml
-  - /.gitlab/kitchen_common/cleanup.yml
-  - /.gitlab/kitchen_common/testing.yml
-  - /.gitlab/benchmarks/benchmarks.yml
-  - /.gitlab/benchmarks/macrobenchmarks.yml
+  - .gitlab/setup.yml
+  - .gitlab/shared.yml
+  - .gitlab/maintenance_jobs.yml
+  - .gitlab/deps_build.yml
+  - .gitlab/package_deps_build.yml
+  - .gitlab/deps_fetch.yml
+  - .gitlab/source_test.yml
+  - .gitlab/source_test_junit_upload.yml
+  - .gitlab/binary_build.yml
+  - .gitlab/cancel-prev-pipelines.yml
+  - .gitlab/do_not_merge.yml
+  - .gitlab/integration_test.yml
+  - .gitlab/package_build.yml
+  - .gitlab/kitchen_deploy.yml
+  - .gitlab/kitchen_testing.yml
+  - .gitlab/kitchen_tests_upload.yml
+  - .gitlab/new-e2e_testing.yml
+  - .gitlab/new-e2e_common/testing.yml
+  - .gitlab/install_script_testing.yml
+  - .gitlab/pkg_metrics.yml
+  - .gitlab/container_build.yml
+  - .gitlab/container_scan.yml
+  - .gitlab/check_deploy.yml
+  - .gitlab/dev_container_deploy.yml
+  - .gitlab/deploy_common.yml
+  - .gitlab/deploy_containers.yml
+  - .gitlab/deploy_packages.yml
+  - .gitlab/deploy_dca.yml
+  - .gitlab/choco_build.yml
+  - .gitlab/choco_deploy.yml
+  - .gitlab/internal_image_deploy.yml
+  - .gitlab/trigger_release.yml
+  - .gitlab/e2e.yml
+  - .gitlab/e2e_test_junit_upload.yml
+  - .gitlab/fakeintake.yml
+  - .gitlab/kitchen_cleanup.yml
+  - .gitlab/functional_test.yml
+  - .gitlab/functional_test_cleanup.yml
+  - .gitlab/functional_test_junit_upload.yml
+  - .gitlab/internal_kubernetes_deploy.yml
+  - .gitlab/notify.yml
+  - .gitlab/kitchen_common/cleanup.yml
+  - .gitlab/kitchen_common/testing.yml
+  - .gitlab/benchmarks/benchmarks.yml
+  - .gitlab/benchmarks/macrobenchmarks.yml
 
 default:
   retry:
@@ -396,18 +396,18 @@ workflow:
   - <<: *if_deploy
     when: on_failure
 
-.on_deploy_a6:
+.on_deploy:
   - <<: *if_not_version_6
     when: never
   - <<: *if_deploy
 
-.on_deploy_a6_failure:
+.on_deploy_failure:
   - <<: *if_not_version_6
     when: never
   - <<: *if_deploy
     when: on_failure
 
-.on_deploy_a6_rc:
+.on_deploy_rc:
   - <<: *if_not_version_6
     when: never
   - <<: *if_not_deploy
@@ -419,7 +419,7 @@ workflow:
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
-.on_deploy_a6_manual:
+.on_deploy_manual:
   - <<: *if_not_version_6
     when: never
   - <<: *if_not_deploy
@@ -436,9 +436,9 @@ workflow:
       AGENT_REPOSITORY: agent
       IMG_REGISTRIES: public
 
-# Same as on_deploy_a6_manual, except the job would not run on pipelines
+# Same as on_deploy_manual, except the job would not run on pipelines
 # using beta branch, it would only run for the final release.
-.on_deploy_a6_manual_final:
+.on_deploy_manual_final:
   - <<: *if_not_version_6
     when: never
   - <<: *if_not_deploy
@@ -457,12 +457,12 @@ workflow:
       AGENT_REPOSITORY: agent
       IMG_REGISTRIES: public
 
-# This rule is a variation of on_deploy_a6_manual where
+# This rule is a variation of on_deploy_manual where
 # the job is usually run manually, except when the pipeline
 # builds an RC: in this case, the job is run automatically.
 # This is done to reduce the number of manual steps that have
 # to be done when creating RCs.
-.on_deploy_a6_manual_auto_on_rc:
+.on_deploy_manual_auto_on_rc:
   - <<: *if_not_version_6
     when: never
   - <<: *if_not_deploy
@@ -630,7 +630,7 @@ workflow:
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       IMG_REGISTRIES: internal-aws-ddbuild
 
-.on_deploy_nightly_repo_branch_a6:
+.on_deploy_nightly_repo_branch:
   - <<: *if_not_version_6
     when: never
   - <<: *if_not_nightly_repo_branch

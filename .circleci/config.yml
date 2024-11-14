@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: gcr.io/datadoghq/agent-circleci-runner:v32015963-09a32ddb
+      - image: gcr.io/datadoghq/agent-circleci-runner:v47817366-5fdf0325
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -244,18 +244,6 @@ jobs:
       - run:
           name: build agent
           command: inv -e agent.build --exclude-rtloader
-
-  build_iot_agent:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: build iot agent
-          command: inv -e agent.build --flavor iot
-      - run:
-          name: test iot agent
-          command: DD_HOSTNAME=test-circleci-hostname ./bin/agent/agent -c ./bin/agent/dist check cpu
 
   documentation_generation:
     <<: *job_template

@@ -14,7 +14,6 @@ from invoke.exceptions import Exit, UnexpectedExit
 from tasks.libs.datadog_api import create_count, send_metrics
 from tasks.libs.pipeline_data import get_failed_jobs
 from tasks.libs.pipeline_notifications import (
-    GITHUB_SLACK_MAP,
     base_message,
     check_for_missing_owners_slack_and_jira,
     find_job_owners,
@@ -93,7 +92,7 @@ def send_message(_, notification_type="merge", print_to_stdout=False):
 
     # Send messages
     for owner, message in messages_to_send.items():
-        channel = GITHUB_SLACK_MAP.get(owner.lower(), None)
+        channel = "#agent-agent6-ops"
         message.base_message = base
         if channel is None:
             channel = "#datadog-agent-pipelines"
@@ -304,7 +303,7 @@ def send_notification(alert_jobs):
         jobs = ", ".join(f"`{j}`" for j in alert_jobs["cumulative"])
         message += f"Job(s) {jobs} failed {CUMULATIVE_THRESHOLD} times in last {CUMULATIVE_LENGTH} executions.\n"
     if message:
-        send_slack_message("#agent-platform-ops", message)
+        send_slack_message("#agent-agent6-ops", message)
 
 
 @task
