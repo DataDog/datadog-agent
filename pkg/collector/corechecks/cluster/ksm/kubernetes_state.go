@@ -16,6 +16,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/samber/lo"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/kubetags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
@@ -116,6 +120,25 @@ type KSMConfig struct {
 	//   - nodes
 	//   - pods
 	Collectors []string `yaml:"collectors"`
+
+	// CustomResourceStateMetrics defines the custom resource states metrics
+	// https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/extend/customresourcestate-metrics.md
+	// Example: Enable custom resource state metrics for CRD mycrd.
+	// custom_resource:
+	//    spec:
+	//      resources:
+	//      - groupVersionKind:
+	//          group: "datadoghq.com"
+	//          kind: "DatadogAgent"
+	//          version: "v2alpha1"
+	//        metrics:
+	//          - name: "custom_metric"
+	//            help: "custom_metric"
+	//            each:
+	//              type: Gauge
+	//              gauge:
+	//                path: [status, agent, available]
+	CustomResource customresourcestate.Metrics `yaml:"custom_resource"`
 
 	// LabelJoins allows adding the tags to join from other KSM metrics.
 	// Example: Joining for deployment metrics. Based on:
@@ -260,6 +283,8 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	if err != nil {
 		return err
 	}
+
+	k.metricNamesMapper = k.defaultMetricNamesMapper()
 
 	// Retrieve cluster name
 	k.getClusterName()
@@ -463,8 +488,29 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		clients[f.Name()] = client
 	}
 
+	customResourceStateMetricFactories, err := customresourcestate.FromConfig(customResourceDecoder{k.instance.CustomResource})
+	if err != nil {
+		log.Errorf("failed to create custom resource state metrics: %v", err)
+	} else {
+		factories = append(factories, customResourceStateMetricFactories...)
+	}
+
+	coll := collectors
+	for _, cr := range k.instance.CustomResource.Spec.Resources {
+		gvr := schema.GroupVersionResource{
+			Group:    cr.GroupVersionKind.Group,
+			Version:  cr.GroupVersionKind.Version,
+			Resource: cr.GetResourceName(),
+		}
+		// Hack to use the global dynamic client instead of creating multiple different clients
+		// TODO(KSM 2.9+), use GVR.String to index the client and add gvr.string() to the list of collectors
+		cl := c.DynamicCl.Resource(gvr)
+		clients[cr.GetResourceName()] = cl
+		coll = append(coll, cr.GetResourceName())
+	}
+
 	return customResources{
-		collectors: collectors,
+		collectors: lo.Uniq(coll),
 		clients:    clients,
 		factories:  factories,
 	}
@@ -960,20 +1006,22 @@ func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins
 }
 
 func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
-	return &KSMCheck{
+	res := &KSMCheck{
 		CheckBase:            base,
 		instance:             instance,
 		telemetry:            newTelemetryCache(),
 		isCLCRunner:          pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
 		isRunningOnNodeAgent: flavor.GetFlavor() != flavor.ClusterAgent && !pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
-		metricNamesMapper:    defaultMetricNamesMapper(),
-		metricAggregators:    defaultMetricAggregators(),
-		metricTransformers:   defaultMetricTransformers(),
+		// metricNamesMapper:    defaultMetricNamesMapper(),
+		metricAggregators:  defaultMetricAggregators(),
+		metricTransformers: defaultMetricTransformers(),
 
 		// metadata metrics are useful for label joins
 		// but shouldn't be submitted to Datadog
 		metadataMetricsRegex: regexp.MustCompile(".*_(info|labels|status_reason)"),
 	}
+	res.metricNamesMapper = res.defaultMetricNamesMapper()
+	return res
 }
 
 // resourceNameFromMetric returns the resource name based on the metric name
