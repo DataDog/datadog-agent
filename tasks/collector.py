@@ -399,10 +399,17 @@ def update_core_collector():
                 old_version,
                 collector_version,
             )
+            # update other files
             update_file("./tasks/collector.py", old_version, collector_version)
             for root, _, files in os.walk("./tasks/unit_tests/testdata/collector"):
                 for file in files:
                     update_file(os.path.join(root, file), old_version, collector_version)
+            update_file(
+                "./test/otel/testdata/builder-config.yaml",
+                old_version,
+                collector_version,
+            )
+            update_file("./.gitlab/integration_test/otel.yml", old_version, collector_version)
 
     else:
         print(f"Failed to fetch the latest release for {repo}")
