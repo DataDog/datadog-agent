@@ -458,7 +458,7 @@ func (p *WindowsProbe) auditEtw(ecb etwCallback) error {
 			switch e.EventHeader.EventDescriptor.ID {
 			case idObjectPermsChange:
 				if pc, err := p.parseObjectPermsChange(e); err == nil {
-					log.Infof("Received objectPermsChange event %d %s\n", e.EventHeader.EventDescriptor.ID, pc)
+					log.Tracef("Received objectPermsChange event %d %s\n", e.EventHeader.EventDescriptor.ID, pc)
 					ecb(pc, e.EventHeader.ProcessID)
 				}
 			}
