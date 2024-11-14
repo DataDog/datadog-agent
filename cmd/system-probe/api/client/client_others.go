@@ -17,8 +17,7 @@ const (
 	idleConnTimeout = 30 * time.Second
 )
 
-// DialContextFunc returns a function to be used in http.Transport.DialContext for connecting to system-probe.
-// The result will be OS-specific.
+// DialContextFunc is not supported on this platform.
 func DialContextFunc(_ string) func(context.Context, string, string) (net.Conn, error) {
 	return func(_ context.Context, _, _ string) (net.Conn, error) {
 		return ErrNotImplemented
