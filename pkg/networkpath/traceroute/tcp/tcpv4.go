@@ -103,8 +103,9 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	// hops should be of length # of hops
 	hops := make([]*Hop, 0, t.MaxTTL-t.MinTTL)
 
+	seqNumber := rand.Uint32()
 	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
-		seqNumber := rand.Uint32()
+		time.Sleep(t.Delay)
 		hop, err := t.sendAndReceive(rawIcmpConn, rawTCPConn, i, seqNumber, t.Timeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to run traceroute: %w", err)
@@ -128,7 +129,16 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 }
 
 func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawConn, ttl int, seqNum uint32, timeout time.Duration) (*Hop, error) {
-	tcpHeader, tcpPacket, err := createRawTCPSyn(t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, ttl)
+	srcPort := t.srcPort
+	if ttl > 1 {
+		addr, err := localAddrForHost(t.Target, t.DestPort)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get local address for target: %w", err)
+		}
+		srcPort = addr.AddrPort().Port()
+		log.Warnf("Using new source port: %d", srcPort)
+	}
+	tcpHeader, tcpPacket, err := createRawTCPSyn(t.srcIP, srcPort, t.Target, t.DestPort, seqNum, ttl)
 	if err != nil {
 		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
 		return nil, err
@@ -141,7 +151,7 @@ func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawCo
 	}
 
 	start := time.Now() // TODO: is this the best place to start?
-	hopIP, hopPort, icmpType, end, err := listenPackets(rawIcmpConn, rawTCPConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
+	hopIP, hopPort, icmpType, end, err := listenPackets(rawIcmpConn, rawTCPConn, timeout, t.srcIP, srcPort, t.Target, t.DestPort, seqNum)
 	if err != nil {
 		log.Errorf("failed to listen for packets: %s", err.Error())
 		return nil, err
