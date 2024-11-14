@@ -52,13 +52,13 @@ func (t SelfTestEvent) ToJSON() ([]byte, error) {
 }
 
 // NewSelfTestEvent returns the rule and the result of the self test
-func NewSelfTestEvent(success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) (*rules.Rule, *events.CustomEvent) {
+func NewSelfTestEvent(acc *events.AgentContainerContext, success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) (*rules.Rule, *events.CustomEvent) {
 	evt := SelfTestEvent{
 		Success:    success,
 		Fails:      fails,
 		TestEvents: testEvents,
 	}
-	evt.FillCustomEventCommonFields()
+	evt.FillCustomEventCommonFields(acc)
 
 	return events.NewCustomRule(events.SelfTestRuleID, events.SelfTestRuleDesc),
 		events.NewCustomEvent(model.CustomSelfTestEventType, evt)
