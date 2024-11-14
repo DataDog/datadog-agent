@@ -65,7 +65,7 @@ type Requires struct {
 	Lc        compdef.Lifecycle
 	Config    config.Component
 	Log       log.Component
-	Wmeta     optional.Option[workloadmeta.Component]
+	Wmeta     workloadmeta.Component
 	Telemetry coretelemetry.Component
 	Params    tagger.Params
 }
@@ -99,7 +99,7 @@ type TaggerWrapper struct {
 
 	defaultTagger tagger.Component
 
-	wmeta         optional.Option[workloadmeta.Component]
+	wmeta         workloadmeta.Component
 	cfg           config.Component
 	datadogConfig datadogConfig
 
@@ -138,7 +138,7 @@ func NewComponent(req Requires) (Provides, error) {
 }
 
 // NewTaggerClient returns a new tagger client
-func NewTaggerClient(params tagger.Params, cfg config.Component, wmeta optional.Option[workloadmeta.Component], log log.Component, telemetryComp coretelemetry.Component) (*TaggerWrapper, error) {
+func NewTaggerClient(params tagger.Params, cfg config.Component, wmeta workloadmeta.Component, log log.Component, telemetryComp coretelemetry.Component) (*TaggerWrapper, error) {
 	var defaultTagger tagger.Component
 	var err error
 	telemetryStore := telemetry.NewStore(telemetryComp)
@@ -313,7 +313,7 @@ func (t *TaggerWrapper) Standard(entityID types.EntityID) ([]string, error) {
 // AgentTags returns the agent tags
 // It relies on the container provider utils to get the Agent container ID
 func (t *TaggerWrapper) AgentTags(cardinality types.TagCardinality) ([]string, error) {
-	ctrID, err := metrics.GetProvider(t.wmeta).GetMetaCollector().GetSelfContainerID()
+	ctrID, err := metrics.GetProvider(optional.NewOption(t.wmeta)).GetMetaCollector().GetSelfContainerID()
 	if err != nil {
 		return nil, err
 	}
@@ -511,7 +511,7 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 			}
 
 			// Generate container ID from External Data
-			generatedContainerID, err := t.generateContainerIDFromExternalData(parsedExternalData, metrics.GetProvider(t.wmeta).GetMetaCollector())
+			generatedContainerID, err := t.generateContainerIDFromExternalData(parsedExternalData, metrics.GetProvider(optional.NewOption(t.wmeta)).GetMetaCollector())
 			if err != nil {
 				t.log.Tracef("Failed to generate container ID from %s: %s", originInfo.ExternalData, err)
 			}

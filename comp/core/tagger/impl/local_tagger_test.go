@@ -24,13 +24,12 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func TestAccumulateTagsFor(t *testing.T) {
 	entityID := types.NewEntityID("", "entity_name")
 
-	store := fxutil.Test[optional.Option[workloadmeta.Component]](t, fx.Options(
+	store := fxutil.Test[workloadmeta.Component](t, fx.Options(
 		fx.Supply(config.Params{}),
 		fx.Supply(log.Params{}),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -70,7 +69,7 @@ func TestAccumulateTagsFor(t *testing.T) {
 func TestTag(t *testing.T) {
 	entityID := types.NewEntityID(types.ContainerID, "123")
 
-	store := fxutil.Test[optional.Option[workloadmeta.Component]](t, fx.Options(
+	store := fxutil.Test[workloadmeta.Component](t, fx.Options(
 		fx.Supply(config.Params{}),
 		fx.Supply(log.Params{}),
 		fx.Provide(func() log.Component { return logmock.New(t) }),

@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Requires contains the dependencies for the dual tagger component
@@ -28,7 +27,7 @@ type Requires struct {
 	DualParams   tagger.DualParams
 	Config       config.Component
 	Log          log.Component
-	Wmeta        optional.Option[workloadmeta.Component]
+	Wmeta        workloadmeta.Component
 	Telemetry    telemetry.Component
 }
 
