@@ -730,3 +730,22 @@ def experimental(message):
         return wrapper
 
     return decorator
+
+
+def get_metric_origin(origin_product, origin_sub_product, origin_product_detail, origin_field=False):
+    """
+    Returns a dictionary representing metric origin metadata.
+
+    When origin_field is True, wraps the origin data in an "origin" field,
+    for dictionary-based(unstructured) calls where the API expects the "origin" wrapper.
+    When origin_field is False, returns the origin data directly, suitable
+    for class-based(structured) calls that handle the wrapper internally.
+    """
+    metric_origin = {
+        "origin_product": origin_product,
+        "origin_sub_product": origin_sub_product,
+        "origin_product_detail": origin_product_detail,
+    }
+    if origin_field:
+        return {"origin": metric_origin}
+    return metric_origin

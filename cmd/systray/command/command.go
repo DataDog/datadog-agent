@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
