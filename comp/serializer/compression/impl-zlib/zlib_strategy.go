@@ -14,7 +14,7 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 )
 
-type provides struct {
+type Provides struct {
 	Comp compression.Component
 }
 
@@ -23,8 +23,8 @@ type ZlibStrategy struct {
 }
 
 // NewComponent returns a new ZlibStrategy
-func NewComponent() provides {
-	return provides{
+func NewComponent() Provides {
+	return Provides{
 		Comp: &ZlibStrategy{},
 	}
 }

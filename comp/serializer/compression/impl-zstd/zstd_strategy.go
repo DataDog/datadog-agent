@@ -17,7 +17,7 @@ type Requires struct {
 	Level int
 }
 
-type provides struct {
+type Provides struct {
 	Comp compression.Component
 }
 
@@ -27,8 +27,8 @@ type ZstdStrategy struct {
 }
 
 // NewComponent returns a new ZstdStrategy
-func NewComponent(reqs Requires) provides {
-	return provides{
+func NewComponent(reqs Requires) Provides {
+	return Provides{
 		Comp: &ZstdStrategy{
 			level: reqs.Level,
 		},
