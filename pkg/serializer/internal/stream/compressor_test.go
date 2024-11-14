@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 
@@ -24,7 +24,7 @@ import (
 )
 
 func payloadToString(payload []byte, cfg config.Component) string {
-	strategy := compressionfx.NewCompressor(cfg)
+	strategy := selector.NewCompressor(cfg)
 	p, err := strategy.Decompress(payload)
 	if err != nil {
 		return err.Error()
@@ -48,7 +48,7 @@ func TestCompressorSimple(t *testing.T) {
 			c, err := NewCompressor(
 				&bytes.Buffer{}, &bytes.Buffer{},
 				maxPayloadSize, maxUncompressedSize,
-				[]byte("{["), []byte("]}"), []byte(","), compressionfx.NewCompressor(mockConfig))
+				[]byte("{["), []byte("]}"), []byte(","), selector.NewCompressor(mockConfig))
 			require.NoError(t, err)
 
 			for i := 0; i < 5; i++ {
@@ -81,7 +81,7 @@ func TestCompressorAddItemErrCodeWithEmptyCompressor(t *testing.T) {
 				c, err := NewCompressor(
 					&bytes.Buffer{}, &bytes.Buffer{},
 					maxPayloadSize, maxUncompressedSize,
-					[]byte("{["), []byte("]}"), []byte(","), compressionfx.NewCompressor(mockConfig))
+					[]byte("{["), []byte("]}"), []byte(","), selector.NewCompressor(mockConfig))
 				require.NoError(t, err)
 
 				payload := strings.Repeat("A", dataLen)
@@ -128,7 +128,7 @@ func TestOnePayloadSimple(t *testing.T) {
 
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			builder := NewJSONPayloadBuilder(true, mockConfig, compressionfx.NewCompressor(mockConfig))
+			builder := NewJSONPayloadBuilder(true, mockConfig, selector.NewCompressor(mockConfig))
 			payloads, err := BuildJSONPayload(builder, m)
 			require.NoError(t, err)
 			require.Len(t, payloads, 1)
@@ -157,7 +157,7 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			mockConfig.SetDefault("serializer_max_payload_size", tc.maxPayloadSize)
 
-			builder := NewJSONPayloadBuilder(true, mockConfig, compressionfx.NewCompressor(mockConfig))
+			builder := NewJSONPayloadBuilder(true, mockConfig, selector.NewCompressor(mockConfig))
 			payloads, err := BuildJSONPayload(builder, m)
 			require.NoError(t, err)
 			require.Len(t, payloads, 1)
@@ -181,7 +181,7 @@ func TestZstdCompressionLevel(t *testing.T) {
 			mockConfig.SetWithoutSource("serializer_compressor_kind", "zstd")
 			mockConfig.SetDefault("serializer_zstd_compressor_level", level)
 
-			builder := NewJSONPayloadBuilder(true, mockConfig, compressionfx.NewCompressor(mockConfig))
+			builder := NewJSONPayloadBuilder(true, mockConfig, selector.NewCompressor(mockConfig))
 			payloads, err := BuildJSONPayload(builder, m)
 			require.NoError(t, err)
 			require.Len(t, payloads, 1)
@@ -210,7 +210,7 @@ func TestTwoPayload(t *testing.T) {
 			mockConfig.SetDefault("serializer_max_payload_size", tc.maxPayloadSize)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 
-			builder := NewJSONPayloadBuilder(true, mockConfig, compressionfx.NewCompressor(mockConfig))
+			builder := NewJSONPayloadBuilder(true, mockConfig, selector.NewCompressor(mockConfig))
 			payloads, err := BuildJSONPayload(builder, m)
 			require.NoError(t, err)
 			require.Len(t, payloads, 2)
@@ -238,8 +238,8 @@ func TestLockedCompressorProducesSamePayloads(t *testing.T) {
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 
-			builderLocked := NewJSONPayloadBuilder(true, mockConfig, compressionfx.NewCompressor(mockConfig))
-			builderUnLocked := NewJSONPayloadBuilder(false, mockConfig, compressionfx.NewCompressor(mockConfig))
+			builderLocked := NewJSONPayloadBuilder(true, mockConfig, selector.NewCompressor(mockConfig))
+			builderUnLocked := NewJSONPayloadBuilder(false, mockConfig, selector.NewCompressor(mockConfig))
 			payloads1, err := BuildJSONPayload(builderLocked, m)
 			require.NoError(t, err)
 			payloads2, err := BuildJSONPayload(builderUnLocked, m)
@@ -264,7 +264,7 @@ func TestBuildWithOnErrItemTooBigPolicyMetadata(t *testing.T) {
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			mockConfig.SetWithoutSource("serializer_max_uncompressed_payload_size", tc.maxUncompressedPayloadSize)
 			marshaler := &IterableStreamJSONMarshalerMock{index: 0, maxIndex: 100}
-			builder := NewJSONPayloadBuilder(false, mockConfig, compressionfx.NewCompressor(mockConfig))
+			builder := NewJSONPayloadBuilder(false, mockConfig, selector.NewCompressor(mockConfig))
 			payloads, err := builder.BuildWithOnErrItemTooBigPolicy(
 				marshaler,
 				DropItemOnErrItemTooBig)

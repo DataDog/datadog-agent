@@ -13,7 +13,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -46,7 +46,7 @@ func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forw
 	logger := logimpl.NewTemporaryLoggerWithoutInit()
 	forwarder := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, keysPerDomain, forwarderTimeout)
 	h, _ := hostname.Get(context.Background())
-	serializer := serializer.NewSerializer(forwarder, nil, compressionfx.NewCompressor(pkgconfigsetup.Datadog()), pkgconfigsetup.Datadog(), h)
+	serializer := serializer.NewSerializer(forwarder, nil, selector.NewCompressor(pkgconfigsetup.Datadog()), pkgconfigsetup.Datadog(), h)
 	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(pkgconfigsetup.Datadog()))
 	tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), "timesampler")
 
