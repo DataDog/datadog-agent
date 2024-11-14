@@ -49,9 +49,10 @@ var (
 type bpfMapName = string
 
 const (
-	cudaEventsMap     bpfMapName = "cuda_events"
-	cudaAllocCacheMap bpfMapName = "cuda_alloc_cache"
-	cudaSyncCacheMap  bpfMapName = "cuda_sync_cache"
+	cudaEventsRingbuf     bpfMapName = "cuda_events"
+	cudaAllocCacheMap     bpfMapName = "cuda_alloc_cache"
+	cudaSyncCacheMap      bpfMapName = "cuda_sync_cache"
+	cudaSetDeviceCacheMap bpfMapName = "cuda_set_device_cache"
 )
 
 // probeFuncName stores the ebpf hook function name
@@ -64,6 +65,8 @@ const (
 	cudaStreamSyncProbe    probeFuncName = "uprobe__cudaStreamSynchronize"
 	cudaStreamSyncRetProbe probeFuncName = "uretprobe__cudaStreamSynchronize"
 	cudaFreeProbe          probeFuncName = "uprobe__cudaFree"
+	cudaSetDeviceProbe     probeFuncName = "uprobe__cudaSetDevice"
+	cudaSetDeviceRetProbe  probeFuncName = "uretprobe__cudaSetDevice"
 )
 
 // ProbeDependencies holds the dependencies for the probe
@@ -233,12 +236,9 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 		*/
 
 		Maps: []*manager.Map{
-			{
-				Name: cudaAllocCacheMap,
-			},
-			{
-				Name: cudaSyncCacheMap,
-			},
+			{Name: cudaAllocCacheMap},
+			{Name: cudaSyncCacheMap},
+			{Name: cudaSetDeviceCacheMap},
 		}}, "gpu", &ebpftelemetry.ErrorsTelemetryModifier{})
 
 	if opts.MapSpecEditors == nil {
@@ -259,7 +259,7 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 func (p *Probe) setupSharedBuffer(o *manager.Options) {
 	rbHandler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	rb := &manager.RingBuffer{
-		Map: manager.Map{Name: cudaEventsMap},
+		Map: manager.Map{Name: cudaEventsRingbuf},
 		RingBufferOptions: manager.RingBufferOptions{
 			RecordHandler: rbHandler.RecordHandler,
 			RecordGetter:  rbHandler.RecordGetter,
@@ -268,7 +268,7 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 
 	ringBufferSize := toPowerOf2(defaultRingBufferSize)
 
-	o.MapSpecEditors[cudaEventsMap] = manager.MapSpecEditor{
+	o.MapSpecEditors[cudaEventsRingbuf] = manager.MapSpecEditor{
 		Type:       ebpf.RingBuf,
 		MaxEntries: uint32(ringBufferSize),
 		KeySize:    0,
@@ -295,6 +295,8 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaStreamSyncProbe}},
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaStreamSyncRetProbe}},
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaFreeProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaSetDeviceProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaSetDeviceRetProbe}},
 						},
 					},
 				},

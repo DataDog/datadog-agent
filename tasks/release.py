@@ -32,6 +32,7 @@ from tasks.libs.common.git import (
     get_last_release_tag,
     try_git_command,
 )
+from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
@@ -67,7 +68,6 @@ from tasks.libs.releasing.version import (
     next_rc_version,
     parse_major_versions,
 )
-from tasks.modules import DEFAULT_MODULES
 from tasks.pipeline import edit_schedule, run
 from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 
@@ -109,9 +109,9 @@ def update_modules(ctx, agent_version, verify=True):
     if verify:
         check_version(agent_version)
 
-    for module in DEFAULT_MODULES.values():
+    for module in get_default_modules().values():
         for dependency in module.dependencies:
-            dependency_mod = DEFAULT_MODULES[dependency]
+            dependency_mod = get_default_modules()[dependency]
             ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
 
 
@@ -170,7 +170,7 @@ def tag_modules(ctx, agent_version, commit="HEAD", verify=True, push=True, force
         check_version(agent_version)
 
     force_option = __get_force_option(force)
-    for module in DEFAULT_MODULES.values():
+    for module in get_default_modules().values():
         # Skip main module; this is tagged at tag_version via __tag_single_module.
         if module.should_tag and module.path != ".":
             __tag_single_module(ctx, module, agent_version, commit, push, force_option, devel)
@@ -200,7 +200,7 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force
 
     # Always tag the main module
     force_option = __get_force_option(force)
-    __tag_single_module(ctx, DEFAULT_MODULES["."], agent_version, commit, push, force_option, devel)
+    __tag_single_module(ctx, get_default_modules()["."], agent_version, commit, push, force_option, devel)
     print(f"Created tags for version {agent_version}")
 
 

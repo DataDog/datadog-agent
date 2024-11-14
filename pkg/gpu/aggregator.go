@@ -99,8 +99,8 @@ func (agg *aggregator) getGPUUtilization() float64 {
 // account for the fact that we might have more kernels enqueued than the
 // GPU can run in parallel. This factor allows distributing the utilization
 // over all the streams that were active during the interval.
-func (agg *aggregator) getStats(utilizationNormFactor float64) model.ProcessStats {
-	var stats model.ProcessStats
+func (agg *aggregator) getStats(utilizationNormFactor float64) model.UtilizationMetrics {
+	var stats model.UtilizationMetrics
 
 	if agg.measuredIntervalNs > 0 {
 		stats.UtilizationPercentage = agg.getGPUUtilization() / utilizationNormFactor
