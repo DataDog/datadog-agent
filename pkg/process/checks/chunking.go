@@ -61,7 +61,8 @@ var (
 		Networks: &model.ProcessNetworks{},
 	}
 	// procSizeofProto is a size of the empty process
-	procSizeofProto = procSizeofSampleProcess.Size()
+	// procSizeofProto = procSizeofSampleProcess.Size()
+	procSizeofProto = 64
 )
 
 // weighProcess weighs `model.Process` payloads using an approximation of a serialized size of the proto message

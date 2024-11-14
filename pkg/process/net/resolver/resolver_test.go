@@ -640,7 +640,7 @@ func TestLocalResolverCachePersistence(t *testing.T) {
 		assert.Len(resolver.addrToCtrID, 4)
 	}()
 
-	missingAddrs := []model.ContainerAddr{
+	missingAddrs := []model.ContainerAddrNoProto{
 		{
 			Ip:       "10.0.2.15",
 			Port:     32769,
