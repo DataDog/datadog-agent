@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/go-tuf/data"
 	"github.com/google/uuid"
-	"go.uber.org/multierr"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
@@ -104,20 +103,20 @@ func (c *cdnRC) Get(ctx context.Context, pkg string) (cfg Config, err error) {
 
 	switch pkg {
 	case "datadog-agent":
-		orderConfig, layers, err := c.get(ctx)
+		orderedLayers, err := c.get(ctx)
 		if err != nil {
 			return nil, err
 		}
-		cfg, err = newAgentConfig(orderConfig, layers...)
+		cfg, err = newAgentConfig(orderedLayers...)
 		if err != nil {
 			return nil, err
 		}
 	case "datadog-apm-inject":
-		orderConfig, layers, err := c.get(ctx)
+		orderedLayers, err := c.get(ctx)
 		if err != nil {
 			return nil, err
 		}
-		cfg, err = newAPMConfig(c.hostTagsGetter.get(), orderConfig, layers...)
+		cfg, err = newAPMConfig(c.hostTagsGetter.get(), orderedLayers...)
 		if err != nil {
 			return nil, err
 		}
@@ -129,7 +128,7 @@ func (c *cdnRC) Get(ctx context.Context, pkg string) (cfg Config, err error) {
 }
 
 // get calls the Remote Config service to get the ordered layers.
-func (c *cdnRC) get(ctx context.Context) (*orderConfig, [][]byte, error) {
+func (c *cdnRC) get(ctx context.Context) ([][]byte, error) {
 	if c.firstRequest {
 		// A first request is made to the remote config service at service startup,
 		// so if we do another request too close to the first one (in the same second)
@@ -155,11 +154,11 @@ func (c *cdnRC) get(ctx context.Context) (*orderConfig, [][]byte, error) {
 		},
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if agentConfigUpdate == nil {
-		return &orderConfig{}, nil, nil
+		return nil, nil
 	}
 
 	// Update root versions
@@ -180,32 +179,11 @@ func (c *cdnRC) get(ctx context.Context) (*orderConfig, [][]byte, error) {
 	}
 
 	// Unmarshal RC results
-	configLayers := make([][]byte, 0)
-	var configOrder *orderConfig
-	var layersErr error
+	files := map[string][]byte{}
 	for _, file := range agentConfigUpdate.TargetFiles {
-		matched := datadogConfigIDRegexp.FindStringSubmatch(file.GetPath())
-		if len(matched) != 2 {
-			layersErr = multierr.Append(layersErr, fmt.Errorf("invalid config path: %s", file.GetPath()))
-			continue
-		}
-		configName := matched[1]
-
-		if configName != configOrderID {
-			configLayers = append(configLayers, file.GetRaw())
-		} else {
-			configOrder = &orderConfig{}
-			err = json.Unmarshal(file.GetRaw(), configOrder)
-			if err != nil {
-				// Return first - we can't continue without the order
-				return nil, nil, err
-			}
-		}
+		files[file.GetPath()] = file.GetRaw()
 	}
-	if layersErr != nil {
-		return nil, nil, layersErr
-	}
-	return configOrder, configLayers, nil
+	return getLayers(nil, files)
 }
 
 func (c *cdnRC) Close() error {
