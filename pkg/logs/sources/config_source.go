@@ -59,6 +59,7 @@ func (s *ConfigSources) AddFileSource(path string) error {
 	}
 	configSource := GetInstance()
 	for _, cfg := range logsConfig {
+		cfg.Path = absolutePath
 		source := NewLogSource(cfg.Name, cfg)
 		configSource.AddSource(source)
 	}
@@ -80,7 +81,6 @@ func (s *ConfigSources) AddSource(source *LogSource) {
 	}
 	streams := configSource.added
 	streamsForType := configSource.addedByType[source.Config.Type]
-
 	configSource.mu.Unlock()
 	for _, stream := range streams {
 		stream <- source
