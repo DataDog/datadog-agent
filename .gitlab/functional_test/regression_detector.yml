@@ -214,7 +214,8 @@ single-machine-performance-regression_detector:
       else:
           print("Quality gate passed.")
           sys.exit(0)
-      EOF || {
+      EOF 
+      || {
         exit_code=$?
         echo "quality gates script failed, this is most likely a result of a regression"
         datadog-ci tag --level job --tags smp_failure_mode:"quality-gate"
