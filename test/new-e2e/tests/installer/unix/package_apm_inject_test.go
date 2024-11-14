@@ -364,7 +364,7 @@ func (s *packageApmInjectSuite) TestInstrumentScripts() {
 		"TESTING_YUM_VERSION_PATH=",
 		"DD_REPO_URL=datadoghq.com",
 	)
-	s.host.Run("sudo apt-get install -y datadog-apm-inject datadog-apm-library-python")
+	s.host.Run("sudo apt-get install -y datadog-apm-inject datadog-apm-library-python || sudo yum install -y datadog-apm-inject datadog-apm-library-python")
 	defer s.Purge()
 	defer s.purgeInjectorDebInstall()
 
