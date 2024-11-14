@@ -614,7 +614,7 @@
 /test/new-e2e/tests/otel                      @DataDog/opentelemetry
 /test/new-e2e/tests/process                   @DataDog/processes
 /test/new-e2e/tests/sysprobe-functional     @DataDog/windows-kernel-integrations
-/test/new-e2e/tests/security-agent-functional     @DataDog/windows-kernel-integrations
+/test/new-e2e/tests/security-agent-functional     @DataDog/windows-kernel-integrations @DataDog/agent-security
 /test/new-e2e/tests/cws                       @DataDog/agent-security
 /test/new-e2e/tests/agent-metrics-logs   @DataDog/agent-metrics-logs
 /test/new-e2e/tests/windows                   @DataDog/windows-agent @DataDog/windows-kernel-integrations
