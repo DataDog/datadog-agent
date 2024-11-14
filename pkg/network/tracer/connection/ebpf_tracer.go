@@ -154,7 +154,6 @@ type ebpfTracer struct {
 
 	// periodically clean the ongoing connection pid map
 	ongoingConnectCleaner *ddebpf.MapCleaner[netebpf.SkpConn, netebpf.PidTs]
-	connCloseFlushCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, int64]
 
 	removeTuple *netebpf.ConnTuple
 
@@ -351,7 +350,6 @@ func (t *ebpfTracer) Stop() {
 		_ = t.m.Stop(manager.CleanAll)
 		t.closeConsumer.Stop()
 		t.ongoingConnectCleaner.Stop()
-		t.connCloseFlushCleaner.Stop()
 		if t.closeTracer != nil {
 			t.closeTracer()
 		}
@@ -718,26 +716,6 @@ func (t *ebpfTracer) setupMapCleaner(m *manager.Manager) {
 	})
 
 	t.ongoingConnectCleaner = tcpOngoingConnectPidCleaner
-
-	if t.config.FailedConnectionsSupported() {
-		connCloseFlushMap, _, err := m.GetMap(probes.ConnCloseFlushed)
-		if err != nil {
-			log.Errorf("error getting %v map: %s", probes.ConnCloseFlushed, err)
-		}
-		connCloseFlushCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, int64](connCloseFlushMap, 1024, probes.ConnCloseFlushed, "npm_tracer")
-		if err != nil {
-			log.Errorf("error creating map cleaner: %s", err)
-			return
-		}
-		connCloseFlushCleaner.Clean(time.Second*1, nil, nil, func(now int64, _ netebpf.ConnTuple, val int64) bool {
-			expired := val > 0 && now-val > connClosedFlushMapTTL
-			if expired {
-				EbpfTracerTelemetry.closedConnFlushedCleaned.Inc()
-			}
-			return expired
-		})
-		t.connCloseFlushCleaner = connCloseFlushCleaner
-	}
 }
 
 func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats, ch *cookieHasher) {
