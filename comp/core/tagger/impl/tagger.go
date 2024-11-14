@@ -78,6 +78,16 @@ type Provides struct {
 	Endpoint api.AgentEndpointProvider
 }
 
+// datadogConfig contains the configuration specific to Dogstatsd.
+type datadogConfig struct {
+	// dogstatsdEntityIDPrecedenceEnabled disable enriching Dogstatsd metrics with tags from "origin detection" when Entity-ID is set.
+	dogstatsdEntityIDPrecedenceEnabled bool
+	// dogstatsdOptOutEnabled If enabled, and cardinality is none no origin detection is performed.
+	dogstatsdOptOutEnabled bool
+	// originDetectionUnifiedEnabled If enabled, all origin detection mechanisms will be unified to use the same logic.
+	originDetectionUnifiedEnabled bool
+}
+
 // TaggerWrapper is a struct that contains two tagger component: capturetagger and the local tagger
 // and implements the tagger interface
 type TaggerWrapper struct {
@@ -91,7 +101,7 @@ type TaggerWrapper struct {
 
 	wmeta         optional.Option[workloadmeta.Component]
 	cfg           config.Component
-	datadogConfig taggercommon.DatadogConfig
+	datadogConfig datadogConfig
 
 	checksCardinality          types.TagCardinality
 	dogstatsdCardinality       types.TagCardinality
@@ -162,9 +172,9 @@ func NewTaggerClient(params tagger.Params, cfg config.Component, wmeta optional.
 		wrapper.dogstatsdCardinality = types.LowCardinality
 	}
 
-	wrapper.datadogConfig.DogstatsdEntityIDPrecedenceEnabled = cfg.GetBool("dogstatsd_entity_id_precedence")
-	wrapper.datadogConfig.OriginDetectionUnifiedEnabled = cfg.GetBool("origin_detection_unified")
-	wrapper.datadogConfig.DogstatsdOptOutEnabled = cfg.GetBool("dogstatsd_origin_optout_enabled")
+	wrapper.datadogConfig.dogstatsdEntityIDPrecedenceEnabled = cfg.GetBool("dogstatsd_entity_id_precedence")
+	wrapper.datadogConfig.originDetectionUnifiedEnabled = cfg.GetBool("origin_detection_unified")
+	wrapper.datadogConfig.dogstatsdOptOutEnabled = cfg.GetBool("dogstatsd_origin_optout_enabled")
 	// we use to pull tagger metrics in dogstatsd. Pulling it later in the
 	// pipeline improve memory allocation. We kept the old name to be
 	// backward compatible and because origin detection only affect
@@ -379,7 +389,7 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 	productOrigin := originInfo.ProductOrigin
 	// If origin_detection_unified is disabled, we use DogStatsD's Legacy Origin Detection.
 	// TODO: remove this when origin_detection_unified is enabled by default
-	if !t.datadogConfig.OriginDetectionUnifiedEnabled && productOrigin == taggertypes.ProductOriginDogStatsD {
+	if !t.datadogConfig.originDetectionUnifiedEnabled && productOrigin == taggertypes.ProductOriginDogStatsD {
 		productOrigin = taggertypes.ProductOriginDogStatsDLegacy
 	}
 
@@ -412,7 +422,7 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 		// | none                   | empty           || empty                               |
 		// | empty                  | not empty       || container prefix + originFromMsg    |
 		// | none                   | not empty       || container prefix + originFromMsg    |
-		if t.datadogConfig.DogstatsdOptOutEnabled && originInfo.Cardinality == "none" {
+		if t.datadogConfig.dogstatsdOptOutEnabled && originInfo.Cardinality == "none" {
 			originInfo.ContainerIDFromSocket = packets.NoOrigin
 			originInfo.PodUID = ""
 			originInfo.ContainerID = ""
@@ -422,7 +432,7 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 		// We use the UDS socket origin if no origin ID was specify in the tags
 		// or 'dogstatsd_entity_id_precedence' is set to False (default false).
 		if originInfo.ContainerIDFromSocket != packets.NoOrigin &&
-			(originInfo.PodUID == "" || !t.datadogConfig.DogstatsdEntityIDPrecedenceEnabled) &&
+			(originInfo.PodUID == "" || !t.datadogConfig.dogstatsdEntityIDPrecedenceEnabled) &&
 			len(originInfo.ContainerIDFromSocket) > containerIDFromSocketCutIndex {
 			containerID := originInfo.ContainerIDFromSocket[containerIDFromSocketCutIndex:]
 			originFromClient := types.NewEntityID(types.ContainerID, containerID)
