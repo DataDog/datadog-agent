@@ -73,18 +73,18 @@ func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, diagn
 	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, true, status, hostname, cfg)
 }
 
-// Used by the logs check subcommand as the feature does not require the functionalities of the log pipeline other then the processor.
+// NewProcessorOnlyProvider is used by the logs check subcommand as the feature does not require the functionalities of the log pipeline other then the processor.
 func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, cfg pkgconfigmodel.Reader, hostname hostnameinterface.Component) Provider {
-	strategyInput := make(chan *message.Message, config.ChanSize)
+	outputChan := make(chan *message.Message, config.ChanSize)
 	encoder := processor.JSONServerlessEncoder
 	inputChan := make(chan *message.Message, config.ChanSize)
 	pipelineID := 0
-	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
+	processor := processor.New(cfg, inputChan, outputChan, processingRules,
 		encoder, diagnosticMessageReceiver, hostname, pipelineID)
 
 	return &processorOnlyProvider{
 		processor:  processor,
-		outputChan: make(chan *message.Message, config.ChanSize),
+		outputChan: outputChan,
 	}
 }
 
@@ -254,7 +254,7 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 }
 
 func (p *processorOnlyProvider) NextPipelineChan() chan *message.Message {
-	return p.outputChan
+	return nil
 }
 
 // Flush flushes synchronously all the contained pipeline of this provider.
