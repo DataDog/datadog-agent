@@ -18,8 +18,8 @@ import (
 // ExporterConfig defines configuration for the serializer exporter.
 type ExporterConfig struct {
 	// squash ensures fields are correctly decoded in embedded struct
-	exporterhelper.TimeoutSettings `mapstructure:",squash"`
-	exporterhelper.QueueSettings   `mapstructure:",squash"`
+	exporterhelper.TimeoutConfig `mapstructure:",squash"`
+	exporterhelper.QueueConfig   `mapstructure:",squash"`
 
 	Metrics MetricsConfig `mapstructure:"metrics"`
 
@@ -235,13 +235,6 @@ type MetricsExporterConfig struct {
 	// resource attributes into metric labels, which are then converted into tags
 	ResourceAttributesAsTags bool `mapstructure:"resource_attributes_as_tags"`
 
-	// Deprecated: Use InstrumentationScopeMetadataAsTags favor of in favor of
-	// https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v0.15.0
-	// Both must not be set at the same time.
-	// InstrumentationLibraryMetadataAsTags, if set to true, adds the name and version of the
-	// instrumentation library that created a metric to the metric tags
-	InstrumentationLibraryMetadataAsTags bool `mapstructure:"instrumentation_library_metadata_as_tags"`
-
 	// InstrumentationScopeMetadataAsTags, if set to true, adds the name and version of the
 	// instrumentation scope that created a metric to the metric tags
 	InstrumentationScopeMetadataAsTags bool `mapstructure:"instrumentation_scope_metadata_as_tags"`
@@ -249,7 +242,7 @@ type MetricsExporterConfig struct {
 
 // Validate configuration
 func (e *ExporterConfig) Validate() error {
-	return e.QueueSettings.Validate()
+	return e.QueueConfig.Validate()
 }
 
 var _ confmap.Unmarshaler = (*ExporterConfig)(nil)

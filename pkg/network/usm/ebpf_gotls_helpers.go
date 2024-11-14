@@ -8,7 +8,6 @@
 package usm
 
 import (
-	"debug/elf"
 	"errors"
 	"fmt"
 	"os"
@@ -26,6 +25,7 @@ import (
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 var paramLookupFunctions = map[string]bininspect.ParameterLookupFunction{
@@ -74,7 +74,7 @@ func (p *goTLSBinaryInspector) Inspect(fpath utils.FilePath, requests []uprobes.
 	}
 	defer f.Close()
 
-	elfFile, err := elf.NewFile(f)
+	elfFile, err := safeelf.NewFile(f)
 	if err != nil {
 		return nil, fmt.Errorf("file %s could not be parsed as an ELF file: %w", path, err)
 	}
@@ -94,7 +94,7 @@ func (p *goTLSBinaryInspector) Inspect(fpath utils.FilePath, requests []uprobes.
 
 	inspectionResult, err := bininspect.InspectNewProcessBinary(elfFile, functionsConfig, p.structFieldsLookupFunctions)
 	if err != nil {
-		if errors.Is(err, elf.ErrNoSymbols) {
+		if errors.Is(err, safeelf.ErrNoSymbols) {
 			p.binNoSymbolsMetric.Add(1)
 		}
 		return nil, fmt.Errorf("error extracting inspection data from %s: %w", path, err)

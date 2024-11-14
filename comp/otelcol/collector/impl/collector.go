@@ -16,7 +16,6 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
@@ -30,7 +29,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
@@ -103,9 +102,7 @@ func (c *converterFactory) Create(_ confmap.ConverterSettings) confmap.Converter
 }
 
 func newConfigProviderSettings(uris []string, converter confmap.Converter, enhanced bool) otelcol.ConfigProviderSettings {
-	converterFactories := []confmap.ConverterFactory{
-		expandconverter.NewFactory(),
-	}
+	converterFactories := []confmap.ConverterFactory{}
 
 	if enhanced {
 		converterFactories = append(converterFactories, &converterFactory{converter: converter})
@@ -138,11 +135,11 @@ func addFactories(reqs Requires, factories otelcol.Factories) {
 	}
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger, generateID)
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
-	factories.Extensions[ddextension.Type] = ddextension.NewFactory(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
+	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
 }
 
 var buildInfo = component.BuildInfo{
-	Version:     "v0.104.0",
+	Version:     "v0.111.0",
 	Command:     filepath.Base(os.Args[0]),
 	Description: "Datadog Agent OpenTelemetry Collector",
 }
@@ -197,7 +194,7 @@ func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
 		return Provides{}, err
 	}
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
-	factories.Extensions[ddextension.Type] = ddextension.NewFactory(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
+	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
 
 	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
 	set := otelcol.CollectorSettings{

@@ -9,7 +9,6 @@ package main
 
 import (
 	"context"
-	"debug/elf"
 	_ "embed"
 	"flag"
 	"fmt"
@@ -23,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/go/goversion"
 	"github.com/DataDog/datadog-agent/pkg/network/go/lutgen"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 var (
@@ -255,7 +255,7 @@ func inspectBinary(binary lutgen.Binary) (interface{}, error) {
 	}
 	defer file.Close()
 
-	elfFile, err := elf.NewFile(file)
+	elfFile, err := safeelf.NewFile(file)
 	if err != nil {
 		return bininspect.Result{}, err
 	}

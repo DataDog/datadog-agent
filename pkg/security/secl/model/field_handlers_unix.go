@@ -33,9 +33,13 @@ func (ev *Event) resolveFields(forADs bool) {
 	}
 	_ = ev.FieldHandlers.ResolveAsync(ev)
 	_ = ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
-	_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
+	if !forADs {
+		_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
+	}
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
+	_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Destination)
 	_ = ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
+	_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.NetworkContext.Source)
 	if !forADs {
 		_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.BaseEvent.ProcessContext.Process)
 	}
@@ -231,6 +235,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
 	case "bind":
+		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr)
 	case "bpf":
 	case "capset":
 	case "chdir":
@@ -293,6 +298,8 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Chown.SyscallContext)
 		}
 	case "connect":
+		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
+		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
 	case "dns":
 	case "exec":
 		if ev.Exec.Process.IsNotKworker() {
@@ -582,6 +589,8 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 	case "packet":
 		_ = ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.RawPacket.NetworkContext.Device)
+		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.RawPacket.NetworkContext.Source)
+		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.RawPacket.NetworkContext.Destination)
 	case "ptrace":
 		if ev.PTrace.Tracee.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Process.FileEvent.FileFields)
@@ -1127,6 +1136,7 @@ type FieldHandlers interface {
 	ResolveFilePath(ev *Event, e *FileEvent) string
 	ResolveHashesFromEvent(ev *Event, e *FileEvent) []string
 	ResolveHostname(ev *Event, e *BaseEvent) string
+	ResolveIsIPPublic(ev *Event, e *IPPortContext) bool
 	ResolveK8SGroups(ev *Event, e *UserSessionContext) []string
 	ResolveK8SUID(ev *Event, e *UserSessionContext) string
 	ResolveK8SUsername(ev *Event, e *UserSessionContext) string
@@ -1237,6 +1247,9 @@ func (dfh *FakeFieldHandlers) ResolveHashesFromEvent(ev *Event, e *FileEvent) []
 }
 func (dfh *FakeFieldHandlers) ResolveHostname(ev *Event, e *BaseEvent) string {
 	return string(e.Hostname)
+}
+func (dfh *FakeFieldHandlers) ResolveIsIPPublic(ev *Event, e *IPPortContext) bool {
+	return bool(e.IsPublic)
 }
 func (dfh *FakeFieldHandlers) ResolveK8SGroups(ev *Event, e *UserSessionContext) []string {
 	return []string(e.K8SGroups)

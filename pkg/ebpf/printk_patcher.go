@@ -14,6 +14,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -217,12 +218,12 @@ func (t *PrintkPatcherModifier) String() string {
 }
 
 // BeforeInit adds the patchPrintkNewline function to the manager
-func (t *PrintkPatcherModifier) BeforeInit(m *manager.Manager, _ *manager.Options) error {
+func (t *PrintkPatcherModifier) BeforeInit(m *manager.Manager, _ names.ModuleName, _ *manager.Options) error {
 	m.InstructionPatchers = append(m.InstructionPatchers, patchPrintkNewline)
 	return nil
 }
 
 // AfterInit is a no-op for this modifier
-func (t *PrintkPatcherModifier) AfterInit(_ *manager.Manager, _ *manager.Options) error {
+func (t *PrintkPatcherModifier) AfterInit(_ *manager.Manager, _ names.ModuleName, _ *manager.Options) error {
 	return nil
 }

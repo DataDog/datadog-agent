@@ -89,7 +89,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
-	kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, "kind", awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	if err != nil {
 		return err
 	}

@@ -51,7 +51,6 @@
 agent_heroku_deb-x64-a7:
   extends: .heroku_build_base
   variables:
-    DESTINATION_DEB: "datadog-heroku-agent_7_amd64.deb"
     DESTINATION_DBG_DEB: "datadog-heroku-agent-dbg_7_amd64.deb"
     RELEASE_VERSION: $RELEASE_VERSION_7
     AGENT_MAJOR_VERSION: 7

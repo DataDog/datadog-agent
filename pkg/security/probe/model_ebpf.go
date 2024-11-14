@@ -10,6 +10,7 @@ package probe
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -37,9 +38,27 @@ func NewEBPFModel(probe *EBPFProbe) *model.Model {
 	}
 }
 
-// NewEBPFEvent returns a new event
-func NewEBPFEvent(fh *EBPFFieldHandlers) *model.Event {
+func newEBPFEvent(fh *EBPFFieldHandlers) *model.Event {
 	event := model.NewFakeEvent()
 	event.FieldHandlers = fh
+	return event
+}
+
+// newEBPFEventFromPCE returns a new event from a process cache entry
+func newEBPFEventFromPCE(entry *model.ProcessCacheEntry, fh *EBPFFieldHandlers) *model.Event {
+	eventType := model.ExecEventType
+	if !entry.IsExec {
+		eventType = model.ForkEventType
+	}
+
+	event := newEBPFEvent(fh)
+	event.Type = uint32(eventType)
+	event.TimestampRaw = uint64(time.Now().UnixNano())
+	event.ProcessCacheEntry = entry
+	event.ProcessContext = &entry.ProcessContext
+	event.Exec.Process = &entry.Process
+	event.ProcessContext.Process.ContainerID = entry.ContainerID
+	event.ProcessContext.Process.CGroup = entry.CGroup
+
 	return event
 }
