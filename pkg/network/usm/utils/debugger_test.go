@@ -142,7 +142,6 @@ func TestRunAttacherCallback(t *testing.T) {
 				tt.attacherSetup(d.attachers["testModule"]["testType"])
 			}
 
-			// Prepare request body
 			var reqBody bytes.Buffer
 			if bodyStr, ok := tt.body.(string); ok {
 				reqBody = *bytes.NewBufferString(bodyStr)
