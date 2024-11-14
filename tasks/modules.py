@@ -9,7 +9,7 @@ import yaml
 from invoke import Context, Exit, task
 
 from tasks.libs.common.color import color_message
-from tasks.libs.common.gomodules import Configuration, GoModule, get_default_modules, validate_module
+from tasks.libs.common.gomodules import ConfigDumper, Configuration, GoModule, get_default_modules, validate_module
 
 AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
 
@@ -149,3 +149,42 @@ def validate(ctx: Context, base_dir='.', fix_format=False):
             print(f'- {color_message(path, "red")}: {error}')
 
         raise Exit(f'{color_message("ERROR", "red")}: Found errors in module configurations, see details above')
+
+
+@task
+def show(_, path: str, remove_defaults: bool = False, base_dir: str = '.'):
+    """Show the module information for the given path.
+    Args:
+        remove_defaults: If True, will remove default values from the output.
+    """
+
+    config = Configuration.from_file(Path(base_dir))
+    if path in config.ignored_modules:
+        print(f'Module {path} is ignored')
+        return
+
+    module = config.modules.get(path)
+
+    assert module, f'Module {path} not found'
+
+    yaml.dump(
+        {path: module.to_dict(remove_defaults=remove_defaults, remove_path=True)}, sys.stdout, Dumper=ConfigDumper
+    )
+
+
+@task
+def show_all(_, base_dir: str = '.', ignored=False):
+    """Show the list of modules.
+    Args:
+        ignored: If True, will list ignored modules.
+    """
+
+    config = Configuration.from_file(Path(base_dir))
+
+    if ignored:
+        names = config.ignored_modules
+    else:
+        names = list(config.modules.keys())
+
+    print('\n'.join(sorted(names)))
+    print(len(names), 'modules')
