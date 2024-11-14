@@ -17,7 +17,6 @@ single-machine-performance-regression_detector:
       - outputs/report.md # for debugging, also on S3
       - outputs/regression_signal.json # for debugging, also on S3
       - outputs/bounds_check_signal.json # for debugging, also on S3
-      - outputs/quality_gates_report.json # for debugging, also on S3
       - outputs/junit.xml # for debugging, also on S3
       - outputs/report.json # for debugging, also on S3
       - outputs/decision_record.md # for posterity, this is appended to final PR comment
