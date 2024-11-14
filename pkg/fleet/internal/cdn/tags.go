@@ -7,57 +7,26 @@ package cdn
 
 import (
 	"context"
-	"os"
-	"runtime"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	detectenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/yaml.v2"
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 )
 
 type hostTagsGetter struct {
 	config model.Config
 }
 
-func newHostTagsGetter() hostTagsGetter {
-	config := pkgconfigsetup.Datadog()
-	detectenv.DetectFeatures(config) // For host tags to work
-	err := populateTags(config)
-	if err != nil {
-		log.Warnf("Failed to populate tags from datadog.yaml: %v", err)
-	}
+func newHostTagsGetter(env *env.Env) hostTagsGetter {
+	config := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	detectenv.DetectFeatures(config)
+	config.Set("tags", env.Tags, model.SourceFile)
 	return hostTagsGetter{
 		config: config,
 	}
-}
-
-type tagsConfigFields struct {
-	Tags      []string `yaml:"tags"`
-	ExtraTags []string `yaml:"extra_tags"`
-}
-
-// populateTags is a best effort to get the tags from `datadog.yaml`.
-func populateTags(config model.Config) error {
-	configPath := "/etc/datadog-agent/datadog.yaml"
-	if runtime.GOOS == "windows" {
-		configPath = "C:\\ProgramData\\Datadog\\datadog.yaml"
-	}
-	rawConfig, err := os.ReadFile(configPath)
-	if err != nil {
-		return err
-	}
-	var cfg tagsConfigFields
-	err = yaml.Unmarshal(rawConfig, &cfg)
-	if err != nil {
-		return err
-	}
-	config.Set("tags", cfg.Tags, model.SourceFile)
-	config.Set("extra_tags", cfg.ExtraTags, model.SourceFile)
-	return nil
 }
 
 func (h *hostTagsGetter) get() []string {
