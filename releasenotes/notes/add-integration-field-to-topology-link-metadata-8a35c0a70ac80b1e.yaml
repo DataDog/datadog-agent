@@ -9,7 +9,4 @@
 enhancements:
   - |
     Emit new field: integration for TopologyLinkMetadata for better metrics collection.
-issues:
-  - |
-    List known issues here, or remove this section.
 
