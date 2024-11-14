@@ -65,21 +65,8 @@ int hook_security_socket_connect(ctx_t *ctx) {
     struct pid_route_t key = {};
     u16 family = 0;
     u16 protocol = 0;
+    short socket_type = 0;
     
-    u64 socket_sock_offset;
-    u64 sk_protocol_offset;
-    u64 sk_protocol_size;
-
-
-    LOAD_CONSTANT("socket_sock_offset", socket_sock_offset);
-    LOAD_CONSTANT("sock_sk_protocol_offset", sk_protocol_offset);
-    LOAD_CONSTANT("sk_protocol_size", sk_protocol_size);
-
-    __bpf_printk("-------------------- sk_protocol_offset: %d", socket_sock_offset);
-    __bpf_printk("-------------------- sk_protocol_offset: %d", sk_protocol_offset);
-    __bpf_printk("-------------------- sk_protocol_size: %d", sk_protocol_size);
-
-
     // Extract IP and port from the sockaddr structure
     bpf_probe_read(&family, sizeof(family), &address->sa_family);
 
@@ -93,10 +80,15 @@ int hook_security_socket_connect(ctx_t *ctx) {
         bpf_probe_read(&key.addr, sizeof(u64) * 2, (char *)addr_in6 + offsetof(struct sockaddr_in6, sin6_addr));
     }
 
-    struct sock *sk_sock = NULL;
-    bpf_probe_read(&sk_sock, sizeof(sk_sock),(void *) sk + socket_sock_offset);
-    bpf_probe_read(&protocol, sk_protocol_size, (void *) sk_sock + sk_protocol_offset);
-    // bpf_probe_read(&protocol, sizeof(protocol), &sk_sock->sk_protocol);
+    bpf_probe_read(&socket_type, sizeof(socket_type), &sk->type);
+
+    // We only handle TCP and UDP sockets for now
+    if (socket_type == SOCK_STREAM) {
+        protocol = IPPROTO_TCP;
+    } else if (socket_type == SOCK_DGRAM) {
+        protocol = IPPROTO_UDP;
+    }
+
 
     // fill syscall_cache if necessary
     struct syscall_cache_t *syscall = peek_syscall(EVENT_CONNECT);

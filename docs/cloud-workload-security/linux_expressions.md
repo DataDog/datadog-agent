@@ -523,11 +523,13 @@ A connect was executed
 | [`connect.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`connect.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`connect.addr.port`](#common-ipportcontext-port-doc) | Port number |
+| [`connect.protocol`](#connect-protocol-doc) | Socket Protocol |
 | [`connect.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 | [`connect.server.addr.family`](#connect-server-addr-family-doc) | Server address family |
 | [`connect.server.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`connect.server.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`connect.server.addr.port`](#common-ipportcontext-port-doc) | Port number |
+| [`connect.server.protocol`](#connect-server-protocol-doc) | Socket server Protocol |
 
 ### Event `dns`
 
@@ -2672,10 +2674,24 @@ Definition: Address family
 
 
 
+### `connect.protocol` {#connect-protocol-doc}
+Type: int
+
+Definition: Socket Protocol
+
+
+
 ### `connect.server.addr.family` {#connect-server-addr-family-doc}
 Type: int
 
 Definition: Server address family
+
+
+
+### `connect.server.protocol` {#connect-server-protocol-doc}
+Type: int
+
+Definition: Socket server Protocol
 
 
 
