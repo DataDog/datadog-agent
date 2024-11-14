@@ -13,9 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 )
 
-// Listener is used to propagate tags events
-type Listener func(workload interface{})
-
 // NewResolver returns a new tags resolver
 func NewResolver(config *config.Config, telemetry telemetry.Component) Resolver {
 	return NewDefaultResolver(config, telemetry)
