@@ -36,10 +36,9 @@ single-machine-performance-regression_detector:
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     # Start by tagging the failure mode as `unknown`. At each smp command we will catch any failure exit codes and update this tag properly.
-    # If we successfully get to the end of the script with no failures we will update the tag to reflect this.
-    # Note, we cannot apply a tag for timeouts with this approach. In order to identify jobs failed by timing out you can filter by error type.
+    # If we successfully get to the end of the script with no failures we will update the `smp_failure_mode` tag to `none` to convey this.
+    # Note, we cannot apply a tag for timeouts with this approach. In order to identify jobs failed by timing out you can filter by error type or duration.
     # Note, in situations where the job times out the value of `smp_failure_mode` tag will be `unknown`.
-    # In order to properly filter job failures we should use a combination of the error type and the `smp_failure_mode` tag.
     - datadog-ci tag --level job --tags smp_failure_mode:"unknown"
     # Ensure output files exist for artifact downloads step
     - mkdir outputs # Also needed for smp job sync step
@@ -93,7 +92,7 @@ single-machine-performance-regression_detector:
           if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
           then
               echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
-              datadog-ci tag --level job --tags smp_failure_mode:"old-calculated-merge-base"
+              datadog-ci tag --level job --tags smp_failure_mode:"old-predecessor-merge-base"
               exit 1
           fi
           echo "Commit ${BASELINE_SHA} is recent enough"
