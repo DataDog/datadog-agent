@@ -5,8 +5,8 @@
 
 //go:build zlib && !zstd
 
-// Package fx provides the fx module for the serializer/compression component
-package fx
+// Package selector provides correct compression impl to fx
+package selector
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -14,18 +14,8 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	compressionnoop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
 	compressionzlib "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-zlib"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// Module defines the fx options for the component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(
-			NewCompressor,
-		),
-	)
-}
 
 // NewCompressor returns a new Compressor based on serializer_compressor_kind
 // This function is called only when the zlib build tag is included

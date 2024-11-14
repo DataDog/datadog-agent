@@ -7,7 +7,7 @@
 package fx
 
 import (
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
+	compressionimpl "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-zlib"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -15,7 +15,7 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			selector.NewCompressor,
+			compressionimpl.NewComponent,
 		),
 	)
 }
