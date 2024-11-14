@@ -401,8 +401,8 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 	}
 
 	// static tags for EKS Fargate pods
-	for tag, value := range c.staticTags {
-		for _, value := range value {
+	for tag, valueList := range c.staticTags {
+		for _, value := range valueList {
 			tagList.AddLow(tag, value)
 		}
 	}
