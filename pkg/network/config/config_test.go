@@ -1520,6 +1520,15 @@ func TestUSMTLSGoEnabled(t *testing.T) {
 		require.True(t, cfg.EnableGoTLSSupport)
 	})
 
+	t.Run("Deprecated is disabled takes precedence over default", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.enabled", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_go_tls_support", false)
+		cfg := New()
+
+		require.False(t, cfg.EnableGoTLSSupport)
+	})
+
 	t.Run("Not enabled if USM is disabled", func(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
