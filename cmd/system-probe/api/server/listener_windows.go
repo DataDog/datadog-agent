@@ -26,12 +26,6 @@ const (
 	namedPipeSecurityDescriptor = "D:PAI(A;;FA;;;WD)"
 )
 
-// WindowsPipeListener for communicating with Probe
-type WindowsPipeListener struct {
-	conn     net.Listener
-	pipePath string
-}
-
 // systemProbePipSecurityDescriptor has the effective DACL for the system probe named pipe.
 var systemProbePipSecurityDescriptor = namedPipeSecurityDescriptor
 
@@ -50,21 +44,11 @@ func newPipeListener(namedPipeName string) (net.Listener, error) {
 }
 
 // NewListener sets up a named pipe listener for the system probe service.
-func NewListener(namedPipeName string) (Listener, error) {
+func NewListener(namedPipeName string) (net.Listener, error) {
 	namedPipe, err := newPipeListener(namedPipeName)
 	if err != nil {
 		return nil, fmt.Errorf("error named pipe %s : %s", namedPipeName, err)
 	}
 
-	return &WindowsPipeListener{namedPipe, namedPipeName}, nil
-}
-
-// GetListener will return underlying Listener's conn
-func (wp *WindowsPipeListener) GetListener() net.Listener {
-	return wp.conn
-}
-
-// Stop closes the WindowsPipeListener connection and stops listening
-func (wp *WindowsPipeListener) Stop() {
-	_ = wp.conn.Close()
+	return namedPipe, nil
 }

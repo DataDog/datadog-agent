@@ -60,7 +60,7 @@ func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmet
 	}
 
 	go func() {
-		err = http.Serve(conn.GetListener(), mux)
+		err = http.Serve(conn, mux)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Errorf("error creating HTTP server: %s", err)
 		}

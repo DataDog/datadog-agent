@@ -52,7 +52,7 @@ func TestWinCrashReporting(t *testing.T) {
 
 	listener, err := server.NewListener(systemProbeTestPipeName)
 	require.NoError(t, err)
-	defer listener.Stop()
+	defer listener.Close()
 
 	mux := http.NewServeMux()
 	server := http.Server{
@@ -76,7 +76,7 @@ func TestWinCrashReporting(t *testing.T) {
 	}))
 	mux.Handle("/debug/stats", http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 	}))
-	go server.Serve(listener.GetListener())
+	go server.Serve(listener)
 
 	t.Run("test that no crash detected properly reports", func(t *testing.T) {
 		testSetup(t)
@@ -185,7 +185,7 @@ func TestCrashReportingStates(t *testing.T) {
 
 	listener, err := server.NewListener(systemProbeTestPipeName)
 	require.NoError(t, err)
-	defer listener.Stop()
+	defer listener.Close()
 
 	mux := http.NewServeMux()
 	server := http.Server{
@@ -227,7 +227,7 @@ func TestCrashReportingStates(t *testing.T) {
 	}))
 	mux.Handle("/debug/stats", http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 	}))
-	go server.Serve(listener.GetListener())
+	go server.Serve(listener)
 
 	t.Run("test reporting a crash with a busy intermediate state", func(t *testing.T) {
 		testSetup(t)

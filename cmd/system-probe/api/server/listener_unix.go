@@ -17,14 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// UDSListener (Unix Domain Socket Listener)
-type UDSListener struct {
-	conn       net.Listener
-	socketPath string
-}
-
 // NewListener creates a Unix Domain Socket Listener
-func NewListener(socketAddr string) (Listener, error) {
+func NewListener(socketAddr string) (net.Listener, error) {
 	if len(socketAddr) == 0 {
 		return nil, errors.New("uds: empty socket path provided")
 	}
@@ -65,26 +59,6 @@ func NewListener(socketAddr string) (Listener, error) {
 		return nil, err
 	}
 
-	listener := &UDSListener{
-		conn:       conn,
-		socketPath: socketAddr,
-	}
-
 	log.Debugf("uds: %s successfully initialized", conn.Addr())
-	return listener, nil
-}
-
-// GetListener will return the underlying Conn's net.Listener
-func (l *UDSListener) GetListener() net.Listener {
-	return l.conn
-}
-
-// Stop closes the UDSListener connection and stops listening
-func (l *UDSListener) Stop() {
-	_ = l.conn.Close()
-
-	// Socket cleanup on exit - above conn.Close() should remove it, but just in case.
-	if err := os.Remove(l.socketPath); err != nil {
-		log.Debugf("uds: error removing socket file: %s", err)
-	}
+	return conn, nil
 }

@@ -32,7 +32,7 @@ func NewSystemProbeTestServer(handler http.Handler) (*httptest.Server, error) {
 		return nil, err
 	}
 
-	server.Listener = conn.GetListener()
+	server.Listener = conn
 	return server, nil
 }
 

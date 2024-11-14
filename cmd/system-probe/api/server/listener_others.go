@@ -7,7 +7,9 @@
 
 package server
 
+import "net"
+
 // NewListener is not supported
-func NewListener(_ string) (Listener, error) {
+func NewListener(_ string) (net.Listener, error) {
 	return nil, ErrNotImplemented
 }

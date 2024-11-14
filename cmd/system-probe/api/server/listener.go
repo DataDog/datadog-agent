@@ -5,14 +5,3 @@
 
 // Package server contains system-probe API server functionality
 package server
-
-import "net"
-
-// Listener is a wrapper over some net.Listener
-type Listener interface {
-	// GetListener returns the underlying net.Listener
-	GetListener() net.Listener
-
-	// Stop and clean up resources for the underlying connection
-	Stop()
-}

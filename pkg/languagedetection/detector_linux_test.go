@@ -31,10 +31,10 @@ func startTestUnixServer(t *testing.T, handler http.Handler) string {
 	socketPath := path.Join(t.TempDir(), "test.sock")
 	listener, err := server.NewListener(socketPath)
 	require.NoError(t, err)
-	t.Cleanup(listener.Stop)
+	t.Cleanup(func() { _ = listener.Close() })
 
 	srv := httptest.NewUnstartedServer(handler)
-	srv.Listener = listener.GetListener()
+	srv.Listener = listener
 	srv.Start()
 	t.Cleanup(srv.Close)
 
