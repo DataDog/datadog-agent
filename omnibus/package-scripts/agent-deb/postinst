@@ -65,7 +65,9 @@ install_method:
     echo "$install_info_content" > $CONFIG_DIR/install_info
 fi
 
-${INSTALL_DIR}/embedded/bin/fipsinstall.sh
+if [ -x ${INSTALL_DIR}/embedded/bin/fipsinstall.sh ]; then
+    ${INSTALL_DIR}/embedded/bin/fipsinstall.sh
+fi
 
 set +e 
 generate_install_id()
