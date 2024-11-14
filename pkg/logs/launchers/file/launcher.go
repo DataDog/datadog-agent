@@ -7,6 +7,7 @@
 package file
 
 import (
+	"fmt"
 	"regexp"
 	"time"
 
@@ -249,6 +250,7 @@ func (s *Launcher) cleanUpRotatedTailers() {
 
 // addSource keeps track of the new source and launch new tailers for this source.
 func (s *Launcher) addSource(source *sources.LogSource) {
+	fmt.Println("add source in launcher?", source)
 	s.activeSources = append(s.activeSources, source)
 	s.launchTailers(source)
 }
@@ -298,7 +300,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			mode = config.Beginning
 			source.Config.TailingMode = mode.String()
 		}
-
+		fmt.Println("starting new tailer?", file, mode)
 		s.startNewTailer(file, mode)
 	}
 }
@@ -327,8 +329,13 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 		log.Warn(err)
 		return false
 	}
-
+	fmt.Println("WACK tailer is ", tailer)
 	s.tailers.Add(tailer)
+	fmt.Println("WACKTEST s.tailers is ", s.tailers.Tailers())
+	fmt.Println("OUTPUT CHANNEL IS ", s.pipelineProvider.NextPipelineChan())
+	for output := range s.pipelineProvider.NextPipelineChan() {
+		fmt.Println("HEHEHXD", output)
+	}
 	return true
 }
 
@@ -393,6 +400,8 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		Info:          tailerInfo,
 		TagAdder:      s.tagger,
 	}
+
+	fmt.Println("andrewq1", outputChan)
 
 	return tailer.NewTailer(tailerOptions)
 }

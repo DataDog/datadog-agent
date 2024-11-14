@@ -59,7 +59,8 @@ type provider struct {
 
 // processorOnlyProvider implements the Provider provider interface and only contains the processor
 type processorOnlyProvider struct {
-	processor *processor.Processor
+	processor  *processor.Processor
+	outputChan chan *message.Message
 }
 
 // NewProvider returns a new Provider
@@ -82,7 +83,8 @@ func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiv
 		encoder, diagnosticMessageReceiver, hostname, pipelineID)
 
 	return &processorOnlyProvider{
-		processor: processor,
+		processor:  processor,
+		outputChan: make(chan *message.Message, config.ChanSize),
 	}
 }
 
@@ -252,7 +254,7 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 }
 
 func (p *processorOnlyProvider) NextPipelineChan() chan *message.Message {
-	return nil
+	return p.outputChan
 }
 
 // Flush flushes synchronously all the contained pipeline of this provider.

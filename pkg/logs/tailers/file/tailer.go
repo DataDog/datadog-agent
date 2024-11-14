@@ -233,13 +233,12 @@ func (t *Tailer) Start(offset int64, whence int) error {
 		t.file.Source.Status().Error(err)
 		return err
 	}
+	fmt.Println("starting tailer, output is ", t.outputChan)
 	t.file.Source.Status().Success()
 	t.file.Source.AddInput(t.file.Path)
-
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.readForever()
-
 	return nil
 }
 
@@ -333,12 +332,15 @@ func (t *Tailer) IsFinished() bool {
 
 // forwardMessages lets the Tailer forward log messages to the output channel
 func (t *Tailer) forwardMessages() {
+	fmt.Println("ANDREWQIAN")
 	defer func() {
 		// the decoder has successfully been flushed
 		t.isFinished.Store(true)
 		close(t.done)
 	}()
+	fmt.Println("DECODER output channels ?", t.decoder.OutputChan)
 	for output := range t.decoder.OutputChan {
+		fmt.Println("HUH99? ", output)
 		offset := t.decodedOffset.Load() + int64(output.RawDataLen)
 		identifier := t.Identifier()
 		if t.didFileRotate.Load() {
