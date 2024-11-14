@@ -465,7 +465,7 @@ def update_collector_contrib():
     print("Collector-contrib update complete.")
 
 
-@task
+@task(post=[tidy])
 def update(ctx):
     update_core_collector()
     update_collector_contrib()
