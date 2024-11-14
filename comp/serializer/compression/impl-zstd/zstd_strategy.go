@@ -17,6 +17,7 @@ type Requires struct {
 	Level int
 }
 
+// Provides contains the compression component
 type Provides struct {
 	Comp compression.Component
 }

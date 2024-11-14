@@ -12,6 +12,7 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 )
 
+// Provides contains the compression component
 type Provides struct {
 	Comp compression.Component
 }
