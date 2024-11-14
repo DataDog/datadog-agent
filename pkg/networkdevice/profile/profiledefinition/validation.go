@@ -89,10 +89,35 @@ func ValidateEnrichMetrics(metrics []MetricsConfig) []string {
 	for i := range metrics {
 		metricConfig := &metrics[i]
 		if !metricConfig.IsScalar() && !metricConfig.IsColumn() {
-			errors = append(errors, fmt.Sprintf("either a table symbol or a scalar symbol must be provided: %#v", metricConfig))
+			errors = append(errors, fmt.Sprintf("either a table of symbols or a scalar symbol must be provided: %#v", metricConfig))
 		}
 		if metricConfig.IsScalar() && metricConfig.IsColumn() {
-			errors = append(errors, fmt.Sprintf("table symbol and scalar symbol cannot be both provided: %#v", metricConfig))
+			errors = append(errors, fmt.Sprintf("table symbols and scalar symbol cannot be both provided: %#v", metricConfig))
+		}
+		// If the entry has a metric_type or the obsolete forced_type, migrate it into the symbols
+		metricType := metricConfig.MetricType
+		if metricType == "" && metricConfig.ForcedType != "" {
+			metricType = metricConfig.ForcedType
+		}
+		metricConfig.MetricType = ""
+		metricConfig.ForcedType = ""
+		if metricType != "" {
+			if metricConfig.IsScalar() {
+				symbol := &metricConfig.Symbol
+				if symbol.MetricType == ProfileMetricTypeUnset {
+					symbol.MetricType = metricType
+				} else if symbol.MetricType != metricType {
+					errors = append(errors, fmt.Sprintf("deprecated metric_config.metric_type %s conflicts with symbol type %s at symbol %s", metricType, symbol.MetricType, symbol.Name))
+				}
+			} else {
+				for i, symbol := range metricConfig.Symbols {
+					if symbol.MetricType == ProfileMetricTypeUnset {
+						metricConfig.Symbols[i].MetricType = metricType
+					} else if symbol.MetricType != metricType {
+						errors = append(errors, fmt.Sprintf("deprecated metric_config.metric_type %s conflicts with symbol type %s at symbol %s", metricType, symbol.MetricType, symbol.Name))
+					}
+				}
+			}
 		}
 		if metricConfig.IsScalar() {
 			errors = append(errors, validateEnrichSymbol(&metricConfig.Symbol, ScalarSymbol)...)
@@ -112,21 +137,12 @@ func ValidateEnrichMetrics(metrics []MetricsConfig) []string {
 				errors = append(errors, validateEnrichMetricTag(metricTag)...)
 			}
 		}
-		// Setting forced_type value to metric_type value for backward compatibility
-		if metricConfig.MetricType == "" && metricConfig.ForcedType != "" {
-			metricConfig.MetricType = metricConfig.ForcedType
+		// These are not exposed to JSON or the UI right now
+		if len(metricConfig.StaticTags) != 0 {
+			errors = append(errors, fmt.Sprintf("static tags are not supported: %#v", metricConfig))
 		}
-		metricConfig.ForcedType = ""
-		// Migrate metric_type into the symbol for scalars.
-		if metricConfig.MetricType != "" {
-			if metricConfig.IsColumn() {
-				errors = append(errors, fmt.Sprintf("tables cannot have metric_type set: %#v", metricConfig))
-			} else {
-				if metricConfig.Symbol.MetricType == "" {
-					metricConfig.Symbol.MetricType = metricConfig.MetricType
-				}
-				metricConfig.MetricType = ""
-			}
+		if metricConfig.Options.Placement != 0 || metricConfig.Options.MetricSuffix != "" {
+			errors = append(errors, fmt.Sprintf("metricConfig.Options is not supported: %#v", metricConfig))
 		}
 	}
 	return errors
@@ -174,9 +190,25 @@ func validateEnrichSymbol(symbol *SymbolConfig, symbolContext SymbolContext) []s
 	if symbol.Name == "" {
 		errors = append(errors, fmt.Sprintf("symbol name missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))
 	}
+	// Percent is deprecated in favor of rate and scale factor
+	if symbol.MetricType == ProfileMetricTypePercent {
+		symbol.MetricType = ProfileMetricTypeRate
+		if symbol.ScaleFactor == 0 {
+			symbol.ScaleFactor = 1
+		}
+		symbol.ScaleFactor *= 100
+	}
+	// Counter is deprecated in favor of rate
+	if symbol.MetricType == ProfileMetricTypeCounter {
+		symbol.MetricType = ProfileMetricTypeRate
+	}
+	// Flag stream isn't supported in the frontend (yet)
+	if symbol.MetricType == ProfileMetricTypeFlagStream {
+		errors = append(errors, fmt.Sprintf("metric type %s is not supported (name=%q, oid=%q)", symbol.MetricType, symbol.Name, symbol.OID))
+	}
 	if symbol.OID == "" {
 		if symbolContext == ColumnSymbol && !symbol.ConstantValueOne {
-			errors = append(errors, fmt.Sprintf("symbol oid or send_as_one missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))
+			errors = append(errors, fmt.Sprintf("symbol oid or constant_value_one missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))
 		} else if symbolContext != ColumnSymbol {
 			errors = append(errors, fmt.Sprintf("symbol oid missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))
 		}
@@ -237,7 +269,7 @@ func validateEnrichMetricTag(metricTag *MetricTagConfig) []string {
 		metricTag.Symbol = SymbolConfigCompat(symbol)
 	}
 	if metricTag.Match != "" {
-		errors = append(errors, fmt.Sprintf("MetricTag.Match is deprecated."))
+		errors = append(errors, "MetricTag.Match not supported.")
 		pattern, err := regexp.Compile(metricTag.Match)
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("cannot compile `match` (`%s`): %s", metricTag.Match, err.Error()))
@@ -247,6 +279,9 @@ func validateEnrichMetricTag(metricTag *MetricTagConfig) []string {
 		if len(metricTag.Tags) == 0 {
 			errors = append(errors, fmt.Sprintf("`tags` mapping must be provided if `match` (`%s`) is defined", metricTag.Match))
 		}
+	}
+	if len(metricTag.Tags) > 0 {
+		errors = append(errors, "MetricTag.Tags not supported.")
 	}
 	if len(metricTag.Mapping) > 0 && metricTag.Tag == "" {
 		errors = append(errors, fmt.Sprintf("``tag` must be provided if `mapping` (`%s`) is defined", metricTag.Mapping))

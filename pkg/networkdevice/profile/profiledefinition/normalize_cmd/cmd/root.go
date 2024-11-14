@@ -61,7 +61,8 @@ func GetProfile(filePath string) (*profiledefinition.ProfileDefinition, []string
 		return nil, []string{fmt.Sprintf("unable to read file: %v", err)}
 	}
 	def := profiledefinition.NewProfileDefinition()
-	err = yaml.Unmarshal(buf, def)
+
+	err = yaml.UnmarshalStrict(buf, def)
 	if err != nil {
 		return nil, []string{fmt.Sprintf("unable to parse profile: %v", err)}
 	}

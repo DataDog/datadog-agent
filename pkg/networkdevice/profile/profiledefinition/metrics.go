@@ -14,6 +14,8 @@ import (
 type ProfileMetricType string
 
 const (
+	ProfileMetricTypeUnset ProfileMetricType = ""
+
 	// ProfileMetricTypeGauge is used to create a gauge metric
 	ProfileMetricTypeGauge ProfileMetricType = "gauge"
 
@@ -55,6 +57,8 @@ type SymbolConfigCompat SymbolConfig
 type SymbolConfig struct {
 	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
 	Name string `yaml:"name,omitempty" json:"name,omitempty"`
+	// Documentation-only: This field exists solely so hand-written profiles can document where they found a symbol.
+	MIB string `yaml:"MIB,omitempty" json:"-"`
 
 	ExtractValue         string         `yaml:"extract_value,omitempty" json:"extract_value,omitempty"`
 	ExtractValueCompiled *regexp.Regexp `yaml:"-" json:"-"`
@@ -81,12 +85,15 @@ type MetricTagConfig struct {
 	// Table config
 	Index uint `yaml:"index,omitempty" json:"index,omitempty"`
 
-	// DEPRECATED: Column field is deprecated in favour of Symbol field
-	Column SymbolConfig `yaml:"column,omitempty" json:"-"`
+	// Documentation-only: These fields exist solely so hand-written yaml profiles can document where they found a symbol.
+	MIB   string `yaml:"MIB,omitempty" json:"-"`
+	Table string `yaml:"table,omitempty" json:"-"`
 
-	// Symbol config
-	OID string `yaml:"OID,omitempty" json:"-"  jsonschema:"-"` // DEPRECATED replaced by Symbol field
-	// Using Symbol field below as string is deprecated
+	// DEPRECATED: Column and OID are replaced by the Symbol field
+	Column SymbolConfig `yaml:"column,omitempty" json:"-"`
+	OID    string       `yaml:"OID,omitempty" json:"-"` // DEPRECATED replaced by Symbol field
+
+	// SymbolConfigCompat will also parse a plain string, but this behavior is deprecated.
 	Symbol SymbolConfigCompat `yaml:"symbol,omitempty" json:"symbol,omitempty"`
 
 	IndexTransform []MetricIndexTransform `yaml:"index_transform,omitempty" json:"index_transform,omitempty"`
@@ -128,9 +135,11 @@ type MetricsConfig struct {
 	// Symbol configs
 	Symbol SymbolConfig `yaml:"symbol,omitempty" json:"symbol,omitempty"`
 
-	// Legacy Symbol configs syntax
-	OID  string `yaml:"OID,omitempty" json:"OID,omitempty" jsonschema:"-"`
-	Name string `yaml:"name,omitempty" json:"name,omitempty" jsonschema:"-"`
+	// DEPRECATED: These have been moved into Symbol and/or Symbols
+	OID        string            `yaml:"OID,omitempty" json:"-" jsonschema:"-"`
+	Name       string            `yaml:"name,omitempty" json:"-" jsonschema:"-"`
+	ForcedType ProfileMetricType `yaml:"forced_type,omitempty" json:"-"` // renamed to MetricType
+	MetricType ProfileMetricType `yaml:"metric_type,omitempty" json:"-"` // moved into Symbol/Symbols
 
 	// Table configs
 	Symbols []SymbolConfig `yaml:"symbols,omitempty" json:"symbols,omitempty"`
@@ -138,9 +147,6 @@ type MetricsConfig struct {
 	// `static_tags` is not exposed as json at the moment since we need to evaluate if we want to expose it via UI
 	StaticTags []string            `yaml:"static_tags,omitempty" json:"-"`
 	MetricTags MetricTagConfigList `yaml:"metric_tags,omitempty" json:"metric_tags,omitempty"`
-
-	ForcedType ProfileMetricType `yaml:"forced_type,omitempty" json:"forced_type,omitempty" jsonschema:"-"` // deprecated in favour of metric_type
-	MetricType ProfileMetricType `yaml:"metric_type,omitempty" json:"metric_type,omitempty" jsonschema:"-"` // deprecated in favour of symbol.metric_type
 
 	// `options` is not exposed as json at the moment since we need to evaluate if we want to expose it via UI
 	Options MetricsConfigOption `yaml:"options,omitempty" json:"-"`
