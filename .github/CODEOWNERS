@@ -101,7 +101,7 @@
 /.gitlab/package_deps_build/package_deps_build.yml   @DataDog/agent-devx-infra @DataDog/ebpf-platform
 /.gitlab/powershell_script_signing/powershell_script_signing.yml    @DataDog/agent-delivery @DataDog/windows-agent
 /.gitlab/source_test/golang_deps_diff.yml            @DataDog/agent-devx-infra @DataDog/agent-devx-loops
-/.gitlab/source_test/include.yml                     @DataDog/agent-devx-infra
+/.gitlab/source_test/*                               @DataDog/agent-devx-infra
 /.gitlab/source_test/linux.yml                       @DataDog/agent-devx-infra @DataDog/agent-devx-loops
 /.gitlab/source_test/macos.yml                       @DataDog/agent-devx-infra @DataDog/agent-devx-loops
 /.gitlab/source_test/notify.yml                      @DataDog/agent-devx-infra @DataDog/agent-devx-loops
