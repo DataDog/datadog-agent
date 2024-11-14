@@ -240,6 +240,15 @@ func (j *JMXFetch) Start(manage bool) error {
 			log.Warnf("Java option -XX:MaxRAMPercentage will not take effect since either -Xmx or XX:MaxHeapSize is already present. These options override MaxRAMPercentage.")
 			passOption = false
 		}
+		if !strings.Contains(javaOptions, "java.io.tmpdir") {
+			javaTmpDir := filepath.Join(pkgconfigsetup.Datadog().GetString("run_path"), "jmxfetch")
+			if err := os.Mkdir(javaTmpDir, os.ModeDir|0755); err != nil {
+				log.Warnf("Failed to create jmxfetch temporary directory %s: %v", javaTmpDir, err)
+			} else {
+				javaTmpDirOpt := fmt.Sprintf(" -Djava.io.tmpdir=%s", javaTmpDir)
+				javaOptions += javaTmpDirOpt
+			}
+		}
 		if maxHeapSizeAsPercentRAM < 0.00 || maxHeapSizeAsPercentRAM > 100.0 {
 			log.Warnf("The value for MaxRAMPercentage must be between 0.0 and 100.0 for the option to take effect")
 			passOption = false
