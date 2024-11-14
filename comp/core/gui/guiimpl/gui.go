@@ -257,7 +257,7 @@ func serveAsset(w http.ResponseWriter, req *http.Request, assetPath string) ([]b
 			if err != nil {
 				return nil, err
 			}
-			// ensure underlying io.Reader is closed
+			// gzip reader must be closed separately and does not affect underlying io.Reader
 			defer gzReader.Close()
 			rdr = gzReader
 		}
