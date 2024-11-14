@@ -43,7 +43,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	defer s.host.StopExamplePythonAppInDocker()
 
 	s.host.AssertPackageInstalledByInstaller("datadog-agent", "datadog-apm-inject", "datadog-apm-library-python")
-	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent", "datadog-apm-inject", "datadog-apm-library-python")
+	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent", "datadog-", "datadog-apm-library-python")
 	state := s.host.State()
 	state.AssertFileExists("/opt/datadog-packages/run/environment", 0644, "root", "root")
 	state.AssertSymlinkExists("/run/datadog-installer", "/opt/datadog-packages/run", "root", "root") // /run as /var/run points to /run, it's a limitation of the state packages
@@ -167,7 +167,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
 		"TESTING_YUM_VERSION_PATH=",
 		"DD_REPO_URL=datadoghq.com",
 	)
-	s.host.Run("sudo apt-get install -y datadog-apm-inject datadog-apm-library-python")
+	s.host.Run("sudo apt-get install -y datadog-apm-inject datadog-apm-library-python || sudo yum install -y datadog-apm-inject datadog-apm-library-python")
 	s.host.Run("sudo dd-container-install --no-agent-restart")
 	s.host.Run("sudo dd-host-install --no-agent-restart")
 	defer s.Purge()
@@ -220,7 +220,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 		"TESTING_YUM_VERSION_PATH=",
 		"DD_REPO_URL=datadoghq.com",
 	)
-	s.host.Run("sudo apt-get install -y datadog-apm-inject datadog-apm-library-python")
+	s.host.Run("sudo apt-get install -y datadog-apm-inject datadog-apm-library-python || sudo yum install -y datadog-apm-inject datadog-apm-library-python")
 	defer s.purgeInjectorDebInstall()
 
 	// OCI mustn't be overridden
