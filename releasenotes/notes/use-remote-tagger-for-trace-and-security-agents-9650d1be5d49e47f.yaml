@@ -8,4 +8,4 @@
 ---
 deprecations:
   - |
-    ``apm_config.remote_tagger`` and ``security_agent.remote_tagger`` are deprecated and removed.
+    ``apm_config.remote_tagger``,  ``security_agent.remote_tagger``, and ``event_monitoring_config.remote_tagger`` config entries are deprecated and removed.
