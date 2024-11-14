@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"slices"
 	"sync"
 	"time"
 
@@ -106,16 +105,16 @@ type WindowsProbe struct {
 	// actions
 	processKiller *ProcessKiller
 
-	enabledEventTypes map[string]bool
+	enabledEventTypesLock sync.RWMutex
+	enabledEventTypes     map[string]bool
 
 	// channel handling.  Currently configurable, but should probably be set
 	// to false with a configurable size value
 	blockonchannelsend bool
 
 	// approvers
-	currentEventTypes []string
-	approvers         map[eval.Field][]approver
-	approverLock      sync.RWMutex
+	approvers    map[eval.Field][]approver
+	approverLock sync.RWMutex
 }
 
 type writeRateLimiterKey struct {
@@ -315,6 +314,7 @@ func (p *WindowsProbe) reconfigureProvider() error {
 			idClose,
 		}
 
+		// reconfigureProvider should be called with the enabledEventTypesLock held for reading
 		if p.enabledEventTypes[model.WriteFileEventType.String()] {
 			fileIDs = append(fileIDs, idWrite)
 		}
@@ -360,6 +360,7 @@ func (p *WindowsProbe) reconfigureProvider() error {
 		cfg.MatchAnyKeyword = 0xF7E3
 
 		regIDs := []uint16{}
+		// reconfigureProvider should be called with the enabledEventTypesLock held for reading
 		if p.enabledEventTypes[model.CreateRegistryKeyEventType.String()] {
 			regIDs = append(regIDs, idRegCreateKey)
 		}
@@ -445,8 +446,10 @@ func (p *WindowsProbe) approve(field eval.Field, eventType string, value string)
 
 	approvers, exists := p.approvers[field]
 	if !exists {
+		p.enabledEventTypesLock.RLock()
+		defer p.enabledEventTypesLock.RUnlock()
 		// no approvers, so no filtering for this field, except if no rule for this event type
-		return slices.Contains(p.currentEventTypes, eventType)
+		return p.enabledEventTypes[eventType]
 	}
 
 	for _, approver := range approvers {
@@ -1319,12 +1322,12 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts, telemetry t
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+	p.enabledEventTypesLock.Lock()
 	clear(p.enabledEventTypes)
-	p.currentEventTypes = rs.GetEventTypes()
-
-	for _, eventType := range p.currentEventTypes {
+	for _, eventType := range rs.GetEventTypes() {
 		p.enabledEventTypes[eventType] = true
 	}
+	p.enabledEventTypesLock.Unlock()
 
 	ars, err := kfilters.NewApplyRuleSetReport(p.config.Probe, rs)
 	if err != nil {
@@ -1334,7 +1337,6 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 	// remove old approvers
 	p.approverLock.Lock()
 	defer p.approverLock.Unlock()
-
 	clear(p.approvers)
 
 	for eventType, report := range ars.Policies {
@@ -1343,6 +1345,8 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 		}
 	}
 
+	p.enabledEventTypesLock.RLock()
+	defer p.enabledEventTypesLock.RUnlock()
 	if err := p.reconfigureProvider(); err != nil {
 		return nil, err
 	}
