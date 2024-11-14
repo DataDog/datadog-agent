@@ -7,25 +7,26 @@ package cdn
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	detectenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 )
 
 type hostTagsGetter struct {
-	config model.Config
+	config     model.Config
+	staticTags []string
 }
 
 func newHostTagsGetter(env *env.Env) hostTagsGetter {
-	config := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	config := pkgconfigsetup.Datadog()
 	detectenv.DetectFeatures(config)
-	config.Set("tags", env.Tags, model.SourceFile)
 	return hostTagsGetter{
-		config: config,
+		config:     config,
+		staticTags: env.Tags,
 	}
 }
 
@@ -35,6 +36,20 @@ func (h *hostTagsGetter) get() []string {
 	ctx, cc := context.WithTimeout(context.Background(), time.Second)
 	defer cc()
 	hostTags := hosttags.Get(ctx, true, h.config)
-	tags := append(hostTags.System, hostTags.GoogleCloudPlatform...)
+
+	tags := []string{}
+	tags = append(tags, h.staticTags...)
+	tags = append(tags, hostTags.System...)
+	tags = append(tags, hostTags.GoogleCloudPlatform...)
+	tagSet := make(map[string]struct{})
+	for _, tag := range tags {
+		tagSet[tag] = struct{}{}
+	}
+	deduplicatedTags := make([]string, 0, len(tagSet))
+	for tag := range tagSet {
+		deduplicatedTags = append(deduplicatedTags, tag)
+	}
+	tags = deduplicatedTags
+
 	return tags
 }
