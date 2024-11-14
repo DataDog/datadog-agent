@@ -1938,7 +1938,6 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 
 func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	t := s.T()
-	t.Skip()
 	// Start the client and server before we enable the system probe to test that the tracer picks
 	// up the pre-existing connection
 
@@ -2009,6 +2008,7 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 
 func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 	t := s.T()
+	t.Skip()
 	t.Run("ringbuf_enabled", func(t *testing.T) {
 		if features.HaveMapType(ebpf.RingBuf) != nil {
 			t.Skip("skipping test as ringbuffers are not supported on this kernel")
