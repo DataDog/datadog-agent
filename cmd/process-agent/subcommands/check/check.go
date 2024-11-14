@@ -27,7 +27,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	taggerRemoteFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -149,11 +149,7 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				}),
 
 				// Tagger must be initialized after agent config has been setup
-				dualTaggerfx.Module(tagger.DualParams{
-					UseRemote: func(c config.Component) bool {
-						return c.GetBool("process_config.remote_tagger")
-					},
-				}, tagger.Params{}, tagger.RemoteParams{
+				taggerRemoteFx.Module(tagger.RemoteParams{
 					RemoteTarget: func(c config.Component) (string, error) {
 						return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
 					},
