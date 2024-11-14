@@ -238,6 +238,8 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	debugging,
 	vector,
 	podman,
+	fleet,
+	autoscaling,
 }
 
 func init() {
@@ -1094,15 +1096,6 @@ func agent(config pkgconfigmodel.Setup) {
 	// Duration during which the host tags will be submitted with metrics.
 	config.BindEnvAndSetDefault("expected_tags_duration", time.Duration(0))
 
-	// Directory to store fleet policies
-	config.BindEnv("fleet_policies_dir")
-	config.SetDefault("fleet_layers", []string{})
-
-	// Autoscaling product
-	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
-	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
-	config.BindEnv("autoscaling.failover.metrics")
-
 	// Agent GUI access host
 	// 		'http://localhost' is preferred over 'http://127.0.0.1' due to Internet Explorer behavior.
 	// 		Internet Explorer High Security Level does not support setting cookies via HTTP Header response.
@@ -1115,6 +1108,19 @@ func agent(config pkgconfigmodel.Setup) {
 	config.SetKnown("proxy.http")
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
+}
+
+func fleet(config pkgconfigmodel.Setup) {
+	// Directory to store fleet policies
+	config.BindEnv("fleet_policies_dir")
+	config.SetDefault("fleet_layers", []string{})
+}
+
+func autoscaling(config pkgconfigmodel.Setup) {
+	// Autoscaling product
+	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
+	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
+	config.BindEnv("autoscaling.failover.metrics")
 }
 
 func fips(config pkgconfigmodel.Setup) {
