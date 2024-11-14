@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package hostname contains helpers and e2e tests of the flare command
+// Package hostname contains helpers and e2e tests of the hostname resolution
 package hostname
 
 import (
@@ -96,12 +96,14 @@ func runHostnameTest(v *baseHostnameSuite, instanceOpts []awshost.ProvisionerOpt
 			assert.Empty(t, v.hostnameMetadata.LegacyResolutionHostname)
 		}
 
-		// The hostname should be the instance ID when IMDSv1 or IMDSv2 is enabled
-		if imdsV1Enable || tt.ec2PreferIMDSv2 || tt.legacyResolutionHostname {
-			assert.Equal(t, instanceID, v.hostnameMetadata.Hostname)
-		} else {
-			assert.Equal(t, osHostname, v.hostnameMetadata.Hostname)
+		expectedHostname := instanceID
+
+		// The hostname should be the OS hostname when IMDS is disabled
+		if !imdsV1Enable && !tt.ec2PreferIMDSv2 && !tt.legacyResolutionHostname {
+			expectedHostname = osHostname
 		}
+
+		assert.Equal(t, expectedHostname, v.hostnameMetadata.Hostname)
 	})
 }
 
