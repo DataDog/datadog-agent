@@ -36,13 +36,12 @@ func dockerHostHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[dockerHostNginxEnv] 
 		if err != nil {
 			return err
 		}
-		env.DockerHost.AwsEnvironment = &awsEnv
 
 		opts := []awsdocker.ProvisionerOption{
 			awsdocker.WithAgentOptions(systemProbeConfigNPMEnv()...),
 		}
 		params := awsdocker.GetProvisionerParams(opts...)
-		awsdocker.Run(ctx, &env.DockerHost, params)
+		awsdocker.Run(ctx, &env.DockerHost, awsdocker.RunParams{Environment: &awsEnv, ProvisionerParams: params})
 
 		vmName := "httpbinvm"
 
@@ -56,7 +55,7 @@ func dockerHostHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[dockerHostNginxEnv] 
 		}
 
 		// install docker.io
-		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, nginxHost)
+		manager, err := docker.NewManager(&awsEnv, nginxHost)
 		if err != nil {
 			return err
 		}

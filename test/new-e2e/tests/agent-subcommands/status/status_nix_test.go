@@ -24,7 +24,7 @@ func TestLinuxStatusSuite(t *testing.T) {
 }
 
 func (v *linuxStatusSuite) TestStatusHostname() {
-	metadata := client.NewEC2Metadata(v.Env().RemoteHost)
+	metadata := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 	resourceID := metadata.Get("instance-id")
 
 	status := v.Env().Agent.Client.Status()

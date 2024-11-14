@@ -10,6 +10,8 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	tifEcs "github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -18,6 +20,7 @@ import (
 	npmtools "github.com/DataDog/test-infra-definitions/components/datadog/apps/npm-tools"
 	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
+	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
@@ -39,7 +42,6 @@ func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
 		if err != nil {
 			return err
 		}
-		env.ECS.AwsEnvironment = &awsEnv
 
 		vmName := "httpbinvm"
 		nginxHost, err := ec2.NewVM(awsEnv, vmName)
@@ -52,7 +54,7 @@ func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
 		}
 
 		// install docker.io
-		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, nginxHost)
+		manager, err := docker.NewManager(&awsEnv, nginxHost)
 		if err != nil {
 			return err
 		}
@@ -64,17 +66,15 @@ func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
 		}
 
 		params := envecs.GetProvisionerParams(
-			envecs.WithECSLinuxECSOptimizedNodeGroup(),
+			envecs.WithAwsEnv(&awsEnv),
+			envecs.WithECSOptions(tifEcs.WithLinuxNodeGroup()),
 			envecs.WithAgentOptions(ecsagentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")),
+			envecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
+				testURL := "http://" + env.HTTPBinHost.Address + "/"
+				return npmtools.EcsAppDefinition(e, clusterArn, testURL)
+			}),
 		)
 		envecs.Run(ctx, &env.ECS, params)
-
-		// Workload
-		testURL := "http://" + env.HTTPBinHost.Address + "/"
-		if _, err := npmtools.EcsAppDefinition(awsEnv, env.ClusterArn, testURL); err != nil {
-			return err
-		}
-
 		return nil
 	}
 }
