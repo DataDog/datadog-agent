@@ -43,7 +43,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	defer s.host.StopExamplePythonAppInDocker()
 
 	s.host.AssertPackageInstalledByInstaller("datadog-agent", "datadog-apm-inject", "datadog-apm-library-python")
-	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent", "datadog-", "datadog-apm-library-python")
+	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent", "datadog-apm-inject", "datadog-apm-library-python")
 	state := s.host.State()
 	state.AssertFileExists("/opt/datadog-packages/run/environment", 0644, "root", "root")
 	state.AssertSymlinkExists("/run/datadog-installer", "/opt/datadog-packages/run", "root", "root") // /run as /var/run points to /run, it's a limitation of the state packages
