@@ -1463,34 +1463,34 @@ func TestUSMTLSNativeEnabled(t *testing.T) {
 func TestUSMTLSGoEnabled(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_go_tls_support", false)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_go_tls_support", true)
 		cfg := New()
 
-		require.False(t, cfg.EnableGoTLSSupport)
+		require.True(t, cfg.EnableGoTLSSupport)
 	})
 
 	t.Run("via deprecated ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_GO_TLS_SUPPORT", "false")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_GO_TLS_SUPPORT", "true")
 		cfg := New()
 
-		require.False(t, cfg.EnableGoTLSSupport)
+		require.True(t, cfg.EnableGoTLSSupport)
 	})
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.tls.go.enabled", false)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.tls.go.enabled", true)
 		cfg := New()
 
-		require.False(t, cfg.EnableGoTLSSupport)
+		require.True(t, cfg.EnableGoTLSSupport)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_GO_ENABLED", "false")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_GO_ENABLED", "true")
 		cfg := New()
 
-		require.False(t, cfg.EnableGoTLSSupport)
+		require.True(t, cfg.EnableGoTLSSupport)
 	})
 
 	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
@@ -1520,12 +1520,12 @@ func TestUSMTLSGoEnabled(t *testing.T) {
 		require.True(t, cfg.EnableGoTLSSupport)
 	})
 
-	t.Run("Enabled by default", func(t *testing.T) {
+	t.Run("Not enabled", func(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
 
 		// Default value.
-		require.True(t, cfg.EnableGoTLSSupport)
+		require.False(t, cfg.EnableGoTLSSupport)
 	})
 }
 
