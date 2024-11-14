@@ -234,45 +234,42 @@ func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-func serveAsset(w http.ResponseWriter, req *http.Request, assetPath string) ([]byte, error) {
+func serveAsset(gzipSupport bool, assetPath string) (data []byte, gzipped bool, err error) {
 	var rdr io.ReadCloser
-	isGzipped := true
-	rdr, err := viewsFS.Open(assetPath + ".gz")
+	gzipped = true
+	rdr, err = viewsFS.Open(assetPath + ".gz")
 	if err != nil && os.IsNotExist(err) {
-		isGzipped = false
+		gzipped = false
 		rdr, err = viewsFS.Open(assetPath)
 	}
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	defer rdr.Close()
 
-	if isGzipped {
-		// if client supports gzip, return as-is
-		if strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") {
-			w.Header().Set("Content-Encoding", "gzip")
-		} else {
-			// ungzip on the fly
-			gzReader, err := gzip.NewReader(rdr)
-			if err != nil {
-				return nil, err
-			}
-			// gzip reader must be closed separately and does not affect underlying io.Reader
-			defer gzReader.Close()
-			rdr = gzReader
+	if gzipped && !gzipSupport {
+		// ungzip on the fly
+		gzReader, err := gzip.NewReader(rdr)
+		if err != nil {
+			return nil, false, err
 		}
+		// gzip reader must be closed separately and does not affect underlying io.Reader
+		defer gzReader.Close()
+		rdr = gzReader
+		gzipped = false
 	}
 
-	data, err := io.ReadAll(rdr)
+	data, err = io.ReadAll(rdr)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return data, nil
+	return data, gzipped, nil
 }
 
 func serveAssets(w http.ResponseWriter, req *http.Request) {
 	assetPath := path.Join("views", "private", req.URL.Path)
-	data, err := serveAsset(w, req, assetPath)
+	gzipSupport := strings.Contains(req.Header.Get("Accept-Encoding"), "gzip")
+	data, gzipped, err := serveAsset(gzipSupport, assetPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -282,6 +279,9 @@ func serveAssets(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	if gzipped {
+		w.Header().Set("Content-Encoding", "gzip")
+	}
 	w.Header().Set("Content-Type", mime.TypeByExtension(filepath.Ext(assetPath)))
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	_, _ = w.Write(data)
