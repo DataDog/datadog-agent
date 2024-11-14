@@ -10,7 +10,6 @@ package apm
 
 import (
 	"bufio"
-	"debug/elf"
 	"io"
 	"io/fs"
 	"os"
@@ -24,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // Instrumentation represents the state of APM instrumentation for a service.
@@ -100,7 +100,7 @@ const (
 func goDetector(ctx usm.DetectionContext) Instrumentation {
 	exePath := kernel.HostProc(strconv.Itoa(ctx.Pid), "exe")
 
-	elfFile, err := elf.Open(exePath)
+	elfFile, err := safeelf.Open(exePath)
 	if err != nil {
 		log.Debugf("Unable to open exe %s: %v", exePath, err)
 		return None
