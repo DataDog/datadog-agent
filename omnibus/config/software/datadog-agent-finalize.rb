@@ -91,7 +91,7 @@ build do
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
             unless heroku_target?
-              if ENV.has_key?('SYSTEM_PROBE_BIN') and not ENV['SYSTEM_PROBE_BIN'].empty?
+              if sysprobe_enabled?
                 move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "#{output_config_dir}/etc/datadog-agent"
                 # SElinux policies aren't generated when system-probe isn't built
                 # Move SELinux policy
