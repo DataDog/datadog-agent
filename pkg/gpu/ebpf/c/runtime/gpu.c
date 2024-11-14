@@ -200,7 +200,7 @@ int BPF_URETPROBE(uretprobe__cudaSetDevice) {
     event.device = *device;
 
     log_debug("cudaSetDevice: EMIT pid_tgid=%llu, device=%d", event.header.pid_tgid, *device);
-    bpf_ringbuf_output(&cuda_events, &event, sizeof(event), 0);
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &event, sizeof(event), 0);
 
 cleanup:
     bpf_map_delete_elem(&cuda_sync_cache, &pid_tgid);
@@ -213,7 +213,7 @@ int BPF_UPROBE(uprobe__cudaSetDevice, int device) {
     __u64 pid_tgid = bpf_get_current_pid_tgid();
 
     log_debug("cudaSetDevice: pid_tgid=%llu, device=%u", pid_tgid, device);
-    bpf_map_update_elem(&cuda_set_device_cache, &pid_tgid, &device, BPF_ANY);
+    bpf_map_update_with_telemetry(cuda_set_device_cache, &pid_tgid, &device, BPF_ANY);
 
     return 0;
 }
