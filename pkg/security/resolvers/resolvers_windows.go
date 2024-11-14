@@ -35,7 +35,7 @@ func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface, sc
 		return nil, err
 	}
 
-	tagsResolver := tags.NewResolver(config.Probe, telemetry)
+	tagsResolver := tags.NewResolver(telemetry)
 
 	userSessionsResolver, err := usersessions.NewResolver(config.RuntimeSecurity)
 	if err != nil {

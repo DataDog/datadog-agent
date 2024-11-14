@@ -40,7 +40,6 @@ const testConfig = `---
 log_level: DEBUG
 
 event_monitoring_config:
-  remote_tagger: false
   custom_sensitive_words:
     - "*custom*"
   network:

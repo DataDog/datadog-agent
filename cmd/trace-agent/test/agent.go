@@ -196,9 +196,6 @@ func (s *agentRunner) createConfigFile(conf []byte) (string, error) {
 		v.Set("log_level", "debug")
 	}
 
-	// disable remote tagger to avoid running a core agent for testing
-	v.Set("apm_config.remote_tagger", false)
-
 	out, err := yaml.Marshal(v.AllSettings())
 	if err != nil {
 		return "", err
