@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/zstd"
 )
 
-type Requires struct{
+type Requires struct {
 	Level int
 }
 
