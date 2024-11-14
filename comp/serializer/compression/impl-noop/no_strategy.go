@@ -12,7 +12,7 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 )
 
-type Provides struct {
+type provides struct {
 	Comp compression.Component
 }
 
@@ -21,8 +21,8 @@ type NoopStrategy struct {
 }
 
 // NewComponent returns a new NoopStrategy for when kind is neither zlib nor zstd
-func NewComponent() Provides {
-	return Provides{
+func NewComponent() provides {
+	return provides{
 		Comp: &NoopStrategy{},
 	}
 }
