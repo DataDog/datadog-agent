@@ -10,7 +10,6 @@ package webhook
 import (
 	"context"
 	"reflect"
-	"runtime"
 	"testing"
 	"time"
 
@@ -92,9 +91,6 @@ func TestCreateWebhookV1beta1(t *testing.T) {
 }
 
 func TestUpdateOutdatedWebhookV1beta1(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("Skipping flaky test on macOS")
-	}
 	f := newFixtureV1beta1(t)
 
 	data, err := certificate.GenerateSecretData(time.Now(), time.Now().Add(365*24*time.Hour), []string{"my.svc.dns"})
