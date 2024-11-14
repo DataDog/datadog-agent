@@ -194,7 +194,10 @@ static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offse
     __u8 extensions_parsed = 0;
 
     #pragma unroll(MAX_EXTENSIONS)
-        while (offset + 4 <= extensions_end && extensions_parsed < MAX_EXTENSIONS) {
+        for (int i = 0; i < MAX_EXTENSIONS; i++) {
+            if (offset + 4 > extensions_end) {
+                break;
+            }
             // Read Extension Type (2 bytes)
             __u16 extension_type;
             if (bpf_skb_load_bytes(skb, offset, &extension_type, sizeof(extension_type)) < 0)
@@ -326,7 +329,10 @@ static __always_inline int parse_server_hello(struct __sk_buff *skb, __u64 offse
         __u64 extensions_end = offset + extensions_length;
         __u8 extensions_parsed = 0;
         #pragma unroll(MAX_EXTENSIONS)
-            while (offset + 4 <= extensions_end && extensions_parsed < MAX_EXTENSIONS) {
+            for (int i = 0; i < MAX_EXTENSIONS; i++) {
+                if (offset + 4 > extensions_end) {
+                    break;
+                }
                 // Read Extension Type (2 bytes)
                 __u16 extension_type;
                 if (bpf_skb_load_bytes(skb, offset, &extension_type, sizeof(extension_type)) < 0)
