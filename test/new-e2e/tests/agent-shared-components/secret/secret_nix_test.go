@@ -13,8 +13,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type linuxRuntimeSecretSuite struct {
@@ -28,28 +30,22 @@ func TestLinuxRuntimeSecretSuite(t *testing.T) {
 //go:embed fixtures/secret_script.py
 var secretScript []byte
 
-func (v *linuxRuntimeSecretSuite) TestSecretRuntimeAPIKey() {
+func (v *linuxRuntimeSecretSuite) TestSecretRuntimeHostname() {
 	config := `secret_backend_command: /tmp/bin/secret.sh
 hostname: ENC[hostname]`
 
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithAgentOptions(
-			agentparams.WithFile("/tmp/bin/secret.sh", string(secretScript), true),
-		),
-	))
-
-	v.Env().RemoteHost.MustExecute(`sudo sh -c "chown dd-agent:dd-agent /tmp/bin/secret.sh && chmod 700 /tmp/bin/secret.sh"`)
-	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithAgentOptions(
+			agentparams.WithFileWithPermissions("/tmp/bin/secret.sh", string(secretScript), true, secrets.WithUnixSecretPermissions(false)),
 			agentparams.WithAgentConfig(config),
-			agentparams.WithFile("/tmp/bin/secret.sh", string(secretScript), true),
 		),
 	))
 
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		checks, err := v.Env().FakeIntake.Client().GetCheckRun("datadog.agent.up")
-		assert.NoError(t, err)
-		assert.NotEmpty(t, checks)
-		assert.Equal(t, "e2e.test", checks[len(checks)-1].HostName)
+		require.NoError(t, err)
+		if assert.NotEmpty(t, checks) {
+			assert.Equal(t, "e2e.test", checks[len(checks)-1].HostName)
+		}
 	}, 30*time.Second, 2*time.Second)
 }

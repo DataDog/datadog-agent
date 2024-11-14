@@ -240,6 +240,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.58.2
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.56.1
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.16.1
@@ -248,7 +249,6 @@ require (
 
 require (
 	github.com/BurntSushi/toml v1.2.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.2 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.36.2 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.67.0 // indirect
