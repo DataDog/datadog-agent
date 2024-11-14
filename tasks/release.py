@@ -760,7 +760,7 @@ def cleanup(ctx):
     ctx.run("git add release.json")
 
     commit_message = f"Update last_stable to {version}"
-    ok = try_git_command(ctx, f'git commit -m "{commit_message}"')
+    ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
     if not ok:
         raise Exit(
             color_message(
@@ -770,8 +770,7 @@ def cleanup(ctx):
             code=1,
         )
 
-    res = ctx.run(f"git push --set-upstream origin {cleanup_branch}", warn=True)
-    if res.exited is None or res.exited > 0:
+    if not ctx.run(f"git push --set-upstream origin {cleanup_branch}", warn=True):
         raise Exit(
             color_message(
                 f"Could not push branch {cleanup_branch} to the upstream 'origin'. Please push it manually and then open a PR against {main_branch}.",
@@ -780,9 +779,7 @@ def cleanup(ctx):
             code=1,
         )
 
-    create_release_pr(
-        commit_message, main_branch, cleanup_branch, version, laststable_pr=True, milestone=current_milestone
-    )
+    create_release_pr(commit_message, main_branch, cleanup_branch, version, milestone=current_milestone)
 
     edit_schedule(ctx, 2555, ref=version.branch())
 

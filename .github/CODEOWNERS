@@ -565,6 +565,7 @@
 /tasks/libs/ciproviders/                @DataDog/agent-devx-infra
 /tasks/libs/common/omnibus.py           @DataDog/agent-delivery
 /tasks/omnibus.py                       @DataDog/agent-delivery
+/tasks/release.py                       @DataDog/agent-delivery
 /tasks/unit_tests/components_tests.py   @DataDog/agent-shared-components
 /tasks/unit_tests/omnibus_tests.py      @DataDog/agent-delivery
 /tasks/unit_tests/testdata/components_src/ @DataDog/agent-shared-components
