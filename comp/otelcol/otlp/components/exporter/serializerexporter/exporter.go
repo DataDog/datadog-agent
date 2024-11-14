@@ -26,16 +26,15 @@ var _ component.Config = (*ExporterConfig)(nil)
 func newDefaultConfig() component.Config {
 	return &ExporterConfig{
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
-		TimeoutSettings: exporterhelper.TimeoutSettings{Timeout: 0},
+		TimeoutConfig: exporterhelper.TimeoutConfig{Timeout: 0},
 		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
-		QueueSettings: exporterhelper.NewDefaultQueueSettings(),
+		QueueConfig: exporterhelper.NewDefaultQueueConfig(),
 
 		Metrics: MetricsConfig{
 			DeltaTTL: 3600,
 			ExporterConfig: MetricsExporterConfig{
-				ResourceAttributesAsTags:             false,
-				InstrumentationLibraryMetadataAsTags: false,
-				InstrumentationScopeMetadataAsTags:   false,
+				ResourceAttributesAsTags:           false,
+				InstrumentationScopeMetadataAsTags: false,
 			},
 			TagCardinality: "low",
 			HistConfig: HistogramConfig{
@@ -114,14 +113,6 @@ func translatorFromConfig(
 	switch cfg.Metrics.SummaryConfig.Mode {
 	case SummaryModeGauges:
 		options = append(options, metrics.WithQuantiles())
-	}
-
-	if cfg.Metrics.ExporterConfig.InstrumentationLibraryMetadataAsTags && cfg.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags {
-		return nil, fmt.Errorf("cannot use both instrumentation_library_metadata_as_tags(deprecated) and instrumentation_scope_metadata_as_tags")
-	}
-
-	if cfg.Metrics.ExporterConfig.InstrumentationLibraryMetadataAsTags {
-		options = append(options, metrics.WithInstrumentationLibraryMetadataAsTags())
 	}
 
 	if cfg.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags {

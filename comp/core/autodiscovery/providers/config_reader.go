@@ -35,6 +35,7 @@ type configFormat struct {
 	Instances               []integration.RawMap
 	DockerImages            []string `yaml:"docker_images"`             // Only imported for deprecation warning
 	IgnoreAutodiscoveryTags bool     `yaml:"ignore_autodiscovery_tags"` // Use to ignore tags coming from autodiscovery
+	CheckTagCardinality     string   `yaml:"check_tag_cardinality"`     // Use to set the tag cardinality override for the check
 }
 
 type configPkg struct {
@@ -429,6 +430,9 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 
 	// Copy ignore_autodiscovery_tags parameter
 	conf.IgnoreAutodiscoveryTags = cf.IgnoreAutodiscoveryTags
+
+	// Copy check_tag_cardinality parameter
+	conf.CheckTagCardinality = cf.CheckTagCardinality
 
 	// DockerImages entry was found: we ignore it if no ADIdentifiers has been found
 	if len(cf.DockerImages) > 0 && len(cf.ADIdentifiers) == 0 {

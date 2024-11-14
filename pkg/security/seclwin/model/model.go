@@ -14,10 +14,11 @@ import (
 	"runtime"
 	"time"
 
+	"modernc.org/mathutil"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
-	"modernc.org/mathutil"
 )
 
 // Model describes the data model for the runtime security agent events
@@ -89,8 +90,10 @@ type SecurityProfileContext struct {
 
 // IPPortContext is used to hold an IP and Port
 type IPPortContext struct {
-	IPNet net.IPNet `field:"ip"`   // SECLDoc[ip] Definition:`IP address`
-	Port  uint16    `field:"port"` // SECLDoc[port] Definition:`Port number`
+	IPNet            net.IPNet `field:"ip"`                                  // SECLDoc[ip] Definition:`IP address`
+	Port             uint16    `field:"port"`                                // SECLDoc[port] Definition:`Port number`
+	IsPublic         bool      `field:"is_public,handler:ResolveIsIPPublic"` // SECLDoc[is_public] Definition:`Whether the IP address belongs to a public network`
+	IsPublicResolved bool      `field:"-"`
 }
 
 // NetworkContext represents the network context of the event
@@ -124,10 +127,10 @@ type BaseEvent struct {
 	Timestamp     time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
 	Rules         []*MatchedRule `field:"-"`
 	ActionReports []ActionReport `field:"-"`
-	Os            string         `field:"event.os"`                               // SECLDoc[event.os] Definition:`Operating system of the event`
-	Origin        string         `field:"event.origin"`                           // SECLDoc[event.origin] Definition:`Origin of the event`
-	Service       string         `field:"event.service,handler:ResolveService"`   // SECLDoc[event.service] Definition:`Service associated with the event`
-	Hostname      string         `field:"event.hostname,handler:ResolveHostname"` // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
+	Os            string         `field:"event.os"`                                          // SECLDoc[event.os] Definition:`Operating system of the event`
+	Origin        string         `field:"event.origin"`                                      // SECLDoc[event.origin] Definition:`Origin of the event`
+	Service       string         `field:"event.service,handler:ResolveService,opts:skip_ad"` // SECLDoc[event.service] Definition:`Service associated with the event`
+	Hostname      string         `field:"event.hostname,handler:ResolveHostname"`            // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process"`
@@ -279,8 +282,8 @@ func (e *Event) Release() {
 }
 
 // ResolveProcessCacheEntry uses the field handler
-func (e *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
-	return e.FieldHandlers.ResolveProcessCacheEntry(e)
+func (e *Event) ResolveProcessCacheEntry(newEntryCb func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool) {
+	return e.FieldHandlers.ResolveProcessCacheEntry(e, newEntryCb)
 }
 
 // ResolveEventTime uses the field handler
@@ -427,8 +430,9 @@ var zeroProcessContext ProcessContext
 type ProcessCacheEntry struct {
 	ProcessContext
 
-	refCount  uint64                       `field:"-"`
-	onRelease []func(_ *ProcessCacheEntry) `field:"-"`
+	refCount    uint64                     `field:"-"`
+	coreRelease func(_ *ProcessCacheEntry) `field:"-"`
+	onRelease   []func()                   `field:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
@@ -440,6 +444,9 @@ func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 func (pc *ProcessCacheEntry) Reset() {
 	pc.ProcessContext = zeroProcessContext
 	pc.refCount = 0
+	// `coreRelease` function should not be cleared on reset
+	// it's used for pool and cache size management
+	pc.onRelease = nil
 }
 
 // Retain increment ref counter
@@ -450,15 +457,16 @@ func (pc *ProcessCacheEntry) Retain() {
 // AppendReleaseCallback set the callback called when the entry is released
 func (pc *ProcessCacheEntry) AppendReleaseCallback(callback func()) {
 	if callback != nil {
-		pc.onRelease = append(pc.onRelease, func(_ *ProcessCacheEntry) {
-			callback()
-		})
+		pc.onRelease = append(pc.onRelease, callback)
 	}
 }
 
 func (pc *ProcessCacheEntry) callReleaseCallbacks() {
 	for _, cb := range pc.onRelease {
-		cb(pc)
+		cb()
+	}
+	if pc.coreRelease != nil {
+		pc.coreRelease(pc)
 	}
 }
 
@@ -473,12 +481,8 @@ func (pc *ProcessCacheEntry) Release() {
 }
 
 // NewProcessCacheEntry returns a new process cache entry
-func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
-	var cbs []func(_ *ProcessCacheEntry)
-	if onRelease != nil {
-		cbs = append(cbs, onRelease)
-	}
-	return &ProcessCacheEntry{onRelease: cbs}
+func NewProcessCacheEntry(coreRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
+	return &ProcessCacheEntry{coreRelease: coreRelease}
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors
@@ -610,12 +614,12 @@ type AWSSecurityCredentials struct {
 
 // BaseExtraFieldHandlers handlers not hold by any field
 type BaseExtraFieldHandlers interface {
-	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
+	ResolveProcessCacheEntry(ev *Event, newEntryCb func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool)
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
 }
 
 // ResolveProcessCacheEntry stub implementation
-func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(_ *Event) (*ProcessCacheEntry, bool) {
+func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(_ *Event, _ func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool) {
 	return nil, false
 }
 
@@ -627,11 +631,4 @@ func (dfh *FakeFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerConte
 // TLSContext represents a tls context
 type TLSContext struct {
 	Version uint16 `field:"version"` // SECLDoc[version] Definition:`TLS version`
-}
-
-// RawPacketEvent represents a packet event
-type RawPacketEvent struct {
-	NetworkContext
-
-	TLSContext TLSContext `field:"tls"` // SECLDoc[tls] Definition:`TLS context`
 }

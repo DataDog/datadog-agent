@@ -11,6 +11,3 @@ test/new-e2e/tests/containers:
   - TestECSSuite/TestCPU/metric___container.cpu.usage{^ecs_container_name:stress-ng$}
   - TestEKSSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
   - TestKindSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
-
-test/new-e2e/tests/installer:
-  - TestPackages/upgrade_scenario_ubuntu_22_04_x86_64/TestUpgradeSuccessful

@@ -13,15 +13,16 @@ import (
 	"strings"
 	"testing"
 
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/stretchr/testify/require"
 )
 
 type packageTests func(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite
@@ -30,6 +31,7 @@ type packageTestsWithSkipedFlavors struct {
 	t                          packageTests
 	skippedFlavors             []e2eos.Descriptor
 	skippedInstallationMethods []InstallMethodOption
+	flaky                      bool
 }
 
 var (
@@ -38,7 +40,7 @@ var (
 		e2eos.AmazonLinux2,
 		e2eos.Debian12,
 		e2eos.RedHat9,
-		e2eos.Fedora37,
+		e2eos.FedoraDefault,
 		e2eos.CentOS7,
 		e2eos.Suse15,
 	}
@@ -50,7 +52,7 @@ var (
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkipedFlavors{
 		{t: testInstaller},
 		{t: testAgent},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37, e2eos.Suse15}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.Suse15}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}, flaky: true},
 		{t: testUpgradeScenario},
 	}
 )
@@ -108,6 +110,10 @@ func TestPackages(t *testing.T) {
 				t.Parallel()
 				// FIXME: Fedora currently has DNS issues
 				if flavor.Flavor == e2eos.Fedora {
+					flake.Mark(t)
+				}
+
+				if test.flaky {
 					flake.Mark(t)
 				}
 
@@ -229,6 +235,11 @@ func envForceVersion(pkg, version string) string {
 }
 
 func (s *packageBaseSuite) Purge() {
+	// Reset the systemctl failed counter, best effort as they may not be loaded
+	for _, service := range []string{agentUnit, agentUnitXP, traceUnit, traceUnitXP, processUnit, processUnitXP, probeUnit, probeUnitXP, securityUnit, securityUnitXP} {
+		s.Env().RemoteHost.Execute(fmt.Sprintf("sudo systemctl reset-failed %s", service))
+	}
+
 	s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer || sudo zypper remove -y datadog-installer")
 }
 

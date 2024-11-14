@@ -11,15 +11,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 )
 
 func TestProcessorRunFullStatsLinux(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
+	fakeTagger := taggerMock.SetupFakeTagger(t)
 
 	containersMeta := []*workloadmeta.Container{
 		// Container with full stats
@@ -35,7 +34,7 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 		},
 	}
 
-	mockSender, processor, _ := CreateTestProcessor(containersMeta, containersStats, GenericMetricsAdapter{}, nil)
+	mockSender, processor, _ := CreateTestProcessor(containersMeta, containersStats, GenericMetricsAdapter{}, nil, fakeTagger)
 	err := processor.Run(mockSender, 0)
 	assert.ErrorIs(t, err, nil)
 
@@ -89,8 +88,7 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 }
 
 func TestProcessorRunPartialStats(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
+	fakeTagger := taggerMock.SetupFakeTagger(t)
 
 	containersMeta := []*workloadmeta.Container{
 		// Container without stats
@@ -105,7 +103,7 @@ func TestProcessorRunPartialStats(t *testing.T) {
 		},
 	}
 
-	mockSender, processor, _ := CreateTestProcessor(containersMeta, containersStats, GenericMetricsAdapter{}, nil)
+	mockSender, processor, _ := CreateTestProcessor(containersMeta, containersStats, GenericMetricsAdapter{}, nil, fakeTagger)
 	err := processor.Run(mockSender, 0)
 	assert.ErrorIs(t, err, nil)
 

@@ -348,6 +348,10 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 		s.host.Run(`sudo systemctl start datadog-agent-exp --no-block`)
 
 		// ensure experiment is running
+		s.host.WaitForUnitActive(
+			"datadog-agent-trace-exp.service",
+			"datadog-agent-process-exp.service",
+		)
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().Started(traceUnitXP))
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().Started(processUnitXP))
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().Skipped(securityUnitXP))
@@ -370,7 +374,7 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 			Unordered(host.SystemdEvents().
 				Started(traceUnit).
 				Started(processUnit).
-				SkippedIf(probeUnitXP, s.installMethod != InstallMethodAnsible).
+				SkippedIf(probeUnit, s.installMethod != InstallMethodAnsible).
 				Skipped(securityUnit),
 			),
 		)

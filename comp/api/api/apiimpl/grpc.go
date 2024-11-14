@@ -21,9 +21,9 @@ import (
 
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerProto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
-	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
+	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
@@ -99,7 +99,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 	// Reset and return if no state pushed
 	if req == nil || req.State == nil {
 		log.Debugf("API: empty request or state")
-		tagger.ResetCaptureTagger()
+		s.taggerComp.ResetCaptureTagger()
 		s.pidMap.SetPidMap(nil)
 		return &pb.TaggerStateResponse{Loaded: false}, nil
 	}
@@ -120,7 +120,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 		}
 
 		state = append(state, taggerTypes.Entity{
-			ID:                          entityID,
+			ID:                          *entityID,
 			HighCardinalityTags:         entity.HighCardinalityTags,
 			OrchestratorCardinalityTags: entity.OrchestratorCardinalityTags,
 			LowCardinalityTags:          entity.LowCardinalityTags,
@@ -131,7 +131,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 	taggerReplay.LoadState(state)
 
 	log.Debugf("API: setting capture state tagger")
-	tagger.SetNewCaptureTagger(taggerReplay)
+	s.taggerComp.SetNewCaptureTagger(taggerReplay)
 	s.pidMap.SetPidMap(req.PidMap)
 
 	log.Debugf("API: loaded state successfully")

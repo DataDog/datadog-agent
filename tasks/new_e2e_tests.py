@@ -22,9 +22,9 @@ from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.go import download_go_dependencies
+from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.utils import REPO_PATH, color_message, running_in_ci
-from tasks.modules import DEFAULT_MODULES
-from tools.e2e_stacks import destroy_remote_stack
+from tasks.tools.e2e_stacks import destroy_remote_stack
 
 
 @task(
@@ -76,10 +76,10 @@ def run(
             1,
         )
 
-    e2e_module = DEFAULT_MODULES["test/new-e2e"]
-    e2e_module.condition = lambda: True
+    e2e_module = get_default_modules()["test/new-e2e"]
+    e2e_module.should_test_condition = 'always'
     if targets:
-        e2e_module.targets = targets
+        e2e_module.test_targets = targets
 
     env_vars = {}
     if profile:

@@ -103,6 +103,9 @@ type ReaderWriter interface {
 type Setup interface {
 	// API implemented by viper.Viper
 
+	// BuildSchema should be called when Setup is done, it builds the schema making the config ready for use
+	BuildSchema()
+
 	SetDefault(key string, value interface{})
 
 	SetEnvPrefix(in string)
@@ -144,7 +147,6 @@ type Compound interface {
 	ReadInConfig() error
 	ReadConfig(in io.Reader) error
 	MergeConfig(in io.Reader) error
-	MergeConfigMap(cfg map[string]any) error
 	MergeFleetPolicy(configPath string) error
 }
 

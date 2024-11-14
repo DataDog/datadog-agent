@@ -44,8 +44,8 @@ var pythonScript []byte
 //go:embed log-config/logger-service.sh
 var randomLogger []byte
 
-// TestE2EVMFakeintakeSuite returns the stack definition required for the log agent test suite.
-func TestE2EVMFakeintakeSuite(t *testing.T) {
+// TestVMJournaldTailingSuite returns the stack definition required for the log agent test suite.
+func TestVMJournaldTailingSuite(t *testing.T) {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(
 			awshost.WithAgentOptions(
@@ -87,7 +87,7 @@ func (s *LinuxJournaldFakeintakeSuite) journaldLogCollection() {
 	// Restart agent and make sure it's ready before adding logs
 	_, err = s.Env().RemoteHost.Execute("sudo systemctl restart datadog-agent")
 	assert.NoErrorf(t, err, "Failed to restart the agent: %s", err)
-	s.EventuallyWithT(func(_ *assert.CollectT) {
+	s.EventuallyWithT(func(t *assert.CollectT) {
 		agentReady := s.Env().Agent.Client.IsReady()
 		assert.True(t, agentReady)
 	}, utils.WaitFor, eventuallyWithTickDuration, "Agent was not ready")

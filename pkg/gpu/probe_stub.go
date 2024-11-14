@@ -13,19 +13,21 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 )
 
 // ProbeDependencies holds the dependencies for the probe
 type ProbeDependencies struct {
-	Telemetry telemetry.Component
-	NvmlLib   nvml.Interface
+	Telemetry      telemetry.Component
+	NvmlLib        nvml.Interface
+	ProcessMonitor any // uprobes.ProcessMonitor is only compiled with the linux_bpf build tag, so we need to use type any here
 }
 
 // Probe is not implemented on non-linux systems
 type Probe struct{}
 
 // NewProbe is not implemented on non-linux systems
-func NewProbe(_ *Config, _ ProbeDependencies) (*Probe, error) {
+func NewProbe(_ *config.Config, _ ProbeDependencies) (*Probe, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
