@@ -377,16 +377,10 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 
 func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() *http.Client {
 	return func() *http.Client {
-		// remy: limit to one connection per host, the concurrency will
-		// happen at the senders level, but we don't want to open more
-		// connections to the intake.
-		transport := httputils.CreateHTTPTransport(cfg)
-		transport.MaxConnsPerHost = 2
-
 		return &http.Client{
 			Timeout: timeout,
 			// reusing core agent HTTP transport to benefit from proxy settings.
-			Transport: transport,
+			Transport: httputils.CreateHTTPTransport(cfg),
 		}
 	}
 }
