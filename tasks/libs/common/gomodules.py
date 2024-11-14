@@ -327,7 +327,7 @@ class GoModule:
 AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
 
 
-@lru_cache
+@lru_cache(maxsize=16)
 def get_default_modules(base_dir: Path | None = None) -> dict[str, GoModule]:
     """Load the default modules from the modules.yml file.
 
