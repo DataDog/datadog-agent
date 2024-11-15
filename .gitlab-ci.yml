@@ -746,6 +746,7 @@ workflow:
   - .gitlab/kernel_matrix_testing/security_agent.yml
   - .gitlab/kernel_matrix_testing/common.yml
   - .gitlab/source_test/ebpf.yml
+  - test/new-e2e/tests/cws/**/*
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
   - test/new-e2e/pkg/runner/**/*
@@ -965,9 +966,7 @@ workflow:
 .on_cws_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
-      paths:
-        # TODO: Add paths that should trigger tests for CWS
-        - test/new-e2e/tests/cws/**/*
+      paths: *security_agent_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_process_or_e2e_changes:

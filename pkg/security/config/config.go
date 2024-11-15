@@ -329,7 +329,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		WindowsFilenameCacheSize:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_filename_cache_max"),
 		WindowsRegistryCacheSize:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_registry_cache_max"),
 		ETWEventsChannelSize:           pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.etw_events_channel_size"),
-		ETWEventsMaxBuffers:            pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.etw_events_max_buffers"),
 		WindowsProbeBlockOnChannelSend: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.windows_probe_block_on_channel_send"),
 
 		SocketPath:           pkgconfigsetup.SystemProbe().GetString("runtime_security_config.socket"),
