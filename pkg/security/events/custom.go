@@ -63,6 +63,7 @@ const (
 	EBPFLessHelloMessageRuleID = "ebpfless_hello_msg"
 	// EBPFLessHelloMessageRuleDesc is the rule description for the hello msg event
 	EBPFLessHelloMessageRuleDesc = "Hello message received"
+
 	// InternalCoreDumpRuleID internal core dump
 	InternalCoreDumpRuleID = "internal_core_dump"
 	// InternalCoreDumpRuleDesc internal core dump

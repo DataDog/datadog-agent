@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
@@ -42,7 +41,7 @@ func NewEventLostReadEvent(acc *events.AgentContainerContext, mapName string, lo
 	}
 	evt.FillCustomEventCommonFields(acc)
 
-	return events.NewCustomRule(events.LostEventsRuleID, events.LostEventsRuleDesc), events.NewCustomEvent(model.CustomLostReadEventType, evt)
+	return events.NewCustomRule(events.LostEventsRuleID, events.LostEventsRuleDesc), events.NewCustomEvent(model.CustomEventType, evt)
 }
 
 // EventLostWrite is the event used to report lost events detected from kernel space
@@ -66,17 +65,9 @@ func NewEventLostWriteEvent(acc *events.AgentContainerContext, mapName string, p
 	}
 	evt.FillCustomEventCommonFields(acc)
 
-	return events.NewCustomRule(events.LostEventsRuleID, events.LostEventsRuleDesc), events.NewCustomEvent(model.CustomLostWriteEventType, evt)
+	return events.NewCustomRule(events.LostEventsRuleID, events.LostEventsRuleDesc), events.NewCustomEvent(model.CustomEventType, evt)
 }
 
-func errorToEventType(err error) model.EventType {
-	switch err.(type) {
-	case dentry.ErrTruncatedParents, dentry.ErrTruncatedParentsERPC:
-		return model.CustomTruncatedParentsEventType
-	default:
-		return model.UnknownEventType
-	}
-}
 
 // AbnormalEvent is used to report that a path resolution failed for a suspicious reason
 // easyjson:json
@@ -105,7 +96,7 @@ func NewAbnormalEvent(acc *events.AgentContainerContext, id string, description 
 		return evt
 	}
 
-	return events.NewCustomRule(id, description), events.NewCustomEventLazy(errorToEventType(err), marshalerCtor)
+	return events.NewCustomRule(id, description), events.NewCustomEventLazy(model.CustomEventType, marshalerCtor)
 }
 
 // EBPFLessHelloMsgEvent defines a hello message
@@ -146,5 +137,5 @@ func NewEBPFLessHelloMsgEvent(acc *events.AgentContainerContext, msg *ebpfless.H
 
 	evt.FillCustomEventCommonFields(acc)
 
-	return events.NewCustomRule(events.EBPFLessHelloMessageRuleID, events.EBPFLessHelloMessageRuleDesc), events.NewCustomEvent(model.UnknownEventType, evt)
+	return events.NewCustomRule(events.EBPFLessHelloMessageRuleID, events.EBPFLessHelloMessageRuleDesc), events.NewCustomEvent(model.CustomEventType, evt)
 }

@@ -61,7 +61,7 @@ func NewSelfTestEvent(acc *events.AgentContainerContext, success []eval.RuleID, 
 	evt.FillCustomEventCommonFields(acc)
 
 	return events.NewCustomRule(events.SelfTestRuleID, events.SelfTestRuleDesc),
-		events.NewCustomEvent(model.CustomSelfTestEventType, evt)
+		events.NewCustomEvent(model.CustomEventType, evt)
 }
 
 // SetOnNewPoliciesReadyCb implements the PolicyProvider interface

@@ -363,7 +363,7 @@ func newRuleSetLoadedEvent(acc *events.AgentContainerContext, policies []*Policy
 	evt.FillCustomEventCommonFields(acc)
 
 	return events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc),
-		events.NewCustomEvent(model.CustomRulesetLoadedEventType, evt)
+		events.NewCustomEvent(model.CustomEventType, evt)
 }
 
 // newHeartbeatEvents returns the rule (e.g. heartbeat) and a populated custom event for a heartbeat event
@@ -382,7 +382,7 @@ func newHeartbeatEvents(acc *events.AgentContainerContext, policies []*policy) (
 			Policy: &policyState,
 		}
 		evt.FillCustomEventCommonFields(acc)
-		evts = append(evts, events.NewCustomEvent(model.CustomHeartbeatEventType, evt))
+		evts = append(evts, events.NewCustomEvent(model.CustomEventType, evt))
 	}
 
 	return events.NewCustomRule(events.HeartbeatRuleID, events.HeartbeatRuleDesc),
