@@ -12,6 +12,7 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.go import tidy
+from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import Color, color_message
 
 LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repository are licensed
@@ -260,18 +261,9 @@ def generate(ctx):
                 print(f"Updated package name and ensured license header in: {file_path}")
 
 
-GITHUB_API_URL = "https://api.github.com/repos"
-
-
 def fetch_latest_release(repo):
-    url = f"{GITHUB_API_URL}/{repo}/releases/latest"
-    print(f"Fetching latest release from {url} for {repo}")
-    response = requests.get(url)
-    if response.status_code == 200:
-        data = response.json()
-        return data["tag_name"]
-    else:
-        return None
+    gh = GithubAPI(repo)
+    return gh.latest_release()
 
 
 def fetch_core_module_versions(version):
