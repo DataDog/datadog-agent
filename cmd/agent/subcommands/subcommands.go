@@ -8,6 +8,7 @@ package subcommands
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	cmdanalyzelogs "github.com/DataDog/datadog-agent/cmd/agent/subcommands/analyzelogs"
 	cmdcheck "github.com/DataDog/datadog-agent/cmd/agent/subcommands/check"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/subcommands/config"
 	cmdconfigcheck "github.com/DataDog/datadog-agent/cmd/agent/subcommands/configcheck"
@@ -24,7 +25,6 @@ import (
 	cmdintegrations "github.com/DataDog/datadog-agent/cmd/agent/subcommands/integrations"
 	cmdjmx "github.com/DataDog/datadog-agent/cmd/agent/subcommands/jmx"
 	cmdlaunchgui "github.com/DataDog/datadog-agent/cmd/agent/subcommands/launchgui"
-	cmdlogsanalyze "github.com/DataDog/datadog-agent/cmd/agent/subcommands/logsanalyze"
 	cmdprocesschecks "github.com/DataDog/datadog-agent/cmd/agent/subcommands/processchecks"
 	cmdremoteconfig "github.com/DataDog/datadog-agent/cmd/agent/subcommands/remoteconfig"
 	cmdrun "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run"
@@ -57,7 +57,7 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdhostname.Commands,
 		cmdimport.Commands,
 		cmdlaunchgui.Commands,
-		cmdlogsanalyze.Commands,
+		cmdanalyzelogs.Commands,
 		cmdremoteconfig.Commands,
 		cmdrun.Commands,
 		cmdsecret.Commands,

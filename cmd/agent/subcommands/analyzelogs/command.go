@@ -54,7 +54,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return fmt.Errorf("log config file path is required")
 			}
 			cliParams.LogConfigPath = args[0]
-			return fxutil.OneShot(runLogsAnalyze,
+			return fxutil.OneShot(runAnalyzeLogs,
 				core.Bundle(),
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -68,8 +68,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
-// runLogsAnalyze initializes the launcher and sends the log config file path to the source provider.
-func runLogsAnalyze(config config.Component, cliParams *CliParams) error {
+// runAnalyzeLogs initializes the launcher and sends the log config file path to the source provider.
+func runAnalyzeLogs(config config.Component, cliParams *CliParams) error {
 	agentimpl.SetUpLaunchers(config)
 
 	//send paths to source provider
