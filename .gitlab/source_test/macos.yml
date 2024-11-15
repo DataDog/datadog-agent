@@ -69,6 +69,7 @@ tests_macos_gitlab_amd64:
   tags: ["macos:monterey-amd64", "specific:true"]
   after_script:
     - !reference [.vault_login]
+    - !reference [.select_python_env_commands]
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
 
@@ -79,5 +80,6 @@ tests_macos_gitlab_arm64:
   tags: ["macos:monterey-arm64", "specific:true"]
   after_script:
     - !reference [.vault_login]
+    - !reference [.select_python_env_commands]
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
