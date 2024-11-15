@@ -150,7 +150,7 @@ build do
       if windows_target?
         command "invoke -e system-probe.build", env: env
       elsif linux_target?
-        command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir} --no-bundle", env: env
+        command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir}", env: env
       end
     end
 
