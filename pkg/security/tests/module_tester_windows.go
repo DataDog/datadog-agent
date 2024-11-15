@@ -225,24 +225,5 @@ func (tm *testModule) Close() {
 	tm.eventMonitor.Close()
 }
 
-// NewTimeoutError returns a new timeout error with the metrics collected during the test
-func (tm *testModule) NewTimeoutError() ErrTimeout {
-	var msg strings.Builder
-
-	msg.WriteString("timeout, details: ")
-
-	events := tm.ruleEngine.StopEventCollector()
-	if len(events) != 0 {
-		msg.WriteString("\nevents evaluated:\n")
-
-		for _, event := range events {
-			msg.WriteString(fmt.Sprintf("%s (eval=%v) {\n", event.Type, event.EvalResult))
-			for field, value := range event.Fields {
-				msg.WriteString(fmt.Sprintf("\t%s=%v,\n", field, value))
-			}
-			msg.WriteString("}\n")
-		}
-	}
-
-	return ErrTimeout{msg.String()}
+func (tm *testModule) writePlatformSpecificTimeoutError(b *strings.Builder) {
 }

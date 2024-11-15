@@ -1604,28 +1604,9 @@ func (tm *testModule) GetADSelector(dumpID *activityDumpIdentifier) (*cgroupMode
 	return &selector, err
 }
 
-// NewTimeoutError returns a new timeout error with the metrics collected during the test
-func (tm *testModule) NewTimeoutError() ErrTimeout {
-	var msg strings.Builder
-
-	msg.WriteString("timeout, details: ")
-	msg.WriteString(GetEBPFStatusMetrics(tm.probe))
-	msg.WriteString(spew.Sdump(ebpftelemetry.GetProbeStats()))
-
-	events := tm.ruleEngine.StopEventCollector()
-	if len(events) != 0 {
-		msg.WriteString("\nevents evaluated:\n")
-
-		for _, event := range events {
-			msg.WriteString(fmt.Sprintf("%s (eval=%v) {\n", event.Type, event.EvalResult))
-			for field, value := range event.Fields {
-				msg.WriteString(fmt.Sprintf("\t%s=%v,\n", field, value))
-			}
-			msg.WriteString("}\n")
-		}
-	}
-
-	return ErrTimeout{msg.String()}
+func (tm *testModule) writePlatformSpecificTimeoutError(b *strings.Builder) {
+	b.WriteString(GetEBPFStatusMetrics(tm.probe))
+	b.WriteString(spew.Sdump(ebpftelemetry.GetProbeStats()))
 }
 
 func (tm *testModule) WaitSignals(tb testing.TB, action func() error, cbs ...func(event *model.Event, rule *rules.Rule) error) {
