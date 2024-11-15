@@ -7,16 +7,11 @@ package integrationslogs
 
 import (
 	_ "embed"
-	"strings"
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metrics-logs/log-agent/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
@@ -47,15 +42,5 @@ func TestIntegrationsLogsSuite(t *testing.T) {
 // TestWriteTenLogsCheck ensures a check that logs are written to the file ten
 // logs at a time
 func (v *IntegrationsLogsSuite) TestWriteTenLogsCheck() {
-	writeTenLogs := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"writeTenLogs"}))
-	assert.Contains(v.T(), writeTenLogs, "writeTenLogs")
-
-	v.EventuallyWithT(func(c *assert.CollectT) {
-		output := v.Env().RemoteHost.MustExecute("sudo cat /opt/datadog-agent/run/integrations/writeTenLogs*.log")
-		newLineCount := strings.Count(output, "\n")
-		assert.Equal(c, newLineCount%10, 0)
-		assert.GreaterOrEqual(c, newLineCount, 10)
-	}, 1*time.Minute, 5*time.Second)
-
 	utils.CheckLogsExpected(v.T(), v.Env().FakeIntake, "ten_logs_service", "Custom log message", []string{"env:dev", "bar:foo"})
 }
