@@ -28,7 +28,7 @@ type orderConfig struct {
 }
 type scopeExpression struct {
 	Expression string `json:"expression"`
-	PolicyID   string `json:"policy_id"`
+	PolicyID   string `json:"config_id"`
 }
 
 // Match returns true if the given policy ID matches its scope expression
@@ -105,14 +105,13 @@ func getOrderedScopedLayers(files map[string][]byte, env map[string]interface{})
 			return nil, fmt.Errorf("error matching scope expressions: %w", err)
 		}
 		if scopeMatch {
-			scopedLayers[path] = content
+			scopedLayers[configID] = content
 		}
 	}
 
 	// Order layers
 	layers := make([][]byte, 0)
 	for i := len(configOrder.Order) - 1; i >= 0; i-- {
-		fmt.Println(configOrder.Order[i])
 		content, matched := scopedLayers[configOrder.Order[i]]
 		if matched {
 			layers = append(layers, content)

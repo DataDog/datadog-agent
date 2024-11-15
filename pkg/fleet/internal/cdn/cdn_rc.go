@@ -135,7 +135,7 @@ func (c *cdnRC) get(ctx context.Context) ([][]byte, error) {
 		// we'll get the same director version (== timestamp) with different contents,
 		// which will cause the response to be rejected silently and we won't get
 		// the configurations
-		time.Sleep(1 * time.Second)
+		time.Sleep(1500 * time.Millisecond)
 		c.firstRequest = false
 	}
 
