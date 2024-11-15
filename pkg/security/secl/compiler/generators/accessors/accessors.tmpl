@@ -131,6 +131,37 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return results
 					}
 
+					{{if and $Field.Iterator.IsOrigTypePtr (not $Field.GetArrayPrefix) $Field.Handler }}
+					results = newAncestorsIterator(iterator, ctx, ev, func(ev *Event, pce *ProcessCacheEntry) {{$Field.ReturnType}} {
+						{{range $Check := $Checks}}
+							{{if $Field.Iterator.Name | HasPrefix $Check}}
+								{{$SubName := $Field.Iterator.Name | TrimPrefix $Check}}
+								{{$Check = $SubName | printf "pce%s"}}
+								if !{{$Check}}() {
+									return {{$Field.GetDefaultScalarReturnValue}}
+								}
+							{{end}}
+						{{end}}
+
+						{{$SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}
+
+						{{$Return := $SubName | printf "pce%s"}}
+						{{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
+						{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
+						{{$Return = print "ev.FieldHandlers." $Handler "(ev, &pce" $SubName ")"}}
+
+						{{if eq $Field.ReturnType "int"}}
+							{{if $Field.IsLength}}
+								return len({{".length" | TrimSuffix $Return}})
+							{{else}}
+								return int({{$Return}})
+							{{end}}
+						{{else}}
+							return {{$Return}}
+						{{end}}
+					})
+
+					{{else}}
 					value := iterator.Front(ctx)
 					for value != nil {
 						{{if $Field.Iterator.IsOrigTypePtr}}
@@ -178,6 +209,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 						value = iterator.Next()
 					}
+					{{end}}
 
 					ctx.{{$Field.GetCacheName}}[field] = results
 

@@ -195,20 +195,23 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader, owners *testowners) (*review
 			}
 
 			// check if a subtest also failed and is marked as flaky
-			hasFlakyChild := false
+			hasFlakyChild, hasFailedChild := false, false
 			for _, failedTest := range tests {
-				if kf.IsFlaky(pkg, failedTest) && strings.HasPrefix(failedTest, test+"/") {
-					hasFlakyChild = true
-					break
+				if strings.HasPrefix(failedTest, test+"/") {
+					if kf.IsFlaky(pkg, failedTest) {
+						hasFlakyChild = true
+					} else {
+						hasFailedChild = true
+					}
 				}
 			}
 
-			if hasFlakyChild {
+			// Only mark parent as flaky if all children are flaky/passing, if we have failed childs it's a real failure
+			if hasFlakyChild && !hasFailedChild {
 				flakyTestsOut.WriteString(addOwnerInformation(fmt.Sprintf(flakyFormat, pkg, test), owner))
-				continue
+			} else {
+				failedTestsOut.WriteString(addOwnerInformation(fmt.Sprintf(failFormat, pkg, test), owner))
 			}
-
-			failedTestsOut.WriteString(addOwnerInformation(fmt.Sprintf(failFormat, pkg, test), owner))
 		}
 	}
 

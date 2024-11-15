@@ -17,7 +17,7 @@ import (
 	"go.uber.org/fx"
 
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -127,7 +127,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 				runnerimpl.Module(),
 				hostinfoimpl.MockModule(),
 				submitterimpl.MockModule(),
-				taggerimpl.MockModule(),
+				taggerMock.Module(),
 				statsd.MockModule(),
 				Module(),
 
@@ -190,7 +190,7 @@ func TestStatusProvider(t *testing.T) {
 				runnerimpl.Module(),
 				hostinfoimpl.MockModule(),
 				submitterimpl.MockModule(),
-				taggerimpl.MockModule(),
+				taggerMock.Module(),
 				statsd.MockModule(),
 				Module(),
 				fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
@@ -234,7 +234,7 @@ func TestTelemetryCoreAgent(t *testing.T) {
 		runnerimpl.Module(),
 		hostinfoimpl.MockModule(),
 		submitterimpl.MockModule(),
-		taggerimpl.MockModule(),
+		taggerMock.Module(),
 		statsd.MockModule(),
 		Module(),
 		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
