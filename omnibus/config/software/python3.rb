@@ -56,6 +56,8 @@ if ohai["platform"] != "windows"
     # compiler we use would end up being available in the system/docker image used by customers
     command "sed -i \"s/^CC=[[:space:]]*${CC}/CC=gcc/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-3.12-x86_64-linux-gnu/Makefile"
     command "sed -i \"s/^CXX=[[:space:]]*${CXX}/CC=g++/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-3.12-x86_64-linux-gnu/Makefile"
+    command "sed -i \"s/${CC}/gcc/g\" #{install_dir}/embedded/lib/python#{major}.#{minor}/_sysconfigdata__linux_x86_64-linux-gnu.py"
+    command "sed -i \"s/${CXX}/g++/g\" #{install_dir}/embedded/lib/python#{major}.#{minor}/_sysconfigdata__linux_x86_64-linux-gnu.py"
     delete "#{install_dir}/embedded/lib/python#{major}.#{minor}/test"
     block do
       FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/distutils/command/wininst-*.exe"))
