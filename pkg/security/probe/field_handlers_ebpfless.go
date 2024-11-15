@@ -41,7 +41,7 @@ func NewEBPFLessFieldHandlers(config *config.Config, resolvers *resolvers.EBPFLe
 }
 
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
+func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, _ func(*model.ProcessCacheEntry, error)) (*model.ProcessCacheEntry, bool) {
 	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
 		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(sprocess.CacheResolverKey{
 			Pid:  ev.PIDContext.Pid,
@@ -178,7 +178,7 @@ func (fh *EBPFLessFieldHandlers) ResolveContainerRuntime(_ *model.Event, _ *mode
 // ResolveContainerID resolves the container ID of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
 	if len(e.ContainerID) == 0 {
-		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
+		if entry, _ := fh.ResolveProcessCacheEntry(ev, nil); entry != nil {
 			e.ContainerID = containerutils.ContainerID(entry.ContainerID)
 		}
 	}
