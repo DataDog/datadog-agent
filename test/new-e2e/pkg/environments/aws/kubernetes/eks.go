@@ -147,7 +147,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		}
 
 		// dogstatsd clients that report to the Agent
-		if _, err := dogstatsd.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", utils.PulumiDependsOn(cluster)); err != nil {
+		if _, err := dogstatsd.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", utils.PulumiDependsOn(workloadWithCRDDeps...)); err != nil {
 			return err
 		}
 
@@ -164,7 +164,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			return err
 		}
 
-		if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-mutated", "workload-mutated-lib-injection", utils.PulumiDependsOn(cluster)); err != nil {
+		if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-mutated", "workload-mutated-lib-injection", utils.PulumiDependsOn(workloadWithCRDDeps...)); err != nil {
 			return err
 		}
 

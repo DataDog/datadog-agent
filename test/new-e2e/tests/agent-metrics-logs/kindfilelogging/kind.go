@@ -186,17 +186,18 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 
 	if params.agentOptions != nil {
 		kindClusterName := ctx.Stack()
-		helmValues := `
+		helmValues := fmt.Sprintf(`
 datadog:
   kubelet:
     tlsVerify: false
+  clusterName: "%s"
   envDict:
     DD_CONTAINER_EXCLUDE: "kube_namespace:^exclude-namespace$"
 agents:
   useHostNetwork: true
-`
+`, kindClusterName)
 
-		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues), kubernetesagentparams.WithClusterName(kindCluster.ClusterName)}
+		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
 		params.agentOptions = append(newOpts, params.agentOptions...)
 		agent, err := helm.NewKubernetesAgent(&awsEnv, kindClusterName, kubeProvider, params.agentOptions...)
 		if err != nil {

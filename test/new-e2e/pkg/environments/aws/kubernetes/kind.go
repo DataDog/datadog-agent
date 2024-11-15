@@ -73,7 +73,6 @@ func KindProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environment
 
 // KindRunFunc is the Pulumi run function that runs the provisioner
 func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *ProvisionerParams) error {
-	kindClusterName := ctx.Stack()
 	awsEnv, err := aws.NewEnvironment(ctx)
 	if err != nil {
 		return err
@@ -140,7 +139,7 @@ agents:
 
 		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues), kubernetesagentparams.WithClusterName(kindCluster.ClusterName)}
 		params.agentOptions = append(newOpts, params.agentOptions...)
-		agent, err := helm.NewKubernetesAgent(&awsEnv, kindClusterName, kubeProvider, params.agentOptions...)
+		agent, err := helm.NewKubernetesAgent(&awsEnv, "kind", kubeProvider, params.agentOptions...)
 		if err != nil {
 			return err
 		}
@@ -167,7 +166,7 @@ agents:
 		}
 
 		// dogstatsd clients that report to the dogstatsd standalone deployment
-		if _, err := dogstatsd.K8sAppDefinition(&awsEnv, kubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, dogstatsdstandalone.Socket); err != nil {
+		if _, err := dogstatsd.K8sAppDefinition(&awsEnv, kubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, dogstatsdstandalone.Socket, utils.PulumiDependsOn(dependsOnCrd...)); err != nil {
 			return err
 		}
 
@@ -179,7 +178,7 @@ agents:
 			return err
 		}
 
-		if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(&awsEnv, kubeProvider, "workload-mutated", "workload-mutated-lib-injection"); err != nil {
+		if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(&awsEnv, kubeProvider, "workload-mutated", "workload-mutated-lib-injection", utils.PulumiDependsOn(dependsOnCrd...)); err != nil {
 			return err
 		}
 
