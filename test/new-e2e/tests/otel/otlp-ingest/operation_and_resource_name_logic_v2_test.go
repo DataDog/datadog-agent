@@ -45,7 +45,6 @@ agents:
           value: 'enable_operation_and_resource_name_logic_v2'
 `
 	t.Parallel()
-	//e2e.Run(t, &otlpIngestOpAndResNameV2TestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
 	ts := &otlpIngestOpAndResNameV2TestSuite{}
 	ts.clientOperationName = "client.request"
 	ts.clientResourceName = "lets-go"
