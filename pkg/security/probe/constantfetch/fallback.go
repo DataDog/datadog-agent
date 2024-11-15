@@ -793,28 +793,36 @@ func getSocketSockOffset(kv *kernel.Version) uint64 {
 
 func getSocketProtocolOffset(kv *kernel.Version) uint64 {
 	switch {
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_10, kernel.Kernel4_11):
-		return 521
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_18):
-		return 497
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
-		return 513
+	case kv.Code.Major() == 4 && kv.Code.Minor() < 9:
+		return 329
+	case kv.Code.Major() == 4 && kv.Code.Minor() >= 9 && kv.Code.Minor() < 10:
+		return 321
+	case kv.Code.Major() == 4 && kv.Code.Minor() >= 14 && kv.Code.Minor() < 18:
+		return 505
+	case kv.IsRH7Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel4_19):
+		return 537
 	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_9):
 		return 532
 	case kv.IsRH7Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
 		return 529
-	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_9, kernel.Kernel4_10):
-		return 329
 	case kv.IsDebianKernel() && kv.Code.Major() == 4 && kv.Code.Minor() == 19:
 		return 753
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
+		return 513
 	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20) && strings.Contains(kv.UnameRelease, "-rt-"):
 		return 761
 	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) && strings.Contains(kv.UnameRelease, "-rt-"):
 		return 788
 	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		return 540
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_18):
+		return 497
+	case kv.IsOracleUEKKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		return 561
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_10, kernel.Kernel4_11):
+		return 521
 	default:
-		return 548 // Default offset for newer or unknown kernels
+		return 548 // Default for unknown or newer kernels
 	}
 }
 
