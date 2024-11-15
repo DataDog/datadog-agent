@@ -157,7 +157,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.58.1
 	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.58.1
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0
 	github.com/DataDog/datadog-go/v5 v5.5.0
 	github.com/DataDog/datadog-operator v0.7.1-0.20241024104907-734366f3c0d1
@@ -643,7 +643,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.59.0
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace v0.59.0
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.58.0-devel
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0-rc.6
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0
 	github.com/DataDog/datadog-agent/comp/core/status v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.0.0-00010101000000-000000000000
@@ -673,12 +673,12 @@ require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/api v0.57.1
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.1
-	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.59.0
+	github.com/DataDog/datadog-agent/pkg/config/env v0.59.0
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.59.0
+	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/remote v0.59.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.59.0
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.58.1
 	github.com/DataDog/datadog-agent/pkg/errors v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.58.1
@@ -708,8 +708,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.59.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/common v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/containers/image v0.56.2
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.59.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.59.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.59.0
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.59.0
@@ -793,7 +793,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.58.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.58.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.58.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.59.0 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.31.0 // indirect
 	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.21.0 // indirect
