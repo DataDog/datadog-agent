@@ -63,6 +63,8 @@ var (
 	errSkipEvent = errors.New("skip event")
 )
 
+var testMod *testModule
+
 func (s *stringSlice) String() string {
 	return strings.Join(*s, " ")
 }

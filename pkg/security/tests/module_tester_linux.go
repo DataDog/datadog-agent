@@ -231,9 +231,6 @@ type testModule struct {
 	msgSender     *fakeMsgSender
 }
 
-var testMod *testModule
-var commonCfgDir string
-
 //nolint:deadcode,unused
 func getInode(tb testing.TB, path string) uint64 {
 	fileInfo, err := os.Lstat(path)

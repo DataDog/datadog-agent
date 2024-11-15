@@ -107,9 +107,6 @@ type testModule struct {
 	ruleEngine    *rulesmodule.RuleEngine
 }
 
-var testMod *testModule
-var commonCfgDir string
-
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
 
 	var opts tmOpts
