@@ -170,6 +170,9 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 		return
 	}
 
+	// convert the key to lower case for the logs line and the notification
+	key = strings.ToLower(key)
+
 	c.Lock()
 	previousValue := c.leafAtPath(key).Get()
 
@@ -255,6 +258,7 @@ func (c *ntmConfig) checkKnownKey(key string) {
 		return
 	}
 
+	key = strings.ToLower(key)
 	if _, ok := c.unknownKeys[key]; ok {
 		return
 	}
