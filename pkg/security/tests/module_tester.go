@@ -63,6 +63,10 @@ var (
 	errSkipEvent = errors.New("skip event")
 )
 
+const (
+	testActivityDumpDuration = time.Second * 30
+)
+
 var testMod *testModule
 
 func (s *stringSlice) String() string {
