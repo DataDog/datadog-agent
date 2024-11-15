@@ -19,6 +19,7 @@ import (
 	ebpfcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 	oomkill "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill/model"
 	tcpqueuelength "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model"
+	gpu "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 )
 
 const (
@@ -62,6 +63,13 @@ func (r *RemoteSysProbeUtil) GetCheck(module sysconfigtypes.ModuleName) (interfa
 		return stats, nil
 	} else if module == sysconfig.EBPFModule {
 		var stats ebpfcheck.EBPFStats
+		err = json.Unmarshal(body, &stats)
+		if err != nil {
+			return nil, err
+		}
+		return stats, nil
+	} else if module == sysconfig.GPUMonitoringModule {
+		var stats gpu.GPUStats
 		err = json.Unmarshal(body, &stats)
 		if err != nil {
 			return nil, err

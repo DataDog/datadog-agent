@@ -45,6 +45,7 @@ func (suite *TailerTestSuite) SetupTest() {
 
 	suite.testPath = filepath.Join(suite.testDir, "tailer.log")
 	f, err := os.Create(suite.testPath)
+	suite.NotNil(f)
 	suite.Nil(err)
 	suite.testFile = f
 	suite.outputChan = make(chan *message.Message, chanSize)
@@ -101,7 +102,7 @@ func (suite *TailerTestSuite) TestStopAfterFileRotationWhenStuck() {
 	}
 }
 
-func (suite *TailerTestSuite) TestTialerTimeDurationConfig() {
+func (suite *TailerTestSuite) TestTailerTimeDurationConfig() {
 	// To satisfy the suite level tailer
 	suite.tailer.StartFromBeginning()
 
@@ -380,7 +381,7 @@ func (suite *TailerTestSuite) TestTruncatedTag() {
 
 	msg := <-suite.outputChan
 	tags := msg.Tags()
-	suite.Contains(tags, message.TruncatedTag)
+	suite.Contains(tags, message.TruncatedReasonTag("single_line"))
 }
 
 func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
@@ -422,6 +423,31 @@ func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
 
 	expectedRegex := regexp.MustCompile(`^[A-Za-z_]+ \d+, \d+ \d+:\d+:\d+ (AM|PM)`)
 	suite.Equal(suite.tailer.GetDetectedPattern(), expectedRegex)
+}
+
+// Unit test to see if agent would panic when tailer's file path is empty.
+func (suite *TailerTestSuite) TestDidRotateNilFullpath() {
+	suite.tailer.StartFromBeginning()
+
+	sleepDuration := 10 * time.Millisecond
+	info := status.NewInfoRegistry()
+
+	tailerOptions := &TailerOptions{
+		OutputChan:    suite.outputChan,
+		File:          NewFile(suite.testPath, suite.source.UnderlyingSource(), false),
+		SleepDuration: sleepDuration,
+		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
+		Info:          info,
+	}
+
+	tailer := NewTailer(tailerOptions)
+	tailer.fullpath = ""
+	tailer.StartFromBeginning()
+
+	suite.NotPanics(func() {
+		_, err := suite.tailer.DidRotate()
+		suite.Nil(err)
+	}, "Agent should not have panicked due to empty file path")
 }
 
 func toInt(str string) int {

@@ -7,8 +7,7 @@
 package config
 
 import (
-	"strings"
-
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,27 +27,28 @@ type Config struct {
 
 	// ProcessConsumerEnabled defines if the process-agent wants to receive kernel events
 	ProcessConsumerEnabled bool
+
+	EnvVarsResolutionEnabled bool
 }
 
 // NewConfig creates a config for the event monitoring module
 func NewConfig() *Config {
 	return &Config{
 		// event server
-		SocketPath:       pkgconfigsetup.SystemProbe().GetString(join(evNS, "socket")),
-		EventServerBurst: pkgconfigsetup.SystemProbe().GetInt(join(evNS, "event_server.burst")),
+		SocketPath:       pkgconfigsetup.SystemProbe().GetString(sysconfig.FullKeyPath(evNS, "socket")),
+		EventServerBurst: pkgconfigsetup.SystemProbe().GetInt(sysconfig.FullKeyPath(evNS, "event_server.burst")),
 
 		// consumers
 		ProcessConsumerEnabled: getBool("process.enabled"),
+
+		// options
+		EnvVarsResolutionEnabled: pkgconfigsetup.SystemProbe().GetBool(sysconfig.FullKeyPath(evNS, "env_vars_resolution.enabled")),
 	}
 }
 
-func join(pieces ...string) string {
-	return strings.Join(pieces, ".")
-}
-
 func getAllKeys(key string) (string, string) {
-	deprecatedKey := strings.Join([]string{rsNS, key}, ".")
-	newKey := strings.Join([]string{evNS, key}, ".")
+	deprecatedKey := sysconfig.FullKeyPath(rsNS, key)
+	newKey := sysconfig.FullKeyPath(evNS, key)
 	return deprecatedKey, newKey
 }
 

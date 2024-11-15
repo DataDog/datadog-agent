@@ -210,6 +210,48 @@ class TestNextVersion(unittest.TestCase):
         self.assertEqual(new_version, expected_version)
 
 
+class TestPreviousRCVersion(unittest.TestCase):
+    def test_non_rc(self):
+        version = Version(major=1, minor=1)
+        with self.assertRaises(RuntimeError):
+            version.previous_rc_version()
+
+    def test_rc_1_no_patch(self):
+        version = Version(major=1, minor=1, rc=1)
+        with self.assertRaises(RuntimeError):
+            version.previous_rc_version()
+
+    def test_rc_1(self):
+        version = Version(major=1, minor=1, patch=1, rc=1)
+        previous = str(version.previous_rc_version())
+        self.assertEqual(previous, "1.1.1-devel")
+
+    def test_rc_42(self):
+        version = Version(major=1, minor=1, patch=1, rc=42)
+        previous = str(version.previous_rc_version())
+        self.assertEqual(previous, "1.1.1-rc.41")
+
+
+class TestQALabel(unittest.TestCase):
+    expected = "1.2.0-qa"
+
+    def test_minor_major(self):
+        v = Version(1, 2)
+        self.assertEqual(v.qa_label(), self.expected)
+
+    def test_minor_major_patch(self):
+        v = Version(1, 2, patch=0)
+        self.assertEqual(v.qa_label(), self.expected)
+
+    def test_minor_major_patch_devel(self):
+        v = Version(1, 2, devel=True)
+        self.assertEqual(v.qa_label(), self.expected)
+
+    def test_minor_major_patch_rc(self):
+        v = Version(1, 2, rc=1)
+        self.assertEqual(v.qa_label(), self.expected)
+
+
 class TestQueryVersion(unittest.TestCase):
     @patch.dict(os.environ, {"BUCKET_BRANCH": "dev"}, clear=True)
     def test_on_dev_bucket(self):

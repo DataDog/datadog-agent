@@ -16,7 +16,7 @@ typedef __int64 LONG64;
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_PROCMONDRIVER_VERSION       0x04
+#define DD_PROCMONDRIVER_VERSION       0x05
 #define DD_PROCMONDRIVER_SIGNATURE     ((uint64_t)0xDD01 << 32 | DD_PROCMONDRIVER_VERSION)
 #define DD_PROCMONDRIVER_DEVICE_TYPE   FILE_DEVICE_UNKNOWN
 // for more information on defining control codes, see
@@ -73,4 +73,7 @@ typedef struct _dd_process_notification {
     // unfortunately, SIDS are variable length as well
     uint64_t            SidLen;
     uint64_t            SidOffset;
+    
+    uint64_t            EnvBlockLen;
+    uint64_t            EnvOffset;
 } DD_PROCESS_NOTIFICATION;

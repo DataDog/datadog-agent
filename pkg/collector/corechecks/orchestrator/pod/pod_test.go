@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
-//go:build kubelet && orchestrator
+//go:build kubelet && orchestrator && test
 
 package pod
 
@@ -20,10 +20,15 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -32,6 +37,7 @@ import (
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -107,6 +113,7 @@ type PodTestSuite struct {
 	testServer   *httptest.Server
 	sender       *fakeSender
 	kubeUtil     kubelet.KubeUtilInterface
+	tagger       mock.Mock
 }
 
 func (suite *PodTestSuite) SetupSuite() {
@@ -134,11 +141,20 @@ func (suite *PodTestSuite) SetupSuite() {
 	sender := &fakeSender{}
 	suite.sender = sender
 
+	mockStore := fxutil.Test[workloadmetamock.Mock](suite.T(), fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	fakeTagger := mock.SetupFakeTagger(suite.T())
+	suite.tagger = fakeTagger
+
 	suite.check = &Check{
 		sender:    sender,
-		processor: processors.NewProcessor(new(k8sProcessors.PodHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewPodHandlers(mockConfig, mockStore, fakeTagger)),
 		hostName:  testHostName,
 		config:    oconfig.NewDefaultOrchestratorConfig(),
+		tagger:    fakeTagger,
 	}
 }
 
@@ -157,11 +173,8 @@ func (suite *PodTestSuite) TestPodCheck() {
 		cache.Cache.Set(cacheKey, strings.Repeat("1", 36), cache.NoExpiration)
 	}
 
-	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
-
 	defer func() {
 		cache.Cache.Set(cacheKey, cachedClusterID, cache.NoExpiration)
-		fakeTagger.ResetTagger()
 	}()
 
 	err := suite.check.Run()

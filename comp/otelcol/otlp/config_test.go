@@ -30,7 +30,7 @@ func TestIsEnabled(t *testing.T) {
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.path, func(t *testing.T) {
-			cfg, err := testutil.LoadConfig("./testdata/" + testInstance.path)
+			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
 			assert.Equal(t, testInstance.enabled, IsEnabled(cfg))
 		})
@@ -39,7 +39,7 @@ func TestIsEnabled(t *testing.T) {
 
 func TestIsEnabledEnv(t *testing.T) {
 	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", "0.0.0.0:9993")
-	cfg, err := testutil.LoadConfig("./testdata/empty.yaml")
+	cfg, err := testutil.LoadConfig(t, "./testdata/empty.yaml")
 	require.NoError(t, err)
 	assert.True(t, IsEnabled(cfg))
 }
@@ -186,14 +186,16 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.path, func(t *testing.T) {
-			cfg, err := testutil.LoadConfig("./testdata/" + testInstance.path)
+			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
 			pcfg, err := FromAgentConfig(cfg)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
-			} else {
-				assert.Equal(t, testInstance.cfg, pcfg)
+				return
 			}
+			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true)
+			require.NoError(t, err)
+			assert.Equal(t, testInstance.cfg, pcfg)
 		})
 	}
 }
@@ -288,11 +290,11 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
-					"instrumentation_scope_metadata_as_tags": "true",
+					"instrumentation_scope_metadata_as_tags": true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 
-					"delta_ttl": "2400",
+					"delta_ttl": 2400,
 					"histograms": map[string]interface{}{
 						"mode": "counters",
 					},
@@ -426,20 +428,43 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				Debug: map[string]interface{}{},
 			},
 		},
+		{
+			name: "metrics resource_attributes_as_tags",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS": "true",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{},
+
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				LogsEnabled:    false,
+				TracePort:      5003,
+				Metrics: map[string]interface{}{
+					"enabled":                     true,
+					"tag_cardinality":             "low",
+					"apm_stats_receiver_addr":     "http://localhost:8126/v0.6/stats",
+					"resource_attributes_as_tags": true,
+				},
+				Debug: map[string]interface{}{},
+			},
+		},
 	}
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
 			for env, val := range testInstance.env {
 				t.Setenv(env, val)
 			}
-			cfg, err := testutil.LoadConfig("./testdata/empty.yaml")
+			cfg, err := testutil.LoadConfig(t, "./testdata/empty.yaml")
 			require.NoError(t, err)
 			pcfg, err := FromAgentConfig(cfg)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
-			} else {
-				assert.Equal(t, testInstance.cfg, pcfg)
+				return
 			}
+			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true)
+			require.NoError(t, err)
+			assert.Equal(t, testInstance.cfg, pcfg)
 		})
 	}
 }
@@ -460,13 +485,12 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 				TracesEnabled:  true,
 				LogsEnabled:    false,
 				Metrics: map[string]interface{}{
-					"enabled":                     true,
-					"delta_ttl":                   2400,
-					"resource_attributes_as_tags": true,
-					"instrumentation_library_metadata_as_tags": true,
-					"instrumentation_scope_metadata_as_tags":   true,
-					"tag_cardinality":                          "orchestrator",
-					"apm_stats_receiver_addr":                  "http://localhost:8126/v0.6/stats",
+					"enabled":                                true,
+					"delta_ttl":                              2400,
+					"resource_attributes_as_tags":            true,
+					"instrumentation_scope_metadata_as_tags": true,
+					"tag_cardinality":                        "orchestrator",
+					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"histograms": map[string]interface{}{
 						"mode":                     "counters",
 						"send_count_sum_metrics":   true,
@@ -483,14 +507,16 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.path, func(t *testing.T) {
-			cfg, err := testutil.LoadConfig("./testdata/" + testInstance.path)
+			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
 			pcfg, err := FromAgentConfig(cfg)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
-			} else {
-				assert.Equal(t, testInstance.cfg, pcfg)
+				return
 			}
+			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true)
+			require.NoError(t, err)
+			assert.Equal(t, testInstance.cfg, pcfg)
 		})
 	}
 }
@@ -577,15 +603,17 @@ func TestFromAgentConfigDebug(t *testing.T) {
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.path, func(t *testing.T) {
-			cfg, err := testutil.LoadConfig("./testdata/" + testInstance.path)
+			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
 			pcfg, err := FromAgentConfig(cfg)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
-			} else {
-				assert.Equal(t, testInstance.cfg, pcfg)
-				assert.Equal(t, testInstance.shouldSet, pcfg.shouldSetLoggingSection())
+				return
 			}
+			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true)
+			require.NoError(t, err)
+			assert.Equal(t, testInstance.cfg, pcfg)
+			assert.Equal(t, testInstance.shouldSet, pcfg.shouldSetLoggingSection())
 		})
 	}
 }

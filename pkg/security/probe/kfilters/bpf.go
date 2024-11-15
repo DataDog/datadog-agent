@@ -9,8 +9,6 @@
 package kfilters
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -22,20 +20,22 @@ var bpfCapabilities = rules.FieldCapabilities{
 	},
 }
 
-func bpfKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, error) {
-	var kfilters []activeKFilter
+func bpfKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Field, error) {
+	var (
+		kfilters     []activeKFilter
+		fieldHandled []eval.Field
+	)
 
 	for field, values := range approvers {
 		switch field {
 		case "bpf.cmd":
 			kfilter, err := getEnumsKFilters("bpf_cmd_approvers", uintValues[uint64](values)...)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			kfilters = append(kfilters, kfilter)
-		default:
-			return nil, fmt.Errorf("unknown field '%s'", field)
+			fieldHandled = append(fieldHandled, field)
 		}
 	}
-	return newActiveKFilters(kfilters...), nil
+	return newActiveKFilters(kfilters...), fieldHandled, nil
 }

@@ -43,6 +43,9 @@ type Component interface {
 
 	// Object returns wrapped config
 	Object() *traceconfig.AgentConfig
+
+	// OnUpdateAPIKey registers a callback for API Key changes
+	OnUpdateAPIKey(func(oldKey, newKey string))
 }
 
 // Module defines the fx options for this component.

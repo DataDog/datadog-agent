@@ -49,7 +49,7 @@ var headerFields = map[string]string{
 
 type noopStatsProcessor struct{}
 
-func (noopStatsProcessor) ProcessStats(_ *pb.ClientStatsPayload, _, _ string) {}
+func (noopStatsProcessor) ProcessStats(_ *pb.ClientStatsPayload, _, _, _ string) {}
 
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig()
@@ -641,20 +641,22 @@ type mockStatsProcessor struct {
 	lastP             *pb.ClientStatsPayload
 	lastLang          string
 	lastTracerVersion string
+	containerID       string
 }
 
-func (m *mockStatsProcessor) ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion string) {
+func (m *mockStatsProcessor) ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion, containerID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.lastP = p
 	m.lastLang = lang
 	m.lastTracerVersion = tracerVersion
+	m.containerID = containerID
 }
 
-func (m *mockStatsProcessor) Got() (p *pb.ClientStatsPayload, lang, tracerVersion string) {
+func (m *mockStatsProcessor) Got() (p *pb.ClientStatsPayload, lang, tracerVersion, containerID string) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.lastP, m.lastLang, m.lastTracerVersion
+	return m.lastP, m.lastLang, m.lastTracerVersion, m.containerID
 }
 
 func TestHandleStats(t *testing.T) {
@@ -675,6 +677,7 @@ func TestHandleStats(t *testing.T) {
 		req.Header.Set("Content-Type", "application/msgpack")
 		req.Header.Set(header.Lang, "lang1")
 		req.Header.Set(header.TracerVersion, "0.1.0")
+		req.Header.Set(header.ContainerID, "abcdef123789456")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -685,10 +688,12 @@ func TestHandleStats(t *testing.T) {
 		}
 
 		resp.Body.Close()
-		gotp, gotlang, gotTracerVersion := mockProcessor.Got()
-		if !reflect.DeepEqual(gotp, p) || gotlang != "lang1" || gotTracerVersion != "0.1.0" {
-			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
-		}
+		gotp, gotlang, gotTracerVersion, containerID := mockProcessor.Got()
+		assert.True(t, reflect.DeepEqual(gotp, p), "payload did not match")
+		assert.Equal(t, "lang1", gotlang, "lang did not match")
+		assert.Equal(t, "0.1.0", gotTracerVersion, "tracerVersion did not match")
+		assert.Equal(t, "abcdef123789456", containerID, "containerID did not match")
+
 		_, ok := rcv.Stats.Stats[info.Tags{Lang: "lang1", EndpointVersion: "v0.6", Service: "service", TracerVersion: "0.1.0"}]
 		assert.True(t, ok)
 	})
@@ -1109,6 +1114,55 @@ func TestNormalizeHTTPHeader(t *testing.T) {
 		if result != test.expected {
 			t.Errorf("normalizeHTTPHeader(%q) = %q; expected %q", test.input, result, test.expected)
 		}
+	}
+}
+
+func TestUpdateAPIKey(t *testing.T) {
+	assert := assert.New(t)
+
+	var counter int // keeps track of every time the buildHandler function has been called
+	buildHandler := func(*HTTPReceiver) http.Handler {
+		counter++
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			fmt.Fprintf(w, "%d", counter)
+		})
+	}
+
+	testEndpoint := Endpoint{
+		Pattern: "/test",
+		Handler: buildHandler,
+	}
+	AttachEndpoint(testEndpoint)
+
+	conf := newTestReceiverConfig()
+	receiver := newTestReceiverFromConfig(conf)
+	receiver.Start()
+	defer receiver.Stop()
+
+	assert.Equal(1, counter)
+
+	url := fmt.Sprintf("http://%s:%d/test",
+		conf.ReceiverHost, conf.ReceiverPort)
+
+	for i := 1; i <= 10; i++ {
+		receiver.UpdateAPIKey() // force handler rebuild
+
+		req, err := http.NewRequest("GET", url, nil)
+		assert.NoError(err)
+
+		resp, err := http.DefaultClient.Do(req)
+		assert.NoError(err)
+		defer resp.Body.Close()
+
+		assert.Equal(200, resp.StatusCode)
+
+		body, err := io.ReadAll(resp.Body)
+		assert.NoError(err)
+
+		number, err := strconv.Atoi(string(body))
+		assert.NoError(err)
+
+		assert.Equal(counter, number)
 	}
 }
 

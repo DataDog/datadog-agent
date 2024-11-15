@@ -25,14 +25,19 @@ func TestFromEnv(t *testing.T) {
 				Site:                           "datadoghq.com",
 				RegistryOverride:               "",
 				RegistryAuthOverride:           "",
+				RegistryUsername:               "",
+				RegistryPassword:               "",
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
 				DefaultPackagesInstallOverride: map[string]bool{},
 				DefaultPackagesVersionOverride: map[string]string{},
 				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
+				Tags: []string{},
 			},
 		},
 		{
@@ -44,16 +49,25 @@ func TestFromEnv(t *testing.T) {
 				envRemotePolicies:                             "true",
 				envRegistryURL:                                "registry.example.com",
 				envRegistryAuth:                               "auth",
+				envRegistryUsername:                           "username",
+				envRegistryPassword:                           "password",
 				envRegistryURL + "_IMAGE":                     "another.registry.example.com",
 				envRegistryURL + "_ANOTHER_IMAGE":             "yet.another.registry.example.com",
 				envRegistryAuth + "_IMAGE":                    "another.auth",
 				envRegistryAuth + "_ANOTHER_IMAGE":            "yet.another.auth",
+				envRegistryUsername + "_IMAGE":                "another.username",
+				envRegistryUsername + "_ANOTHER_IMAGE":        "yet.another.username",
+				envRegistryPassword + "_IMAGE":                "another.password",
+				envRegistryPassword + "_ANOTHER_IMAGE":        "yet.another.password",
 				envDefaultPackageInstall + "_PACKAGE":         "true",
 				envDefaultPackageInstall + "_ANOTHER_PACKAGE": "false",
 				envDefaultPackageVersion + "_PACKAGE":         "1.2.3",
 				envDefaultPackageVersion + "_ANOTHER_PACKAGE": "4.5.6",
 				envApmLibraries:                               "java,dotnet:latest,ruby:1.2",
 				envApmInstrumentationEnabled:                  "all",
+				envAgentUserName:                              "customuser",
+				envTags:                                       "k1:v1,k2:v2",
+				envExtraTags:                                  "k3:v3,k4:v4",
 			},
 			expected: &Env{
 				APIKey:               "123456",
@@ -62,6 +76,8 @@ func TestFromEnv(t *testing.T) {
 				RemotePolicies:       true,
 				RegistryOverride:     "registry.example.com",
 				RegistryAuthOverride: "auth",
+				RegistryUsername:     "username",
+				RegistryPassword:     "password",
 				RegistryOverrideByImage: map[string]string{
 					"image":         "another.registry.example.com",
 					"another-image": "yet.another.registry.example.com",
@@ -69,6 +85,14 @@ func TestFromEnv(t *testing.T) {
 				RegistryAuthOverrideByImage: map[string]string{
 					"image":         "another.auth",
 					"another-image": "yet.another.auth",
+				},
+				RegistryUsernameByImage: map[string]string{
+					"image":         "another.username",
+					"another-image": "yet.another.username",
+				},
+				RegistryPasswordByImage: map[string]string{
+					"image":         "another.password",
+					"another-image": "yet.another.password",
 				},
 				DefaultPackagesInstallOverride: map[string]bool{
 					"package":         true,
@@ -83,9 +107,11 @@ func TestFromEnv(t *testing.T) {
 					"dotnet": "latest",
 					"ruby":   "1.2",
 				},
+				AgentUserName: "customuser",
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
 				},
+				Tags: []string{"k1:v1", "k2:v2", "k3:v3", "k4:v4"},
 			},
 		},
 		{
@@ -100,6 +126,8 @@ func TestFromEnv(t *testing.T) {
 				RegistryAuthOverride:           "",
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
 				DefaultPackagesInstallOverride: map[string]bool{},
 				DefaultPackagesVersionOverride: map[string]string{},
 				ApmLibraries: map[ApmLibLanguage]ApmLibVersion{
@@ -111,6 +139,7 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
+				Tags: []string{},
 			},
 		},
 		{
@@ -133,8 +162,11 @@ func TestFromEnv(t *testing.T) {
 				},
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
 				DefaultPackagesInstallOverride: map[string]bool{},
 				DefaultPackagesVersionOverride: map[string]string{},
+				Tags:                           []string{},
 			},
 		},
 	}
@@ -171,6 +203,8 @@ func TestToEnv(t *testing.T) {
 				RemotePolicies:       true,
 				RegistryOverride:     "registry.example.com",
 				RegistryAuthOverride: "auth",
+				RegistryUsername:     "username",
+				RegistryPassword:     "password",
 				RegistryOverrideByImage: map[string]string{
 					"image":         "another.registry.example.com",
 					"another-image": "yet.another.registry.example.com",
@@ -178,6 +212,14 @@ func TestToEnv(t *testing.T) {
 				RegistryAuthOverrideByImage: map[string]string{
 					"image":         "another.auth",
 					"another-image": "yet.another.auth",
+				},
+				RegistryUsernameByImage: map[string]string{
+					"image":         "another.username",
+					"another-image": "yet.another.username",
+				},
+				RegistryPasswordByImage: map[string]string{
+					"image":         "another.password",
+					"another-image": "yet.another.password",
 				},
 				DefaultPackagesInstallOverride: map[string]bool{
 					"package":         true,
@@ -192,6 +234,7 @@ func TestToEnv(t *testing.T) {
 					"dotnet": "latest",
 					"ruby":   "1.2",
 				},
+				Tags: []string{"k1:v1", "k2:v2"},
 			},
 			expected: []string{
 				"DD_API_KEY=123456",
@@ -200,15 +243,22 @@ func TestToEnv(t *testing.T) {
 				"DD_REMOTE_POLICIES=true",
 				"DD_INSTALLER_REGISTRY_URL=registry.example.com",
 				"DD_INSTALLER_REGISTRY_AUTH=auth",
+				"DD_INSTALLER_REGISTRY_USERNAME=username",
+				"DD_INSTALLER_REGISTRY_PASSWORD=password",
 				"DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:latest,java,ruby:1.2",
 				"DD_INSTALLER_REGISTRY_URL_IMAGE=another.registry.example.com",
 				"DD_INSTALLER_REGISTRY_URL_ANOTHER_IMAGE=yet.another.registry.example.com",
 				"DD_INSTALLER_REGISTRY_AUTH_IMAGE=another.auth",
 				"DD_INSTALLER_REGISTRY_AUTH_ANOTHER_IMAGE=yet.another.auth",
+				"DD_INSTALLER_REGISTRY_USERNAME_IMAGE=another.username",
+				"DD_INSTALLER_REGISTRY_USERNAME_ANOTHER_IMAGE=yet.another.username",
+				"DD_INSTALLER_REGISTRY_PASSWORD_IMAGE=another.password",
+				"DD_INSTALLER_REGISTRY_PASSWORD_ANOTHER_IMAGE=yet.another.password",
 				"DD_INSTALLER_DEFAULT_PKG_INSTALL_PACKAGE=true",
 				"DD_INSTALLER_DEFAULT_PKG_INSTALL_ANOTHER_PACKAGE=false",
 				"DD_INSTALLER_DEFAULT_PKG_VERSION_PACKAGE=1.2.3",
 				"DD_INSTALLER_DEFAULT_PKG_VERSION_ANOTHER_PACKAGE=4.5.6",
+				"DD_TAGS=k1:v1,k2:v2",
 			},
 		},
 	}
@@ -217,6 +267,61 @@ func TestToEnv(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.env.ToEnv()
 			assert.ElementsMatch(t, tt.expected, result)
+		})
+	}
+}
+
+func TestAgentUserVars(t *testing.T) {
+	tests := []struct {
+		name     string
+		envVars  map[string]string
+		expected *Env
+	}{
+		{
+			name:    "not set",
+			envVars: map[string]string{},
+			expected: &Env{
+				AgentUserName: "",
+			},
+		},
+		{
+			name: "primary set",
+			envVars: map[string]string{
+				envAgentUserName: "customuser",
+			},
+			expected: &Env{
+				AgentUserName: "customuser",
+			},
+		},
+		{
+			name: "compat set",
+			envVars: map[string]string{
+				envAgentUserNameCompat: "customuser",
+			},
+			expected: &Env{
+				AgentUserName: "customuser",
+			},
+		},
+		{
+			name: "primary precedence",
+			envVars: map[string]string{
+				envAgentUserName:       "customuser",
+				envAgentUserNameCompat: "otheruser",
+			},
+			expected: &Env{
+				AgentUserName: "customuser",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for key, value := range tt.envVars {
+				os.Setenv(key, value)
+				defer os.Unsetenv(key)
+			}
+			result := FromEnv()
+			assert.Equal(t, tt.expected.AgentUserName, result.AgentUserName)
 		})
 	}
 }

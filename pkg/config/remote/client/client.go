@@ -80,14 +80,13 @@ type Client struct {
 	// Elements that can be changed during the execution of listeners
 	// They are atomics so that they don't have to share the top-level mutex
 	// when in use
-	installerState *atomic.Value // []*pbgo.PackageState
+	installerState *atomic.Value // *pbgo.ClientUpdater
 	cwsWorkloads   *atomic.Value // []string
 }
 
 // Options describes the client options
 type Options struct {
 	isUpdater            bool
-	updaterTags          []string
 	agentVersion         string
 	agentName            string
 	products             []string
@@ -239,10 +238,9 @@ func WithAgent(name, version string) func(opts *Options) {
 }
 
 // WithUpdater specifies that this client is an updater
-func WithUpdater(tags ...string) func(opts *Options) {
+func WithUpdater() func(opts *Options) {
 	return func(opts *Options) {
 		opts.isUpdater = true
-		opts.updaterTags = tags
 	}
 }
 
@@ -280,7 +278,7 @@ func newClient(cf ConfigFetcher, opts ...func(opts *Options)) (*Client, error) {
 	cwsWorkloads.Store([]string{})
 
 	installerState := &atomic.Value{}
-	installerState.Store([]*pbgo.PackageState{})
+	installerState.Store(&pbgo.ClientUpdater{})
 
 	return &Client{
 		Options:        options,
@@ -365,13 +363,13 @@ func (c *Client) SetCWSWorkloads(workloads []string) {
 }
 
 // GetInstallerState gets the installer state
-func (c *Client) GetInstallerState() []*pbgo.PackageState {
-	return c.installerState.Load().([]*pbgo.PackageState)
+func (c *Client) GetInstallerState() *pbgo.ClientUpdater {
+	return c.installerState.Load().(*pbgo.ClientUpdater)
 }
 
 // SetInstallerState sets the installer state
-func (c *Client) SetInstallerState(packages []*pbgo.PackageState) {
-	c.installerState.Store(packages)
+func (c *Client) SetInstallerState(state *pbgo.ClientUpdater) {
+	c.installerState.Store(state)
 }
 
 func (c *Client) startFn() {
@@ -591,16 +589,13 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 
 	switch c.Options.isUpdater {
 	case true:
-		installerState, ok := c.installerState.Load().([]*pbgo.PackageState)
+		installerState, ok := c.installerState.Load().(*pbgo.ClientUpdater)
 		if !ok {
 			return nil, errors.New("could not load installerState")
 		}
 
 		req.Client.IsUpdater = true
-		req.Client.ClientUpdater = &pbgo.ClientUpdater{
-			Tags:     c.Options.updaterTags,
-			Packages: installerState,
-		}
+		req.Client.ClientUpdater = installerState
 	case false:
 		cwsWorkloads, ok := c.cwsWorkloads.Load().([]string)
 		if !ok {

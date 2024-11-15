@@ -1,23 +1,25 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 from datetime import timedelta
 
+import yaml
 from invoke import Context, task
 from invoke.exceptions import Exit
 
 import tasks.libs.notify.unit_tests as unit_tests_utils
 from tasks.github_tasks import pr_commenter
+from tasks.gitlab_helpers import compute_gitlab_ci_config_diff
 from tasks.libs.ciproviders.gitlab_api import (
     MultiGitlabCIDiff,
-    get_all_gitlab_ci_configurations,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import DEFAULT_BRANCH
 from tasks.libs.common.datadog_api import send_metrics
 from tasks.libs.common.utils import gitlab_section
 from tasks.libs.notify import alerts, failure_summary, pipeline_status
+from tasks.libs.notify.jira_failing_tests import close_issue, get_failing_tests_names, get_jira
 from tasks.libs.notify.utils import PROJECT_NAME
 from tasks.libs.pipeline.notifications import (
     check_for_missing_owners_slack_and_jira,
@@ -136,7 +138,9 @@ def unit_tests(ctx, pipeline_id, pipeline_url, branch_name, dry_run=False):
 
 
 @task
-def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_comment: bool = False):
+def gitlab_ci_diff(
+    ctx, before: str | None = None, after: str | None = None, pr_comment: bool = False, from_diff: str | None = None
+):
     """
     Creates a diff from two gitlab-ci configurations.
 
@@ -166,20 +170,12 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
         job_url = os.environ['CI_JOB_URL']
 
     try:
-        before_name = before or "merge base"
-        after_name = after or "local files"
-
-        # The before commit is the LCA commit between before and after
-        before = before or DEFAULT_BRANCH
-        before = ctx.run(f'git merge-base {before} {after or "HEAD"}', hide=True).stdout.strip()
-
-        print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
-        after_config = get_all_gitlab_ci_configurations(ctx, git_ref=after, clean_configs=True)
-
-        print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
-        before_config = get_all_gitlab_ci_configurations(ctx, git_ref=before, clean_configs=True)
-
-        diff = MultiGitlabCIDiff(before_config, after_config)
+        if from_diff:
+            with open(from_diff) as f:
+                diff_data = yaml.safe_load(f)
+            diff = MultiGitlabCIDiff.from_dict(diff_data)
+        else:
+            _, _, diff = compute_gitlab_ci_config_diff(ctx, before, after)
 
         if not diff:
             print(color_message("No changes in the gitlab-ci configuration", Color.GREEN))
@@ -227,3 +223,51 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
             )
 
         raise
+
+
+@task
+def close_failing_tests_stale_issues(_, dry_run=False):
+    """
+    Will mark as done all issues created by the [failed parent tests workflow](https://app.datadoghq.com/workflow/62670e82-8416-459b-bf74-9367b8a69277) that are stale.
+    Stale is an issue:
+    - In the "To Do" section of a project
+    - Where the test has not failed since 28 days
+    - That has no comment other than the bot's comments
+
+    This task is executed periodically.
+    """
+
+    re_test_name = re.compile('Test name: (.*)\n')
+
+    still_failing = get_failing_tests_names()
+    jira = get_jira()
+
+    print('Getting potential issues to close')
+    issues = jira.jql('status = "To Do" AND summary ~ "Failed agent CI test"')['issues']
+
+    print(f'{len(issues)} failing test cards found')
+
+    n_closed = 0
+    for issue in issues:
+        # No comment other than the bot's comments
+        comments = issue['fields']['comment']['comments']
+        has_no_comments = True
+        test_name = None
+        for comment in comments:
+            # This is not a bot message
+            if 'robot' not in comment['author']['displayName'].casefold():
+                has_no_comments = False
+                break
+
+            test_name_match = re_test_name.findall(comment['body'])
+            if test_name_match:
+                test_name = test_name_match[0]
+
+        if has_no_comments and test_name and test_name not in still_failing:
+            try:
+                close_issue(jira, issue['key'], test_name, dry_run)
+                n_closed += 1
+            except Exception as e:
+                print(f'Error closing issue {issue["key"]}: {e}', file=sys.stderr)
+
+    print(f'Closed {n_closed} issues without failing tests')

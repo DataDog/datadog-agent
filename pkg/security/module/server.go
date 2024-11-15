@@ -21,6 +21,7 @@ import (
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -124,6 +125,7 @@ type APIServer struct {
 	policiesStatusLock sync.RWMutex
 	policiesStatus     []*api.PolicyStatus
 	msgSender          MsgSender
+	ecsTags            map[string]string
 
 	stopChan chan struct{}
 	stopper  startstop.Stopper
@@ -216,6 +218,29 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 	})
 }
 
+func (a *APIServer) updateMsgTags(msg *api.SecurityEventMessage) {
+	// apply ecs tag if possible
+	if a.ecsTags != nil {
+		for key, value := range a.ecsTags {
+			if !slices.ContainsFunc(msg.Tags, func(tag string) bool {
+				return strings.HasPrefix(tag, key+":")
+			}) {
+				msg.Tags = append(msg.Tags, key+":"+value)
+			}
+		}
+	}
+
+	// look for the service tag if we don't have one yet
+	if len(msg.Service) == 0 {
+		for _, tag := range msg.Tags {
+			if strings.HasPrefix(tag, "service:") {
+				msg.Service = strings.TrimPrefix(tag, "service:")
+				break
+			}
+		}
+	}
+}
+
 func (a *APIServer) start(ctx context.Context) {
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
@@ -229,18 +254,6 @@ func (a *APIServer) start(ctx context.Context) {
 					for _, tag := range msg.extTagsCb() {
 						if !slices.Contains(msg.tags, tag) {
 							msg.tags = append(msg.tags, tag)
-						}
-					}
-				}
-
-				// recopy tags
-				hasService := len(msg.service) != 0
-				for _, tag := range msg.tags {
-					// look for the service tag if we don't have one yet
-					if !hasService {
-						if strings.HasPrefix(tag, "service:") {
-							msg.service = strings.TrimPrefix(tag, "service:")
-							hasService = true
 						}
 					}
 				}
@@ -264,6 +277,7 @@ func (a *APIServer) start(ctx context.Context) {
 					Service: msg.service,
 					Tags:    msg.tags,
 				}
+				a.updateMsgTags(m)
 
 				a.msgSender.Send(m, a.expireEvent)
 
@@ -389,6 +403,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			Service: service,
 			Tags:    tags,
 		}
+		a.updateMsgTags(m)
 
 		a.msgSender.Send(m, a.expireEvent)
 	}
@@ -526,7 +541,7 @@ func (a *APIServer) SetCWSConsumer(consumer *CWSConsumer) {
 }
 
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester) *APIServer {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
 
 	as := &APIServer{
@@ -559,5 +574,13 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		}
 	}
 
-	return as
+	if env.IsECS() || env.IsECSFargate() {
+		tags, err := getCurrentECSTaskTags()
+		if err != nil {
+			return nil, err
+		}
+		as.ecsTags = tags
+	}
+
+	return as, nil
 }

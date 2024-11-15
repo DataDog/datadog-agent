@@ -155,6 +155,7 @@ func CompileBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) erro
 		return err
 	}
 	probe.InstrumentationInfo.BPFObjectFileReader = compiledOutput
+
 	return nil
 }
 

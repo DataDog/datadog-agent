@@ -34,7 +34,7 @@ const (
 )
 
 const (
-	expectedSessionsDefault           = 2
+	expectedSessionsDefault           = 3
 	expectedSessionsWithCustomQueries = 3
 )
 
@@ -151,6 +151,11 @@ func newTestCheck(t *testing.T, connectConfig config.ConnectionConfig, instanceC
 		assert.Equal(t, c.config.InstanceConfig.Password, connectConfig.Password)
 		assert.Equal(t, c.config.InstanceConfig.ServiceName, connectConfig.ServiceName)
 		assert.Contains(t, c.configTags, dbmsTag, "c.configTags doesn't contain static tags")
+	}
+
+	if oracleLibDir := os.Getenv("ORACLE_TEST_ORACLE_CLIENT_LIB_DIR"); oracleLibDir != "" {
+		c.config.InstanceConfig.OracleClientLibDir = oracleLibDir
+		c.config.InstanceConfig.OracleClient = true
 	}
 
 	return c, sender

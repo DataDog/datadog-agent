@@ -235,7 +235,7 @@ func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHo
 			NetworkID: r.networkID,
 		},
 		Destination: payload.NetworkPathDestination{
-			Hostname:  getDestinationHostname(destinationHost),
+			Hostname:  destinationHost,
 			Port:      destinationPort,
 			IPAddress: destinationIP.String(),
 		},
@@ -266,7 +266,7 @@ func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHo
 		if !hop.IP.Equal(net.IP{}) {
 			isReachable = true
 			hopname = hop.IP.String()
-			hostname = getHostname(hop.IP.String())
+			hostname = hopname // setting to ip address for now, reverse DNS lookup will override hostname field later
 		}
 
 		npHop := payload.NetworkPathHop{
@@ -298,7 +298,7 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 			NetworkID: r.networkID,
 		},
 		Destination: payload.NetworkPathDestination{
-			Hostname:  getDestinationHostname(destinationHost),
+			Hostname:  destinationHost,
 			Port:      destinationPort,
 			IPAddress: destinationIP.String(),
 		},
@@ -379,7 +379,6 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 			hop := payload.NetworkPathHop{
 				TTL:       idx,
 				IPAddress: ip,
-				Hostname:  getHostname(cur.node),
 				RTT:       durationMs,
 				Reachable: isReachable,
 			}

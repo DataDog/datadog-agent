@@ -27,7 +27,7 @@ type windowsService struct {
 func getFxOptions(global *command.GlobalParams) []fx.Option {
 	return []fx.Option{
 		getCommonFxOption(global),
-		fxutil.FxAgentBase(true),
+		fxutil.FxAgentBase(),
 		// Force the instantiation of some components
 		fx.Invoke(func(_ pid.Component) {}),
 		fx.Invoke(func(_ localapi.Component) {}),

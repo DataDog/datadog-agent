@@ -59,7 +59,7 @@ func TestSBOM(t *testing.T) {
 		t.Skip("not supported")
 	}
 
-	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu")
+	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
 		t.Skip("Skipping sbom tests: Docker not available")
 		return

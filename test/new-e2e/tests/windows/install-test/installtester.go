@@ -164,17 +164,11 @@ func (t *Tester) runTestsForKitchenCompat(tt *testing.T) {
 		common.CheckIntegrationInstall(tt, t.InstallTestClient)
 
 		tt.Run("default python version", func(tt *testing.T) {
-			pythonVersion, err := t.InstallTestClient.GetPythonVersion()
-			if !assert.NoError(tt, err, "should get python version") {
-				return
-			}
-			majorPythonVersion := strings.Split(pythonVersion, ".")[0]
-
+			expected := common.ExpectedPythonVersion3
 			if t.ExpectPython2Installed() {
-				assert.Equal(tt, "2", majorPythonVersion, "Agent 6 should install Python 2")
-			} else {
-				assert.Equal(tt, "3", majorPythonVersion, "Agent should install Python 3")
+				expected = common.ExpectedPythonVersion2
 			}
+			common.CheckAgentPython(tt, t.InstallTestClient, expected)
 		})
 
 		if t.ExpectPython2Installed() {
@@ -305,6 +299,19 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 			binPath = filepath.Join(t.expectedInstallPath, binPath)
 			_, err := t.host.Lstat(binPath)
 			assert.NoError(tt, err, "install should create %s bin file", binPath)
+		}
+	})
+
+	tt.Run("removes embedded extraction artifacts", func(tt *testing.T) {
+		paths := []string{
+			filepath.Join(t.expectedInstallPath, "embedded3.COMPRESSED"),
+			filepath.Join(t.expectedInstallPath, "bin", "7zr.exe"),
+		}
+		for _, path := range paths {
+			exists, err := t.host.FileExists(path)
+			if assert.NoError(tt, err) {
+				assert.False(tt, exists, "install should remove %s", path)
+			}
 		}
 	})
 

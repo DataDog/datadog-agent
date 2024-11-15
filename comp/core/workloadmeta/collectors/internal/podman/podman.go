@@ -161,7 +161,11 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 		log.Warnf("Could not get env vars for container %s", containerID)
 	}
 
-	image, err := workloadmeta.NewContainerImage(container.Config.ContainerRootFSConfig.RootfsImageID, container.Config.RawImageName)
+	imageName := container.Config.RawImageName
+	if imageName == "" {
+		imageName = container.Config.RootfsImageName
+	}
+	image, err := workloadmeta.NewContainerImage(container.Config.ContainerRootFSConfig.RootfsImageID, imageName)
 	if err != nil {
 		log.Warnf("Could not get image for container %s", containerID)
 	}

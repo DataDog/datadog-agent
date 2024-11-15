@@ -8,6 +8,7 @@ go.sum -diff -merge linguist-generated=true
 *_easyjson.go -diff -merge
 *_easyjson.go linguist-generated=true
 pkg/security/probe/constantfetch/btfhub/constants.json -diff -merge linguist-generated=true
+pkg/security/seclwin/** -diff -merge linguist-generated=true
 # Fixtures should have LF line endings because they are checked against OCI packages built on Linux
 pkg/fleet/internal/fixtures/** text=auto eol=lf
 

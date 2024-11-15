@@ -40,13 +40,15 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.compliance_module.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.on_demand.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.on_demand.rate_limiter.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.reduced_proc_pid_cache_size", false)
 
 	cfg.SetDefault("runtime_security_config.windows_filename_cache_max", 16384)
 	cfg.SetDefault("runtime_security_config.windows_registry_cache_max", 4096)
 	// windows specific channel size for etw events
-	cfg.SetDefault("runtime_security_config.etw_events_channel_size", 128)
-	cfg.SetDefault("runtime_security_config.etw_events_max_buffers", 0)
+	cfg.SetDefault("runtime_security_config.etw_events_channel_size", 16384)
 	cfg.SetDefault("runtime_security_config.windows_probe_block_on_channel_send", false)
+	cfg.SetDefault("runtime_security_config.windows_write_event_rate_limiter_max_allowed", 4096)
+	cfg.SetDefault("runtime_security_config.windows_write_event_rate_limiter_period", "1s")
 
 	// CWS - activity dump
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", true)
@@ -138,4 +140,6 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.executable.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.executable.max_allowed", 5)
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.executable.period", "1m")
+
+	cfg.BindEnvAndSetDefault("runtime_security_config.network_monitoring.enabled", false)
 }

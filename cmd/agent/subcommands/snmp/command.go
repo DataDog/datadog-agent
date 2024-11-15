@@ -7,90 +7,39 @@
 package snmp
 
 import (
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
-	"os"
-	"strconv"
-	"strings"
-	"time"
-
-	"github.com/gosnmp/gosnmp"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/aggregator"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/snmplog"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
-	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
-	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
+	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"net"
+	"os"
+	"strconv"
+
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 )
 
 const (
-	defaultPort                    = 161
-	defaultCommunityString         = "public"
 	defaultTimeout                 = 10 // Timeout better suited to walking
 	defaultRetries                 = 3
 	defaultUseUnconnectedUDPSocket = false
 )
-
-// // connectionParams are the data needed to connect to an SNMP instance.
-type connectionParams struct {
-	// embed a SNMPConfig because it's all the same fields anyway
-	parse.SNMPConfig
-	// fields that aren't part of parse.SNMPConfig
-	SecurityLevel           string
-	UseUnconnectedUDPSocket bool
-}
-
-var authOpts = NewOptions(OptPairs[gosnmp.SnmpV3AuthProtocol]{
-	{"", gosnmp.NoAuth},
-	{"MD5", gosnmp.MD5},
-	{"SHA", gosnmp.SHA},
-	{"SHA-224", gosnmp.SHA224},
-	{"SHA-256", gosnmp.SHA256},
-	{"SHA-384", gosnmp.SHA384},
-	{"SHA-512", gosnmp.SHA512},
-})
-
-var privOpts = NewOptions(OptPairs[gosnmp.SnmpV3PrivProtocol]{
-	{"", gosnmp.NoPriv},
-	{"DES", gosnmp.DES},
-	{"AES", gosnmp.AES},
-	{"AES192", gosnmp.AES192},
-	{"AES192C", gosnmp.AES192C},
-	{"AES256", gosnmp.AES256},
-	{"AES256C", gosnmp.AES256C},
-})
-
-var versionOpts = NewOptions(OptPairs[gosnmp.SnmpVersion]{
-	{"1", gosnmp.Version1},
-	{"2c", gosnmp.Version2c},
-	{"3", gosnmp.Version3},
-})
-
-var levelOpts = NewOptions(OptPairs[gosnmp.SnmpV3MsgFlags]{
-	{"noAuthNoPriv", gosnmp.NoAuthNoPriv},
-	{"authNoPriv", gosnmp.AuthNoPriv},
-	{"authPriv", gosnmp.AuthPriv},
-})
 
 // argsType is an alias so we can inject the args via fx.
 type argsType []string
@@ -120,7 +69,7 @@ func confErrf(msg string, args ...any) configErr {
 
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	connParams := &connectionParams{}
+	connParams := &snmpparse.SNMPConfig{}
 	snmpCmd := &cobra.Command{
 		Use:   "snmp",
 		Short: "Snmp tools",
@@ -134,14 +83,22 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Flags that aren't specified will be pulled from the agent SNMP config if possible.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
-			err := fxutil.OneShot(snmpwalk,
-				fx.Supply(connParams, globalParams, cmd),
+			err := fxutil.OneShot(snmpWalk,
+				fx.Supply(connParams),
 				fx.Provide(func() argsType { return args }),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
+				snmpscanfx.Module(),
+				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
+				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
+				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
+				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+				nooptagger.Module(),
+				compressionimpl.Module(),
+				eventplatformreceiverimpl.Module(),
 			)
 			if err != nil {
 				var ue configErr
@@ -153,18 +110,22 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return nil
 		},
 	}
-	snmpWalkCmd.Flags().VarP(versionOpts.Flag(&connParams.Version), "snmp-version", "v", fmt.Sprintf("Specify SNMP version to use (%s)", versionOpts.OptsStr()))
+	snmpWalkCmd.Flags().VarP(Flag(&snmpparse.VersionOpts, &connParams.Version), "snmp-version", "v",
+		fmt.Sprintf("Specify SNMP version to use (%s)", snmpparse.VersionOpts.OptsStr()))
 
 	// snmp v1 or v2c specific
 	snmpWalkCmd.Flags().StringVarP(&connParams.CommunityString, "community-string", "C", "", "Set the community string")
 
 	// snmp v3 specific
-	snmpWalkCmd.Flags().VarP(authOpts.Flag(&connParams.AuthProtocol), "auth-protocol", "a", fmt.Sprintf("Set authentication protocol (%s)", authOpts.OptsStr()))
+	snmpWalkCmd.Flags().VarP(Flag(&snmpparse.AuthOpts, &connParams.AuthProtocol), "auth-protocol", "a",
+		fmt.Sprintf("Set authentication protocol (%s)", snmpparse.AuthOpts.OptsStr()))
 	snmpWalkCmd.Flags().StringVarP(&connParams.AuthKey, "auth-key", "A", "", "Set authentication protocol pass phrase")
-	snmpWalkCmd.Flags().VarP(levelOpts.Flag(&connParams.SecurityLevel), "security-level", "l", fmt.Sprintf("Set security level (%s)", levelOpts.OptsStr()))
+	snmpWalkCmd.Flags().VarP(Flag(&snmpparse.LevelOpts, &connParams.SecurityLevel), "security-level", "l",
+		fmt.Sprintf("Set security level (%s)", snmpparse.LevelOpts.OptsStr()))
 	snmpWalkCmd.Flags().StringVarP(&connParams.Context, "context", "N", "", "Set context name")
 	snmpWalkCmd.Flags().StringVarP(&connParams.Username, "user-name", "u", "", "Set security name")
-	snmpWalkCmd.Flags().VarP(privOpts.Flag(&connParams.PrivProtocol), "priv-protocol", "x", fmt.Sprintf("Set privacy protocol (%s)", privOpts.OptsStr()))
+	snmpWalkCmd.Flags().VarP(Flag(&snmpparse.PrivOpts, &connParams.PrivProtocol), "priv-protocol", "x",
+		fmt.Sprintf("Set privacy protocol (%s)", snmpparse.PrivOpts.OptsStr()))
 	snmpWalkCmd.Flags().StringVarP(&connParams.PrivKey, "priv-key", "X", "", "Set privacy protocol pass phrase")
 
 	// general communication options
@@ -174,9 +135,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	snmpCmd.AddCommand(snmpWalkCmd)
 
+	// This command does nothing until the backend supports it, so it isn't visible yet.
 	snmpScanCmd := &cobra.Command{
-		Use:   "scan <ipaddress>[:port]",
-		Short: "Scan a device for the profile editor.",
+		Hidden: true,
+		Use:    "scan <ipaddress>[:port]",
+		Short:  "Scan a device for the profile editor.",
 		Long: `Walk the SNMP tree for a device, collecting available OIDs.
 		Flags that aren't specified will be pulled from the agent SNMP config if possible.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -189,15 +152,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
-				aggregator.Bundle(),
-				forwarder.Bundle(defaultforwarder.NewParams()),
+				aggregator.Bundle(demultiplexerimpl.NewDefaultParams()),
+				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
+				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
-				orchestratorimpl.Module(),
-				fx.Provide(
-					orchestratorimpl.NewDefaultParams,
-					demultiplexerimpl.NewDefaultParams,
-				),
+				nooptagger.Module(),
+				compressionimpl.Module(),
+				snmpscanfx.Module(),
 			)
 			if err != nil {
 				var ue configErr
@@ -210,18 +172,22 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 	// TODO is there a way to merge these flags with snmpWalkCmd flags, without cobra changing the docs to mark them as "global flags"?
-	snmpScanCmd.Flags().VarP(versionOpts.Flag(&connParams.Version), "snmp-version", "v", fmt.Sprintf("Specify SNMP version to use (%s)", versionOpts.OptsStr()))
+	snmpScanCmd.Flags().VarP(Flag(&snmpparse.VersionOpts, &connParams.Version), "snmp-version", "v",
+		fmt.Sprintf("Specify SNMP version to use (%s)", snmpparse.VersionOpts.OptsStr()))
 
 	// snmp v1 or v2c specific
 	snmpScanCmd.Flags().StringVarP(&connParams.CommunityString, "community-string", "C", "", "Set the community string")
 
 	// snmp v3 specific
-	snmpScanCmd.Flags().VarP(authOpts.Flag(&connParams.AuthProtocol), "auth-protocol", "a", fmt.Sprintf("Set authentication protocol (%s)", authOpts.OptsStr()))
+	snmpScanCmd.Flags().VarP(Flag(&snmpparse.AuthOpts, &connParams.AuthProtocol), "auth-protocol", "a",
+		fmt.Sprintf("Set authentication protocol (%s)", snmpparse.AuthOpts.OptsStr()))
 	snmpScanCmd.Flags().StringVarP(&connParams.AuthKey, "auth-key", "A", "", "Set authentication protocol pass phrase")
-	snmpScanCmd.Flags().VarP(levelOpts.Flag(&connParams.SecurityLevel), "security-level", "l", fmt.Sprintf("Set security level (%s)", levelOpts.OptsStr()))
+	snmpScanCmd.Flags().VarP(Flag(&snmpparse.LevelOpts, &connParams.SecurityLevel), "security-level", "l",
+		fmt.Sprintf("Set security level (%s)", snmpparse.LevelOpts.OptsStr()))
 	snmpScanCmd.Flags().StringVarP(&connParams.Context, "context", "N", "", "Set context name")
 	snmpScanCmd.Flags().StringVarP(&connParams.Username, "user-name", "u", "", "Set security name")
-	snmpScanCmd.Flags().VarP(privOpts.Flag(&connParams.PrivProtocol), "priv-protocol", "x", fmt.Sprintf("Set privacy protocol (%s)", privOpts.OptsStr()))
+	snmpScanCmd.Flags().VarP(Flag(&snmpparse.PrivOpts, &connParams.PrivProtocol), "priv-protocol", "x",
+		fmt.Sprintf("Set privacy protocol (%s)", snmpparse.PrivOpts.OptsStr()))
 	snmpScanCmd.Flags().StringVarP(&connParams.PrivKey, "priv-key", "X", "", "Set privacy protocol pass phrase")
 
 	// general communication options
@@ -230,7 +196,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	snmpScanCmd.Flags().BoolVar(&connParams.UseUnconnectedUDPSocket, "use-unconnected-udp-socket", defaultUseUnconnectedUDPSocket, "If specified, changes net connection to be unconnected UDP socket")
 
 	// This command does nothing until the backend supports it, so it isn't enabled yet.
-	// snmpCmd.AddCommand(snmpScanCmd)
+	snmpCmd.AddCommand(snmpScanCmd)
 
 	return []*cobra.Command{snmpCmd}
 }
@@ -251,12 +217,12 @@ func maybeSplitIP(address string) (string, uint16, bool) {
 	return host, uint16(pnum), true
 }
 
-func getParamsFromAgent(deviceIP string, conf config.Component) (*parse.SNMPConfig, error) {
-	snmpConfigList, err := parse.GetConfigCheckSnmp(conf)
+func getParamsFromAgent(deviceIP string, conf config.Component) (*snmpparse.SNMPConfig, error) {
+	snmpConfigList, err := snmpparse.GetConfigCheckSnmp(conf)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SNMP config from agent: %w", err)
 	}
-	instance := parse.GetIPConfig(deviceIP, snmpConfigList)
+	instance := snmpparse.GetIPConfig(deviceIP, snmpConfigList)
 	if instance.IPAddress != "" {
 		instance.IPAddress = deviceIP
 		return &instance, nil
@@ -264,7 +230,7 @@ func getParamsFromAgent(deviceIP string, conf config.Component) (*parse.SNMPConf
 	return nil, fmt.Errorf("agent has no SNMP config for IP %s", deviceIP)
 }
 
-func setDefaultsFromAgent(connParams *connectionParams, conf config.Component) error {
+func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Component) error {
 	agentParams, agentError := getParamsFromAgent(connParams.IPAddress, conf)
 	if agentError != nil {
 		return agentError
@@ -305,89 +271,7 @@ func setDefaultsFromAgent(connParams *connectionParams, conf config.Component) e
 	return nil
 }
 
-// newSNMP validates connection parameters and builds a GoSNMP from them.
-func newSNMP(connParams *connectionParams, logger log.Component) (*gosnmp.GoSNMP, error) {
-	// Communication options check
-	if connParams.Timeout == 0 {
-		return nil, fmt.Errorf("timeout cannot be 0")
-	}
-	var version gosnmp.SnmpVersion
-	var ok bool
-	if connParams.Version == "" {
-		// Assume v3 if a username was set, otherwise assume v2c.
-		if connParams.Username != "" {
-			version = gosnmp.Version3
-		} else {
-			version = gosnmp.Version2c
-		}
-	} else if version, ok = versionOpts.getVal(connParams.Version); !ok {
-		return nil, fmt.Errorf("SNMP version %q not supported; must be %s", connParams.Version, versionOpts.OptsStr())
-	}
-
-	// Set default community string if version 1 or 2c and no given community string
-	if version != gosnmp.Version3 && connParams.CommunityString == "" {
-		connParams.CommunityString = defaultCommunityString
-	}
-
-	// Authentication check
-	if version == gosnmp.Version3 && connParams.Username == "" {
-		return nil, fmt.Errorf("username is required for snmp v3")
-	}
-
-	port := connParams.Port
-	if port == 0 {
-		port = defaultPort
-	}
-
-	securityParams := &gosnmp.UsmSecurityParameters{}
-	var msgFlags gosnmp.SnmpV3MsgFlags
-	// Set v3 security parameters
-	if version == gosnmp.Version3 {
-		securityParams.UserName = connParams.Username
-		securityParams.AuthenticationPassphrase = connParams.AuthKey
-		securityParams.PrivacyPassphrase = connParams.PrivKey
-
-		if securityParams.AuthenticationProtocol, ok = authOpts.getVal(connParams.AuthProtocol); !ok {
-			return nil, fmt.Errorf("authentication protocol %q not supported; must be %s", connParams.AuthProtocol, authOpts.OptsStr())
-		}
-
-		if securityParams.PrivacyProtocol, ok = privOpts.getVal(connParams.PrivProtocol); !ok {
-			return nil, fmt.Errorf("privacy protocol %q not supported; must be %s", connParams.PrivProtocol, privOpts.OptsStr())
-		}
-
-		if connParams.SecurityLevel == "" {
-			msgFlags = gosnmp.NoAuthNoPriv
-			if connParams.PrivKey != "" {
-				msgFlags = gosnmp.AuthPriv
-			} else if connParams.AuthKey != "" {
-				msgFlags = gosnmp.AuthNoPriv
-			}
-		} else {
-			var ok bool // can't use := below because it'll make a new msgFlags instead of setting the one in the parent scope.
-			if msgFlags, ok = levelOpts.getVal(connParams.SecurityLevel); !ok {
-				return nil, fmt.Errorf("security level %q not supported; must be %s", connParams.SecurityLevel, levelOpts.OptsStr())
-			}
-		}
-	}
-	// Set SNMP parameters
-	return &gosnmp.GoSNMP{
-		Target:                  connParams.IPAddress,
-		Port:                    port,
-		Community:               connParams.CommunityString,
-		Transport:               "udp",
-		Version:                 version,
-		Timeout:                 time.Duration(connParams.Timeout * int(time.Second)),
-		Retries:                 connParams.Retries,
-		SecurityModel:           gosnmp.UserSecurityModel,
-		ContextName:             connParams.Context,
-		MsgFlags:                msgFlags,
-		SecurityParameters:      securityParams,
-		UseUnconnectedUDPSocket: connParams.UseUnconnectedUDPSocket,
-		Logger:                  gosnmp.NewLogger(snmplog.New(logger)),
-	}, nil
-}
-
-func scanDevice(connParams *connectionParams, args argsType, conf config.Component, logger log.Component, demux demultiplexer.Component) error {
+func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, logger log.Component) error {
 	// Parse args
 	if len(args) == 0 {
 		return confErrf("missing argument: IP address")
@@ -402,10 +286,10 @@ func scanDevice(connParams *connectionParams, args argsType, conf config.Compone
 	if agentErr != nil {
 		// Warn that we couldn't contact the agent, but keep going in case the
 		// user provided enough arguments to do this anyway.
-		fmt.Fprintf(os.Stderr, "Warning: %v\n", agentErr)
+		_, _ = fmt.Fprintf(os.Stderr, "Warning: %v\n", agentErr)
 	}
 	// Establish connection
-	snmp, err := newSNMP(connParams, logger)
+	snmp, err := snmpparse.NewSNMP(connParams, logger)
 	if err != nil {
 		// newSNMP only returns config errors, so any problem is a usage error
 		return configErr{err}
@@ -413,61 +297,18 @@ func scanDevice(connParams *connectionParams, args argsType, conf config.Compone
 	if err := snmp.Connect(); err != nil {
 		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
 	}
-	defer snmp.Conn.Close()
-	pdus, err := gatherPDUs(snmp)
-	if err != nil {
-		return err
-	}
 
 	namespace := conf.GetString("network_devices.namespace")
-	deviceID := namespace + ":" + deviceAddr
-	var deviceOids []*metadata.DeviceOID
-	for _, pdu := range pdus {
-		record, err := metadata.DeviceOIDFromPDU(deviceID, pdu)
-		if err != nil {
-			logger.Warnf("PDU parsing error: %v", err)
-			continue
-		}
-		deviceOids = append(deviceOids, record)
-	}
-	forwarder, err := demux.GetEventPlatformForwarder()
-	if err != nil {
-		return fmt.Errorf("unable to get sender: %w", err)
-	}
-	metadataPayloads := metadata.BatchDeviceScan(namespace, time.Now(), metadata.PayloadMetadataBatchSize, deviceOids)
-	for _, payload := range metadataPayloads {
-		payloadBytes, err := json.Marshal(payload)
-		if err != nil {
-			logger.Errorf("Error marshalling device metadata: %v", err)
-			continue
-		}
-		m := message.NewMessage(payloadBytes, nil, "", 0)
-		logger.Debugf("Device OID metadata payload is %d bytes", len(payloadBytes))
-		logger.Tracef("Device OID metadata payload: %s", string(payloadBytes))
-		if err := forwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesMetadata); err != nil {
-			return err
-		}
-	}
 
+	err = snmpScanner.RunDeviceScan(snmp, namespace, connParams.IPAddress)
+	if err != nil {
+		return fmt.Errorf("unable to perform device scan: %v", err)
+	}
 	return nil
 }
 
-// gatherPDUs returns PDUs from the given SNMP device that should cover ever
-// scalar value and at least one row of every table.
-func gatherPDUs(snmp *gosnmp.GoSNMP) ([]*gosnmp.SnmpPDU, error) {
-	var pdus []*gosnmp.SnmpPDU
-	err := gosnmplib.ConditionalWalk(snmp, "", false, func(dataUnit gosnmp.SnmpPDU) (string, error) {
-		pdus = append(pdus, &dataUnit)
-		return gosnmplib.SkipOIDRowsNaive(dataUnit.Name), nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return pdus, nil
-}
-
-// snmpwalk prints every SNMP value, in the style of the unix snmpwalk command.
-func snmpwalk(connParams *connectionParams, args argsType, conf config.Component, logger log.Component) error {
+// snmpWalk prints every SNMP value, in the style of the unix snmpwalk command.
+func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, logger log.Component) error {
 	// Parse args
 	if len(args) == 0 {
 		return confErrf("missing argument: IP address")
@@ -486,10 +327,10 @@ func snmpwalk(connParams *connectionParams, args argsType, conf config.Component
 	if agentErr != nil {
 		// Warn that we couldn't contact the agent, but keep going in case the
 		// user provided enough arguments to do this anyway.
-		fmt.Fprintf(os.Stderr, "Warning: %v\n", agentErr)
+		_, _ = fmt.Fprintf(os.Stderr, "Warning: %v\n", agentErr)
 	}
 	// Establish connection
-	snmp, err := newSNMP(connParams, logger)
+	snmp, err := snmpparse.NewSNMP(connParams, logger)
 	if err != nil {
 		// newSNMP only returns config errors, so any problem is a usage error
 		return configErr{err}
@@ -497,48 +338,12 @@ func snmpwalk(connParams *connectionParams, args argsType, conf config.Component
 	if err := snmp.Connect(); err != nil {
 		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
 	}
-	defer snmp.Conn.Close()
+	defer func() { _ = snmp.Conn.Close() }()
 
-	// Perform a snmpwalk using Walk for all versions
-	if err := snmp.Walk(oid, printValue); err != nil {
-		return fmt.Errorf("unable to walk SNMP agent on %s:%d: %w", snmp.Target, snmp.Port, err)
-	}
+	err = snmpScanner.RunSnmpWalk(snmp, oid)
 
-	return nil
-}
-
-// printValue prints a PDU in a similar style to snmpwalk -Ont
-func printValue(pdu gosnmp.SnmpPDU) error {
-	fmt.Printf("%s = ", pdu.Name)
-
-	switch pdu.Type {
-	case gosnmp.OctetString:
-		b := pdu.Value.([]byte)
-		if !gosnmplib.IsStringPrintable(b) {
-			var strBytes []string
-			for _, bt := range b {
-				strBytes = append(strBytes, strings.ToUpper(hex.EncodeToString([]byte{bt})))
-			}
-			fmt.Print("Hex-STRING: " + strings.Join(strBytes, " ") + "\n")
-		} else {
-			fmt.Printf("STRING: %s\n", string(b))
-		}
-	case gosnmp.ObjectIdentifier:
-		fmt.Printf("OID: %s\n", pdu.Value)
-	case gosnmp.TimeTicks:
-		fmt.Print(pdu.Value, "\n")
-	case gosnmp.Counter32:
-		fmt.Printf("Counter32: %d\n", pdu.Value.(uint))
-	case gosnmp.Counter64:
-		fmt.Printf("Counter64: %d\n", pdu.Value.(uint64))
-	case gosnmp.Integer:
-		fmt.Printf("INTEGER: %d\n", pdu.Value.(int))
-	case gosnmp.Gauge32:
-		fmt.Printf("Gauge32: %d\n", pdu.Value.(uint))
-	case gosnmp.IPAddress:
-		fmt.Printf("IpAddress: %s\n", pdu.Value.(string))
-	default:
-		fmt.Printf("TYPE %d: %d\n", pdu.Type, gosnmp.ToBigInt(pdu.Value))
+	if err != nil {
+		return fmt.Errorf("unable to walk SNMP agent on %s:%d: %w", connParams.IPAddress, connParams.Port, err)
 	}
 
 	return nil

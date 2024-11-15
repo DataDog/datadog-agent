@@ -19,6 +19,7 @@ import (
 	"github.com/cilium/ebpf/features"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -159,7 +160,7 @@ func removeRingBufferHelperCalls(m *manager.Manager) {
 	// Once we have access to the `ddebpf.Manager`, add this modifier to its list of
 	// `EnabledModifiers` and let it control the execution of the callbacks
 	patcher := ddebpf.NewHelperCallRemover(asm.FnRingbufOutput)
-	err := patcher.BeforeInit(m, nil)
+	err := patcher.BeforeInit(m, names.NewModuleName("usm"), nil)
 
 	if err != nil {
 		// Our production code is actually loading on all Kernels we test on CI

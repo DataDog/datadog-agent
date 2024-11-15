@@ -67,11 +67,18 @@ func (c *Check) Run() error {
 		return fmt.Errorf("failed to trace path: %w", err)
 	}
 	path.Namespace = c.config.Namespace
+	path.Origin = payload.PathOriginNetworkPathIntegration
 
 	// Add tags to path
 	path.Source.Service = c.config.SourceService
 	path.Destination.Service = c.config.DestinationService
 	path.Tags = c.config.Tags
+
+	// Perform reverse DNS lookup
+	path.Destination.ReverseDNSHostname = traceroute.GetHostname(path.Destination.IPAddress)
+	for i := range path.Hops {
+		path.Hops[i].Hostname = traceroute.GetHostname(path.Hops[i].IPAddress)
+	}
 
 	// send to EP
 	err = c.SendNetPathMDToEP(senderInstance, path)

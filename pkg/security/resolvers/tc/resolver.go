@@ -11,6 +11,7 @@ package tc
 import (
 	"fmt"
 	"os"
+	"slices"
 	"sync"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -25,25 +26,31 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// NetDeviceKey is used to uniquely identify a network device
-type NetDeviceKey struct {
-	IfIndex          uint32
-	NetNS            uint32
+// ProgramKey is used to uniquely identify a tc program
+type ProgramKey struct {
+	UID              string
+	FuncName         string
+	NetDevice        model.NetDevice
 	NetworkDirection manager.TrafficType
+}
+
+// Key return an identifier
+func (t *ProgramKey) Key() string {
+	return t.UID + "_" + t.FuncName + "_" + t.NetDevice.GetKey()
 }
 
 // Resolver defines a TC resolver
 type Resolver struct {
 	sync.RWMutex
 	config   *config.Config
-	programs map[NetDeviceKey]*manager.Probe
+	programs map[ProgramKey]*manager.Probe
 }
 
 // NewResolver returns a TC resolver
 func NewResolver(config *config.Config) *Resolver {
 	return &Resolver{
 		config:   config,
-		programs: make(map[NetDeviceKey]*manager.Probe),
+		programs: make(map[ProgramKey]*manager.Probe),
 	}
 }
 
@@ -87,23 +94,34 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 	defer tcr.Unlock()
 
 	var combinedErr multierror.Error
-	for _, tcProbe := range probes.GetTCProbes(tcr.config.NetworkIngressEnabled) {
+	for _, tcProbe := range probes.GetTCProbes(tcr.config.NetworkIngressEnabled, tcr.config.NetworkRawPacketEnabled) {
 		// make sure we're not overriding an existing network probe
-		deviceKey := NetDeviceKey{IfIndex: device.IfIndex, NetNS: device.NetNS, NetworkDirection: tcProbe.NetworkDirection}
-		_, ok := tcr.programs[deviceKey]
+		progKey := ProgramKey{
+			UID:              tcProbe.UID,
+			FuncName:         tcProbe.EBPFFuncName,
+			NetDevice:        device,
+			NetworkDirection: tcProbe.NetworkDirection,
+		}
+		_, ok := tcr.programs[progKey]
 		if ok {
 			continue
 		}
 
 		newProbe := tcProbe.Copy()
 		newProbe.CopyProgram = true
-		newProbe.UID = probes.SecurityAgentUID + device.GetKey()
+		newProbe.UID = progKey.Key()
+
 		newProbe.IfIndex = int(device.IfIndex)
 		newProbe.IfIndexNetns = uint64(netnsHandle.Fd())
 		newProbe.IfIndexNetnsID = device.NetNS
 		newProbe.KeepProgramSpec = false
 		newProbe.TCFilterPrio = tcr.config.NetworkClassifierPriority
-		newProbe.TCFilterHandle = netlink.MakeHandle(0, tcr.config.NetworkClassifierHandle)
+
+		if slices.Contains(probes.RawPacketTCProgram, tcProbe.EBPFFuncName) {
+			newProbe.TCFilterHandle = netlink.MakeHandle(0, tcr.config.RawNetworkClassifierHandle)
+		} else {
+			newProbe.TCFilterHandle = netlink.MakeHandle(0, tcr.config.NetworkClassifierHandle)
+		}
 
 		netnsEditor := []manager.ConstantEditor{
 			{
@@ -115,7 +133,8 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 		if err := m.CloneProgram(probes.SecurityAgentUID, newProbe, netnsEditor, nil); err != nil {
 			_ = multierror.Append(&combinedErr, fmt.Errorf("couldn't clone %s: %v", tcProbe.ProbeIdentificationPair, err))
 		} else {
-			tcr.programs[deviceKey] = newProbe
+			tcr.programs[progKey] = newProbe
+
 			// do not use dynamic program name here, it explodes cardinality
 			ddebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "cws")
 		}
@@ -129,7 +148,7 @@ func (tcr *Resolver) FlushNetworkNamespaceID(namespaceID uint32, m *manager.Mana
 	defer tcr.Unlock()
 
 	for tcKey, tcProbe := range tcr.programs {
-		if tcKey.NetNS == namespaceID {
+		if tcKey.NetDevice.NetNS == namespaceID {
 			_ = m.DetachHook(tcProbe.ProbeIdentificationPair)
 			delete(tcr.programs, tcKey)
 		}
@@ -158,7 +177,7 @@ func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string)
 			}
 			// ignore interfaces that are lazily deleted
 			if link.Attrs().HardwareAddr.String() != "" && !isLazy(linkName) {
-				probesCountNoLazyDeletion[tcKey.NetNS]++
+				probesCountNoLazyDeletion[tcKey.NetDevice.NetNS]++
 			}
 		}
 	}
@@ -171,17 +190,11 @@ func (tcr *Resolver) ResolveNetworkDeviceIfName(ifIndex, netNS uint32) (string, 
 	tcr.RLock()
 	defer tcr.RUnlock()
 
-	for _, direction := range []manager.TrafficType{manager.Egress, manager.Ingress} {
-		key := NetDeviceKey{
-			IfIndex:          ifIndex,
-			NetNS:            netNS,
-			NetworkDirection: direction,
-		}
-
-		tcProbe, ok := tcr.programs[key]
-		if ok {
-			return tcProbe.IfName, true
+	for key := range tcr.programs {
+		if key.NetDevice.IfIndex == ifIndex && key.NetDevice.NetNS == netNS {
+			return key.NetDevice.Name, true
 		}
 	}
+
 	return "", false
 }

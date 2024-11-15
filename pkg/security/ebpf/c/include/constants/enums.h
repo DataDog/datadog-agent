@@ -44,12 +44,14 @@ enum event_type
     EVENT_NET_DEVICE,
     EVENT_VETH_PAIR,
     EVENT_BIND,
+    EVENT_CONNECT,
     EVENT_UNSHARE_MNTNS,
     EVENT_SYSCALLS,
     EVENT_IMDS,
     EVENT_ON_DEMAND,
     EVENT_LOGIN_UID_WRITE,
     EVENT_CGROUP_WRITE,
+    EVENT_RAW_PACKET,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events

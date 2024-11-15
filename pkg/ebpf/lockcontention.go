@@ -36,28 +36,20 @@ const (
 	// or just system-probe resources
 	TrackAllEBPFResources = true
 
-	lockContetionBpfObjectFile = "bytecode/build/co-re/lock_contention.o"
-	ksymsIterBpfObjectFile     = "bytecode/build/co-re/ksyms_iter.o"
-
-	// bpf map names
-	mapAddrFdBpfMap = "map_addr_fd"
-	lockStatBpfMap  = "lock_stat"
-	rangesBpfMap    = "ranges"
-	timeStampBpfMap = "tstamp"
-
-	// bpf probe name
-	fnDoVfsIoctl = "do_vfs_ioctl"
-
-	// ioctl trigget code
+	// ioctl trigger code
 	ioctlCollectLocksCmd = 0x70c13
-
-	// bpf global constants
-	numCpus           = "num_cpus"
-	numRanges         = "num_of_ranges"
-	logTwoNumOfRanges = "log2_num_of_ranges"
 
 	// maximum lock ranges to track
 	maxTrackedRanges = 16384
+
+	// batch size when updating per cpu map storing lock ranges
+	// this value is the chunks in which we add the ranges to the per-cpu map
+	// the size of each entry is equal to `struct lock_range`, which is 20 bytes.
+	// The expected upper bound for each batch is then
+	// sizeof(struct lock_range) * updateBatchSize * ncpus
+	// this does not strictly upper bound the memory since ncpus is uncontrolled
+	// but in practise this should be a reasonable value
+	updateBatchSize = 100
 )
 
 // always use maxTrackedRanges
@@ -335,7 +327,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 
 	var ranges uint32
 	var cpus uint32
-	if err := LoadCOREAsset(lockContetionBpfObjectFile, func(bc bytecode.AssetReader, managerOptions manager.Options) error {
+	if err := LoadCOREAsset("lock_contention.o", func(bc bytecode.AssetReader, managerOptions manager.Options) error {
 		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
 		if err != nil {
 			return fmt.Errorf("failed to load collection spec: %w", err)
@@ -350,21 +342,21 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 
 		ranges = constrainMaxRanges(estimateNumOfLockRanges(maps, cpus))
 		l.ranges = ranges
-		collectionSpec.Maps[mapAddrFdBpfMap].MaxEntries = ranges
-		collectionSpec.Maps[lockStatBpfMap].MaxEntries = ranges
-		collectionSpec.Maps[rangesBpfMap].MaxEntries = ranges
+		collectionSpec.Maps["map_addr_fd"].MaxEntries = ranges
+		collectionSpec.Maps["lock_stat"].MaxEntries = ranges
+		collectionSpec.Maps["ranges"].MaxEntries = ranges
 
-		// Ideally we would want this to be the max number of proccesses allowed
+		// Ideally we would want this to be the max number of processes allowed
 		// by the kernel, however verifier constraints force us to choose a smaller
 		// value. This value has been experimentally determined to pass the verifier.
-		collectionSpec.Maps[timeStampBpfMap].MaxEntries = 16384
+		collectionSpec.Maps["tstamp"].MaxEntries = 16384
 
-		constants[numCpus] = uint64(cpus)
+		constants["num_cpus"] = uint64(cpus)
 		for ksym, addr := range kaddrs {
 			constants[ksym] = addr
 		}
-		constants[numRanges] = uint64(ranges)
-		constants[logTwoNumOfRanges] = uint64(math.Log2(float64(ranges)))
+		constants["num_of_ranges"] = uint64(ranges)
+		constants["log2_num_of_ranges"] = uint64(math.Log2(float64(ranges)))
 
 		if err := collectionSpec.RewriteConstants(constants); err != nil {
 			return fmt.Errorf("failed to write constant: %w", err)
@@ -382,7 +374,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 			if errors.As(err, &ve) {
 				return fmt.Errorf("verfier error loading collection: %s\n%+v", err, ve)
 			}
-			return fmt.Errorf("failed to load objects: %w", err)
+			return fmt.Errorf("failed to load objects (%d ranges): %w", l.ranges, err)
 		}
 
 		return nil
@@ -390,7 +382,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		return err
 	}
 
-	kp, err := link.Kprobe(fnDoVfsIoctl, l.objects.KprobeVfsIoctl, nil)
+	kp, err := link.Kprobe("do_vfs_ioctl", l.objects.KprobeVfsIoctl, nil)
 	if err != nil {
 		return fmt.Errorf("failed to attack kprobe: %w", err)
 	}
@@ -454,18 +446,41 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		return int(int64(a.Start) - int64(b.Start))
 	})
 
-	keys := make([]uint32, ranges)
-	values := make([]LockRange, cpus*ranges)
-	var i, j uint32
-	for i = 0; i < ranges; i++ {
-		keys[i] = i
-		for j = 0; j < cpus; j++ {
-			values[(j*ranges)+i] = lockRanges[i]
-		}
+	batchSize := uint32(updateBatchSize)
+	if batchSize > ranges {
+		batchSize = ranges
 	}
 
-	if _, err := l.objects.Ranges.BatchUpdate(keys, values, nil); err != nil {
-		return fmt.Errorf("unable to perform batch update on per cpu array map: %w", err)
+	var iter uint32
+
+	// this loop inserts the lock_ranges we have previously collected
+	// into the per-cpu map `ranges`. We perform the update in batches
+	// of size `batchSize`.
+	for iter = 0; iter < (ranges/batchSize)+1; iter++ {
+		keys := make([]uint32, batchSize)
+		values := make([]LockRange, cpus*batchSize)
+
+		var i, j uint32
+
+		// this loop builds the `values` and `keys` slices for this batch
+		for i = 0; i < batchSize; i++ {
+			key := (iter * batchSize) + i
+			if key >= ranges {
+				break
+			}
+
+			keys[i] = key
+
+			// Since `ranges` is a per-cpu map we need to duplicate each entry
+			// for the number of CPUs on this system
+			for j = 0; j < cpus; j++ {
+				values[(j*batchSize)+i] = lockRanges[key]
+			}
+		}
+
+		if _, err := l.objects.Ranges.BatchUpdate(keys, values, nil); err != nil {
+			return fmt.Errorf("unable to perform batch update on per cpu array map: %w", err)
+		}
 	}
 
 	// initialize buffers used in Collect
@@ -548,7 +563,7 @@ type ksymIterProgram struct {
 func getKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses ...string) (map[string]uint64, error) {
 	var prog ksymIterProgram
 
-	if err := LoadCOREAsset(ksymsIterBpfObjectFile, func(bc bytecode.AssetReader, managerOptions manager.Options) error {
+	if err := LoadCOREAsset("ksyms_iter.o", func(bc bytecode.AssetReader, managerOptions manager.Options) error {
 		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
 		if err != nil {
 			return fmt.Errorf("failed to load collection spec: %w", err)

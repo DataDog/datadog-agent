@@ -57,11 +57,6 @@ func (m *RuleFilterModel) ValidateField(_ string, _ eval.FieldValue) error {
 	return nil
 }
 
-// GetIterator returns an iterator for the given field
-func (m *RuleFilterModel) GetIterator(field eval.Field) (eval.Iterator, error) {
-	return nil, &eval.ErrIteratorNotSupported{Field: field}
-}
-
 // GetFieldRestrictions returns the field event type restrictions
 func (m *RuleFilterModel) GetFieldRestrictions(_ eval.Field) []eval.EventType {
 	return nil

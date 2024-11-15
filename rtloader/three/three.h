@@ -6,13 +6,6 @@
 #ifndef DATADOG_AGENT_RTLOADER_THREE_H
 #define DATADOG_AGENT_RTLOADER_THREE_H
 
-// Some preprocessor sanity for builds (2+3 common sources)
-#ifndef DATADOG_AGENT_THREE
-#    error Build requires defining DATADOG_AGENT_THREE
-#elif defined(DATADOG_AGENT_TWO) && defined(DATADOG_AGENT_THREE)
-#    error "DATADOG_AGENT_TWO and DATADOG_AGENT_THREE are mutually exclusive - define only one of the two."
-#endif
-
 #include <atomic>
 #include <map>
 #include <mutex>
@@ -114,6 +107,7 @@ public:
     void setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t);
     void setGetProcessStartTimeCb(cb_get_process_start_time_t);
     void setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t);
+    void setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t);
 
     void initPymemStats();
     void getPymemStats(pymem_stats_t &);
