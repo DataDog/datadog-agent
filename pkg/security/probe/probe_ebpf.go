@@ -2195,9 +2195,9 @@ func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
 
 func getSkProtocolSize(kernelVersion *kernel.Version) uint64 {
 	if kernelVersion.Code != 0 && kernelVersion.Code < kernel.Kernel5_6 {
-		return 2
+		return 1
 	}
-	return 1
+	return 2
 }
 
 // getCGroupWriteConstants returns the value of the constant used to determine how cgroups should be captured in kernel
