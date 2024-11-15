@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 type probeTestSuite struct {
@@ -176,7 +175,7 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	t := s.T()
 
 	// Flaky test in CI, avoid failures on main for now.
-	flake.Mark(t)
+	//flake.Mark(t)
 
 	probe := s.getProbe()
 
