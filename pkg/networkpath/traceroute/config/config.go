@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package traceroute adds traceroute functionality to the agent
+// Package config is the configuration for the traceroute functionality
 package config
 
 import (
