@@ -12,13 +12,13 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	yaml "gopkg.in/yaml.v2"
 
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	snmplistener "github.com/DataDog/datadog-agent/pkg/snmp"
 )
 

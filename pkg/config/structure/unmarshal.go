@@ -40,13 +40,10 @@ var ConvertEmptyStringToNil UnmarshalKeyOption = func(fs *featureSet) {
 	fs.convertEmptyStrNil = true
 }
 
-// ImplicitlyConvertArrayToMapSet allows UnmarshalKey to implicity convert an array of []interface{} to a map[interface{}]bool
+// ImplicitlyConvertArrayToMapSet allows UnmarshalKey to implicitly convert an array of []interface{} to a map[interface{}]bool
 var ImplicitlyConvertArrayToMapSet UnmarshalKeyOption = func(fs *featureSet) {
 	fs.convertArrayToMap = true
 }
-
-// error for when a key is not found
-var errNotFound = fmt.Errorf("not found")
 
 // UnmarshalKey retrieves data from the config at the given key and deserializes it
 // to be stored on the target struct.

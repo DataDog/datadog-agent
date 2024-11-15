@@ -3,7 +3,6 @@ module github.com/DataDog/datadog-agent/comp/api/authtoken
 go 1.22.0
 
 replace (
-	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
@@ -20,6 +19,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../pkg/config/nodetreemodel
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../pkg/config/setup
+	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../../pkg/util/defaultpaths
