@@ -885,3 +885,18 @@ func jsonPathValidation(testMod *testModule, data []byte, fnc func(testMod *test
 
 	fnc(testMod, obj)
 }
+
+type onRuleHandler func(*model.Event, *rules.Rule)
+type onProbeEventHandler func(*model.Event)
+type onCustomSendEventHandler func(*rules.Rule, *events.CustomEvent)
+type onSendEventHandler func(*rules.Rule, *model.Event)
+type onDiscarderPushedHandler func(event eval.Event, field eval.Field, eventType eval.EventType) bool
+
+type eventHandlers struct {
+	sync.RWMutex
+	onRuleMatch       onRuleHandler
+	onProbeEvent      onProbeEventHandler
+	onCustomSendEvent onCustomSendEventHandler
+	onSendEvent       onSendEventHandler
+	onDiscarderPushed onDiscarderPushedHandler
+}
