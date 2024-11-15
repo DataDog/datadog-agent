@@ -10,7 +10,7 @@ package run
 import (
 	"context"
 
-	implzlib "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-zlib"
+	fxzlib "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-zlib"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/confmap"
@@ -45,7 +45,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
@@ -147,11 +146,8 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
 		logsagentpipelineimpl.Module(),
-		// We create strategy.ZlibStrategy directly to avoid build tags
-		fx.Provide(implzlib.NewComponent),
-		fx.Provide(func(s *implzlib.ZlibStrategy) compression.Component {
-			return s
-		}),
+		// We directly select fxzlib
+		fxzlib.Module(),
 		fx.Provide(serializer.NewSerializer),
 		// For FX to provide the serializer.MetricSerializer from the serializer.Serializer
 		fx.Provide(func(s *serializer.Serializer) serializer.MetricSerializer {
