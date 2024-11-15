@@ -52,15 +52,15 @@ func requestAgentHostnameMetadataPayload(v *baseHostnameSuite) {
 		v.T().Fatal(err)
 	}
 
-	metaData, err := json.Marshal(data["metadata"].(map[string]interface{})["meta"])
-	if err != nil {
-		v.T().Fatal(err)
+	metaMap, ok := data["metadata"].(map[string]interface{})["meta"].(map[string]interface{})
+	if !ok {
+		v.T().Fatal()
 	}
 
 	var hostnameMeta Meta
-	if err := json.Unmarshal(metaData, &hostnameMeta); err != nil {
-		v.T().Fatal(err)
-	}
+	hostnameMeta.Hostname, _ = metaMap["hostname"].(string)
+	hostnameMeta.LegacyResolutionHostname, _ = metaMap["legacy-resolution-hostname"].(string)
+
 	v.hostnameMetadata = hostnameMeta
 }
 
