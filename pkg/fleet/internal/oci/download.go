@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -255,7 +254,6 @@ func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Imag
 			remote.WithContext(ctx),
 			remote.WithAuthFromKeychain(refAndKeychain.keychain),
 			remote.WithTransport(httptrace.WrapRoundTripper(d.client.Transport)),
-			remote.WithRetryPredicate(shouldRetryNetwork),
 		)
 		if err != nil {
 			multiErr = multierr.Append(multiErr, fmt.Errorf("could not download image using %s: %w", url, err))
@@ -325,10 +323,10 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string)
 				err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
 				uncompressedLayer.Close()
 				if err != nil {
-					if !isStreamResetError(err) {
+					if !isStreamResetError(err) && !isConnectionResetByPeerError(err) {
 						return fmt.Errorf("could not extract layer: %w", err)
 					}
-					log.Warnf("stream error while extracting layer, retrying")
+					log.Warnf("network error while extracting layer, retrying")
 					// Clean up the directory before retrying to avoid partial extraction
 					err = tar.Clean(dir)
 					if err != nil {
@@ -386,37 +384,8 @@ func isStreamResetError(err error) bool {
 	return false
 }
 
-type usernamePasswordKeychain struct {
-	username string
-	password string
-}
-
-func (k usernamePasswordKeychain) Resolve(_ authn.Resource) (authn.Authenticator, error) {
-	return authn.FromConfig(authn.AuthConfig{
-		Username: k.username,
-		Password: k.password,
-	}), nil
-}
-
-// This is implemented by several errors in the net package as well as in go-containerregistry
-// transport.Error.
-type temporary interface {
-	Temporary() bool
-}
-
-// isTemporary returns true if err implements Temporary() and it returns true.
-func isTemporary(err error) bool {
-	if errors.Is(err, context.DeadlineExceeded) {
-		return false
-	}
-	if te, ok := err.(temporary); ok && te.Temporary() {
-		return true
-	}
-	return false
-}
-
 // isConnectionResetByPeer returns true if the error is a connection reset by peer error
-func isConnectionResetByPeer(err error) bool {
+func isConnectionResetByPeerError(err error) bool {
 	if netErr, ok := err.(*net.OpError); ok {
 		if syscallErr, ok := netErr.Err.(*os.SyscallError); ok {
 			if errno, ok := syscallErr.Err.(syscall.Errno); ok {
@@ -427,14 +396,14 @@ func isConnectionResetByPeer(err error) bool {
 	return false
 }
 
-// shouldRetryNetwork returns true if the error is a temporary network error that the transport should retry
-func shouldRetryNetwork(err error) bool {
-	return isConnectionResetByPeer(err) ||
-		// The following are taken from the default go-containerregistry method
-		isTemporary(err) ||
-		errors.Is(err, io.ErrUnexpectedEOF) ||
-		errors.Is(err, io.EOF) ||
-		errors.Is(err, syscall.EPIPE) ||
-		errors.Is(err, syscall.ECONNRESET) ||
-		errors.Is(err, net.ErrClosed)
+type usernamePasswordKeychain struct {
+	username string
+	password string
+}
+
+func (k usernamePasswordKeychain) Resolve(_ authn.Resource) (authn.Authenticator, error) {
+	return authn.FromConfig(authn.AuthConfig{
+		Username: k.username,
+		Password: k.password,
+	}), nil
 }
