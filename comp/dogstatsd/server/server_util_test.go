@@ -37,7 +37,7 @@ import (
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -88,7 +88,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 			Overrides: overrides,
 		}),
 		replaymock.MockModule(),
-		compressionimpl.MockModule(),
+		compressionfx.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
@@ -104,7 +104,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		hostnameimpl.MockModule(),
 		serverdebugimpl.MockModule(),
 		replaymock.MockModule(),
-		compressionimpl.MockModule(),
+		compressionfx.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
@@ -123,7 +123,7 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replaymock.MockModule(),
-		compressionimpl.MockModule(),
+		compressionfx.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
