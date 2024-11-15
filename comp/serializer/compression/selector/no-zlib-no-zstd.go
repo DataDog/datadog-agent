@@ -11,12 +11,13 @@ package selector
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	implnoop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
 )
 
 // NewCompressorReq returns a new Compressor based on serializer_compressor_kind
 // This function is called only when there is no zlib or zstd tag
 func NewCompressorReq(_ compression.Requires) compression.Provides {
-	return compressionnoop.NewComponent()
+	return implnoop.NewComponent()
 }
 
 // NewCompressor returns a new Compressor based on serializer_compressor_kind

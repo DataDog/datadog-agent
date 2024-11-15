@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
-	compressionnoop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
-	compressionzlib "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-zlib"
+	implnoop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
+	implzlib "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-zlib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -22,16 +22,16 @@ import (
 func NewCompressorReq(req compression.Requires) compression.Provides {
 	switch req.Cfg.GetString("serializer_compressor_kind") {
 	case common.ZlibKind:
-		return compressionzlib.NewComponent()
+		return implzlib.NewComponent()
 	case common.ZstdKind:
 		log.Warn("zstd build tag not included. using zlib")
-		return compressionzlib.NewComponent()
+		return implzlib.NewComponent()
 	case common.NoneKind:
 		log.Warn("no serializer_compressor_kind set. use zlib or zstd")
-		return compressionnoop.NewComponent()
+		return implnoop.NewComponent()
 	default:
 		log.Warn("invalid serializer_compressor_kind detected. use zlib or zstd")
-		return compressionnoop.NewComponent()
+		return implnoop.NewComponent()
 	}
 }
 
