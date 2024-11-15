@@ -144,8 +144,9 @@ policy.provider=sun.security.provider.PolicyFile
 # The default is to have a single system-wide policy file,
 # and a policy file in the user's home directory.
 #
+# A second policy file is added via the command-line (location varies between OS)
+# that contains permission grants required by BouncyCastle provider.
 policy.url.1=file:${java.home}/conf/security/java.policy
-policy.url.2=file:/opt/bouncycastle-fips/bc-fips.policy
 
 # whether or not we expand properties in the policy file
 # if this is set to false, properties (${...}) will not be expanded in policy
