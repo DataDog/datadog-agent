@@ -43,8 +43,6 @@ event_monitoring_config:
   remote_tagger: false
   custom_sensitive_words:
     - "*custom*"
-  network:
-    enabled: true
   flush_discarder_window: 0
 {{if .DisableFilters}}
   enable_kernel_filters: false
@@ -55,8 +53,6 @@ event_monitoring_config:
 {{if .DisableDiscarders}}
   enable_discarders: false
 {{end}}
-  erpc_dentry_resolution_enabled: {{ .ErpcDentryResolutionEnabled }}
-  map_dentry_resolution_enabled: {{ .MapDentryResolutionEnabled }}
   envs_with_value:
   {{range .EnvsWithValue}}
     - {{.}}
@@ -75,49 +71,6 @@ runtime_security_config:
   sbom:
     enabled: {{ .SBOMEnabled }}
   fim_enabled: {{ .FIMEnabled }}
-  activity_dump:
-    enabled: {{ .EnableActivityDump }}
-{{if .EnableActivityDump}}
-    rate_limiter: {{ .ActivityDumpRateLimiter }}
-    tag_rules:
-      enabled: {{ .ActivityDumpTagRules }}
-    dump_duration: {{ .ActivityDumpDuration }}
-    {{if .ActivityDumpLoadControllerPeriod }}
-    load_controller_period: {{ .ActivityDumpLoadControllerPeriod }}
-    {{end}}
-    {{if .ActivityDumpCleanupPeriod }}
-    cleanup_period: {{ .ActivityDumpCleanupPeriod }}
-    {{end}}
-    {{if .ActivityDumpLoadControllerTimeout }}
-    min_timeout: {{ .ActivityDumpLoadControllerTimeout }}
-    {{end}}
-    traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
-    cgroup_differentiate_args: {{ .ActivityDumpCgroupDifferentiateArgs }}
-    auto_suppression:
-      enabled: {{ .ActivityDumpAutoSuppressionEnabled }}
-    traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
-    - {{.}}
-    {{end}}
-    local_storage:
-      output_directory: {{ .ActivityDumpLocalStorageDirectory }}
-      compression: {{ .ActivityDumpLocalStorageCompression }}
-      formats: {{range .ActivityDumpLocalStorageFormats}}
-      - {{.}}
-      {{end}}
-{{end}}
-  security_profile:
-    enabled: {{ .EnableSecurityProfile }}
-{{if .EnableSecurityProfile}}
-    dir: {{ .SecurityProfileDir }}
-    watch_dir: {{ .SecurityProfileWatchDir }}
-    anomaly_detection:
-      enabled: true
-      default_minimum_stable_period: {{.AnomalyDetectionDefaultMinimumStablePeriod}}
-      minimum_stable_period:
-        exec: {{.AnomalyDetectionMinimumStablePeriodExec}}
-        dns: {{.AnomalyDetectionMinimumStablePeriodDNS}}
-      workload_warmup_period: {{.AnomalyDetectionWarmupPeriod}}
-{{end}}
 
   self_test:
     enabled: false
@@ -132,8 +85,6 @@ runtime_security_config:
   {{range .LogTags}}
     - {{.}}
   {{end}}
-  ebpfless:
-    enabled: {{.EBPFLessEnabled}}
   enforcement:
     exclude_binaries:
       - {{ .EnforcementExcludeBinary }}
