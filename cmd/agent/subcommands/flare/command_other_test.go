@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
+const systemProbeTestPipeName = ""
+
 // NewSystemProbeTestServer starts a new mock server to handle System Probe requests.
 func NewSystemProbeTestServer(_ http.Handler) (*httptest.Server, error) {
 	// Linux still uses a port-based system-probe, it does not need a dedicated system probe server

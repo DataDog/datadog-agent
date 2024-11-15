@@ -28,20 +28,12 @@ import (
 )
 
 const (
-	// SystemProbeTestPipeName is the test named pipe for system-probe
+	// systemProbeTestPipeName is the test named pipe for system-probe
 	systemProbeTestPipeName = `\\.\pipe\dd_system_probe_wincrash_test`
-
-	// systemProbeTestPipeSecurityDescriptor has a DACL that allows Everyone access for these tests.
-	systemProbeTestPipeSecurityDescriptor = "D:PAI(A;;FA;;;WD)"
 )
 
 func createSystemProbeListener() (l net.Listener, close func()) {
-	process_net.OverrideSystemProbeNamedPipeConfig(
-		systemProbeTestPipeName,
-		systemProbeTestPipeSecurityDescriptor)
-
-	// No socket address. Windows uses a fixed name pipe
-	conn, err := process_net.NewSystemProbeListener("")
+	conn, err := process_net.NewSystemProbeListener(systemProbeTestPipeName)
 	if err != nil {
 		panic(err)
 	}
