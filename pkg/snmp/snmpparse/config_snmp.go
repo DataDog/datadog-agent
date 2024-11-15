@@ -10,14 +10,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	yaml "gopkg.in/yaml.v2"
 	"net"
 	"net/url"
-	"reflect"
-
-	"github.com/DataDog/viper"
+	yaml "gopkg.in/yaml.v2"
 
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -81,34 +79,18 @@ func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 }
 
 func parseConfigSnmpMain(conf config.Component) ([]SNMPConfig, error) {
-	var snmpconfigs []SNMPConfig
-	var configs []snmplistener.Config
-	opt := viper.DecodeHook(
-		func(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
-			// Turn an array into a map for ignored addresses
-			if rf != reflect.Slice {
-				return data, nil
-			}
-			if rt != reflect.Map {
-				return data, nil
-			}
-			newData := map[interface{}]bool{}
-			for _, i := range data.([]interface{}) {
-				newData[i] = true
-			}
-			return newData, nil
-		},
-	)
-	// the UnmarshalKey stores the result in mapstructures while the snmpconfig is in yaml
-	// so for each result of the Unmarshal key we store the result in a tmp SNMPConfig{} object
+	snmpconfigs := []SNMPConfig{}
+	configs := []snmplistener.Config{}
+	//the UnmarshalKey stores the result in mapstructures while the snmpconfig is in yaml
+	//so for each result of the Unmarshal key we store the result in a tmp SNMPConfig{} object
 	if conf.IsSet("network_devices.autodiscovery.configs") {
-		err := conf.UnmarshalKey("network_devices.autodiscovery.configs", &configs, opt)
+		err := structure.UnmarshalKey(conf, "network_devices.autodiscovery.configs", &configs, structure.ImplicitlyConvertArrayToMapSet)
 		if err != nil {
 			fmt.Printf("unable to get snmp config from network_devices.autodiscovery: %v", err)
 			return nil, err
 		}
 	} else if conf.IsSet("snmp_listener.configs") {
-		err := conf.UnmarshalKey("snmp_listener.configs", &configs, opt)
+		err := structure.UnmarshalKey(conf, "snmp_listener.configs", &configs, structure.ImplicitlyConvertArrayToMapSet)
 		if err != nil {
 			fmt.Printf("unable to get snmp config from snmp_listener: %v", err)
 			return nil, err

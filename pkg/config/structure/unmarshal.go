@@ -23,6 +23,7 @@ import (
 type featureSet struct {
 	allowSquash        bool
 	convertEmptyStrNil bool
+	convertArrayToMap  bool
 }
 
 // UnmarshalKeyOption is an option that affects the enabled features in UnmarshalKey
@@ -38,6 +39,14 @@ var EnableSquash UnmarshalKeyOption = func(fs *featureSet) {
 var ConvertEmptyStringToNil UnmarshalKeyOption = func(fs *featureSet) {
 	fs.convertEmptyStrNil = true
 }
+
+// ImplicitlyConvertArrayToMapSet allows UnmarshalKey to implicity convert an array of []interface{} to a map[interface{}]bool
+var ImplicitlyConvertArrayToMapSet UnmarshalKeyOption = func(fs *featureSet) {
+	fs.convertArrayToMap = true
+}
+
+// error for when a key is not found
+var errNotFound = fmt.Errorf("not found")
 
 // UnmarshalKey retrieves data from the config at the given key and deserializes it
 // to be stored on the target struct.
@@ -163,25 +172,38 @@ func copyStruct(target reflect.Value, source nodetreemodel.Node, fs *featureSet)
 	return nil
 }
 
-func copyMap(target reflect.Value, source nodetreemodel.Node, _ *featureSet) error {
-	ktype := reflect.TypeOf("")
-	vtype := reflect.TypeOf("")
-
-	// TODO: Should handle maps with more complex types in a future PR
-	//
-	// For now we only support map[string]string.
-	if target.Type().Elem() != vtype || target.Type().Key() != ktype {
-		return fmt.Errorf("only map[string]string are supported, not %s", target.Type())
-	}
-
+func copyMap(target reflect.Value, source nodetreemodel.Node, fs *featureSet) error {
+	ktype := target.Type().Key()
+	vtype := target.Type().Elem()
 	mtype := reflect.MapOf(ktype, vtype)
 	results := reflect.MakeMap(mtype)
 
+	if fs.convertArrayToMap {
+		if leaf, ok := source.(nodetreemodel.LeafNode); ok {
+			thing, _ := leaf.GetAny()
+			if arr, ok := thing.([]interface{}); ok {
+				// convert []interface{} to map[interface{}]bool
+				create := make(map[interface{}]bool)
+				for k := range len(arr) {
+					item := arr[k]
+					create[fmt.Sprintf("%s", item)] = true
+				}
+				converted, err := nodetreemodel.NewNodeTree(create, model.SourceUnknown)
+				if err != nil {
+					return err
+				}
+				source = converted
+			}
+		}
+	}
+
 	inner, ok := source.(nodetreemodel.InnerNode)
 	if !ok {
-		return fmt.Errorf("can't copy a map into a leaf")
+		return fmt.Errorf("cannot assign leaf node to a map")
 	}
-	for _, mkey := range inner.ChildrenKeys() {
+
+	mapKeys := inner.ChildrenKeys()
+	for _, mkey := range mapKeys {
 		child, err := inner.GetChild(mkey)
 		if err != nil {
 			return err
@@ -192,8 +214,10 @@ func copyMap(target reflect.Value, source nodetreemodel.Node, _ *featureSet) err
 		if scalar, ok := child.(nodetreemodel.LeafNode); ok {
 			if mval, err := cast.ToStringE(scalar.Get()); err == nil {
 				results.SetMapIndex(reflect.ValueOf(mkey), reflect.ValueOf(mval))
+			} else if bval, err := scalar.GetBool(); err == nil {
+				results.SetMapIndex(reflect.ValueOf(mkey), reflect.ValueOf(bval))
 			} else {
-				return fmt.Errorf("TODO: only map[string]string supported currently")
+				return fmt.Errorf("only map[string]string and map[string]bool supported currently")
 			}
 		}
 	}

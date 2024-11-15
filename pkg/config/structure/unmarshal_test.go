@@ -977,6 +977,22 @@ feature:
 		require.Error(t, err)
 		assert.Equal(t, err.Error(), "only map[string]string are supported, not map[string]bool")
 	})
+
+	t.Run("errors on non-string map", func(t *testing.T) {
+		confYaml := `
+feature:
+  enabled: true
+`
+
+		mockConfig := mock.NewFromYAML(t, confYaml)
+		mockConfig.SetKnown("feature")
+
+		feature := make(map[string]bool)
+
+		err := UnmarshalKey(mockConfig, "feature", &feature)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "only map[string]string supported currently")
+	})
 }
 
 // A flag is provided as a struct tag after a field name separated by a comma that
