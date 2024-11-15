@@ -32,7 +32,6 @@ import (
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Mock implements mock-specific methods for the tagger component.
@@ -63,7 +62,7 @@ func New(t testing.TB) Mock {
 		UseFakeTagger: true,
 	}
 	logComponent := logmock.New(t)
-	wmeta := fxutil.Test[optional.Option[workloadmeta.Component]](t,
+	wmeta := fxutil.Test[workloadmeta.Component](t,
 		fx.Provide(func() log.Component { return logComponent }),
 		fx.Provide(func() config.Component { return c }),
 		workloadmetafx.Module(workloadmeta.NewParams()),
@@ -91,7 +90,7 @@ type dependencies struct {
 
 	Config    config.Component
 	Log       log.Component
-	WMeta     optional.Option[workloadmeta.Component]
+	WMeta     workloadmeta.Component
 	Telemetry telemetry.Component
 }
 

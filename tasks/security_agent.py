@@ -865,6 +865,7 @@ def sync_secl_win_pkg(ctx):
         ("accessors_windows.go", "accessors_win.go"),
         ("legacy_secl.go", None),
         ("security_profile.go", None),
+        ("string_array_iter.go", None),
     ]
 
     ctx.run("rm -r pkg/security/seclwin/model")

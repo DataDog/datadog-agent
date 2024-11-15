@@ -59,7 +59,7 @@ func TestEnrichTags(t *testing.T) {
 		UseFakeTagger: true,
 	}
 	logComponent := logmock.New(t)
-	wmeta := fxutil.Test[optional.Option[workloadmeta.Component]](t,
+	wmeta := fxutil.Test[workloadmeta.Component](t,
 		fx.Provide(func() log.Component { return logComponent }),
 		fx.Provide(func() config.Component { return c }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
@@ -182,7 +182,7 @@ func TestEnrichTagsOrchestrator(t *testing.T) {
 		UseFakeTagger: true,
 	}
 	logComponent := logmock.New(t)
-	wmeta := fxutil.Test[optional.Option[workloadmeta.Component]](t,
+	wmeta := fxutil.Test[workloadmeta.Component](t,
 		fx.Provide(func() log.Component { return logComponent }),
 		fx.Provide(func() config.Component { return c }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
@@ -207,7 +207,7 @@ func TestEnrichTagsOptOut(t *testing.T) {
 		UseFakeTagger: true,
 	}
 	logComponent := logmock.New(t)
-	wmeta := fxutil.Test[optional.Option[workloadmeta.Component]](t,
+	wmeta := fxutil.Test[workloadmeta.Component](t,
 		fx.Provide(func() log.Component { return logComponent }),
 		fx.Provide(func() config.Component { return c }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
@@ -299,7 +299,7 @@ func TestAgentTags(t *testing.T) {
 		UseFakeTagger: true,
 	}
 	logComponent := logmock.New(t)
-	wmeta := fxutil.Test[optional.Option[workloadmeta.Component]](t,
+	wmeta := fxutil.Test[workloadmeta.Component](t,
 		fx.Provide(func() log.Component { return logComponent }),
 		fx.Provide(func() config.Component { return c }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
@@ -338,7 +338,7 @@ func TestGlobalTags(t *testing.T) {
 		UseFakeTagger: true,
 	}
 	logComponent := logmock.New(t)
-	wmeta := fxutil.Test[optional.Option[workloadmeta.Component]](t,
+	wmeta := fxutil.Test[workloadmeta.Component](t,
 		fx.Provide(func() log.Component { return logComponent }),
 		fx.Provide(func() config.Component { return c }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
@@ -440,7 +440,7 @@ func TestDefaultCardinality(t *testing.T) {
 				UseFakeTagger: true,
 			}
 			logComponent := logmock.New(t)
-			wmeta := fxutil.Test[optional.Option[workloadmeta.Component]](t,
+			wmeta := fxutil.Test[workloadmeta.Component](t,
 				fx.Provide(func() log.Component { return logComponent }),
 				fx.Provide(func() config.Component { return cfg }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),

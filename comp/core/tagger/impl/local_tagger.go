@@ -20,7 +20,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Tagger is the entry class for entity tagging. It hold the tagger collector,
@@ -40,12 +39,7 @@ type localTagger struct {
 	telemetryStore *telemetry.Store
 }
 
-func newLocalTagger(cfg config.Component, workloadStore optional.Option[workloadmeta.Component], telemetryStore *telemetry.Store) (tagger.Component, error) {
-	wmeta, ok := workloadStore.Get()
-	if !ok {
-		return nil, fmt.Errorf("workloadmeta component is not available")
-	}
-
+func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, telemetryStore *telemetry.Store) (tagger.Component, error) {
 	return &localTagger{
 		tagStore:       tagstore.NewTagStore(cfg, telemetryStore),
 		workloadStore:  wmeta,
