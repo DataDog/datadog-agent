@@ -56,7 +56,6 @@ func newEnvValueStore(prefix string) envValueStore {
 func (s envValueStore) get(key StoreKey) (string, error) {
 	envValueStoreKey := envVariablesByStoreKey[key]
 	if envValueStoreKey == "" {
-		fmt.Printf("key [%s] not found in envValueStoreKey, converting to `strings.ToUpper(E2E_<key>)`\n", key)
 		envValueStoreKey = strings.ToUpper(s.prefix + string(key))
 	}
 	val, found := os.LookupEnv(strings.ToUpper(envValueStoreKey))
