@@ -37,7 +37,7 @@ func NewEBPFLessResolvers(config *config.Config, statsdClient statsd.ClientInter
 	if opts.TagsResolver != nil {
 		tagsResolver = opts.TagsResolver
 	} else {
-		tagsResolver = tags.NewResolver(config.Probe, telemetry)
+		tagsResolver = tags.NewResolver(telemetry)
 	}
 
 	processOpts := process.NewResolverOpts()
