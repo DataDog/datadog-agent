@@ -37,7 +37,7 @@ func newCDNHTTP(env *env.Env, configDBPath string) (CDN, error) {
 	return &cdnHTTP{
 		client:              client,
 		currentRootsVersion: 1,
-		hostTagsGetter:      newHostTagsGetter(),
+		hostTagsGetter:      newHostTagsGetter(env),
 	}, nil
 }
 

@@ -40,7 +40,7 @@ func newCDNRC(env *env.Env, configDBPath string) (CDN, error) {
 	ctx, cc := context.WithTimeout(ctx, 10*time.Second)
 	defer cc()
 
-	ht := newHostTagsGetter()
+	ht := newHostTagsGetter(env)
 	hostname, err := pkghostname.Get(ctx)
 	if err != nil {
 		hostname = "unknown"

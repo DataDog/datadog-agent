@@ -31,7 +31,6 @@ type packageTestsWithSkipedFlavors struct {
 	t                          packageTests
 	skippedFlavors             []e2eos.Descriptor
 	skippedInstallationMethods []InstallMethodOption
-	flaky                      bool
 }
 
 var (
@@ -52,7 +51,7 @@ var (
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkipedFlavors{
 		{t: testInstaller},
 		{t: testAgent},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.Suse15}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}, flaky: true},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.Suse15}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testUpgradeScenario},
 	}
 )
@@ -110,10 +109,6 @@ func TestPackages(t *testing.T) {
 				t.Parallel()
 				// FIXME: Fedora currently has DNS issues
 				if flavor.Flavor == e2eos.Fedora {
-					flake.Mark(t)
-				}
-
-				if test.flaky {
 					flake.Mark(t)
 				}
 

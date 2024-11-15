@@ -79,6 +79,10 @@ type WindowsProbe struct {
 	// a well-known provider
 	auditSession etw.Session
 
+	// rate limiters
+	writeKey         writeRateLimiterKey // use a single key for all write events to avoid memory allocations
+	writeRateLimiter *utils.Limiter[writeRateLimiterKey]
+
 	// path caches
 	filePathResolver *lru.Cache[fileObjectPointer, fileCache]
 	regPathResolver  *lru.Cache[regObjectPointer, string]
@@ -115,6 +119,11 @@ type WindowsProbe struct {
 	currentEventTypes []string
 	approvers         map[eval.Field][]approver
 	approverLock      sync.RWMutex
+}
+
+type writeRateLimiterKey struct {
+	fileObject fileObjectPointer
+	processID  uint32
 }
 
 type approver interface {
@@ -734,6 +743,11 @@ func (p *WindowsProbe) preChanETWHandle(arg interface{}) bool {
 		}
 		p.renamePreArgs.Add(uint64(arg.fileObject), fc)
 		return false
+	case *writeArgs:
+		// rate limit bursts of write events
+		p.writeKey.fileObject = arg.fileObject
+		p.writeKey.processID = arg.DDEventHeader.ProcessID
+		return p.writeRateLimiter.Allow(p.writeKey)
 	default:
 		return true
 	}
@@ -1194,6 +1208,12 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 		return nil, err
 	}
 
+	// only allow 1 write event per second per file per process
+	writeRateLimiter, err := utils.NewLimiter[writeRateLimiterKey](config.RuntimeSecurity.WindowsWriteEventRateLimiterMaxAllowed, 1, config.RuntimeSecurity.WindowsWriteEventRateLimiterPeriod)
+	if err != nil {
+		return nil, err
+	}
+
 	rnc, err := lru.New[uint64, fileCache](5)
 	if err != nil {
 		return nil, err
@@ -1236,6 +1256,8 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 		approvers: make(map[eval.Field][]approver),
 
 		volumeMap: make(map[string]string),
+
+		writeRateLimiter: writeRateLimiter,
 
 		processKiller: processKiller,
 

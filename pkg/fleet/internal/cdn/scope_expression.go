@@ -122,6 +122,7 @@ func getOrderedScopedLayers(files map[string][]byte, env map[string]interface{})
 }
 
 func getScopeExprVars(ctx context.Context, hostTagsGetter hostTagsGetter) map[string]interface{} {
+	// TODO(baptiste): This should be passed from the daemon to the executable like tags
 	hostname, err := pkghostname.Get(ctx)
 	if err != nil {
 		hostname = "unknown"

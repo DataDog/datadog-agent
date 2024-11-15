@@ -34,7 +34,11 @@ func GetDockerPID(dockerName string) (int64, error) {
 	if err := c.Run(); err != nil {
 		return 0, fmt.Errorf("failed to get %s pid: %s", dockerName, stderr.String())
 	}
-	return strconv.ParseInt(strings.TrimSpace(stdout.String()), 10, 64)
+	pid, err := strconv.ParseInt(strings.TrimSpace(stdout.String()), 10, 64)
+	if pid == 0 {
+		return 0, fmt.Errorf("failed to retrieve %s pid, container is not running", dockerName)
+	}
+	return pid, err
 }
 
 // RunDockerServer is a template for running a protocols server in a docker.
