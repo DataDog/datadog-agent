@@ -52,7 +52,7 @@ Also note that the trace agent needs to be built and run separately. For more in
 We use `pkg-config` to make compilers and linkers aware of Python. The required .pc files are
 provided automatically when building python through omnibus.
 
-As an option, the Agent can combines multiple functionalities into a single binary to reduce
+As an option, the Agent can combine multiple functionalities into a single binary to reduce
 the space used on disk. The `DD_BUNDLED_AGENT` environment variable is used to select
 which functionality to enable. For instance, if set to `process-agent`, it will act as the process Agent.
 If the environment variable is not defined, the process name is used as a fallback.
