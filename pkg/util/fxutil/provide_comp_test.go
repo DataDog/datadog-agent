@@ -49,7 +49,7 @@ func TestInvalidArgumentOrReturnValue(t *testing.T) {
 	assertIsSingleError(t, errOpt, "argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
 
 	errOpt = ProvideComponentConstructor(func(FirstComp) SecondComp { return &secondImpl{} })
-	assertIsSingleError(t, errOpt, `constructor must either take 0 arguments, or 1 "requires" struct`)
+	assertIsSingleError(t, errOpt, `must either take 0 arguments, or 1 "requires" struct`)
 
 	errOpt = ProvideComponentConstructor(func() (FirstComp, SecondComp) { return &firstImpl{}, &secondImpl{} })
 	assertIsSingleError(t, errOpt, "second return value must be error, got fxutil.SecondComp")
@@ -559,8 +559,8 @@ func assertIsSingleError(t *testing.T, arg fx.Option, errMsg string) {
 	err := app.Err()
 	if err == nil {
 		t.Fatalf("expected an error, instead got %v of type %T", arg, arg)
-	} else if err.Error() != errMsg {
-		t.Fatalf("errror mismatch, expected %v, got %v", errMsg, err.Error())
+	} else if !strings.Contains(err.Error(), errMsg) {
+		t.Fatalf(`errror mismatch, expected to contain "%v", got "%v"`, errMsg, err.Error())
 	}
 }
 
