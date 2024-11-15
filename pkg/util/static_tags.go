@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
@@ -84,14 +85,14 @@ func GetStaticTags(ctx context.Context) map[string][]string {
 // GetGlobalEnvTags is similar to GetStaticTags, but returning a map[string][]string containing
 // <key>:<value> pairs for all global environment tags. This includes DD_TAGS and DD_EXTRA_TAGS always,
 // and DD_CLUSTER_CHECKS_EXTRA_TAGS and DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS when on Cluster Agent
-func GetGlobalEnvTags() map[string][]string {
+func GetGlobalEnvTags(config model.Reader) map[string][]string {
 
 	// DD_TAGS / DD_EXTRA_TAGS
-	tags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
+	tags := configUtils.GetConfiguredTags(config, false)
 
 	// DD_CLUSTER_CHECKS_EXTRA_TAGS / DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		tags = append(tags, configUtils.GetConfiguredDCATags(pkgconfigsetup.Datadog())...)
+		tags = append(tags, configUtils.GetConfiguredDCATags(config)...)
 	}
 
 	if tags == nil {
