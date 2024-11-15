@@ -310,8 +310,3 @@ workflows:
             - unit_tests
             - integration_tests
             - docker_tests
-      - build_iot_agent:
-          requires:
-            - unit_tests
-            - integration_tests
-            - docker_tests
