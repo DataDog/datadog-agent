@@ -71,19 +71,18 @@ def get_file_modifications(
 
     flags = '--no-renames' if no_renames else ''
 
-    raw_modifications = [
+    modifications = [
         line.split('\t')
         for line in ctx.run(f"git diff --name-status {flags} {last_main_commit}", hide=True).stdout.splitlines()
     ]
     if added or modified or removed:
-        modifications = []
-        for m in raw_modifications:
-            if len(m) == 3:
-                # file was renamed
-                continue
-            status, file = m
-            if (added and status == "A") or (modified and status in "MCRT") or (removed and status == "D"):
-                modifications.append((status, file))
+        # skip when a file is renamed
+        modifications = [m for m in modifications if len(m) != 3]
+        modifications = [
+            (status, file)
+            for status, file in modifications
+            if (added and status == "A") or (modified and status in "MCRT") or (removed and status == "D")
+        ]
 
     if only_names:
         modifications = [file for _, file in modifications]
