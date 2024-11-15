@@ -31,7 +31,7 @@ var (
 	osVersion    = flag.String("osversion", "", "os version to test")
 	platform     = flag.String("platform", "", "platform to test")
 	architecture = flag.String("arch", "", "architecture to test (x86_64, arm64)")
-	majorVersion = flag.String("major-version", "7", "major version to test (6, 7)")
+	majorVersion = flag.String("major-version", "6", "major version to test (6, 7)")
 )
 
 type rpmTestSuite struct {
