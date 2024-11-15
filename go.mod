@@ -138,6 +138,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/system => ./pkg/util/system
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ./pkg/util/system/socket/
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ./pkg/util/testutil
+	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker => ./pkg/util/utilizationtracker
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ./pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil/
 	github.com/DataDog/datadog-agent/pkg/version => ./pkg/version
@@ -605,6 +606,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.60.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
 	github.com/NVIDIA/go-nvml v0.12.4-0
 	github.com/containerd/containerd/api v1.8.0
 	github.com/containerd/errdefs v1.0.0
