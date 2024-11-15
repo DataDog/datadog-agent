@@ -530,7 +530,7 @@ func (j *JMXFetch) setupFIPS(subprocessArgs *[]string, classpath *string) {
 
 	// Double equals sign instructs JVM to replace stock security configuration rather than modify it.
 	*subprocessArgs = append(*subprocessArgs, fmt.Sprintf("-Djava.security.properties==%s", configPath))
-
+	// bc-fips.policy contains additional permission grants per BouncyCastle manual.
 	policyPath := path.Join(embeddedFIPSPath, "bc-fips.policy")
 	*subprocessArgs = append(*subprocessArgs, fmt.Sprintf("-Dpolicy.url.2=file:%s", policyPath))
 }
