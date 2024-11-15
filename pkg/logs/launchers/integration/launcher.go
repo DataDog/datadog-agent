@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/afero"
+
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	ddLog "github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -44,7 +46,8 @@ type Launcher struct {
 	combinedUsageSize    int64
 	// writeLogToFile is used as a function pointer, so it can be overridden in
 	// testing to make deterministic tests
-	writeLogToFileFunction func(filepath, log string) error
+	writeLogToFileFunction func(fs afero.Fs, filepath, log string) error
+	fs                     afero.Fs
 }
 
 // fileInfo stores information about each file that is needed in order to keep
@@ -57,10 +60,10 @@ type fileInfo struct {
 
 // NewLauncher creates and returns an integrations launcher, and creates the
 // path for integrations files to run in
-func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.Component) *Launcher {
+func NewLauncher(fs afero.Fs, sources *sources.LogSources, integrationsLogsComp integrations.Component) *Launcher {
 	datadogConfig := pkgconfigsetup.Datadog()
 	runPath := filepath.Join(datadogConfig.GetString("logs_config.run_path"), "integrations")
-	err := os.MkdirAll(runPath, 0755)
+	err := fs.MkdirAll(runPath, 0755)
 
 	if err != nil {
 		ddLog.Error("Unable to create integrations logs directory:", err)
@@ -98,6 +101,7 @@ func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.
 		// Set the initial least recently modified time to the largest possible
 		// value, used for the first comparison
 		writeLogToFileFunction: writeLogToFile,
+		fs:                     fs,
 	}
 }
 
@@ -189,7 +193,7 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 	}
 
 	if fileToUpdate.size+logSize > s.fileSizeMax {
-		file, err := os.Create(fileToUpdate.fileWithPath)
+		file, err := s.fs.Create(fileToUpdate.fileWithPath)
 		if err != nil {
 			ddLog.Error("Failed to delete and remake oversize file:", err)
 			return
@@ -220,7 +224,7 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 			return
 		}
 
-		file, err := os.Create(leastRecentlyModifiedFile.fileWithPath)
+		file, err := s.fs.Create(leastRecentlyModifiedFile.fileWithPath)
 		if err != nil {
 			ddLog.Error("Error creating log file:", err)
 			continue
@@ -232,7 +236,7 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 		}
 	}
 
-	err := s.writeLogToFileFunction(fileToUpdate.fileWithPath, log.Log)
+	err := s.writeLogToFileFunction(s.fs, fileToUpdate.fileWithPath, log.Log)
 	if err != nil {
 		ddLog.Warn("Error writing log to file:", err)
 		return
@@ -245,7 +249,7 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 }
 
 func (s *Launcher) deleteFile(file *fileInfo) error {
-	err := os.Remove(file.fileWithPath)
+	err := s.fs.Remove(file.fileWithPath)
 	if err != nil {
 		return err
 	}
@@ -276,8 +280,8 @@ func (s *Launcher) getLeastRecentlyModifiedFile() *fileInfo {
 }
 
 // writeLogToFile is used as a function pointer that writes a log to a given file
-func writeLogToFile(logFilePath, log string) error {
-	file, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+func writeLogToFile(fs afero.Fs, logFilePath, log string) error {
+	file, err := fs.OpenFile(logFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		ddLog.Error("Failed to open file to write log to:", err)
 		return err
@@ -316,7 +320,7 @@ func (s *Launcher) makeFileSource(source *sources.LogSource, logFilePath string)
 func (s *Launcher) createFile(source string) (*fileInfo, error) {
 	filepath := s.integrationLogFilePath(source)
 
-	file, err := os.Create(filepath)
+	file, err := s.fs.Create(filepath)
 	if err != nil {
 		ddLog.Error("Error creating file for log source:", err)
 		return nil, err
@@ -368,7 +372,8 @@ func computeMaxDiskUsage(runPath string, logsTotalUsageSetting int64, usageRatio
 // scanInitialFiles scans the run path for initial files and then adds them to
 // be managed by the launcher
 func (s *Launcher) scanInitialFiles(dir string) error {
-	err := filepath.Walk(dir, func(_ string, info os.FileInfo, err error) error {
+
+	err := afero.Walk(s.fs, dir, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}

@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
@@ -35,7 +34,6 @@ var (
 )
 
 func TestVMSuite(t *testing.T) {
-	flake.Mark(t)
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(componentsos.WindowsDefault))))}
 	if *devMode {
 		suiteParams = append(suiteParams, e2e.WithDevMode())
@@ -51,9 +49,7 @@ func (v *vmSuite) SetupSuite() {
 	currDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	reporoot, _ := filepath.Abs(filepath.Join(currDir, "..", "..", "..", ".."))
-	kitchenDir := filepath.Join(reporoot, "test", "kitchen", "site-cookbooks")
-	v.testspath = filepath.Join(kitchenDir, "dd-security-agent-check", "files", "tests")
+	v.testspath = filepath.Join(currDir, "artifacts")
 }
 
 func (v *vmSuite) TestSystemProbeCWSSuite() {

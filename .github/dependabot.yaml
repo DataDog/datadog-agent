@@ -37,6 +37,9 @@ updates:
       bun:
         patterns:
           - "github.com/uptrace/bun*"
+      aws-sdk-go-v2:
+        patterns:
+          - "github.com/aws/aws-sdk-go-v2*"
   - package-ecosystem: gomod
     directory: /pkg/trace
     labels:
@@ -156,18 +159,6 @@ updates:
       - dev/testing
     schedule:
       interval: weekly
-    open-pull-requests-limit: 100
-  - package-ecosystem: pip
-    directory: /test/e2e/cws-tests
-    labels:
-      - dependencies
-      - python
-      - team/agent-security
-      - changelog/no-changelog
-      - qa/no-code-change
-      - dev/tooling
-    schedule:
-      interval: monthly
     open-pull-requests-limit: 100
   - package-ecosystem: docker
     directory: /test/fakeintake

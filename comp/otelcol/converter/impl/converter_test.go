@@ -12,12 +12,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
 	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
+	"go.uber.org/zap"
 )
 
 func uriFromFile(filename string) []string {
@@ -34,14 +34,12 @@ func newResolver(uris []string) (*confmap.Resolver, error) {
 			httpprovider.NewFactory(),
 			httpsprovider.NewFactory(),
 		},
-		ConverterFactories: []confmap.ConverterFactory{
-			expandconverter.NewFactory(),
-		},
+		ConverterFactories: []confmap.ConverterFactory{},
 	})
 }
 
-func TestNewConverter(t *testing.T) {
-	_, err := NewConverter(Requires{})
+func TestNewConverterForAgent(t *testing.T) {
+	_, err := NewConverterForAgent(Requires{})
 	assert.NoError(t, err)
 }
 
@@ -150,8 +148,29 @@ func TestConvert(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			converter, err := NewConverter(Requires{})
+			converter, err := NewConverterForAgent(Requires{})
 			assert.NoError(t, err)
+
+			resolver, err := newResolver(uriFromFile(tc.provided))
+			assert.NoError(t, err)
+			conf, err := resolver.Resolve(context.Background())
+			assert.NoError(t, err)
+
+			converter.Convert(context.Background(), conf)
+
+			resolverResult, err := newResolver(uriFromFile(tc.expectedResult))
+			assert.NoError(t, err)
+			confResult, err := resolverResult.Resolve(context.Background())
+			assert.NoError(t, err)
+
+			assert.Equal(t, confResult.ToStringMap(), conf.ToStringMap())
+		})
+	}
+	// test using newConverter function to simulate ocb environment
+	nopLogger := zap.NewNop()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			converter := newConverter(confmap.ConverterSettings{Logger: nopLogger})
 
 			resolver, err := newResolver(uriFromFile(tc.provided))
 			assert.NoError(t, err)

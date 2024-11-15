@@ -36,12 +36,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
@@ -57,6 +58,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -153,11 +155,17 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() pidmap.Component { return nil }),
 			fx.Provide(func() replay.Component { return nil }),
 			fx.Provide(func() status.Component { return nil }),
-
-			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
-			taggerimpl.Module(),
+			dualTaggerfx.Module(common.DualTaggerParams()),
 			autodiscoveryimpl.Module(),
 			agent.Bundle(jmxloggerimpl.NewCliParams(cliParams.logFile)),
+			// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
+			// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
+			// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
+			// we can include the tagger as part of the workloadmeta component.
+			fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
+				proccontainers.InitSharedContainerProvider(wmeta, tagger)
+			}),
+			fx.Provide(func() remoteagentregistry.Component { return nil }),
 		)
 	}
 
@@ -295,7 +303,8 @@ func runJmxCommandConsole(config config.Component,
 	agentAPI internalAPI.Component,
 	collector optional.Option[collector.Component],
 	jmxLogger jmxlogger.Component,
-	logReceiver optional.Option[integrations.Component]) error {
+	logReceiver optional.Option[integrations.Component],
+	tagger tagger.Component) error {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
 	// Disabling it is both more efficient and gets rid of this log spam
@@ -312,7 +321,7 @@ func runJmxCommandConsole(config config.Component,
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(collector, senderManager, logReceiver)
+	pkgcollector.InitCheckScheduler(collector, senderManager, logReceiver, tagger)
 
 	// if cliSelectedChecks is empty, then we want to fetch all check configs;
 	// otherwise, we fetch only the matching cehck configs.

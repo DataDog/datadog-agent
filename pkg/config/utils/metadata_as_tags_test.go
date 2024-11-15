@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestGetMetadataAsTagsNoError(t *testing.T) {
@@ -101,7 +100,6 @@ func TestGetMetadataAsTagsNoError(t *testing.T) {
 
 		t.Run(test.name, func(tt *testing.T) {
 			mockConfig := configmock.New(t)
-			pkgconfigsetup.InitConfig(mockConfig)
 
 			mockConfig.SetWithoutSource("kubernetes_pod_labels_as_tags", test.podLabelsAsTags)
 			mockConfig.SetWithoutSource("kubernetes_pod_annotations_as_tags", test.podAnnotationsAsTags)

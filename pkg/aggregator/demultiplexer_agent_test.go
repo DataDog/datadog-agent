@@ -12,10 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -62,7 +65,7 @@ func TestDemuxNoAggOptionDisabled(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.Compressor, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.Compressor, deps.Tagger, "")
 
 	batch := testDemuxSamples(t)
 
@@ -84,7 +87,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	mockSerializer.On("AreSketchesEnabled").Return(true)
 	opts.EnableNoAggregationPipeline = true
 	deps := createDemultiplexerAgentTestDeps(t)
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.Compressor, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.Compressor, deps.Tagger, "")
 	demux.statsd.noAggStreamWorker.serializer = mockSerializer // the no agg pipeline will use our mocked serializer
 
 	go demux.run()
@@ -109,7 +112,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 
 func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 	opts := demuxTestOptions()
-	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), fx.MockModule())
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), compressionfx.MockModule())
 	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
 	require.False(t, demux.Options().EnableNoAggregationPipeline, "the no aggregation pipeline should be disabled by default")
@@ -153,15 +156,19 @@ type DemultiplexerAgentTestDeps struct {
 	OrchestratorFwd orchestratorforwarder.Component
 	EventPlatform   eventplatform.Component
 	Compressor      compression.Component
+	Tagger          tagger.Component
 }
 
 func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
+	taggerComponent := mock.SetupFakeTagger(t)
+
 	return fxutil.Test[DemultiplexerAgentTestDeps](
 		t,
 		defaultforwarder.MockModule(),
 		core.MockBundle(),
 		orchestratorimpl.MockModule(),
 		eventplatformimpl.MockModule(),
-		fx.MockModule(),
+		compressionfx.MockModule(),
+		fx.Provide(func() tagger.Component { return taggerComponent }),
 	)
 }

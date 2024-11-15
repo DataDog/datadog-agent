@@ -11,6 +11,7 @@ package ecs
 import (
 	"fmt"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
@@ -27,7 +28,7 @@ type TaskCollector struct {
 }
 
 // NewTaskCollector creates a new collector for the ECS Task resource.
-func NewTaskCollector() *TaskCollector {
+func NewTaskCollector(tagger tagger.Component) *TaskCollector {
 	return &TaskCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsStable:           false,
@@ -36,7 +37,7 @@ func NewTaskCollector() *TaskCollector {
 			Name:               "ecstasks",
 			NodeType:           orchestrator.ECSTask,
 		},
-		processor: processors.NewProcessor(new(ecs.TaskHandlers)),
+		processor: processors.NewProcessor(ecs.NewTaskHandlers(tagger)),
 	}
 }
 
@@ -99,7 +100,12 @@ func (t *TaskCollector) fetchContainers(rcfg *collectors.CollectorRunConfig, tas
 	for _, container := range task.Containers {
 		c, err := rcfg.WorkloadmetaStore.GetContainer(container.ID)
 		if err != nil {
-			log.Errorc(err.Error(), orchestrator.ExtraLogContext...)
+			// ECS can create internal pause containers that are not available in the workloadmeta store.
+			// https://github.com/DataDog/datadog-agent/blob/7.58.0/pkg/util/containers/filter.go#L184
+			// It is standard for tasks running with the awsvpc network mode
+			// https://github.com/aws/amazon-ecs-agent/blob/v1.88.0/agent/api/task/task.go#L68
+			// We can ignore the error and continue as there is nothing we can do about it.
+			log.Debugc(err.Error(), orchestrator.ExtraLogContext...)
 			continue
 		}
 		ecsTask.Containers = append(ecsTask.Containers, c)

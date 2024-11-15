@@ -31,7 +31,7 @@ const (
 	pngNS                        = "ping"
 	tracerouteNS                 = "traceroute"
 	discoveryNS                  = "discovery"
-	gpuMonitoringNS              = "gpu_monitoring"
+	gpuNS                        = "gpu_monitoring"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultServiceMonitoringJavaAgentArgs is default arguments that are passing to the injected java USM agent
@@ -155,7 +155,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_co_re"), true, "DD_ENABLE_CO_RE")
 	cfg.BindEnvAndSetDefault(join(spNS, "btf_path"), "", "DD_SYSTEM_PROBE_BTF_PATH")
 	cfg.BindEnv(join(spNS, "enable_runtime_compiler"), "DD_ENABLE_RUNTIME_COMPILER")
-	cfg.BindEnvAndSetDefault(join(spNS, "allow_precompiled_fallback"), true, "DD_ALLOW_PRECOMPILED_FALLBACK")
+	// deprecated in favor of allow_prebuilt_fallback below
+	cfg.BindEnv(join(spNS, "allow_precompiled_fallback"), "DD_ALLOW_PRECOMPILED_FALLBACK")
+	cfg.BindEnv(join(spNS, "allow_prebuilt_fallback"), "DD_ALLOW_PREBUILT_FALLBACK")
 	cfg.BindEnvAndSetDefault(join(spNS, "allow_runtime_compiled_fallback"), true, "DD_ALLOW_RUNTIME_COMPILED_FALLBACK")
 	cfg.BindEnvAndSetDefault(join(spNS, "runtime_compiler_output_dir"), defaultRuntimeCompilerOutputDir, "DD_RUNTIME_COMPILER_OUTPUT_DIR")
 	cfg.BindEnv(join(spNS, "enable_kernel_header_download"), "DD_ENABLE_KERNEL_HEADER_DOWNLOAD")
@@ -256,7 +258,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(smjtNS, "allow_regex"), "")
 	cfg.BindEnvAndSetDefault(join(smjtNS, "block_regex"), "")
 	cfg.BindEnvAndSetDefault(join(smjtNS, "dir"), defaultSystemProbeJavaDir)
-	cfg.BindEnvAndSetDefault(join(smNS, "enable_http_stats_by_status_code"), true)
 
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
 	// Default value (100000) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
@@ -361,11 +362,11 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "erpc_dentry_resolution_enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "map_dentry_resolution_enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "dentry_cache_size"), 1024)
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "remote_tagger"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "runtime_monitor.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.lazy_interface_prefixes"), []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.classifier_priority"), 10)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.classifier_handle"), 0)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_classifier_handle"), 0)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_ring_buffer"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry_amd64"), false)
@@ -377,10 +378,13 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.ingress.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_packet.enabled"), false)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.private_ip_ranges"), DefaultPrivateIPCIDRs)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.extra_private_ip_ranges"), []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.polling_interval"), 20)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "syscalls_monitor.enabled"), false)
 	cfg.BindEnvAndSetDefault(join(evNS, "socket"), defaultEventMonitorAddress)
 	cfg.BindEnvAndSetDefault(join(evNS, "event_server.burst"), 40)
+	cfg.BindEnvAndSetDefault(join(evNS, "env_vars_resolution.enabled"), true)
 
 	// process event monitoring data limits for network tracer
 	eventMonitorBindEnv(cfg, join(evNS, "network_process", "max_processes_tracked"))
@@ -403,12 +407,17 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// Discovery config
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "cpu_usage_update_delay"), "60s")
+	cfg.BindEnvAndSetDefault(join(discoveryNS, "ignored_command_names"), []string{"chronyd", "cilium-agent", "containerd", "dhclient", "dockerd", "kubelet", "livenessprobe", "local-volume-pr", "sshd", "systemd"})
+	cfg.BindEnvAndSetDefault(join(discoveryNS, "ignored_services"), []string{"datadog-agent", "trace-agent", "process-agent", "system-probe", "security-agent", "datadog-cluster-agent"})
 
 	// Fleet policies
 	cfg.BindEnv("fleet_policies_dir")
 
 	// GPU monitoring
-	cfg.BindEnvAndSetDefault(join(gpuMonitoringNS, "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "enabled"), false)
+	cfg.BindEnv(join(gpuNS, "nvml_lib_path"))
+	cfg.BindEnvAndSetDefault(join(gpuNS, "process_scan_interval_seconds"), 5)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "initial_process_sync"), true)
 
 	initCWSSystemProbeConfig(cfg)
 }
@@ -443,4 +452,27 @@ func eventMonitorBindEnv(config pkgconfigmodel.Config, key string) {
 	runtimeSecKey := strings.Replace(emConfigKey, "EVENT_MONITORING_CONFIG", "RUNTIME_SECURITY_CONFIG", 1)
 
 	config.BindEnv(key, emConfigKey, runtimeSecKey)
+}
+
+// DefaultPrivateIPCIDRs is a list of private IP CIDRs that are used to determine if an IP is private or not.
+var DefaultPrivateIPCIDRs = []string{
+	// IETF RPC 1918
+	"10.0.0.0/8",
+	"172.16.0.0/12",
+	"192.168.0.0/16",
+	// IETF RFC 5735
+	"0.0.0.0/8",
+	"127.0.0.0/8",
+	"169.254.0.0/16",
+	"192.0.0.0/24",
+	"192.0.2.0/24",
+	"198.18.0.0/15",
+	"198.51.100.0/24",
+	"203.0.113.0/24",
+	"224.0.0.0/4",
+	"240.0.0.0/4",
+	// IETF RFC 6598
+	"100.64.0.0/10",
+	// IETF RFC 4193
+	"fc00::/7",
 }

@@ -15,7 +15,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -85,14 +84,21 @@ type Check struct {
 }
 
 // Factory creates a new check factory
-func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+func Factory() optional.Option[func() check.Check] {
 	// Since service_discovery is enabled by default, we want to prevent returning an error in Configure() for platforms
 	// where the check is not implemented. Instead of that, we return an empty check.
 	if newOSImpl == nil {
 		return optional.NewNoneOption[func() check.Check]()
 	}
+
+	sharedContainerProvider, err := proccontainers.GetSharedContainerProvider()
+
+	if err != nil {
+		return optional.NewNoneOption[func() check.Check]()
+	}
+
 	return optional.NewOption(func() check.Check {
-		return newCheck(proccontainers.GetSharedContainerProvider(store))
+		return newCheck(sharedContainerProvider)
 	})
 }
 

@@ -68,7 +68,10 @@ func NewControllerV1beta1(
 	controller.validatingWebhooksSynced = validatingWebhookInformer.Informer().HasSynced
 	controller.mutatingWebhooksLister = mutatingWebhookInformer.Lister()
 	controller.mutatingWebhooksSynced = mutatingWebhookInformer.Informer().HasSynced
-	controller.queue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "webhooks")
+	controller.queue = workqueue.NewTypedRateLimitingQueueWithConfig(
+		workqueue.DefaultTypedControllerRateLimiter[string](),
+		workqueue.TypedRateLimitingQueueConfig[string]{Name: "webhooks"},
+	)
 	controller.isLeaderFunc = isLeaderFunc
 	controller.isLeaderNotif = isLeaderNotif
 	controller.webhooks = controller.generateWebhooks(wmeta, pa, datadogConfig)
