@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	api "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
@@ -271,6 +273,8 @@ func (j *JMXFetch) Start(manage bool) error {
 		}
 	}
 
+	j.setupFIPS(&subprocessArgs, &classpath)
+
 	subprocessArgs = append(subprocessArgs, strings.Fields(javaOptions)...)
 
 	jmxLogLevel, ok := jmxLogLevelMap[strings.ToLower(j.LogLevel)]
@@ -485,4 +489,34 @@ func (j *JMXFetch) ConfigureFromInstance(instance integration.Data) error {
 	}
 
 	return nil
+}
+
+func (j *JMXFetch) setupFIPS(subprocessArgs *[]string, classpath *string) {
+	if !pkgconfigsetup.Datadog().GetBool("jmx_fips") { // XXX
+		log.Debugf("jmx_fips is not enabled")
+		return
+	}
+
+	if !env.IsContainerized() && false {
+		log.Infof("Running JMXFetch using system Java runtime, Agent FIPS-mode is ignored")
+		return
+	}
+
+	// Make sure configuration file exists and is readable. Java silently ignores any errors
+	// when loading additional security properties file.
+	configPath := path.Join(embeddedFIPSPath, "java.security")
+	f, err := os.Open(configPath)
+	if err != nil {
+		log.Errorf("FIPS configuration for JMXFetch not found %q: %v", configPath, err)
+		return
+	}
+	f.Close()
+
+	// Add path with BouncyCastle jars to the module path.
+	*subprocessArgs = append(*subprocessArgs, "--module-path", embeddedFIPSPath)
+	// Double equals sign instructs JVM to replace stock security configuration rather than modify it.
+	*subprocessArgs = append(*subprocessArgs, fmt.Sprintf("-Djava.security.properties==%s", configPath))
+	// bc-fips.policy contains additional permission grants per BouncyCastle manual.
+	policyPath := path.Join(embeddedFIPSPath, "bc-fips.policy")
+	*subprocessArgs = append(*subprocessArgs, fmt.Sprintf("-Dpolicy.url.2=file:%s", policyPath))
 }
