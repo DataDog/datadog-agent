@@ -156,33 +156,37 @@ single-machine-performance-regression_detector:
     # JUnit XML. Agent CI seems to use `datadog-agent` as the service name when
     # uploading JUnit XML, so the upload command below respects that convention.
     - datadog-ci junit upload --service datadog-agent outputs/junit.xml
+    # At this point if the script has not failed the `smp_failure_mode` tag should be none.
+    # Although this may not be necessarily true, failures as a result of violations in optimization goals
+    # bounds checks and quality gates will be signaled by their own tag.
+    - datadog-ci tag --level job --tags smp_failure_mode:"none"
     # Check for failing regression detector for the purpose of tagging.
-    # For consistency we start by tagging with smp_optimization_goal_failed:false and overwrite to true if a failure is detected.
-    - datadog-ci tag --level job --tags smp_optimization_goal_failed:"false"
+    # For consistency we start by tagging with smp_optimization_goal:passed and overwrite to failed if a failure is detected.
+    - datadog-ci tag --level job --tags smp_optimization_goal:"passed"
     - |
       RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
         job result \
         --submission-metadata submission_metadata --signal regression-detector || {
         exit_code=$?
         echo "smp regression detector has detected a regression"
-        datadog-ci tag --level job --tags smp_optimization_goal_failed:"true"
+        datadog-ci tag --level job --tags smp_optimization_goal:"failed"
       }
     # Check for failing bounds checks for the purpose of tagging.
-    # For consistency we start by tagging with smp_bounds_check_failed:false and overwrite to true if a failure is detected.
-    - datadog-ci tag --level job --tags smp_bounds_check_failed:"false"
+    # For consistency we start by tagging with smp_bounds_check:passed and overwrite to failed if a failure is detected.
+    - datadog-ci tag --level job --tags smp_bounds_check:"passed"
     - |
       RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
         job result \
         --submission-metadata submission_metadata --signal bounds-check || {
         exit_code=$?
         echo "smp regression detector has detected a failed bounds check"
-        datadog-ci tag --level job --tags smp_bounds_check_failed:"true"
+        datadog-ci tag --level job --tags smp_bounds_check:"failed"
       }
     # Run quality gate check script
     # In order to determine if the following python script failed we assume quality gates failure here and update accordingly
     # if we make it through the python script successfully. The consequence of this is that any failure in the python script will
     # be seen as a quality gates failure.
-    - datadog-ci tag --level job --tags smp_quality_gates_failed:"true"
+    - datadog-ci tag --level job --tags smp_quality_gates:"failed"
     - |
       python3 <<'EOF'
       import json
@@ -242,10 +246,7 @@ single-machine-performance-regression_detector:
           sys.exit(0)
       EOF
     # If we make it here that means quality gates must not have failed.
-    - datadog-ci tag --level job --tags smp_quality_gates_failed:"false"
-    # If we get to this point in the script that means everything prior has succeeded so lets update the failure mode tag.
-    - echo "script successfully executed"
-    - datadog-ci tag --level job --tags smp_failure_mode:"none"
+    - datadog-ci tag --level job --tags smp_quality_gates:"passed"
 
 # Shamelessly adapted from golang_deps_commenter job config in
 # golang_deps_diff.yml at commit 01da274032e510d617161cf4e264a53292f44e55.
