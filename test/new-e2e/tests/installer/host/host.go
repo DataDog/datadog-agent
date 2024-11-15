@@ -707,7 +707,7 @@ type orderConfig struct {
 }
 type scopeExpression struct {
 	Expression string `json:"expression"`
-	PolicyID   string `json:"policy_id"`
+	PolicyID   string `json:"config_id"`
 }
 
 // NewLocalCDN creates a new local CDN.

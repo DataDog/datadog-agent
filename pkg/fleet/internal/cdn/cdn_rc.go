@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	pkghostname "github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/go-tuf/data"
 	"github.com/google/uuid"
@@ -181,7 +182,13 @@ func (c *cdnRC) get(ctx context.Context) ([][]byte, error) {
 	// Unmarshal RC results
 	files := map[string][]byte{}
 	for _, file := range agentConfigUpdate.TargetFiles {
-		files[file.GetPath()] = file.GetRaw()
+		path := file.GetPath()
+		pathMatches := datadogConfigIDRegexp.FindStringSubmatch(path)
+		if len(pathMatches) != 2 {
+			log.Warnf("invalid config path: %s", path)
+			continue
+		}
+		files[pathMatches[1]] = file.GetRaw()
 	}
 	return getOrderedScopedLayers(
 		files,

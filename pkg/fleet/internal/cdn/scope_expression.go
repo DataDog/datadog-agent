@@ -12,15 +12,15 @@ import (
 	"regexp"
 
 	pkghostname "github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/expr-lang/expr"
 )
 
 var (
-	datadogConfigIDRegexp    = regexp.MustCompile(`^datadog/\d+/AGENT_CONFIG/([^/]+)/[^/]+$`)
-	datadogConfigOrderRegexp = regexp.MustCompile(`^datadog/\d+/AGENT_CONFIG/configuration_order/[^/]+$`)
+	datadogConfigIDRegexp = regexp.MustCompile(`^datadog/\d+/AGENT_CONFIG/([^/]+)/[^/]+$`)
 )
+
+const configOrderID = "configuration_order"
 
 type orderConfig struct {
 	Order            []string          `json:"order"`
@@ -66,21 +66,18 @@ func (o *orderConfig) Match(policyID string, env map[string]interface{}) (bool, 
 // that match the current scope
 // Layers are ordered from the lowest priority to the highest priority so that
 // a simple loop can merge them in order
-func getOrderedScopedLayers(files map[string][]byte, env map[string]interface{}) ([][]byte, error) {
+func getOrderedScopedLayers(configs map[string][]byte, env map[string]interface{}) ([][]byte, error) {
 	// First unmarshal the order configuration
 	var configOrder *orderConfig
-	for path, content := range files {
-		matched := datadogConfigOrderRegexp.FindStringSubmatch(path)
-		if len(matched) == 0 {
-			continue
+	for configID, content := range configs {
+		if configID == configOrderID {
+			configOrder = &orderConfig{}
+			err := json.Unmarshal(content, configOrder)
+			if err != nil {
+				return nil, err
+			}
+			break
 		}
-
-		configOrder = &orderConfig{}
-		err := json.Unmarshal(content, configOrder)
-		if err != nil {
-			return nil, err
-		}
-		break
 	}
 	if configOrder == nil {
 		return nil, fmt.Errorf("no order found in the remote config response")
@@ -88,14 +85,8 @@ func getOrderedScopedLayers(files map[string][]byte, env map[string]interface{})
 
 	// Match layers against the scope expressions
 	scopedLayers := map[string][]byte{}
-	for path, content := range files {
-		pathMatches := datadogConfigIDRegexp.FindStringSubmatch(path)
-		if len(pathMatches) != 2 {
-			log.Warnf("invalid config path: %s", path)
-			continue
-		}
-		configID := pathMatches[1]
-		if configID == "configuration_order" {
+	for configID, content := range configs {
+		if configID == configOrderID {
 			continue
 		}
 

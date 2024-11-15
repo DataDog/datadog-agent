@@ -13,6 +13,7 @@ import (
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/go-tuf/data"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -121,8 +122,18 @@ func (c *cdnHTTP) get(ctx context.Context) ([][]byte, error) {
 		}
 	}
 
+	files := map[string][]byte{}
+	for path, content := range agentConfigUpdate.TargetFiles {
+		pathMatches := datadogConfigIDRegexp.FindStringSubmatch(path)
+		if len(pathMatches) != 2 {
+			log.Warnf("invalid config path: %s", path)
+			continue
+		}
+		files[pathMatches[1]] = content
+	}
+
 	return getOrderedScopedLayers(
-		agentConfigUpdate.TargetFiles,
+		files,
 		getScopeExprVars(ctx, c.hostTagsGetter),
 	)
 }
