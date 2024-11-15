@@ -2019,7 +2019,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 	resolversOpts := resolvers.Opts{
 		PathResolutionEnabled:    probe.Opts.PathResolutionEnabled,
 		EnvVarsResolutionEnabled: probe.Opts.EnvsVarResolutionEnabled,
-		TagsResolver:             probe.Opts.TagsResolver,
+		Tagger:                   probe.Opts.Tagger,
 		UseRingBuffer:            useRingBuffers,
 		TTYFallbackEnabled:       probe.Opts.TTYFallbackEnabled,
 	}

@@ -15,22 +15,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // LinuxResolver represents a default resolver based directly on the underlying tagger
 type LinuxResolver struct {
 	*DefaultResolver
+	*utils.Notifier[Event, *cgroupModel.CacheEntry]
 	workloadsWithoutTags chan *cgroupModel.CacheEntry
 	cgroupResolver       *cgroup.Resolver
 }
 
 // Start the resolver
-func (t *LinuxResolver) Start(ctx context.Context, cgroupResolver cgroup.ResolverInterface) error {
-	if err := t.DefaultResolver.Start(ctx, cgroupResolver); err != nil {
+func (t *LinuxResolver) Start(ctx context.Context) error {
+	if err := t.DefaultResolver.Start(ctx); err != nil {
 		return err
 	}
 
-	if err := cgroupResolver.RegisterListener(cgroup.CGroupCreated, t.checkTags); err != nil {
+	if err := t.cgroupResolver.RegisterListener(cgroup.CGroupCreated, t.checkTags); err != nil {
 		return err
 	}
 
@@ -88,9 +90,10 @@ func (t *LinuxResolver) fetchTags(container *cgroupModel.CacheEntry) error {
 }
 
 // NewResolver returns a new tags resolver
-func NewResolver(config *config.Config, telemetry telemetry.Component, cgroupsResolver *cgroup.Resolver) Resolver {
+func NewResolver(config *config.Config, telemetry telemetry.Component, tagger Tagger, cgroupsResolver *cgroup.Resolver) *LinuxResolver {
 	resolver := &LinuxResolver{
-		DefaultResolver:      NewDefaultResolver(config, telemetry),
+		Notifier:             utils.NewNotifier[Event, *cgroupModel.CacheEntry](),
+		DefaultResolver:      NewDefaultResolver(config, telemetry, tagger),
 		workloadsWithoutTags: make(chan *cgroupModel.CacheEntry, 100),
 		cgroupResolver:       cgroupsResolver,
 	}

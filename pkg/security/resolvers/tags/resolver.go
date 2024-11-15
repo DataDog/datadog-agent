@@ -12,15 +12,13 @@ import (
 	"strings"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	remoteTagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote"
+	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	remotetagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
-	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -56,17 +54,15 @@ func (n *nullTagger) Tag(_ types.EntityID, _ types.TagCardinality) ([]string, er
 
 // Resolver represents a cache resolver
 type Resolver interface {
-	Start(ctx context.Context, cgroupManager cgroup.ResolverInterface) error
+	Start(ctx context.Context) error
 	Stop() error
 	Resolve(id string) []string
 	ResolveWithErr(fid string) ([]string, error)
 	GetValue(id string, tag string) string
-	RegisterListener(event Event, listener utils.Listener[*cgroupModel.CacheEntry]) error
 }
 
 // DefaultResolver represents a default resolver based directly on the underlying tagger
 type DefaultResolver struct {
-	*utils.Notifier[Event, *cgroupModel.CacheEntry]
 	tagger Tagger
 }
 
@@ -95,7 +91,7 @@ func (t *DefaultResolver) GetValue(id string, tag string) string {
 }
 
 // Start the resolver
-func (t *DefaultResolver) Start(ctx context.Context, _ cgroup.ResolverInterface) error {
+func (t *DefaultResolver) Start(ctx context.Context) error {
 	go func() {
 		if err := t.tagger.Start(ctx); err != nil {
 			log.Errorf("failed to init tagger: %s", err)
@@ -116,15 +112,18 @@ func (t *DefaultResolver) Stop() error {
 }
 
 // NewDefaultResolver returns a new default tags resolver
-func NewDefaultResolver(config *config.Config, telemetry telemetry.Component) *DefaultResolver {
+func NewDefaultResolver(config *config.Config, telemetry telemetry.Component, tagger Tagger) *DefaultResolver {
+	if tagger == nil {
+		tagger = &nullTagger{}
+	}
+
 	ddConfig := pkgconfigsetup.Datadog()
 	resolver := &DefaultResolver{
-		tagger:   &nullTagger{},
-		Notifier: utils.NewNotifier[Event, *cgroupModel.CacheEntry](),
+		tagger: tagger,
 	}
 
 	if config.RemoteTaggerEnabled {
-		params := tagger.RemoteParams{
+		params := taggerdef.RemoteParams{
 			RemoteFilter: types.NewMatchAllFilter(),
 			RemoteTarget: func(c coreconfig.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
 			RemoteTokenFetcher: func(c coreconfig.Component) func() (string, error) {
@@ -134,7 +133,8 @@ func NewDefaultResolver(config *config.Config, telemetry telemetry.Component) *D
 			},
 		}
 
-		resolver.tagger, _ = remoteTagger.NewRemoteTagger(params, ddConfig, log.NewWrapper(2), telemetry)
+		resolver.tagger, _ = remotetagger.NewRemoteTagger(params, ddConfig, log.NewWrapper(2), telemetry)
 	}
+
 	return resolver
 }

@@ -50,7 +50,7 @@ type EBPFResolvers struct {
 	ContainerResolver    *container.Resolver
 	TimeResolver         *ktime.Resolver
 	UserGroupResolver    *usergroup.Resolver
-	TagsResolver         tags.Resolver
+	TagsResolver         *tags.LinuxResolver
 	DentryResolver       *dentry.Resolver
 	ProcessResolver      *process.EBPFResolver
 	NamespaceResolver    *netns.Resolver
@@ -96,12 +96,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		return nil, err
 	}
 
-	var tagsResolver tags.Resolver
-	if opts.TagsResolver != nil {
-		tagsResolver = opts.TagsResolver
-	} else {
-		tagsResolver = tags.NewResolver(config.Probe, telemetry, cgroupsResolver)
-	}
+	tagsResolver := tags.NewResolver(config.Probe, telemetry, opts.Tagger, cgroupsResolver)
 
 	userGroupResolver, err := usergroup.NewResolver(cgroupsResolver)
 	if err != nil {
@@ -195,7 +190,7 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 		return err
 	}
 
-	if err := r.TagsResolver.Start(ctx, r.CGroupResolver); err != nil {
+	if err := r.TagsResolver.Start(ctx); err != nil {
 		return err
 	}
 

@@ -26,7 +26,7 @@ import (
 // EBPFLessResolvers holds the list of the event attribute resolvers
 type EBPFLessResolvers struct {
 	ContainerResolver *container.Resolver
-	TagsResolver      tags.Resolver
+	TagsResolver      *tags.LinuxResolver
 	ProcessResolver   *process.EBPFLessResolver
 	HashResolver      *hash.Resolver
 }
@@ -38,13 +38,7 @@ func NewEBPFLessResolvers(config *config.Config, statsdClient statsd.ClientInter
 		return nil, err
 	}
 
-	var tagsResolver tags.Resolver
-	if opts.TagsResolver != nil {
-		tagsResolver = opts.TagsResolver
-	} else {
-		tagsResolver = tags.NewResolver(config.Probe, telemetry, cgroupsResolver)
-	}
-
+	tagsResolver := tags.NewResolver(config.Probe, telemetry, opts.Tagger, cgroupsResolver)
 	processOpts := process.NewResolverOpts()
 	processOpts.WithEnvsValue(config.Probe.EnvsWithValue)
 
@@ -73,7 +67,7 @@ func (r *EBPFLessResolvers) Start(ctx context.Context) error {
 		return err
 	}
 
-	if err := r.TagsResolver.Start(ctx, nil); err != nil {
+	if err := r.TagsResolver.Start(ctx); err != nil {
 		return err
 	}
 

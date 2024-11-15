@@ -14,6 +14,6 @@ import (
 )
 
 // NewResolver returns a new tags resolver
-func NewResolver(config *config.Config, telemetry telemetry.Component) Resolver {
-	return NewDefaultResolver(config, telemetry)
+func NewResolver(config *config.Config, telemetry telemetry.Component, tagger Tagger) Resolver {
+	return NewDefaultResolver(config, telemetry, tagger)
 }
