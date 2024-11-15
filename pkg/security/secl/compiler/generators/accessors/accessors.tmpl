@@ -300,7 +300,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 func (ev *Event) GetFields() []eval.Field {
 	return []eval.Field{
 		{{range $Name, $Field := .Fields}}
-			{{- if $Field.GettersOnly }}
+			{{- if or $Field.GettersOnly $Field.IsPrivate }}
 				{{continue}}
 			{{end}}
 
