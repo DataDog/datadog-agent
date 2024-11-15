@@ -9,6 +9,7 @@ from invoke import Collection, Task
 
 from tasks import (
     agent,
+    agent6,
     ami,
     bench,
     buildimages,
@@ -210,6 +211,7 @@ ns.add_collection(omnibus)
 ns.add_collection(collector)
 ns.add_collection(invoke_unit_tests)
 ns.add_collection(debug)
+ns.add_collection(agent6)
 ns.configure(
     {
         "run": {
