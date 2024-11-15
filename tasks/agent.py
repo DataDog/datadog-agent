@@ -186,7 +186,7 @@ def build(
             out="cmd/agent/rsrc.syso",
         )
     else:
-        bundled_agents += bundle
+        bundled_agents += bundle or []
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
