@@ -81,11 +81,7 @@ def get_file_modifications(
             if len(m) == 3:
                 # file was renamed
                 continue
-            if len(m) != 2:
-                raise ValueError(f"Unexpected git diff output: {m}")
-
-            status = m[0]
-            file = m[1]
+            status, file = m
             if (added and status == "A") or (modified and status in "MCRT") or (removed and status == "D"):
                 modifications.append((status, file))
 
