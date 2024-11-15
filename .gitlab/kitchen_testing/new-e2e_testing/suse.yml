@@ -16,14 +16,6 @@
     E2E_BRANCH_OSVERS: "sles-15"
   needs: ["deploy_suse_rpm_testing_x64-a6"]
 
-.new-e2e_suse_a6_arm64:
-  variables:
-    E2E_ARCH: arm64
-    E2E_OSVERS: "sles-15"
-    E2E_CWS_SUPPORTED_OSVERS: "sles-15"
-    E2E_BRANCH_OSVERS: "sles-15"
-  needs: ["deploy_suse_rpm_testing_arm64-a6"]
-
 new-e2e-agent-platform-install-script-suse-a6-x86_64:
   stage: kitchen_testing
   extends:
@@ -31,17 +23,6 @@ new-e2e-agent-platform-install-script-suse-a6-x86_64:
     - .new-e2e_install_script
     - .new-e2e_os_suse
     - .new-e2e_suse_a6_x86_64
-    - .new-e2e_agent_a6
-  variables:
-    FLAVOR: datadog-agent
-
-new-e2e-agent-platform-install-script-suse-a6-arm64:
-  stage: kitchen_testing
-  extends:
-    - .new_e2e_template
-    - .new-e2e_install_script
-    - .new-e2e_os_suse
-    - .new-e2e_suse_a6_arm64
     - .new-e2e_agent_a6
   variables:
     FLAVOR: datadog-agent
@@ -61,19 +42,6 @@ new-e2e-agent-platform-step-by-step-suse-a6-x86_64:
     - .new-e2e_step_by_step
     - .new-e2e_os_suse
     - .new-e2e_suse_a6_x86_64
-    - .new-e2e_agent_a6
-  rules:
-    !reference [.on_deploy]
-  variables:
-    FLAVOR: datadog-agent
-
-new-e2e-agent-platform-step-by-step-suse-a6-arm64:
-  stage: kitchen_testing
-  extends:
-    - .new_e2e_template
-    - .new-e2e_step_by_step
-    - .new-e2e_os_suse
-    - .new-e2e_suse_a6_arm64
     - .new-e2e_agent_a6
   rules:
     !reference [.on_deploy]
