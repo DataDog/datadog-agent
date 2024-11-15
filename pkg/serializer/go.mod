@@ -17,6 +17,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/comp/serializer/compression => ../../comp/serializer/compression
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../aggregator/ckey
+	github.com/DataDog/datadog-agent/pkg/api => ../api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../config/env
 	github.com/DataDog/datadog-agent/pkg/config/logs => ../config/logs/
@@ -24,6 +25,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../pkg/config/nodetreemodel
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../config/setup/
+	github.com/DataDog/datadog-agent/pkg/config/structure => ../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../config/utils/
 	github.com/DataDog/datadog-agent/pkg/metrics => ../metrics/
@@ -62,7 +64,7 @@ replace (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.114
-	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/config v0.57.1
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.56.0-rc.3
@@ -76,8 +78,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/json v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.57.1
-	github.com/DataDog/datadog-agent/pkg/version v0.56.0-rc.3
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.20.0
+	github.com/DataDog/datadog-agent/pkg/version v0.57.1
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.21.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/json-iterator/go v1.1.12
 	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
@@ -87,19 +89,21 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/api v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.60.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.60.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/utils v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/status/health v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.56.0-rc.3 // indirect
@@ -179,13 +183,13 @@ require (
 	go.uber.org/fx v1.22.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0 // indirect
+	golang.org/x/exp v0.0.0-20241004190924-225e2abe05e6 // indirect
 	golang.org/x/mod v0.21.0 // indirect
-	golang.org/x/net v0.29.0 // indirect
+	golang.org/x/net v0.30.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.25.0 // indirect
-	golang.org/x/text v0.18.0 // indirect
-	golang.org/x/tools v0.25.0 // indirect
+	golang.org/x/sys v0.26.0 // indirect
+	golang.org/x/text v0.19.0 // indirect
+	golang.org/x/tools v0.26.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

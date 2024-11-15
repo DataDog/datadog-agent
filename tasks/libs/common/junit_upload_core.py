@@ -16,6 +16,7 @@ from subprocess import PIPE, CalledProcessError, Popen
 from invoke.exceptions import Exit
 
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.utils import gitlab_section
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
@@ -23,7 +24,7 @@ from tasks.libs.pipeline.notifications import (
     GITHUB_JIRA_MAP,
     GITHUB_SLACK_MAP,
 )
-from tasks.modules import DEFAULT_MODULES
+from tasks.libs.testing.flakes import get_tests_family, is_known_flaky_test
 
 E2E_INTERNAL_ERROR_STRING = "E2E INTERNAL ERROR"
 CODEOWNERS_ORG_PREFIX = "@DataDog/"
@@ -131,7 +132,7 @@ def get_flaky_from_test_output():
         return flaky_tests
 
     # If the global test output file is not present, we look for module specific test output files
-    for module in DEFAULT_MODULES:
+    for module in get_default_modules():
         test_file = Path(module, MODULE_TEST_OUTPUT_FILE)
         if test_file.is_file():
             with test_file.open(encoding="utf8") as f:
@@ -210,7 +211,11 @@ def split_junitxml(root_dir: Path, xml_path: Path, codeowners, flaky_tests):
         # Flag the test as known flaky if gotestsum already knew it
         for test_case in suite.iter("testcase"):
             test_name = "/".join([test_case.attrib["classname"], test_case.attrib["name"]])
-            test_case.attrib["agent_is_known_flaky"] = "true" if test_name in flaky_tests else "false"
+            if is_known_flaky_test(test_name, flaky_tests, get_tests_family(list(flaky_tests))):
+                test_case.attrib["agent_is_known_flaky"] = "true"
+                print("KNOWN FLAKY:", test_name)
+            else:
+                test_case.attrib["agent_is_known_flaky"] = "false"
 
         xml.getroot().append(suite)
 

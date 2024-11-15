@@ -53,11 +53,14 @@ type ContainerCheck struct {
 
 // Init initializes a ContainerCheck instance.
 func (c *ContainerCheck) Init(syscfg *SysProbeConfig, info *HostInfo, _ bool) error {
-	c.containerProvider = proccontainers.GetSharedContainerProvider(c.wmeta)
+	sharedContainerProvider, err := proccontainers.GetSharedContainerProvider()
+	if err != nil {
+		return err
+	}
+	c.containerProvider = sharedContainerProvider
 	c.hostInfo = info
 
-	var tu *net.RemoteSysProbeUtil
-	var err error
+	var tu net.SysProbeUtil
 	if syscfg.NetworkTracerModuleEnabled {
 		// Calling the remote tracer will cause it to initialize and check connectivity
 		tu, err = net.GetRemoteSystemProbeUtil(syscfg.SystemProbeAddress)

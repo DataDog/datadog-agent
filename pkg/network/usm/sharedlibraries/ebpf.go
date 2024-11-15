@@ -94,7 +94,7 @@ func NewEBPFProgram(c *ddebpf.Config) *EbpfProgram {
 
 	return &EbpfProgram{
 		cfg:         c,
-		Manager:     ddebpf.NewManager(mgr, &ebpftelemetry.ErrorsTelemetryModifier{}),
+		Manager:     ddebpf.NewManager(mgr, "shared-libraries", &ebpftelemetry.ErrorsTelemetryModifier{}),
 		perfHandler: perfHandler,
 	}
 }
@@ -108,7 +108,7 @@ func (e *EbpfProgram) Init() error {
 			return nil
 		}
 
-		if !e.cfg.AllowRuntimeCompiledFallback && !e.cfg.AllowPrecompiledFallback {
+		if !e.cfg.AllowRuntimeCompiledFallback && !e.cfg.AllowPrebuiltFallback {
 			return fmt.Errorf("co-re load failed: %w", err)
 		}
 		log.Warnf("co-re load failed. attempting fallback: %s", err)
@@ -120,7 +120,7 @@ func (e *EbpfProgram) Init() error {
 			return nil
 		}
 
-		if !e.cfg.AllowPrecompiledFallback {
+		if !e.cfg.AllowPrebuiltFallback {
 			return fmt.Errorf("runtime compilation failed: %w", err)
 		}
 		log.Warnf("runtime compilation failed: attempting fallback: %s", err)

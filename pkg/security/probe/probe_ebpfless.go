@@ -580,9 +580,13 @@ func (p *EBPFLessProbe) FlushDiscarders() error {
 }
 
 // ApplyRuleSet applies the new ruleset
-func (p *EBPFLessProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
-	p.processKiller.Apply(rs)
+func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	return &kfilters.ApplyRuleSetReport{}, nil
+}
+
+// OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
+func (p *EBPFLessProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
+	p.processKiller.Reset(rs)
 }
 
 // HandleActions handles the rule actions
@@ -690,7 +694,11 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 		hostname = "unknown"
 	}
 
-	p.fieldHandlers = &EBPFLessFieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname}
+	fh, err := NewEBPFLessFieldHandlers(config, p.Resolvers, hostname)
+	if err != nil {
+		return nil, err
+	}
+	p.fieldHandlers = fh
 
 	p.event = p.NewEvent()
 
@@ -698,9 +706,4 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 	p.zeroEvent()
 
 	return p, nil
-}
-
-// PlaySnapshot plays a snapshot
-func (p *EBPFLessProbe) PlaySnapshot() {
-	// TODO: Implement this method if needed.
 }

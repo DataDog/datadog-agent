@@ -37,8 +37,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.57.1
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.1
 	github.com/DataDog/datadog-agent/pkg/proto v0.55.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.20.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.20.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.21.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.21.0
 	github.com/DataDog/sketches-go v1.4.6
 	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/collector/pdata v1.9.0
@@ -100,10 +100,10 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0 // indirect
-	golang.org/x/net v0.29.0 // indirect
-	golang.org/x/sys v0.25.0 // indirect
-	golang.org/x/text v0.18.0 // indirect
+	golang.org/x/exp v0.0.0-20241004190924-225e2abe05e6 // indirect
+	golang.org/x/net v0.30.0 // indirect
+	golang.org/x/sys v0.26.0 // indirect
+	golang.org/x/text v0.19.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240520151616-dc85e6b867a5 // indirect
 	google.golang.org/grpc v1.64.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

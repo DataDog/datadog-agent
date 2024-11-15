@@ -10,6 +10,8 @@
 '@datadog/agent-security': CWS
 '@datadog/agent-apm': APMSP
 '@datadog/network-device-monitoring': NDMII
+'@datadog/ndm-core': NDMII
+'@datadog/ndm-integrations': NDINT
 '@datadog/processes': PROCS
 '@datadog/agent-metrics-logs': AMLII
 '@datadog/agent-shared-components': ASCII
@@ -40,3 +42,4 @@
 '@datadog/agent-devx-infra': ACIX
 '@datadog/apm-onboarding': APMON
 '@datadog/agent-processing-and-routing': APR
+'@DataDog/container-ecosystems': CECO

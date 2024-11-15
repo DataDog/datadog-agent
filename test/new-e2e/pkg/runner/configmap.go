@@ -26,6 +26,8 @@ const (
 	AgentAPPKey = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPPKeyParamName
 	// AgentPipelineID pulumi config parameter name
 	AgentPipelineID = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentPipelineID
+	// AgentMajorVersion pulumi config parameter name
+	AgentMajorVersion = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentMajorVersion
 	// AgentCommitSHA pulumi config parameter name
 	AgentCommitSHA = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentCommitSHA
 
@@ -34,6 +36,9 @@ const (
 
 	// InfraExtraResourcesTags pulumi config parameter name
 	InfraExtraResourcesTags = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraExtraResourcesTags
+
+	//InfraInitOnly pulumi config parameter name
+	InfraInitOnly = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraInitOnly
 
 	// AWSKeyPairName pulumi config parameter name
 	AWSKeyPairName = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultKeyPairParamName
@@ -123,7 +128,9 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 		parameters.PrivateKeyPath:     {AWSPrivateKeyPath, AzurePrivateKeyPath, GCPPrivateKeyPath},
 		parameters.ExtraResourcesTags: {InfraExtraResourcesTags},
 		parameters.PipelineID:         {AgentPipelineID},
+		parameters.MajorVersion:       {AgentMajorVersion},
 		parameters.CommitSHA:          {AgentCommitSHA},
+		parameters.InitOnly:           {InfraInitOnly},
 	}
 
 	for storeKey, configMapKeys := range params {

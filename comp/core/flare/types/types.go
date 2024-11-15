@@ -9,26 +9,27 @@
 package types
 
 import (
-	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 	"go.uber.org/fx"
+
+	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 )
 
 // FlareBuilder contains all the helpers to add files to a flare archive.
 // see the aliased type for the full description
 type FlareBuilder = flarebuilder.FlareBuilder
 
-// FlareCallback is called by the FlareBuilder to build the flare
-// see the aliased type for the full description
-type FlareCallback = flarebuilder.FlareCallback
+// FlareCallback is a function that can be registered as a data provider for flares. This function, if registered, will
+// be called everytime a flare is created.
+type FlareCallback func(fb FlareBuilder) error
 
 // Provider is provided by other components to register themselves to provide flare data.
 type Provider struct {
 	fx.Out
-	Callback flarebuilder.FlareCallback `group:"flare"`
+	Callback FlareCallback `group:"flare"`
 }
 
 // NewProvider returns a new Provider to be called when a flare is created
-func NewProvider(callback flarebuilder.FlareCallback) Provider {
+func NewProvider(callback FlareCallback) Provider {
 	return Provider{
 		Callback: callback,
 	}

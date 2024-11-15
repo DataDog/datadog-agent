@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -107,7 +108,8 @@ var (
 // nodeJSMonitor essentially scans for Node processes and attaches SSL uprobes
 // to them.
 type nodeJSMonitor struct {
-	attacher *uprobes.UprobeAttacher
+	attacher       *uprobes.UprobeAttacher
+	processMonitor *monitor.ProcessMonitor
 }
 
 func newNodeJSMonitor(c *config.Config, mgr *manager.Manager) (*nodeJSMonitor, error) {
@@ -125,16 +127,17 @@ func newNodeJSMonitor(c *config.Config, mgr *manager.Manager) (*nodeJSMonitor, e
 		EbpfConfig:                     &c.Config,
 		ExcludeTargets:                 uprobes.ExcludeSelf | uprobes.ExcludeInternal | uprobes.ExcludeBuildkit | uprobes.ExcludeContainerdTmp,
 		EnablePeriodicScanNewProcesses: true,
-		ProcessMonitorEventStream:      c.EnableUSMEventStream,
 	}
 
-	attacher, err := uprobes.NewUprobeAttacher(nodeJsAttacherName, attachCfg, mgr, uprobes.NopOnAttachCallback, &uprobes.NativeBinaryInspector{})
+	procMon := monitor.GetProcessMonitor()
+	attacher, err := uprobes.NewUprobeAttacher(nodeJsAttacherName, attachCfg, mgr, uprobes.NopOnAttachCallback, &uprobes.NativeBinaryInspector{}, procMon)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create uprobe attacher: %w", err)
 	}
 
 	return &nodeJSMonitor{
-		attacher: attacher,
+		attacher:       attacher,
+		processMonitor: procMon,
 	}, nil
 }
 
@@ -154,6 +157,7 @@ func (m *nodeJSMonitor) Stop() {
 		return
 	}
 
+	m.processMonitor.Stop()
 	m.attacher.Stop()
 }
 

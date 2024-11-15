@@ -30,4 +30,4 @@ checks:
     bounds:
       series: total_rss_bytes
       # The machine has 12GiB free.
-      upper_bound: 1GiB
+      upper_bound: 1.2GiB

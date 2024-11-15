@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/DataDog/viper"
-	"github.com/spf13/afero"
 )
 
 // Proxy represents the configuration for proxies in the agent
@@ -104,8 +103,10 @@ type ReaderWriter interface {
 type Setup interface {
 	// API implemented by viper.Viper
 
+	// BuildSchema should be called when Setup is done, it builds the schema making the config ready for use
+	BuildSchema()
+
 	SetDefault(key string, value interface{})
-	SetFs(fs afero.Fs)
 
 	SetEnvPrefix(in string)
 	BindEnv(key string, envvars ...string)
@@ -142,13 +143,10 @@ type Setup interface {
 // some misc functions, that should likely be split into another interface
 type Compound interface {
 	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
-	Unmarshal(rawVal interface{}) error
-	UnmarshalExact(rawVal interface{}) error
 
 	ReadInConfig() error
 	ReadConfig(in io.Reader) error
 	MergeConfig(in io.Reader) error
-	MergeConfigMap(cfg map[string]any) error
 	MergeFleetPolicy(configPath string) error
 }
 

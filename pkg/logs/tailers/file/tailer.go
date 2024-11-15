@@ -144,7 +144,7 @@ type TailerOptions struct {
 func NewTailer(opts *TailerOptions) *Tailer {
 	var tagProvider tag.Provider
 	if opts.File.Source.Config().Identifier != "" {
-		tagProvider = tag.NewProvider(types.NewEntityID(types.ContainerID, opts.File.Source.Config().Identifier).String(), opts.TagAdder)
+		tagProvider = tag.NewProvider(types.NewEntityID(types.ContainerID, opts.File.Source.Config().Identifier), opts.TagAdder)
 	} else {
 		tagProvider = tag.NewLocalProvider([]string{})
 	}

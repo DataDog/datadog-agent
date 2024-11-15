@@ -31,6 +31,7 @@ func (o *OpenSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
 		Expression: fmt.Sprintf(`open.file.path == "%s" && open.flags & O_CREAT > 0`, o.filename),
+		Silent:     true,
 	}
 }
 

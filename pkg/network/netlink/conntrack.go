@@ -36,6 +36,10 @@ type Conntrack interface {
 // `netNS` is the network namespace for the conntrack operations.
 // A value of `0` will use the current thread's network namespace
 func NewConntrack(netNS netns.NsHandle) (Conntrack, error) {
+	if !isNetlinkConntrackSupported() {
+		return nil, ErrNotPermitted
+	}
+
 	conn, err := NewSocket(netNS)
 	if err != nil {
 		return nil, err

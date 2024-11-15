@@ -23,4 +23,3 @@ COPY agent $CORE_AGENT_DEST
 COPY *.o /opt/datadog-agent/embedded/share/system-probe/ebpf/
 COPY co-re/*.o /opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/
 COPY *.c /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime/
-COPY agent-usm.jar /opt/datadog-agent/embedded/share/system-probe/java/

@@ -9,11 +9,12 @@ package bininspect
 
 import (
 	"bytes"
-	"debug/elf"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 const (
@@ -51,12 +52,15 @@ var (
 // This is used to lazy read from the pclntab section, as the pclntab is large and we don't want to read it all at once,
 // or store it in memory.
 type sectionAccess struct {
-	section    *elf.Section
+	section    *safeelf.Section
 	baseOffset int64
 }
 
 // ReadAt reads len(p) bytes from the section starting at the given offset.
 func (s *sectionAccess) ReadAt(outBuffer []byte, offset int64) (int, error) {
+	if s.section.ReaderAt == nil {
+		return 0, errors.New("section not available in random-access form")
+	}
 	return s.section.ReadAt(outBuffer, s.baseOffset+offset)
 }
 
@@ -64,7 +68,7 @@ func (s *sectionAccess) ReadAt(outBuffer []byte, offset int64) (int, error) {
 // Similar to LineTable struct in https://github.com/golang/go/blob/6a861010be9eed02d5285509cbaf3fb26d2c5041/src/debug/gosym/pclntab.go#L43
 type pclntanSymbolParser struct {
 	// section is the pclntab section.
-	section *elf.Section
+	section *safeelf.Section
 	// symbolFilter is the filter for the symbols.
 	symbolFilter symbolFilter
 
@@ -93,7 +97,7 @@ type pclntanSymbolParser struct {
 }
 
 // GetPCLNTABSymbolParser returns the matching symbols from the pclntab section.
-func GetPCLNTABSymbolParser(f *elf.File, symbolFilter symbolFilter) (map[string]*elf.Symbol, error) {
+func GetPCLNTABSymbolParser(f *safeelf.File, symbolFilter symbolFilter) (map[string]*safeelf.Symbol, error) {
 	section := f.Section(pclntabSectionName)
 	if section == nil {
 		return nil, ErrMissingPCLNTABSection
@@ -106,7 +110,8 @@ func GetPCLNTABSymbolParser(f *elf.File, symbolFilter symbolFilter) (map[string]
 	}
 	// Late initialization, to prevent allocation if the binary is not supported.
 	_, maxSymbolsSize := symbolFilter.getMinMaxLength()
-	parser.funcNameHelper = make([]byte, maxSymbolsSize)
+	// Adding additional byte for null terminator.
+	parser.funcNameHelper = make([]byte, maxSymbolsSize+1)
 	parser.funcTableFieldSize = getFuncTableFieldSize(parser.cachedVersion, int(parser.ptrSize))
 	// Allocate the buffer for reading the function table.
 	// TODO: Do we need 2*funcTableFieldSize?
@@ -117,6 +122,9 @@ func GetPCLNTABSymbolParser(f *elf.File, symbolFilter symbolFilter) (map[string]
 // parsePclntab parses the pclntab, setting the version and verifying the header.
 // Based on parsePclnTab in https://github.com/golang/go/blob/6a861010be9eed02d5285509cbaf3fb26d2c5041/src/debug/gosym/pclntab.go#L194
 func (p *pclntanSymbolParser) parsePclntab() error {
+	if p.section.ReaderAt == nil {
+		return errors.New("section not available in random-access form")
+	}
 	p.cachedVersion = ver11
 
 	pclntabHeader := make([]byte, 8)
@@ -218,9 +226,9 @@ func getFuncTableFieldSize(version version, ptrSize int) int {
 
 // getSymbols returns the symbols from the pclntab section that match the symbol filter.
 // based on https://github.com/golang/go/blob/6a861010be9eed02d5285509cbaf3fb26d2c5041/src/debug/gosym/pclntab.go#L300-L329
-func (p *pclntanSymbolParser) getSymbols() (map[string]*elf.Symbol, error) {
+func (p *pclntanSymbolParser) getSymbols() (map[string]*safeelf.Symbol, error) {
 	numWanted := p.symbolFilter.getNumWanted()
-	symbols := make(map[string]*elf.Symbol, numWanted)
+	symbols := make(map[string]*safeelf.Symbol, numWanted)
 	data := sectionAccess{section: p.section}
 	for currentIdx := uint32(0); currentIdx < p.funcTableSize; currentIdx++ {
 		// based on https://github.com/golang/go/blob/6a861010be9eed02d5285509cbaf3fb26d2c5041/src/debug/gosym/pclntab.go#L315
@@ -236,7 +244,7 @@ func (p *pclntanSymbolParser) getSymbols() (map[string]*elf.Symbol, error) {
 		if funcName == "" {
 			continue
 		}
-		symbols[funcName] = &elf.Symbol{
+		symbols[funcName] = &safeelf.Symbol{
 			Name: funcName,
 		}
 		if len(symbols) == numWanted {

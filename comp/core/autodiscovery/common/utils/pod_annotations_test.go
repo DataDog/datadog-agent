@@ -138,6 +138,32 @@ func TestExtractTemplatesFromAnnotations(t *testing.T) {
 			},
 		},
 		{
+			name: "Nominal case with two templates and check tag cardinality",
+			annotations: map[string]string{
+				"ad.datadoghq.com/foobar.check_names":           "[\"apache\",\"http_check\"]",
+				"ad.datadoghq.com/foobar.init_configs":          "[{},{}]",
+				"ad.datadoghq.com/foobar.instances":             "[{\"apache_status_url\":\"http://%%host%%/server-status?auto\"},{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}]",
+				"ad.datadoghq.com/foobar.check_tag_cardinality": "low",
+			},
+			adIdentifier: "foobar",
+			output: []integration.Config{
+				{
+					Name:                "apache",
+					Instances:           []integration.Data{integration.Data("{\"apache_status_url\":\"http://%%host%%/server-status?auto\"}")},
+					InitConfig:          integration.Data("{}"),
+					ADIdentifiers:       []string{adID},
+					CheckTagCardinality: "low",
+				},
+				{
+					Name:                "http_check",
+					Instances:           []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					InitConfig:          integration.Data("{}"),
+					ADIdentifiers:       []string{adID},
+					CheckTagCardinality: "low",
+				},
+			},
+		},
+		{
 			name: "Take one, ignore one",
 			annotations: map[string]string{
 				"ad.datadoghq.com/foobar.check_names":  "[\"apache\"]",

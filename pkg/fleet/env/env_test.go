@@ -37,6 +37,7 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
+				Tags: []string{},
 			},
 		},
 		{
@@ -64,6 +65,9 @@ func TestFromEnv(t *testing.T) {
 				envDefaultPackageVersion + "_ANOTHER_PACKAGE": "4.5.6",
 				envApmLibraries:                               "java,dotnet:latest,ruby:1.2",
 				envApmInstrumentationEnabled:                  "all",
+				envAgentUserName:                              "customuser",
+				envTags:                                       "k1:v1,k2:v2",
+				envExtraTags:                                  "k3:v3,k4:v4",
 			},
 			expected: &Env{
 				APIKey:               "123456",
@@ -103,9 +107,11 @@ func TestFromEnv(t *testing.T) {
 					"dotnet": "latest",
 					"ruby":   "1.2",
 				},
+				AgentUserName: "customuser",
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
 				},
+				Tags: []string{"k1:v1", "k2:v2", "k3:v3", "k4:v4"},
 			},
 		},
 		{
@@ -133,6 +139,7 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
+				Tags: []string{},
 			},
 		},
 		{
@@ -159,6 +166,7 @@ func TestFromEnv(t *testing.T) {
 				RegistryPasswordByImage:        map[string]string{},
 				DefaultPackagesInstallOverride: map[string]bool{},
 				DefaultPackagesVersionOverride: map[string]string{},
+				Tags:                           []string{},
 			},
 		},
 	}
@@ -226,6 +234,7 @@ func TestToEnv(t *testing.T) {
 					"dotnet": "latest",
 					"ruby":   "1.2",
 				},
+				Tags: []string{"k1:v1", "k2:v2"},
 			},
 			expected: []string{
 				"DD_API_KEY=123456",
@@ -249,6 +258,7 @@ func TestToEnv(t *testing.T) {
 				"DD_INSTALLER_DEFAULT_PKG_INSTALL_ANOTHER_PACKAGE=false",
 				"DD_INSTALLER_DEFAULT_PKG_VERSION_PACKAGE=1.2.3",
 				"DD_INSTALLER_DEFAULT_PKG_VERSION_ANOTHER_PACKAGE=4.5.6",
+				"DD_TAGS=k1:v1,k2:v2",
 			},
 		},
 	}
@@ -257,6 +267,61 @@ func TestToEnv(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.env.ToEnv()
 			assert.ElementsMatch(t, tt.expected, result)
+		})
+	}
+}
+
+func TestAgentUserVars(t *testing.T) {
+	tests := []struct {
+		name     string
+		envVars  map[string]string
+		expected *Env
+	}{
+		{
+			name:    "not set",
+			envVars: map[string]string{},
+			expected: &Env{
+				AgentUserName: "",
+			},
+		},
+		{
+			name: "primary set",
+			envVars: map[string]string{
+				envAgentUserName: "customuser",
+			},
+			expected: &Env{
+				AgentUserName: "customuser",
+			},
+		},
+		{
+			name: "compat set",
+			envVars: map[string]string{
+				envAgentUserNameCompat: "customuser",
+			},
+			expected: &Env{
+				AgentUserName: "customuser",
+			},
+		},
+		{
+			name: "primary precedence",
+			envVars: map[string]string{
+				envAgentUserName:       "customuser",
+				envAgentUserNameCompat: "otheruser",
+			},
+			expected: &Env{
+				AgentUserName: "customuser",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for key, value := range tt.envVars {
+				os.Setenv(key, value)
+				defer os.Unsetenv(key)
+			}
+			result := FromEnv()
+			assert.Equal(t, tt.expected.AgentUserName, result.AgentUserName)
 		})
 	}
 }
