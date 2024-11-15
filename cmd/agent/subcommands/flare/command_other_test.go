@@ -27,12 +27,14 @@ func NewSystemProbeTestServer(_ http.Handler) (*httptest.Server, error) {
 }
 
 // InjectConnectionFailures injects a failure in TestReadProfileDataErrors.
-func InjectConnectionFailures(_ model.Config, _ model.Config) {
+func InjectConnectionFailures(mockSysProbeConfig model.Config, _ model.Config) {
+	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
+	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", "/opt/datadog-agent/run/sysprobe-bad.sock")
 }
 
 // CheckExpectedConnectionFailures checks the expected errors after simulated
 // connection failures.
 func CheckExpectedConnectionFailures(c *commandTestSuite, err error) {
 	// System probe by default is disabled and no connection is attempted for it in the test.
-	require.Regexp(c.T(), "^4 errors occurred:\n", err.Error())
+	require.Regexp(c.T(), "^5 errors occurred:\n", err.Error())
 }
