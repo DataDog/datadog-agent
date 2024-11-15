@@ -27,14 +27,12 @@ func TestMatchScopeExpression(t *testing.T) {
 			policyID: "policy1",
 			scopeExpressions: []scopeExpression{
 				{
-					Expression: "tag.env == 'test'",
+					Expression: "'env:test' in tags",
 					PolicyID:   "policy1",
 				},
 			},
 			env: map[string]interface{}{
-				"tag": map[string]interface{}{
-					"env": "test",
-				},
+				"tags": []string{"env:test"},
 			},
 			match: true,
 			err:   false,
@@ -57,9 +55,7 @@ func TestMatchScopeExpression(t *testing.T) {
 			policyID:         "policy2",
 			scopeExpressions: []scopeExpression{},
 			env: map[string]interface{}{
-				"tag": map[string]interface{}{
-					"env": "test",
-				},
+				"tags": []string{"env:test"},
 			},
 			match: false,
 			err:   true,
@@ -69,14 +65,12 @@ func TestMatchScopeExpression(t *testing.T) {
 			policyID: "policy1",
 			scopeExpressions: []scopeExpression{
 				{
-					Expression: "tag.foo == 'bar'",
+					Expression: "'foo:bar' in tags",
 					PolicyID:   "policy1",
 				},
 			},
 			env: map[string]interface{}{
-				"tag": map[string]interface{}{
-					"env": "test",
-				},
+				"tags": []string{"env:test"},
 			},
 			match: false,
 			err:   false,
@@ -86,18 +80,31 @@ func TestMatchScopeExpression(t *testing.T) {
 			policyID: "policy1",
 			scopeExpressions: []scopeExpression{
 				{
-					Expression: "tag.env == 'test'",
+					Expression: "'env:test' in tags",
 					PolicyID:   "policy1",
 				},
 				{
-					Expression: "tag.foo == 'bar'",
+					Expression: "'foo:bar' in tags",
 					PolicyID:   "policy2",
 				},
 			},
 			env: map[string]interface{}{
-				"tag": map[string]interface{}{
-					"env": "test",
+				"tags": []string{"env:test"},
+			},
+			match: true,
+			err:   false,
+		},
+		{
+			name:     "Multiple tags in expression",
+			policyID: "policy1",
+			scopeExpressions: []scopeExpression{
+				{
+					Expression: "any(['env:test', 'env:prod'], {# in tags})",
+					PolicyID:   "policy1",
 				},
+			},
+			env: map[string]interface{}{
+				"tags": []string{"env:test", "foo:bar"},
 			},
 			match: true,
 			err:   false,

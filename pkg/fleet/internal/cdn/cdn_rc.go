@@ -183,7 +183,10 @@ func (c *cdnRC) get(ctx context.Context) ([][]byte, error) {
 	for _, file := range agentConfigUpdate.TargetFiles {
 		files[file.GetPath()] = file.GetRaw()
 	}
-	return getLayers(nil, files)
+	return getOrderedScopedLayers(
+		files,
+		getScopeExprVars(ctx, c.hostTagsGetter),
+	)
 }
 
 func (c *cdnRC) Close() error {

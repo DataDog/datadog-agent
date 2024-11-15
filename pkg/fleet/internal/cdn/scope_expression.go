@@ -6,11 +6,14 @@
 package cdn
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
 
+	pkghostname "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/expr-lang/expr"
 )
 
@@ -59,11 +62,11 @@ func (o *orderConfig) Match(policyID string, env map[string]interface{}) (bool, 
 	return boolOutput, nil
 }
 
-// getLayers takes in a Remote Config response and returns the ordered layers
+// getOrderedScopedLayers takes in a Remote Config response and returns the ordered layers
 // that match the current scope
 // Layers are ordered from the lowest priority to the highest priority so that
 // a simple loop can merge them in order
-func getLayers(env map[string]interface{}, files map[string][]byte) ([][]byte, error) {
+func getOrderedScopedLayers(files map[string][]byte, env map[string]interface{}) ([][]byte, error) {
 	// First unmarshal the order configuration
 	var configOrder *orderConfig
 	for path, content := range files {
@@ -96,7 +99,7 @@ func getLayers(env map[string]interface{}, files map[string][]byte) ([][]byte, e
 			continue
 		}
 
-		scopeMatch, err := configOrder.Match(configID, env) // TODO(baptiste): generate & pass the env
+		scopeMatch, err := configOrder.Match(configID, env)
 		if err != nil {
 			// Don't apply anything if there is an error parsing scope expressions
 			return nil, fmt.Errorf("error matching scope expressions: %w", err)
@@ -117,4 +120,17 @@ func getLayers(env map[string]interface{}, files map[string][]byte) ([][]byte, e
 	}
 
 	return layers, nil
+}
+
+func getScopeExprVars(ctx context.Context, hostTagsGetter hostTagsGetter) map[string]interface{} {
+	hostname, err := pkghostname.Get(ctx)
+	if err != nil {
+		hostname = "unknown"
+	}
+	return map[string]interface{}{
+		"hostname":          hostname,
+		"installer_version": version.AgentVersion, // AgentVersion evaluates to the installer version here
+
+		"tags": hostTagsGetter.get(),
+	}
 }

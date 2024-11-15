@@ -46,7 +46,7 @@ func (c *cdnLocal) Get(_ context.Context, pkg string) (cfg Config, err error) {
 		files[file.Name()] = contents
 	}
 
-	layers, err := getLayers(nil, files)
+	layers, err := getOrderedScopedLayers(files, nil)
 	if err != nil {
 		return nil, err
 	}

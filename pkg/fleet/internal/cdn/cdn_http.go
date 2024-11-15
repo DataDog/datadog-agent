@@ -121,5 +121,8 @@ func (c *cdnHTTP) get(ctx context.Context) ([][]byte, error) {
 		}
 	}
 
-	return getLayers(nil, agentConfigUpdate.TargetFiles)
+	return getOrderedScopedLayers(
+		agentConfigUpdate.TargetFiles,
+		getScopeExprVars(ctx, c.hostTagsGetter),
+	)
 }
