@@ -175,7 +175,7 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	t := s.T()
 
 	// Flaky test in CI, avoid failures on main for now.
-	//flake.Mark(t)
+	// flake.Mark(t)
 
 	probe := s.getProbe()
 
