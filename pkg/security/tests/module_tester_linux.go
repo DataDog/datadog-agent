@@ -62,6 +62,10 @@ var (
 	logger seelog.LoggerInterface
 )
 
+const (
+	filelessExecutionFilenamePrefix = "memfd:"
+)
+
 const testConfig = `---
 log_level: DEBUG
 system_probe_config:

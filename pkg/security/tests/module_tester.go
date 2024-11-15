@@ -56,8 +56,7 @@ const (
 	Skip
 )
 const (
-	getEventTimeout                 = 10 * time.Second
-	filelessExecutionFilenamePrefix = "memfd:"
+	getEventTimeout = 10 * time.Second
 )
 
 var (
