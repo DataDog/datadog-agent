@@ -517,7 +517,6 @@ github.com/karrick/godirwalk
 github.com/klauspost/compress
 github.com/klauspost/compress/fse
 github.com/klauspost/compress/huff0
-github.com/klauspost/compress/internal/cpuinfo
 github.com/klauspost/compress/internal/snapref
 github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
@@ -1154,7 +1153,6 @@ vendor/golang.org/x/net/http/httpguts
 vendor/golang.org/x/net/http/httpproxy
 vendor/golang.org/x/net/http2/hpack
 vendor/golang.org/x/net/idna
-vendor/golang.org/x/sys/cpu
 vendor/golang.org/x/text/secure/bidirule
 vendor/golang.org/x/text/transform
 vendor/golang.org/x/text/unicode/bidi
