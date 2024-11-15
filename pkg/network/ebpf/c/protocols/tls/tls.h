@@ -16,7 +16,7 @@
 #define TLS_APPLICATION_DATA 0x17
 
 #define SUPPORTED_VERSIONS_EXTENSION 0x002B
-#define MAX_EXTENSIONS 8
+#define MAX_EXTENSIONS 6
 
 /* https://www.rfc-editor.org/rfc/rfc5246#page-19 6.2. Record Layer */
 
@@ -142,6 +142,14 @@ static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offse
 
     // Store client_version in tags (in case supported_versions extension is absent)
     set_tls_offered_version(tags, client_version);
+
+    if (client_version != TLS_VERSION12) {
+        // if the version is less than 1.2, there won't be any extensions and we can stop here
+        return 0;
+    }
+
+    // Check if there are extensions if the version is listed as TLS 1.2, as this
+    // version may actually be 1.3 and the real version is in the extensions
 
     // Skip Random (32 bytes)
     offset += 32;
@@ -310,7 +318,13 @@ static __always_inline int parse_server_hello(struct __sk_buff *skb, __u64 offse
     // Store parsed data into tags
     tags->cipher_suite = cipher_suite;
 
-    // Check if there are extensions
+    if (tags->chosen_version != TLS_VERSION12) {
+        // if the version is less than 1.2, there won't be any extensions and we can stop here
+        return 0;
+    }
+
+    // Check if there are extensions if the version is listed as TLS 1.2, as this
+    // version may actually be 1.3 and the real version is in the extensions
     if (offset < handshake_end) {
         // Read Extensions Length (2 bytes)
         if (offset + 2 > skb_len || offset + 2 > handshake_end)

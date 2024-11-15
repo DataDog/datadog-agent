@@ -171,7 +171,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
     tls_record_header_t tls_hdr = {0};
 
-    if (is_tls(skb, skb_info.data_off, &tls_hdr)) {
+    if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) && is_tls(skb, skb_info.data_off, &tls_hdr)) {
         // TLS classification
         update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
 
