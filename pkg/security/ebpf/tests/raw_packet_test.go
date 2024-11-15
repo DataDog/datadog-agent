@@ -8,15 +8,8 @@
 // Package tests holds tests related files
 package tests
 
-import (
-	"testing"
-
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/asm"
-	"github.com/safchain/baloum/pkg/baloum"
-)
-
+// TODO(safchain) uncomment when the baloum deps will be fixed
+/*
 func testRawPacketFilter(t *testing.T, rawPacketFilters []probes.RawPacketFilter, expectedRetCode int, opts probes.RawPacketProgOpts) {
 	var ctx baloum.StdContext
 
@@ -122,3 +115,4 @@ func TestRawPacketTailCalls(t *testing.T) {
 		testRawPacketFilter(t, filters, 0, opts)
 	})
 }
+*/
