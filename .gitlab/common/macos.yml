@@ -1,0 +1,60 @@
+---
+# This is the scripts to be executed on the Gitlab macOS runners before every job.
+# We don't have virtualization now so we need to clean the environment and install the proper dependencies before every job.
+.list_go_versions_commands:
+  - |
+    echo "Don't forget to regularly delete Go unused versions. Here are the installed Go versions and their disk space on the runner:"
+    echo "Go:"
+    du -sh $HOME/.gimme/versions/*
+    echo "To remove a Go version please run:"
+    echo "gimme uninstall <version>"
+
+.list_python_versions_commands:
+  - |
+    echo "Don't forget to regularly delete Python unused versions. Here are the installed Python versions and their disk space on the runner:"
+    echo "Python:"
+    du -sh $(pyenv root)/versions/*
+    echo "To remove a Python version please run:"
+    echo "pyenv uninstall -f <version>"
+
+.select_python_env_commands:
+  # Select the virtualenv using the current Python version. Create it if it doesn't exist.
+  - PYTHON_VERSION=$(python3 --version | awk '{print $2}')
+  - VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
+  - VENV_PATH="$(pyenv root)/versions/$VENV_NAME"
+  - echo "Using Python $PYTHON_VERSION..."
+  - |
+    # Check if the virtual environment directory exists
+    if [ ! -d "$VENV_PATH" ]; then
+      echo "Creating virtual environment '$VENV_NAME'..."
+      pyenv virtualenv "$PYTHON_VERSION" "$VENV_NAME"
+    else
+      echo "Virtual environment '$VENV_NAME' already exists. Skipping creation."
+    fi
+  - pyenv activate $VENV_NAME
+
+.vault_login:
+  # Point the CLI to our internal vault
+  - export VAULT_ADDR=https://vault.us1.ddbuild.io
+  - vault login -method=aws -no-print
+
+.macos_gitlab:
+  before_script:
+    # Selecting the current Go version
+    - |
+      eval $(gimme $(cat .go-version))
+      export GOPATH=$GOROOT
+    # Selecting the current Python version
+    - !reference [.select_python_env_commands]
+    # List Python and Go existing environments and their disk space
+    - !reference [.list_go_versions_commands]
+    - !reference [.list_python_versions_commands]
+    # Installing the job dependencies
+    # Python 3.12 changes default behavior how packages are installed.
+    # In particular, --break-system-packages command line option is
+    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
+    - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt --break-system-packages
+    - pyenv rehash
+    - inv -e rtloader.make
+    - inv -e rtloader.install
+    - inv -e install-tools

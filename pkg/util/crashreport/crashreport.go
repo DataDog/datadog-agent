@@ -115,6 +115,13 @@ func (wcr *WinCrashReporter) CheckForCrash() (*probe.WinCrashStatus, error) {
 	if !ok {
 		return nil, fmt.Errorf("Raw data has incorrect type")
 	}
+
+	// Crash dump processing is not done yet, nothing to send at the moment. Try later.
+	if crash.StatusCode == probe.WinCrashStatusCodeBusy {
+		log.Infof("Crash dump processing is busy")
+		return nil, nil
+	}
+
 	/*
 	 * originally did this with a sync.once.  The problem is the check is run prior to the
 	 * system probe being successfully started.  This is OK; we just need to detect the BSOD
@@ -124,7 +131,7 @@ func (wcr *WinCrashReporter) CheckForCrash() (*probe.WinCrashStatus, error) {
 	 * we don't need to run any more
 	 */
 	wcr.hasRunOnce = true
-	if !crash.Success {
+	if crash.StatusCode == probe.WinCrashStatusCodeFailed {
 		return nil, fmt.Errorf("Error getting crash data %s", crash.ErrString)
 	}
 

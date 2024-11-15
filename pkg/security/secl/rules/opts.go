@@ -20,6 +20,9 @@ type VariableProvider interface {
 // VariableProviderFactory describes a function called to instantiate a variable provider
 type VariableProviderFactory func() VariableProvider
 
+// RuleActionPerformedCb describes the callback function called after a rule action is performed
+type RuleActionPerformedCb func(r *Rule, action *ActionDefinition)
+
 // Opts defines rules set options
 type Opts struct {
 	SupportedDiscarders      map[eval.Field]bool
@@ -28,6 +31,7 @@ type Opts struct {
 	EventTypeEnabled         map[eval.EventType]bool
 	StateScopes              map[Scope]VariableProviderFactory
 	Logger                   log.Logger
+	ruleActionPerformedCb    RuleActionPerformedCb
 }
 
 // WithSupportedDiscarders set supported discarders
@@ -63,6 +67,12 @@ func (o *Opts) WithLogger(logger log.Logger) *Opts {
 // WithStateScopes set state scopes
 func (o *Opts) WithStateScopes(stateScopes map[Scope]VariableProviderFactory) *Opts {
 	o.StateScopes = stateScopes
+	return o
+}
+
+// WithRuleActionPerformedCb sets the rule action performed callback
+func (o *Opts) WithRuleActionPerformedCb(cb RuleActionPerformedCb) *Opts {
+	o.ruleActionPerformedCb = cb
 	return o
 }
 

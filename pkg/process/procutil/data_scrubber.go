@@ -102,7 +102,7 @@ func CompileStringsToRegex(words []string) []DataScrubberPattern {
 			continue
 		}
 
-		pattern := "(?P<key>( +| -{1,2})(?i)" + enhancedWord.String() + ")(?P<delimiter> +|=|:)(?P<value>[^\\s]*)"
+		pattern := "(?P<key>( +| -{1,2})(?i)" + enhancedWord.String() + ")(?P<delimiter> +|=|:)(?P<value>(\"([^\"]*)\")|('([^']*)')|[^\\s]*)"
 		r, err := regexp.Compile(pattern)
 		if err == nil {
 			compiledRegexps = append(compiledRegexps, DataScrubberPattern{

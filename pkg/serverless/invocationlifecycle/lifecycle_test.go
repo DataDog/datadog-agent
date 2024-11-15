@@ -1168,6 +1168,58 @@ func TestTriggerTypesLifecycleEventForSNSSQSNoDdContext(t *testing.T) {
 	assert.Equal(t, snsSpan.SpanID, sqsSpan.ParentID)
 }
 
+func TestTriggerTypesLifecycleEventForSNSSQSThenApiGateway(t *testing.T) {
+	// SNS-SQS creates two inferred spans. Ensure that then invoking the
+	// function with an event that should have just one inferred span (API
+	// Gateway) creates just one inferred span.
+	var tracePayload *api.Payload
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary:  func() bool { return false },
+		ProcessTrace:         func(payload *api.Payload) { tracePayload = payload },
+		InferredSpansEnabled: true,
+	}
+
+	// SNS-SQS invocation
+	startInvocationTime := time.Now()
+	endInvocationTime := startInvocationTime.Add(time.Second)
+
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: getEventFromFile("snssqs.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		StartTime:             startInvocationTime,
+	}
+	endDetails := &InvocationEndDetails{
+		RequestID: "test-request-id",
+		EndTime:   endInvocationTime,
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(endDetails)
+
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 3, len(spans))
+
+	// API Gateway invocation
+	startInvocationTime = endInvocationTime
+	endInvocationTime = startInvocationTime.Add(time.Second)
+
+	startDetails = &InvocationStartDetails{
+		InvokeEventRawPayload: getEventFromFile("api-gateway.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		StartTime:             startInvocationTime,
+	}
+	endDetails = &InvocationEndDetails{
+		RequestID: "test-request-id",
+		EndTime:   endInvocationTime,
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(endDetails)
+
+	spans = tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 2, len(spans))
+}
+
 func TestTriggerTypesLifecycleEventForSQSNoDdContext(t *testing.T) {
 
 	startInvocationTime := time.Now()
@@ -1232,6 +1284,88 @@ func TestTriggerTypesLifecycleEventForEventBridge(t *testing.T) {
 		"request_id":                        "test-request-id",
 		"function_trigger.event_source":     "eventbridge",
 	}, testProcessor.GetTags())
+}
+
+func TestTriggerTypesLifecycleEventForEventBridgeSQS(t *testing.T) {
+	startInvocationTime := time.Now()
+	duration := 1 * time.Second
+	endInvocationTime := startInvocationTime.Add(duration)
+
+	var tracePayload *api.Payload
+
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: getEventFromFile("eventbridgesqs.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		StartTime:             startInvocationTime,
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary:  func() bool { return false },
+		ProcessTrace:         func(payload *api.Payload) { tracePayload = payload },
+		InferredSpansEnabled: true,
+		requestHandler: &RequestHandler{
+			executionInfo: &ExecutionStartInfo{
+				TraceID:          123,
+				SamplingPriority: 1,
+			},
+		},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID: "test-request-id",
+		EndTime:   endInvocationTime,
+		IsError:   false,
+	})
+
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 3, len(spans))
+	eventBridgeSpan, sqsSpan := spans[1], spans[2]
+	assert.Equal(t, "eventbridge", eventBridgeSpan.Service)
+	assert.Equal(t, "test-bus", eventBridgeSpan.Resource)
+	assert.Equal(t, "sqs", sqsSpan.Service)
+	assert.Equal(t, "test-queue", sqsSpan.Resource)
+}
+
+func TestTriggerTypesLifecycleEventForEventBridgeSNS(t *testing.T) {
+	startInvocationTime := time.Now()
+	duration := 1 * time.Second
+	endInvocationTime := startInvocationTime.Add(duration)
+
+	var tracePayload *api.Payload
+
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: getEventFromFile("eventbridgesns.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		StartTime:             startInvocationTime,
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary:  func() bool { return false },
+		ProcessTrace:         func(payload *api.Payload) { tracePayload = payload },
+		InferredSpansEnabled: true,
+		requestHandler: &RequestHandler{
+			executionInfo: &ExecutionStartInfo{
+				TraceID:          123,
+				SamplingPriority: 1,
+			},
+		},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID: "test-request-id",
+		EndTime:   endInvocationTime,
+		IsError:   false,
+	})
+
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 3, len(spans))
+	eventBridgeSpan, snsSpan := spans[1], spans[2]
+	assert.Equal(t, "eventbridge", eventBridgeSpan.Service)
+	assert.Equal(t, "test-bus", eventBridgeSpan.Resource)
+	assert.Equal(t, "sns", snsSpan.Service)
+	assert.Equal(t, "test-notifier", snsSpan.Resource)
 }
 
 // Helper function for reading test file

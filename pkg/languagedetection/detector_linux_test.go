@@ -29,7 +29,7 @@ func startTestUnixServer(t *testing.T, handler http.Handler) string {
 	t.Helper()
 
 	socketPath := path.Join(t.TempDir(), "test.sock")
-	listener, err := net.NewListener(socketPath)
+	listener, err := net.NewSystemProbeListener(socketPath)
 	require.NoError(t, err)
 	t.Cleanup(listener.Stop)
 

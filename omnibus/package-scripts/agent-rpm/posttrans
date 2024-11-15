@@ -10,7 +10,7 @@ INSTALL_DIR=/opt/datadog-agent
 CONFIG_DIR=/etc/datadog-agent
 SERVICE_NAME=datadog-agent
 
-KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE|Rocky|AlmaLinux)"
+KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE|Rocky|AlmaLinux|Oracle)"
 DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
 
 # Create a symlink to the agent's binary
@@ -28,8 +28,8 @@ fi
 
 # Only install selinux policy on a few known distributions
 INSTALL_SELINUX_POLICY="false"
-if [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "Rocky" ] || [ "$DISTRIBUTION" = "AlmaLinux" ]; then
-    OS_RELEASE_VERSION=$(grep VERSION_ID /etc/os-release | cut -d = -f 2 | tr -d '"')
+if [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "Rocky" ] || [ "$DISTRIBUTION" = "AlmaLinux" ] || [ "$DISTRIBUTION" = "Oracle" ]; then
+    OS_RELEASE_VERSION=$(grep VERSION_ID /etc/os-release | cut -d = -f 2 | cut -d . -f 1 | tr -d '"')
     if [ "$OS_RELEASE_VERSION" = "7" ]; then
         INSTALL_SELINUX_POLICY="true"
     fi

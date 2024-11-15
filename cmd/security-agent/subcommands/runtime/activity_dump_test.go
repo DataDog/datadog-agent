@@ -61,3 +61,11 @@ func TestActivityDumpToWorkloadPolicyCommand(t *testing.T) {
 		activityDumpToWorkloadPolicy,
 		func() {})
 }
+
+func TestActivityDumpToSeccompProfileCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"runtime", "activity-dump", "workload-seccomp", "--input", "file", "--output", "file"},
+		activityDumpToSeccompProfile,
+		func() {})
+}

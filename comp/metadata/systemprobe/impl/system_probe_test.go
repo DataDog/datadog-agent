@@ -24,7 +24,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
+	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

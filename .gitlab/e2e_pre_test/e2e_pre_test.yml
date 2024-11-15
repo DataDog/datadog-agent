@@ -10,7 +10,7 @@ e2e_pre_test:
     - job: publish_fakeintake
       optional: true
   script:
-    - inv -e new-e2e-tests.run --targets ./test-infra-definition --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
+    - inv -e new-e2e-tests.run --targets ./test-infra-definition --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
   after_script:
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
   variables:

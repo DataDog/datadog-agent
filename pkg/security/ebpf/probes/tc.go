@@ -10,11 +10,13 @@ package probes
 
 import (
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
 	"golang.org/x/sys/unix"
 )
 
 // GetTCProbes returns the list of TCProbes
-func GetTCProbes(withNetworkIngress bool) []*manager.Probe {
+func GetTCProbes(withNetworkIngress bool, withRawPacket bool) []*manager.Probe {
 	out := []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -27,6 +29,18 @@ func GetTCProbes(withNetworkIngress bool) []*manager.Probe {
 		},
 	}
 
+	if withRawPacket {
+		out = append(out, &manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "classifier_raw_packet_egress",
+			},
+			NetworkDirection: manager.Egress,
+			TCFilterProtocol: unix.ETH_P_ALL,
+			KeepProgramSpec:  true,
+		})
+	}
+
 	if withNetworkIngress {
 		out = append(out, &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -37,9 +51,44 @@ func GetTCProbes(withNetworkIngress bool) []*manager.Probe {
 			TCFilterProtocol: unix.ETH_P_ALL,
 			KeepProgramSpec:  true,
 		})
+
+		if withRawPacket {
+			out = append(out, &manager.Probe{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					UID:          SecurityAgentUID,
+					EBPFFuncName: "classifier_raw_packet_ingress",
+				},
+				NetworkDirection: manager.Ingress,
+				TCFilterProtocol: unix.ETH_P_ALL,
+				KeepProgramSpec:  true,
+			})
+		}
 	}
 
 	return out
+}
+
+// RawPacketTCProgram returns the list of TC classifier sections
+var RawPacketTCProgram = []string{
+	"classifier_raw_packet_egress",
+	"classifier_raw_packet_ingress",
+}
+
+// GetRawPacketTCFilterProg returns a first tc filter
+func GetRawPacketTCFilterProg(_, clsRouterMapFd int) (*ebpf.ProgramSpec, error) {
+	insts := asm.Instructions{
+		asm.LoadMapPtr(asm.R2, clsRouterMapFd),
+		asm.Mov.Imm(asm.R3, int32(TCRawPacketParserKey)),
+		asm.FnTailCall.Call(),
+		asm.Mov.Imm(asm.R0, 0),
+		asm.Return(),
+	}
+
+	return &ebpf.ProgramSpec{
+		Type:         ebpf.SchedCLS,
+		Instructions: insts,
+		License:      "GPL",
+	}, nil
 }
 
 // GetAllTCProgramFunctions returns the list of TC classifier sections
@@ -48,9 +97,10 @@ func GetAllTCProgramFunctions() []string {
 		"classifier_dns_request_parser",
 		"classifier_dns_request",
 		"classifier_imds_request",
+		"classifier_raw_packet",
 	}
 
-	for _, tcProbe := range GetTCProbes(true) {
+	for _, tcProbe := range GetTCProbes(true, true) {
 		output = append(output, tcProbe.EBPFFuncName)
 	}
 
@@ -86,6 +136,13 @@ func getTCTailCallRoutes() []manager.TailCallRoute {
 			Key:           TCIMDSRequestParserKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "classifier_imds_request",
+			},
+		},
+		{
+			ProgArrayName: "classifier_router",
+			Key:           TCRawPacketParserKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "classifier_raw_packet",
 			},
 		},
 	}

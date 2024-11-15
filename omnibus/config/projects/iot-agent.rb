@@ -46,7 +46,7 @@ else
   end
 
   if debian_target?
-    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.3.1)'
+    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.4.0)'
   end
   unless osx_target?
     conflict 'datadog-agent'
@@ -64,6 +64,8 @@ else
 
   # creates required build directories
   dependency 'preparation'
+
+  dependency "systemd" if linux_target?
 
   # Datadog agent
   dependency 'datadog-iot-agent'

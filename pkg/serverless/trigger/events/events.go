@@ -286,6 +286,7 @@ type SNSEntity struct {
 	MessageAttributes map[string]interface{}
 	Timestamp         time.Time
 	Subject           string
+	Message           string
 }
 
 // SQSEvent mirrors events.SQSEvent type, removing unused fields.

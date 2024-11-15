@@ -18,9 +18,11 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -92,22 +94,19 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	defer os.Remove(testFile2)
 
 	// stats
-	/*err = retry.Do(func() error {
+	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
-		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:basename"); count != 1 {
-			return errors.New("expected metrics not found")
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:basename"); count == 0 {
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
-		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count != 1 {
-			return errors.New("expected metrics not found")
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count == 0 {
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
 		return nil
 	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
 	assert.NoError(t, err)
-
-	// reset stats
-	test.statsdClient.Flush()*/
 
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd2, err = openTestFile(test, testFile2, syscall.O_CREAT)
@@ -119,10 +118,6 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 		t.Fatal("shouldn't get an event")
 	}
 
-	/*if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count > 0 {
-		t.Fatal("expected metrics not found")
-	}*/
-
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd2, err = openTestFile(test, testFile2, syscall.O_RDONLY)
 		if err != nil {
@@ -132,10 +127,6 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	}, testFile2); err == nil {
 		t.Fatal("shouldn't get an event")
 	}
-
-	/*if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count > 0 {
-		t.Fatal("expected metrics not found")
-	}*/
 }
 
 func TestFilterOpenLeafDiscarder(t *testing.T) {
@@ -350,7 +341,7 @@ func TestFilterOpenGrandParentDiscarder(t *testing.T) {
 	testFilterOpenParentDiscarder(t, "grandparent", "parent")
 }
 
-func runAUIDTest(t *testing.T, test *testModule, goSyscallTester, auidOK, auidKO string) {
+func runAUIDTest(t *testing.T, test *testModule, goSyscallTester string, eventType model.EventType, field eval.Field, path string, auidOK, auidKO string) {
 	var cmdWrapper *dockerCmdWrapper
 	cmdWrapper, err := test.StartADocker()
 	if err != nil {
@@ -358,56 +349,57 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester, auidOK, auidKO
 	}
 	defer cmdWrapper.stop()
 
-	if err := waitForOpenProbeEvent(test, func() error {
+	// reset stats
+	test.statsdClient.Flush()
+
+	if err := waitForProbeEvent(test, func() error {
 		args := []string{
-			"-login-uid-open-test",
-			"-login-uid-open-path", "/tmp/test-auid",
-			"-login-uid-open-uid", auidOK,
+			"-login-uid-test",
+			"-login-uid-event-type", eventType.String(),
+			"-login-uid-path", "/tmp/test-auid",
+			"-login-uid-value", auidOK,
 		}
 
 		cmd := cmdWrapper.Command(goSyscallTester, args, []string{})
 		return cmd.Run()
-	}, "/tmp/test-auid"); err != nil {
+	}, eventType, eventKeyValueFilter{
+		key:   field,
+		value: path,
+	}); err != nil {
 		t.Fatal(err)
 	}
 
 	// stats
-	/*err = retry.Do(func() error {
+	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
-		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:auid"); count != 1 {
-			return errors.New("expected metrics not found")
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:auid"); count == 0 {
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
-		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count != 1 {
-			return errors.New("expected metrics not found")
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:" + eventType.String()); count == 0 {
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
 		return nil
 	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
 	assert.NoError(t, err)
 
-	// reset stats
-	test.statsdClient.Flush()
-	if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count == 1 {
-		t.Fatal("expected metrics not found")
-	}*/
-
-	if err := waitForOpenProbeEvent(test, func() error {
+	if err := waitForProbeEvent(test, func() error {
 		args := []string{
-			"-login-uid-open-test",
-			"-login-uid-open-path", "/tmp/test-auid",
-			"-login-uid-open-uid", auidKO,
+			"-login-uid-test",
+			"-login-uid-event-type", eventType.String(),
+			"-login-uid-path", "/tmp/test-auid",
+			"-login-uid-value", auidKO,
 		}
 
 		cmd := cmdWrapper.Command(goSyscallTester, args, []string{})
 		return cmd.Run()
-	}, "/tmp/test-auid"); err == nil {
+	}, eventType, eventKeyValueFilter{
+		key:   field,
+		value: path,
+	}); err == nil {
 		t.Fatal("shouldn't get an event")
 	}
-
-	/*if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count > 0 {
-		t.Fatal("expected metrics not found")
-	}*/
 }
 
 func TestFilterOpenAUIDEqualApprover(t *testing.T) {
@@ -448,15 +440,15 @@ func TestFilterOpenAUIDEqualApprover(t *testing.T) {
 	}
 
 	t.Run("equal-fixed-value", func(t *testing.T) {
-		runAUIDTest(t, test, goSyscallTester, "1005", "6000")
+		runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "1005", "6000")
 	})
 
 	t.Run("equal-zero", func(t *testing.T) {
-		runAUIDTest(t, test, goSyscallTester, "0", "6000")
+		runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "0", "6000")
 	})
 
 	t.Run("equal-unset", func(t *testing.T) {
-		runAUIDTest(t, test, goSyscallTester, "-1", "6000")
+		runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "-1", "6000")
 	})
 }
 
@@ -489,7 +481,7 @@ func TestFilterOpenAUIDLesserApprover(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runAUIDTest(t, test, goSyscallTester, "450", "605")
+	runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "450", "605")
 }
 
 func TestFilterOpenAUIDGreaterApprover(t *testing.T) {
@@ -521,7 +513,7 @@ func TestFilterOpenAUIDGreaterApprover(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runAUIDTest(t, test, goSyscallTester, "1500", "605")
+	runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "1500", "605")
 }
 
 func TestFilterOpenAUIDNotEqualUnsetApprover(t *testing.T) {
@@ -553,7 +545,41 @@ func TestFilterOpenAUIDNotEqualUnsetApprover(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runAUIDTest(t, test, goSyscallTester, "6000", "-1")
+	runAUIDTest(t, test, goSyscallTester, model.FileOpenEventType, "open.file.path", "/tmp/test-auid", "6000", "-1")
+}
+
+func TestFilterUnlinkAUIDEqualApprover(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_equal_1",
+			Expression: `unlink.file.path =~ "/tmp/test-auid" && process.auid == 1009`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("equal-fixed-value", func(t *testing.T) {
+		runAUIDTest(t, test, goSyscallTester, model.FileUnlinkEventType, "unlink.file.path", "/tmp/test-auid", "1009", "6000")
+	})
 }
 
 func TestFilterDiscarderMask(t *testing.T) {
@@ -839,22 +865,19 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 	}
 
 	// stats
-	/*err = retry.Do(func() error {
+	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:flag"); count == 0 {
-			return errors.New("expected approver metrics not found")
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count == 0 {
-			return errors.New("expected metrics not found")
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
 		return nil
 	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
 	assert.NoError(t, err)
-
-	// reset stats
-	test.statsdClient.Flush()*/
 
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_SYNC)
@@ -866,19 +889,19 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	/*err = retry.Do(func() error {
+	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:flag"); count == 0 {
-			return errors.New("expected metrics not found")
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count == 0 {
-			return errors.New("expected metrics not found")
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
 		return nil
 	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
-	assert.NoError(t, err)*/
+	assert.NoError(t, err)
 
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_RDONLY)

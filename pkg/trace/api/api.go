@@ -380,6 +380,16 @@ func (r *HTTPReceiver) Stop() error {
 	return nil
 }
 
+// UpdateAPIKey rebuilds the server handler to update API Keys in all endpoints
+func (r *HTTPReceiver) UpdateAPIKey() {
+	if r.server == nil {
+		return
+	}
+	log.Debug("API Key updated. Rebuilding API handler.")
+	handler := r.buildMux()
+	r.server.Handler = handler
+}
+
 func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.ResponseWriter, *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		if mediaType := getMediaType(req); mediaType == "application/msgpack" && (v == v01 || v == v02) {
@@ -512,7 +522,7 @@ func (r *HTTPReceiver) replyOK(req *http.Request, v Version, w http.ResponseWrit
 type StatsProcessor interface {
 	// ProcessStats takes a stats payload and consumes it. It is considered to be originating
 	// from the given lang.
-	ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion string)
+	ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion, containerID string)
 }
 
 // handleStats handles incoming stats payloads.
@@ -540,7 +550,11 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_bytes", rd.Count, ts.AsTags(), 1)
 	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), ts.AsTags(), 1)
 
-	r.statsProcessor.ProcessStats(in, req.Header.Get(header.Lang), req.Header.Get(header.TracerVersion))
+	// Resolve ContainerID baased on HTTP headers
+	lang := req.Header.Get(header.Lang)
+	tracerVersion := req.Header.Get(header.TracerVersion)
+	containerID := r.containerIDProvider.GetContainerID(req.Context(), req.Header)
+	r.statsProcessor.ProcessStats(in, lang, tracerVersion, containerID)
 }
 
 // handleTraces knows how to handle a bunch of traces

@@ -17,7 +17,7 @@ func TestCheckMetrics(t *testing.T) {
 	cm := NewCheckMetrics(true, 1000*time.Second)
 	t0 := 16_0000_0000.0
 
-	cfg := setupConfig()
+	cfg := setupConfig(t)
 	cm.AddSample(1, &MetricSample{Mtype: GaugeType}, t0, 1, cfg)
 	assert.Contains(t, cm.metrics, ckey.ContextKey(1))
 
@@ -56,7 +56,7 @@ func TestCheckMetricsNoExpiry(t *testing.T) {
 	cm := NewCheckMetrics(false, 1000*time.Second)
 	t0 := 16_0000_0000.0
 
-	cfg := setupConfig()
+	cfg := setupConfig(t)
 	cm.AddSample(1, &MetricSample{Mtype: GaugeType}, t0, 1, cfg)
 	assert.Contains(t, cm.metrics, ckey.ContextKey(1))
 

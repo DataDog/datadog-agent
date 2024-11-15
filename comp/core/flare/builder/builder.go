@@ -8,16 +8,12 @@
 // is not built in the binary.
 package flarebuilder
 
-import (
-	compdef "github.com/DataDog/datadog-agent/comp/def"
-)
-
 // FlareBuilder contains all the helpers to add files to a flare archive.
 //
 // When adding data to a flare the builder will do multiple things internally.
 //
-// First a log of the archive creation will be kept and shipped with the flare. When using the the FlareBuilder you
-// should not stop at the first error. We want to collect as much as possible. Any error returned by the a FlareBuilder
+// First a log of the archive creation will be kept and shipped with the flare. When using FlareBuilder we
+// should not stop at the first error. We want to collect as much as possible. Any error returned by a FlareBuilder
 // method is added to the flare log. In general, you can safely ignore those errors unless sending a flare without some
 // file/information would not make sense.
 //
@@ -34,7 +30,7 @@ import (
 type FlareBuilder interface {
 	// IsLocal returns true when the flare is created by the CLI instead of the running Agent process. This happens
 	// when the CLI could not reach the Agent process to request a new flare. In that case a flare is still created
-	// directly from the CLI process and will not contains any runtime informations.
+	// directly from the CLI process and will not contain any runtime information.
 	IsLocal() bool
 
 	// Logf adds a formatted log entry to the flare file associated with this effect.
@@ -145,21 +141,4 @@ type FlareBuilder interface {
 	// This method must not be used by flare callbacks and will be removed once all flare code has been migrated to
 	// components.
 	Save() (string, error)
-}
-
-// FlareCallback is a function that can be registered as a data provider for flares. This function, if registered, will
-// be called everytime a flare is created.
-type FlareCallback func(fb FlareBuilder) error
-
-// Provider is provided by other components to register themselves to provide flare data.
-type Provider struct {
-	compdef.Out
-	Callback FlareCallback `group:"flare"`
-}
-
-// NewProvider returns a new Provider to be called when a flare is created
-func NewProvider(callback FlareCallback) Provider {
-	return Provider{
-		Callback: callback,
-	}
 }

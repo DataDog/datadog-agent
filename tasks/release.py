@@ -32,6 +32,7 @@ from tasks.libs.common.git import (
     get_last_release_tag,
     try_git_command,
 )
+from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
@@ -67,7 +68,6 @@ from tasks.libs.releasing.version import (
     next_rc_version,
     parse_major_versions,
 )
-from tasks.modules import DEFAULT_MODULES
 from tasks.pipeline import edit_schedule, run
 from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 
@@ -109,9 +109,9 @@ def update_modules(ctx, agent_version, verify=True):
     if verify:
         check_version(agent_version)
 
-    for module in DEFAULT_MODULES.values():
+    for module in get_default_modules().values():
         for dependency in module.dependencies:
-            dependency_mod = DEFAULT_MODULES[dependency]
+            dependency_mod = get_default_modules()[dependency]
             ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
 
 
@@ -170,7 +170,7 @@ def tag_modules(ctx, agent_version, commit="HEAD", verify=True, push=True, force
         check_version(agent_version)
 
     force_option = __get_force_option(force)
-    for module in DEFAULT_MODULES.values():
+    for module in get_default_modules().values():
         # Skip main module; this is tagged at tag_version via __tag_single_module.
         if module.should_tag and module.path != ".":
             __tag_single_module(ctx, module, agent_version, commit, push, force_option, devel)
@@ -200,7 +200,7 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force
 
     # Always tag the main module
     force_option = __get_force_option(force)
-    __tag_single_module(ctx, DEFAULT_MODULES["."], agent_version, commit, push, force_option, devel)
+    __tag_single_module(ctx, get_default_modules()["."], agent_version, commit, push, force_option, devel)
     print(f"Created tags for version {agent_version}")
 
 
@@ -724,7 +724,7 @@ def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", up
 
 def _update_last_stable(_, version, major_versions="7"):
     """
-    Updates the last_release field(s) of release.json
+    Updates the last_release field(s) of release.json and returns the current milestone
     """
     release_json = load_release_json()
     list_major_versions = parse_major_versions(major_versions)
@@ -733,6 +733,8 @@ def _update_last_stable(_, version, major_versions="7"):
         version.major = major
         release_json['last_stable'][str(major)] = str(version)
     _save_release_json(release_json)
+
+    return release_json["current_milestone"]
 
 
 @task
@@ -749,7 +751,36 @@ def cleanup(ctx):
     if not match:
         raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
     version = _create_version_from_match(match)
-    _update_last_stable(ctx, version)
+    current_milestone = _update_last_stable(ctx, version)
+
+    # create pull request to update last stable version
+    main_branch = "main"
+    cleanup_branch = f"release/{version}-cleanup"
+    ctx.run(f"git checkout -b {cleanup_branch}")
+    ctx.run("git add release.json")
+
+    commit_message = f"Update last_stable to {version}"
+    ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
+    if not ok:
+        raise Exit(
+            color_message(
+                f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {cleanup_branch} branch and then open a PR against {main_branch}.",
+                "red",
+            ),
+            code=1,
+        )
+
+    if not ctx.run(f"git push --set-upstream origin {cleanup_branch}", warn=True):
+        raise Exit(
+            color_message(
+                f"Could not push branch {cleanup_branch} to the upstream 'origin'. Please push it manually and then open a PR against {main_branch}.",
+                "red",
+            ),
+            code=1,
+        )
+
+    create_release_pr(commit_message, main_branch, cleanup_branch, version, milestone=current_milestone)
+
     edit_schedule(ctx, 2555, ref=version.branch())
 
 
@@ -1043,9 +1074,61 @@ def create_qa_cards(ctx, tag):
     """
     from tasks.libs.releasing.qa import get_labels, setup_ddqa
 
-    version = _create_version_from_match(RC_VERSION_RE.match(tag))
+    version = _create_version_from_match(VERSION_RE.match(tag))
     if not version.rc:
         print(f"{tag} is not a release candidate, skipping")
         return
     setup_ddqa(ctx)
     ctx.run(f"ddqa --auto create {version.previous_rc_version()} {tag} {get_labels(version)}")
+
+
+@task
+def create_github_release(_ctx, version, draft=True):
+    """
+    Create a GitHub release for the given tag.
+    """
+    import pandoc
+
+    sections = (
+        ("Agent", "CHANGELOG.rst"),
+        ("Datadog Cluster Agent", "CHANGELOG-DCA.rst"),
+    )
+
+    notes = []
+
+    for section, filename in sections:
+        text = pandoc.write(pandoc.read(file=filename), format="markdown_strict", options=["--wrap=none"])
+
+        header_found = False
+        lines = []
+
+        # Extract the section for the given version
+        for line in text.splitlines():
+            # Move to the right section
+            if line.startswith("## " + version):
+                header_found = True
+                continue
+
+            if header_found:
+                # Next version found, stop
+                if line.startswith("## "):
+                    break
+                lines.append(line)
+
+        # if we found the header, add the section to the final release note
+        if header_found:
+            notes.append(f"# {section}")
+            notes.extend(lines)
+
+    if not notes:
+        print(f"No release notes found for {version}")
+        raise Exit(code=1)
+
+    github = GithubAPI()
+    release = github.create_release(
+        version,
+        "\n".join(notes),
+        draft=draft,
+    )
+
+    print(f"Link to the release note: {release.html_url}")

@@ -34,7 +34,7 @@ func testCacheSize(t *testing.T, resolver *EBPFResolver) {
 }
 
 func TestFork1st(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,14 +47,14 @@ func TestFork1st(t *testing.T) {
 	child.ForkTime = time.Now()
 
 	// parent
-	resolver.AddForkEntry(parent, 0)
+	resolver.AddForkEntry(parent, 0, nil)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
-	resolver.AddForkEntry(child, 0)
+	resolver.AddForkEntry(child, 0, nil)
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
@@ -73,7 +73,7 @@ func TestFork1st(t *testing.T) {
 }
 
 func TestFork2nd(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,14 +86,14 @@ func TestFork2nd(t *testing.T) {
 	child.ForkTime = time.Now()
 
 	// parent
-	resolver.AddForkEntry(parent, 0)
+	resolver.AddForkEntry(parent, 0, nil)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
-	resolver.AddForkEntry(child, 0)
+	resolver.AddForkEntry(child, 0, nil)
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
@@ -114,7 +114,7 @@ func TestFork2nd(t *testing.T) {
 }
 
 func TestForkExec(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,14 +132,14 @@ func TestForkExec(t *testing.T) {
 	exec.ExecTime = time.Now()
 
 	// parent
-	resolver.AddForkEntry(parent, 0)
+	resolver.AddForkEntry(parent, 0, nil)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
-	resolver.AddForkEntry(child, 0)
+	resolver.AddForkEntry(child, 0, nil)
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
@@ -170,7 +170,7 @@ func TestForkExec(t *testing.T) {
 }
 
 func TestOrphanExec(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,14 +189,14 @@ func TestOrphanExec(t *testing.T) {
 	exec.ExecTime = time.Now()
 
 	// parent
-	resolver.AddForkEntry(parent, 0)
+	resolver.AddForkEntry(parent, 0, nil)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
-	resolver.AddForkEntry(child, 0)
+	resolver.AddForkEntry(child, 0, nil)
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
@@ -226,7 +226,7 @@ func TestOrphanExec(t *testing.T) {
 }
 
 func TestForkExecExec(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,14 +250,14 @@ func TestForkExecExec(t *testing.T) {
 	exec2.ExecTime = time.Now()
 
 	// parent
-	resolver.AddForkEntry(parent, 0)
+	resolver.AddForkEntry(parent, 0, nil)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
-	resolver.AddForkEntry(child, 0)
+	resolver.AddForkEntry(child, 0, nil)
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
@@ -297,7 +297,7 @@ func TestForkExecExec(t *testing.T) {
 }
 
 func TestForkReuse(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -322,14 +322,14 @@ func TestForkReuse(t *testing.T) {
 	child2.ForkTime = time.Now()
 
 	// parent1
-	resolver.AddForkEntry(parent1, 0)
+	resolver.AddForkEntry(parent1, 0, nil)
 	assert.Equal(t, parent1, resolver.entryCache[parent1.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent1
 	//     \ child1
-	resolver.AddForkEntry(child1, 0)
+	resolver.AddForkEntry(child1, 0, nil)
 	assert.Equal(t, child1, resolver.entryCache[child1.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent1, child1.Ancestor)
@@ -355,7 +355,7 @@ func TestForkReuse(t *testing.T) {
 	//     \ [child1] -> exec1
 	//
 	// parent2:pid1
-	resolver.AddForkEntry(parent2, 0)
+	resolver.AddForkEntry(parent2, 0, nil)
 	assert.Equal(t, parent2, resolver.entryCache[parent2.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.EqualValues(t, 4, resolver.cacheSize.Load())
@@ -365,7 +365,7 @@ func TestForkReuse(t *testing.T) {
 	//
 	// parent2:pid1
 	//     \ child2
-	resolver.AddForkEntry(child2, 0)
+	resolver.AddForkEntry(child2, 0, nil)
 	assert.Equal(t, child2, resolver.entryCache[child2.Pid])
 	assert.Equal(t, 3, len(resolver.entryCache))
 	assert.Equal(t, parent2, child2.Ancestor)
@@ -392,7 +392,7 @@ func TestForkReuse(t *testing.T) {
 }
 
 func TestForkForkExec(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -415,13 +415,13 @@ func TestForkForkExec(t *testing.T) {
 	childExec.ExecTime = time.Now()
 
 	// parent
-	resolver.AddForkEntry(parent, 0)
+	resolver.AddForkEntry(parent, 0, nil)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 
 	// parent
 	//     \ child
-	resolver.AddForkEntry(child, 0)
+	resolver.AddForkEntry(child, 0, nil)
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
@@ -429,7 +429,7 @@ func TestForkForkExec(t *testing.T) {
 	// parent
 	//     \ child
 	//          \ grandChild
-	resolver.AddForkEntry(grandChild, 0)
+	resolver.AddForkEntry(grandChild, 0, nil)
 	assert.Equal(t, grandChild, resolver.entryCache[grandChild.Pid])
 	assert.Equal(t, 3, len(resolver.entryCache))
 	assert.Equal(t, child, grandChild.Ancestor)
@@ -468,7 +468,7 @@ func TestForkForkExec(t *testing.T) {
 }
 
 func TestExecBomb(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -492,14 +492,14 @@ func TestExecBomb(t *testing.T) {
 	exec2.ExecTime = time.Now()
 
 	// parent
-	resolver.AddForkEntry(parent, 0)
+	resolver.AddForkEntry(parent, 0, nil)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
-	resolver.AddForkEntry(child, 0)
+	resolver.AddForkEntry(child, 0, nil)
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
@@ -537,7 +537,7 @@ func TestExecBomb(t *testing.T) {
 }
 
 func TestExecLostFork(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -549,7 +549,7 @@ func TestExecLostFork(t *testing.T) {
 	parent.ExecInode = 1
 
 	// parent
-	resolver.AddForkEntry(parent, 0)
+	resolver.AddForkEntry(parent, 0, nil)
 
 	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 22, Tid: 22})
 	child.PPid = parent.Pid
@@ -557,7 +557,7 @@ func TestExecLostFork(t *testing.T) {
 
 	// parent
 	//     \ child
-	resolver.AddForkEntry(child, parent.ExecInode)
+	resolver.AddForkEntry(child, parent.ExecInode, nil)
 
 	assert.Equal(t, "agent", child.FileEvent.BasenameStr)
 	assert.False(t, child.IsParentMissing)
@@ -572,14 +572,14 @@ func TestExecLostFork(t *testing.T) {
 	// parent
 	//     \ child
 	//		\ child1
-	resolver.AddForkEntry(child1, child1.ExecInode)
+	resolver.AddForkEntry(child1, child1.ExecInode, nil)
 
 	assert.Equal(t, "agent", child1.FileEvent.BasenameStr)
 	assert.True(t, child1.IsParentMissing)
 }
 
 func TestExecLostExec(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -591,7 +591,7 @@ func TestExecLostExec(t *testing.T) {
 	parent.ExecInode = 1
 
 	// parent
-	resolver.AddForkEntry(parent, 0)
+	resolver.AddForkEntry(parent, 0, nil)
 
 	child1 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 22, Tid: 22})
 	child1.PPid = parent.Pid
@@ -600,7 +600,7 @@ func TestExecLostExec(t *testing.T) {
 
 	// parent
 	//     \ child1
-	resolver.AddForkEntry(child1, parent.ExecInode)
+	resolver.AddForkEntry(child1, parent.ExecInode, nil)
 
 	assert.Equal(t, "agent", child1.FileEvent.BasenameStr)
 	assert.False(t, child1.IsParentMissing)
@@ -615,14 +615,14 @@ func TestExecLostExec(t *testing.T) {
 	// parent
 	//     \ child1
 	//		\ child2
-	resolver.AddForkEntry(child2, child2.ExecInode)
+	resolver.AddForkEntry(child2, child2.ExecInode, nil)
 
 	assert.Equal(t, "agent", child2.FileEvent.BasenameStr)
 	assert.True(t, child2.IsParentMissing)
 }
 
 func TestIsExecExecRuntime(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -632,7 +632,7 @@ func TestIsExecExecRuntime(t *testing.T) {
 	parent.FileEvent.Inode = 1
 
 	// parent
-	resolver.AddForkEntry(parent, 0)
+	resolver.AddForkEntry(parent, 0, nil)
 
 	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
 	child.PPid = parent.Pid
@@ -640,7 +640,7 @@ func TestIsExecExecRuntime(t *testing.T) {
 
 	// parent
 	//     \ child
-	resolver.AddForkEntry(child, 0)
+	resolver.AddForkEntry(child, 0, nil)
 
 	// parent
 	//     \ child
@@ -662,16 +662,16 @@ func TestIsExecExecRuntime(t *testing.T) {
 	resolver.AddExecEntry(child3, 0)
 
 	assert.False(t, parent.IsExecExec)
-	assert.False(t, parent.IsThread) // root node, no fork
+	assert.False(t, parent.IsExec)
 
 	assert.False(t, child.IsExecExec)
-	assert.True(t, child.IsThread)
+	assert.False(t, child.IsExec)
 
 	assert.False(t, child2.IsExecExec)
-	assert.False(t, child2.IsThread)
+	assert.True(t, child2.IsExec)
 
 	assert.True(t, child3.IsExecExec)
-	assert.False(t, child3.IsThread)
+	assert.True(t, child3.IsExec)
 
 	child4 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
 	child4.FileEvent.Inode = 3
@@ -679,11 +679,11 @@ func TestIsExecExecRuntime(t *testing.T) {
 	resolver.AddExecEntry(child4, 0)
 
 	assert.True(t, child3.IsExecExec)
-	assert.False(t, child3.IsThread)
+	assert.True(t, child3.IsExec)
 }
 
 func TestIsExecExecSnapshot(t *testing.T) {
-	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	resolver, err := NewEBPFResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -691,7 +691,6 @@ func TestIsExecExecSnapshot(t *testing.T) {
 	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
 	parent.ForkTime = time.Now()
 	parent.FileEvent.Inode = 1
-	parent.IsThread = true
 
 	// parent
 	resolver.insertEntry(parent, nil, model.ProcessCacheEntryFromSnapshot)
@@ -699,7 +698,6 @@ func TestIsExecExecSnapshot(t *testing.T) {
 	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
 	child.PPid = parent.Pid
 	child.FileEvent.Inode = 2
-	child.IsThread = true
 
 	// parent
 	//     \ child
@@ -708,10 +706,10 @@ func TestIsExecExecSnapshot(t *testing.T) {
 	resolver.insertEntry(child, nil, model.ProcessCacheEntryFromSnapshot)
 
 	assert.False(t, parent.IsExecExec)
-	assert.True(t, parent.IsThread) // root node, no fork
+	assert.False(t, parent.IsExec)
 
 	assert.False(t, child.IsExecExec)
-	assert.True(t, child.IsThread)
+	assert.False(t, child.IsExec)
 
 	// parent
 	//     \ child
@@ -723,7 +721,7 @@ func TestIsExecExecSnapshot(t *testing.T) {
 	resolver.AddExecEntry(child2, 0)
 
 	assert.False(t, child2.IsExecExec)
-	assert.False(t, child2.IsThread)
+	assert.True(t, child2.IsExec)
 
 	child3 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
 	child3.FileEvent.Inode = 4
@@ -731,5 +729,5 @@ func TestIsExecExecSnapshot(t *testing.T) {
 	resolver.AddExecEntry(child3, 0)
 
 	assert.True(t, child3.IsExecExec)
-	assert.False(t, child3.IsThread)
+	assert.True(t, child3.IsExec)
 }

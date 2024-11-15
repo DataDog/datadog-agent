@@ -51,13 +51,17 @@ import (
 func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
 	a := NewAgent(ctx, conf, telemetryCollector, &statsd.NoOpClient{}, gzip.NewComponent())
 	a.Concentrator = &mockConcentrator{}
-	a.TraceWriter = &mockTraceWriter{}
+	a.TraceWriter = &mockTraceWriter{
+		apiKey: conf.Endpoints[0].APIKey,
+	}
 	return a
 }
 
 type mockTraceWriter struct {
 	mu       sync.Mutex
 	payloads []*writer.SampledChunks
+
+	apiKey string
 }
 
 func (m *mockTraceWriter) Stop() {}
@@ -70,6 +74,10 @@ func (m *mockTraceWriter) WriteChunks(pkg *writer.SampledChunks) {
 
 func (m *mockTraceWriter) FlushSync() error {
 	panic("not implemented")
+}
+
+func (m *mockTraceWriter) UpdateAPIKey(_, newKey string) {
+	m.apiKey = newKey
 }
 
 type mockConcentrator struct {
@@ -1705,6 +1713,8 @@ func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {
 
 func (n *noopTraceWriter) FlushSync() error { return nil }
 
+func (n *noopTraceWriter) UpdateAPIKey(_, _ string) {}
+
 func benchThroughput(file string) func(*testing.B) {
 	return func(b *testing.B) {
 		data, count, err := tracesFromFile(file)
@@ -1817,12 +1827,18 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 
 func TestConvertStats(t *testing.T) {
 	testCases := []struct {
+		name          string
+		features      string
+		withFargate   bool
 		in            *pb.ClientStatsPayload
 		lang          string
 		tracerVersion string
+		containerID   string
 		out           *pb.ClientStatsPayload
 	}{
 		{
+			name:     "containerID feature enabled, no fargate",
+			features: "enable_cid_stats",
 			in: &pb.ClientStatsPayload{
 				Hostname: "tracer_hots",
 				Env:      "tracer_env",
@@ -1859,12 +1875,157 @@ func TestConvertStats(t *testing.T) {
 			},
 			lang:          "java",
 			tracerVersion: "v1",
+			containerID:   "abc123",
 			out: &pb.ClientStatsPayload{
 				Hostname:      "tracer_hots",
 				Env:           "tracer_env",
 				Version:       "code_version",
 				Lang:          "java",
 				TracerVersion: "v1",
+				ContainerID:   "abc123",
+				Stats: []*pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "service",
+								Name:           "name",
+								Resource:       "resource",
+								HTTPStatusCode: 200,
+								Type:           "web",
+							},
+							{
+								Service:        "redis_service",
+								Name:           "name_2",
+								Resource:       "SET",
+								HTTPStatusCode: 200,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:     "containerID feature disabled, no fargate",
+			features: "disable_cid_stats",
+			in: &pb.ClientStatsPayload{
+				Hostname: "tracer_hots",
+				Env:      "tracer_env",
+				Version:  "code_version",
+				Stats: []*pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "service",
+								Name:           "name------",
+								Resource:       "resource",
+								HTTPStatusCode: 400,
+								Type:           "web",
+							},
+							{
+								Service:        "service",
+								Name:           "name",
+								Resource:       "blocked_resource",
+								HTTPStatusCode: 400,
+								Type:           "web",
+							},
+							{
+								Service:        "redis_service",
+								Name:           "name-2",
+								Resource:       "SET k v",
+								HTTPStatusCode: 400,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+			lang:          "java",
+			tracerVersion: "v1",
+			containerID:   "abc123",
+			out: &pb.ClientStatsPayload{
+				Hostname:      "tracer_hots",
+				Env:           "tracer_env",
+				Version:       "code_version",
+				Lang:          "java",
+				TracerVersion: "v1",
+				ContainerID:   "",
+				Stats: []*pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "service",
+								Name:           "name",
+								Resource:       "resource",
+								HTTPStatusCode: 200,
+								Type:           "web",
+							},
+							{
+								Service:        "redis_service",
+								Name:           "name_2",
+								Resource:       "SET",
+								HTTPStatusCode: 200,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:        "containerID feature not configured, with fargate",
+			features:    "",
+			withFargate: true,
+			in: &pb.ClientStatsPayload{
+				Hostname: "tracer_hots",
+				Env:      "tracer_env",
+				Version:  "code_version",
+				Stats: []*pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "service",
+								Name:           "name------",
+								Resource:       "resource",
+								HTTPStatusCode: 400,
+								Type:           "web",
+							},
+							{
+								Service:        "service",
+								Name:           "name",
+								Resource:       "blocked_resource",
+								HTTPStatusCode: 400,
+								Type:           "web",
+							},
+							{
+								Service:        "redis_service",
+								Name:           "name-2",
+								Resource:       "SET k v",
+								HTTPStatusCode: 400,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+			lang:          "java",
+			tracerVersion: "v1",
+			containerID:   "abc123",
+			out: &pb.ClientStatsPayload{
+				Hostname:      "tracer_hots",
+				Env:           "tracer_env",
+				Version:       "code_version",
+				Lang:          "java",
+				TracerVersion: "v1",
+				ContainerID:   "abc123",
 				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    1,
@@ -1890,15 +2051,27 @@ func TestConvertStats(t *testing.T) {
 			},
 		},
 	}
-	a := Agent{
-		Blacklister: filters.NewBlacklister([]string{"blocked_resource"}),
-		obfuscator:  obfuscate.NewObfuscator(obfuscate.Config{}),
-		Replacer:    filters.NewReplacer([]*config.ReplaceRule{{Name: "http.status_code", Pattern: "400", Re: regexp.MustCompile("400"), Repl: "200"}}),
-		conf:        &config.AgentConfig{DefaultEnv: "agent_env", Hostname: "agent_hostname", MaxResourceLen: 5000},
-	}
 	for _, testCase := range testCases {
-		out := a.processStats(testCase.in, testCase.lang, testCase.tracerVersion)
-		assert.Equal(t, testCase.out, out)
+		t.Run(testCase.name, func(t *testing.T) {
+			cfg := config.New()
+			cfg.DefaultEnv = "agent_env"
+			cfg.Hostname = "agent_hostname"
+			cfg.MaxResourceLen = 5000
+			cfg.Features[testCase.features] = struct{}{}
+			if testCase.withFargate {
+				cfg.FargateOrchestrator = config.OrchestratorECS
+			}
+
+			a := Agent{
+				Blacklister: filters.NewBlacklister([]string{"blocked_resource"}),
+				obfuscator:  obfuscate.NewObfuscator(obfuscate.Config{}),
+				Replacer:    filters.NewReplacer([]*config.ReplaceRule{{Name: "http.status_code", Pattern: "400", Re: regexp.MustCompile("400"), Repl: "200"}}),
+				conf:        cfg,
+			}
+
+			out := a.processStats(testCase.in, testCase.lang, testCase.tracerVersion, testCase.containerID)
+			assert.Equal(t, testCase.out, out)
+		})
 	}
 }
 
@@ -2585,4 +2758,16 @@ func TestProcessedTrace(t *testing.T) {
 		}
 		assert.Equal(t, expectedPt, pt)
 	})
+}
+
+func TestUpdateAPIKey(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	defer cancel()
+
+	agnt.UpdateAPIKey("test", "foo")
+	tw := agnt.TraceWriter.(*mockTraceWriter)
+	assert.Equal(t, "foo", tw.apiKey)
 }

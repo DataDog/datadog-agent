@@ -25,7 +25,7 @@ func testSocketExistsNewUDSListener(t *testing.T, socketPath string) {
 	assert.NoError(t, err)
 
 	// Create a new socket using UDSListener
-	l, err := NewListener(socketPath)
+	l, err := NewSystemProbeListener(socketPath)
 	require.NoError(t, err)
 
 	l.Stop()
@@ -38,12 +38,12 @@ func testSocketExistsAsRegularFileNewUDSListener(t *testing.T, socketPath string
 	defer f.Close()
 
 	// Create a new socket using UDSListener
-	_, err = NewListener(socketPath)
+	_, err = NewSystemProbeListener(socketPath)
 	require.Error(t, err)
 }
 
 func testWorkingNewUDSListener(t *testing.T, socketPath string) {
-	s, err := NewListener(socketPath)
+	s, err := NewSystemProbeListener(socketPath)
 	require.NoError(t, err)
 	defer s.Stop()
 

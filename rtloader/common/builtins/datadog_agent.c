@@ -26,6 +26,7 @@ static cb_obfuscate_sql_t cb_obfuscate_sql = NULL;
 static cb_obfuscate_sql_exec_plan_t cb_obfuscate_sql_exec_plan = NULL;
 static cb_get_process_start_time_t cb_get_process_start_time = NULL;
 static cb_obfuscate_mongodb_string_t cb_obfuscate_mongodb_string = NULL;
+static cb_emit_agent_telemetry_t cb_emit_agent_telemetry = NULL;
 
 // forward declarations
 static PyObject *get_clustername(PyObject *self, PyObject *args);
@@ -45,6 +46,7 @@ static PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs)
 static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *get_process_start_time(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *kwargs);
 
 static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
@@ -64,25 +66,16 @@ static PyMethodDef methods[] = {
     { "obfuscate_sql_exec_plan", (PyCFunction)obfuscate_sql_exec_plan, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a SQL Execution Plan." },
     { "get_process_start_time", (PyCFunction)get_process_start_time, METH_NOARGS, "Get agent process startup time, in seconds since the epoch." },
     { "obfuscate_mongodb_string", (PyCFunction)obfuscate_mongodb_string, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a MongoDB command string." },
+    { "emit_agent_telemetry", (PyCFunction)emit_agent_telemetry, METH_VARARGS|METH_KEYWORDS, "Emit agent telemetry." },
     { NULL, NULL } // guards
 };
 
-#ifdef DATADOG_AGENT_THREE
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, DATADOG_AGENT_MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit_datadog_agent(void)
 {
     return PyModule_Create(&module_def);
 }
-#elif defined(DATADOG_AGENT_TWO)
-// in Python2 keep the object alive for the program lifetime
-static PyObject *module;
-
-void Py2_init_datadog_agent()
-{
-    module = Py_InitModule(DATADOG_AGENT_MODULE_NAME, methods);
-}
-#endif
 
 void _set_get_version_cb(cb_get_version_t cb)
 {
@@ -163,6 +156,10 @@ void _set_obfuscate_mongodb_string_cb(cb_obfuscate_mongodb_string_t cb) {
 
 }
 
+void _set_emit_agent_telemetry_cb(cb_emit_agent_telemetry_t cb) {
+    cb_emit_agent_telemetry = cb;
+}
+
 
 /*! \fn PyObject *get_version(PyObject *self, PyObject *args)
     \brief This function implements the `datadog-agent.get_version` method, collecting
@@ -185,7 +182,7 @@ PyObject *get_version(PyObject *self, PyObject *args)
     cb_get_version(&v);
 
     if (v != NULL) {
-        PyObject *retval = PyStringFromCString(v);
+        PyObject *retval = PyUnicode_FromString(v);
         // v is allocated from CGO and thus requires being freed with the
         // cgo_free callback for windows safety.
         cgo_free(v);
@@ -332,7 +329,7 @@ PyObject *get_hostname(PyObject *self, PyObject *args)
     cb_get_hostname(&v);
 
     if (v != NULL) {
-        PyObject *retval = PyStringFromCString(v);
+        PyObject *retval = PyUnicode_FromString(v);
         cgo_free(v);
         return retval;
     }
@@ -362,7 +359,7 @@ PyObject *get_host_tags(PyObject *self, PyObject *args)
     cb_get_host_tags(&v);
 
     if (v != NULL) {
-        PyObject *retval = PyStringFromCString(v);
+        PyObject *retval = PyUnicode_FromString(v);
         cgo_free(v);
         return retval;
     }
@@ -392,7 +389,7 @@ PyObject *get_clustername(PyObject *self, PyObject *args)
     cb_get_clustername(&v);
 
     if (v != NULL) {
-        PyObject *retval = PyStringFromCString(v);
+        PyObject *retval = PyUnicode_FromString(v);
         cgo_free(v);
         return retval;
     }
@@ -594,7 +591,7 @@ static PyObject *read_persistent_cache(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    PyObject *retval = PyStringFromCString(v);
+    PyObject *retval = PyUnicode_FromString(v);
     cgo_free(v);
     return retval;
 }
@@ -807,7 +804,7 @@ static PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs)
         // no error message and a null response. this should never happen so the go code is misbehaving
         PyErr_SetString(PyExc_RuntimeError, "internal error: empty cb_obfuscate_sql response");
     } else {
-        retval = PyStringFromCString(obfQuery);
+        retval = PyUnicode_FromString(obfQuery);
     }
 
     cgo_free(error_message);
@@ -844,7 +841,7 @@ static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObjec
         // no error message and a null response. this should never happen so the go code is misbehaving
         PyErr_SetString(PyExc_RuntimeError, "internal error: empty cb_obfuscate_sql_exec_plan response");
     } else {
-        retval = PyStringFromCString(obfPlan);
+        retval = PyUnicode_FromString(obfPlan);
     }
 
     cgo_free(error_message);
@@ -919,11 +916,48 @@ static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObje
         // no error message and a null response. this should never happen so the go code is misbehaving
         PyErr_SetString(PyExc_RuntimeError, "internal error: empty cb_obfuscate_mongodb_string response");
     } else {
-        retval = PyStringFromCString(obfCmd);
+        retval = PyUnicode_FromString(obfCmd);
     }
 
     cgo_free(error_message);
     cgo_free(obfCmd);
     PyGILState_Release(gstate);
     return retval;
+}
+
+/*! \fn PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *kwargs)
+    \brief This function implements the `datadog_agent.emit_agent_telemetry` method, emitting agent telemetry
+    for the provided check, metric, and value.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to a tuple containing the key to retrieve.
+    \param kwargs A PyObject* pointer to a map of key value pairs.
+    \return A PyObject* pointer to the value.
+
+    This function is callable as the `datadog_agent.emit_agent_telemetry` Python method and
+    uses the `cb_emit_agent_telemetry()` callback to emit the agent telemetry
+    with CGO. If the callback has not been set `None` will be returned.
+*/
+static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    // callback must be set
+    if (cb_emit_agent_telemetry == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    char *check_name = NULL;
+    char *metric_name = NULL;
+    double metric_value;
+    char *metric_type = NULL;
+    if (!PyArg_ParseTuple(args, "ssds", &check_name, &metric_name, &metric_value, &metric_type)) {
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    cb_emit_agent_telemetry(check_name, metric_name, metric_value, metric_type);
+
+    PyGILState_Release(gstate);
+
+    Py_RETURN_NONE;
 }

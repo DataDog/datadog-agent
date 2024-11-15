@@ -66,23 +66,20 @@ typedef enum {
 typedef struct {
     __u32 rtt;
     __u32 rtt_var;
+    __u32 retransmits;
 
     // Bit mask containing all TCP state transitions tracked by our tracer
     __u16 state_transitions;
+    __u16 failure_reason;
 } tcp_stats_t;
 
 // Full data for a tcp connection
 typedef struct {
     conn_tuple_t tup;
-    conn_stats_ts_t conn_stats;
+    // move tcp_stats here to align conn_stats on a cacheline boundary
     tcp_stats_t tcp_stats;
-    __u32 tcp_retransmits;
+    conn_stats_ts_t conn_stats;
 } conn_t;
-
-typedef struct {
-    conn_tuple_t tup;
-    __u32 failure_reason;
-} conn_failed_t;
 
 // Must match the number of conn_t objects embedded in the batch_t struct
 #ifndef CONN_CLOSED_BATCH_SIZE
@@ -119,6 +116,8 @@ typedef struct {
     __u64 tcp_done_failed_tuple;
     __u64 tcp_finish_connect_failed_tuple;
     __u64 tcp_close_target_failures;
+    __u64 tcp_done_connection_flush;
+    __u64 tcp_close_connection_flush;
 } telemetry_t;
 
 typedef struct {

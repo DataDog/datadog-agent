@@ -63,7 +63,8 @@ class TestSuite {
     }
 
     [void]Execute([TestContext]$context, [bool]$resetSnapshot) {
-    
+        Start-VM -Name $context.VMName
+
         if ($resetSnapshot -eq $true) {
             Remove-VMSnapshot -VMName $context.VMName -Name "$($context.QaSessionName)_$($this.SuiteDescription)"  -Confirm:$false -ErrorAction SilentlyContinue
         }
@@ -84,12 +85,68 @@ class TestSuite {
             Checkpoint-VM "$($context.QaSessionName)_$($this.SuiteDescription)" -VMName $context.VMName -Confirm:$false
         }
 
+        $defenderPerformancePaths = @(
+            'C:\WINDOWS\system32\WindowsPowerShell\v1.0\Modules\ConfigDefenderPerformance',
+            'C:\WINDOWS\system32\WindowsPowerShell\v1.0\Modules\DefenderPerformance'
+        )
+        $defenderPerformancePath = Invoke-Command -Credential $context.VMCredentials -VMName $context.VMName -ScriptBlock:{
+            $Using:defenderPerformancePaths | ForEach-Object {
+                if (Test-Path $_) {
+                    Write-Host "Found Windows Defender module in: $_"
+                    Return $_
+                }
+            }
+        }
+
         $this.TestCases | ForEach-Object {
             Restore-VMSnapshot -Name "$($context.QaSessionName)_$($this.SuiteDescription)" -VMName $context.VMName -Confirm:$false
             # $beforeTestScript has to be a string otherwise it doesn't capture the TestDescription value
             $beforeTestScript = "report_info `"Running scenario '" + $_.TestDescription  + "'`""
             $finalScript = [scriptblock]::Create([string]($this.commonCode) + "`n" + [string]$beforeTestScript + "`n" + [string]($_.TestCode))
+
+            if ($defenderPerformancePath -ne $null) {
+                Invoke-Command -Credential $context.VMCredentials -VMName $context.VMName -ScriptBlock:{
+                    Write-Host "Starting Windows Defender tracing"
+                    & 'wpr.exe' -start "$Using:defenderPerformancePath\MSFT_MpPerformanceRecording.wprp!Scans.Light" -filemode -instancename MSFT_MpPerformanceRecording
+                    $wprCommandExitCode = $LASTEXITCODE
+                    switch ($wprCommandExitCode) {
+                        0 {}
+                        0xc5583001 {
+                            Write-Error "Cannot start performance recording because Windows Performance Recorder is already recording."
+                            return
+                        }
+                        default {
+                            Write-Error ("Cannot start performance recording: 0x{0:x08}." -f $wprCommandExitCode)
+                            return
+                        }
+                    }
+                }
+            }
+
             Invoke-Command -Credential $context.VMCredentials -VMName $context.VMName -ScriptBlock $finalScript
+
+            if ($defenderPerformancePath -ne $null) {
+                $defenderEtlFile = "$($context.QaSessionName)_$($this.SuiteDescription)_$($_.TestDescription)_defender_trace.etl"
+
+                Invoke-Command -Credential $context.VMCredentials -VMName $context.VMName -ScriptBlock:{
+                    Write-Host "Stopping Windows Defender tracing"
+                    & 'wpr.exe' -stop "C:\$Using:defenderEtlFile" -instancename MSFT_MpPerformanceRecording
+                    $wprCommandExitCode = $LASTEXITCODE
+                    switch ($wprCommandExitCode) {
+                        0 {}
+                        0xc5583000 {
+                            Write-Error "Cannot stop performance recording because Windows Performance Recorder is not recording a trace."
+                            return
+                        }
+                        default {
+                            Write-Error ("Cannot stop performance recording: 0x{0:x08}." -f $wprCommandExitCode)
+                            return
+                        }
+                    }
+                }
+                Copy-Item -Path "C:\$defenderEtlFile" -Destination $PSScriptRoot\$defenderEtlFile -FromSession (New-PSSession -VMName $context.VMName -Credential $context.VMCredentials)
+                Write-Host ((Get-MpPerformanceReport -Path $PSScriptRoot\$defenderEtlFile -TopScans:10 -TopProcesses:10 -TopExtensions:10) | Out-String)
+            }
         }
     }
 }

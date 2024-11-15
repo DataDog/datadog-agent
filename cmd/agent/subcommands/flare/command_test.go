@@ -31,24 +31,38 @@ type commandTestSuite struct {
 	sysprobeSocketPath string
 	tcpServer          *httptest.Server
 	unixServer         *httptest.Server
+	systemProbeServer  *httptest.Server
 }
 
 func (c *commandTestSuite) SetupSuite() {
 	t := c.T()
 	c.sysprobeSocketPath = path.Join(t.TempDir(), "sysprobe.sock")
-	c.tcpServer, c.unixServer = c.getPprofTestServer()
 }
 
-func (c *commandTestSuite) TearDownSuite() {
-	c.tcpServer.Close()
-	if c.unixServer != nil {
-		c.unixServer.Close()
-	}
-}
-
-func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, unixServer *httptest.Server) {
+// startTestServers starts test servers from a clean state to ensure no cache responses are used.
+// This should be called by each test that requires them.
+func (c *commandTestSuite) startTestServers() {
 	t := c.T()
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	c.tcpServer, c.unixServer, c.systemProbeServer = c.getPprofTestServer()
+
+	t.Cleanup(func() {
+		if c.tcpServer != nil {
+			c.tcpServer.Close()
+			c.tcpServer = nil
+		}
+		if c.unixServer != nil {
+			c.unixServer.Close()
+			c.unixServer = nil
+		}
+		if c.systemProbeServer != nil {
+			c.systemProbeServer.Close()
+			c.systemProbeServer = nil
+		}
+	})
+}
+
+func newMockHandler() http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/debug/pprof/heap":
 			w.Write([]byte("heap_profile"))
@@ -67,17 +81,28 @@ func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, uni
 			w.WriteHeader(500)
 		}
 	})
+}
 
+func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, unixServer *httptest.Server, sysProbeServer *httptest.Server) {
+	var err error
+	t := c.T()
+
+	handler := newMockHandler()
 	tcpServer = httptest.NewServer(handler)
 	if runtime.GOOS == "linux" {
 		unixServer = httptest.NewUnstartedServer(handler)
-		var err error
 		unixServer.Listener, err = net.Listen("unix", c.sysprobeSocketPath)
 		require.NoError(t, err, "could not create listener for unix socket on %s", c.sysprobeSocketPath)
 		unixServer.Start()
 	}
 
-	return tcpServer, unixServer
+	sysProbeServer, err = NewSystemProbeTestServer(handler)
+	require.NoError(c.T(), err, "could not restart system probe server")
+	if sysProbeServer != nil {
+		sysProbeServer.Start()
+	}
+
+	return tcpServer, unixServer, sysProbeServer
 }
 
 func TestCommandTestSuite(t *testing.T) {
@@ -86,6 +111,8 @@ func TestCommandTestSuite(t *testing.T) {
 
 func (c *commandTestSuite) TestReadProfileData() {
 	t := c.T()
+	c.startTestServers()
+
 	u, err := url.Parse(c.tcpServer.URL)
 	require.NoError(t, err)
 	port := u.Port()
@@ -154,6 +181,8 @@ func (c *commandTestSuite) TestReadProfileData() {
 
 func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 	t := c.T()
+	c.startTestServers()
+
 	u, err := url.Parse(c.tcpServer.URL)
 	require.NoError(t, err)
 	port := u.Port()
@@ -217,6 +246,8 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 
 func (c *commandTestSuite) TestReadProfileDataErrors() {
 	t := c.T()
+	c.startTestServers()
+
 	mockConfig := configmock.New(t)
 	// setting Core Agent Expvar port to 0 to ensure failing on fetch (using the default value can lead to
 	// successful request when running next to an Agent)
@@ -226,9 +257,13 @@ func (c *commandTestSuite) TestReadProfileDataErrors() {
 	mockConfig.SetWithoutSource("process_config.enabled", true)
 	mockConfig.SetWithoutSource("process_config.expvar_port", 0)
 
+	mockSysProbeConfig := configmock.NewSystemProbe(t)
+	InjectConnectionFailures(mockSysProbeConfig, mockConfig)
+
 	data, err := readProfileData(10)
+
 	require.Error(t, err)
-	require.Regexp(t, "^4 errors occurred:\n", err.Error())
+	CheckExpectedConnectionFailures(c, err)
 	require.Len(t, data, 0)
 }
 

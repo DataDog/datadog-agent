@@ -65,6 +65,9 @@ type TraceWriter interface {
 
 	// FlushSync blocks and sends pending payloads when syncMode is true
 	FlushSync() error
+
+	// UpdateAPIKey signals the TraceWriter to update the API Keys stored in its senders config.
+	UpdateAPIKey(oldKey, newKey string)
 }
 
 // Concentrator accepts stats input, 'concentrating' them together into buckets before flushing them
@@ -223,6 +226,18 @@ func (a *Agent) FlushSync() {
 		log.Errorf("Error flushing traces: %s", err.Error())
 		return
 	}
+}
+
+// UpdateAPIKey receives the API Key update signal and propagates it across all internal
+// components that rely on API Key configuration:
+// - HTTP Receiver (used in reverse proxies)
+// - Trace Writer senders
+// - Stats Writer senders
+func (a *Agent) UpdateAPIKey(oldKey, newKey string) {
+	log.Infof("API Key changed. Updating trace-agent config...")
+	a.Receiver.UpdateAPIKey()
+	a.TraceWriter.UpdateAPIKey(oldKey, newKey)
+	a.StatsWriter.UpdateAPIKey(oldKey, newKey)
 }
 
 func (a *Agent) work() {
@@ -488,13 +503,15 @@ func (a *Agent) discardSpans(p *api.Payload) {
 	}
 }
 
-func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion string) *pb.ClientStatsPayload {
+func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, containerID string) *pb.ClientStatsPayload {
 	enableContainers := a.conf.HasFeature("enable_cid_stats") || (a.conf.FargateOrchestrator != config.OrchestratorUnknown)
 	if !enableContainers || a.conf.HasFeature("disable_cid_stats") {
 		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
 		// been explicitly enabled and it's not prohibited by the disable_cid_stats feature flag.
 		in.ContainerID = ""
 		in.Tags = nil
+	} else {
+		in.ContainerID = containerID
 	}
 	if in.Env == "" {
 		in.Env = a.conf.DefaultEnv
@@ -542,8 +559,8 @@ func mergeDuplicates(s *pb.ClientStatsBucket) {
 }
 
 // ProcessStats processes incoming client stats in from the given tracer.
-func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion string) {
-	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion)
+func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion, containerID string) {
+	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion, containerID)
 }
 
 // sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept and the number of events in the trace

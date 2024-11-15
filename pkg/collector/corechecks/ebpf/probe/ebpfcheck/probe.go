@@ -20,6 +20,7 @@ import (
 	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
@@ -305,9 +306,11 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 		stats.Programs = append(stats.Programs, ps)
 	}
 
-	log.Tracef("found %d programs", len(stats.Programs))
-	for _, ps := range stats.Programs {
-		log.Tracef("name=%s prog_id=%d type=%s", ps.Name, ps.ID, ps.Type.String())
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("found %d programs", len(stats.Programs))
+		for _, ps := range stats.Programs {
+			log.Tracef("name=%s prog_id=%d type=%s", ps.Name, ps.ID, ps.Type.String())
+		}
 	}
 
 	return nil

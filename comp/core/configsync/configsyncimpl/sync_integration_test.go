@@ -88,7 +88,8 @@ func TestRunWithChan(t *testing.T) {
 }
 
 func TestRunWithInterval(t *testing.T) {
-	configCore := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	// Legitimate use for NewConfig case where we want to have 2 independent config object mimicing 2 process communicating
+	configCore := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	configCore.Set("api_key", "api_key_core1", pkgconfigmodel.SourceFile)
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

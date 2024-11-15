@@ -6,11 +6,14 @@
 package assertions
 
 import (
+	"fmt"
+	"io/fs"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"io/fs"
 )
 
 const (
@@ -147,5 +150,34 @@ func (r *RemoteWindowsHostAssertions) HasNoRegistryKey(key string) *RemoteWindow
 	exists, err := common.RegistryKeyExists(r.remoteHost, key)
 	r.require.NoError(err)
 	r.require.False(exists)
+	return r
+}
+
+// HasNamedPipe checks if a named pipe exists on the remote host
+func (r *RemoteWindowsHostAssertions) HasNamedPipe(pipeName string) *RemoteWindowsNamedPipeAssertions {
+	r.suite.T().Helper()
+
+	cmd := fmt.Sprintf("Test-Path '%s'", pipeName)
+	out, err := r.remoteHost.Execute(cmd)
+	r.require.NoError(err)
+	out = strings.TrimSpace(out)
+	r.require.Equal("True", out)
+
+	return &RemoteWindowsNamedPipeAssertions{
+		RemoteWindowsHostAssertions: r,
+		pipename:                    pipeName,
+	}
+}
+
+// HasNoNamedPipe checks if a named pipe does not exist on the remote host
+func (r *RemoteWindowsHostAssertions) HasNoNamedPipe(pipeName string) *RemoteWindowsHostAssertions {
+	r.suite.T().Helper()
+
+	cmd := fmt.Sprintf("Test-Path '%s'", pipeName)
+	out, err := r.remoteHost.Execute(cmd)
+	r.require.NoError(err)
+	out = strings.TrimSpace(out)
+	r.require.Equal("False", out)
+
 	return r
 }
