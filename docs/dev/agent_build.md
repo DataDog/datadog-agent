@@ -76,22 +76,6 @@ To disable bundling entirely:
 deva agent.build --bundle agent
 ```
 
-One binary per Agent can still be built by using its own invoke task and passing the
-`--no-bundle` argument:
-- The 'main' Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/agent.py
-- The process Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/process_agent.py
-- The trace Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/trace_agent.py
-- The cluster Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/cluster_agent.py
-- The security Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/security_agent.py
-- The system probe: https://github.com/DataDog/datadog-agent/blob/main/tasks/system_probe.py
-
-So to build the process Agent as a standalone self contained executable:
-
-```
-deva process-agent.build --no-bundle
-```
-
-
 ## Testing Agent changes in containerized environments
 
 Building an Agent Docker image from scratch through an embedded build is a slow process.
