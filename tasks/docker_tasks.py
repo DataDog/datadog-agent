@@ -68,6 +68,7 @@ RUN chmod +x /usr/bin/compose
 # Final settings
 ENV DOCKER_DD_AGENT=yes
 WORKDIR /
+RUN docker login
 CMD /test.bin
 COPY test.bin /test.bin
 """
