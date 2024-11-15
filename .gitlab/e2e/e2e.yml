@@ -24,7 +24,7 @@
     - ARM_CLIENT_SECRET=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_AZURE_CLIENT_SECRET) || exit $?; export ARM_CLIENT_SECRET
     - ARM_TENANT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_AZURE_TENANT_ID) || exit $?; export ARM_TENANT_ID
     - ARM_SUBSCRIPTION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_AZURE_SUBSCRIPTION_ID) || exit $?; export ARM_SUBSCRIPTION_ID
-    # Setup GCP credentials. https://www.pulumi.com/registry/packages/gcp/installation-configuration/
+    # Setup GCP credentials. https://www.pulumi.com/registry/packages/gcp/service-account/
     # The service account is called `agent-e2e-tests`
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_GCP_CREDENTIALS > ~/gcp-credentials.json || exit $?
     - export GOOGLE_APPLICATION_CREDENTIALS=~/gcp-credentials.json
