@@ -170,6 +170,7 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 		GettersOnly:  field.gettersOnly,
 		Ref:          field.ref,
 		RestrictedTo: restrictedTo,
+		IsPrivate:    field.isPrivate,
 	}
 
 	module.Fields[alias] = newStructField
@@ -200,6 +201,7 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 			GettersOnly:  field.gettersOnly,
 			Ref:          field.ref,
 			RestrictedTo: restrictedTo,
+			IsPrivate:    field.isPrivate,
 		}
 
 		module.Fields[alias] = newStructField
@@ -213,7 +215,7 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 }
 
 // handleEmbedded adds embedded fields to list of exposed SECL fields of the module
-func handleEmbedded(module *common.Module, name, prefix, event string, restrictedTo []string, fieldTypeExpr ast.Expr) {
+func handleEmbedded(module *common.Module, name, prefix, event string, restrictedTo []string, fieldTypeExpr ast.Expr, isPrivate bool) {
 	if verbose {
 		log.Printf("handleEmbedded name: %s", name)
 	}
@@ -232,6 +234,7 @@ func handleEmbedded(module *common.Module, name, prefix, event string, restricte
 		IsOrigTypePtr: isPointer,
 		IsArray:       isArray,
 		RestrictedTo:  restrictedTo,
+		IsPrivate:     isPrivate,
 	}
 }
 
@@ -245,6 +248,7 @@ func handleNonEmbedded(module *common.Module, field seclField, prefixedFieldName
 		IsArray:       isArray,
 		Check:         field.check,
 		RestrictedTo:  restrictedTo,
+		IsPrivate:     field.isPrivate,
 	}
 }
 
@@ -287,6 +291,7 @@ func handleIterator(module *common.Module, field seclField, fieldType, iterator,
 		Check:            field.check,
 		Ref:              field.ref,
 		RestrictedTo:     restrictedTo,
+		IsPrivate:        field.isPrivate,
 	}
 
 	lengthField := addLengthOpField(module, alias, module.Iterators[alias])
@@ -331,6 +336,7 @@ func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix,
 		GettersOnly:      field.gettersOnly,
 		Ref:              field.ref,
 		RestrictedTo:     restrictedTo,
+		IsPrivate:        field.isPrivate,
 	}
 	module.Fields[alias] = newStructField
 
@@ -383,14 +389,18 @@ type seclField struct {
 	exposedAtEventRootOnly bool // fields that should only be exposed at the root of an event, i.e. `parent` should not be exposed for an `ancestor` of a process
 	containerStructName    string
 	gettersOnly            bool //  a field that is not exposed via SECL, but still has an accessor generated
+	isPrivate              bool // indicates the field should be listed in the documentation, helpful for backward compatibility
 	ref                    string
 }
 
-func parseFieldDef(def string) (seclField, error) {
+func parseFieldDef(def string, isPrivate bool) (seclField, error) {
 	def = strings.TrimSpace(def)
 	alias, options, splitted := strings.Cut(def, ",")
 
-	field := seclField{name: alias}
+	field := seclField{
+		name:      alias,
+		isPrivate: isPrivate, // inherit the isPrivate flag from the parent field
+	}
 
 	if alias == "-" {
 		return field, nil
@@ -432,6 +442,8 @@ func parseFieldDef(def string) (seclField, error) {
 					case "getters_only":
 						field.gettersOnly = true
 						field.exposedAtEventRootOnly = true
+					case "private":
+						field.isPrivate = true
 					}
 				}
 			}
@@ -442,7 +454,7 @@ func parseFieldDef(def string) (seclField, error) {
 }
 
 // handleSpecRecursive is a recursive function that walks through the fields of a module
-func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interface{}, prefix, aliasPrefix, event string, restrictedTo []string, iterator *common.StructField, dejavu map[string]bool) {
+func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interface{}, prefix, aliasPrefix, event string, restrictedTo []string, iterator *common.StructField, isPrivate bool, dejavu map[string]bool) {
 	if verbose {
 		fmt.Printf("handleSpec spec: %+v, prefix: %s, aliasPrefix %s, event %s, iterator %+v\n", spec, prefix, aliasPrefix, event, iterator)
 	}
@@ -502,8 +514,8 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 
 				embedded := astFiles.LookupSymbol(ident.Name)
 				if embedded != nil {
-					handleEmbedded(module, ident.Name, prefix, event, restrictedTo, field.Type)
-					handleSpecRecursive(module, astFiles, embedded.Decl, name, aliasPrefix, event, restrictedTo, fieldIterator, dejavu)
+					handleEmbedded(module, ident.Name, prefix, event, restrictedTo, field.Type, isPrivate)
+					handleSpecRecursive(module, astFiles, embedded.Decl, name, aliasPrefix, event, restrictedTo, fieldIterator, isPrivate, dejavu)
 				} else {
 					log.Printf("failed to resolve symbol for identifier %+v in %s", ident.Name, pkgname)
 				}
@@ -522,13 +534,13 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 			var fields []seclField
 			var gettersOnlyFields []seclField
 			if tags, err := structtag.Parse(string(tag)); err == nil && len(tags.Tags()) != 0 {
-				opOverrides, fields, gettersOnlyFields = parseTags(tags, typeSpec.Name.Name)
+				opOverrides, fields, gettersOnlyFields = parseTags(tags, typeSpec.Name.Name, isPrivate)
 
 				if opOverrides == "" && fields == nil && gettersOnlyFields == nil {
 					continue
 				}
 			} else {
-				fields = append(fields, seclField{name: fieldBasename})
+				fields = append(fields, seclField{name: fieldBasename, isPrivate: isPrivate})
 			}
 
 			fieldType, isPointer, isArray := getFieldIdentName(field.Type)
@@ -584,7 +596,7 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 							newAliasPrefix = aliasPrefix + "." + alias
 						}
 
-						handleSpecRecursive(module, astFiles, spec.Decl, newPrefix, newAliasPrefix, event, restrictedTo, fieldIterator, dejavu)
+						handleSpecRecursive(module, astFiles, spec.Decl, newPrefix, newAliasPrefix, event, restrictedTo, fieldIterator, seclField.isPrivate, dejavu)
 					} else {
 						log.Printf("failed to resolve symbol for type %+v in %s", fieldType, pkgname)
 					}
@@ -634,7 +646,7 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 							newAliasPrefix = aliasPrefix + "." + alias
 						}
 
-						handleSpecRecursive(module, astFiles, spec.Decl, newPrefix, newAliasPrefix, event, restrictedTo, fieldIterator, dejavu)
+						handleSpecRecursive(module, astFiles, spec.Decl, newPrefix, newAliasPrefix, event, restrictedTo, fieldIterator, seclField.isPrivate, dejavu)
 					} else {
 						log.Printf("failed to resolve symbol for type %+v in %s", fieldType, pkgname)
 					}
@@ -650,7 +662,7 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 	}
 }
 
-func parseTags(tags *structtag.Tags, containerStructName string) (string, []seclField, []seclField) {
+func parseTags(tags *structtag.Tags, containerStructName string, isPrivate bool) (string, []seclField, []seclField) {
 	var opOverrides string
 	var fields []seclField
 	var gettersOnlyFields []seclField
@@ -660,7 +672,7 @@ func parseTags(tags *structtag.Tags, containerStructName string) (string, []secl
 		case "field":
 			fieldDefs := strings.Split(tag.Value(), ";")
 			for _, fieldDef := range fieldDefs {
-				field, err := parseFieldDef(fieldDef)
+				field, err := parseFieldDef(fieldDef, isPrivate)
 				if err != nil {
 					log.Panicf("unable to parse field definition: %s", err)
 				}
@@ -739,7 +751,7 @@ func parseFile(modelFile string, typesFile string, pkgName string) (*common.Modu
 	}
 
 	for _, spec := range astFiles.GetSpecs() {
-		handleSpecRecursive(module, astFiles, spec, "", "", "", nil, nil, make(map[string]bool))
+		handleSpecRecursive(module, astFiles, spec, "", "", "", nil, nil, false, make(map[string]bool))
 	}
 
 	return module, nil

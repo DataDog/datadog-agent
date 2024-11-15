@@ -72,6 +72,7 @@ type StructField struct {
 	Ref              string
 	RestrictedTo     []string
 	IsIterator       bool
+	IsPrivate        bool // indicates the field shouldn't be listed in the documentation but still has accessors, helpful for backward compatibility
 }
 
 // GetEvaluatorType returns the evaluator type name

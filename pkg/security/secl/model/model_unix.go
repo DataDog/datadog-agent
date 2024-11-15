@@ -651,7 +651,7 @@ type BindEvent struct {
 type ConnectEvent struct {
 	SyscallEvent
 
-	Addr SocketAddr `field:"addr;server.addr"` // Connection address
+	Addr SocketAddr `field:"addr;server.addr,opts:private"` // Connection address
 }
 
 // NetDevice represents a network device
