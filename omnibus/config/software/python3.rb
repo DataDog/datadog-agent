@@ -52,6 +52,10 @@ if ohai["platform"] != "windows"
     # There exists no configure flag to tell Python to not compile readline support :(
     major, minor, bugfix = version.split(".")
 
+    # Don't forward CC and CXX to python extensions Makefile, it's quite unlikely that any non default
+    # compiler we use would end up being available in the system/docker image used by customers
+    command "sed -i \"s/^CC=[[:space:]]*${CC}/CC=gcc/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-3.12-x86_64-linux-gnu/Makefile"
+    command "sed -i \"s/^CXX=[[:space:]]*${CXX}/CC=g++/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-3.12-x86_64-linux-gnu/Makefile"
     delete "#{install_dir}/embedded/lib/python#{major}.#{minor}/test"
     block do
       FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/distutils/command/wininst-*.exe"))
