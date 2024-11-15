@@ -591,7 +591,7 @@ func TestGetAuroraClustersFromTags(t *testing.T) {
 						},
 					},
 				}).Return(&rds.DescribeDBClustersOutput{
-					Marker: "next",
+					Marker: aws.String("next"),
 					DBClusters: []types.DBCluster{
 						{
 							DBClusterIdentifier: aws.String("test-cluster"),
@@ -609,6 +609,7 @@ func TestGetAuroraClustersFromTags(t *testing.T) {
 					},
 				}, nil).Times(1)
 				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+					Marker: aws.String("next"),
 					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
