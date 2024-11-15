@@ -644,3 +644,5 @@
 /internal/third_party/client-go         @DataDog/container-platform
 /internal/third_party/kubernetes        @DataDog/container-integrations
 /internal/third_party/golang/           @DataDog/container-integrations
+
+/Dockerfiles/agent/bouncycastle-fips    @DataDog/agent-metrics-logs
