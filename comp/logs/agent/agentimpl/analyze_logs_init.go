@@ -8,6 +8,8 @@
 package agentimpl
 
 import (
+	"context"
+	"fmt"
 	"time"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
@@ -21,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
-// SetUpLaunchers creates intializes the launcher. The launchers schedule the tailers to read the log files provided by the logs-analyze command
+// SetUpLaunchers creates intializes the launcher. The launchers schedule the tailers to read the log files provided by the analyze-logs command
 func SetUpLaunchers(conf configComponent.Component) {
 	processingRules, err := config.GlobalProcessingRules(conf)
 	if err != nil {
@@ -54,4 +56,11 @@ func SetUpLaunchers(conf configComponent.Component) {
 	auditor := auditor.New(defaultRunPath, auditor.DefaultRegistryFilename, auditorTTL, health)
 	fileLauncher.Start(sourceProvider, pipelineProvider, auditor, tracker)
 	lnchrs.AddLauncher(fileLauncher)
+
+	const FlushTimeout time.Duration = 5 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), FlushTimeout)
+	pipelineProvider.Flush(ctx)
+	outputChan := pipelineProvider.NextPipelineChan()
+	fmt.Println("TEST999999", outputChan)
+	cancel()
 }
