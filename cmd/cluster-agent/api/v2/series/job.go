@@ -16,12 +16,14 @@ import (
 	loadstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"k8s.io/apimachinery/pkg/util/wait"
+	"golang.org/x/time/rate"
 	"k8s.io/client-go/util/workqueue"
 )
 
 const (
-	subsystem = "autoscaling_workload"
+	subsystem               = "autoscaling_workload"
+	payloadProcessQPS       = 500
+	payloadProcessRateBurst = 50
 )
 
 var (
@@ -30,29 +32,29 @@ var (
 	// telemetryWorkloadStoreMemory tracks the total memory usage of the store
 	telemetryWorkloadStoreMemory = telemetry.NewGaugeWithOpts(
 		subsystem,
-		"load_store_memory_usage",
+		"store_memory_usage",
 		nil,
 		"Total memory usage of the store",
 		commonOpts,
 	)
 	telemetryWorkloadMetricEntities = telemetry.NewGaugeWithOpts(
 		subsystem,
-		"load_store_metric_entities",
+		"store_metric_entities",
 		[]string{"metric"},
 		"Number of entities by metric names in the store",
 		commonOpts,
 	)
 	telemetryWorkloadNamespaceEntities = telemetry.NewGaugeWithOpts(
 		subsystem,
-		"load_store_namespace_entities",
+		"store_namespace_entities",
 		[]string{"namespace"},
 		"Number of entities by namespaces in the store",
 		commonOpts,
 	)
-	telemetryWorkloadJobQueueLength = telemetry.NewGaugeWithOpts(
+	telemetryWorkloadJobQueueLength = telemetry.NewCounterWithOpts(
 		subsystem,
-		"load_store_job_queue_length",
-		nil,
+		"store_job_queue_length",
+		[]string{"status"},
 		"Length of the job queue",
 		commonOpts,
 	)
@@ -60,7 +62,7 @@ var (
 
 // jobQueue is a wrapper around workqueue.DelayingInterface to make it thread-safe.
 type jobQueue struct {
-	queue     workqueue.DelayingInterface
+	taskQueue workqueue.TypedRateLimitingInterface[*gogen.MetricPayload]
 	isStarted bool
 	store     loadstore.Store
 	m         sync.Mutex
@@ -69,19 +71,16 @@ type jobQueue struct {
 // newJobQueue creates a new jobQueue with  no delay for adding items
 func newJobQueue(ctx context.Context) *jobQueue {
 	q := jobQueue{
-		queue: workqueue.NewDelayingQueueWithConfig(workqueue.DelayingQueueConfig{
-			Name: "seriesPayloadJobQueue",
-		}),
+		taskQueue: workqueue.NewTypedRateLimitingQueue(workqueue.NewTypedMaxOfRateLimiter(
+			&workqueue.TypedBucketRateLimiter[*gogen.MetricPayload]{
+				Limiter: rate.NewLimiter(rate.Limit(payloadProcessQPS), payloadProcessRateBurst),
+			},
+		)),
 		store:     loadstore.NewEntityStore(ctx),
 		isStarted: false,
 	}
 	go q.start(ctx)
 	return &q
-}
-
-func (jq *jobQueue) worker() {
-	for jq.processNextWorkItem() {
-	}
 }
 
 func (jq *jobQueue) start(ctx context.Context) {
@@ -91,44 +90,53 @@ func (jq *jobQueue) start(ctx context.Context) {
 	}
 	jq.isStarted = true
 	jq.m.Unlock()
-	defer jq.queue.ShutDown()
-	go wait.Until(jq.worker, time.Second, ctx.Done())
-	infoTicker := time.NewTicker(60 * time.Second)
+	defer jq.taskQueue.ShutDown()
+	jq.reportTelemetry(ctx)
 	for {
 		select {
 		case <-ctx.Done():
 			log.Infof("Stopping series payload job queue")
 			return
-		case <-infoTicker.C:
-			info := jq.store.GetStoreInfo()
-			telemetryWorkloadStoreMemory.Set(float64(info.TotalMemoryUsage))
-			for k, v := range info.EntityCountByMetric {
-				telemetryWorkloadMetricEntities.Set(float64(v), k)
-			}
-			for k, v := range info.EntityCountByNamespace {
-				telemetryWorkloadNamespaceEntities.Set(float64(v), k)
-			}
-			telemetryWorkloadJobQueueLength.Set(float64(jq.queue.Len()))
-			log.Debugf("Store info: %+v", info)
+		default:
+			jq.processNextWorkItem()
 		}
 	}
 }
 
 func (jq *jobQueue) processNextWorkItem() bool {
-	obj, shutdown := jq.queue.Get()
+	metricPayload, shutdown := jq.taskQueue.Get()
 	if shutdown {
 		return false
 	}
-	defer jq.queue.Done(obj)
-	metricPayload, ok := obj.(*gogen.MetricPayload)
-	if !ok {
-		log.Errorf("Expected MetricPayload but got %T", obj)
-		return true
-	}
+	defer jq.taskQueue.Done(metricPayload)
+	telemetryWorkloadJobQueueLength.Inc("processed")
 	loadstore.ProcessLoadPayload(metricPayload, jq.store)
 	return true
 }
 
 func (jq *jobQueue) addJob(payload *gogen.MetricPayload) {
-	jq.queue.Add(payload)
+	jq.taskQueue.Add(payload)
+	telemetryWorkloadJobQueueLength.Inc("queued")
+}
+
+func (jq *jobQueue) reportTelemetry(ctx context.Context) {
+	go func() {
+		infoTicker := time.NewTicker(60 * time.Second)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-infoTicker.C:
+				info := jq.store.GetStoreInfo()
+				telemetryWorkloadStoreMemory.Set(float64(info.TotalMemoryUsage))
+				for k, v := range info.EntityCountByMetric {
+					telemetryWorkloadMetricEntities.Set(float64(v), k)
+				}
+				for k, v := range info.EntityCountByNamespace {
+					telemetryWorkloadNamespaceEntities.Set(float64(v), k)
+				}
+				log.Debugf("Store info: %+v", info)
+			}
+		}
+	}()
 }
