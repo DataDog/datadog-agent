@@ -34,6 +34,9 @@ var envVariablesByStoreKey = map[StoreKey]string{
 	PulumiLogToStdErr:            "E2E_PULUMI_LOG_TO_STDERR",
 	PulumiVerboseProgressStreams: "E2E_PULUMI_VERBOSE_PROGRESS_STREAMS",
 	DevMode:                      "E2E_DEV_MODE",
+	InitOnly:                     "E2E_INIT_ONLY",
+	MajorVersion:                 "E2E_MAJOR_VERSION",
+	PreInitialized:               "E2E_PRE_INITIALIZED",
 }
 
 type envValueStore struct {
@@ -56,6 +59,7 @@ func newEnvValueStore(prefix string) envValueStore {
 func (s envValueStore) get(key StoreKey) (string, error) {
 	envValueStoreKey := envVariablesByStoreKey[key]
 	if envValueStoreKey == "" {
+		fmt.Printf("key [%s] not found in envValueStoreKey, converting to `strings.ToUpper(E2E_<key>)`\n", key)
 		envValueStoreKey = strings.ToUpper(s.prefix + string(key))
 	}
 	val, found := os.LookupEnv(strings.ToUpper(envValueStoreKey))
