@@ -593,7 +593,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 		},
 		// The purpose of this test is to validate the POSTGRES_MAX_MESSAGES_PER_TAIL_CALL * POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES limit.
 		{
-			name: "validate supporting max supported messages limit",
+			name: "validate max supported messages limit",
 			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
 				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
@@ -623,9 +623,10 @@ func testDecoding(t *testing.T, isTLS bool) {
 			},
 		},
 		// This test validates that when we exceed the POSTGRES_MAX_MESSAGES_PER_TAIL_CALL * POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES limit,
-		// the request is not captured as we will miss the response.In this case, it applies to the SELECT query.
+		// all requests are captured, because large buffers are fragmented by the TCP layer,
+		// and ebpf flushes out commands when it detects a fragmented packet.
 		{
-			name: "validate exceeding max supported messages limit is not supported",
+			name: "exceeding max supported messages limit",
 			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
 				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
@@ -648,6 +649,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.InsertOP:      adjustCount(1),
 						postgres.CreateTableOP: adjustCount(1),
+						postgres.SelectOP:      adjustCount(1),
 					},
 				}, isTLS)
 			},
@@ -941,7 +943,7 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 	createLargeTable(t, pgClient, ebpf.MsgCountBucketSize*ebpf.MsgCountNumBuckets)
 	expectedBuckets := [ebpf.MsgCountNumBuckets]bool{}
 
-	for i := 0; i < ebpf.MsgCountNumBuckets; i++ {
+	for i := 0; i < ebpf.MaxBucketsNotFragmented; i++ {
 		testName := fmt.Sprintf("kernel messages count bucket[%d]", i)
 		t.Run(testName, func(t *testing.T) {
 
@@ -1019,8 +1021,7 @@ func getKernelTelemetry(monitor *Monitor, isTLS bool) (*ebpf.PostgresKernelMsgCo
 }
 
 // compareMessagesCount returns true if the expected bucket is non-empty
-// The first bucket is expected to have 4 - 6 hits,
-// in another buckets there may be 1 or 2 hits
+// each buckets may have 1 or 2 hits
 func compareMessagesCount(found *ebpf.PostgresKernelMsgCount, expected [ebpf.MsgCountNumBuckets]bool) bool {
 	for i := range expected {
 		if expected[i] && found.Messages_count_buckets[i] == 0 {

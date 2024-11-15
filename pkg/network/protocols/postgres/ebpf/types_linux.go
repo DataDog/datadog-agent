@@ -28,11 +28,12 @@ type EbpfTx struct {
 	Pad_cgo_0           [3]byte
 }
 type PostgresKernelMsgCount struct {
-	Messages_count_buckets [6]uint64
+	Messages_count_buckets [11]uint64
 }
 
 const (
-	BufferSize         = 0xa0
-	MsgCountBucketSize = 0x23
-	MsgCountNumBuckets = 0x6
+	BufferSize              = 0xa0
+	MsgCountBucketSize      = 0x23
+	MsgCountNumBuckets      = 0xa + 1
+	MaxBucketsNotFragmented = 0x7
 )
