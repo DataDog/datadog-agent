@@ -821,6 +821,8 @@ func getSocketProtocolOffset(kv *kernel.Version) uint64 {
 		return 561
 	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_10, kernel.Kernel4_11):
 		return 521
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_4, kernel.Kernel4_5):
+		return 333
 	default:
 		return 548 // Default for unknown or newer kernels
 	}

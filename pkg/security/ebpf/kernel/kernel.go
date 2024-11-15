@@ -30,6 +30,10 @@ import (
 var (
 	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
 
+	// Kernel4_4 is the KernelVersion representation of kernel version 4.4
+	Kernel4_4 = kernel.VersionCode(4, 4, 0)
+	// Kernel4_5 is the KernelVersion representation of kernel version 4.5
+	Kernel4_5 = kernel.VersionCode(4, 5, 0)
 	// Kernel4_9 is the KernelVersion representation of kernel version 4.9
 	Kernel4_9 = kernel.VersionCode(4, 9, 0)
 	// Kernel4_10 is the KernelVersion representation of kernel version 4.10
