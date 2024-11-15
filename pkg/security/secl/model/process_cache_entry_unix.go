@@ -100,6 +100,11 @@ func (pc *ProcessCacheEntry) SetExecParent(parent *ProcessCacheEntry) {
 	pc.IsExecExec = pc.Parent != nil && pc.Parent.IsExec
 }
 
+// SetAsExec set the entry as an Exec
+func (pc *ProcessCacheEntry) SetAsExec() {
+	pc.IsExec = true
+}
+
 // Exec replace a process
 func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	entry.SetExecParent(pc)
