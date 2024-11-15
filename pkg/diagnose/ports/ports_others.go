@@ -11,6 +11,6 @@ package ports
 import "path"
 
 // RetrieveProcessName returns the base name of the process on non-windows systems
-func RetrieveProcessName(pid _, processName string) (string, error) {
+func RetrieveProcessName(int _, processName string) (string, error) {
 	return path.Base(processName), nil
 }
