@@ -384,7 +384,7 @@ A bind was executed
 
 | Property | Definition |
 | -------- | ------------- |
-| [`bind.addr.family`](#bind-addr-family-doc) | Address family |
+| [`bind.addr.family`](#common-socketaddr-family-doc) | Address family |
 | [`bind.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`bind.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`bind.addr.port`](#common-ipportcontext-port-doc) | Port number |
@@ -519,12 +519,12 @@ A connect was executed
 
 | Property | Definition |
 | -------- | ------------- |
-| [`connect.addr.family`](#connect-addr-family-doc) | Address family |
+| [`connect.addr.family`](#common-socketaddr-family-doc) | Address family |
 | [`connect.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`connect.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`connect.addr.port`](#common-ipportcontext-port-doc) | Port number |
 | [`connect.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
-| [`connect.server.addr.family`](#connect-server-addr-family-doc) | Server address family |
+| [`connect.server.addr.family`](#common-socketaddr-family-doc) | Address family |
 | [`connect.server.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`connect.server.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`connect.server.addr.port`](#common-ipportcontext-port-doc) | Port number |
@@ -1995,6 +1995,15 @@ Definition: Effective user of the process
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
+### `*.family` {#common-socketaddr-family-doc}
+Type: int
+
+Definition: Address family
+
+`*.family` has 3 possible prefixes:
+`bind.addr` `connect.addr` `connect.server.addr`
+
+
 ### `*.file.destination.name` {#common-setxattrevent-file-destination-name-doc}
 Type: string
 
@@ -2477,13 +2486,6 @@ Definition: User of the file's owner
 `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
-### `bind.addr.family` {#bind-addr-family-doc}
-Type: int
-
-Definition: Address family
-
-
-
 ### `bpf.cmd` {#bpf-cmd-doc}
 Type: int
 
@@ -2662,20 +2664,6 @@ Definition: Path argument of the syscall
 Type: int
 
 Definition: UID argument of the syscall
-
-
-
-### `connect.addr.family` {#connect-addr-family-doc}
-Type: int
-
-Definition: Address family
-
-
-
-### `connect.server.addr.family` {#connect-server-addr-family-doc}
-Type: int
-
-Definition: Server address family
 
 
 

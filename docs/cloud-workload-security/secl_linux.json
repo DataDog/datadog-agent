@@ -1309,7 +1309,7 @@
         {
           "name": "bind.addr.family",
           "definition": "Address family",
-          "property_doc_link": "bind-addr-family-doc"
+          "property_doc_link": "common-socketaddr-family-doc"
         },
         {
           "name": "bind.addr.ip",
@@ -1818,7 +1818,7 @@
         {
           "name": "connect.addr.family",
           "definition": "Address family",
-          "property_doc_link": "connect-addr-family-doc"
+          "property_doc_link": "common-socketaddr-family-doc"
         },
         {
           "name": "connect.addr.ip",
@@ -1842,8 +1842,8 @@
         },
         {
           "name": "connect.server.addr.family",
-          "definition": "Server address family",
-          "property_doc_link": "connect-server-addr-family-doc"
+          "definition": "Address family",
+          "property_doc_link": "common-socketaddr-family-doc"
         },
         {
           "name": "connect.server.addr.ip",
@@ -7857,6 +7857,20 @@
       "examples": []
     },
     {
+      "name": "*.family",
+      "link": "common-socketaddr-family-doc",
+      "type": "int",
+      "definition": "Address family",
+      "prefixes": [
+        "bind.addr",
+        "connect.addr",
+        "connect.server.addr"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.file.destination.name",
       "link": "common-setxattrevent-file-destination-name-doc",
       "type": "string",
@@ -9451,18 +9465,6 @@
       "examples": []
     },
     {
-      "name": "bind.addr.family",
-      "link": "bind-addr-family-doc",
-      "type": "int",
-      "definition": "Address family",
-      "prefixes": [
-        "bind"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
       "name": "bpf.cmd",
       "link": "bpf-cmd-doc",
       "type": "int",
@@ -9721,30 +9723,6 @@
       "definition": "UID argument of the syscall",
       "prefixes": [
         "chown"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "connect.addr.family",
-      "link": "connect-addr-family-doc",
-      "type": "int",
-      "definition": "Address family",
-      "prefixes": [
-        "connect"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "connect.server.addr.family",
-      "link": "connect-server-addr-family-doc",
-      "type": "int",
-      "definition": "Server address family",
-      "prefixes": [
-        "connect"
       ],
       "constants": "",
       "constants_link": "",
