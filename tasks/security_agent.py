@@ -752,7 +752,7 @@ def go_generate_check(ctx):
     tasks = [
         [cws_go_generate],
         [generate_cws_documentation],
-        [gen_mocks],
+        # [gen_mocks], TODO: re-enable this when go is bumped to 1.23 and mocker is updated to >2.46.1
         [sync_secl_win_pkg],
     ]
     failing_tasks = []
