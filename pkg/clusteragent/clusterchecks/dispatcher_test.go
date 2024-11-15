@@ -16,7 +16,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -50,7 +50,7 @@ func extractCheckNames(configs []integration.Config) []string {
 }
 
 func TestScheduleUnschedule(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
 	stored, err := dispatcher.getAllConfigs()
 	assert.NoError(t, err)
@@ -82,7 +82,7 @@ func TestScheduleUnschedule(t *testing.T) {
 }
 
 func TestScheduleUnscheduleEndpoints(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
 
 	config1 := generateIntegration("cluster-check")
@@ -99,7 +99,7 @@ func TestScheduleUnscheduleEndpoints(t *testing.T) {
 }
 
 func TestExcludeEndpoint(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
 
 	config1 := generateEndpointsIntegration("endpoints-check1", "node1", true)
@@ -113,7 +113,7 @@ func TestExcludeEndpoint(t *testing.T) {
 }
 
 func TestScheduleReschedule(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
 	config := generateIntegration("cluster-check")
 
@@ -146,7 +146,7 @@ func TestScheduleReschedule(t *testing.T) {
 }
 
 func TestScheduleRescheduleEndpoints(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
 	config := generateEndpointsIntegration("endpoints-check1", "node1", false)
 
@@ -178,7 +178,7 @@ func TestScheduleRescheduleEndpoints(t *testing.T) {
 }
 
 func TestDescheduleRescheduleSameNode(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
 	config := generateIntegration("cluster-check")
 
@@ -212,7 +212,7 @@ func TestDescheduleRescheduleSameNode(t *testing.T) {
 }
 
 func TestProcessNodeStatus(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
 	status1 := types.NodeStatus{LastChange: 10}
 
@@ -254,7 +254,7 @@ func TestProcessNodeStatus(t *testing.T) {
 }
 
 func TestGetNodeWithLessChecks(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
 
 	// No node registered -> empty string
@@ -279,7 +279,7 @@ func TestGetNodeWithLessChecks(t *testing.T) {
 }
 
 func TestExpireNodes(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
 
 	// Node with no status (bug ?), handled by expiration
@@ -312,7 +312,7 @@ func TestExpireNodes(t *testing.T) {
 
 func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 	// This test case can represent a rollout of the cluster check workers
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
 
 	// Register a node with a correct status & schedule a Check
@@ -363,7 +363,7 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 }
 
 func TestDispatchFourConfigsTwoNodes(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
 
 	// Register two nodes
@@ -401,7 +401,7 @@ func TestDispatchFourConfigsTwoNodes(t *testing.T) {
 }
 
 func TestDanglingConfig(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
 	config := integration.Config{
 		Name:         "cluster-check",
@@ -429,7 +429,7 @@ func TestDanglingConfig(t *testing.T) {
 }
 
 func TestUnscheduleDanglingConfig(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 
 	testConfig := integration.Config{
@@ -460,7 +460,7 @@ func TestUnscheduleDanglingConfig(t *testing.T) {
 }
 
 func TestReset(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
 	config := generateIntegration("cluster-check")
 
@@ -495,7 +495,7 @@ func TestPatchConfiguration(t *testing.T) {
 	}
 	initialDigest := checkConfig.Digest()
 
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("cluster_name", "testing")
 	clustername.ResetClusterName()
@@ -533,7 +533,7 @@ func TestPatchEndpointsConfiguration(t *testing.T) {
 		LogsConfig:    integration.Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 	}
 
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("cluster_name", "testing")
 	clustername.ResetClusterName()
@@ -572,7 +572,7 @@ func TestExtraTags(t *testing.T) {
 		{[]string{"one", "two"}, "mycluster", "custom_name", []string{"one", "two", "custom_name:mycluster", "kube_cluster_name:mycluster"}},
 	} {
 		t.Run("", func(t *testing.T) {
-			fakeTagger := taggerimpl.SetupFakeTagger(t)
+			fakeTagger := mock.SetupFakeTagger(t)
 			mockConfig := configmock.New(t)
 			fakeTagger.SetGlobalTags(tc.extraTagsConfig, []string{}, []string{}, []string{})
 			mockConfig.SetWithoutSource("cluster_name", tc.clusterNameConfig)
@@ -586,7 +586,7 @@ func TestExtraTags(t *testing.T) {
 }
 
 func TestGetAllEndpointsCheckConfigs(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
 
 	// Register configs to different nodes
@@ -661,7 +661,7 @@ func (d *dummyClientStruct) GetRunnerWorkers(IP string) (types.Workers, error) {
 }
 
 func TestUpdateRunnersStats(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("cluster_checks.rebalance_with_utilization", true)
 
