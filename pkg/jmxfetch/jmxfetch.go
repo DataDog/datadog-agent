@@ -502,22 +502,6 @@ func (j *JMXFetch) setupFIPS(subprocessArgs *[]string, classpath *string) {
 		return
 	}
 
-	// To avoid hard-coding providers' versions into the agent, add all jars in the directory.
-	// If (some) jars are missing, Java will throw runtime errors about not being able to load
-	// the necessary classes that we supply on the configuration.
-	ents, err := os.ReadDir(embeddedFIPSPath)
-	if err != nil {
-		log.Errorf("FIPS provider for JMXFetch not found in %q: %v", embeddedFIPSPath, err)
-		return
-	}
-	for _, ent := range ents {
-		if strings.HasSuffix(ent.Name(), ".jar") {
-			jar := path.Join(embeddedFIPSPath, ent.Name())
-			log.Debugf("adding %q to classpath", jar)
-			*classpath = fmt.Sprintf("%s%c%s", *classpath, os.PathListSeparator, jar)
-		}
-	}
-
 	// Make sure configuration file exists and is readable. Java silently ignores any errors
 	// when loading additional security properties file.
 	configPath := path.Join(embeddedFIPSPath, "java.security")
@@ -528,6 +512,8 @@ func (j *JMXFetch) setupFIPS(subprocessArgs *[]string, classpath *string) {
 	}
 	f.Close()
 
+	// Add path with BouncyCastle jars to the module path.
+	*subprocessArgs = append(*subprocessArgs, "--module-path", embeddedFIPSPath)
 	// Double equals sign instructs JVM to replace stock security configuration rather than modify it.
 	*subprocessArgs = append(*subprocessArgs, fmt.Sprintf("-Djava.security.properties==%s", configPath))
 	// bc-fips.policy contains additional permission grants per BouncyCastle manual.
