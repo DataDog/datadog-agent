@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
