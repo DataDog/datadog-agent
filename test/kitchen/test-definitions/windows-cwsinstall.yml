@@ -5,14 +5,14 @@ suites:
     - "recipe[dd-agent-install]"
   attributes:
     datadog:
-      agent_major_version: 7
+      agent_major_version: 6
       api_key: <%= api_key %>
       <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
       agent_flavor: 'datadog-iot-agent'
       <% end %>
       enable_process_agent: true
     dd-agent-install:
-      agent_major_version: 7
+      agent_major_version: 6
       agent6: true
       windows_agent_url: <%= windows_agent_url %>
       <% if ENV['AGENT_VERSION'] %>
