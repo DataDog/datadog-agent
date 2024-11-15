@@ -38,7 +38,7 @@ func (c *cdnLocal) Get(_ context.Context, pkg string) (cfg Config, err error) {
 			continue
 		}
 
-		contents, err := os.ReadFile(filepath.Join(c.dirPath, file.Name()))
+		contents, err := os.ReadFile(filepath.Join(c.dirPath, fmt.Sprintf("datadog/0/AGENT_CONFIG/%s/deadbeef", file.Name())))
 		if err != nil {
 			return nil, fmt.Errorf("couldn't read file %s: %w", file.Name(), err)
 		}
