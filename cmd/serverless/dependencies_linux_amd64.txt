@@ -121,6 +121,7 @@ github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype
 github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils
 github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types
 github.com/DataDog/datadog-agent/comp/serializer/compression/def
+github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop
 github.com/DataDog/datadog-agent/comp/serializer/compression/selector
 github.com/DataDog/datadog-agent/comp/trace/compression/def
 github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd
