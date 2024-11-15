@@ -9,12 +9,14 @@ package gpu
 
 import (
 	"fmt"
+	"net/http"
 
 	"gopkg.in/yaml.v2"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
 
+	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -23,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -38,11 +39,11 @@ const (
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	config        *CheckConfig            // config for the check
-	sysProbeUtil  processnet.SysProbeUtil // sysProbeUtil is used to communicate with system probe
-	activeMetrics map[model.StatsKey]bool // activeMetrics is a set of metrics that have been seen in the current check run
-	collectors    []nvidia.Collector      // collectors for NVML metrics
-	nvmlLib       nvml.Interface          // NVML library interface
+	config         *CheckConfig            // config for the check
+	sysProbeClient *http.Client            // sysProbeClient is used to communicate with system probe
+	activeMetrics  map[model.StatsKey]bool // activeMetrics is a set of metrics that have been seen in the current check run
+	collectors     []nvidia.Collector      // collectors for NVML metrics
+	nvmlLib        nvml.Interface          // NVML library interface
 }
 
 // Factory creates a new check factory
@@ -83,6 +84,7 @@ func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("failed to build NVML collectors: %w", err)
 	}
 
+	m.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	return nil
 }
 
@@ -93,21 +95,6 @@ func (m *Check) Cancel() {
 	}
 
 	m.CheckBase.Cancel()
-}
-
-func (m *Check) ensureSysprobeUtil() error {
-	var err error
-
-	if m.sysProbeUtil == nil {
-		m.sysProbeUtil, err = processnet.GetRemoteSystemProbeUtil(
-			pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"),
-		)
-		if err != nil {
-			return fmt.Errorf("sysprobe connection: %w", err)
-		}
-	}
-
-	return nil
 }
 
 // Run executes the check
@@ -131,18 +118,9 @@ func (m *Check) Run() error {
 }
 
 func (m *Check) emitSysprobeMetrics(snd sender.Sender) error {
-	if err := m.ensureSysprobeUtil(); err != nil {
-		return err
-	}
-
-	sysprobeData, err := m.sysProbeUtil.GetCheck(sysconfig.GPUMonitoringModule)
+	stats, err := sysprobeclient.GetCheck[model.GPUStats](m.sysProbeClient, sysconfig.GPUMonitoringModule)
 	if err != nil {
 		return fmt.Errorf("cannot get data from system-probe: %w", err)
-	}
-
-	stats, ok := sysprobeData.(model.GPUStats)
-	if !ok {
-		return fmt.Errorf("gpu check raw data has incorrect type: %T", stats)
 	}
 
 	// Set all metrics to inactive, so we can remove the ones that we don't see
