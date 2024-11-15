@@ -54,7 +54,7 @@ var minimalParams = utils.IAParams{
 
 func (s *minimalTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.TestCalendarApp(s)
+	utils.TestCalendarApp(s, false)
 }
 
 func (s *minimalTestSuite) TestOTLPTraces() {

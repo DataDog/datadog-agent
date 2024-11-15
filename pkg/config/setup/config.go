@@ -238,6 +238,8 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	debugging,
 	vector,
 	podman,
+	fleet,
+	autoscaling,
 }
 
 func init() {
@@ -351,10 +353,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Defaults to safe YAML methods in base and custom checks.
 	config.BindEnvAndSetDefault("disable_unsafe_yaml", true)
-
-	// Yaml keys which values are stripped from flare
-	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
-	config.BindEnvAndSetDefault("scrubber.additional_keys", []string{})
 
 	// flare configs
 	config.BindEnvAndSetDefault("flare_provider_timeout", 10*time.Second)
@@ -552,9 +550,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Used internally to protect against configurations where metadata endpoints return incorrect values with 200 status codes.
 	config.BindEnvAndSetDefault("metadata_endpoints_max_hostname_size", 255)
 
-	// Duration during which the host tags will be submitted with metrics.
-	config.BindEnvAndSetDefault("expected_tags_duration", time.Duration(0))
-
 	// EC2
 	config.BindEnvAndSetDefault("ec2_use_windows_prefix_detection", false)
 	config.BindEnvAndSetDefault("ec2_metadata_timeout", 300)          // value in milliseconds
@@ -675,11 +670,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Changing this setting may impact your custom metrics billing.
 	config.BindEnvAndSetDefault("checks_tag_cardinality", "low")
 	config.BindEnvAndSetDefault("dogstatsd_tag_cardinality", "low")
-
-	// Autoscaling product
-	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
-	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
-	config.BindEnv("autoscaling.failover.metrics")
 
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
@@ -1001,8 +991,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
 	config.BindEnvAndSetDefault("installer.registry.username", "")
 	config.BindEnvAndSetDefault("installer.registry.password", "")
-	config.BindEnv("fleet_policies_dir")
-	config.SetDefault("fleet_layers", []string{})
 
 	// Data Jobs Monitoring config
 	config.BindEnvAndSetDefault("djm_config.enabled", false)
@@ -1106,6 +1094,13 @@ func agent(config pkgconfigmodel.Setup) {
 	// Use to output logs in JSON format
 	config.BindEnvAndSetDefault("log_format_json", false)
 
+	// Yaml keys which values are stripped from flare
+	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
+	config.BindEnvAndSetDefault("scrubber.additional_keys", []string{})
+
+	// Duration during which the host tags will be submitted with metrics.
+	config.BindEnvAndSetDefault("expected_tags_duration", time.Duration(0))
+
 	// Agent GUI access host
 	// 		'http://localhost' is preferred over 'http://127.0.0.1' due to Internet Explorer behavior.
 	// 		Internet Explorer High Security Level does not support setting cookies via HTTP Header response.
@@ -1118,6 +1113,19 @@ func agent(config pkgconfigmodel.Setup) {
 	config.SetKnown("proxy.http")
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
+}
+
+func fleet(config pkgconfigmodel.Setup) {
+	// Directory to store fleet policies
+	config.BindEnv("fleet_policies_dir")
+	config.SetDefault("fleet_layers", []string{})
+}
+
+func autoscaling(config pkgconfigmodel.Setup) {
+	// Autoscaling product
+	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
+	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
+	config.BindEnv("autoscaling.failover.metrics")
 }
 
 func fips(config pkgconfigmodel.Setup) {
