@@ -279,6 +279,44 @@ func TestDBMAuroraListener(t *testing.T) {
 	}
 }
 
+func TestGetExtraConfig(t *testing.T) {
+	testCases := []struct {
+		service       *DBMAuroraService
+		expectedExtra map[string]string
+	}{
+		{
+			service: &DBMAuroraService{
+				adIdentifier: dbmPostgresADIdentifier,
+				entityID:     "f7fee36c58e3da8a",
+				checkName:    "postgres",
+				clusterID:    "my-cluster-1",
+				region:       "us-east-1",
+				instance: &aws.Instance{
+					Endpoint:   "my-endpoint",
+					Port:       5432,
+					IamEnabled: true,
+					Engine:     "aurora-postgresql",
+					DbName:     "app",
+				},
+			},
+			expectedExtra: map[string]string{
+				"dbname":                         "app",
+				"region":                         "us-east-1",
+				"managed_authentication_enabled": "true",
+				"dbclusteridentifier":            "my-cluster-1",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		for key, value := range tc.expectedExtra {
+			v, err := tc.service.GetExtraConfig(key)
+			assert.NoError(t, err)
+			assert.Equal(t, value, v)
+		}
+	}
+}
+
 func contextWithTimeout(t time.Duration) gomock.Matcher {
 	return contextWithTimeoutMatcher{
 		timeout: t,
