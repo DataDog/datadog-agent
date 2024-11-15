@@ -205,13 +205,13 @@ func addToTailerInfo(k, m string, tailerInfo *status.InfoRegistry) {
 // messages to a new channel and using an updated file and decoder.
 func (t *Tailer) NewRotatedTailer(file *File, outputChan chan *message.Message, pipelineMonitor metrics.PipelineMonitor, decoder *decoder.Decoder, info *status.InfoRegistry, tagAdder tag.EntityTagAdder) *Tailer {
 	options := &TailerOptions{
-		OutputChan:    outputChan,
-		File:          file,
-		SleepDuration: t.sleepDuration,
-		Decoder:       decoder,
-		Info:          info,
-		Rotated:       true,
-		TagAdder:      tagAdder,
+		OutputChan:      outputChan,
+		File:            file,
+		SleepDuration:   t.sleepDuration,
+		Decoder:         decoder,
+		Info:            info,
+		Rotated:         true,
+		TagAdder:        tagAdder,
 		PipelineMonitor: pipelineMonitor,
 	}
 
