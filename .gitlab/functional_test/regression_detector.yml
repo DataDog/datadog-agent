@@ -70,7 +70,7 @@ single-machine-performance-regression_detector:
       if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
       then
           echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
-          datadog-ci tag --level job --tags smp_failure_mode:"old-merge-base"
+          datadog-ci tag --level job --tags smp_failure_mode:"merge-base-too-old"
           exit 1
       fi
     - echo "Commit ${BASELINE_SHA} is recent enough"
@@ -85,7 +85,7 @@ single-machine-performance-regression_detector:
           if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
           then
               echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
-              datadog-ci tag --level job --tags smp_failure_mode:"old-predecessor-merge-base"
+              datadog-ci tag --level job --tags smp_failure_mode:"merge-base-too-old-predecessor"
               exit 1
           fi
           echo "Commit ${BASELINE_SHA} is recent enough"
@@ -115,8 +115,8 @@ single-machine-performance-regression_detector:
       --submission-metadata submission_metadata \
       --tags ${SMP_TAGS} || {
         exit_code=$?
-        echo "job submit command failed"
-        datadog-ci tag --level job --tags smp_failure_mode:"job-submit"
+        echo "smp job submit command failed with code $exit_code"
+        datadog-ci tag --level job --tags smp_failure_mode:"job-submission"
         exit $exit_code
       }
     # Get the SMP Job Id from 'submission-metadata' and use 'datadog-ci'
@@ -132,7 +132,7 @@ single-machine-performance-regression_detector:
       --wait-delay-seconds 60 \
       --submission-metadata submission_metadata || {
         exit_code=$?
-        echo "job status command failed"
+        echo "smp job status command failed with code $exit_code"
         datadog-ci tag --level job --tags smp_failure_mode:"job-status"
         exit $exit_code
       }
@@ -143,7 +143,7 @@ single-machine-performance-regression_detector:
       --submission-metadata submission_metadata \
       --output-path outputs || {
         exit_code=$?
-        echo "job sync command failed"
+        echo "smp job sync command failed with code $exit_code"
         datadog-ci tag --level job --tags smp_failure_mode:"job-sync"
         exit $exit_code
       }
@@ -156,7 +156,33 @@ single-machine-performance-regression_detector:
     # JUnit XML. Agent CI seems to use `datadog-agent` as the service name when
     # uploading JUnit XML, so the upload command below respects that convention.
     - datadog-ci junit upload --service datadog-agent outputs/junit.xml
+    # Check for failing regression detector for the purpose of tagging.
+    # For consistency we start by tagging with smp_optimization_goal_failed:false and overwrite to true if a failure is detected.
+    - datadog-ci tag --level job --tags smp_optimization_goal_failed:"false"
+    - |
+      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
+        job result \
+        --submission-metadata submission_metadata --signal regression-detector || {
+        exit_code=$?
+        echo "smp regression detector has detected a regression"
+        datadog-ci tag --level job --tags smp_optimization_goal_failed:"true"
+      }
+    # Check for failing bounds checks for the purpose of tagging.
+    # For consistency we start by tagging with smp_bounds_check_failed:false and overwrite to true if a failure is detected.
+    - datadog-ci tag --level job --tags smp_bounds_check_failed:"false"
+    - |
+      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
+        job result \
+        --submission-metadata submission_metadata --signal bounds-check || {
+        exit_code=$?
+        echo "smp regression detector has detected a failed bounds check"
+        datadog-ci tag --level job --tags smp_bounds_check_failed:"true"
+      }
     # Run quality gate check script
+    # In order to determine if the following python script failed we assume quality gates failure here and update accordingly
+    # if we make it through the python script successfully. The consequence of this is that any failure in the python script will
+    # be seen as a quality gates failure.
+    - datadog-ci tag --level job --tags smp_quality_gates_failed:"true"
     - |
       python3 <<'EOF'
       import json
@@ -214,16 +240,10 @@ single-machine-performance-regression_detector:
       else:
           print("Quality gate passed.")
           sys.exit(0)
-      EOF 
-    # Check the exit code and handle failures
-    - |
-      exit_code=$?
-      if [ $exit_code -ne 0 ]; then
-        echo "quality gates script failed, this is most likely a result of a regression"
-        datadog-ci tag --level job --tags smp_failure_mode:"quality-gate"
-        exit $exit_code
-      fi
-    #If we get to this point in the script that means everything prior has succeeded so lets update the failure mode tag.
+      EOF
+    # If we make it here that means quality gates must not have failed.
+    - datadog-ci tag --level job --tags smp_quality_gates_failed:"false"
+    # If we get to this point in the script that means everything prior has succeeded so lets update the failure mode tag.
     - echo "script successfully executed"
     - datadog-ci tag --level job --tags smp_failure_mode:"none"
 
