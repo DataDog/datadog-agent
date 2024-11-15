@@ -724,7 +724,7 @@ def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", up
 
 def _update_last_stable(_, version, major_versions="7"):
     """
-    Updates the last_release field(s) of release.json
+    Updates the last_release field(s) of release.json and returns the current milestone
     """
     release_json = load_release_json()
     list_major_versions = parse_major_versions(major_versions)
@@ -733,6 +733,8 @@ def _update_last_stable(_, version, major_versions="7"):
         version.major = major
         release_json['last_stable'][str(major)] = str(version)
     _save_release_json(release_json)
+
+    return release_json["current_milestone"]
 
 
 @task
@@ -749,7 +751,36 @@ def cleanup(ctx):
     if not match:
         raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
     version = _create_version_from_match(match)
-    _update_last_stable(ctx, version)
+    current_milestone = _update_last_stable(ctx, version)
+
+    # create pull request to update last stable version
+    main_branch = "main"
+    cleanup_branch = f"release/{version}-cleanup"
+    ctx.run(f"git checkout -b {cleanup_branch}")
+    ctx.run("git add release.json")
+
+    commit_message = f"Update last_stable to {version}"
+    ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
+    if not ok:
+        raise Exit(
+            color_message(
+                f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {cleanup_branch} branch and then open a PR against {main_branch}.",
+                "red",
+            ),
+            code=1,
+        )
+
+    if not ctx.run(f"git push --set-upstream origin {cleanup_branch}", warn=True):
+        raise Exit(
+            color_message(
+                f"Could not push branch {cleanup_branch} to the upstream 'origin'. Please push it manually and then open a PR against {main_branch}.",
+                "red",
+            ),
+            code=1,
+        )
+
+    create_release_pr(commit_message, main_branch, cleanup_branch, version, milestone=current_milestone)
+
     edit_schedule(ctx, 2555, ref=version.branch())
 
 
