@@ -54,7 +54,7 @@
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
       -v "$(Get-Location):C:\mnt"
-      -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      -v \\.\pipe\docker_engine:\\.\pipe\docker_engine registry.ddbuild.io/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       powershell
       -C C:\mnt\ci-scripts\docker-login.ps1
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
@@ -68,7 +68,7 @@
 .docker_build_agent6_windows_common:
   extends:
     - .docker_build_agent_windows_common
-  rules: 
+  rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs: ["windows_msi_x64-a6", "build_windows_container_entrypoint"]

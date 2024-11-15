@@ -4,7 +4,7 @@
 
 .agent_release_management_trigger:
   stage: trigger_release
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   # We don't directly depend/need the package deploy jobs, because
   # that would make us deploy even when there are kitchen failures etc
@@ -16,7 +16,7 @@
     RELEASE_PRODUCT: datadog-agent
     TARGET_REPO_BRANCH: $BUCKET_BRANCH
   script:
-    # agent-release-management creates pipeline for Agent 6 
+    # agent-release-management creates pipeline for Agent 6
     - source /root/.bashrc
     - export RELEASE_VERSION=$(inv agent.version --major-version 6 --url-safe --omnibus-format)-1
     - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
