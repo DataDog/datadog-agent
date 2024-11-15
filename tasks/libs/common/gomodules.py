@@ -151,6 +151,7 @@ class GoModule:
     lint_targets: list[str] | None = None
     # Whether the module is an otel dependency or not
     used_by_otel: bool = False
+    # Used to load agent 6 modules from agent 7
     legacy_go_mod_version: bool | None = None
 
     @staticmethod
