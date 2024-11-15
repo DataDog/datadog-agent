@@ -39,3 +39,8 @@ data:
           {}
         annotations_as_tags:
           {}
+  kubernetes_apiserver.yaml: |-
+    init_config:
+    instances:
+      - filtering_enabled: false
+        unbundle_events: false
