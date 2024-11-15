@@ -13,7 +13,7 @@ __version__ = "1.0.0"
 # flake8: noqa
 class HelloCheck(AgentCheck):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super(HelloCheck, self).__init__(*args, **kwargs)
         self.value = 123
 
     def check(self, instance):
