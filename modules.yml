@@ -269,6 +269,7 @@ modules:
     test_targets:
     - ./pkg/runner
     - ./pkg/utils/e2e/client
+    - ./system-probe/
   test/otel:
     used_by_otel: true
   tools/retry_file_dump:
