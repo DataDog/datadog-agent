@@ -865,10 +865,12 @@ def sync_secl_win_pkg(ctx):
         ("accessors_windows.go", "accessors_win.go"),
         ("legacy_secl.go", None),
         ("security_profile.go", None),
+        ("string_array_iter.go", None),
     ]
 
     ctx.run("rm -r pkg/security/seclwin/model")
     ctx.run("mkdir -p pkg/security/seclwin/model")
+    ctx.run("cp pkg/security/secl/doc.go pkg/security/seclwin/doc.go")
 
     for ffrom, fto in files_to_copy:
         if not fto:

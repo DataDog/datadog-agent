@@ -83,11 +83,18 @@ jobs:
           echo "ARTIFACT_NAME=constants-${{ matrix.cone }}" | tr '/' '-' >> $GITHUB_OUTPUT
 
       - name: Sync constants
+        if: ${{ !inputs.force_refresh }}
         env:
           ARTIFACT_NAME: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
-          FORCE_REFRESH: ${{ inputs.force_refresh && '--force-refresh' || '' }}
         run: |
-          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./"$ARTIFACT_NAME".json "$FORCE_REFRESH"
+          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./"$ARTIFACT_NAME".json
+
+      - name: Force sync constants
+        if: ${{ inputs.force_refresh }}
+        env:
+          ARTIFACT_NAME: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
+        run: |
+          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./"$ARTIFACT_NAME".json --force-refresh
 
       - name: Upload artifact
         uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a # v4.3.6
@@ -106,7 +113,6 @@ jobs:
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           ref: ${{ inputs.base_branch || 'main' }}
-          persist-credentials: false
 
       - name: Install python
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
@@ -158,8 +164,8 @@ jobs:
               title: 'CWS: sync BTFHub constants',
               owner,
               repo,
-              head: "$BRANCH_NAME",
-              base: "$BASE_BRANCH",
+              head: process.env.BRANCH_NAME,
+              base: process.env.BASE_BRANCH,
               body: [
                 '### What does this PR do?',
                 'This PR syncs the BTFHub constants used by CWS',

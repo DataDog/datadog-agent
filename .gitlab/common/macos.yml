@@ -33,6 +33,11 @@
     fi
   - pyenv activate $VENV_NAME
 
+.vault_login:
+  # Point the CLI to our internal vault
+  - export VAULT_ADDR=https://vault.us1.ddbuild.io
+  - vault login -method=aws -no-print
+
 .macos_gitlab:
   before_script:
     # Selecting the current Go version
