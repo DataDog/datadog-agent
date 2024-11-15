@@ -239,6 +239,26 @@ func (mr *MockAgentSecureClientMockRecorder) GetConfigStateHA(ctx, in interface{
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConfigStateHA", reflect.TypeOf((*MockAgentSecureClient)(nil).GetConfigStateHA), varargs...)
 }
 
+// RegisterRemoteAgent mocks base method.
+func (m *MockAgentSecureClient) RegisterRemoteAgent(ctx context.Context, in *core.RegisterRemoteAgentRequest, opts ...grpc.CallOption) (*core.RegisterRemoteAgentResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "RegisterRemoteAgent", varargs...)
+	ret0, _ := ret[0].(*core.RegisterRemoteAgentResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RegisterRemoteAgent indicates an expected call of RegisterRemoteAgent.
+func (mr *MockAgentSecureClientMockRecorder) RegisterRemoteAgent(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterRemoteAgent", reflect.TypeOf((*MockAgentSecureClient)(nil).RegisterRemoteAgent), varargs...)
+}
+
 // TaggerFetchEntity mocks base method.
 func (m *MockAgentSecureClient) TaggerFetchEntity(ctx context.Context, in *core.FetchEntityRequest, opts ...grpc.CallOption) (*core.FetchEntityResponse, error) {
 	m.ctrl.T.Helper()
@@ -658,6 +678,21 @@ func (mr *MockAgentSecureServerMockRecorder) GetConfigStateHA(arg0, arg1 interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConfigStateHA", reflect.TypeOf((*MockAgentSecureServer)(nil).GetConfigStateHA), arg0, arg1)
 }
 
+// RegisterRemoteAgent mocks base method.
+func (m *MockAgentSecureServer) RegisterRemoteAgent(arg0 context.Context, arg1 *core.RegisterRemoteAgentRequest) (*core.RegisterRemoteAgentResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RegisterRemoteAgent", arg0, arg1)
+	ret0, _ := ret[0].(*core.RegisterRemoteAgentResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RegisterRemoteAgent indicates an expected call of RegisterRemoteAgent.
+func (mr *MockAgentSecureServerMockRecorder) RegisterRemoteAgent(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterRemoteAgent", reflect.TypeOf((*MockAgentSecureServer)(nil).RegisterRemoteAgent), arg0, arg1)
+}
+
 // TaggerFetchEntity mocks base method.
 func (m *MockAgentSecureServer) TaggerFetchEntity(arg0 context.Context, arg1 *core.FetchEntityRequest) (*core.FetchEntityResponse, error) {
 	m.ctrl.T.Helper()
@@ -937,4 +972,120 @@ func (m *MockAgentSecure_WorkloadmetaStreamEntitiesServer) SetTrailer(arg0 metad
 func (mr *MockAgentSecure_WorkloadmetaStreamEntitiesServerMockRecorder) SetTrailer(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTrailer", reflect.TypeOf((*MockAgentSecure_WorkloadmetaStreamEntitiesServer)(nil).SetTrailer), arg0)
+}
+
+// MockRemoteAgentClient is a mock of RemoteAgentClient interface.
+type MockRemoteAgentClient struct {
+	ctrl     *gomock.Controller
+	recorder *MockRemoteAgentClientMockRecorder
+}
+
+// MockRemoteAgentClientMockRecorder is the mock recorder for MockRemoteAgentClient.
+type MockRemoteAgentClientMockRecorder struct {
+	mock *MockRemoteAgentClient
+}
+
+// NewMockRemoteAgentClient creates a new mock instance.
+func NewMockRemoteAgentClient(ctrl *gomock.Controller) *MockRemoteAgentClient {
+	mock := &MockRemoteAgentClient{ctrl: ctrl}
+	mock.recorder = &MockRemoteAgentClientMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockRemoteAgentClient) EXPECT() *MockRemoteAgentClientMockRecorder {
+	return m.recorder
+}
+
+// GetFlareFiles mocks base method.
+func (m *MockRemoteAgentClient) GetFlareFiles(ctx context.Context, in *core.GetFlareFilesRequest, opts ...grpc.CallOption) (*core.GetFlareFilesResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetFlareFiles", varargs...)
+	ret0, _ := ret[0].(*core.GetFlareFilesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFlareFiles indicates an expected call of GetFlareFiles.
+func (mr *MockRemoteAgentClientMockRecorder) GetFlareFiles(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFlareFiles", reflect.TypeOf((*MockRemoteAgentClient)(nil).GetFlareFiles), varargs...)
+}
+
+// GetStatusDetails mocks base method.
+func (m *MockRemoteAgentClient) GetStatusDetails(ctx context.Context, in *core.GetStatusDetailsRequest, opts ...grpc.CallOption) (*core.GetStatusDetailsResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetStatusDetails", varargs...)
+	ret0, _ := ret[0].(*core.GetStatusDetailsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetStatusDetails indicates an expected call of GetStatusDetails.
+func (mr *MockRemoteAgentClientMockRecorder) GetStatusDetails(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStatusDetails", reflect.TypeOf((*MockRemoteAgentClient)(nil).GetStatusDetails), varargs...)
+}
+
+// MockRemoteAgentServer is a mock of RemoteAgentServer interface.
+type MockRemoteAgentServer struct {
+	ctrl     *gomock.Controller
+	recorder *MockRemoteAgentServerMockRecorder
+}
+
+// MockRemoteAgentServerMockRecorder is the mock recorder for MockRemoteAgentServer.
+type MockRemoteAgentServerMockRecorder struct {
+	mock *MockRemoteAgentServer
+}
+
+// NewMockRemoteAgentServer creates a new mock instance.
+func NewMockRemoteAgentServer(ctrl *gomock.Controller) *MockRemoteAgentServer {
+	mock := &MockRemoteAgentServer{ctrl: ctrl}
+	mock.recorder = &MockRemoteAgentServerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockRemoteAgentServer) EXPECT() *MockRemoteAgentServerMockRecorder {
+	return m.recorder
+}
+
+// GetFlareFiles mocks base method.
+func (m *MockRemoteAgentServer) GetFlareFiles(arg0 context.Context, arg1 *core.GetFlareFilesRequest) (*core.GetFlareFilesResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFlareFiles", arg0, arg1)
+	ret0, _ := ret[0].(*core.GetFlareFilesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFlareFiles indicates an expected call of GetFlareFiles.
+func (mr *MockRemoteAgentServerMockRecorder) GetFlareFiles(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFlareFiles", reflect.TypeOf((*MockRemoteAgentServer)(nil).GetFlareFiles), arg0, arg1)
+}
+
+// GetStatusDetails mocks base method.
+func (m *MockRemoteAgentServer) GetStatusDetails(arg0 context.Context, arg1 *core.GetStatusDetailsRequest) (*core.GetStatusDetailsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStatusDetails", arg0, arg1)
+	ret0, _ := ret[0].(*core.GetStatusDetailsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetStatusDetails indicates an expected call of GetStatusDetails.
+func (mr *MockRemoteAgentServerMockRecorder) GetStatusDetails(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStatusDetails", reflect.TypeOf((*MockRemoteAgentServer)(nil).GetStatusDetails), arg0, arg1)
 }

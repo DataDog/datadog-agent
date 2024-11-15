@@ -79,6 +79,7 @@ github.com/DataDog/datadog-agent/comp/core/tagger/common
 github.com/DataDog/datadog-agent/comp/core/tagger/def
 github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop
 github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop
+github.com/DataDog/datadog-agent/comp/core/tagger/tags
 github.com/DataDog/datadog-agent/comp/core/tagger/telemetry
 github.com/DataDog/datadog-agent/comp/core/tagger/types
 github.com/DataDog/datadog-agent/comp/core/tagger/utils
@@ -300,6 +301,7 @@ github.com/DataDog/datadog-agent/pkg/util/sync
 github.com/DataDog/datadog-agent/pkg/util/system
 github.com/DataDog/datadog-agent/pkg/util/system/socket
 github.com/DataDog/datadog-agent/pkg/util/tmplvar
+github.com/DataDog/datadog-agent/pkg/util/utilizationtracker
 github.com/DataDog/datadog-agent/pkg/version
 github.com/DataDog/datadog-api-client-go/v2
 github.com/DataDog/datadog-api-client-go/v2/api/datadog
