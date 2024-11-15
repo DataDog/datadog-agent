@@ -14,7 +14,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/hashicorp/go-multierror"
 
@@ -29,11 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-var (
-	testActivityDumpDuration             = time.Second * 30
-	testActivityDumpLoadControllerPeriod = time.Second * 10
 )
 
 const testConfig = `---
