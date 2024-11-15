@@ -94,7 +94,7 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
 	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}))
-	exporter, err := f.CreateTracesExporter(ctx, params, &cfg)
+	exporter, err := f.CreateTraces(ctx, params, &cfg)
 	assert.NoError(t, err)
 
 	go traceagent.Run()
@@ -136,7 +136,7 @@ func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 
 	// The client should have been created correctly
 	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}))
-	exp, err := f.CreateTracesExporter(context.Background(), params, cfg)
+	exp, err := f.CreateTraces(context.Background(), params, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, exp)
 }

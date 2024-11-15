@@ -95,7 +95,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	if opts.TagsResolver != nil {
 		tagsResolver = opts.TagsResolver
 	} else {
-		tagsResolver = tags.NewResolver(config.Probe, telemetry)
+		tagsResolver = tags.NewResolver(telemetry)
 	}
 
 	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)

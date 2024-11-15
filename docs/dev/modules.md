@@ -25,18 +25,63 @@ After you have refactored, if needed, and listed the packages that you want to e
  	    github.com/DataDog/datadog-agent/path/to/module => ./path/to/module
     )
     ```
-1. Update the `DEFAULT_MODULES` dictionary in the `tasks/modules.py` file. You need to create a new module, specifying the path, targets, and a condition to run tests (if any).
-   For example, if `pkg/A` depends on `pkg/B` and `pkg/B` is Windows only, we would specify:
-   ```python
-   DEFAULT_MODULES = {
-    "pkg/A": GoModule("pkg/A"),
-    "pkg/B": GoModule("pkg/B", condition=lambda: sys.platform == "win32")
-   }
-   ```
-   The dependencies are computed automatically.
+1. Update the `modules.yml` file at the root of the repository. See the GoModule documentation [here](/tasks/libs/common/gomodules.py) for attributes that can be defined. The dependencies are computed automatically. Here are two example configurations:
+
+    ```yaml
+    my/module:
+        condition: is_linux
+        used_by_otel: true
+    ```
+
+    ```yaml
+    my/module:
+        independent: false
+        lint_targets:
+        - ./pkg
+        - ./cmd
+        - ./comp
+        targets:
+        - ./pkg
+        - ./cmd
+        - ./comp
+    ```
 
 ## Go nested modules tooling
 
 Go nested modules interdependencies are automatically updated when creating a release candidate or a final version, with the same tasks that update the `release.json`. For Agent version `7.X.Y` the module will have version `v0.X.Y`.
 
 Go nested modules are tagged automatically by the `release.tag-version` invoke task, on the same commit as the main module, with a tag of the form `path/to/module/v0.X.Y`.
+
+## The `modules.yml` file
+
+The `modules.yml` file gathers all go modules configuration.
+Each module is listed even if this module has default attributes or is ignored.
+
+Here is an example:
+
+```yaml
+modules:
+  .:
+    independent: false
+    lint_targets:
+    - ./pkg
+    - ./cmd
+    - ./comp
+    test_targets:
+    - ./pkg
+    - ./cmd
+    - ./comp
+  comp/api/api/def:
+    used_by_otel: true
+  comp/api/authtoken: default
+  test/integration/serverless/src: ignored
+  tools/retry_file_dump:
+    should_test_condition: never
+    independent: false
+    should_tag: false
+```
+
+`default` is for modules with default attribute values and `ignored` for ignored modules.
+To create a special configuration, the attributes of `GoModule` can be overriden. Attributes details are located within the `GoModule` class.
+
+This file is linted with `inv modules.validate [--fix-format]`.
