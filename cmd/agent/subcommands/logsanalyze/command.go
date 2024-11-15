@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package logscheck implements 'agent logs-analyze'.
+// Package logscheck implements 'agent analyze-logs'.
 package logscheck
 
 import (
@@ -24,7 +24,7 @@ import (
 
 const defaultCoreConfigPath = "bin/agent/dist/datadog.yaml"
 
-// CliParams holds the command-line argument and dependencies for the logs-analyze subcommand.
+// CliParams holds the command-line argument and dependencies for the analyze-logs subcommand.
 type CliParams struct {
 	*command.GlobalParams
 
@@ -46,7 +46,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 
 	cmd := &cobra.Command{
-		Use:   "logs-analyze",
+		Use:   "analyze-logs",
 		Short: "Analyze logs configuration in isolation",
 		Long:  `Run the Datadog agent in logs check mode with a specific configuration file.`,
 		RunE: func(_ *cobra.Command, args []string) error {

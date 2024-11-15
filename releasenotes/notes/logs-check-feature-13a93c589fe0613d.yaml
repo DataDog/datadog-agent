@@ -8,7 +8,7 @@
 ---
 features:
   - |
-    The Logs Agent Check feature introduces a new subcommand (agent logs-analyze) within the Datadog Agent, 
+    The Logs Agent Check feature introduces a new subcommand (agent analyze-logs) within the Datadog Agent, 
     designed to help users test log configurations, regular expressions, and processing rules in isolation. 
     This feature provides a streamlined, cost-effective method for validating log configurations without 
     the need to run the entire Datadog Agent or send data to Datadog, allowing users to quickly identify configuration issues.
