@@ -25,6 +25,8 @@ type ConfigTestSuite struct {
 
 func (suite *ConfigTestSuite) SetupTest() {
 	configmock.New(suite.T())
+	suite.T().Setenv("DD_API_KEY", "")
+	suite.T().Setenv("DD_SITE", "")
 }
 
 func TestNoURIsProvided(t *testing.T) {
@@ -69,7 +71,7 @@ func (suite *ConfigTestSuite) TestAgentConfigDefaults() {
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
 	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
 	assert.Equal(t, true, c.Get("logs_enabled"))
-	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
 	assert.Equal(t, 5, c.Get("logs_config.batch_wait"))
 	assert.Equal(t, true, c.Get("logs_config.use_compression"))
 	assert.Equal(t, true, c.Get("logs_config.force_use_http"))
@@ -94,7 +96,7 @@ func (suite *ConfigTestSuite) TestAgentConfigWithDatadogYamlDefaults() {
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
 	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
 	assert.Equal(t, true, c.Get("logs_enabled"))
-	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
 	assert.Equal(t, 5, c.Get("logs_config.batch_wait"))
 	assert.Equal(t, true, c.Get("logs_config.use_compression"))
 	assert.Equal(t, true, c.Get("logs_config.force_use_http"))

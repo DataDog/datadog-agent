@@ -16,41 +16,28 @@ import (
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
+	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 )
 
-var _ component.Config = (*ExporterConfig)(nil)
-
 func newDefaultConfig() component.Config {
+	mcfg := MetricsConfig{
+		TagCardinality:       "low",
+		APMStatsReceiverAddr: "http://localhost:8126/v0.6/stats",
+		Tags:                 "",
+	}
+	pkgmcfg := datadogconfig.CreateDefaultConfig().(*datadogconfig.Config).Metrics
+	mcfg.Metrics = pkgmcfg
+
 	return &ExporterConfig{
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
 		TimeoutConfig: exporterhelper.TimeoutConfig{Timeout: 0},
 		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
 		QueueConfig: exporterhelper.NewDefaultQueueConfig(),
 
-		Metrics: MetricsConfig{
-			DeltaTTL: 3600,
-			ExporterConfig: MetricsExporterConfig{
-				ResourceAttributesAsTags:           false,
-				InstrumentationScopeMetadataAsTags: false,
-			},
-			TagCardinality: "low",
-			HistConfig: HistogramConfig{
-				Mode:             "distributions",
-				SendAggregations: false,
-			},
-			SumConfig: SumConfig{
-				CumulativeMonotonicMode:        CumulativeMonotonicSumModeToDelta,
-				InitialCumulativeMonotonicMode: InitialValueModeAuto,
-			},
-			SummaryConfig: SummaryConfig{
-				Mode: SummaryModeGauges,
-			},
-			APMStatsReceiverAddr: "http://localhost:8126/v0.6/stats",
-			Tags:                 "",
-		},
+		Metrics: mcfg,
 	}
 }
 
@@ -80,25 +67,26 @@ type Exporter struct {
 	apmReceiverAddr string
 }
 
+// TODO: expose the same function in OSS exporter and remove this
 func translatorFromConfig(
 	set component.TelemetrySettings,
 	attributesTranslator *attributes.Translator,
-	cfg *ExporterConfig,
+	cfg datadogconfig.MetricsConfig,
 	hostGetter SourceProviderFunc,
 	statsIn chan []byte,
 ) (*metrics.Translator, error) {
-	histogramMode := metrics.HistogramMode(cfg.Metrics.HistConfig.Mode)
+	histogramMode := metrics.HistogramMode(cfg.HistConfig.Mode)
 	switch histogramMode {
 	case metrics.HistogramModeCounters, metrics.HistogramModeNoBuckets, metrics.HistogramModeDistributions:
 		// Do nothing
 	default:
-		return nil, fmt.Errorf("invalid `mode` %q", cfg.Metrics.HistConfig.Mode)
+		return nil, fmt.Errorf("invalid `mode` %q", cfg.HistConfig.Mode)
 	}
 
 	options := []metrics.TranslatorOption{
 		metrics.WithFallbackSourceProvider(hostGetter),
 		metrics.WithHistogramMode(histogramMode),
-		metrics.WithDeltaTTL(cfg.Metrics.DeltaTTL),
+		metrics.WithDeltaTTL(cfg.DeltaTTL),
 		metrics.WithOTelPrefix(),
 	}
 
@@ -106,29 +94,29 @@ func translatorFromConfig(
 		options = append(options, metrics.WithStatsOut(statsIn))
 	}
 
-	if cfg.Metrics.HistConfig.SendAggregations {
+	if cfg.HistConfig.SendAggregations {
 		options = append(options, metrics.WithHistogramAggregations())
 	}
 
-	switch cfg.Metrics.SummaryConfig.Mode {
-	case SummaryModeGauges:
+	switch cfg.SummaryConfig.Mode {
+	case datadogconfig.SummaryModeGauges:
 		options = append(options, metrics.WithQuantiles())
 	}
 
-	if cfg.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags {
+	if cfg.ExporterConfig.InstrumentationScopeMetadataAsTags {
 		options = append(options, metrics.WithInstrumentationLibraryMetadataAsTags())
 	}
 
 	var numberMode metrics.NumberMode
-	switch cfg.Metrics.SumConfig.CumulativeMonotonicMode {
-	case CumulativeMonotonicSumModeRawValue:
+	switch cfg.SumConfig.CumulativeMonotonicMode {
+	case datadogconfig.CumulativeMonotonicSumModeRawValue:
 		numberMode = metrics.NumberModeRawValue
-	case CumulativeMonotonicSumModeToDelta:
+	case datadogconfig.CumulativeMonotonicSumModeToDelta:
 		numberMode = metrics.NumberModeCumulativeToDelta
 	}
 	options = append(options, metrics.WithNumberMode(numberMode))
 	options = append(options, metrics.WithInitialCumulMonoValueMode(
-		metrics.InitialCumulMonoValueMode(cfg.Metrics.SumConfig.InitialCumulativeMonotonicMode)))
+		metrics.InitialCumulMonoValueMode(cfg.SumConfig.InitialCumulativeMonotonicMode)))
 
 	return metrics.NewTranslator(set, attributesTranslator, options...)
 }
@@ -143,12 +131,7 @@ func NewExporter(
 	hostGetter SourceProviderFunc,
 	statsIn chan []byte,
 ) (*Exporter, error) {
-	// Log any warnings from unmarshaling.
-	for _, warning := range cfg.warnings {
-		set.Logger.Warn(warning)
-	}
-
-	tr, err := translatorFromConfig(set, attributesTranslator, cfg, hostGetter, statsIn)
+	tr, err := translatorFromConfig(set, attributesTranslator, cfg.Metrics.Metrics, hostGetter, statsIn)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}

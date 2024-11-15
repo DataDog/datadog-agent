@@ -24,9 +24,8 @@ import (
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
+	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config/confighttp"
-	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -116,79 +115,24 @@ func NewFactory(
 	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper)
 }
 
-func defaultClientConfig() confighttp.ClientConfig {
-	// do not use NewDefaultClientConfig for backwards-compatibility
-	return confighttp.ClientConfig{
-		Timeout: 15 * time.Second,
-	}
-}
-
 // CreateDefaultConfig creates the default exporter configuration
 func CreateDefaultConfig() component.Config {
-	return &Config{
-		ClientConfig:  defaultClientConfig(),
-		BackOffConfig: configretry.NewDefaultBackOffConfig(),
-		QueueConfig:   exporterhelper.NewDefaultQueueConfig(),
-
-		API: APIConfig{
-			Site: "datadoghq.com",
-		},
-
-		Metrics: serializerexporter.MetricsConfig{
-			TCPAddrConfig: confignet.TCPAddrConfig{
-				Endpoint: "https://api.datadoghq.com",
-			},
-			DeltaTTL: 3600,
-			ExporterConfig: serializerexporter.MetricsExporterConfig{
-				ResourceAttributesAsTags:           false,
-				InstrumentationScopeMetadataAsTags: false,
-			},
-			HistConfig: serializerexporter.HistogramConfig{
-				Mode:             "distributions",
-				SendAggregations: false,
-			},
-			SumConfig: serializerexporter.SumConfig{
-				CumulativeMonotonicMode:        serializerexporter.CumulativeMonotonicSumModeToDelta,
-				InitialCumulativeMonotonicMode: serializerexporter.InitialValueModeAuto,
-			},
-			SummaryConfig: serializerexporter.SummaryConfig{
-				Mode: serializerexporter.SummaryModeGauges,
-			},
-		},
-
-		Traces: TracesConfig{
-			TCPAddrConfig: confignet.TCPAddrConfig{
-				Endpoint: "https://trace.agent.datadoghq.com",
-			},
-			IgnoreResources:           []string{},
-			SpanNameAsResourceName:    true,
-			ComputeTopLevelBySpanKind: true,
-		},
-
-		Logs: LogsConfig{
-			TCPAddrConfig: confignet.TCPAddrConfig{
-				Endpoint: "https://agent-http-intake.logs.datadoghq.com",
-			},
-			UseCompression:   true,
-			CompressionLevel: 6,
-			BatchWait:        5,
-		},
-
-		HostMetadata: HostMetadataConfig{
-			Enabled:        true,
-			HostnameSource: HostnameSourceConfigOrSystem,
-		},
-	}
+	ddcfg := datadogconfig.CreateDefaultConfig().(*datadogconfig.Config)
+	ddcfg.Traces.TracesConfig.ComputeTopLevelBySpanKind = true
+	ddcfg.Traces.TracesConfig.SpanNameAsResourceName = true
+	ddcfg.Logs.Endpoint = "https://agent-http-intake.logs.datadoghq.com"
+	ddcfg.HostMetadata.Enabled = false
+	return ddcfg
 }
 
 // checkAndCastConfig checks the configuration type and its warnings, and casts it to
 // the Datadog Config struct.
-func checkAndCastConfig(c component.Config, logger *zap.Logger) *Config {
-	cfg, ok := c.(*Config)
+func checkAndCastConfig(c component.Config, logger *zap.Logger) *datadogconfig.Config {
+	cfg, ok := c.(*datadogconfig.Config)
 	if !ok {
 		panic("programming error: config structure is not of type *datadogexporter.Config")
 	}
-	cfg.logWarnings(logger)
+	cfg.LogWarnings(logger)
 	return cfg
 }
 
@@ -220,7 +164,7 @@ func (f *factory) createTracesExporter(
 		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0 * time.Second}),
 		// We don't do retries on traces because of deduping concerns on APM Events.
 		exporterhelper.WithRetry(configretry.BackOffConfig{Enabled: false}),
-		exporterhelper.WithQueue(cfg.QueueConfig),
+		exporterhelper.WithQueue(cfg.QueueSettings),
 	)
 }
 
@@ -240,11 +184,13 @@ func (f *factory) createMetricsExporter(
 	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
 	sf := serializerexporter.NewFactory(f.s, &tagEnricher{}, f.h, statsIn, &wg)
 	ex := &serializerexporter.ExporterConfig{
-		Metrics: cfg.Metrics,
+		Metrics: serializerexporter.MetricsConfig{
+			Metrics: cfg.Metrics,
+		},
 		TimeoutConfig: exporterhelper.TimeoutConfig{
 			Timeout: cfg.Timeout,
 		},
-		QueueConfig: cfg.QueueConfig,
+		QueueConfig: cfg.QueueSettings,
 	}
 	return sf.CreateMetrics(ctx, set, ex)
 }
