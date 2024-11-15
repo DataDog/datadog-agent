@@ -46,8 +46,8 @@
   extends:
     - .kitchen_azure_x64
   before_script:  # test all of the kernels to make sure the driver loads and runs properly
-    - WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
-    - RELEASE_VERSION=$RELEASE_VERSION_6
+    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6
+    - export RELEASE_VERSION=$RELEASE_VERSION_6
     - export WINDOWS_DDPROCMON_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION_6::WINDOWS_DDPROCMON_DRIVER")
     - export WINDOWS_DDPROCMON_VERSION=$(inv release.get-release-json-value "$RELEASE_VERSION_6::WINDOWS_DDPROCMON_VERSION")
     - export WINDOWS_DDPROCMON_SHASUM=$(inv release.get-release-json-value "$RELEASE_VERSION_6::WINDOWS_DDPROCMON_SHASUM")
