@@ -10,11 +10,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/awslabs/amazon-ecr-credential-helper/ecr-login"
@@ -251,6 +255,7 @@ func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Imag
 			remote.WithContext(ctx),
 			remote.WithAuthFromKeychain(refAndKeychain.keychain),
 			remote.WithTransport(httptrace.WrapRoundTripper(d.client.Transport)),
+			remote.WithRetryPredicate(shouldRetryNetwork),
 		)
 		if err != nil {
 			multiErr = multierr.Append(multiErr, fmt.Errorf("could not download image using %s: %w", url, err))
@@ -391,4 +396,45 @@ func (k usernamePasswordKeychain) Resolve(_ authn.Resource) (authn.Authenticator
 		Username: k.username,
 		Password: k.password,
 	}), nil
+}
+
+// This is implemented by several errors in the net package as well as in go-containerregistry
+// transport.Error.
+type temporary interface {
+	Temporary() bool
+}
+
+// isTemporary returns true if err implements Temporary() and it returns true.
+func isTemporary(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	if te, ok := err.(temporary); ok && te.Temporary() {
+		return true
+	}
+	return false
+}
+
+// isConnectionResetByPeer returns true if the error is a connection reset by peer error
+func isConnectionResetByPeer(err error) bool {
+	if netErr, ok := err.(*net.OpError); ok {
+		if syscallErr, ok := netErr.Err.(*os.SyscallError); ok {
+			if errno, ok := syscallErr.Err.(syscall.Errno); ok {
+				return errno == syscall.ECONNRESET
+			}
+		}
+	}
+	return false
+}
+
+// shouldRetryNetwork returns true if the error is a temporary network error that the transport should retry
+func shouldRetryNetwork(err error) bool {
+	return isConnectionResetByPeer(err) ||
+		// The following are taken from the default go-containerregistry method
+		isTemporary(err) ||
+		errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.Is(err, io.EOF) ||
+		errors.Is(err, syscall.EPIPE) ||
+		errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, net.ErrClosed)
 }
