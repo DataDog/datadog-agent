@@ -37,11 +37,7 @@ BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "agent")
 AGENT_TAG = "datadog/agent:master"
 
-BUNDLED_AGENTS = {
-    # system-probe requires a working compilation environment for eBPF so we do not
-    # enable it by default but we enable it in the released artifacts.
-    AgentFlavor.base: ["process-agent", "trace-agent", "security-agent"],
-}
+BUNDLED_AGENTS = {}
 
 if sys.platform == "win32":
     # Our `ridk enable` toolchain puts Ruby's bin dir at the front of the PATH
