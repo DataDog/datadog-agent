@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestrator
 go 1.22.0
 
 replace (
+	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../api/api/def
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../core/config
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../core/flare/builder
