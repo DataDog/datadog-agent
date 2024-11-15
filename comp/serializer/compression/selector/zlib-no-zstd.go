@@ -17,20 +17,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// NewCompressorReq returns a new Compressor based on serializer_compressor_kind
+// This function is called only when the zlib build tag is included
+func NewCompressorReq(req compression.Requires) compression.Provides {
+	switch req.Cfg.GetString("serializer_compressor_kind") {
+	case common.ZlibKind:
+		return compressionzlib.NewComponent()
+	case common.ZstdKind:
+		log.Warn("zstd build tag not included. using zlib")
+		return compressionzlib.NewComponent()
+	case common.NoneKind:
+		log.Warn("no serializer_compressor_kind set. use zlib or zstd")
+		return compressionnoop.NewComponent()
+	default:
+		log.Warn("invalid serializer_compressor_kind detected. use zlib or zstd")
+		return compressionnoop.NewComponent()
+	}
+}
+
 // NewCompressor returns a new Compressor based on serializer_compressor_kind
 // This function is called only when the zlib build tag is included
 func NewCompressor(cfg config.Component) compression.Component {
-	switch cfg.GetString("serializer_compressor_kind") {
-	case common.ZlibKind:
-		return compressionzlib.NewComponent().Comp
-	case common.ZstdKind:
-		log.Warn("zstd build tag not included. using zlib")
-		return compressionzlib.NewComponent().Comp
-	case common.NoneKind:
-		log.Warn("no serializer_compressor_kind set. use zlib or zstd")
-		return compressionnoop.NewComponent().Comp
-	default:
-		log.Warn("invalid serializer_compressor_kind detected. use zlib or zstd")
-		return compressionnoop.NewComponent().Comp
-	}
+	return NewCompressorReq(compression.Requires{Cfg: cfg}).Comp
 }

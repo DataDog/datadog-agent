@@ -18,20 +18,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// NewCompressorReq returns a new Compressor based on serializer_compressor_kind
+// This function is called when both zlib and zstd build tags are included
+func NewCompressorReq(req compression.Requires) compression.Provides {
+	switch req.Cfg.GetString("serializer_compressor_kind") {
+	case common.ZlibKind:
+		return implzlib.NewComponent()
+	case common.ZstdKind:
+		level := req.Cfg.GetInt("serializer_zstd_compressor_level")
+		return implzstd.NewComponent(implzstd.Requires{Level: level})
+	case common.NoneKind:
+		log.Warn("no serializer_compressor_kind set. use zlib or zstd")
+		return implnoop.NewComponent()
+	default:
+		log.Warn("invalid serializer_compressor_kind detected. use one of 'zlib', 'zstd'")
+		return implnoop.NewComponent()
+	}
+}
+
 // NewCompressor returns a new Compressor based on serializer_compressor_kind
 // This function is called when both zlib and zstd build tags are included
 func NewCompressor(cfg config.Component) compression.Component {
-	switch cfg.GetString("serializer_compressor_kind") {
-	case common.ZlibKind:
-		return implzlib.NewComponent().Comp
-	case common.ZstdKind:
-		level := cfg.GetInt("serializer_zstd_compressor_level")
-		return implzstd.NewComponent(implzstd.Requires{Level: level}).Comp
-	case common.NoneKind:
-		log.Warn("no serializer_compressor_kind set. use zlib or zstd")
-		return implnoop.NewComponent().Comp
-	default:
-		log.Warn("invalid serializer_compressor_kind detected. use one of 'zlib', 'zstd'")
-		return implnoop.NewComponent().Comp
-	}
+	return NewCompressorReq(compression.Requires{Cfg: cfg}).Comp
 }
