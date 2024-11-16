@@ -230,6 +230,30 @@ type ContainerStatus struct {
 	LastState    ContainerState `json:"lastState"`
 }
 
+// Running returns running state of the container.
+func (c *ContainerStatus) Running() *ContainerStateRunning {
+	// https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#Container:~:text=containerStatuses.lastState%20(-,ContainerState,-)
+	if c.LastState.Running != nil {
+		return c.LastState.Running
+	}
+	if c.State.Running != nil {
+		return c.State.Running
+	}
+	return nil
+}
+
+// Terminated returns terminated state of the container.
+func (c *ContainerStatus) Terminated() *ContainerStateTerminated {
+	// https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#Container:~:text=containerStatuses.lastState%20(-,ContainerState,-)
+	if c.LastState.Terminated != nil {
+		return c.LastState.Terminated
+	}
+	if c.State.Terminated != nil {
+		return c.State.Terminated
+	}
+	return nil
+}
+
 // IsPending returns if the container doesn't have an ID
 func (c *ContainerStatus) IsPending() bool {
 	return c.ID == ""

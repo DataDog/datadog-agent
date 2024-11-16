@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -148,4 +149,52 @@ func TestMergeECSContainer(t *testing.T) {
 	assert.NotSame(t, container1.ECSContainer, container2.ECSContainer, "pointers of ECSContainer should not be equal")
 	assert.Nil(t, container2.ECSContainer)
 	assert.EqualValues(t, container1.ECSContainer.DisplayName, "ecs-container-1")
+}
+
+func TestUptime(t *testing.T) {
+	startedAt := time.Date(2024, 11, 16, 10, 22, 0, 0, time.UTC)
+	tests := []struct {
+		name                  string
+		startedAt, finishedAt time.Time
+		expectedDuration      time.Duration
+		requireEqual          bool
+	}{
+		{
+			name:             "container is finished",
+			startedAt:        startedAt,
+			finishedAt:       startedAt.Add(1234 * time.Second),
+			expectedDuration: 1234 * time.Second,
+			requireEqual:     true,
+		},
+		{
+			name:             "container is still running",
+			startedAt:        startedAt,
+			finishedAt:       time.Time{},
+			expectedDuration: time.Since(startedAt),
+			requireEqual:     false,
+		},
+		{
+			name:             "started is empty",
+			startedAt:        time.Time{},
+			finishedAt:       time.Time{},
+			expectedDuration: 0,
+			requireEqual:     true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			container := Container{
+				State: ContainerState{
+					StartedAt:  tt.startedAt,
+					FinishedAt: tt.finishedAt,
+				},
+			}
+			uptime := container.State.Uptime()
+			if tt.requireEqual {
+				assert.Equal(t, tt.expectedDuration, uptime)
+			} else {
+				assert.Greater(t, uptime, tt.expectedDuration)
+			}
+		})
+	}
 }

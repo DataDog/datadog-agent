@@ -127,7 +127,7 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 }
 
 func (p *Processor) processContainer(sender sender.Sender, tags []string, container *workloadmeta.Container, containerStats *metrics.ContainerStats) error {
-	if uptime := time.Since(container.State.StartedAt); uptime >= 0 {
+	if uptime := container.State.Uptime(); uptime >= 0 {
 		p.sendMetric(sender.Gauge, "container.uptime", pointer.Ptr(uptime.Seconds()), tags)
 	}
 

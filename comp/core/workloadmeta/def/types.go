@@ -320,6 +320,18 @@ type ContainerState struct {
 	ExitCode   *int64
 }
 
+// Uptime returns the duration the container has been running.
+// If the container has stopped, it returns the duration it was running.
+func (c ContainerState) Uptime() time.Duration {
+	if c.StartedAt.IsZero() {
+		return 0
+	}
+	if c.FinishedAt.IsZero() {
+		return time.Since(c.StartedAt)
+	}
+	return c.FinishedAt.Sub(c.StartedAt)
+}
+
 // String returns a string representation of ContainerState.
 func (c ContainerState) String(verbose bool) string {
 	var sb strings.Builder
