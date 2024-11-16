@@ -27,6 +27,8 @@ import (
 
 	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
@@ -247,12 +249,14 @@ func (r *HTTPReceiver) Start() {
 		return
 	}
 
+	// accept both http1.1 + h2 in plaintext
+	handler := h2c.NewHandler(r.buildMux(), &http2.Server{})
 	httpLogger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	r.server = &http.Server{
 		// Note: We don't set WriteTimeout since we want to have different timeouts per-handler
 		ReadTimeout: getConfiguredRequestTimeoutDuration(r.conf),
 		ErrorLog:    stdlog.New(httpLogger, "http.Server: ", 0),
-		Handler:     r.buildMux(),
+		Handler:     handler,
 		ConnContext: connContext,
 	}
 
