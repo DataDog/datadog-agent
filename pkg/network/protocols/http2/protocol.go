@@ -8,13 +8,18 @@
 package http2
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io"
+	"os"
 	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"github.com/davecgh/go-spew/spew"
+	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -39,6 +44,8 @@ type Protocol struct {
 
 	// http2Telemetry is used to retrieve metrics from the kernel
 	http2Telemetry             *kernelTelemetry
+	http2TelemetryBuffer       *bytes.Reader
+	http2TelemetryBufferRawBuf []byte
 	kernelTelemetryStopChannel chan struct{}
 
 	dynamicTable *DynamicTable
@@ -272,6 +279,13 @@ func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	// Configure event stream
 	events.Configure(p.cfg, eventStream, mgr, opts)
 	p.dynamicTable.configureOptions(mgr, opts)
+
+	if features.HaveMapFlag(features.BPF_F_MMAPABLE) == nil {
+		opts.MapSpecEditors[TelemetryMap] = manager.MapSpecEditor{
+			Flags:      unix.BPF_F_MMAPABLE,
+			EditorFlag: manager.EditFlags,
+		}
+	}
 }
 
 // PreStart is called before the start of the provided eBPF manager.
@@ -295,6 +309,17 @@ func (p *Protocol) PreStart(mgr *manager.Manager) (err error) {
 	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry, NewIncompleteBuffer(p.cfg))
 	p.eventsConsumer.Start()
 
+	if telemetryMap, _, mapErr := mgr.GetMap(TelemetryMap); mapErr == nil {
+		if telemetryMap.Flags()&unix.BPF_F_MMAPABLE != 0 {
+			// Telemetry struct is 240 bytes, but the mmaped buffer must be page-aligned, so using a single page
+			p.http2TelemetryBufferRawBuf, err = unix.Mmap(telemetryMap.FD(), 0, os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+			if err != nil {
+				return fmt.Errorf("failed to mmap %q map: %w", TelemetryMap, err)
+			}
+			p.http2TelemetryBuffer = bytes.NewReader(p.http2TelemetryBufferRawBuf)
+		}
+	}
+
 	return
 }
 
@@ -310,6 +335,30 @@ func (p *Protocol) PostStart(mgr *manager.Manager) error {
 }
 
 func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
+	ticker := time.NewTicker(30 * time.Second)
+	http2Telemetry := &HTTP2Telemetry{}
+
+	if p.http2TelemetryBuffer != nil {
+		go func() {
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ticker.C:
+					p.http2TelemetryBuffer.Seek(0, io.SeekStart)
+					binary.Read(p.http2TelemetryBuffer, binary.LittleEndian, http2Telemetry)
+					p.http2Telemetry.update(http2Telemetry, false)
+
+					p.http2Telemetry.Log()
+				case <-p.kernelTelemetryStopChannel:
+					return
+				}
+			}
+		}()
+		return
+	}
+
+	// Backward compatibility for kernels that do not support mmapable maps
 	mp, err := protocols.GetMap(mgr, TelemetryMap)
 	if err != nil {
 		log.Warn(err)
@@ -323,8 +372,6 @@ func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
 	}
 
 	var zero uint32
-	http2Telemetry := &HTTP2Telemetry{}
-	ticker := time.NewTicker(30 * time.Second)
 
 	go func() {
 		defer ticker.Stop()
@@ -369,6 +416,12 @@ func (p *Protocol) Stop(_ *manager.Manager) {
 		p.statkeeper.Close()
 	}
 
+	if p.http2TelemetryBufferRawBuf != nil {
+		if err := unix.Munmap(p.http2TelemetryBufferRawBuf); err != nil {
+			log.Errorf("failed to munmap http2 telemetry buffer: %s", err)
+		}
+		p.http2TelemetryBuffer = nil
+	}
 	close(p.kernelTelemetryStopChannel)
 }
 
