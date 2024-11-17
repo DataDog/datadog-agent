@@ -93,37 +93,33 @@ def build_linux_script(
         env={'GOOS': 'linux', 'GOARCH': 'arm64'},
     )
     with open(amd64_path, 'rb') as f:
-        amd64_b64 = base64.b64encode(f.read()).decode('utf-8').replace('\n', '')
+        amd64_b64 = base64.encodebytes(f.read()).decode('utf-8')
     with open(arm64_path, 'rb') as f:
-        arm64_b64 = base64.b64encode(f.read()).decode('utf-8').replace('\n', '')
+        arm64_b64 = base64.encodebytes(f.read()).decode('utf-8')
 
     with open('pkg/fleet/installer/setup.sh') as f:
         setup_content = f.read()
     setup_content = setup_content.replace('INSTALLER_BIN_LINUX_AMD64', amd64_b64)
     setup_content = setup_content.replace('INSTALLER_BIN_LINUX_ARM64', arm64_b64)
 
-    amd64_sig_path = os.path.join(BIN_PATH, 'bootstrapper-linux-amd64.asc')
-    arm64_sig_path = os.path.join(BIN_PATH, 'bootstrapper-linux-arm64.asc')
-    amd64_sig_b64 = ''
-    arm64_sig_b64 = ''
-    if signing_key_id:
-        ctx.run(
-            f'gpg --armor --output {amd64_sig_path} --detach-sig {amd64_path} --default-key {signing_key_id}',
-            env={'GPG_TTY': 'no-tty'},
-        )
-        ctx.run(
-            f'gpg --armor --output {arm64_sig_path} --detach-sig {arm64_path} --default-key {signing_key_id}',
-            env={'GPG_TTY': 'no-tty'},
-        )
-        with open(amd64_sig_path, 'rb') as f:
-            amd64_sig_b64 = base64.b64encode(f.read()).decode('utf-8').replace('\n', '')
-        with open(arm64_sig_path, 'rb') as f:
-            arm64_sig_b64 = base64.b64encode(f.read()).decode('utf-8').replace('\n', '')
-    setup_content = setup_content.replace('INSTALLER_SIG_LINUX_AMD64', amd64_sig_b64)
-    setup_content = setup_content.replace('INSTALLER_SIG_LINUX_ARM64', arm64_sig_b64)
-
     with open(os.path.join(BIN_PATH, 'setup.sh'), 'w') as f:
         f.write(setup_content)
+
+    if signing_key_id:
+        ctx.run(
+            f'gpg --armor --batch --yes --output {os.path.join(BIN_PATH, "setup.sh.asc")} --clearsign --digest-algo SHA256 --default-key {signing_key_id} {os.path.join(BIN_PATH, "setup.sh")}',
+        )
+        # Add the signed footer to the setup.sh file
+        with (
+            open(os.path.join(BIN_PATH, "setup.sh.asc")) as signed_file,
+            open(os.path.join(BIN_PATH, 'setup.sh'), 'w') as f,
+        ):
+            skip_header = False
+            for line in signed_file:
+                if skip_header:
+                    f.write(line)
+                elif line.strip() == "":  # Empty line marks end of header
+                    skip_header = True
 
 
 @task
