@@ -8,11 +8,13 @@
 package gpu
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -107,41 +109,17 @@ func (c *cudaEventConsumer) Start() {
 				}
 
 				header := (*gpuebpf.CudaEventHeader)(unsafe.Pointer(&batchData.Data[0]))
+				dataPtr := unsafe.Pointer(&batchData.Data[0])
 
-				pid := uint32(header.Pid_tgid >> 32)
-				key := streamKey{pid: pid, stream: header.Stream_id}
-
-				if _, ok := c.streamHandlers[key]; !ok {
-					cgroup := unix.ByteSliceToString(header.Cgroup[:])
-					containerID, err := cgroups.ContainerFilter("", cgroup)
-					if err != nil {
-						log.Errorf("error getting container ID for cgroup %s: %s", cgroup, err)
-					}
-					c.streamHandlers[key] = newStreamHandler(key.pid, containerID, c.sysCtx)
+				var err error
+				if isStreamSpecificEvent(gpuebpf.CudaEventType(header.Type)) {
+					err = c.handleStreamEvent(header, dataPtr, dataLen)
+				} else {
+					err = c.handleGlobalEvent(header, dataPtr, dataLen)
 				}
 
-				switch header.Type {
-				case gpuebpf.CudaEventTypeKernelLaunch:
-					if dataLen != gpuebpf.SizeofCudaKernelLaunch {
-						log.Errorf("Not enough data to parse kernel launch event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaKernelLaunch)
-						continue
-					}
-					ckl := (*gpuebpf.CudaKernelLaunch)(unsafe.Pointer(&batchData.Data[0]))
-					c.streamHandlers[key].handleKernelLaunch(ckl)
-				case gpuebpf.CudaEventTypeMemory:
-					if dataLen != gpuebpf.SizeofCudaMemEvent {
-						log.Errorf("Not enough data to parse memory event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaMemEvent)
-						continue
-					}
-					cme := (*gpuebpf.CudaMemEvent)(unsafe.Pointer(&batchData.Data[0]))
-					c.streamHandlers[key].handleMemEvent(cme)
-				case gpuebpf.CudaEventTypeSync:
-					if dataLen != gpuebpf.SizeofCudaSync {
-						log.Errorf("Not enough data to parse sync event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaSync)
-						continue
-					}
-					cs := (*gpuebpf.CudaSync)(unsafe.Pointer(&batchData.Data[0]))
-					c.streamHandlers[key].handleSync(cs)
+				if err != nil {
+					log.Errorf("Error processing CUDA event: %v", err)
 				}
 
 				batchData.Done()
@@ -156,6 +134,63 @@ func (c *cudaEventConsumer) Start() {
 	log.Trace("CUDA event consumer started")
 }
 
+func isStreamSpecificEvent(eventType gpuebpf.CudaEventType) bool {
+	return eventType != gpuebpf.CudaEventTypeSetDevice
+}
+
+func (c *cudaEventConsumer) handleStreamEvent(header *gpuebpf.CudaEventHeader, data unsafe.Pointer, dataLen int) error {
+	streamHandler := c.getStreamHandler(header)
+
+	switch header.Type {
+	case gpuebpf.CudaEventTypeKernelLaunch:
+		if dataLen != gpuebpf.SizeofCudaKernelLaunch {
+			return fmt.Errorf("Not enough data to parse kernel launch event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaKernelLaunch)
+
+		}
+		streamHandler.handleKernelLaunch((*gpuebpf.CudaKernelLaunch)(data))
+	case gpuebpf.CudaEventTypeMemory:
+		if dataLen != gpuebpf.SizeofCudaMemEvent {
+			return fmt.Errorf("Not enough data to parse memory event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaMemEvent)
+
+		}
+		streamHandler.handleMemEvent((*gpuebpf.CudaMemEvent)(data))
+	case gpuebpf.CudaEventTypeSync:
+		if dataLen != gpuebpf.SizeofCudaSync {
+			return fmt.Errorf("Not enough data to parse sync event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaSync)
+
+		}
+		streamHandler.handleSync((*gpuebpf.CudaSync)(data))
+	default:
+		return fmt.Errorf("Unknown event type: %d", header.Type)
+	}
+
+	return nil
+}
+
+func getPidTidFromHeader(header *gpuebpf.CudaEventHeader) (uint32, uint32) {
+	tid := uint32(header.Pid_tgid & 0xFFFFFFFF)
+	pid := uint32(header.Pid_tgid >> 32)
+	return pid, tid
+}
+
+func (c *cudaEventConsumer) handleGlobalEvent(header *gpuebpf.CudaEventHeader, data unsafe.Pointer, dataLen int) error {
+	switch header.Type {
+	case gpuebpf.CudaEventTypeSetDevice:
+		if dataLen != gpuebpf.SizeofCudaSetDeviceEvent {
+			return fmt.Errorf("Not enough data to parse set device event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaSetDeviceEvent)
+
+		}
+		csde := (*gpuebpf.CudaSetDeviceEvent)(data)
+
+		pid, tid := getPidTidFromHeader(header)
+		c.sysCtx.setDeviceSelection(int(pid), int(tid), csde.Device)
+	default:
+		return fmt.Errorf("Unknown event type: %d", header.Type)
+	}
+
+	return nil
+}
+
 func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
 	for key, handler := range c.streamHandlers {
 		if key.pid == pid {
@@ -164,6 +199,46 @@ func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
 			_ = handler.markEnd()
 		}
 	}
+}
+
+func (c *cudaEventConsumer) getStreamKey(header *gpuebpf.CudaEventHeader) streamKey {
+	pid, tid := getPidTidFromHeader(header)
+
+	key := streamKey{
+		pid:     pid,
+		stream:  header.Stream_id,
+		gpuUUID: "",
+	}
+
+	// Try to get the GPU device if we can, but do not fail if we can't as we want to report
+	// the data even if we can't get the GPU UUID
+	gpuDevice, err := c.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid))
+	if err != nil {
+		log.Warnf("Error getting GPU device for process %d: %v", pid, err)
+	} else {
+		var ret nvml.Return
+		key.gpuUUID, ret = gpuDevice.GetUUID()
+		if ret != nvml.SUCCESS {
+			log.Warnf("Error getting GPU UUID for process %d: %v", pid, nvml.ErrorString(ret))
+		}
+	}
+
+	return key
+}
+
+func (c *cudaEventConsumer) getStreamHandler(header *gpuebpf.CudaEventHeader) *StreamHandler {
+	key := c.getStreamKey(header)
+	if _, ok := c.streamHandlers[key]; !ok {
+		cgroup := unix.ByteSliceToString(header.Cgroup[:])
+		containerID, err := cgroups.ContainerFilter("", cgroup)
+		if err != nil {
+			// We don't want to return an error here, as we can still process the event without the container ID
+			log.Errorf("error getting container ID for cgroup %s: %s", cgroup, err)
+		}
+		c.streamHandlers[key] = newStreamHandler(key.pid, containerID, c.sysCtx)
+	}
+
+	return c.streamHandlers[key]
 }
 
 func (c *cudaEventConsumer) checkClosedProcesses() {

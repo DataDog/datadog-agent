@@ -9,11 +9,13 @@ package bininspect
 
 import (
 	"debug/dwarf"
-	"debug/elf"
 	"errors"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils"
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils/locexpr"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
+
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
 	"github.com/go-delve/delve/pkg/dwarf/loclist"
 )
@@ -28,7 +30,7 @@ type dwarfInspector struct {
 // It also returns some additional relevant metadata about the given file.
 // It is using the DWARF debug data to obtain information, and therefore should be run on elf files that contain debug
 // data, like our test binaries.
-func InspectWithDWARF(elfFile *elf.File, functions []string, structFields []FieldIdentifier) (*Result, error) {
+func InspectWithDWARF(elfFile *safeelf.File, functions []string, structFields []FieldIdentifier) (*Result, error) {
 	if elfFile == nil {
 		return nil, ErrNilElf
 	}
@@ -281,7 +283,7 @@ func (d dwarfInspector) findStructOffsets(structFields []FieldIdentifier) (map[F
 // starting at offset, for address pc.
 // Adapted from github.com/go-delve/delve/pkg/proc.(*BinaryInfo).loclistEntry
 func (d dwarfInspector) getLoclistEntry(offset int64, pc uint64) (*loclist.Entry, error) {
-	debugInfoBytes, err := godwarf.GetDebugSectionElf(d.elf.file, "info")
+	debugInfoBytes, err := godwarf.GetDebugSectionElf(d.elf.file.File, "info")
 	if err != nil {
 		return nil, err
 	}
@@ -291,11 +293,11 @@ func (d dwarfInspector) getLoclistEntry(offset int64, pc uint64) (*loclist.Entry
 		return nil, err
 	}
 
-	debugLocBytes, _ := godwarf.GetDebugSectionElf(d.elf.file, "loc")
+	debugLocBytes, _ := godwarf.GetDebugSectionElf(d.elf.file.File, "loc")
 	loclist2 := loclist.NewDwarf2Reader(debugLocBytes, int(d.elf.arch.PointerSize()))
-	debugLoclistBytes, _ := godwarf.GetDebugSectionElf(d.elf.file, "loclists")
+	debugLoclistBytes, _ := godwarf.GetDebugSectionElf(d.elf.file.File, "loclists")
 	loclist5 := loclist.NewDwarf5Reader(debugLoclistBytes)
-	debugAddrBytes, _ := godwarf.GetDebugSectionElf(d.elf.file, "addr")
+	debugAddrBytes, _ := godwarf.GetDebugSectionElf(d.elf.file.File, "addr")
 	debugAddrSection := godwarf.ParseAddr(debugAddrBytes)
 
 	var base uint64

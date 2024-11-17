@@ -256,7 +256,9 @@ func (s *TracerSuite) TestTCPShortLived() {
 	assert.Equal(t, clientMessageSize, int(m.SentBytes))
 	assert.Equal(t, serverMessageSize, int(m.RecvBytes))
 	assert.Equal(t, 0, int(m.Retransmits))
-	assert.Equal(t, os.Getpid(), int(conn.Pid))
+	if !tr.config.EnableEbpfless {
+		assert.Equal(t, os.Getpid(), int(conn.Pid))
+	}
 	assert.Equal(t, addrPort(server.Address()), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
 	assert.True(t, conn.IntraHost)
@@ -318,7 +320,9 @@ func (s *TracerSuite) TestTCPOverIPv6() {
 	assert.Equal(t, clientMessageSize, int(m.SentBytes))
 	assert.Equal(t, serverMessageSize, int(m.RecvBytes))
 	assert.Equal(t, 0, int(m.Retransmits))
-	assert.Equal(t, os.Getpid(), int(conn.Pid))
+	if !tr.config.EnableEbpfless {
+		assert.Equal(t, os.Getpid(), int(conn.Pid))
+	}
 	assert.Equal(t, ln.Addr().(*net.TCPAddr).Port, int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
 	assert.True(t, conn.IntraHost)
@@ -390,14 +394,17 @@ func (s *TracerSuite) TestTCPConnsReported() {
 	defer c.Close()
 	<-processedChan
 
-	// Test
-	connections := getConnections(t, tr)
-	// Server-side
-	_, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-	require.True(t, ok)
-	// Client-side
-	_, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
+	// for ebpfless, it takes time for the packet capture to arrive, so poll
+	require.Eventually(t, func() bool {
+		// Test
+		connections := getConnections(t, tr)
+		// Server-side
+		_, okForward := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		// Client-side
+		_, okReverse := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		return okForward && okReverse
+	}, 3*time.Second, 100*time.Millisecond, "connection not found")
+
 }
 
 func (s *TracerSuite) TestUDPSendAndReceive() {
@@ -1074,8 +1081,14 @@ func (s *TracerSuite) TestTCPEstablished() {
 	laddr, raddr := c.LocalAddr(), c.RemoteAddr()
 	c.Write([]byte("hello"))
 
-	connections := getConnections(t, tr)
-	conn, ok := findConnection(laddr, raddr, connections)
+	var conn *network.ConnectionStats
+	var ok bool
+
+	// for ebpfless, wait for the packet capture to appear
+	require.Eventually(t, func() bool {
+		conn, ok = findConnection(laddr, raddr, getConnections(t, tr))
+		return ok
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
 
 	require.True(t, ok)
 	assert.Equal(t, uint16(1), conn.Last.TCPEstablished)
