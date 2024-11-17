@@ -158,7 +158,7 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
 	// so that we can time out correctly
 	require.Eventually(t, func() bool {
-		return !utils.IsProgramTraced(gpuAttacherName, cmd.Process.Pid)
+		return !utils.IsProgramTraced(gpuModuleName, gpuAttacherName, cmd.Process.Pid)
 	}, 60*time.Second, 500*time.Millisecond, "process not stopped")
 
 	stats, err := probe.GetAndFlush()
