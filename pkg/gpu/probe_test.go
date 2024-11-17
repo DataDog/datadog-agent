@@ -153,7 +153,7 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	selectedGPU := testutil.GPUUUIDs[2]
 
 	cmd := testutil.RunSampleWithArgs(t, testutil.CudaSample, sampleArgs)
-	utils.WaitForProgramsToBeTraced(t, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
+	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
 
 	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
 	// so that we can time out correctly
