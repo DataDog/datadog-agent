@@ -1924,11 +1924,11 @@ func dialHTTP2Server(t *testing.T) net.Conn {
 // getHTTP2KernelTelemetry returns the HTTP2 kernel telemetry
 func getHTTP2KernelTelemetry(monitor *Monitor, isTLS bool) (*usmhttp2.HTTP2Telemetry, error) {
 	http2Telemetry := &usmhttp2.HTTP2Telemetry{}
-	var zero uint32
 
 	mapName := usmhttp2.TelemetryMap
+	key := uint32(0)
 	if isTLS {
-		mapName = usmhttp2.TLSTelemetryMap
+		key = uint32(1)
 	}
 
 	mp, _, err := monitor.ebpfProgram.GetMap(mapName)
@@ -1936,7 +1936,7 @@ func getHTTP2KernelTelemetry(monitor *Monitor, isTLS bool) (*usmhttp2.HTTP2Telem
 		return nil, fmt.Errorf("unable to get %q map: %s", mapName, err)
 	}
 
-	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
+	if err := mp.Lookup(unsafe.Pointer(&key), unsafe.Pointer(http2Telemetry)); err != nil {
 		return nil, fmt.Errorf("unable to lookup %q map: %s", mapName, err)
 	}
 	return http2Telemetry, nil
