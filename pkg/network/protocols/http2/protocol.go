@@ -59,7 +59,7 @@ const (
 	eosParserTailCall         = "socket__http2_eos_parser"
 	eventStream               = "http2"
 
-	// TelemetryMap is the name of the map used to retrieve plaintext metrics from the kernel
+	// TelemetryMap is the name of the map that collects telemetry for plaintext and TLS encrypted HTTP/2 traffic.
 	TelemetryMap = "http2_telemetry"
 
 	tlsFirstFrameTailCall    = "uprobe__http2_tls_handle_first_frame"
