@@ -72,7 +72,7 @@ func requestAgentHostnameMetadataPayload(v *baseHostnameSuite) {
 	hostnameMeta.Hostname = hostname
 
 	// No type assertion on `legacy-resolution-hostname` since this field may be not set in some test cases
-	legacyHostname, ok := metaMap["legacy-resolution-hostname"].(string)
+	legacyHostname, _ := metaMap["legacy-resolution-hostname"].(string)
 	hostnameMeta.LegacyResolutionHostname = legacyHostname
 
 	v.hostnameMetadata = hostnameMeta
