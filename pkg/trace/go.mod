@@ -58,7 +58,7 @@ require (
 )
 
 require (
-	github.com/DataDog/go-sqllexer v0.0.16 // indirect
+	github.com/DataDog/go-sqllexer v0.0.17 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
