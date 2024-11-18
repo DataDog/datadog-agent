@@ -62,7 +62,7 @@ func (p *perfBatchManager) ExtractBatchInto(buffer *network.ConnectionBuffer, b 
 	for rc := p.extractor.NextConnection(b); rc != nil; rc = p.extractor.NextConnection(b) {
 		conn := buffer.Next()
 		populateConnStats(conn, &rc.Tup, &rc.Conn_stats, p.ch)
-		updateTCPStats(conn, &rc.Tcp_stats, rc.Tcp_retransmits)
+		updateTCPStats(conn, &rc.Tcp_stats)
 	}
 }
 
@@ -80,7 +80,7 @@ func (p *perfBatchManager) GetPendingConns(buffer *network.ConnectionBuffer) {
 		for rc := p.extractor.NextConnection(b); rc != nil; rc = p.extractor.NextConnection(b) {
 			c := buffer.Next()
 			populateConnStats(c, &rc.Tup, &rc.Conn_stats, p.ch)
-			updateTCPStats(c, &rc.Tcp_stats, rc.Tcp_retransmits)
+			updateTCPStats(c, &rc.Tcp_stats)
 		}
 	}
 	p.extractor.CleanupExpiredState(time.Now())

@@ -6,10 +6,12 @@
 package orchestrator
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
@@ -32,7 +34,7 @@ func (suite *k8sSuite) TestNode() {
 	expectAtLeastOneResource{
 		filter: &fakeintake.PayloadFilter{ResourceType: agentmodel.TypeCollectorNode},
 		test: func(payload *aggregator.OrchestratorPayload) bool {
-			return payload.Node.Metadata.Name == "kind-control-plane"
+			return payload.Node.Metadata.Name == fmt.Sprintf("%s-control-plane", suite.KubeClusterName)
 		},
 		message: "find a control plane node",
 		timeout: defaultTimeout,

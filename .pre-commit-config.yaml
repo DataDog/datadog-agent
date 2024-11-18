@@ -78,7 +78,7 @@ repos:
       description: Format .net file of the MSI installer
       language: system
       # The dotnet format tool requires a solution file to operate.
-      entry: dotnet format ./tools/windows/DatadogAgentInstaller --include 
+      entry: dotnet format ./tools/windows/DatadogAgentInstaller --include
       types: [c#]
     - id: go-mod-tidy
       name: go-mod-tidy
@@ -141,7 +141,7 @@ repos:
     - id: check-go-modules-in-python
       name: check-go-modules-in-python
       description: Validate all go modules are declared in Invoke tasks
-      entry: 'inv modules.validate'
+      entry: 'inv modules.validate --fix-format'
       language: system
       pass_filenames: false
-      files: .*go\.mod$
+      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py)$
