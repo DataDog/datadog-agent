@@ -7,6 +7,7 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
@@ -82,10 +83,19 @@ func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiv
 	processor := processor.New(cfg, inputChan, outputChan, processingRules,
 		encoder, diagnosticMessageReceiver, hostname, pipelineID)
 
-	return &processorOnlyProvider{
+	p := &processorOnlyProvider{
 		processor:  processor,
 		outputChan: outputChan,
 	}
+
+	// Start a goroutine to forward messages from outputChan to stdout
+	go func() {
+		for msg := range outputChan {
+			fmt.Printf("Message: %s\n", string(msg.GetContent()))
+		}
+	}()
+
+	return p
 }
 
 // NewMockProvider creates a new provider that will not provide any pipelines.

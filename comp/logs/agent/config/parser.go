@@ -36,15 +36,11 @@ func ParseYAML(data []byte) ([]*LogsConfig, error) {
 	v.SetConfigType(yaml)
 	err = v.ReadConfig(bytes.NewBuffer(data))
 	if err != nil {
-		fmt.Println("ERROR1")
 		return nil, fmt.Errorf("could not decode YAML logs config: %v", err)
 	}
-	fmt.Println("HEHEHXD!@#")
 	err = v.UnmarshalKey(logsPath, &configs)
 	if err != nil {
-		fmt.Println("ERROR2")
 		return nil, fmt.Errorf("could not parse YAML logs config: %v", err)
 	}
-	fmt.Println("configs is ", configs)
 	return configs, nil
 }

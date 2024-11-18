@@ -54,11 +54,4 @@ func SetUpLaunchers(conf configComponent.Component) {
 	auditor := auditor.New(defaultRunPath, auditor.DefaultRegistryFilename, auditorTTL, health)
 	fileLauncher.Start(sourceProvider, pipelineProvider, auditor, tracker)
 	lnchrs.AddLauncher(fileLauncher)
-
-	// outputChan := pipelineProvider.NextPipelineChan()
-	// for output := range outputChan {
-	// 	fmt.Println("TEST333333", output)
-	// }
-	// fmt.Println("TEST999999", outputChan)
-
 }

@@ -291,7 +291,6 @@ func (t *Tailer) readForever() {
 	}()
 
 	for {
-		fmt.Println("READ FOREVER")
 		n, err := t.read()
 		if err != nil {
 			return
@@ -333,15 +332,12 @@ func (t *Tailer) IsFinished() bool {
 
 // forwardMessages lets the Tailer forward log messages to the output channel
 func (t *Tailer) forwardMessages() {
-	fmt.Println("ANDREWQIAN")
 	defer func() {
 		// the decoder has successfully been flushed
 		t.isFinished.Store(true)
 		close(t.done)
 	}()
-	fmt.Println("DECODER output channels ?", t.decoder.OutputChan)
 	for output := range t.decoder.OutputChan {
-		fmt.Println("HUH99? ", output)
 		offset := t.decodedOffset.Load() + int64(output.RawDataLen)
 		identifier := t.Identifier()
 		if t.didFileRotate.Load() {

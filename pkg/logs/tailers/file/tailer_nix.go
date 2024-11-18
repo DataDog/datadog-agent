@@ -51,16 +51,16 @@ func (t *Tailer) read() (int, error) {
 	n, err := t.osFile.Read(inBuf)
 	if err != nil && err != io.EOF {
 		// an unexpected error occurred, stop the tailor
-		fmt.Println("READING BYTES ERROR")
 		t.file.Source.Status().Error(err)
 		return 0, log.Error("Unexpected error occurred while reading file: ", err)
 	}
-	fmt.Println("NUMBER OF BYTES READ ???", n)
 	if n == 0 {
 		return 0, nil
 	}
 	t.lastReadOffset.Add(int64(n))
-	fmt.Println("HUUH", t.lastReadOffset)
-	t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
+	fmt.Println("Number of bytes read is ", n)
+	msg := decoder.NewInput(inBuf[:n])
+	fmt.Println("MESSAGE is ", msg)
+	t.decoder.InputChan <- msg
 	return n, nil
 }
