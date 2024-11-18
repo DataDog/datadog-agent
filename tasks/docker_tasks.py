@@ -69,7 +69,7 @@ RUN chmod +x /usr/bin/compose
 ENV DOCKER_DD_AGENT=yes
 WORKDIR /
 RUN docker login
-CMD /test.bin
+CMD echo $HOME && whoami && echo "hihi" && /test.bin
 COPY test.bin /test.bin
 """
         )
@@ -102,7 +102,7 @@ COPY test.bin /test.bin
 
     stdout_logs = test_container.logs(stdout=True, stderr=False, stream=False).decode(sys.stdout.encoding)
     stderr_logs = test_container.logs(stdout=False, stderr=True, stream=False).decode(sys.stderr.encoding)
-
+    print("coucou" * 100)
     print(stdout_logs)
     print(stderr_logs, file=sys.stderr)
 
