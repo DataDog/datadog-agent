@@ -106,7 +106,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.1
 	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/trace v0.56.0-rc.3
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.111.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.113.0
 )
 
 require (
@@ -153,12 +153,12 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.57.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.58.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.58.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.57.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.58.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.57.1 // indirect
@@ -289,7 +289,7 @@ require (
 	golang.org/x/term v0.26.0 // indirect
 	golang.org/x/text v0.20.0 // indirect
 	golang.org/x/time v0.8.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20241007155032-5fefd90f89a9 // indirect
 	google.golang.org/grpc v1.67.1 // indirect
 	google.golang.org/protobuf v1.35.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
