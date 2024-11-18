@@ -84,6 +84,7 @@ type InnerNode interface {
 	SetAt([]string, interface{}, model.Source) (bool, error)
 	InsertChildNode(string, Node)
 	makeRemapCase()
+	DumpSettings(func(model.Source) bool) map[string]interface{}
 }
 
 // LeafNode represents a leaf node of the config
