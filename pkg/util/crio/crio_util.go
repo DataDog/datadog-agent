@@ -26,30 +26,27 @@ const (
 // Client defines an interface for interacting with the CRI-API, providing methods for
 // retrieving information about container and pod statuses, images, and metadata.
 type Client interface {
-	// Close closes the connection to the CRI-O API and cleans up resources.
+	// Close terminates the CRI-O API connection and cleans up resources.
 	Close() error
 
-	// RuntimeMetadata retrieves version information and metadata about the container runtime.
-	// ctx: The context for managing the lifetime of the request.
+	// RuntimeMetadata returns metadata about the container runtime, including version details.
+	// Accepts a context to manage request lifetime.
 	RuntimeMetadata(ctx context.Context) (*v1.VersionResponse, error)
 
-	// GetAllContainers lists all containers managed by the CRI-O runtime.
-	// ctx: The context for managing the lifetime of the request.
+	// GetAllContainers lists all containers managed by CRI-O.
+	// Accepts a context for managing request lifetime and returns a slice of container metadata.
 	GetAllContainers(ctx context.Context) ([]*v1.Container, error)
 
-	// GetContainerStatus retrieves the current status of a specific container.
-	// ctx: The context for managing the lifetime of the request.
-	// containerID: The unique identifier of the container for which the status is requested.
+	// GetContainerStatus retrieves the status of a specified container by containerID.
+	// Accepts a context for the request and returns details on container state, creation time, and exit codes.
 	GetContainerStatus(ctx context.Context, containerID string) (*v1.ContainerStatusResponse, error)
 
-	// GetContainerImage retrieves metadata and status information about a specific image.
-	// ctx: The context for managing the lifetime of the request.
-	// imageSpec: A reference to the image, which includes its name or other identifying information.
+	// GetContainerImage fetches metadata for a specified image, identified by imageSpec.
+	// Accepts a context and the imageSpec to identify the image.
 	GetContainerImage(ctx context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error)
 
-	// GetPodStatus retrieves the current status of a specific pod sandbox.
-	// ctx: The context for managing the lifetime of the request.
-	// podSandboxID: The unique identifier of the pod sandbox for which the status is requested.
+	// GetPodStatus provides the status of a specified pod sandbox, identified by podSandboxID.
+	// Takes a context to manage the request and returns sandbox status information.
 	GetPodStatus(ctx context.Context, podSandboxID string) (*v1.PodSandboxStatus, error)
 }
 

@@ -91,12 +91,12 @@ func getPodNamespace(ctx context.Context, client crio.Client, podID string) stri
 // getContainerStatus retrieves the status of a container.
 func getContainerStatus(ctx context.Context, client crio.Client, containerID string) (*v1.ContainerStatus, map[string]string) {
 	statusResponse, err := client.GetContainerStatus(ctx, containerID)
-	status := statusResponse.GetStatus()
-	info := statusResponse.GetInfo()
-	if err != nil || status == nil {
+	if err != nil || statusResponse.GetStatus() == nil {
 		log.Errorf("Failed to get container status for container %s: %v", containerID, err)
 		return &v1.ContainerStatus{State: v1.ContainerState_CONTAINER_UNKNOWN}, make(map[string]string)
 	}
+	status := statusResponse.GetStatus()
+	info := statusResponse.GetInfo()
 	return status, info
 }
 
@@ -165,6 +165,10 @@ func getResourceLimits(containerStatus *v1.ContainerStatus, info map[string]stri
 
 // getContainerImage retrieves and converts a container image to workloadmeta format.
 func getContainerImage(ctx context.Context, client crio.Client, imageSpec *v1.ImageSpec) workloadmeta.ContainerImage {
+	if imageSpec == nil {
+		log.Warn("Image spec is nil, cannot fetch image")
+		return workloadmeta.ContainerImage{}
+	}
 	image, err := client.GetContainerImage(ctx, imageSpec)
 	if err != nil || image == nil {
 		log.Warnf("Failed to fetch image: %v", err)
