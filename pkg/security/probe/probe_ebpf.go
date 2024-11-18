@@ -374,6 +374,7 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 	// unload the previews one
 	if p.rawPacketFilterCollection != nil {
 		p.rawPacketFilterCollection.Close()
+		ddebpf.RemoveNameMappingsCollection(p.rawPacketFilterCollection)
 	}
 
 	// adapt max instruction limits depending of the kernel version
