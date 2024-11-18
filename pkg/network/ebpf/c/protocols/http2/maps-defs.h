@@ -43,11 +43,8 @@ BPF_PERCPU_ARRAY_MAP(http2_scratch_buffer, http2_event_t, 1)
 /* Allocating a ctx on the heap, in order to save the ctx between the current stream. */
 BPF_PERCPU_ARRAY_MAP(http2_ctx_heap, http2_ctx_t, 1)
 
-/* This map is used for telemetry in kernelspace
- * only key 0 is used
- * value is a http2 telemetry object
- */
-BPF_ARRAY_MAP(http2_telemetry, http2_telemetry_t, 1)
-BPF_ARRAY_MAP(tls_http2_telemetry, http2_telemetry_t, 1)
+// This map is used to gather telemetry data from the eBPF programs. Key 0 is used for plaintext traffic,
+// and key 1 is used for encrypted traffic.
+BPF_ARRAY_MAP(http2_telemetry, http2_telemetry_t, 2)
 
 #endif

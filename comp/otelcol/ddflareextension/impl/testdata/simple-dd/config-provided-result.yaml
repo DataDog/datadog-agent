@@ -167,6 +167,7 @@ service:
       level: info
       output_paths:
         - stderr
+      processors: []
       sampling:
         enabled: true
         initial: 10
