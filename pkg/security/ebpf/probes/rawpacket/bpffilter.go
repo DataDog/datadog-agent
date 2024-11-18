@@ -5,8 +5,8 @@
 
 //go:build linux
 
-// Package raw_packet holds raw_packet related files
-package raw_packet
+// Package rawpacket holds rawpacket related files
+package rawpacket
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"

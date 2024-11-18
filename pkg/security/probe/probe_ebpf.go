@@ -40,7 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/raw_packet"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -353,7 +353,7 @@ func (p *EBPFProbe) IsRuntimeCompiled() bool {
 }
 
 func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
-	rawPacketEventMap, _, err := p.Manager.GetMap("raw_packet_event")
+	rawPacketEventMap, _, err := p.Manager.GetMap("rawpacket_event")
 	if err != nil {
 		return err
 	}
@@ -362,10 +362,10 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 		return err
 	}
 
-	var rawPacketFilters []raw_packet.RawPacketFilter
+	var rawPacketFilters []rawpacket.RawPacketFilter
 	for id, rule := range rs.GetRules() {
 		for _, field := range rule.GetFieldValues("packet.filter") {
-			rawPacketFilters = append(rawPacketFilters, raw_packet.RawPacketFilter{
+			rawPacketFilters = append(rawPacketFilters, rawpacket.RawPacketFilter{
 				RuleID:    id,
 				BPFFilter: field.Value.(string),
 			})
@@ -379,14 +379,14 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 	}
 
 	// adapt max instruction limits depending of the kernel version
-	opts := raw_packet.DefaultRawPacketProgOpts
+	opts := rawpacket.DefaultRawPacketProgOpts
 	if p.kernelVersion.Code >= kernel.Kernel5_2 {
 		opts.MaxProgSize = 1_000_000
 	}
 	seclog.Debugf("generate rawpacker filter programs with a limit of %d max instructions", opts.MaxProgSize)
 
 	// compile the filters
-	progSpecs, err := raw_packet.RawPacketTCFiltersToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), rawPacketFilters, opts)
+	progSpecs, err := rawpacket.RawPacketTCFiltersToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), rawPacketFilters, opts)
 	if err != nil {
 		return err
 	}

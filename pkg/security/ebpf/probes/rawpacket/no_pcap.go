@@ -5,8 +5,8 @@
 
 //go:build linux && !(pcap && cgo)
 
-// Package raw_packet holds raw_packet related files
-package raw_packet
+// Package rawpacket holds raw_packet related files
+package rawpacket
 
 import (
 	"errors"
