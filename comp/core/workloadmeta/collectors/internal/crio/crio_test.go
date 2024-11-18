@@ -91,7 +91,7 @@ func TestPull(t *testing.T) {
 	client := &fakeCRIOClient{
 		mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
 			return []*v1.Container{
-				{Id: "container1", PodSandboxId: "pod1", Metadata: &v1.ContainerMetadata{Name: "container1"}},
+				{Id: "container1", PodSandboxId: "pod1", Metadata: &v1.ContainerMetadata{Name: "container1"}, Image: &v1.ImageSpec{Image: "myrepo/myimage:latest"}},
 			}, nil
 		},
 		mockGetPodStatus: func(_ context.Context, _ string) (*v1.PodSandboxStatus, error) {
