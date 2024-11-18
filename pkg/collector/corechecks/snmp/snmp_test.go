@@ -2772,9 +2772,8 @@ reverse_dns_enrichment:
 			if tc.expectHostname {
 				assert.Contains(t, string(compactEvent.Bytes()), "dns_hostname", "Expected `dns_hostname` to be present")
 			} else {
-				assert.NotContains(t, string(compactEvent.Bytes()), fmt.Sprintf(`"dns_hostname":"hostname-%s"`, tc.ipAddress), "Expected `dns_hostname` to be absent")
+				assert.NotContains(t, string(compactEvent.Bytes()), "dns_hostname", "Expected `dns_hostname` to be absent")
 			}
-
 			sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 		})
 	}
