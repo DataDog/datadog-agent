@@ -8,6 +8,7 @@ package compliance
 import (
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"strings"
 	"time"
 
@@ -44,7 +45,7 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 	auditor.Start()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(pkgconfigsetup.Datadog().GetInt("logs_config.pipelines"), auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext, agentimpl.NewStatusProvider(), hostnameimpl.NewHostnameService(), pkgconfigsetup.Datadog())
+	pipelineProvider := pipeline.NewProvider(runtime.GOMAXPROCS(0), auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext, agentimpl.NewStatusProvider(), hostnameimpl.NewHostnameService(), pkgconfigsetup.Datadog())
 	pipelineProvider.Start()
 
 	logSource := sources.NewLogSource(
