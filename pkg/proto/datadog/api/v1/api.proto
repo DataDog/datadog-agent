@@ -6,6 +6,7 @@ import "datadog/model/v1/model.proto";
 import "datadog/remoteagent/remoteagent.proto";
 import "datadog/remoteconfig/remoteconfig.proto";
 import "datadog/workloadmeta/workloadmeta.proto";
+import "datadog/autodiscovery/autodiscovery.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 
@@ -150,6 +151,14 @@ service AgentSecure {
     rpc RegisterRemoteAgent(datadog.remoteagent.RegisterRemoteAgentRequest) returns (datadog.remoteagent.RegisterRemoteAgentResponse) {
         option (google.api.http) = {
             post: "/v1/grpc/remoteagent/register_remote_agent"
+            body: "*"
+        };
+    };
+
+    // Subscribes to autodiscovery config updates
+    rpc AutodiscoveryStreamConfig(google.protobuf.Empty) returns (stream datadog.autodiscovery.AutodiscoveryStreamResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/autodiscovery/stream_configs"
             body: "*"
         };
     };

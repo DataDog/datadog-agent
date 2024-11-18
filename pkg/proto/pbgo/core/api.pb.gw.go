@@ -372,6 +372,31 @@ func local_request_AgentSecure_RegisterRemoteAgent_0(ctx context.Context, marsha
 
 }
 
+func request_AgentSecure_AutodiscoveryStreamConfig_0(ctx context.Context, marshaler runtime.Marshaler, client AgentSecureClient, req *http.Request, pathParams map[string]string) (AgentSecure_AutodiscoveryStreamConfigClient, runtime.ServerMetadata, error) {
+	var protoReq empty.Empty
+	var metadata runtime.ServerMetadata
+
+	newReader, berr := utilities.IOReaderFactory(req.Body)
+	if berr != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
+	}
+	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	stream, err := client.AutodiscoveryStreamConfig(ctx, &protoReq)
+	if err != nil {
+		return nil, metadata, err
+	}
+	header, err := stream.Header()
+	if err != nil {
+		return nil, metadata, err
+	}
+	metadata.HeaderMD = header
+	return stream, metadata, nil
+
+}
+
 // RegisterAgentHandlerServer registers the http handlers for service Agent to "mux".
 // UnaryRPC     :call AgentServer directly.
 // StreamingRPC :currently unsupported pending https://github.com/grpc/grpc-go/issues/906.
@@ -577,6 +602,13 @@ func RegisterAgentSecureHandlerServer(ctx context.Context, mux *runtime.ServeMux
 
 		forward_AgentSecure_RegisterRemoteAgent_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
+	})
+
+	mux.Handle("POST", pattern_AgentSecure_AutodiscoveryStreamConfig_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		err := status.Error(codes.Unimplemented, "streaming calls are not yet supported in the in-process transport")
+		_, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+		return
 	})
 
 	return nil
@@ -889,6 +921,26 @@ func RegisterAgentSecureHandlerClient(ctx context.Context, mux *runtime.ServeMux
 
 	})
 
+	mux.Handle("POST", pattern_AgentSecure_AutodiscoveryStreamConfig_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_AgentSecure_AutodiscoveryStreamConfig_0(rctx, inboundMarshaler, client, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_AgentSecure_AutodiscoveryStreamConfig_0(ctx, mux, outboundMarshaler, w, req, func() (proto.Message, error) { return resp.Recv() }, mux.GetForwardResponseOptions()...)
+
+	})
+
 	return nil
 }
 
@@ -912,6 +964,8 @@ var (
 	pattern_AgentSecure_WorkloadmetaStreamEntities_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "workloadmeta", "stream_entities"}, "", runtime.AssumeColonVerbOpt(true)))
 
 	pattern_AgentSecure_RegisterRemoteAgent_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "remoteagent", "register_remote_agent"}, "", runtime.AssumeColonVerbOpt(true)))
+
+	pattern_AgentSecure_AutodiscoveryStreamConfig_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "autodiscovery", "stream_configs"}, "", runtime.AssumeColonVerbOpt(true)))
 )
 
 var (
@@ -934,4 +988,6 @@ var (
 	forward_AgentSecure_WorkloadmetaStreamEntities_0 = runtime.ForwardResponseStream
 
 	forward_AgentSecure_RegisterRemoteAgent_0 = runtime.ForwardResponseMessage
+
+	forward_AgentSecure_AutodiscoveryStreamConfig_0 = runtime.ForwardResponseStream
 )
