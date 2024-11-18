@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -103,7 +104,7 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 
 	procRoot := kernel.ProcFSRoot()
 	return &istioMonitor{
-		registry: utils.NewFileRegistry("istio"),
+		registry: utils.NewFileRegistry(consts.USMModuleName, "istio"),
 		procRoot: procRoot,
 		envoyCmd: c.EnvoyPath,
 		done:     make(chan struct{}),
@@ -187,7 +188,7 @@ func (m *istioMonitor) Start() {
 		}
 	}()
 
-	utils.AddAttacher("istio", m)
+	utils.AddAttacher(consts.USMModuleName, "istio", m)
 	log.Info("Istio monitoring enabled")
 }
 

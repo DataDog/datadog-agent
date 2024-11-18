@@ -173,7 +173,7 @@ func (n *innerNode) DumpSettings(selector func(model.Source) bool) map[string]in
 		child, _ := n.GetChild(k)
 		if leaf, ok := child.(LeafNode); ok {
 			if selector(leaf.Source()) {
-				res[k], _ = leaf.GetAny()
+				res[k] = leaf.Get()
 			}
 			continue
 		}

@@ -158,11 +158,6 @@ func (t *teeConfig) GetFloat64(key string) float64 {
 	return t.baseline.GetFloat64(key)
 }
 
-// GetTime wraps Viper for concurrent access
-func (t *teeConfig) GetTime(key string) time.Time {
-	return t.baseline.GetTime(key)
-}
-
 // GetDuration wraps Viper for concurrent access
 func (t *teeConfig) GetDuration(key string) time.Duration {
 	return t.baseline.GetDuration(key)
@@ -173,9 +168,9 @@ func (t *teeConfig) GetStringSlice(key string) []string {
 	return t.baseline.GetStringSlice(key)
 }
 
-// GetFloat64SliceE loads a key as a []float64
-func (t *teeConfig) GetFloat64SliceE(key string) ([]float64, error) {
-	return t.baseline.GetFloat64SliceE(key)
+// GetFloat64Slice wraps Viper for concurrent access
+func (t *teeConfig) GetFloat64Slice(key string) []float64 {
+	return t.baseline.GetFloat64Slice(key)
 }
 
 // GetStringMap wraps Viper for concurrent access
