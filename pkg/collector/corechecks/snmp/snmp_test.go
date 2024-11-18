@@ -2718,7 +2718,7 @@ reverse_dns_enrichment:
         "snmp_device:%s"
       ],
       "tags": [
-        "agent_version:7.61.0-devel+git.216.9faf449",
+        "agent_version:%s",
         "device_id:profile-metadata:%s",
         "device_ip:%s",
         "device_namespace:profile-metadata",
@@ -2747,7 +2747,7 @@ reverse_dns_enrichment:
   ],
   "collect_timestamp": 946684800
 }
-`, tc.ipAddress, tc.ipAddress, tc.ipAddress, tc.ipAddress, tc.ipAddress, tc.ipAddress, tc.ipAddress, tc.ipAddress))
+`, tc.ipAddress, tc.ipAddress, version.AgentVersion, tc.ipAddress, tc.ipAddress, tc.ipAddress, tc.ipAddress, tc.ipAddress, tc.ipAddress))
 			compactEvent := new(bytes.Buffer)
 			err = json.Compact(compactEvent, event)
 			assert.NoError(t, err)
