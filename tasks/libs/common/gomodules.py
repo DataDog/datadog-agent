@@ -307,6 +307,17 @@ AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
 
 
 @lru_cache
+def _get_default_modules_abs(base_dir_abs: Path) -> dict[str, GoModule]:
+    """Get default modules from absolute path.
+
+    Used to lru cache the result.
+    """
+
+    assert base_dir_abs.is_absolute()
+
+    return Configuration.from_file(base_dir_abs).modules
+
+
 def get_default_modules(base_dir: Path | None = None) -> dict[str, GoModule]:
     """Load the default modules from the modules.yml file.
 
@@ -316,7 +327,7 @@ def get_default_modules(base_dir: Path | None = None) -> dict[str, GoModule]:
 
     base_dir = base_dir or agent_working_directory()
 
-    return Configuration.from_file(base_dir).modules
+    return _get_default_modules_abs(base_dir.resolve())
 
 
 def validate_module(

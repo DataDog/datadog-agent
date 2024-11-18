@@ -12,7 +12,6 @@ from pathlib import Path
 import yaml
 from invoke import Context, Exit, task
 
-from tasks.libs.common.agent6 import agent_context
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.gomodules import (
     ConfigDumper,
@@ -261,7 +260,7 @@ def get_module_by_path(path: Path) -> GoModule | None:
 
 
 @task
-def show(ctx, path: str, remove_defaults: bool = False, base_dir: str = '.', version: int = None):
+def show(_, path: str, remove_defaults: bool = False, base_dir: str = '.'):
     """Show the module information for the given path.
 
     Args:
@@ -269,23 +268,22 @@ def show(ctx, path: str, remove_defaults: bool = False, base_dir: str = '.', ver
         version: If 6, will show agent 6 modules.
     """
 
-    with agent_context(ctx, version):
-        config = Configuration.from_file(Path(base_dir))
-        if path in config.ignored_modules:
-            print(f'Module {path} is ignored')
-            return
+    config = Configuration.from_file(Path(base_dir))
+    if path in config.ignored_modules:
+        print(f'Module {path} is ignored')
+        return
 
-        module = config.modules.get(path)
+    module = config.modules.get(path)
 
-        assert module, f'Module {path} not found'
+    assert module, f'Module {path} not found'
 
-        yaml.dump(
-            {path: module.to_dict(remove_defaults=remove_defaults, remove_path=True)}, sys.stdout, Dumper=ConfigDumper
-        )
+    yaml.dump(
+        {path: module.to_dict(remove_defaults=remove_defaults, remove_path=True)}, sys.stdout, Dumper=ConfigDumper
+    )
 
 
 @task
-def show_all(ctx, base_dir: str = '.', ignored=False, version: int = None):
+def show_all(_, base_dir: str = '.', ignored=False):
     """Show the list of modules.
 
     Args:
@@ -293,13 +291,12 @@ def show_all(ctx, base_dir: str = '.', ignored=False, version: int = None):
         version: If 6, will show agent 6 modules.
     """
 
-    with agent_context(ctx, version):
-        config = Configuration.from_file(Path(base_dir))
+    config = Configuration.from_file(Path(base_dir))
 
-        if ignored:
-            names = config.ignored_modules
-        else:
-            names = list(config.modules.keys())
+    if ignored:
+        names = config.ignored_modules
+    else:
+        names = list(config.modules.keys())
 
-        print('\n'.join(sorted(names)))
-        print(len(names), 'modules')
+    print('\n'.join(sorted(names)))
+    print(len(names), 'modules')
