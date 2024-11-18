@@ -320,6 +320,7 @@
 /comp/rdnsquerier @DataDog/ndm-integrations
 /comp/serializer/compression @DataDog/agent-metrics-logs
 /comp/snmpscan @DataDog/ndm-core
+/comp/haagent @DataDog/network-device-monitoring @DataDog/remote-config @DataDog/fleet
 # END COMPONENTS
 
 # Additional notification to  @iglendd about Agent Telemetry changes for optional approval and governance acknowledgement
