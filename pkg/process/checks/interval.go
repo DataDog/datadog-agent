@@ -36,7 +36,6 @@ const (
 	configRTProcessInterval   = configIntervals + "process_realtime"
 	configContainerInterval   = configIntervals + "container"
 	configRTContainerInterval = configIntervals + "container_realtime"
-	configConnectionsInterval = configIntervals + "connections"
 )
 
 var (
@@ -54,7 +53,6 @@ var (
 		RTProcessCheckName:   configRTProcessInterval,
 		ContainerCheckName:   configContainerInterval,
 		RTContainerCheckName: configRTContainerInterval,
-		ConnectionsCheckName: configConnectionsInterval,
 	}
 )
 
@@ -85,12 +83,18 @@ func GetInterval(cfg pkgconfigmodel.Reader, checkName string) time.Duration {
 		}
 		return eventsInterval
 	case ConnectionsCheckName:
-		connectionsInterval := cfg.GetDuration("process_config.connections_check_interval_seconds")
+		connectionsInterval := cfg.GetDuration("process_config.intervals.connections")
 		minInterval := pkgconfigsetup.DefaultConnectionsMinCheckInterval
 		if connectionsInterval < minInterval {
 			connectionsInterval = minInterval
 			_ = log.Warnf("Invalid interval for connections check (< %s) using default value of %s",
 				minInterval.String(), minInterval.String())
+		}
+		maxInterval := pkgconfigsetup.DefaultConnectionsMaxCheckInterval
+		if connectionsInterval > maxInterval {
+			connectionsInterval = maxInterval
+			_ = log.Warnf("Invalid interval for connections check (> %s) using default value of %s",
+				maxInterval.String(), maxInterval.String())
 		}
 		return connectionsInterval
 
