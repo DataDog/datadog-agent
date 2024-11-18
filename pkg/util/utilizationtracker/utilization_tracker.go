@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package worker
+// Package utilizationtracker provides a utility to track the utilization of a component.
+package utilizationtracker
 
 import (
 	"time"
@@ -14,12 +15,12 @@ import (
 type trackerEvent int
 
 const (
-	checkStarted trackerEvent = iota
-	checkStopped
+	started trackerEvent = iota
+	stopped
 	trackerTick
 )
 
-//nolint:revive // TODO(AML) Fix revive linter
+// UtilizationTracker tracks the utilization of a component.
 type UtilizationTracker struct {
 	Output chan float64
 
@@ -32,9 +33,9 @@ type UtilizationTracker struct {
 	// alpha is the ewma smoothing factor.
 	alpha float64
 
-	checkStarted time.Time
-	nextTick     time.Time
-	interval     time.Duration
+	started  time.Time
+	nextTick time.Time
+	interval time.Duration
 
 	clock clock.Clock
 }
@@ -42,23 +43,20 @@ type UtilizationTracker struct {
 // NewUtilizationTracker instantiates and configures a utilization tracker that
 // calculates the values and publishes them to expvars
 func NewUtilizationTracker(
-	workerName string,
 	interval time.Duration,
+	alpha float64,
 ) *UtilizationTracker {
 	return newUtilizationTrackerWithClock(
-		workerName,
 		interval,
 		clock.New(),
+		alpha,
 	)
 }
 
 // newUtilizationTrackerWithClock is primarely used for testing.
-//
 // Does not start the background goroutines, so that the tests can call update() to get
 // deterministic results.
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func newUtilizationTrackerWithClock(_ string, interval time.Duration, clk clock.Clock) *UtilizationTracker {
+func newUtilizationTrackerWithClock(interval time.Duration, clk clock.Clock, alpha float64) *UtilizationTracker {
 	ut := &UtilizationTracker{
 		clock: clk,
 
@@ -66,9 +64,8 @@ func newUtilizationTrackerWithClock(_ string, interval time.Duration, clk clock.
 
 		nextTick: clk.Now(),
 		interval: interval,
-		alpha:    0.25, // converges to 99.98% of constant input in 30 iterations.
-
-		Output: make(chan float64, 1),
+		alpha:    alpha,
+		Output:   make(chan float64, 1),
 	}
 
 	go ut.run()
@@ -86,12 +83,12 @@ func (ut *UtilizationTracker) run() {
 		// invariant: ut.nextTick > now
 
 		switch ev {
-		case checkStarted:
-			// invariant: ut.nextTick > ut.checkStarted
-			ut.checkStarted = now
-		case checkStopped:
-			ut.busy += now.Sub(ut.checkStarted)
-			ut.checkStarted = time.Time{}
+		case started:
+			// invariant: ut.nextTick > ut.started
+			ut.started = now
+		case stopped:
+			ut.busy += now.Sub(ut.started)
+			ut.started = time.Time{}
 		case trackerTick:
 			// nothing, just tick
 		}
@@ -100,10 +97,10 @@ func (ut *UtilizationTracker) run() {
 
 func (ut *UtilizationTracker) update(now time.Time) {
 	for ut.nextTick.Before(now) {
-		if !ut.checkStarted.IsZero() {
-			// invariant: ut.nextTick > ut.checkStarted
-			ut.busy += ut.nextTick.Sub(ut.checkStarted)
-			ut.checkStarted = ut.nextTick
+		if !ut.started.IsZero() {
+			// invariant: ut.nextTick > ut.started
+			ut.busy += ut.nextTick.Sub(ut.started)
+			ut.started = ut.nextTick
 		}
 
 		update := float64(ut.busy) / float64(ut.interval)
@@ -116,32 +113,32 @@ func (ut *UtilizationTracker) update(now time.Time) {
 	ut.Output <- ut.value
 }
 
-// Stop should be invoked when a worker is about to exit
-// so that we can remove the instance's expvars
+// Stop should be invoked when a component is about to exit
+// so that we can clean up the instances resources.
 func (ut *UtilizationTracker) Stop() {
 	// The user will not send anything anymore
 	close(ut.eventsChan)
 }
 
-// Tick updates to the utilization during intervals where no check were started or stopped.
+// Tick updates to the utilization during intervals where no component were started or stopped.
 //
 // Produces one value on the Output channel.
 func (ut *UtilizationTracker) Tick() {
 	ut.eventsChan <- trackerTick
 }
 
-// CheckStarted should be invoked when a worker's check is about to run so that we can track the
+// Started should be invoked when a compnent's work is about to being so that we can track the
 // start time and the utilization.
 //
 // Produces one value on the Output channel.
-func (ut *UtilizationTracker) CheckStarted() {
-	ut.eventsChan <- checkStarted
+func (ut *UtilizationTracker) Started() {
+	ut.eventsChan <- started
 }
 
-// CheckFinished should be invoked when a worker's check is complete so that we can calculate the
-// utilization of the linked worker.
+// Finished should be invoked when a compnent's work is complete so that we can calculate the
+// utilization of the compoennt.
 //
 // Produces one value on the Output channel.
-func (ut *UtilizationTracker) CheckFinished() {
-	ut.eventsChan <- checkStopped
+func (ut *UtilizationTracker) Finished() {
+	ut.eventsChan <- stopped
 }

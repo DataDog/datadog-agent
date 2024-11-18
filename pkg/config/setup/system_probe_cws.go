@@ -47,6 +47,8 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// windows specific channel size for etw events
 	cfg.SetDefault("runtime_security_config.etw_events_channel_size", 16384)
 	cfg.SetDefault("runtime_security_config.windows_probe_block_on_channel_send", false)
+	cfg.SetDefault("runtime_security_config.windows_write_event_rate_limiter_max_allowed", 4096)
+	cfg.SetDefault("runtime_security_config.windows_write_event_rate_limiter_period", "1s")
 
 	// CWS - activity dump
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", true)
