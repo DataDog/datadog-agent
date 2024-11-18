@@ -4,7 +4,6 @@ Docker related tasks
 
 import os
 import shutil
-import sys
 import tempfile
 
 from invoke import task
@@ -84,7 +83,9 @@ COPY test.bin /test.bin
 
     test_container = client.containers.run(
         test_image.id,
-        detach=True,
+        detach=False,
+        stdout=True,
+        stderr=True,
         pid_mode="host",  # For origin detection
         cgroupns="host",  # To allow proper network mode detection in integration tests
         environment=["SCRATCH_VOLUME_NAME=" + scratch_volume.name, "SCRATCH_VOLUME_PATH=/tmp/scratch"],
@@ -100,11 +101,7 @@ COPY test.bin /test.bin
 
     exit_code = test_container.wait()['StatusCode']
 
-    stdout_logs = test_container.logs(stdout=True, stderr=False, stream=False).decode(sys.stdout.encoding)
-    stderr_logs = test_container.logs(stdout=False, stderr=True, stream=False).decode(sys.stderr.encoding)
     print("coucou" * 100)
-    print(stdout_logs)
-    print(stderr_logs, file=sys.stderr)
 
     skip_cleanup = True
     if not skip_cleanup:
