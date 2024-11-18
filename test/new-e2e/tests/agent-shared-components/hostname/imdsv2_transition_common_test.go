@@ -7,13 +7,13 @@
 package hostname
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 
-	"encoding/json"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -52,14 +52,28 @@ func requestAgentHostnameMetadataPayload(v *baseHostnameSuite) {
 		v.T().Fatal(err)
 	}
 
-	metaMap, ok := data["metadata"].(map[string]interface{})["meta"].(map[string]interface{})
-	if !ok {
-		v.T().Fatal()
-	}
+	// Check for the existence and type of "metadata"
+	metadata, ok := data["metadata"]
+	require.True(v.T(), ok, "metadata key should exist")
+	metaDataMap, ok := metadata.(map[string]interface{})
+	require.True(v.T(), ok, "metadata should be of type map[string]interface{}")
+
+	// Check for the existence and type of "meta"
+	meta, ok := metaDataMap["meta"]
+	require.True(v.T(), ok, "meta key should exist")
+	metaMap, ok := meta.(map[string]interface{})
+	require.True(v.T(), ok, "meta should be of type map[string]interface{}")
 
 	var hostnameMeta Meta
-	hostnameMeta.Hostname, _ = metaMap["hostname"].(string)
-	hostnameMeta.LegacyResolutionHostname, _ = metaMap["legacy-resolution-hostname"].(string)
+
+	// Extract and check types of specific keys within metaMap
+	hostname, ok := metaMap["hostname"].(string)
+	require.True(v.T(), ok, "hostname should be of type string")
+	hostnameMeta.Hostname = hostname
+
+	// No type assertion on `legacy-resolution-hostname` since this field may be not set in some test cases
+	legacyHostname, ok := metaMap["legacy-resolution-hostname"].(string)
+	hostnameMeta.LegacyResolutionHostname = legacyHostname
 
 	v.hostnameMetadata = hostnameMeta
 }
