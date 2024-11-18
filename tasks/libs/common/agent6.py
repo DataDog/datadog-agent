@@ -35,6 +35,20 @@ def is_agent6():
     return Path.cwd() == AGENT6_WORKING_DIRECTORY
 
 
+def enter_agent6_context(ctx):
+    """Enters the agent 6 environment."""
+
+    prepare(ctx)
+
+    os.chdir(AGENT6_WORKING_DIRECTORY)
+
+
+def exit_agent6_context():
+    """Exits the agent 6 environment."""
+
+    os.chdir(AGENT7_WORKING_DIRECTORY)
+
+
 @contextmanager
 def _agent6_context(ctx):
     """To run code from the agent6 environment.
@@ -47,16 +61,14 @@ def _agent6_context(ctx):
         yield
         return
 
-    prepare(ctx)
-
     try:
         # Enter
-        os.chdir(AGENT6_WORKING_DIRECTORY)
+        enter_agent6_context(ctx)
 
         yield
     finally:
         # Exit
-        os.chdir(AGENT7_WORKING_DIRECTORY)
+        exit_agent6_context()
 
 
 @contextmanager
