@@ -75,11 +75,6 @@ int hook_security_socket_connect(ctx_t *ctx) {
     LOAD_CONSTANT("sock_sk_protocol_offset", sk_protocol_offset);
     LOAD_CONSTANT("sk_protocol_size", sk_protocol_size);
 
-    __bpf_printk("-------------------- sk_protocol_offset: %d", socket_sock_offset);
-    __bpf_printk("-------------------- sk_protocol_offset: %d", sk_protocol_offset);
-    __bpf_printk("-------------------- sk_protocol_size: %d", sk_protocol_size);
-
-
     // Extract IP and port from the sockaddr structure
     bpf_probe_read(&family, sizeof(family), &address->sa_family);
 
