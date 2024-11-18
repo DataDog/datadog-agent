@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
+	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
@@ -23,6 +23,7 @@ type testAgentInstallSuite struct {
 
 // TestAgentInstalls tests the usage of the Datadog installer to install the Datadog Agent package.
 func TestAgentInstalls(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &testAgentInstallSuite{},
 		e2e.WithProvisioner(
 			winawshost.ProvisionerNoAgentNoFakeIntake(

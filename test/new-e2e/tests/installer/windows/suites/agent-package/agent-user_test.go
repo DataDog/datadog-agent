@@ -8,13 +8,14 @@ package agenttests
 import (
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/pkg/components/datadog-installer"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
+	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type testAgentInstallWithAgentUserSuite struct {
@@ -25,6 +26,9 @@ type testAgentInstallWithAgentUserSuite struct {
 // TestAgentInstalls tests the usage of the Datadog installer to install the Datadog Agent package.
 func TestAgentInstallsWithAgentUser(t *testing.T) {
 	agentUser := "customuser"
+
+	t.Parallel()
+
 	require.NotEqual(t, windowsAgent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
 
 	e2e.Run(t, &testAgentInstallWithAgentUserSuite{

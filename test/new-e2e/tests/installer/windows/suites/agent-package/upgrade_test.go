@@ -20,6 +20,7 @@ type testAgentUpgradeSuite struct {
 
 // TestAgentUpgrades tests the usage of the Datadog installer to upgrade the Datadog Agent package.
 func TestAgentUpgrades(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &testAgentUpgradeSuite{},
 		e2e.WithProvisioner(
 			winawshost.ProvisionerNoAgentNoFakeIntake(
