@@ -82,6 +82,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 	}
 
 	var err error
+	env.SetFeatures(suite.T(), env.Docker)
 	deps := fxutil.Test[deps](suite.T(), fx.Options(
 		core.MockBundle(),
 		fx.Replace(compcfg.MockParams{
@@ -91,7 +92,6 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		taggerfx.Module(tagger.Params{}),
 	))
-	env.SetFeatures(suite.T(), env.Docker)
 	suite.wmeta = deps.WMeta
 	suite.telemetryStore = acTelemetry.NewStore(deps.Telemetry)
 	suite.dockerutil, err = docker.GetDockerUtil()
