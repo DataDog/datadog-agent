@@ -34,7 +34,7 @@ type TestDeps struct {
 // InitAndStartAgentDemultiplexerForTest initializes an aggregator for tests.
 func InitAndStartAgentDemultiplexerForTest(deps TestDeps, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	compressor := deps.CompressionFactory.NewNoopCompressor()
-	
+
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname, deps.CompressionFactory))
 
