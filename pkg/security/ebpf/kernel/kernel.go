@@ -38,10 +38,12 @@ var (
 	Kernel4_0 = kernel.VersionCode(4, 0, 0)
 	// Kernel4_1 is the KernelVersion representation of kernel version 4.1
 	Kernel4_1 = kernel.VersionCode(4, 1, 0)
+	// Kernel4_2 is the KernelVersion representation of kernel version 4.2
+	Kernel4_2 = kernel.VersionCode(4, 2, 0)
 	// Kernel4_4 is the KernelVersion representation of kernel version 4.4
 	Kernel4_4 = kernel.VersionCode(4, 4, 0)
-	// Kernel4_5 is the KernelVersion representation of kernel version 4.5
-	Kernel4_5 = kernel.VersionCode(4, 5, 0)
+	// Kernel4_6 is the KernelVersion representation of kernel version 4.6
+	Kernel4_6 = kernel.VersionCode(4, 6, 0)
 	// Kernel4_9 is the KernelVersion representation of kernel version 4.9
 	Kernel4_9 = kernel.VersionCode(4, 9, 0)
 	// Kernel4_10 is the KernelVersion representation of kernel version 4.10

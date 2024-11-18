@@ -91,7 +91,6 @@ int hook_security_socket_connect(ctx_t *ctx) {
     struct sock *sk_sock = NULL;
     bpf_probe_read(&sk_sock, sizeof(sk_sock),(void *) sk + socket_sock_offset);
     bpf_probe_read(&protocol, sk_protocol_size, (void *) sk_sock + sk_protocol_offset);
-    // bpf_probe_read(&protocol, sizeof(protocol), &sk_sock->sk_protocol);
 
     // fill syscall_cache if necessary
     struct syscall_cache_t *syscall = peek_syscall(EVENT_CONNECT);

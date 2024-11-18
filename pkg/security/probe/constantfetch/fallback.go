@@ -792,64 +792,103 @@ func getSocketSockOffset(kv *kernel.Version) uint64 {
 }
 
 func getSocketProtocolOffset(kv *kernel.Version) uint64 {
-	// Default offset if no conditions match
+	// Default offset
 	offset := uint64(548)
+	isArm64 := runtime.GOARCH == "arm64"
 
 	switch {
-	// Kernel 3.10 range
-	case kv.Code <= kernel.Kernel3_10:
+	// Kernel 3.10 - x86_64 only for RHEL/CentOS/OL
+	case kv.Code == kernel.Kernel3_10 && !isArm64 &&
+		(kv.IsRH7Kernel() || kv.IsOracleUEKKernel()):
 		offset = 337
 
-	// Kernel 3.18-4.0 range
-	case kv.IsInRangeCloseOpen(kernel.Kernel3_18, kernel.Kernel4_0):
-		offset = 321
+	// CentOS ARM64 specific ranges
+	case isArm64 && kv.IsRH7Kernel():
+		switch {
+		case kv.IsInRangeCloseOpen(kernel.Kernel3_18, kernel.Kernel4_1):
+			offset = 321
+		case kv.IsInRangeCloseOpen(kernel.Kernel4_2, kernel.Kernel4_6):
+			offset = 329
+		case kv.IsInRangeCloseOpen(kernel.Kernel4_11, kernel.Kernel4_18):
+			offset = 505
+		case kv.Code == kernel.Kernel4_18:
+			offset = 537
+		case kv.Code == kernel.Kernel5_4:
+			offset = 529
+		case kv.Code == kernel.Kernel5_10:
+			offset = 532
+		}
 
-	// Kernel 4.1-4.9 range
-	case kv.IsInRangeCloseOpen(kernel.Kernel4_1, kernel.Kernel4_9):
-		offset = 329
-
-	// Special case for Debian RT kernels
+	// Debian RT kernel specific cases
 	case kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-"):
-		if kv.IsInRangeCloseOpen(kernel.Kernel4_9, kernel.Kernel4_19) {
+		switch {
+		case kv.Code == kernel.Kernel4_9:
+			offset = 529 // Only for x86_64
+		case kv.Code == kernel.Kernel4_19:
 			offset = 753
-		} else if kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_10) {
-			offset = 761
-		} else if kv.Code >= kernel.Kernel5_10 {
+		case kv.Code == kernel.Kernel5_10:
 			offset = 780
 		}
 
-	// Kernel 4.10-4.15 range
-	case kv.IsInRangeCloseOpen(kernel.Kernel4_10, kernel.Kernel4_15):
-		offset = 505
+	// Ubuntu specific ranges
+	case kv.IsUbuntuKernel():
+		switch {
+		case !isArm64 && kv.Code == kernel.Kernel4_4:
+			offset = 333
+		case !isArm64 && kv.Code == kernel.Kernel4_10:
+			offset = 521
+		case kv.IsInRangeCloseOpen(kernel.Kernel4_2, kernel.Kernel4_9) && !isArm64:
+			offset = 329
+		case isArm64 && kv.IsInRangeCloseOpen(kernel.Kernel4_13, kernel.Kernel4_19) ||
+			!isArm64 && kv.IsInRangeCloseOpen(kernel.Kernel4_11, kernel.Kernel4_19):
+			offset = 505
+		case kv.Code == kernel.Kernel4_15:
+			offset = 497
+		case kv.Code == kernel.Kernel5_0:
+			offset = 513
+		case isArm64 && kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_5) ||
+			!isArm64 && kv.IsInRangeCloseOpen(kernel.Kernel4_10, kernel.Kernel5_5):
+			offset = 529
+		case kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_12):
+			offset = 532
+		}
 
-	// Kernel 4.15-4.19 range
-	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_19):
-		offset = 497
-
-	// RHEL 8 specific range
-	case kv.IsRH8Kernel():
-		offset = 537
-
-	// Kernel 4.19-5.0 range
-	case kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
-		offset = 513
-
-	// Kernel 5.0-5.4 range
-	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_4):
-		offset = 529
-
-	// Oracle Linux specific case for 5.4+
-	case kv.IsOracleUEKKernel() && kv.Code >= kernel.Kernel5_4:
-		offset = 561
-
-	// Kernel 5.4-5.10 range
-	case kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_10):
-		offset = 529
-
-	// Kernel 5.10+ range
-	case kv.Code >= kernel.Kernel5_10:
-		offset = 532
-
+	// General version ranges with architecture consideration
+	default:
+		switch {
+		case kv.Code == kernel.Kernel4_1:
+			if !isArm64 && kv.IsOracleUEKKernel() {
+				offset = 329
+			}
+		case kv.IsInRangeCloseOpen(kernel.Kernel4_9, kernel.Kernel4_11):
+			if kv.IsDebianKernel() || (!isArm64 && kv.IsAmazonLinuxKernel()) {
+				offset = 329
+			}
+		case kv.IsInRangeCloseOpen(kernel.Kernel4_11, kernel.Kernel4_16):
+			offset = 505
+		case kv.Code == kernel.Kernel4_16:
+			if kv.IsOracleUEKKernel() {
+				offset = 497
+			}
+		case kv.Code == kernel.Kernel4_18:
+			if kv.IsRH7Kernel() || kv.IsOracleUEKKernel() {
+				offset = 537
+			}
+		case kv.Code == kernel.Kernel4_19:
+			if kv.IsDebianKernel() {
+				offset = 513
+			}
+		case kv.Code == kernel.Kernel5_0:
+			offset = 513
+		case kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_5):
+			offset = 529
+		case kv.Code == kernel.Kernel5_4:
+			if kv.IsOracleUEKKernel() {
+				offset = 561
+			}
+		case kv.IsInRangeCloseOpen(kernel.Kernel5_6, kernel.Kernel5_11):
+			offset = 532
+		}
 	}
 
 	return offset
