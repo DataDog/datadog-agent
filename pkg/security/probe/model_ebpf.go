@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"time"
 
-	//"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -32,10 +32,10 @@ func NewEBPFModel(probe *EBPFProbe) *model.Model {
 				if offset, found := probe.constantOffsets[constantfetch.OffsetNameBPFProgAuxStructName]; !found || offset == constantfetch.ErrorSentinel {
 					return fmt.Errorf("%s is not available on this kernel version", field)
 				}
-				/*	case "packet.filter":
-					if _, err := probes.BPFFilterToInsts(0, value.Value.(string), probes.DefaultRawPacketProgOpts); err != nil {
-						return err
-					}*/
+			case "packet.filter":
+				if _, err := rawpacket.BPFFilterToInsts(0, value.Value.(string), rawpacket.DefaultProgOpts); err != nil {
+					return err
+				}
 			}
 
 			return nil
