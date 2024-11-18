@@ -11,8 +11,9 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 )
 
 const (
@@ -286,7 +287,7 @@ func (i libInfo) libRequirement(v version) (libRequirement, bool) {
 
 	return libRequirement{
 		envVars:        i.envVars(v),
-		initContainers: i.initContainers(v),
+		initContainers: []initContainer{}, // no need to inject init containers if we already have the libraries on the host thanks to CSI node server
 		volumeMounts:   []volumeMount{i.volumeMount(v)},
 		volumes:        []volume{sourceVolume},
 	}, true
