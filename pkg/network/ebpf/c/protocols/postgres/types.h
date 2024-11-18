@@ -59,7 +59,6 @@ typedef enum
 #define PG_KERNEL_MSG_COUNT_FIRST_MAX 100
 
 // This structure stores statistics about the number of Postgres messages in a TCP packet.
-// the last bucket stores a counter of fragmented packets and the maximum count has been reached.
 typedef struct {
     __u64 reached_max_messages;
     __u64 fragmented_packets;

@@ -932,8 +932,8 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 	}
 	pgClient := setupPGClient(t, serverAddress, isTLS)
 	defer func() {
-		_ = pgClient.RunQuery(dropTableQuery)
 		if pgClient != nil {
+			_ = pgClient.RunQuery(dropTableQuery)
 			pgClient.Close()
 			pgClient = nil
 		}
@@ -988,7 +988,7 @@ func setupPGClient(t *testing.T, serverAddress string, isTLS bool) *postgres.PGX
 	return pg
 }
 
-// createLargeTable It runs a postgres query to create a table large enough to retrieve long responses later.
+// createLargeTable runs a postgres query to create a table large enough to retrieve long responses later.
 func createLargeTable(t *testing.T, pg *postgres.PGXClient, tableValuesCount int) {
 	require.NoError(t, pg.RunQuery(createTableQuery))
 	require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(0, tableValuesCount)...)))
@@ -1005,7 +1005,7 @@ func validateKernelBuckets(t *testing.T, monitor *Monitor, tls bool, expected [e
 		return compareMessagesCount(found, expected)
 	}, time.Second*2, time.Millisecond*100)
 	if t.Failed() {
-		t.Logf("\nexpected telemetry:\n %+v;\nactual telemetry:\n %+v", expected, actual)
+		t.Logf("expected telemetry:\n %+v;\nactual telemetry:\n %+v", expected, actual)
 	}
 }
 
@@ -1028,7 +1028,6 @@ func getKernelTelemetry(monitor *Monitor, isTLS bool) (*ebpf.PostgresKernelMsgCo
 }
 
 // compareMessagesCount returns true if the expected bucket is non-empty
-// each buckets may have 1 or 2 hits
 func compareMessagesCount(found *ebpf.PostgresKernelMsgCount, expected [ebpf.MsgCountNumBuckets]bool) bool {
 	for i := range expected {
 		if expected[i] && found.Msg_count_buckets[i] == 0 {
@@ -1052,6 +1051,6 @@ func validateKernelExceedingMax(t *testing.T, monitor *Monitor, tls bool) {
 		return found.Reached_max_messages > 0
 	}, time.Second*2, time.Millisecond*100)
 	if t.Failed() {
-		t.Logf("\nexpected non-zero max messages, actual telemetry:\n %+v", actual)
+		t.Logf("expected non-zero max messages, actual telemetry:\n %+v", actual)
 	}
 }
