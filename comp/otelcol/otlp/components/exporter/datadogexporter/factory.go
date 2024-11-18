@@ -130,10 +130,27 @@ func CreateDefaultConfig() component.Config {
 func checkAndCastConfig(c component.Config, logger *zap.Logger) *datadogconfig.Config {
 	cfg, ok := c.(*datadogconfig.Config)
 	if !ok {
-		panic("programming error: config structure is not of type *datadogexporter.Config")
+		panic("programming error: config structure is not of type *datadogconfig.Config")
 	}
-	cfg.LogWarnings(logger)
+	logWarnings(cfg, logger)
 	return cfg
+}
+
+// logWarnings logs warning messages found during configuration loading.
+func logWarnings(cfg *datadogconfig.Config, logger *zap.Logger) {
+	cfg.LogWarnings(logger)
+	if cfg.Hostname != "" {
+		logger.Warn(fmt.Sprintf("hostname \"%s\" is ignored in the embedded collector", cfg.Hostname))
+	}
+	if cfg.HostMetadata.Enabled {
+		logger.Warn("host_metadata should not be enabled and is ignored in the embedded collector")
+	}
+	if cfg.OnlyMetadata {
+		logger.Warn("only_metadata should not be enabled and is ignored in the embedded collector")
+	}
+	if cfg.Traces.ComputeStatsBySpanKind || cfg.Traces.PeerServiceAggregation || cfg.Traces.PeerTagsAggregation || len(cfg.Traces.PeerTags) > 0 {
+		logger.Warn("inferred service related configs (compute_stats_by_span_kind, peer_service_aggregation, peer_tags_aggregation, peer_tags) should only be set in datadog connector rather than datadog exporter in the embedded collector")
+	}
 }
 
 // createTracesExporter creates a trace exporter based on this config.
