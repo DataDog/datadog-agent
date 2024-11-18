@@ -24,6 +24,22 @@ internal_kubernetes_deploy_experimental:
       artifacts: false
     - job: docker_trigger_cluster_agent_internal
       artifacts: false
+    - job: docker_build_agent7_windows1809
+      artifacts: false
+    - job: docker_build_agent7_windows2022
+      artifacts: false
+    - job: docker_build_agent7_windows1809_jmx
+      artifacts: false
+    - job: docker_build_agent7_windows2022_jmx
+      artifacts: false
+    - job: docker_build_agent7_windows1809_core
+      artifacts: false
+    - job: docker_build_agent7_windows2022_core
+      artifacts: false
+    - job: docker_build_agent7_windows1809_core_jmx
+      artifacts: false
+    - job: docker_build_agent7_windows2022_core_jmx
+      artifacts: false
     - job: k8s-e2e-main # Currently only require container Argo workflow
       artifacts: false
       optional: true
@@ -67,8 +83,5 @@ notify-slack:
   needs: ["internal_kubernetes_deploy_experimental"]
   script:
     - export SDM_JWT=$(vault read -field=token identity/oidc/token/sdm)
-    # Python 3.12 changes default behavior how packages are installed.
-    # In particular, --break-system-packages command line option is
-    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-    - python3 -m pip install -r tasks/requirements.txt --break-system-packages
+    - python3 -m pip install -r tasks/requirements.txt
     - inv pipeline.changelog ${CI_COMMIT_SHORT_SHA} || exit $?

@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	mockTagger "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -38,7 +38,7 @@ type mockdependencies struct {
 	fx.In
 	WMeta      optional.Option[workloadmeta.Component]
 	Params     MockParams
-	TaggerComp tagger.Mock
+	TaggerComp mockTagger.Mock
 	LogsComp   log.Component
 	Telemetry  telemetry.Component
 	Secrets    secrets.Component

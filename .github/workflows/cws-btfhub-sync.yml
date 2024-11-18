@@ -164,8 +164,8 @@ jobs:
               title: 'CWS: sync BTFHub constants',
               owner,
               repo,
-              head: "$BRANCH_NAME",
-              base: "$BASE_BRANCH",
+              head: process.env.BRANCH_NAME,
+              base: process.env.BASE_BRANCH,
               body: [
                 '### What does this PR do?',
                 'This PR syncs the BTFHub constants used by CWS',
