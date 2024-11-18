@@ -2649,16 +2649,20 @@ func TestRDNSHostnameEnrichment(t *testing.T) {
 	}
 
 	testCases := []struct {
-		timeout   int
-		ipAddress string
+		name           string
+		timeout        int
+		ipAddress      string
+		enabled        string
+		expectHostname bool // Whether dns_hostname should be present in the JSON
 	}{
-		{timeout: 5000, ipAddress: "10.2.3.4"},
-		{timeout: 0, ipAddress: "10.3.4.5"},
+		{name: "Valid Reverse DNS", timeout: 5000, ipAddress: "10.2.3.4", enabled: "true", expectHostname: true},
+		{name: "Invalid Reverse DNS (Public IP)", timeout: 5000, ipAddress: "1.3.4.5", enabled: "true", expectHostname: false},
+		{name: "Disabled Reverse DNS", timeout: 5000, ipAddress: "10.2.3.4", enabled: "false", expectHostname: false},
+		{name: "No Timeout", timeout: 0, ipAddress: "10.3.4.5", enabled: "true", expectHostname: true},
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("Timeout %d ms", tc.timeout), func(t *testing.T) {
-
+		t.Run(tc.name, func(t *testing.T) {
 			chk := Check{
 				sessionFactory: sessionFactory,
 				rdnsquerier:    deps.RDNSQuerier,
@@ -2677,21 +2681,23 @@ profiles:
   f5-big-ip:
     definition_file: f5-big-ip.yaml
 reverse_dns_enrichment:
-  enabled: true
+  enabled: %s
   timeout: %d
-`, tc.timeout))
+`, tc.enabled, tc.timeout))
 
 			senderManager := mocksender.CreateDefaultDemultiplexer()
 			err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
 			assert.NoError(t, err)
 			sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 
+			// Mock sender methods
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 			sender.On("Commit").Return()
 
+			// Mock SNMP session methods
 			packet := gosnmp.SnmpPacket{
 				Variables: []gosnmp.SnmpPDU{
 					{
@@ -2701,12 +2707,15 @@ reverse_dns_enrichment:
 					},
 				},
 			}
-			sess.On("Get", []string{"1.2.3.4.5", "1.3.6.1.2.1.1.1.0", "1.3.6.1.2.1.1.2.0", "1.3.6.1.2.1.1.3.0", "1.3.6.1.2.1.1.5.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.3.6.1.4.1.3375.2.1.3.3.3.0"}).Return(&packet, nil)
+			sess.On("Get", mock.Anything).Return(&packet, nil)
 			sess.On("GetNext", mock.Anything).Return(&packet, nil)
 			sess.On("GetBulk", mock.Anything, mock.Anything).Return(&packet, nil)
-			err = chk.Run()
-			assert.Nil(t, err)
 
+			// Run the check
+			err = chk.Run()
+			assert.Nil(t, err, "Expected no error during check execution")
+
+			// Generate expected JSON event
 			event := []byte(fmt.Sprintf(`
 {
   "namespace": "profile-metadata",
@@ -2734,8 +2743,7 @@ reverse_dns_enrichment:
       "profile": "f5-big-ip",
       "vendor": "f5",
       "integration": "snmp",
-      "device_type": "load_balancer",
-      "dns_hostname": "hostname-%s"
+      "device_type": "load_balancer"%s
     }
   ],
   "diagnoses": [
@@ -2747,10 +2755,25 @@ reverse_dns_enrichment:
   ],
   "collect_timestamp": 946684800
 }
-`, tc.ipAddress, tc.ipAddress, version.AgentVersion, tc.ipAddress, tc.ipAddress, tc.ipAddress, tc.ipAddress, tc.ipAddress, tc.ipAddress))
+`, tc.ipAddress, tc.ipAddress, version.AgentVersion, tc.ipAddress, tc.ipAddress, tc.ipAddress, tc.ipAddress,
+				func() string {
+					if tc.expectHostname {
+						return fmt.Sprintf(`, "dns_hostname": "hostname-%s"`, tc.ipAddress)
+					}
+					return ""
+				}(),
+				tc.ipAddress))
+
 			compactEvent := new(bytes.Buffer)
 			err = json.Compact(compactEvent, event)
 			assert.NoError(t, err)
+
+			// Validate that `dns_hostname` presence matches expectation. Should not be present if `dns_hostname` is disabled or not found
+			if tc.expectHostname {
+				assert.Contains(t, string(compactEvent.Bytes()), "dns_hostname", "Expected `dns_hostname` to be present")
+			} else {
+				assert.NotContains(t, string(compactEvent.Bytes()), fmt.Sprintf(`"dns_hostname":"hostname-%s"`, tc.ipAddress), "Expected `dns_hostname` to be absent")
+			}
 
 			sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 		})
