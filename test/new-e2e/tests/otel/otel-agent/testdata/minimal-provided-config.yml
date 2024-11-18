@@ -25,7 +25,7 @@ exporters:
     endpoint: ""
     headers: {}
     host_metadata:
-      enabled: true
+      enabled: false
       hostname_source: config_or_system
       tags: []
     hostname: otelcol-docker
@@ -38,7 +38,6 @@ exporters:
       dialer:
         timeout: 0s
       dump_payloads: false
-      endpoint: https://http-intake.logs.datadoghq.com
       use_compression: true
     max_conns_per_host: 0
     max_idle_conns: 100
@@ -94,7 +93,6 @@ exporters:
       compute_top_level_by_span_kind: true
       dialer:
         timeout: 0s
-      endpoint: https://trace.agent.datadoghq.com
       ignore_resources: []
       peer_service_aggregation: false
       peer_tags: []
