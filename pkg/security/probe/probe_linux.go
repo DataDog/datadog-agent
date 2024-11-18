@@ -61,6 +61,7 @@ func (p *Probe) Origin() string {
 	return EBPFOrigin
 }
 
+// NewAgentContainerContext returns the agent container context
 func NewAgentContainerContext() (*events.AgentContainerContext, error) {
 	pid := os.Getpid()
 
