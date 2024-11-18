@@ -309,7 +309,6 @@ func (c *collector) parsePodContainers(
 				State:           containerState,
 				Owner:           parent,
 				Resources:       resources,
-				RestartCount:    container.RestartCount,
 			},
 		})
 	}
