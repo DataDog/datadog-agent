@@ -49,6 +49,7 @@ type fileObjectPointer uint64
 
 var (
 	errDiscardedPath = errors.New("discarded path")
+	errReadNoPath    = errors.New("read with no path")
 )
 
 /*
@@ -540,7 +541,10 @@ func (wp *WindowsProbe) parseReadArgs(e *etw.DDEventRecord) (*readArgs, error) {
 	if s, ok := wp.filePathResolver.Get(fileObjectPointer(ra.fileObject)); ok {
 		ra.fileName = s.fileName
 		ra.userFileName = s.userFileName
+	} else {
+		return nil, errReadNoPath
 	}
+
 	return ra, nil
 }
 

@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -121,7 +122,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 
 	usmMonitor := setupUSMTLSMonitor(t, s.getConfig())
 	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, srv.Process.Pid, utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, srv.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
 	// c is a stream endpoint
 	// a + b are unary endpoints
@@ -449,7 +450,7 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 
 	usmMonitor := setupUSMTLSMonitor(t, s.getConfig())
 	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, srv.Process.Pid, utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, srv.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
 
 	// Random string generation is an heavy operation, and it's proportional for the length (15MB)
