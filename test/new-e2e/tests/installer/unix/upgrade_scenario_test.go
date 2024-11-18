@@ -465,7 +465,7 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
     }
   }
 `)
-	hash := "abcdef" // TODO: fixme
+	hash := "4681728e9932105c5eea80056151172764d99e348d09a78158874389d25f3c00"
 	timestamp = s.host.LastJournaldTimestamp()
 	s.mustStartConfigExperiment(localCDN.DirPath, datadogAgent, hash)
 	// Assert the successful start of the experiment
