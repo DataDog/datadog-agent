@@ -179,7 +179,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			}, nil, nil)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			cfg.Metrics.Tags = strings.Join(tt.extraTags, ",")
-			exp, err := f.CreateMetricsExporter(
+			exp, err := f.CreateMetrics(
 				ctx,
 				exportertest.NewNopSettings(),
 				cfg,

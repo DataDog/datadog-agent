@@ -40,6 +40,6 @@
 '@datadog/agent-delivery': BARX
 '@datadog/agent-devx-loops': ADXT
 '@datadog/agent-devx-infra': ACIX
-'@datadog/apm-onboarding': APMON
+'@datadog/injection-platform': INPLAT
 '@datadog/agent-processing-and-routing': APR
 '@DataDog/container-ecosystems': CECO

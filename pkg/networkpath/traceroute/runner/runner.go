@@ -1,9 +1,10 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2024-present Datadog, Inc.
 
-package traceroute
+// Package runner is the functionality for actually performing traceroutes
+package runner
 
 import (
 	"context"
@@ -15,7 +16,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/probes/probev4"
 	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/results"
 	"github.com/vishvananda/netns"
@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/tcp"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -32,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -45,21 +47,17 @@ const (
 	DefaultMinTTL = 1
 	// DefaultDelay defines the default delay
 	DefaultDelay = 50 //msec
-	// DefaultOutputFormat defines the default output format
-	DefaultOutputFormat = "json"
 
 	tracerouteRunnerModuleName = "traceroute_runner__"
 )
 
 // Telemetry
 var tracerouteRunnerTelemetry = struct {
-	runs                *telemetry.StatCounterWrapper
-	failedRuns          *telemetry.StatCounterWrapper
-	reverseDNSTimetouts *telemetry.StatCounterWrapper
+	runs       *telemetry.StatCounterWrapper
+	failedRuns *telemetry.StatCounterWrapper
 }{
 	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "runs", []string{}, "Counter measuring the number of traceroutes run"),
 	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "failed_runs", []string{}, "Counter measuring the number of traceroute run failures"),
-	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "reverse_dns_timeouts", []string{}, "Counter measuring the number of traceroute reverse DNS timeouts"),
 }
 
 // Runner executes traceroutes
@@ -69,8 +67,8 @@ type Runner struct {
 	networkID     string
 }
 
-// NewRunner initializes a new traceroute runner
-func NewRunner(telemetryComp telemetryComponent.Component) (*Runner, error) {
+// New initializes a new traceroute runner
+func New(telemetryComp telemetryComponent.Component) (*Runner, error) {
 	var err error
 	var networkID string
 	if ec2.IsRunningOn(context.TODO()) {
@@ -100,7 +98,7 @@ func NewRunner(telemetryComp telemetryComponent.Component) (*Runner, error) {
 //
 // This code is experimental and will be replaced with a more
 // complete implementation.
-func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (payload.NetworkPath, error) {
+func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
 	defer tracerouteRunnerTelemetry.runs.Inc()
 	dests, err := net.DefaultResolver.LookupIP(ctx, "ip4", cfg.DestHostname)
 	if err != nil || len(dests) == 0 {
@@ -164,7 +162,7 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (payload.Network
 	return pathResult, nil
 }
 
-func (r *Runner) runUDP(cfg Config, hname string, dest net.IP, maxTTL uint8, timeout time.Duration) (payload.NetworkPath, error) {
+func (r *Runner) runUDP(cfg config.Config, hname string, dest net.IP, maxTTL uint8, timeout time.Duration) (payload.NetworkPath, error) {
 	destPort, srcPort, useSourcePort := getPorts(cfg.DestPort)
 
 	dt := &probev4.UDPv4{
@@ -194,7 +192,7 @@ func (r *Runner) runUDP(cfg Config, hname string, dest net.IP, maxTTL uint8, tim
 	return pathResult, nil
 }
 
-func (r *Runner) runTCP(cfg Config, hname string, target net.IP, maxTTL uint8, timeout time.Duration) (payload.NetworkPath, error) {
+func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL uint8, timeout time.Duration) (payload.NetworkPath, error) {
 	destPort := cfg.DestPort
 	if destPort == 0 {
 		destPort = 80 // TODO: is this the default we want?
