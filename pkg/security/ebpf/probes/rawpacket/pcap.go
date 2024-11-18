@@ -23,18 +23,18 @@ import (
 )
 
 const (
-	// rawPacketFilterProgPrefix prefix used for raw packet filter programs
-	rawPacketFilterProgPrefix = "raw_packet_prog_"
+	// progPrefix prefix used for raw packet filter programs
+	progPrefix = "raw_packet_prog_"
 
-	// rawPacketFilterEntryProg first raw packet tc program to be called
-	rawPacketFilterEntryProg = "raw_packet_prog_0"
+	// filterEntryProg first raw packet tc program to be called
+	filterEntryProg = "raw_packet_prog_0"
 
-	// rawPacketCaptureSize see kernel definition
-	rawPacketCaptureSize = 256
+	// packetCaptureSize see kernel definition
+	packetCaptureSize = 256
 )
 
-// RawPacketProgOpts defines options
-type RawPacketProgOpts struct {
+// ProgOpts defines options
+type ProgOpts struct {
 	*cbpfc.EBPFOpts
 
 	// MaxTailCalls maximun number of tail calls generated
@@ -50,8 +50,8 @@ type RawPacketProgOpts struct {
 	tailCallMapFd  int
 }
 
-// DefaultRawPacketProgOpts default options
-var DefaultRawPacketProgOpts = RawPacketProgOpts{
+// DefaultProgOpts default options
+var DefaultProgOpts = ProgOpts{
 	EBPFOpts: &cbpfc.EBPFOpts{
 		PacketStart: asm.R1,
 		PacketEnd:   asm.R2,
@@ -71,7 +71,7 @@ var DefaultRawPacketProgOpts = RawPacketProgOpts{
 }
 
 // BPFFilterToInsts compile a bpf filter expression
-func BPFFilterToInsts(index int, filter string, opts RawPacketProgOpts) (asm.Instructions, error) {
+func BPFFilterToInsts(index int, filter string, opts ProgOpts) (asm.Instructions, error) {
 	pcapBPF, err := pcap.CompileBPFFilter(layers.LinkTypeEthernet, 256, filter)
 	if err != nil {
 		return nil, err
@@ -112,7 +112,7 @@ func BPFFilterToInsts(index int, filter string, opts RawPacketProgOpts) (asm.Ins
 	return insts, nil
 }
 
-func rawPacketFiltersToProgs(rawPacketfilters []RawPacketFilter, opts RawPacketProgOpts, headerInsts, senderInsts asm.Instructions) ([]asm.Instructions, *multierror.Error) {
+func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, senderInsts asm.Instructions) ([]asm.Instructions, *multierror.Error) {
 	var (
 		progInsts []asm.Instructions
 		currProg  uint32
@@ -124,10 +124,10 @@ func rawPacketFiltersToProgs(rawPacketfilters []RawPacketFilter, opts RawPacketP
 
 	progInsts[currProg] = append(progInsts[currProg], headerInsts...)
 
-	for i, rawPacketFilter := range rawPacketfilters {
-		filterInsts, err := BPFFilterToInsts(i, rawPacketFilter.BPFFilter, opts)
+	for i, filter := range filters {
+		filterInsts, err := BPFFilterToInsts(i, filter.BPFFilter, opts)
 		if err != nil {
-			mErr = multierror.Append(mErr, fmt.Errorf("unable to generate eBPF bitcode for rule `%s`: %s", rawPacketFilter.RuleID, err))
+			mErr = multierror.Append(mErr, fmt.Errorf("unable to generate eBPF bitcode for rule `%s`: %s", filter.RuleID, err))
 			continue
 		}
 
@@ -166,8 +166,8 @@ func rawPacketFiltersToProgs(rawPacketfilters []RawPacketFilter, opts RawPacketP
 	return progInsts, mErr
 }
 
-// RawPacketTCFiltersToProgramSpecs returns list of program spec from raw packet filters definitions
-func RawPacketTCFiltersToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, rawpPacketFilters []RawPacketFilter, opts RawPacketProgOpts) ([]*ebpf.ProgramSpec, error) {
+// TCFiltersToProgramSpecs returns list of program spec from raw packet filters definitions
+func TCFiltersToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, filters []Filter, opts ProgOpts) ([]*ebpf.ProgramSpec, error) {
 	var mErr *multierror.Error
 
 	const (
@@ -206,7 +206,7 @@ func RawPacketTCFiltersToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, r
 	}
 
 	// compile and convert to eBPF progs
-	progInsts, err := rawPacketFiltersToProgs(rawpPacketFilters, opts, headerInsts, senderInsts)
+	progInsts, err := filtersToProgs(filters, opts, headerInsts, senderInsts)
 	if err.ErrorOrNil() != nil {
 		mErr = multierror.Append(mErr, err)
 	}
@@ -219,9 +219,9 @@ func RawPacketTCFiltersToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, r
 	progSpecs := make([]*ebpf.ProgramSpec, len(progInsts))
 
 	for i, insts := range progInsts {
-		name := rawPacketFilterEntryProg
+		name := filterEntryProg
 		if i > 0 {
-			name = fmt.Sprintf("%s%d", rawPacketFilterProgPrefix, i+1)
+			name = fmt.Sprintf("%s%d", progPrefix, i+1)
 		}
 
 		progSpecs[i] = &ebpf.ProgramSpec{

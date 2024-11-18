@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
-// RawPacketFilter defines a raw packet filter
-type RawPacketFilter struct {
+// Filter defines a raw packet filter
+type Filter struct {
 	RuleID    eval.RuleID
 	BPFFilter string
 }

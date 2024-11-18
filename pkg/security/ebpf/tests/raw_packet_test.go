@@ -10,7 +10,7 @@ package tests
 
 // TODO(safchain) uncomment when the baloum deps will be fixed
 /*
-func testRawPacketFilter(t *testing.T, rawPacketFilters []probes.RawPacketFilter, expectedRetCode int, opts probes.RawPacketProgOpts) {
+func testRawPacketFilter(t *testing.T, filters []rawpacket.Filter, expectedRetCode int, opts rawpacket.ProgOpts) {
 	var ctx baloum.StdContext
 
 	vm := newVM(t)
@@ -24,7 +24,7 @@ func testRawPacketFilter(t *testing.T, rawPacketFilters []probes.RawPacketFilter
 		t.Fatal("map not found")
 	}
 
-	progSpecs, err := probes.RawPacketTCFiltersToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), rawPacketFilters, opts)
+	progSpecs, err := rawpacket.TCFiltersToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), filters, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,27 +60,27 @@ func testRawPacketFilter(t *testing.T, rawPacketFilters []probes.RawPacketFilter
 
 func TestRawPacketTailCalls(t *testing.T) {
 	t.Run("syn-port-std-ok", func(t *testing.T) {
-		filters := []probes.RawPacketFilter{
+		filters := []rawpacket.Filter{
 			{
 				RuleID:    "ok",
 				BPFFilter: "tcp dst port 5555 and tcp[tcpflags] == tcp-syn",
 			},
 		}
-		testRawPacketFilter(t, filters, 2, probes.DefaultRawPacketProgOpts)
+		testRawPacketFilter(t, filters, 2, rawpacket.DefaultProgOpts)
 	})
 
 	t.Run("syn-port-std-ko", func(t *testing.T) {
-		filters := []probes.RawPacketFilter{
+		filters := []rawpacket.Filter{
 			{
 				RuleID:    "ko",
 				BPFFilter: "tcp dst port 6666 and tcp[tcpflags] == tcp-syn",
 			},
 		}
-		testRawPacketFilter(t, filters, 0, probes.DefaultRawPacketProgOpts)
+		testRawPacketFilter(t, filters, 0, rawpacket.DefaultProgOpts)
 	})
 
 	t.Run("syn-port-mult-ok", func(t *testing.T) {
-		filters := []probes.RawPacketFilter{
+		filters := []rawpacket.Filter{
 			{
 				RuleID:    "ko",
 				BPFFilter: "tcp dst port 6666 and tcp[tcpflags] == tcp-syn",
@@ -91,14 +91,14 @@ func TestRawPacketTailCalls(t *testing.T) {
 			},
 		}
 
-		opts := probes.DefaultRawPacketProgOpts
+		opts := rawpacket.DefaultProgOpts
 		opts.NopInstLen = opts.MaxProgSize
 
 		testRawPacketFilter(t, filters, 2, opts)
 	})
 
 	t.Run("syn-port-mult-ko", func(t *testing.T) {
-		filters := []probes.RawPacketFilter{
+		filters := []rawpacket.Filter{
 			{
 				RuleID:    "ko",
 				BPFFilter: "tcp dst port 6666 and tcp[tcpflags] == tcp-syn",
@@ -109,7 +109,7 @@ func TestRawPacketTailCalls(t *testing.T) {
 			},
 		}
 
-		opts := probes.DefaultRawPacketProgOpts
+		opts := rawpacket.DefaultProgOpts
 		opts.NopInstLen = opts.MaxProgSize
 
 		testRawPacketFilter(t, filters, 0, opts)

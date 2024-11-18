@@ -15,8 +15,8 @@ import (
 	"github.com/cilium/ebpf/asm"
 )
 
-// RawPacketProgOpts defines options
-type RawPacketProgOpts struct {
+// ProgOpts defines options
+type ProgOpts struct {
 	// MaxTailCalls maximun number of tail calls generated
 	MaxTailCalls int
 	// number of instructions
@@ -25,15 +25,15 @@ type RawPacketProgOpts struct {
 	NopInstLen int
 }
 
-// DefaultRawPacketProgOpts default options
-var DefaultRawPacketProgOpts RawPacketProgOpts
+// DefaultProgOpts default options
+var DefaultProgOpts ProgOpts
 
 // BPFFilterToInsts compile a bpf filter expression
-func BPFFilterToInsts(_ int, _ string, _ RawPacketProgOpts) (asm.Instructions, error) {
+func BPFFilterToInsts(_ int, _ string, _ ProgOpts) (asm.Instructions, error) {
 	return asm.Instructions{}, errors.New("not supported")
 }
 
-// RawPacketTCFiltersToProgramSpecs returns list of program spec from raw packet filters definitions
-func RawPacketTCFiltersToProgramSpecs(_, _ int, _ []RawPacketFilter, _ RawPacketProgOpts) ([]*ebpf.ProgramSpec, error) {
+// TCFiltersToProgramSpecs returns list of program spec from raw packet filters definitions
+func TCFiltersToProgramSpecs(_, _ int, _ []Filter, _ ProgOpts) ([]*ebpf.ProgramSpec, error) {
 	return nil, errors.New("not supported")
 }
