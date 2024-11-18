@@ -7,6 +7,8 @@ package probe
 
 import (
 	json "encoding/json"
+	events "github.com/DataDog/datadog-agent/pkg/security/events"
+	containerutils "github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	serializers "github.com/DataDog/datadog-agent/pkg/security/serializers"
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
@@ -64,6 +66,16 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 			}
 		case "service":
 			out.Service = string(in.String())
+		case "container":
+			if in.IsNull() {
+				in.Skip()
+				out.AgentContainerContext = nil
+			} else {
+				if out.AgentContainerContext == nil {
+					out.AgentContainerContext = new(events.AgentContainerContext)
+				}
+				easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityEvents(in, out.AgentContainerContext)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -114,6 +126,15 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 		out.RawString(prefix)
 		out.String(string(in.Service))
 	}
+	{
+		const prefix string = ",\"container\":"
+		out.RawString(prefix)
+		if in.AgentContainerContext == nil {
+			out.RawString("null")
+		} else {
+			easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityEvents(out, *in.AgentContainerContext)
+		}
+	}
 	out.RawByte('}')
 }
 
@@ -125,6 +146,61 @@ func (v EventLostWrite) MarshalEasyJSON(w *jwriter.Writer) {
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *EventLostWrite) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(l, v)
+}
+func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityEvents(in *jlexer.Lexer, out *events.AgentContainerContext) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "id":
+			out.ContainerID = containerutils.ContainerID(in.String())
+		case "created_at":
+			out.CreatedAt = uint64(in.Uint64())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityEvents(out *jwriter.Writer, in events.AgentContainerContext) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	if in.ContainerID != "" {
+		const prefix string = ",\"id\":"
+		first = false
+		out.RawString(prefix[1:])
+		out.String(string(in.ContainerID))
+	}
+	{
+		const prefix string = ",\"created_at\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Uint64(uint64(in.CreatedAt))
+	}
+	out.RawByte('}')
 }
 func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jlexer.Lexer, out *EventLostRead) {
 	isTopLevel := in.IsStart()
@@ -155,6 +231,16 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 			}
 		case "service":
 			out.Service = string(in.String())
+		case "container":
+			if in.IsNull() {
+				in.Skip()
+				out.AgentContainerContext = nil
+			} else {
+				if out.AgentContainerContext == nil {
+					out.AgentContainerContext = new(events.AgentContainerContext)
+				}
+				easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityEvents(in, out.AgentContainerContext)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -189,6 +275,15 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 		out.RawString(prefix)
 		out.String(string(in.Service))
 	}
+	{
+		const prefix string = ",\"container\":"
+		out.RawString(prefix)
+		if in.AgentContainerContext == nil {
+			out.RawString("null")
+		} else {
+			easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityEvents(out, *in.AgentContainerContext)
+		}
+	}
 	out.RawByte('}')
 }
 
@@ -222,7 +317,7 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jle
 		switch key {
 		case "nsid":
 			out.NSID = uint64(in.Uint64())
-		case "container":
+		case "workload_container":
 			easyjsonF8f9ddd1Decode(in, &out.Container)
 		case "args":
 			if in.IsNull() {
@@ -253,6 +348,16 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jle
 			}
 		case "service":
 			out.Service = string(in.String())
+		case "container":
+			if in.IsNull() {
+				in.Skip()
+				out.AgentContainerContext = nil
+			} else {
+				if out.AgentContainerContext == nil {
+					out.AgentContainerContext = new(events.AgentContainerContext)
+				}
+				easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityEvents(in, out.AgentContainerContext)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -274,7 +379,7 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jw
 		out.Uint64(uint64(in.NSID))
 	}
 	if true {
-		const prefix string = ",\"container\":"
+		const prefix string = ",\"workload_container\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
@@ -316,6 +421,15 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jw
 		const prefix string = ",\"service\":"
 		out.RawString(prefix)
 		out.String(string(in.Service))
+	}
+	{
+		const prefix string = ",\"container\":"
+		out.RawString(prefix)
+		if in.AgentContainerContext == nil {
+			out.RawString("null")
+		} else {
+			easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityEvents(out, *in.AgentContainerContext)
+		}
 	}
 	out.RawByte('}')
 }
@@ -455,6 +569,16 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(in *jle
 			}
 		case "service":
 			out.Service = string(in.String())
+		case "container":
+			if in.IsNull() {
+				in.Skip()
+				out.AgentContainerContext = nil
+			} else {
+				if out.AgentContainerContext == nil {
+					out.AgentContainerContext = new(events.AgentContainerContext)
+				}
+				easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityEvents(in, out.AgentContainerContext)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -492,6 +616,15 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jw
 		const prefix string = ",\"service\":"
 		out.RawString(prefix)
 		out.String(string(in.Service))
+	}
+	{
+		const prefix string = ",\"container\":"
+		out.RawString(prefix)
+		if in.AgentContainerContext == nil {
+			out.RawString("null")
+		} else {
+			easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityEvents(out, *in.AgentContainerContext)
+		}
 	}
 	out.RawByte('}')
 }

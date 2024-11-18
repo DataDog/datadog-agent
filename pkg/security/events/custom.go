@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -68,16 +69,24 @@ const (
 	InternalCoreDumpRuleDesc = "Internal Core Dump"
 )
 
+// AgentContainerContext is like model.ContainerContext, but without event based resolvers
+type AgentContainerContext struct {
+	ContainerID containerutils.ContainerID `json:"id,omitempty"`
+	CreatedAt   uint64                     `json:"created_at"`
+}
+
 // CustomEventCommonFields represents the fields common to all custom events
 type CustomEventCommonFields struct {
-	Timestamp time.Time `json:"date"`
-	Service   string    `json:"service"`
+	Timestamp             time.Time              `json:"date"`
+	Service               string                 `json:"service"`
+	AgentContainerContext *AgentContainerContext `json:"container"`
 }
 
 // FillCustomEventCommonFields fills the common fields with default values
-func (commonFields *CustomEventCommonFields) FillCustomEventCommonFields() {
+func (commonFields *CustomEventCommonFields) FillCustomEventCommonFields(acc *AgentContainerContext) {
 	commonFields.Service = ServiceName
 	commonFields.Timestamp = time.Now()
+	commonFields.AgentContainerContext = acc
 }
 
 // NewCustomRule returns a new custom rule

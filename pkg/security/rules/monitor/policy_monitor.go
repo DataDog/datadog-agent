@@ -81,9 +81,9 @@ func (pm *PolicyMonitor) SetPolicies(policies []*PolicyState) {
 }
 
 // ReportHeartbeatEvent sends HeartbeatEvents reporting the current set of policies
-func (pm *PolicyMonitor) ReportHeartbeatEvent(sender events.EventSender) {
+func (pm *PolicyMonitor) ReportHeartbeatEvent(acc *events.AgentContainerContext, sender events.EventSender) {
 	pm.RLock()
-	rule, events := newHeartbeatEvents(pm.policies)
+	rule, events := newHeartbeatEvents(acc, pm.policies)
 	pm.RUnlock()
 
 	for _, event := range events {
@@ -151,8 +151,8 @@ type RuleSetLoadedReport struct {
 }
 
 // ReportRuleSetLoaded reports to Datadog that a new ruleset was loaded
-func ReportRuleSetLoaded(sender events.EventSender, statsdClient statsd.ClientInterface, policies []*PolicyState) {
-	rule, event := newRuleSetLoadedEvent(policies)
+func ReportRuleSetLoaded(acc *events.AgentContainerContext, sender events.EventSender, statsdClient statsd.ClientInterface, policies []*PolicyState) {
+	rule, event := newRuleSetLoadedEvent(acc, policies)
 
 	if err := statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
@@ -356,18 +356,18 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 }
 
 // newRuleSetLoadedEvent returns the rule (e.g. ruleset_loaded) and a populated custom event for a new_rules_loaded event
-func newRuleSetLoadedEvent(policies []*PolicyState) (*rules.Rule, *events.CustomEvent) {
+func newRuleSetLoadedEvent(acc *events.AgentContainerContext, policies []*PolicyState) (*rules.Rule, *events.CustomEvent) {
 	evt := RulesetLoadedEvent{
 		Policies: policies,
 	}
-	evt.FillCustomEventCommonFields()
+	evt.FillCustomEventCommonFields(acc)
 
 	return events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc),
 		events.NewCustomEvent(model.CustomRulesetLoadedEventType, evt)
 }
 
 // newHeartbeatEvents returns the rule (e.g. heartbeat) and a populated custom event for a heartbeat event
-func newHeartbeatEvents(policies []*policy) (*rules.Rule, []*events.CustomEvent) {
+func newHeartbeatEvents(acc *events.AgentContainerContext, policies []*policy) (*rules.Rule, []*events.CustomEvent) {
 	var evts []*events.CustomEvent
 
 	for _, policy := range policies {
@@ -381,7 +381,7 @@ func newHeartbeatEvents(policies []*policy) (*rules.Rule, []*events.CustomEvent)
 		evt := HeartbeatEvent{
 			Policy: &policyState,
 		}
-		evt.FillCustomEventCommonFields()
+		evt.FillCustomEventCommonFields(acc)
 		evts = append(evts, events.NewCustomEvent(model.CustomHeartbeatEventType, evt))
 	}
 
