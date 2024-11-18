@@ -85,7 +85,7 @@ func GetInterval(cfg pkgconfigmodel.Reader, checkName string) time.Duration {
 		}
 		return eventsInterval
 	case ConnectionsCheckName:
-		connectionsInterval := cfg.GetDuration("connections_check_interval_seconds")
+		connectionsInterval := cfg.GetDuration("process_config.connections_check_interval_seconds")
 		minInterval := pkgconfigsetup.DefaultConnectionsMinCheckInterval
 		if connectionsInterval < minInterval {
 			connectionsInterval = minInterval

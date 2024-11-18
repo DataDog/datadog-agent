@@ -198,6 +198,10 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 
 	procBindEnvAndSetDefault(config, "process_config.drop_check_payloads", []string{})
 
+	// Connections Check
+
+	procBindEnvAndSetDefault(config, "process_config.connections_check_interval_seconds", 30*time.Second)
+
 	// Process Lifecycle Events
 	procBindEnvAndSetDefault(config, "process_config.event_collection.store.max_items", DefaultProcessEventStoreMaxItems)
 	procBindEnvAndSetDefault(config, "process_config.event_collection.store.max_pending_pushes", DefaultProcessEventStoreMaxPendingPushes)

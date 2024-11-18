@@ -41,11 +41,6 @@ func TestLegacyIntervalDefault(t *testing.T) {
 			checkName:        RTProcessCheckName,
 			expectedInterval: RTProcessCheckDefaultInterval,
 		},
-		{
-			name:             "connections default",
-			checkName:        ConnectionsCheckName,
-			expectedInterval: ConnectionsCheckDefaultInterval,
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.New(t)
@@ -147,4 +142,35 @@ func TestProcessEventsInterval(t *testing.T) {
 			assert.Equal(t, tc.expectedInterval, GetInterval(cfg, ProcessEventsCheckName))
 		})
 	}
+}
+
+func TestConnectionsInterval(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		interval         time.Duration
+		expectedInterval time.Duration
+	}{
+		{
+			name:             "allowed interval",
+			interval:         5 * time.Minute,
+			expectedInterval: 5 * time.Minute,
+		},
+		{
+			name:             "below minimum",
+			interval:         0,
+			expectedInterval: pkgconfigsetup.DefaultConnectionsMinCheckInterval,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.SetWithoutSource("process_config.connections_check_interval_seconds", tc.interval)
+
+			assert.Equal(t, tc.expectedInterval, GetInterval(cfg, ConnectionsCheckName))
+		})
+	}
+}
+
+func TestConnectionsIntervalDefault(t *testing.T) {
+	cfg := configmock.New(t)
+	assert.Equal(t, 30*time.Second, GetInterval(cfg, ConnectionsCheckName))
 }
