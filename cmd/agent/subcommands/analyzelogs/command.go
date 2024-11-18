@@ -83,7 +83,7 @@ func runAnalyzeLogs(config config.Component, cliParams *CliParams) error {
 	}
 
 	// Set up an inactivity timeout
-	inactivityTimeout := 3 * time.Second
+	inactivityTimeout := 1 * time.Second
 	idleTimer := time.NewTimer(inactivityTimeout)
 
 	// Goroutine to monitor the output channel
