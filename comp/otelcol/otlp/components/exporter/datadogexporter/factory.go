@@ -211,7 +211,7 @@ func (f *factory) createTracesExporter(
 
 	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp)
 
-	return exporterhelper.NewTracesExporter(
+	return exporterhelper.NewTraces(
 		ctx,
 		set,
 		cfg,
@@ -246,7 +246,7 @@ func (f *factory) createMetricsExporter(
 		},
 		QueueConfig: cfg.QueueConfig,
 	}
-	return sf.CreateMetricsExporter(ctx, set, ex)
+	return sf.CreateMetrics(ctx, set, ex)
 }
 
 func (f *factory) consumeStatsPayload(ctx context.Context, wg *sync.WaitGroup, statsIn <-chan []byte, tracerVersion string, agentVersion string, logger *zap.Logger) {
@@ -295,5 +295,5 @@ func (f *factory) createLogsExporter(
 		OtelSource:    "otel_agent",
 		LogSourceName: logsagentexporter.LogSourceName,
 	}
-	return lf.CreateLogsExporter(ctx, set, lc)
+	return lf.CreateLogs(ctx, set, lc)
 }

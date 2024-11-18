@@ -44,8 +44,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -53,6 +54,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgCompliance "github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -111,12 +113,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						AgentType: catalog,
 					}
 				}),
-				taggerimpl.Module(),
-				fx.Provide(func(config config.Component) tagger.Params {
-					if config.GetBool("security_agent.remote_tagger") {
-						return tagger.NewNodeRemoteTaggerParams()
-					}
-					return tagger.NewTaggerParams()
+				remoteTaggerfx.Module(tagger.RemoteParams{
+					RemoteTarget: func(c config.Component) (string, error) {
+						return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
+					},
+					RemoteTokenFetcher: func(c config.Component) func() (string, error) {
+						return func() (string, error) {
+							return security.FetchAuthToken(c)
+						}
+					},
+					RemoteFilter: taggerTypes.NewMatchAllFilter(),
 				}),
 				fx.Provide(func() startstop.Stopper {
 					return startstop.NewSerialStopper()

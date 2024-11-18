@@ -110,6 +110,12 @@ func TestGetEnvVariableFromBuffer(t *testing.T) {
 			envVar:   "MY_VAR",
 			expected: "myvar",
 		},
+		{
+			name:     "LastVarWithNoTrailingNull",
+			contents: "PATH=/usr/bin\x00MY_VAR=myvar",
+			envVar:   "MY_VAR",
+			expected: "myvar",
+		},
 	}
 
 	for _, tc := range cases {
