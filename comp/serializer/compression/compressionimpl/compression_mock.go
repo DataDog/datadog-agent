@@ -14,11 +14,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
+func MockModuleFactory() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(NewMockCompressor),
+		fx.Provide(NewMockCompressorFactory),
 	)
+}
+
+type mockFactory struct{}
+
+func (*mockFactory) NewNoopCompressor() compression.Component {
+	return NewCompressorFactory().NewNoopCompressor()
+}
+
+func (*mockFactory) NewCompressor(_ string, _ int, _ string, _ []string) compression.Component {
+	return NewCompressorFactory().NewNoopCompressor()
+}
+
+// NewMockCompressorFactory returns a factory that always return a Noop Compressor
+func NewMockCompressorFactory() compression.Factory {
+	return &mockFactory{}
 }
 
 // NewMockCompressor returns a new Mock

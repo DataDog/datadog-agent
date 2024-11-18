@@ -72,10 +72,10 @@ func newMock(deps mockDependencies) MockProvides {
 	opts.DontStartForwarders = true
 
 	aggDeps := aggregator.TestDeps{
-		Log:             deps.Log,
-		Hostname:        deps.Hostname,
-		SharedForwarder: defaultforwarder.NoopForwarder{},
-		Compressor:      compressionimpl.NewMockCompressor(),
+		Log:                deps.Log,
+		Hostname:           deps.Hostname,
+		SharedForwarder:    defaultforwarder.NoopForwarder{},
+		CompressionFactory: compressionimpl.NewMockCompressorFactory(),
 	}
 
 	instance := &mock{AgentDemultiplexer: aggregator.InitAndStartAgentDemultiplexerForTest(aggDeps, opts, "")}

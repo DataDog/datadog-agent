@@ -64,6 +64,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 	tracecomp "github.com/DataDog/datadog-agent/comp/trace"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
@@ -93,6 +94,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		collectorfx.Module(),
 		collectorcontribFx.Module(),
 		converterfx.Module(),
+		compressionimpl.MockModuleFactory(),
 		fx.Provide(func(cp converter.Component) confmap.Converter {
 			return cp
 		}),
