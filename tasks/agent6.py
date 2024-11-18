@@ -1,6 +1,6 @@
 from invoke import task
 
-from tasks.libs.common.agent6 import _agent6_context, enter_agent6_context, prepare
+from tasks.libs.common.agent6 import agent_context, enter_agent6_context, prepare
 
 
 @task
@@ -14,7 +14,7 @@ def init(ctx):
 def run(ctx, command):
     """Runs a command in the agent 6 environment."""
 
-    with _agent6_context(ctx):
+    with agent_context(ctx, 6):
         ctx.run(command)
 
 
@@ -22,9 +22,12 @@ def run(ctx, command):
 def invoke(ctx):
     """Enters the agent 6 environment in order to invoke tasks in this context.
 
+    Note:
+        This task should be avoided when a --version, --major-version or --agent-version argument is available in the task.
+
     Usage:
         > inv agent6.invoke modules.show-all  # Will show agent 6 modules
     """
 
-    # The tasks run after this one will be using the agent 6 environment
+    # The tasks running after this one will be using the agent 6 environment
     enter_agent6_context(ctx)

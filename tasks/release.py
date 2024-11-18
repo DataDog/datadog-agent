@@ -47,6 +47,7 @@ from tasks.libs.releasing.documentation import (
     release_manager,
 )
 from tasks.libs.releasing.json import (
+    DEFAULT_BRANCHES,
     UNFREEZE_REPO_AGENT,
     UNFREEZE_REPOS,
     _get_release_json_value,
@@ -788,8 +789,8 @@ def cleanup(ctx):
 def check_omnibus_branches(ctx):
     base_branch = _get_release_json_value('base_branch')
     if base_branch == get_default_branch():
-        omnibus_ruby_branch = 'datadog-5.5.0'
-        omnibus_software_branch = 'master'
+        omnibus_ruby_branch = DEFAULT_BRANCHES['omnibus-ruby']
+        omnibus_software_branch = DEFAULT_BRANCHES['omnibus-software']
     else:
         omnibus_ruby_branch = base_branch
         omnibus_software_branch = base_branch

@@ -833,7 +833,7 @@ def test_merge_queue(ctx):
     timestamp = int(datetime.now(timezone.utc).timestamp())
     test_main = f"mq/test_{timestamp}"
     current_branch = get_current_branch(ctx)
-    ctx.run("git checkout main", hide=True)
+    ctx.run(f"git checkout {get_default_branch()}", hide=True)
     ctx.run("git pull", hide=True)
     ctx.run(f"git checkout -b {test_main}", hide=True)
     ctx.run(f"git push origin {test_main}", hide=True)
