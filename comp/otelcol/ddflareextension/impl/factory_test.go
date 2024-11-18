@@ -29,7 +29,7 @@ func TestNewFactoryForAgent(t *testing.T) {
 	cfg := factory.CreateDefaultConfig()
 	assert.NotNil(t, cfg)
 
-	ext, err := factory.CreateExtension(context.Background(), extension.Settings{}, cfg)
+	ext, err := factory.Create(context.Background(), extension.Settings{}, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, ext)
 
@@ -45,8 +45,7 @@ func TestTypeStability(t *testing.T) {
 	assert.Equalf(t, typ, metadata.Type,
 		"Factory type is %v expected it to be %x", typ, metadata.Type)
 
-	stability := factory.ExtensionStability()
+	stability := factory.Stability()
 	assert.Equalf(t, stability, metadata.ExtensionStability,
 		"Factory stability is %v expected it to be %x", stability, metadata.ExtensionStability)
-
 }

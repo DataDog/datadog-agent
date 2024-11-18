@@ -33,6 +33,8 @@ type Context struct {
 	Registers map[RegisterID]int
 
 	now time.Time
+
+	CachedAncestorsCount int
 }
 
 // Now return and cache the `now` timestamp
@@ -58,6 +60,7 @@ func (c *Context) Reset() {
 	clear(c.BoolCache)
 	clear(c.Registers)
 	clear(c.RegisterCache)
+	c.CachedAncestorsCount = 0
 }
 
 // NewContext return a new Context

@@ -35,12 +35,12 @@ func (e EventLostRead) ToJSON() ([]byte, error) {
 }
 
 // NewEventLostReadEvent returns the rule and a populated custom event for a lost_events_read event
-func NewEventLostReadEvent(mapName string, lost float64) (*rules.Rule, *events.CustomEvent) {
+func NewEventLostReadEvent(acc *events.AgentContainerContext, mapName string, lost float64) (*rules.Rule, *events.CustomEvent) {
 	evt := EventLostRead{
 		Name: mapName,
 		Lost: lost,
 	}
-	evt.FillCustomEventCommonFields()
+	evt.FillCustomEventCommonFields(acc)
 
 	return events.NewCustomRule(events.LostEventsRuleID, events.LostEventsRuleDesc), events.NewCustomEvent(model.CustomLostReadEventType, evt)
 }
@@ -59,12 +59,12 @@ func (e EventLostWrite) ToJSON() ([]byte, error) {
 }
 
 // NewEventLostWriteEvent returns the rule and a populated custom event for a lost_events_write event
-func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]uint64) (*rules.Rule, *events.CustomEvent) {
+func NewEventLostWriteEvent(acc *events.AgentContainerContext, mapName string, perEventPerCPU map[string]uint64) (*rules.Rule, *events.CustomEvent) {
 	evt := EventLostWrite{
 		Name: mapName,
 		Lost: perEventPerCPU,
 	}
-	evt.FillCustomEventCommonFields()
+	evt.FillCustomEventCommonFields(acc)
 
 	return events.NewCustomRule(events.LostEventsRuleID, events.LostEventsRuleDesc), events.NewCustomEvent(model.CustomLostWriteEventType, evt)
 }
@@ -92,13 +92,13 @@ func (a AbnormalEvent) ToJSON() ([]byte, error) {
 }
 
 // NewAbnormalEvent returns the rule and a populated custom event for a abnormal event
-func NewAbnormalEvent(id string, description string, event *model.Event, err error) (*rules.Rule, *events.CustomEvent) {
+func NewAbnormalEvent(acc *events.AgentContainerContext, id string, description string, event *model.Event, err error) (*rules.Rule, *events.CustomEvent) {
 	marshalerCtor := func() events.EventMarshaler {
 		evt := AbnormalEvent{
 			Event: serializers.NewEventSerializer(event, nil),
 			Error: err.Error(),
 		}
-		evt.FillCustomEventCommonFields()
+		evt.FillCustomEventCommonFields(acc)
 		// Overwrite common timestamp with event timestamp
 		evt.Timestamp = event.ResolveEventTime()
 
@@ -119,7 +119,7 @@ type EBPFLessHelloMsgEvent struct {
 		Name           string `json:"name,omitempty"`
 		ImageShortName string `json:"short_name,omitempty"`
 		ImageTag       string `json:"image_tag,omitempty"`
-	} `json:"container,omitempty"`
+	} `json:"workload_container,omitempty"`
 	EntrypointArgs []string `json:"args,omitempty"`
 }
 
@@ -129,7 +129,7 @@ func (e EBPFLessHelloMsgEvent) ToJSON() ([]byte, error) {
 }
 
 // NewEBPFLessHelloMsgEvent returns a eBPFLess hello custom event
-func NewEBPFLessHelloMsgEvent(msg *ebpfless.HelloMsg, scrubber *procutil.DataScrubber) (*rules.Rule, *events.CustomEvent) {
+func NewEBPFLessHelloMsgEvent(acc *events.AgentContainerContext, msg *ebpfless.HelloMsg, scrubber *procutil.DataScrubber) (*rules.Rule, *events.CustomEvent) {
 	args := msg.EntrypointArgs
 	if scrubber != nil {
 		args, _ = scrubber.ScrubCommand(msg.EntrypointArgs)
@@ -144,7 +144,7 @@ func NewEBPFLessHelloMsgEvent(msg *ebpfless.HelloMsg, scrubber *procutil.DataScr
 	evt.Container.ImageTag = msg.ContainerContext.ImageTag
 	evt.EntrypointArgs = args
 
-	evt.FillCustomEventCommonFields()
+	evt.FillCustomEventCommonFields(acc)
 
 	return events.NewCustomRule(events.EBPFLessHelloMessageRuleID, events.EBPFLessHelloMessageRuleDesc), events.NewCustomEvent(model.UnknownEventType, evt)
 }

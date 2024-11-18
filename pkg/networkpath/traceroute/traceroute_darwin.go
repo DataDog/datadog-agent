@@ -13,6 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/runner"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,21 +26,21 @@ const (
 // running traceroute from an agent running
 // on macOS
 type MacTraceroute struct {
-	cfg    Config
-	runner *Runner
+	cfg    config.Config
+	runner *runner.Runner
 }
 
 // New creates a new instance of MacTraceroute
 // based on an input configuration
-func New(cfg Config, telemetry telemetry.Component) (*MacTraceroute, error) {
+func New(cfg config.Config, telemetry telemetry.Component) (*MacTraceroute, error) {
 	log.Debugf("Creating new traceroute with config: %+v", cfg)
-	runner, err := NewRunner(telemetry)
+	runner, err := runner.New(telemetry)
 	if err != nil {
 		return nil, err
 	}
 
 	// TCP is not supported at the moment due to the
-	// way go listensn for TCP in our implementation on BSD systems
+	// way go listens for TCP in our implementation on BSD systems
 	if cfg.Protocol == payload.ProtocolTCP {
 		return nil, fmt.Errorf(tcpNotSupportedMsg)
 	}

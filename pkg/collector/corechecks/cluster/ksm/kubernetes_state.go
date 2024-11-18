@@ -72,7 +72,7 @@ var extendedCollectors = map[string]string{
 var collectorNameReplacement = map[string]string{
 	// verticalpodautoscalers were removed from the built-in KSM metrics in KSM 2.9, and the changes made to
 	// the KSM builder in KSM 2.9 result in the detected custom resource store name being different.
-	"verticalpodautoscalers": "autoscaling.k8s.io/v1, Resource=verticalpodautoscalers",
+	"verticalpodautoscalers": "autoscaling.k8s.io/v1beta2, Resource=verticalpodautoscalers",
 }
 
 var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
