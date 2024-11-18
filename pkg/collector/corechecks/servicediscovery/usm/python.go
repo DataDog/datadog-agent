@@ -60,6 +60,10 @@ func (p pythonDetector) detect(args []string) (ServiceMetadata, bool) {
 			var filename string
 			if !fi.IsDir() {
 				stripped, filename = path.Split(stripped)
+				// If the path is a root level file, return the filename
+				if stripped == "" {
+					return NewServiceMetadata(p.findNearestTopLevel(filename)), true
+				}
 			}
 			if value, ok := p.deducePackageName(path.Clean(stripped), filename); ok {
 				return NewServiceMetadata(value), true
@@ -97,7 +101,8 @@ func (p pythonDetector) deducePackageName(fp string, fn string) (string, bool) {
 
 }
 
-// findNearestTopLevel returns the top level dir the contains a .py file starting walking up from fp
+// findNearestTopLevel returns the top level dir the contains a .py file starting walking up from fp.
+// If fp is a file, it returns the filename without the extension.
 func (p pythonDetector) findNearestTopLevel(fp string) string {
 	up := path.Dir(fp)
 	current := fp
@@ -110,7 +115,8 @@ func (p pythonDetector) findNearestTopLevel(fp string) string {
 		current = up
 		up = path.Dir(current)
 	}
-	return path.Base(last)
+	filename := path.Base(last)
+	return strings.TrimSuffix(filename, path.Ext(filename))
 }
 
 func (g gunicornDetector) detect(args []string) (ServiceMetadata, bool) {

@@ -1,9 +1,11 @@
 connectors:
   datadog/connector:
     traces:
+      bucket_interval: 10s
       compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
       ignore_resources: []
+      peer_service_aggregation: false
       peer_tags: []
       peer_tags_aggregation: true
       resource_attributes_as_container_tags: []
@@ -14,7 +16,7 @@ exporters:
   datadog:
     api:
       fail_on_invalid_key: false
-      key: '[REDACTED]'
+      key: "[REDACTED]"
       site: datadoghq.com
     auth: null
     compression: ""
@@ -50,7 +52,6 @@ exporters:
         mode: distributions
         send_aggregation_metrics: false
         send_count_sum_metrics: false
-      instrumentation_library_metadata_as_tags: false
       instrumentation_scope_metadata_as_tags: false
       resource_attributes_as_tags: true
       summaries:
@@ -78,15 +79,15 @@ exporters:
     timeout: 15s
     tls:
       ca_file: ""
-      ca_pem: '[REDACTED]'
+      ca_pem: "[REDACTED]"
       cert_file: ""
-      cert_pem: '[REDACTED]'
+      cert_pem: "[REDACTED]"
       cipher_suites: []
       include_system_ca_certs_pool: false
       insecure: false
       insecure_skip_verify: false
       key_file: ""
-      key_pem: '[REDACTED]'
+      key_pem: "[REDACTED]"
       max_version: ""
       min_version: ""
       reload_interval: 0s
@@ -129,45 +130,49 @@ receivers:
         compression_algorithms: []
         cors: null
         endpoint: 0.0.0.0:4318
+        idle_timeout: 0s
         include_metadata: false
         logs_url_path: /v1/logs
         max_request_body_size: 0
         metrics_url_path: /v1/metrics
+        read_header_timeout: 0s
+        read_timeout: 0s
         response_headers: {}
         tls: null
         traces_url_path: /v1/traces
+        write_timeout: 0s
 service:
   extensions: []
   pipelines:
     logs:
       exporters:
-      - datadog
+        - datadog
       processors:
-      - batch
+        - batch
       receivers:
-      - otlp
+        - otlp
     metrics:
       exporters:
-      - datadog
+        - datadog
       processors:
-      - batch
+        - batch
       receivers:
-      - otlp
-      - datadog/connector
+        - otlp
+        - datadog/connector
     traces:
       exporters:
-      - datadog/connector
+        - datadog/connector
       processors:
-      - batch
+        - batch
       receivers:
-      - otlp
+        - otlp
     traces/send:
       exporters:
-      - datadog
+        - datadog
       processors:
-      - batch
+        - batch
       receivers:
-      - otlp
+        - otlp
   telemetry:
     logs:
       development: false
@@ -175,21 +180,29 @@ service:
       disable_stacktrace: false
       encoding: console
       error_output_paths:
-      - stderr
+        - stderr
       initial_fields: {}
       level: info
       output_paths:
-      - stderr
+        - stderr
+      processors: []
       sampling:
         enabled: true
         initial: 10
         thereafter: 100
         tick: 10s
     metrics:
-      address: :8888
+      address: ""
       level: Normal
-      readers: []
+      readers:
+        - pull:
+            exporter:
+              additionalproperties:
+              prometheus:
+                host: "localhost"
+                port: 8888
     resource: {}
     traces:
+      level: Basic
       processors: []
       propagators: []

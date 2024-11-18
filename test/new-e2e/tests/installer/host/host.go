@@ -143,7 +143,7 @@ func (h *Host) DeletePath(path string) {
 func (h *Host) WaitForUnitActive(units ...string) {
 	for _, unit := range units {
 		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
-		require.NoError(h.t, err, "unit %s did not become active", unit)
+		require.NoError(h.t, err, "unit %s did not become active. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
 	}
 }
 
@@ -151,7 +151,8 @@ func (h *Host) WaitForUnitActive(units ...string) {
 func (h *Host) WaitForUnitActivating(units ...string) {
 	for _, unit := range units {
 		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! grep -q \"Active: activating\" <(sudo systemctl status $unit) && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
-		require.NoError(h.t, err, "unit %s did not become active", unit)
+		require.NoError(h.t, err, "unit %s did not become activating. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
+
 	}
 }
 
@@ -701,8 +702,12 @@ type LocalCDN struct {
 }
 
 type orderConfig struct {
-	// Order is the order of the layers.
-	Order []string `json:"order"`
+	Order            []string          `json:"order"`
+	ScopeExpressions []scopeExpression `json:"scope_expressions"`
+}
+type scopeExpression struct {
+	Expression string `json:"expression"`
+	PolicyID   string `json:"config_id"`
 }
 
 // NewLocalCDN creates a new local CDN.
@@ -713,7 +718,8 @@ func NewLocalCDN(host *Host) *LocalCDN {
 	// Create order file
 	orderPath := filepath.Join(localCDNPath, "configuration_order")
 	orderContent := orderConfig{
-		Order: []string{},
+		Order:            []string{},
+		ScopeExpressions: []scopeExpression{},
 	}
 	orderBytes, err := json.Marshal(orderContent)
 	require.NoError(host.t, err)
@@ -748,6 +754,10 @@ func (c *LocalCDN) AddLayer(name string, content string) error {
 	err = json.Unmarshal(orderBytes, &orderContent)
 	require.NoError(c.host.t, err)
 	orderContent.Order = append(orderContent.Order, name)
+	orderContent.ScopeExpressions = append(orderContent.ScopeExpressions, scopeExpression{
+		Expression: "true",
+		PolicyID:   name,
+	})
 	orderBytes, err = json.Marshal(orderContent)
 	require.NoError(c.host.t, err)
 	_, err = c.host.remote.WriteFile(orderPath, orderBytes)

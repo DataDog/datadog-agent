@@ -1,0 +1,280 @@
+# This file contains the go modules configuration.
+# See tasks/libs/common/gomodules.py for more information.
+
+modules:
+  .:
+    independent: false
+    lint_targets:
+    - ./pkg
+    - ./cmd
+    - ./comp
+    test_targets:
+    - ./pkg
+    - ./cmd
+    - ./comp
+  comp/api/api/def:
+    used_by_otel: true
+  comp/api/authtoken: default
+  comp/core/config:
+    used_by_otel: true
+  comp/core/flare/builder:
+    used_by_otel: true
+  comp/core/flare/types:
+    used_by_otel: true
+  comp/core/hostname/hostnameinterface:
+    used_by_otel: true
+  comp/core/log/def:
+    used_by_otel: true
+  comp/core/log/impl:
+    used_by_otel: true
+  comp/core/log/impl-trace: default
+  comp/core/log/mock:
+    used_by_otel: true
+  comp/core/secrets:
+    used_by_otel: true
+  comp/core/status:
+    used_by_otel: true
+  comp/core/status/statusimpl: default
+  comp/core/tagger/tags:
+    used_by_otel: true
+  comp/core/tagger/types:
+    used_by_otel: true
+  comp/core/tagger/utils:
+    used_by_otel: true
+  comp/core/telemetry:
+    used_by_otel: true
+  comp/def:
+    used_by_otel: true
+  comp/forwarder/defaultforwarder:
+    used_by_otel: true
+  comp/forwarder/orchestrator/orchestratorinterface:
+    used_by_otel: true
+  comp/logs/agent/config:
+    used_by_otel: true
+  comp/netflow/payload: default
+  comp/otelcol/collector-contrib/def:
+    used_by_otel: true
+  comp/otelcol/collector-contrib/impl:
+    used_by_otel: true
+  comp/otelcol/converter/def:
+    used_by_otel: true
+  comp/otelcol/converter/impl:
+    used_by_otel: true
+  comp/otelcol/ddflareextension/def:
+    used_by_otel: true
+  comp/otelcol/ddflareextension/impl:
+    used_by_otel: true
+  comp/otelcol/logsagentpipeline:
+    used_by_otel: true
+  comp/otelcol/logsagentpipeline/logsagentpipelineimpl:
+    used_by_otel: true
+  comp/otelcol/otlp/components/exporter/datadogexporter:
+    used_by_otel: true
+  comp/otelcol/otlp/components/exporter/logsagentexporter:
+    used_by_otel: true
+  comp/otelcol/otlp/components/exporter/serializerexporter:
+    used_by_otel: true
+  comp/otelcol/otlp/components/metricsclient:
+    used_by_otel: true
+  comp/otelcol/otlp/components/processor/infraattributesprocessor:
+    used_by_otel: true
+  comp/otelcol/otlp/components/statsprocessor:
+    used_by_otel: true
+  comp/otelcol/otlp/testutil:
+    used_by_otel: true
+  comp/serializer/compression:
+    used_by_otel: true
+  comp/trace/agent/def:
+    used_by_otel: true
+  comp/trace/compression/def:
+    used_by_otel: true
+  comp/trace/compression/impl-gzip:
+    used_by_otel: true
+  comp/trace/compression/impl-zstd:
+    used_by_otel: true
+  internal/tools:
+    independent: false
+    should_tag: false
+    should_test_condition: never
+  internal/tools/independent-lint:
+    independent: false
+    should_tag: false
+    should_test_condition: never
+  internal/tools/modformatter:
+    independent: false
+    should_tag: false
+    should_test_condition: never
+  internal/tools/modparser:
+    independent: false
+    should_tag: false
+    should_test_condition: never
+  internal/tools/modparser/testdata/badformat: ignored
+  internal/tools/modparser/testdata/match: ignored
+  internal/tools/modparser/testdata/nomatch: ignored
+  internal/tools/modparser/testdata/patchgoversion: ignored
+  internal/tools/proto:
+    independent: false
+    should_tag: false
+    should_test_condition: never
+  pkg/aggregator/ckey:
+    used_by_otel: true
+  pkg/api:
+    used_by_otel: true
+  pkg/collector/check/defaults:
+    used_by_otel: true
+  pkg/config/env:
+    used_by_otel: true
+  pkg/config/mock:
+    used_by_otel: true
+  pkg/config/model:
+    used_by_otel: true
+  pkg/config/nodetreemodel:
+    used_by_otel: true
+  pkg/config/remote: default
+  pkg/config/setup:
+    used_by_otel: true
+  pkg/config/structure:
+    used_by_otel: true
+  pkg/config/teeconfig:
+    used_by_otel: true
+  pkg/config/utils:
+    used_by_otel: true
+  pkg/errors: default
+  pkg/gohai:
+    importable: false
+  pkg/linters/components/pkgconfigusage:
+    independent: false
+    should_tag: false
+  pkg/logs/auditor:
+    used_by_otel: true
+  pkg/logs/client:
+    used_by_otel: true
+  pkg/logs/diagnostic:
+    used_by_otel: true
+  pkg/logs/message:
+    used_by_otel: true
+  pkg/logs/metrics:
+    used_by_otel: true
+  pkg/logs/pipeline:
+    used_by_otel: true
+  pkg/logs/processor:
+    used_by_otel: true
+  pkg/logs/sds:
+    used_by_otel: true
+  pkg/logs/sender:
+    used_by_otel: true
+  pkg/logs/sources:
+    used_by_otel: true
+  pkg/logs/status/statusinterface:
+    used_by_otel: true
+  pkg/logs/status/utils:
+    used_by_otel: true
+  pkg/logs/util/testutils:
+    used_by_otel: true
+  pkg/metrics:
+    used_by_otel: true
+  pkg/networkdevice/profile: default
+  pkg/obfuscate:
+    used_by_otel: true
+  pkg/orchestrator/model:
+    used_by_otel: true
+  pkg/process/procutil/resources: ignored
+  pkg/process/util/api:
+    used_by_otel: true
+  pkg/proto:
+    used_by_otel: true
+  pkg/remoteconfig/state:
+    used_by_otel: true
+  pkg/security/secl: default
+  pkg/security/seclwin:
+    should_test_condition: never
+  pkg/serializer:
+    used_by_otel: true
+  pkg/status/health:
+    used_by_otel: true
+  pkg/tagger/types:
+    used_by_otel: true
+  pkg/tagset:
+    used_by_otel: true
+  pkg/telemetry:
+    used_by_otel: true
+  pkg/trace:
+    used_by_otel: true
+  pkg/trace/stats/oteltest:
+    used_by_otel: true
+  pkg/util/backoff:
+    used_by_otel: true
+  pkg/util/buf:
+    used_by_otel: true
+  pkg/util/cache: default
+  pkg/util/cgroups:
+    should_test_condition: is_linux
+    used_by_otel: true
+  pkg/util/common:
+    used_by_otel: true
+  pkg/util/containers/image:
+    used_by_otel: true
+  pkg/util/defaultpaths:
+    used_by_otel: true
+  pkg/util/executable:
+    used_by_otel: true
+  pkg/util/filesystem:
+    used_by_otel: true
+  pkg/util/flavor: default
+  pkg/util/fxutil:
+    used_by_otel: true
+  pkg/util/grpc: default
+  pkg/util/hostname/validate:
+    used_by_otel: true
+  pkg/util/http:
+    used_by_otel: true
+  pkg/util/json:
+    used_by_otel: true
+  pkg/util/log:
+    used_by_otel: true
+  pkg/util/log/setup:
+    used_by_otel: true
+  pkg/util/optional:
+    used_by_otel: true
+  pkg/util/pointer:
+    used_by_otel: true
+  pkg/util/scrubber:
+    used_by_otel: true
+  pkg/util/sort:
+    used_by_otel: true
+  pkg/util/startstop:
+    used_by_otel: true
+  pkg/util/statstracker:
+    used_by_otel: true
+  pkg/util/system:
+    used_by_otel: true
+  pkg/util/system/socket:
+    used_by_otel: true
+  pkg/util/testutil:
+    used_by_otel: true
+  pkg/util/utilizationtracker:
+    used_by_otel: true
+  pkg/util/uuid: default
+  pkg/util/winutil:
+    used_by_otel: true
+  pkg/version:
+    used_by_otel: true
+  tasks/unit_tests/testdata/go_mod_formatter/invalid_package: ignored
+  tasks/unit_tests/testdata/go_mod_formatter/valid_package: ignored
+  test/fakeintake: default
+  test/integration/serverless/recorder-extension: ignored
+  test/integration/serverless/src: ignored
+  test/new-e2e:
+    lint_targets:
+    - .
+    - ./examples
+    test_targets:
+    - ./pkg/runner
+    - ./pkg/utils/e2e/client
+    - ./system-probe/
+  test/otel:
+    used_by_otel: true
+  tools/retry_file_dump:
+    independent: false
+    should_tag: false
+    should_test_condition: never

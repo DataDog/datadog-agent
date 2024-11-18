@@ -285,20 +285,6 @@ func (t *teeConfig) MergeFleetPolicy(configPath string) error {
 	return nil
 }
 
-// MergeConfigMap merges the configuration from the map given with an existing config.
-// Note that the map given may be modified.
-func (t *teeConfig) MergeConfigMap(cfg map[string]any) error {
-	err1 := t.baseline.MergeConfigMap(cfg)
-	err2 := t.compare.MergeConfigMap(cfg)
-	if err1 != nil {
-		return err1
-	}
-	if err2 != nil {
-		return err2
-	}
-	return nil
-}
-
 // AllSettings wraps Viper for concurrent access
 func (t *teeConfig) AllSettings() map[string]interface{} {
 	return t.baseline.AllSettings()

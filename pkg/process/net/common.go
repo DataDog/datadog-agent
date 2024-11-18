@@ -123,7 +123,7 @@ func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPer
 		return nil, fmt.Errorf("proc_stats request failed: Probe Path %s, url: %s, status code: %d", r.path, procStatsURL, resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAllResponseBody(resp)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +156,7 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 		return nil, fmt.Errorf("conn request failed: Probe Path %s, url: %s, status code: %d", r.path, connectionsURL, resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAllResponseBody(resp)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +188,7 @@ func (r *RemoteSysProbeUtil) GetNetworkID() (string, error) {
 		return "", fmt.Errorf("network_id request failed: url: %s, status code: %d", networkIDURL, resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAllResponseBody(resp)
 	if err != nil {
 		return "", fmt.Errorf("failed to read response body: %w", err)
 	}
@@ -211,7 +211,7 @@ func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, in
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusBadRequest {
-		body, err := io.ReadAll(resp.Body)
+		body, err := readAllResponseBody(resp)
 		if err != nil {
 			return nil, fmt.Errorf("ping request failed: Probe Path %s, url: %s, status code: %d", r.path, pingURL, resp.StatusCode)
 		}
@@ -220,7 +220,7 @@ func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, in
 		return nil, fmt.Errorf("ping request failed: Probe Path %s, url: %s, status code: %d", r.path, pingURL, resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAllResponseBody(resp)
 	if err != nil {
 		return nil, err
 	}
@@ -248,7 +248,7 @@ func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port ui
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusBadRequest {
-		body, err := io.ReadAll(resp.Body)
+		body, err := readAllResponseBody(resp)
 		if err != nil {
 			return nil, fmt.Errorf("traceroute request failed: Probe Path %s, url: %s, status code: %d", r.path, tracerouteURL, resp.StatusCode)
 		}
@@ -257,7 +257,7 @@ func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port ui
 		return nil, fmt.Errorf("traceroute request failed: Probe Path %s, url: %s, status code: %d", r.path, tracerouteURL, resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAllResponseBody(resp)
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +282,7 @@ func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
 		return nil, fmt.Errorf("conn request failed: Path %s, url: %s, status code: %d", r.path, statsURL, resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAllResponseBody(resp)
 	if err != nil {
 		return nil, err
 	}
@@ -486,4 +486,23 @@ func (r *RemoteSysProbeUtil) init() error {
 		return fmt.Errorf("remote tracer status check failed: socket %s, url: %s, status code: %d", r.path, statsURL, resp.StatusCode)
 	}
 	return nil
+}
+
+func readAllResponseBody(resp *http.Response) ([]byte, error) {
+	// if we are not able to determine the content length
+	// we read the whole body without pre-allocation
+	if resp.ContentLength <= 0 {
+		return io.ReadAll(resp.Body)
+	}
+
+	// if we know the content length we pre-allocate the buffer
+	var buf bytes.Buffer
+	buf.Grow(int(resp.ContentLength))
+
+	_, err := buf.ReadFrom(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }
