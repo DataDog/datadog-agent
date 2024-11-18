@@ -7,7 +7,6 @@ package otlpingest
 
 import (
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
-	localkubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/local/kubernetes"
 	"testing"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
@@ -42,7 +41,7 @@ agents:
           value: 'enable_operation_and_resource_name_logic_v2'
 `
 	t.Parallel()
-	e2e.Run(t, &opNameV2RecvrV1TestSuite{}, e2e.WithProvisioner(localkubernetes.Provisioner(localkubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
+	e2e.Run(t, &opNameV2RecvrV1TestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
 }
 
 func (s *opNameV2RecvrV1TestSuite) SetupSuite() {
