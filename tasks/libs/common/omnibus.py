@@ -6,6 +6,8 @@ from datetime import datetime
 
 import requests
 
+from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
+from tasks.libs.common.utils import get_metric_origin
 from tasks.release import _get_release_json_value
 
 
@@ -267,6 +269,7 @@ def send_build_metrics(ctx, overall_duration):
                     ],
                     'unit': 'seconds',
                     'type': 0,
+                    "metadata": get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE, True),
                 }
             )
         # We also provide the total duration for the omnibus build as a separate metric
@@ -281,6 +284,7 @@ def send_build_metrics(ctx, overall_duration):
                 ],
                 'unit': 'seconds',
                 'type': 0,
+                "metadata": get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE, True),
             }
         )
         # Stripping might not always be enabled so we conditionally read the metric
@@ -296,6 +300,7 @@ def send_build_metrics(ctx, overall_duration):
                     ],
                     'unit': 'seconds',
                     'type': 0,
+                    "metadata": get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE, True),
                 }
             )
         # And all packagers duration as another separated metric
@@ -312,6 +317,7 @@ def send_build_metrics(ctx, overall_duration):
                     ],
                     'unit': 'seconds',
                     'type': 0,
+                    "metadata": get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE, True),
                 }
             )
     if sys.platform == 'win32':

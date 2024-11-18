@@ -118,7 +118,7 @@ var (
 		expvarName:       "aws",
 	}
 
-	ec2HostnameResolutionProvider = provider{
+	ec2LegacyResolutionProvider = provider{
 		name:             "aws",
 		cb:               fromEC2WithLegacyHostnameResolution,
 		stopIfSuccessful: false,
@@ -151,7 +151,7 @@ func getProviderCatalog(legacyHostnameResolution bool) []provider {
 	}
 
 	if legacyHostnameResolution {
-		providerCatalog = append(providerCatalog, ec2HostnameResolutionProvider)
+		providerCatalog = append(providerCatalog, ec2LegacyResolutionProvider)
 	} else {
 		providerCatalog = append(providerCatalog, ec2Provider)
 	}
@@ -179,8 +179,8 @@ func GetWithProvider(ctx context.Context) (Data, error) {
 	return getHostname(ctx, "hostname", false)
 }
 
-// GetWithProviderLegacyResolution returns the hostname for the Agent and the provider that was used to retrieve it without using IMDSv2 and MDI
-func GetWithProviderLegacyResolution(ctx context.Context) (Data, error) {
+// GetWithLegacyResolutionProvider returns the hostname for the Agent and the provider that was used to retrieve it without using IMDSv2 and MDI
+func GetWithLegacyResolutionProvider(ctx context.Context) (Data, error) {
 	// If the user has set the ec2_prefer_imdsv2 then IMDSv2 is used by default by the user, `legacy_resolution_hostname` is not needed for the transition
 	// If the user has set the ec2_imdsv2_transition_payload_enabled then IMDSv2 is used by default by the agent, `legacy_resolution_hostname` is needed for the transition
 	if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || !pkgconfigsetup.Datadog().GetBool("ec2_imdsv2_transition_payload_enabled") {

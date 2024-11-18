@@ -269,6 +269,9 @@ type RuntimeSecurityConfig struct {
 	// WindowsProbeChannelUnbuffered defines if the windows probe channel should be unbuffered
 	WindowsProbeBlockOnChannelSend bool
 
+	WindowsWriteEventRateLimiterMaxAllowed int
+	WindowsWriteEventRateLimiterPeriod     time.Duration
+
 	// IMDSIPv4 is used to provide a custom IP address for the IMDS endpoint
 	IMDSIPv4 uint32
 }
@@ -324,13 +327,16 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	}
 
 	rsConfig := &RuntimeSecurityConfig{
-		RuntimeEnabled:                 pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enabled"),
-		FIMEnabled:                     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.fim_enabled"),
-		WindowsFilenameCacheSize:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_filename_cache_max"),
-		WindowsRegistryCacheSize:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_registry_cache_max"),
-		ETWEventsChannelSize:           pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.etw_events_channel_size"),
-		ETWEventsMaxBuffers:            pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.etw_events_max_buffers"),
-		WindowsProbeBlockOnChannelSend: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.windows_probe_block_on_channel_send"),
+		RuntimeEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enabled"),
+		FIMEnabled:     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.fim_enabled"),
+
+		// Windows specific
+		WindowsFilenameCacheSize:               pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_filename_cache_max"),
+		WindowsRegistryCacheSize:               pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_registry_cache_max"),
+		ETWEventsChannelSize:                   pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.etw_events_channel_size"),
+		WindowsProbeBlockOnChannelSend:         pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.windows_probe_block_on_channel_send"),
+		WindowsWriteEventRateLimiterMaxAllowed: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_write_event_rate_limiter_max_allowed"),
+		WindowsWriteEventRateLimiterPeriod:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.windows_write_event_rate_limiter_period"),
 
 		SocketPath:           pkgconfigsetup.SystemProbe().GetString("runtime_security_config.socket"),
 		EventServerBurst:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.burst"),

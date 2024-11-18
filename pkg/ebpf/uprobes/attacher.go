@@ -336,7 +336,7 @@ type UprobeAttacher struct {
 //     way).
 //   - The process monitor to be used to subscribe to process start and exit events. The lifecycle of the process monitor is managed by the caller, the attacher
 //     will not stop the monitor when it stops.
-func NewUprobeAttacher(name string, config AttacherConfig, mgr ProbeManager, onAttachCallback AttachCallback, inspector BinaryInspector, processMonitor ProcessMonitor) (*UprobeAttacher, error) {
+func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr ProbeManager, onAttachCallback AttachCallback, inspector BinaryInspector, processMonitor ProcessMonitor) (*UprobeAttacher, error) {
 	config.SetDefaults()
 
 	if err := config.Validate(); err != nil {
@@ -346,7 +346,7 @@ func NewUprobeAttacher(name string, config AttacherConfig, mgr ProbeManager, onA
 	ua := &UprobeAttacher{
 		name:                 name,
 		config:               config,
-		fileRegistry:         utils.NewFileRegistry(name),
+		fileRegistry:         utils.NewFileRegistry(moduleName, name),
 		manager:              mgr,
 		onAttachCallback:     onAttachCallback,
 		pathToAttachedProbes: make(map[string][]manager.ProbeIdentificationPair),
@@ -355,7 +355,7 @@ func NewUprobeAttacher(name string, config AttacherConfig, mgr ProbeManager, onA
 		processMonitor:       processMonitor,
 	}
 
-	utils.AddAttacher(name, ua)
+	utils.AddAttacher(moduleName, name, ua)
 
 	return ua, nil
 }
