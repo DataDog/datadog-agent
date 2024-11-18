@@ -117,16 +117,17 @@ static int __always_inline skip_string(pktbuf_t pkt, int message_len) {
 
 // Return a pointer to the postgres telemetry record in the corresponding map.
 static __always_inline void* get_pg_msg_counts_map(pktbuf_t pkt) {
-    const __u32 zero = 0;
+    const __u32 plain_key = 0;
+    const __u32 tls_key = 1;
 
     pktbuf_map_lookup_option_t pg_telemetry_lookup_opt[] = {
         [PKTBUF_SKB] = {
-            .map = &postgres_plain_msg_count,
-            .key = (void*)&zero,
+            .map = &postgres_telemetry,
+            .key = (void*)&plain_key,
         },
         [PKTBUF_TLS] = {
-            .map = &postgres_tls_msg_count,
-            .key = (void*)&zero,
+            .map = &postgres_telemetry,
+            .key = (void*)&tls_key,
         },
     };
     return pktbuf_map_lookup(pkt, pg_telemetry_lookup_opt);
@@ -172,7 +173,7 @@ static __always_inline void postgres_handle_message(pktbuf_t pkt, conn_tuple_t *
         return;
     }
 
-    iteration_value->msg_count = 0;
+    iteration_value->total_msg_count = 0;
     iteration_value->data_off = 0;
     pktbuf_tail_call_option_t handle_response_tail_call_array[] = {
         [PKTBUF_SKB] = {
@@ -245,8 +246,9 @@ static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tupl
         return 0;
     }
 
+    __u8 messages_count = 0;
 #pragma unroll(POSTGRES_MAX_MESSAGES_PER_TAIL_CALL)
-    for (__u8 messages_count = 0; messages_count < POSTGRES_MAX_MESSAGES_PER_TAIL_CALL; ++messages_count) {
+    for (; messages_count < POSTGRES_MAX_MESSAGES_PER_TAIL_CALL; ++messages_count) {
         read_result = read_message_header(pkt, &header);
         if (read_result != READ_OK) {
             break;
@@ -259,25 +261,32 @@ static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tupl
         // reminder, the message length includes the size of the payload, 4 bytes of the message length itself, but not
         // the message tag. So we need to add 1 to the message length to jump over the entire message.
         pktbuf_advance(pkt, header.message_len + 1);
-        iteration_value->msg_count++;
     }
+    iteration_value->total_msg_count += messages_count;
 
-    if (found_command_complete || (read_result == READ_FRAGMENTED)) {
-        // if completion was found or the packet was fragmented, then report the transaction and clear it from the map.
-        handle_command_complete(&conn_tuple, transaction);
-    }
     if (found_command_complete) {
-        // save messages counter in bucket.
-        __u8 bucket_idx = iteration_value->msg_count / PG_KERNEL_MSG_COUNT_BUCKET_SIZE;
-        bucket_idx = (bucket_idx >= PG_KERNEL_MSG_COUNT_NUM_BUCKETS) ? (PG_KERNEL_MSG_COUNT_NUM_BUCKETS - 1) : bucket_idx;
-        __sync_fetch_and_add(&pg_msg_counts->pg_messages_count_buckets[bucket_idx], 1);
+        handle_command_complete(&conn_tuple, transaction);
 
+        // save messages counter in bucket.
+        if (iteration_value->total_msg_count < PG_KERNEL_MSG_COUNT_FIRST_MAX) {
+            __sync_fetch_and_add(&pg_msg_counts->msg_count_buckets[0], 1);
+        } else {
+            iteration_value->total_msg_count -= PG_KERNEL_MSG_COUNT_FIRST_MAX;
+            __u8 bucket_idx = (iteration_value->total_msg_count / PG_KERNEL_MSG_COUNT_BUCKET_SIZE) + 1;
+            bucket_idx = (bucket_idx >= PG_KERNEL_MSG_COUNT_NUM_BUCKETS) ? (PG_KERNEL_MSG_COUNT_NUM_BUCKETS - 1) : bucket_idx;
+            __sync_fetch_and_add(&pg_msg_counts->msg_count_buckets[bucket_idx], 1);
+        }
         return 0;
     }
-    if ((read_result == READ_FRAGMENTED) || (iteration_value->msg_count == (PG_KERNEL_MAX_MESSAGES - 1))) {
-        // the packet was fragmented or max messages - add counter to the last bucket and stop iterating.
-        __sync_fetch_and_add(&pg_msg_counts->pg_messages_count_buckets[PG_KERNEL_MSG_COUNT_NUM_BUCKETS], 1);
 
+    if (iteration_value->total_msg_count >= (POSTGRES_MAX_TOTAL_MESSAGES - 1)) {
+        // reached max messages, add counter and stop iterating.
+        __sync_fetch_and_add(&pg_msg_counts->reached_max_messages, 1);
+        return 0;
+    }
+    if (read_result == READ_FRAGMENTED) {
+        // the packet was fragmented, add counter stop iterating.
+        __sync_fetch_and_add(&pg_msg_counts->fragmented_packets, 1);
         return 0;
     }
     if (read_result == READ_END) {

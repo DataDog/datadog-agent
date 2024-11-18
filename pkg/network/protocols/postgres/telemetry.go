@@ -182,10 +182,10 @@ func (t *Telemetry) Log() {
 
 // kernelTelemetry  provides empirical kernel statistics about the number of messages in each TCP packet
 type kernelTelemetry struct {
-	metricGroup       *libtelemetry.MetricGroup
-	msgCountBuckets   [ebpf.MsgCountNumBuckets]*libtelemetry.TLSAwareCounter // Postgres messages counters divided into buckets
-	msgCountPlainPrev ebpf.PostgresKernelMsgCount                            // the last observed counters of plain messages
-	msgCountTlsPrev   ebpf.PostgresKernelMsgCount                            // the last observed counters of TLS messages
+	metricGroup        *libtelemetry.MetricGroup
+	reachedMaxMessages *libtelemetry.TLSAwareCounter
+	fragmentedPackets  *libtelemetry.TLSAwareCounter
+	msgCountBuckets    [ebpf.MsgCountNumBuckets]*libtelemetry.TLSAwareCounter // Postgres messages counters divided into buckets
 }
 
 // newKernelTelemetry this is the Postgres message counter store.
@@ -194,16 +194,13 @@ func newKernelTelemetry() *kernelTelemetry {
 	kernelTel := &kernelTelemetry{
 		metricGroup: metricGroup,
 	}
-	kernelTel.createBuckets(metricGroup)
+	kernelTel.reachedMaxMessages = libtelemetry.NewTLSAwareCounter(metricGroup, "messages_count_max_messages")
+	kernelTel.fragmentedPackets = libtelemetry.NewTLSAwareCounter(metricGroup, "messages_count_fragmented_packets")
 
-	return kernelTel
-}
-
-// createBuckets creates metric counter for each kernel telemetry bucket.
-func (t *kernelTelemetry) createBuckets(metricGroup *libtelemetry.MetricGroup) {
-	for i := range t.msgCountBuckets {
-		t.msgCountBuckets[i] = libtelemetry.NewTLSAwareCounter(metricGroup, "messages_count_bucket_"+(strconv.Itoa(i+1)))
+	for i := range kernelTel.msgCountBuckets {
+		kernelTel.msgCountBuckets[i] = libtelemetry.NewTLSAwareCounter(metricGroup, "messages_count_bucket_"+(strconv.Itoa(i+1)))
 	}
+	return kernelTel
 }
 
 // update the Postgres message counter store with new counters from the kernel, return immediately if nothing to add.
@@ -211,29 +208,15 @@ func (t *kernelTelemetry) update(kernCounts *ebpf.PostgresKernelMsgCount, isTLS 
 	if kernCounts == nil {
 		return
 	}
-	if isEmpty(kernCounts) {
-		log.Debugf("postgres kernel telemetry empty.")
-		return
-	}
+
+	t.reachedMaxMessages.Set(int64(kernCounts.Reached_max_messages), isTLS)
+	t.fragmentedPackets.Set(int64(kernCounts.Fragmented_packets), isTLS)
 
 	for i := range t.msgCountBuckets {
-		v := kernCounts.Messages_count_buckets[i]
+		v := kernCounts.Msg_count_buckets[i]
 		t.msgCountBuckets[i].Set(int64(v), isTLS)
 	}
-	if isTLS {
-		t.msgCountTlsPrev = *kernCounts
-	} else {
-		t.msgCountPlainPrev = *kernCounts
-	}
+
 	s := t.metricGroup.Summary()
 	log.Debugf("postgres kernel telemetry, isTLS=%t, summary: %s", isTLS, s)
-}
-
-func isEmpty(p *ebpf.PostgresKernelMsgCount) bool {
-	for i := 0; i < ebpf.MsgCountNumBuckets; i++ {
-		if p.Messages_count_buckets[i] > 0 {
-			return false
-		}
-	}
-	return true
 }

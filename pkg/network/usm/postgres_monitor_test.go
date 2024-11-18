@@ -649,7 +649,6 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.InsertOP:      adjustCount(1),
 						postgres.CreateTableOP: adjustCount(1),
-						postgres.SelectOP:      adjustCount(1),
 					},
 				}, isTLS)
 			},
@@ -940,10 +939,10 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 		}
 	}()
 
-	createLargeTable(t, pgClient, ebpf.MsgCountBucketSize*ebpf.MsgCountNumBuckets)
+	createLargeTable(t, pgClient, ebpf.MsgCountFirstBucketMax+ebpf.MsgCountBucketSize*ebpf.MsgCountNumBuckets)
 	expectedBuckets := [ebpf.MsgCountNumBuckets]bool{}
 
-	for i := 0; i < ebpf.MaxBucketsNotFragmented; i++ {
+	for i := 0; i < ebpf.MsgCountNumBuckets; i++ {
 		testName := fmt.Sprintf("kernel messages count bucket[%d]", i)
 		t.Run(testName, func(t *testing.T) {
 
@@ -951,13 +950,31 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 			cleanProtocolMaps(t, "postgres", monitor.ebpfProgram.Manager.Manager)
 
 			require.NoError(t, monitor.Resume())
-			runQueryForBucket(t, pgClient, i*ebpf.MsgCountBucketSize)
+			if i == 0 {
+				// first bucket, it counts upto ebpf.MsgCountFirstBucketMax messages
+				// subtract three messages ('bind', 'row description' and 'ready')
+				runQueryWithMsgCount(t, pgClient, ebpf.MsgCountFirstBucketMax-3)
+			} else {
+				runQueryWithMsgCount(t, pgClient, ebpf.MsgCountFirstBucketMax+i*ebpf.MsgCountBucketSize-3)
+			}
 			require.NoError(t, monitor.Pause())
 
-			validateKernel(t, monitor, isTLS, expectedBuckets)
+			validateKernelBuckets(t, monitor, isTLS, expectedBuckets)
 			expectedBuckets[i] = false
 		})
 	}
+
+	t.Run("exceed max buckets", func(t *testing.T) {
+
+		cleanProtocolMaps(t, "postgres", monitor.ebpfProgram.Manager.Manager)
+		require.NoError(t, monitor.Resume())
+
+		runQueryWithMsgCount(t, pgClient, ebpf.MsgCountMaxTotal)
+		require.NoError(t, monitor.Pause())
+
+		validateKernelExceedingMax(t, monitor, isTLS)
+		//validateKernelBuckets(t, monitor, isTLS, expectedBuckets)
+	})
 }
 
 func setupPGClient(t *testing.T, serverAddress string, isTLS bool) *postgres.PGXClient {
@@ -982,12 +999,12 @@ func createLargeTable(t *testing.T, pg *postgres.PGXClient, tableValuesCount int
 //	4 + <N> postgres messages in the format:
 //
 // "Bind completion", "Row description", "data row" 1...N, "command completion", "ready for query".
-func runQueryForBucket(t *testing.T, pg *postgres.PGXClient, limitCount int) {
+func runQueryWithMsgCount(t *testing.T, pg *postgres.PGXClient, limitCount int) {
 	require.NoError(t, pg.RunQuery(generateSelectLimitQuery(limitCount)))
 }
 
 // validateKernel Checking telemetry data received for a postgres query
-func validateKernel(t *testing.T, monitor *Monitor, tls bool, expected [ebpf.MsgCountNumBuckets]bool) {
+func validateKernelBuckets(t *testing.T, monitor *Monitor, tls bool, expected [ebpf.MsgCountNumBuckets]bool) {
 	var actual *ebpf.PostgresKernelMsgCount
 	assert.Eventually(t, func() bool {
 		found, err := getKernelTelemetry(monitor, tls)
@@ -1004,17 +1021,16 @@ func validateKernel(t *testing.T, monitor *Monitor, tls bool, expected [ebpf.Msg
 // getKernelTelemetry returns statistics obtained from the kernel
 func getKernelTelemetry(monitor *Monitor, isTLS bool) (*ebpf.PostgresKernelMsgCount, error) {
 	pgKernelTelemetry := &ebpf.PostgresKernelMsgCount{}
-	var zero uint32
-
-	mapName := postgres.KernelTelemetryMapPlain
+	mapName := postgres.KernelTelemetryMap
+	key := uint32(0)
 	if isTLS {
-		mapName = postgres.KernelTelemetryMapTLS
+		key = uint32(1)
 	}
 	mp, _, err := monitor.ebpfProgram.GetMap(mapName)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get %q map: %s", mapName, err)
 	}
-	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(pgKernelTelemetry)); err != nil {
+	if err := mp.Lookup(unsafe.Pointer(&key), unsafe.Pointer(pgKernelTelemetry)); err != nil {
 		return nil, fmt.Errorf("unable to lookup %q map: %s", mapName, err)
 	}
 	return pgKernelTelemetry, nil
@@ -1024,12 +1040,27 @@ func getKernelTelemetry(monitor *Monitor, isTLS bool) (*ebpf.PostgresKernelMsgCo
 // each buckets may have 1 or 2 hits
 func compareMessagesCount(found *ebpf.PostgresKernelMsgCount, expected [ebpf.MsgCountNumBuckets]bool) bool {
 	for i := range expected {
-		if expected[i] && found.Messages_count_buckets[i] == 0 {
+		if expected[i] && found.Msg_count_buckets[i] == 0 {
 			return false
 		}
-		if !expected[i] && found.Messages_count_buckets[i] > 0 {
+		if !expected[i] && found.Msg_count_buckets[i] > 0 {
 			return false
 		}
 	}
 	return true
+}
+
+// validateKernelExceedingMax check for exceeding the maximum number of buckets
+func validateKernelExceedingMax(t *testing.T, monitor *Monitor, tls bool) {
+	var actual *ebpf.PostgresKernelMsgCount
+	assert.Eventually(t, func() bool {
+		found, err := getKernelTelemetry(monitor, tls)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		actual = found
+		return found.Reached_max_messages > 0
+	}, time.Second*2, time.Millisecond*100)
+	if t.Failed() {
+		t.Logf("\nexpected non-zero max messages, actual telemetry:\n %+v", actual)
+	}
 }

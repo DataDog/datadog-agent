@@ -41,19 +41,18 @@ const (
 	tlsTerminationTailCall    = "uprobe__postgres_tls_termination"
 	tlsHandleResponseTailCall = "uprobe__postgres_tls_handle_response"
 	eventStream               = "postgres"
-	KernelTelemetryMapPlain   = "postgres_plain_msg_count" // map for getting kernel metrics
-	KernelTelemetryMapTLS     = "postgres_tls_msg_count"
+	KernelTelemetryMap        = "postgres_telemetry" // map for getting kernel metrics
 )
 
 // protocol holds the state of the postgres protocol monitoring.
 type protocol struct {
-	cfg             *config.Config
-	telemetry       *Telemetry
-	eventsConsumer  *events.Consumer[postgresebpf.EbpfEvent]
-	mapCleaner      *ddebpf.MapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx]
-	statskeeper     *StatKeeper
-	kernelTelemetry *kernelTelemetry // retrieves Postgres metrics from kernel
-	kernelStopChan  chan struct{}
+	cfg                   *config.Config
+	telemetry             *Telemetry
+	eventsConsumer        *events.Consumer[postgresebpf.EbpfEvent]
+	mapCleaner            *ddebpf.MapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx]
+	statskeeper           *StatKeeper
+	kernelTelemetry       *kernelTelemetry // retrieves Postgres metrics from kernel
+	kernelTelemetryStopCh chan struct{}
 }
 
 // Spec is the protocol spec for the postgres protocol.
@@ -138,11 +137,11 @@ func newPostgresProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	}
 
 	return &protocol{
-		cfg:             cfg,
-		telemetry:       NewTelemetry(cfg),
-		statskeeper:     NewStatkeeper(cfg),
-		kernelTelemetry: newKernelTelemetry(),
-		kernelStopChan:  make(chan struct{}),
+		cfg:                   cfg,
+		telemetry:             NewTelemetry(cfg),
+		statskeeper:           NewStatkeeper(cfg),
+		kernelTelemetry:       newKernelTelemetry(),
+		kernelTelemetryStopCh: make(chan struct{}),
 	}, nil
 }
 
@@ -194,8 +193,8 @@ func (p *protocol) Stop(*manager.Manager) {
 	if p.eventsConsumer != nil {
 		p.eventsConsumer.Stop()
 	}
-	if p.kernelStopChan != nil {
-		close(p.kernelStopChan)
+	if p.kernelTelemetryStopCh != nil {
+		close(p.kernelTelemetryStopCh)
 	}
 }
 
@@ -211,13 +210,19 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
-	case KernelTelemetryMapPlain, KernelTelemetryMapTLS:
-		// postgres_plain_msg_count / postgres_tls_msg_count (BPF_ARRAY_MAP), key 0, value PostgresKernelMsgCount
-		var zeroKey uint32
+	case KernelTelemetryMap:
+		// postgres_msg_count (BPF_ARRAY_MAP), key 0 and 1, value PostgresKernelMsgCount
+		plainKey := uint32(0)
+		tlsKey := uint32(1)
+
 		var value postgresebpf.PostgresKernelMsgCount
-		protocols.WriteMapDumpHeader(w, currentMap, mapName, zeroKey, value)
-		if err := currentMap.Lookup(unsafe.Pointer(&zeroKey), unsafe.Pointer(&value)); err == nil {
-			spew.Fdump(w, zeroKey, value)
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, plainKey, value)
+		if err := currentMap.Lookup(unsafe.Pointer(&plainKey), unsafe.Pointer(&value)); err == nil {
+			spew.Fdump(w, plainKey, value)
+		}
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, tlsKey, value)
+		if err := currentMap.Lookup(unsafe.Pointer(&tlsKey), unsafe.Pointer(&value)); err == nil {
+			spew.Fdump(w, tlsKey, value)
 		}
 	}
 }
@@ -273,19 +278,14 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 }
 
 func (p *protocol) startKernelTelemetry(mgr *manager.Manager) {
-	mapPlain, err := protocols.GetMap(mgr, KernelTelemetryMapPlain)
+	telemetryMap, err := protocols.GetMap(mgr, KernelTelemetryMap)
 	if err != nil {
-		log.Errorf("Couldnt find kernel telemetry map: %s, error: %v", KernelTelemetryMapPlain, err)
+		log.Errorf("couldnt find kernel telemetry map: %s, error: %v", telemetryMap, err)
 		return
 	}
 
-	mapTLS, err := protocols.GetMap(mgr, KernelTelemetryMapTLS)
-	if err != nil {
-		log.Errorf("Couldnt find kernel telemetry map: %s, error: %v", KernelTelemetryMapTLS, err)
-		return
-	}
-
-	var zero uint32
+	plainKey := uint32(0)
+	tlsKey := uint32(1)
 	pgKernelMsgCount := &postgresebpf.PostgresKernelMsgCount{}
 	ticker := time.NewTicker(30 * time.Second)
 
@@ -295,18 +295,18 @@ func (p *protocol) startKernelTelemetry(mgr *manager.Manager) {
 		for {
 			select {
 			case <-ticker.C:
-				if err := mapPlain.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(pgKernelMsgCount)); err != nil {
-					log.Errorf("unable to lookup %q map: %s", KernelTelemetryMapPlain, err)
+				if err := telemetryMap.Lookup(unsafe.Pointer(&plainKey), unsafe.Pointer(pgKernelMsgCount)); err != nil {
+					log.Errorf("unable to lookup %q map: %s", KernelTelemetryMap, err)
 					return
 				}
 				p.kernelTelemetry.update(pgKernelMsgCount, false)
 
-				if err := mapTLS.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(pgKernelMsgCount)); err != nil {
-					log.Errorf("unable to lookup %q map: %s", KernelTelemetryMapTLS, err)
+				if err := telemetryMap.Lookup(unsafe.Pointer(&tlsKey), unsafe.Pointer(pgKernelMsgCount)); err != nil {
+					log.Errorf("unable to lookup %q map: %s", KernelTelemetryMap, err)
 					return
 				}
 				p.kernelTelemetry.update(pgKernelMsgCount, true)
-			case <-p.kernelStopChan:
+			case <-p.kernelTelemetryStopCh:
 				return
 			}
 		}
