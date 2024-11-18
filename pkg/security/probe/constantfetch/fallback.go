@@ -792,102 +792,91 @@ func getSocketSockOffset(kv *kernel.Version) uint64 {
 }
 
 func getSocketProtocolOffset(kv *kernel.Version) uint64 {
-	// Default offset
 	offset := uint64(548)
-	isArm64 := runtime.GOARCH == "arm64"
 
 	switch {
-	// Kernel 3.10 - x86_64 only for RHEL/CentOS/OL
-	case kv.Code == kernel.Kernel3_10 && !isArm64 &&
-		(kv.IsRH7Kernel() || kv.IsOracleUEKKernel()):
-		offset = 337
+	// Red Hat 7
+	case kv.IsRH7Kernel():
+		switch runtime.GOARCH {
+		case "arm64":
+			if kv.IsInRangeCloseOpen(kernel.Kernel4_11, kernel.Kernel4_15) {
+				offset = 505
+			}
+		case "x86_64":
+			if kv.IsInRangeCloseOpen(kernel.Kernel3_10, kernel.Kernel4_12) {
+				offset = 337
+			}
+		}
 
-	// CentOS ARM64 specific ranges
-	case isArm64 && kv.IsRH7Kernel():
-		switch {
-		case kv.IsInRangeCloseOpen(kernel.Kernel3_18, kernel.Kernel4_1):
-			offset = 321
-		case kv.IsInRangeCloseOpen(kernel.Kernel4_2, kernel.Kernel4_6):
-			offset = 329
-		case kv.IsInRangeCloseOpen(kernel.Kernel4_11, kernel.Kernel4_18):
-			offset = 505
-		case kv.Code == kernel.Kernel4_18:
+	// Red Hat 8
+	case kv.IsRH8Kernel():
+		if runtime.GOARCH == "arm64" && kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel4_19) {
 			offset = 537
-		case kv.Code == kernel.Kernel5_4:
-			offset = 529
-		case kv.Code == kernel.Kernel5_10:
-			offset = 532
 		}
 
-	// Debian RT kernel specific cases
-	case kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-"):
-		switch {
-		case kv.Code == kernel.Kernel4_9:
-			offset = 529 // Only for x86_64
-		case kv.Code == kernel.Kernel4_19:
-			offset = 753
-		case kv.Code == kernel.Kernel5_10:
-			offset = 780
-		}
-
-	// Ubuntu specific ranges
-	case kv.IsUbuntuKernel():
-		switch {
-		case !isArm64 && kv.Code == kernel.Kernel4_4:
-			offset = 333
-		case !isArm64 && kv.Code == kernel.Kernel4_10:
-			offset = 521
-		case kv.IsInRangeCloseOpen(kernel.Kernel4_2, kernel.Kernel4_9) && !isArm64:
-			offset = 329
-		case isArm64 && kv.IsInRangeCloseOpen(kernel.Kernel4_13, kernel.Kernel4_19) ||
-			!isArm64 && kv.IsInRangeCloseOpen(kernel.Kernel4_11, kernel.Kernel4_19):
-			offset = 505
-		case kv.Code == kernel.Kernel4_15:
-			offset = 497
-		case kv.Code == kernel.Kernel5_0:
-			offset = 513
-		case isArm64 && kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_5) ||
-			!isArm64 && kv.IsInRangeCloseOpen(kernel.Kernel4_10, kernel.Kernel5_5):
-			offset = 529
-		case kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_12):
-			offset = 532
-		}
-
-	// General version ranges with architecture consideration
-	default:
-		switch {
-		case kv.Code == kernel.Kernel4_1:
-			if !isArm64 && kv.IsOracleUEKKernel() {
-				offset = 329
-			}
-		case kv.IsInRangeCloseOpen(kernel.Kernel4_9, kernel.Kernel4_11):
-			if kv.IsDebianKernel() || (!isArm64 && kv.IsAmazonLinuxKernel()) {
-				offset = 329
-			}
-		case kv.IsInRangeCloseOpen(kernel.Kernel4_11, kernel.Kernel4_16):
-			offset = 505
-		case kv.Code == kernel.Kernel4_16:
-			if kv.IsOracleUEKKernel() {
-				offset = 497
-			}
-		case kv.Code == kernel.Kernel4_18:
-			if kv.IsRH7Kernel() || kv.IsOracleUEKKernel() {
-				offset = 537
-			}
-		case kv.Code == kernel.Kernel4_19:
-			if kv.IsDebianKernel() {
-				offset = 513
-			}
-		case kv.Code == kernel.Kernel5_0:
-			offset = 513
-		case kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_5):
-			offset = 529
-		case kv.Code == kernel.Kernel5_4:
-			if kv.IsOracleUEKKernel() {
+	// Oracle UEK Kernel
+	case kv.IsOracleUEKKernel():
+		switch runtime.GOARCH {
+		case "arm64":
+			if kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15) {
+				offset = 505
+			} else if kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5) {
 				offset = 561
 			}
-		case kv.IsInRangeCloseOpen(kernel.Kernel5_6, kernel.Kernel5_11):
-			offset = 532
+		}
+
+	// Ubuntu Kernel
+	case kv.IsUbuntuKernel():
+		switch runtime.GOARCH {
+		case "x86_64":
+			if kv.IsInRangeCloseOpen(kernel.Kernel5_11, kernel.Kernel5_12) {
+				offset = 532
+			} else if kv.IsInRangeCloseOpen(kernel.Kernel4_10, kernel.Kernel5_5) {
+				offset = 521
+			}
+		case "arm64":
+			if kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_5) {
+				offset = 529
+			}
+		}
+
+	// Amazon Linux
+	case kv.IsAmazonLinuxKernel():
+		if kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15) {
+			offset = 505
+		}
+
+	// Debian Kernel
+	case kv.IsDebianKernel():
+		switch runtime.GOARCH {
+		case "x86_64":
+			if strings.Contains(kv.UnameRelease, "-rt-") && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0) {
+				offset = 753
+			} else if kv.IsInRangeCloseOpen(kernel.Kernel4_9, kernel.Kernel4_10) {
+				offset = 329
+			}
+		case "arm64":
+			if kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_1) {
+				offset = 513
+			} else if kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) {
+				offset = 540
+			}
+		}
+
+	default:
+		switch runtime.GOARCH {
+		case "x86_64":
+			if kv.IsInRangeCloseOpen(kernel.Kernel4_11, kernel.Kernel4_19) {
+				offset = 505
+			}
+		case "arm64":
+			if kv.IsInRangeCloseOpen(kernel.Kernel5_6, kernel.Kernel5_7) {
+				offset = 532
+			}
+		}
+
+		if strings.Contains(kv.UnameRelease, "-rt-") {
+			offset = 780
 		}
 	}
 
