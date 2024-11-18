@@ -239,12 +239,9 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 	dp.Lock()
 
 	// prioritize a persited profile over activity dumps
-	if existingProfile, ok := dp.profileMapping[profileManagerSelector]; ok {
-		if existingProfile.selector.Tag == "*" && profile.Selector.GetImageTag() != "*" {
-			seclog.Debugf("ignoring %s: a persisted profile already exists for workload %s", profilePath, profileManagerSelector.String())
-			dp.Unlock()
-			return nil
-		}
+	if _, ok := dp.profileMapping[profileManagerSelector]; ok {
+		dp.Unlock()
+		return fmt.Errorf("ignoring %s: a persisted profile already exists for workload %s", profilePath, profileManagerSelector.String())
 	}
 
 	// update profile mapping
