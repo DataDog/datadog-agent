@@ -792,95 +792,40 @@ func getSocketSockOffset(kv *kernel.Version) uint64 {
 }
 
 func getSocketProtocolOffset(kv *kernel.Version) uint64 {
-	offset := uint64(548)
-
 	switch {
-	// Red Hat 7
-	case kv.IsRH7Kernel():
-		switch runtime.GOARCH {
-		case "arm64":
-			if kv.IsInRangeCloseOpen(kernel.Kernel4_11, kernel.Kernel4_15) {
-				offset = 505
-			}
-		case "x86_64":
-			if kv.IsInRangeCloseOpen(kernel.Kernel3_10, kernel.Kernel4_12) {
-				offset = 337
-			}
-		}
-
-	// Red Hat 8
-	case kv.IsRH8Kernel():
-		if runtime.GOARCH == "arm64" && kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel4_19) {
-			offset = 537
-		}
-
-	// Oracle UEK Kernel
-	case kv.IsOracleUEKKernel():
-		switch runtime.GOARCH {
-		case "arm64":
-			if kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15) {
-				offset = 505
-			} else if kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5) {
-				offset = 561
-			}
-		}
-
-	// Ubuntu Kernel
-	case kv.IsUbuntuKernel():
-		switch runtime.GOARCH {
-		case "x86_64":
-			if kv.IsInRangeCloseOpen(kernel.Kernel5_11, kernel.Kernel5_12) {
-				offset = 532
-			} else if kv.IsInRangeCloseOpen(kernel.Kernel4_10, kernel.Kernel5_5) {
-				offset = 521
-			}
-		case "arm64":
-			if kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_5) {
-				offset = 529
-			}
-		}
-
-	// Amazon Linux
-	case kv.IsAmazonLinuxKernel():
-		if kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15) {
-			offset = 505
-		}
-
-	// Debian Kernel
-	case kv.IsDebianKernel():
-		switch runtime.GOARCH {
-		case "x86_64":
-			if strings.Contains(kv.UnameRelease, "-rt-") && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0) {
-				offset = 753
-			} else if kv.IsInRangeCloseOpen(kernel.Kernel4_9, kernel.Kernel4_10) {
-				offset = 329
-			}
-		case "arm64":
-			if kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_1) {
-				offset = 513
-			} else if kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) {
-				offset = 540
-			}
-		}
-
+	case kv.Code.Major() == 4 && kv.Code.Minor() < 9:
+		return 329
+	case kv.Code.Major() == 4 && kv.Code.Minor() >= 9 && kv.Code.Minor() < 10:
+		return 321
+	case kv.Code.Major() == 4 && kv.Code.Minor() >= 14 && kv.Code.Minor() < 18:
+		return 505
+	case kv.IsRH7Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel4_19):
+		return 537
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_9):
+		return 532
+	case kv.IsRH7Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		return 529
+	case kv.IsDebianKernel() && kv.Code.Major() == 4 && kv.Code.Minor() == 19:
+		return 753
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
+		return 513
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20) && strings.Contains(kv.UnameRelease, "-rt-"):
+		return 761
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) && strings.Contains(kv.UnameRelease, "-rt-"):
+		return 788
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+		return 540
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_18):
+		return 497
+	case kv.IsOracleUEKKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		return 561
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_10, kernel.Kernel4_11):
+		return 521
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_4, kernel.Kernel4_5):
+		return 333
 	default:
-		switch runtime.GOARCH {
-		case "x86_64":
-			if kv.IsInRangeCloseOpen(kernel.Kernel4_11, kernel.Kernel4_19) {
-				offset = 505
-			}
-		case "arm64":
-			if kv.IsInRangeCloseOpen(kernel.Kernel5_6, kernel.Kernel5_7) {
-				offset = 532
-			}
-		}
-
-		if strings.Contains(kv.UnameRelease, "-rt-") {
-			offset = 780
-		}
+		return 548 // Default for unknown or newer kernels
 	}
-
-	return offset
 }
 
 func getNFConnCTNetOffset(kv *kernel.Version) uint64 {
