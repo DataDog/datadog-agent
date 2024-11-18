@@ -8,6 +8,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
@@ -88,10 +89,29 @@ func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiv
 		outputChan: outputChan,
 	}
 
-	// Start a goroutine to forward messages from outputChan to stdout
 	go func() {
-		for msg := range outputChan {
-			fmt.Println(string(msg.GetContent()))
+		timeout := time.NewTicker(3 * time.Second) // Timeout interval for inactivity
+		defer timeout.Stop()
+
+		for {
+			select {
+			case msg, ok := <-outputChan:
+				if !ok {
+					// Channel closed, exit the loop
+					return
+				}
+
+				// Process the message (print to stdout)
+				fmt.Println(string(msg.GetContent()))
+
+				// Reset the timeout ticker whenever we get a log message
+				timeout.Stop()
+				timeout = time.NewTicker(3 * time.Second)
+
+			case <-timeout.C: // Timeout after 3 second of inactivity
+				fmt.Println("No logs received for 3 second, exiting...")
+				return // Exit the goroutine after the timeout
+			}
 		}
 	}()
 

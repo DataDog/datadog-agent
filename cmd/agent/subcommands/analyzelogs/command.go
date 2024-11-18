@@ -8,6 +8,7 @@ package logscheck
 
 import (
 	"fmt"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -75,7 +76,7 @@ func runAnalyzeLogs(config config.Component, cliParams *CliParams) error {
 	if err := cliParams.ConfigSource.AddFileSource(cliParams.LogConfigPath); err != nil {
 		return fmt.Errorf("failed to add log config source: %w", err)
 	}
-
+	time.Sleep(5 * time.Second)
 	// Add core config source
 	// if err := cliParams.ConfigSource.AddFileSource(cliParams.CoreConfigPath); err != nil {
 	// 	return fmt.Errorf("failed to add core config source: %w", err)
