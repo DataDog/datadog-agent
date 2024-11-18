@@ -87,7 +87,7 @@ deploy_containers-a7:
 deploy_containers-a7-win-only:
   extends: .deploy_containers-a7_win_only_external
   rules:
-    !reference [.manual_on_deploy_auto_on_rc]
+    - when: always
 
 deploy_containers-a7-ot:
   extends: .deploy_containers-a7-base-ot
