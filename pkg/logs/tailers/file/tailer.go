@@ -291,6 +291,7 @@ func (t *Tailer) readForever() {
 	}()
 
 	for {
+		fmt.Println("READ FOREVER")
 		n, err := t.read()
 		if err != nil {
 			return

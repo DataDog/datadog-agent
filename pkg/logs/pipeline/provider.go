@@ -254,7 +254,7 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 }
 
 func (p *processorOnlyProvider) NextPipelineChan() chan *message.Message {
-	return nil
+	return p.outputChan
 }
 
 // Flush flushes synchronously all the contained pipeline of this provider.

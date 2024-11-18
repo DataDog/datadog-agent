@@ -6,6 +6,7 @@
 package sources
 
 import (
+	"fmt"
 	"os"
 	"sync"
 
@@ -41,19 +42,18 @@ func GetInstance() *ConfigSources {
 
 // AddFileSource gets a file from a file path and adds it as a source.
 func (s *ConfigSources) AddFileSource(path string) error {
-
 	wd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-
 	absolutePath := wd + "/" + path
 	data, err := os.ReadFile(absolutePath)
+	fmt.Println("data is ", data)
 	if err != nil {
 		return err
 	}
-
 	logsConfig, err := logsConfig.ParseYAML(data)
+	fmt.Println("logsConfig", logsConfig)
 	if err != nil {
 		return err
 	}
@@ -61,6 +61,7 @@ func (s *ConfigSources) AddFileSource(path string) error {
 	for _, cfg := range logsConfig {
 		cfg.Path = absolutePath
 		source := NewLogSource(cfg.Name, cfg)
+		fmt.Println("source is ", source)
 		configSource.AddSource(source)
 	}
 
@@ -75,12 +76,14 @@ func (s *ConfigSources) AddSource(source *LogSource) {
 	configSource := GetInstance()
 	configSource.mu.Lock()
 	configSource.sources = append(configSource.sources, source)
+	fmt.Println("WACKTEST15", source.Config.Type)
 	if source.Config == nil || source.Config.Validate() != nil {
 		configSource.mu.Unlock()
 		return
 	}
 	streams := configSource.added
 	streamsForType := configSource.addedByType[source.Config.Type]
+	fmt.Println("ADDING SOURCE, type is ", source.Config.Type)
 	configSource.mu.Unlock()
 	for _, stream := range streams {
 		stream <- source

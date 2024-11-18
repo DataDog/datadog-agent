@@ -6,6 +6,7 @@
 package decoder
 
 import (
+	"fmt"
 	"regexp"
 	"time"
 
@@ -83,6 +84,9 @@ func syncSourceInfo(source *sources.ReplaceableSource, lh *MultiLineHandler) {
 func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry) *Decoder {
 	inputChan := make(chan *message.Message)
 	outputChan := make(chan *message.Message)
+	fmt.Println("NewDecoder with framing")
+	fmt.Println("inputChan is ", inputChan)
+	fmt.Println("outputChan is ", outputChan)
 	maxContentSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
 	detectedPattern := &DetectedPattern{}
 
@@ -186,6 +190,7 @@ func New(InputChan chan *message.Message, OutputChan chan *message.Message, fram
 
 // Start starts the Decoder
 func (d *Decoder) Start() {
+	fmt.Println("DECODER START")
 	go d.run()
 }
 
@@ -197,6 +202,7 @@ func (d *Decoder) Stop() {
 }
 
 func (d *Decoder) run() {
+	fmt.Println("DECODER RUN")
 	defer func() {
 		// flush any remaining output in component order, and then close the
 		// output channel
@@ -211,7 +217,7 @@ func (d *Decoder) run() {
 				// InputChan has been closed, no more lines are expected
 				return
 			}
-
+			fmt.Println("UHHHHHHHHHHHHH??? decoider has msg? ", msg)
 			d.framer.Process(msg)
 
 		case <-d.lineParser.flushChan():

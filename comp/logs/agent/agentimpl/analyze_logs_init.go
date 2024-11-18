@@ -8,8 +8,6 @@
 package agentimpl
 
 import (
-	"context"
-	"fmt"
 	"time"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
@@ -57,10 +55,10 @@ func SetUpLaunchers(conf configComponent.Component) {
 	fileLauncher.Start(sourceProvider, pipelineProvider, auditor, tracker)
 	lnchrs.AddLauncher(fileLauncher)
 
-	const FlushTimeout time.Duration = 5 * time.Second
-	ctx, cancel := context.WithTimeout(context.Background(), FlushTimeout)
-	pipelineProvider.Flush(ctx)
-	outputChan := pipelineProvider.NextPipelineChan()
-	fmt.Println("TEST999999", outputChan)
-	cancel()
+	// outputChan := pipelineProvider.NextPipelineChan()
+	// for output := range outputChan {
+	// 	fmt.Println("TEST333333", output)
+	// }
+	// fmt.Println("TEST999999", outputChan)
+
 }

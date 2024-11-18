@@ -90,6 +90,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	s.pipelineProvider = pipelineProvider
 	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.FileType)
+	fmt.Println("Added sources lmao", s.addedSources)
 	s.registry = registry
 	tracker.Add(s.tailers)
 	go s.run()
@@ -113,7 +114,9 @@ func (s *Launcher) run() {
 	for {
 		select {
 		case source := <-s.addedSources:
+			fmt.Println("WACKTEST77", source)
 			s.addSource(source)
+
 		case source := <-s.removedSources:
 			s.removeSource(source)
 		case <-scanTicker.C:
@@ -278,6 +281,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		log.Warnf("Could not collect files: %v", err)
 		return
 	}
+	fmt.Println("files are ", files)
 	for _, file := range files {
 		if s.tailers.Count() >= s.tailingLimit {
 			return
@@ -329,13 +333,8 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 		log.Warn(err)
 		return false
 	}
-	fmt.Println("WACK tailer is ", tailer)
+
 	s.tailers.Add(tailer)
-	fmt.Println("WACKTEST s.tailers is ", s.tailers.Tailers())
-	fmt.Println("OUTPUT CHANNEL IS ", s.pipelineProvider.NextPipelineChan())
-	for output := range s.pipelineProvider.NextPipelineChan() {
-		fmt.Println("HEHEHXD", output)
-	}
 	return true
 }
 
@@ -400,8 +399,6 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		Info:          tailerInfo,
 		TagAdder:      s.tagger,
 	}
-
-	fmt.Println("andrewq1", outputChan)
 
 	return tailer.NewTailer(tailerOptions)
 }

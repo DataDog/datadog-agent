@@ -8,6 +8,7 @@
 package file
 
 import (
+	"fmt"
 	"io"
 	"path/filepath"
 
@@ -28,6 +29,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	t.tags = t.buildTailerTags()
 
 	log.Info("Opening", t.file.Path, "for tailer key", t.file.GetScanKey())
+	fmt.Println("WAIT A MINUTE full path is ", fullpath)
 	f, err := filesystem.OpenShared(fullpath)
 	if err != nil {
 		return err
@@ -49,13 +51,16 @@ func (t *Tailer) read() (int, error) {
 	n, err := t.osFile.Read(inBuf)
 	if err != nil && err != io.EOF {
 		// an unexpected error occurred, stop the tailor
+		fmt.Println("READING BYTES ERROR")
 		t.file.Source.Status().Error(err)
 		return 0, log.Error("Unexpected error occurred while reading file: ", err)
 	}
+	fmt.Println("NUMBER OF BYTES READ ???", n)
 	if n == 0 {
 		return 0, nil
 	}
 	t.lastReadOffset.Add(int64(n))
+	fmt.Println("HUUH", t.lastReadOffset)
 	t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 	return n, nil
 }
