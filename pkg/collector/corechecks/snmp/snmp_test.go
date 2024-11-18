@@ -2637,3 +2637,123 @@ func waitForDiscoveredDevices(discovery *discovery.Discovery, expectedDeviceCoun
 		}
 	}
 }
+
+func TestRDNSHostnameEnrichment(t *testing.T) {
+	// Create the deps struct
+	deps := createDeps(t)
+	testDir := t.TempDir()
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	profile.SetConfdPathAndCleanProfiles()
+	sess := session.CreateMockSession()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	testCases := []struct {
+		timeout   int
+		ipAddress string
+	}{
+		{timeout: 5000, ipAddress: "10.2.3.4"},
+		{timeout: 0, ipAddress: "10.3.4.5"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("Timeout %d ms", tc.timeout), func(t *testing.T) {
+
+			chk := Check{
+				sessionFactory: sessionFactory,
+				rdnsquerier:    deps.RDNSQuerier,
+			}
+
+			rawInstanceConfig := []byte(fmt.Sprintf(`
+ip_address: %s
+community_string: public
+profile: f5-big-ip
+oid_batch_size: 20
+namespace: profile-metadata
+collect_topology: false
+`, tc.ipAddress))
+			rawInitConfig := []byte(fmt.Sprintf(`
+profiles:
+  f5-big-ip:
+    definition_file: f5-big-ip.yaml
+reverse_dns_enrichment:
+  enabled: true
+  timeout: %d
+`, tc.timeout))
+
+			senderManager := mocksender.CreateDefaultDemultiplexer()
+			err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
+			assert.NoError(t, err)
+			sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
+
+			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+			sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+			sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+			sender.On("Commit").Return()
+
+			packet := gosnmp.SnmpPacket{
+				Variables: []gosnmp.SnmpPDU{
+					{
+						Name:  "1.3.6.1.2.1.1.1.0",
+						Type:  gosnmp.OctetString,
+						Value: []byte("BIG-IP Virtual Edition : Linux 3.10.0-862.14.4.el7.ve.x86_64 : BIG-IP software release 15.0.1, build 0.0.11"),
+					},
+				},
+			}
+			sess.On("Get", []string{"1.2.3.4.5", "1.3.6.1.2.1.1.1.0", "1.3.6.1.2.1.1.2.0", "1.3.6.1.2.1.1.3.0", "1.3.6.1.2.1.1.5.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.3.6.1.4.1.3375.2.1.3.3.3.0"}).Return(&packet, nil)
+			sess.On("GetNext", mock.Anything).Return(&packet, nil)
+			sess.On("GetBulk", mock.Anything, mock.Anything).Return(&packet, nil)
+			err = chk.Run()
+			assert.Nil(t, err)
+
+			event := []byte(fmt.Sprintf(`
+{
+  "namespace": "profile-metadata",
+  "devices": [
+    {
+      "id": "profile-metadata:%s",
+      "id_tags": [
+        "device_namespace:profile-metadata",
+        "snmp_device:%s"
+      ],
+      "tags": [
+        "agent_version:7.61.0-devel+git.216.9faf449",
+        "device_id:profile-metadata:%s",
+        "device_ip:%s",
+        "device_namespace:profile-metadata",
+        "device_vendor:f5",
+        "snmp_device:%s",
+        "snmp_profile:f5-big-ip",
+        "static_tag:from_base_profile",
+        "static_tag:from_profile_root"
+      ],
+      "ip_address": "%s",
+      "status": 1,
+      "description": "BIG-IP Virtual Edition : Linux 3.10.0-862.14.4.el7.ve.x86_64 : BIG-IP software release 15.0.1, build 0.0.11",
+      "profile": "f5-big-ip",
+      "vendor": "f5",
+      "integration": "snmp",
+      "device_type": "load_balancer",
+      "dns_hostname": "hostname-%s"
+    }
+  ],
+  "diagnoses": [
+    {
+      "resource_type": "device",
+      "resource_id": "profile-metadata:%s",
+      "diagnoses": null
+    }
+  ],
+  "collect_timestamp": 946684800
+}
+`, tc.ipAddress, tc.ipAddress, tc.ipAddress, tc.ipAddress, tc.ipAddress, tc.ipAddress, tc.ipAddress, tc.ipAddress))
+			compactEvent := new(bytes.Buffer)
+			err = json.Compact(compactEvent, event)
+			assert.NoError(t, err)
+
+			sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
+		})
+	}
+}
