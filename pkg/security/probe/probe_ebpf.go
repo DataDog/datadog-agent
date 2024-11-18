@@ -580,13 +580,7 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 	return n, nil
 }
 
-func (p *EBPFProbe) onEventLost(perfMapName string, perEvent map[string]uint64) {
-	if p.config.RuntimeSecurity.InternalMonitoringEnabled {
-		p.probe.DispatchCustomEvent(
-			NewEventLostWriteEvent(p.GetAgentContainerContext(), perfMapName, perEvent),
-		)
-	}
-
+func (p *EBPFProbe) onEventLost(_ string, perEvent map[string]uint64) {
 	// snapshot traced cgroups if a CgroupTracing event was lost
 	if p.probe.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
 		p.profileManagers.SnapshotTracedCgroups()
