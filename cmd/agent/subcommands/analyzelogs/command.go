@@ -77,6 +77,11 @@ func runAnalyzeLogs(config config.Component, cliParams *CliParams) error {
 		return fmt.Errorf("failed to add log config source: %w", err)
 	}
 
+	// Add core config source
+	if err := cliParams.ConfigSource.AddFileSource(cliParams.CoreConfigPath); err != nil {
+		return fmt.Errorf("failed to add core config source: %w", err)
+	}
+
 	// Set up an inactivity timeout
 	inactivityTimeout := 3 * time.Second
 	idleTimer := time.NewTimer(inactivityTimeout)
@@ -99,11 +104,4 @@ func runAnalyzeLogs(config config.Component, cliParams *CliParams) error {
 	case <-idleTimer.C: // Timeout if no activity within the defined period
 		return nil
 	}
-
-	// Add core config source
-	// if err := cliParams.ConfigSource.AddFileSource(cliParams.CoreConfigPath); err != nil {
-	// 	return fmt.Errorf("failed to add core config source: %w", err)
-	// }
-
-	// return nil
 }
