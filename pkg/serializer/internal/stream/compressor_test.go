@@ -13,12 +13,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )

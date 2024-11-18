@@ -11,10 +11,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"

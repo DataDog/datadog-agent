@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -21,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"

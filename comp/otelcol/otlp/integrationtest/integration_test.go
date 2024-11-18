@@ -19,7 +19,6 @@ import (
 	"testing"
 	"time"
 
-	compressionimpl "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-zlib"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
@@ -65,6 +64,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	compressionimpl "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-zlib"
 	tracecomp "github.com/DataDog/datadog-agent/comp/trace"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"

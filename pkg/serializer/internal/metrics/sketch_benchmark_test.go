@@ -10,9 +10,9 @@ package metrics
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"

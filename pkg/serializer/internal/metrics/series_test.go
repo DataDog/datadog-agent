@@ -13,8 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,6 +20,8 @@ import (
 	"github.com/DataDog/agent-payload/v5/gogen"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"

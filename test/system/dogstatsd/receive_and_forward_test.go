@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
 	log "github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"

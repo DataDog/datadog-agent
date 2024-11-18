@@ -17,12 +17,12 @@ import (
 	"testing"
 
 	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/selector"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"

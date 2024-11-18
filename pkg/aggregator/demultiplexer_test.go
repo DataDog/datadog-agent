@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -23,6 +22,7 @@ import (
 	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

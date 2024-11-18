@@ -9,6 +9,10 @@ package snmp
 import (
 	"errors"
 	"fmt"
+	"net"
+	"os"
+	"strconv"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/aggregator"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
@@ -27,9 +31,6 @@ import (
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"net"
-	"os"
-	"strconv"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"

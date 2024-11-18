@@ -11,7 +11,6 @@ import (
 	"context"
 	"fmt"
 
-	fxzlib "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-zlib"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/confmap"

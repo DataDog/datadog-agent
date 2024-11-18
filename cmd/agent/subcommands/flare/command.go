@@ -18,7 +18,6 @@ import (
 	"strconv"
 	"time"
 
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
@@ -49,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel/inventoryotelimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
+	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
