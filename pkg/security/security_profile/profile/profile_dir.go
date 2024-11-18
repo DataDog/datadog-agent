@@ -338,6 +338,7 @@ func (dp *DirectoryProvider) onHandleFilesFromWatcher() {
 	dp.newFilesLock.Lock()
 	defer dp.newFilesLock.Unlock()
 
+	var filesToCleanup []string
 	for file := range dp.newFiles {
 		if err := dp.loadProfile(file); err != nil {
 			if errors.Is(err, cgroupModel.ErrNoImageProvided) {
@@ -346,8 +347,12 @@ func (dp *DirectoryProvider) onHandleFilesFromWatcher() {
 				seclog.Warnf("couldn't load new profile %s: %v", file, err)
 			}
 
-			continue
+			filesToCleanup = append(filesToCleanup, file)
 		}
+	}
+
+	if len(filesToCleanup) != 0 {
+		dp.OnLocalStorageCleanup(filesToCleanup)
 	}
 
 	dp.newFiles = make(map[string]bool)
