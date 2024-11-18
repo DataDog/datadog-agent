@@ -810,44 +810,50 @@ func getSocketProtocolOffset(kv *kernel.Version) uint64 {
 		return 505
 
 	// Case 5: Fedora-specific kernel ranges
-	case strings.Contains(kv.UnameRelease, "fedora") && runtime.GOARCH == "x86_64" && kv.IsInRangeCloseOpen(kernel.Kernel5_6, kernel.Kernel5_7):
+	case kv.IsFedoraKernel() && runtime.GOARCH == "x86_64" && kv.IsInRangeCloseOpen(kernel.Kernel5_6, kernel.Kernel5_7):
 		return 532
-	case strings.Contains(kv.UnameRelease, "fedora") && runtime.GOARCH == "arm64" && kv.IsInRangeCloseOpen(kernel.Kernel4_11, kernel.Kernel4_18):
+	case kv.IsFedoraKernel() && runtime.GOARCH == "arm64" && kv.IsInRangeCloseOpen(kernel.Kernel4_11, kernel.Kernel4_18):
 		return 505
 
-	// Case 6: Debian 5.10 RT kernel
+	// Case 6: SUSE-specific kernel ranges
+	case kv.IsSuseKernel() && runtime.GOARCH == "x86_64" && kv.IsInRangeCloseOpen(kernel.Kernel4_12, kernel.Kernel4_13):
+		return 505
+	case kv.IsSuseKernel() && runtime.GOARCH == "arm64" && kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_4):
+		return 529
+
+	// Case 7: Debian 5.10 RT kernel
 	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) && strings.Contains(kv.UnameRelease, "-rt-"):
 		return 788
 
-	// Case 7: Debian 5.10 standard kernel
+	// Case 8: Debian 5.10 standard kernel
 	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		return 540
 
-	// Case 8: Red Hat 7 with kernel 4.18
+	// Case 9: Red Hat 7 with kernel 4.18
 	case kv.IsRH7Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel4_19):
 		return 537
 
-	// Case 9: Ubuntu 5.8 kernel
+	// Case 10: Ubuntu 5.8 kernel
 	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_9):
 		return 532
 
-	// Case 10: Red Hat 7 kernel 5.4
+	// Case 11: Red Hat 7 kernel 5.4
 	case kv.IsRH7Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
 		return 529
 
-	// Case 11: Oracle UEK 5.4
+	// Case 12: Oracle UEK 5.4
 	case kv.IsOracleUEKKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
 		return 561
 
-	// Case 12: Ubuntu 4.10 kernel
+	// Case 13: Ubuntu 4.10 kernel
 	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_10, kernel.Kernel4_11):
 		return 521
 
-	// Case 13: Ubuntu 4.4 kernel
+	// Case 14: Ubuntu 4.4 kernel
 	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_4, kernel.Kernel4_5):
 		return 333
 
-	// Case 14: General Amazon Linux range
+	// Case 15: General Amazon Linux range
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_18):
 		return 505
 

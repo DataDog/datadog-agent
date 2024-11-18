@@ -271,6 +271,11 @@ func (k *Version) IsSuseKernel() bool {
 	return k.IsSLESKernel() || k.OsRelease["ID"] == "opensuse-leap"
 }
 
+// IsFedoraKernel returns whether the kernel is a fedora kernel
+func (k *Version) IsFedoraKernel() bool {
+	return k.IsFedoraKernel() || k.OsRelease["ID"] == "fedora"
+}
+
 // IsSuse12Kernel returns whether the kernel is a sles 12 kernel
 func (k *Version) IsSuse12Kernel() bool {
 	return k.IsSuseKernel() && strings.HasPrefix(k.OsRelease["VERSION_ID"], "12")

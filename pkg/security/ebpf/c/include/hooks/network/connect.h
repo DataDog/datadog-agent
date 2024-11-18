@@ -65,11 +65,10 @@ int hook_security_socket_connect(ctx_t *ctx) {
     struct pid_route_t key = {};
     u16 family = 0;
     u16 protocol = 0;
-    
+
     u64 socket_sock_offset;
     u64 sk_protocol_offset;
     u64 sk_protocol_size;
-
 
     LOAD_CONSTANT("socket_sock_offset", socket_sock_offset);
     LOAD_CONSTANT("sock_sk_protocol_offset", sk_protocol_offset);
@@ -89,8 +88,12 @@ int hook_security_socket_connect(ctx_t *ctx) {
     }
 
     struct sock *sk_sock = NULL;
-    bpf_probe_read(&sk_sock, sizeof(sk_sock),(void *) sk + socket_sock_offset);
-    bpf_probe_read(&protocol, sk_protocol_size, (void *) sk_sock + sk_protocol_offset);
+    bpf_probe_read(&sk_sock, sizeof(sk_sock), (void *)sk + socket_sock_offset);
+    if (sk_protocol_size == sizeof(u8)) {
+        bpf_probe_read(&protocol, sizeof(u8), (void *)sk_sock + sk_protocol_offset);
+    } else if (sk_protocol_size == sizeof(u16)) {
+        bpf_probe_read(&protocol, sizeof(u16), (void *)sk_sock + sk_protocol_offset);
+    }
 
     // fill syscall_cache if necessary
     struct syscall_cache_t *syscall = peek_syscall(EVENT_CONNECT);
