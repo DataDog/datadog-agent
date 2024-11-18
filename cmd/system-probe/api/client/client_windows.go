@@ -39,7 +39,7 @@ func DialContextFunc(_ string) func(context.Context, string, string) (net.Conn, 
 		if err != nil {
 			// This important error may not get reported upstream, making connection failures
 			// very difficult to diagnose. Explicitly log the error here too for diagnostics.
-			return nil, log.Error("error connecting to named pipe %q: %s", SystemProbePipeName, err)
+			return nil, log.Errorf("error connecting to named pipe %q: %s", SystemProbePipeName, err)
 		}
 
 		return namedPipe, nil
