@@ -953,9 +953,10 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 			if i == 0 {
 				// first bucket, it counts upto ebpf.MsgCountFirstBucketMax messages
 				// subtract three messages ('bind', 'row description' and 'ready')
-				runQueryWithMsgCount(t, pgClient, ebpf.MsgCountFirstBucketMax-3)
+				require.NoError(t, pgClient.RunQuery(generateSelectLimitQuery(ebpf.MsgCountFirstBucketMax-3)))
 			} else {
-				runQueryWithMsgCount(t, pgClient, ebpf.MsgCountFirstBucketMax+i*ebpf.MsgCountBucketSize-3)
+				limitCount := ebpf.MsgCountFirstBucketMax + i*ebpf.MsgCountBucketSize - 3
+				require.NoError(t, pgClient.RunQuery(generateSelectLimitQuery(limitCount)))
 			}
 			require.NoError(t, monitor.Pause())
 
@@ -969,7 +970,7 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 		cleanProtocolMaps(t, "postgres", monitor.ebpfProgram.Manager.Manager)
 		require.NoError(t, monitor.Resume())
 
-		runQueryWithMsgCount(t, pgClient, ebpf.MsgCountMaxTotal)
+		require.NoError(t, pgClient.RunQuery(generateSelectLimitQuery(ebpf.MsgCountMaxTotal)))
 		require.NoError(t, monitor.Pause())
 
 		validateKernelExceedingMax(t, monitor, isTLS)
@@ -991,16 +992,6 @@ func setupPGClient(t *testing.T, serverAddress string, isTLS bool) *postgres.PGX
 func createLargeTable(t *testing.T, pg *postgres.PGXClient, tableValuesCount int) {
 	require.NoError(t, pg.RunQuery(createTableQuery))
 	require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(0, tableValuesCount)...)))
-}
-
-// runQueryForBucket The client sends a SELECT query to postgres with the specified SQL row limit of <N>.
-// For each SELECT request of <N> rows, the TCP response packet from Postgres is expected to contain
-//
-//	4 + <N> postgres messages in the format:
-//
-// "Bind completion", "Row description", "data row" 1...N, "command completion", "ready for query".
-func runQueryWithMsgCount(t *testing.T, pg *postgres.PGXClient, limitCount int) {
-	require.NoError(t, pg.RunQuery(generateSelectLimitQuery(limitCount)))
 }
 
 // validateKernel Checking telemetry data received for a postgres query
