@@ -56,13 +56,18 @@ const (
 	Skip
 )
 const (
-	getEventTimeout                 = 10 * time.Second
-	filelessExecutionFilenamePrefix = "memfd:"
+	getEventTimeout = 10 * time.Second
 )
 
 var (
 	errSkipEvent = errors.New("skip event")
 )
+
+const (
+	testActivityDumpDuration = time.Minute * 10
+)
+
+var testMod *testModule
 
 func (s *stringSlice) String() string {
 	return strings.Join(*s, " ")
@@ -517,6 +522,29 @@ func (tm *testModule) Create(filename string) (string, unsafe.Pointer, error) {
 	return testFile, testPtr, err
 }
 
+// NewTimeoutError returns a new timeout error with the metrics collected during the test
+func (tm *testModule) NewTimeoutError() ErrTimeout {
+	var msg strings.Builder
+
+	msg.WriteString("timeout, details: ")
+	tm.writePlatformSpecificTimeoutError(&msg)
+
+	events := tm.ruleEngine.StopEventCollector()
+	if len(events) != 0 {
+		msg.WriteString("\nevents evaluated:\n")
+
+		for _, event := range events {
+			msg.WriteString(fmt.Sprintf("%s (eval=%v) {\n", event.Type, event.EvalResult))
+			for field, value := range event.Fields {
+				msg.WriteString(fmt.Sprintf("\t%s=%v,\n", field, value))
+			}
+			msg.WriteString("}\n")
+		}
+	}
+
+	return ErrTimeout{msg.String()}
+}
+
 func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHandler) {
 	tb.Helper()
 
@@ -885,4 +913,19 @@ func jsonPathValidation(testMod *testModule, data []byte, fnc func(testMod *test
 	}
 
 	fnc(testMod, obj)
+}
+
+type onRuleHandler func(*model.Event, *rules.Rule)
+type onProbeEventHandler func(*model.Event)
+type onCustomSendEventHandler func(*rules.Rule, *events.CustomEvent)
+type onSendEventHandler func(*rules.Rule, *model.Event)
+type onDiscarderPushedHandler func(event eval.Event, field eval.Field, eventType eval.EventType) bool
+
+type eventHandlers struct {
+	sync.RWMutex
+	onRuleMatch       onRuleHandler
+	onProbeEvent      onProbeEventHandler
+	onCustomSendEvent onCustomSendEventHandler
+	onSendEvent       onSendEventHandler
+	onDiscarderPushed onDiscarderPushedHandler
 }
