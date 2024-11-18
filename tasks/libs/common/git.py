@@ -75,8 +75,9 @@ def get_file_modifications(
         line.split('\t')
         for line in ctx.run(f"git diff --name-status {flags} {last_main_commit}", hide=True).stdout.splitlines()
     ]
-
     if added or modified or removed:
+        # skip when a file is renamed
+        modifications = [m for m in modifications if len(m) != 3]
         modifications = [
             (status, file)
             for status, file in modifications

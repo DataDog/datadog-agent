@@ -148,7 +148,9 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
         return;
     }
 
-    update_protocol_classification_information(t, val);
+    if (is_protocol_classification_supported()) {
+        update_protocol_classification_information(t, val);
+    }
 
     // If already in our map, increment size in-place
     update_conn_state(t, val, sent_bytes, recv_bytes);
