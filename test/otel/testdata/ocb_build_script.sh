@@ -1,8 +1,16 @@
 #!/bin/bash
 
+ARCH=$(uname -m)
+if [ "$ARCH" = "x86_64" ]; then
+    ARCH="amd64"
+elif [ "$ARCH" = "aarch64" ]; then
+    ARCH="arm64"
+fi
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+OCB_URL="https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv0.113.0/ocb_0.113.0_${OS}_${ARCH}"
 mkdir -p /tmp/otel-ci
 cp ./test/otel/testdata/* /tmp/otel-ci/
-wget -O /tmp/otel-ci/ocb https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv0.113.0/ocb_0.113.0_linux_arm64
+wget -O /tmp/otel-ci/ocb "$OCB_URL"
 chmod +x /tmp/otel-ci/ocb
 
 /tmp/otel-ci/ocb --config=/tmp/otel-ci/builder-config.yaml > ocb-output.log 2>&1
