@@ -234,7 +234,8 @@ const (
 	ConnectionProtocolMap BPFMapName = "connection_protocol"
 	// ConnectionTupleToSocketSKBConnMap is the map storing the connection tuple to socket skb conn tuple
 	ConnectionTupleToSocketSKBConnMap BPFMapName = "conn_tuple_to_socket_skb_conn_tuple"
-	EnhancedTLSTagsMap                BPFMapName = "tls_enhanced_tags"
+	// EnhancedTLSTagsMap is the map storing additional tags for TLS connections (version, cipher, etc.)
+	EnhancedTLSTagsMap BPFMapName = "tls_enhanced_tags"
 	// ClassificationProgsMap is the map storing the programs to run on classification events
 	ClassificationProgsMap BPFMapName = "classification_progs"
 	// TCPCloseProgsMap is the map storing the programs to run on TCP close events
