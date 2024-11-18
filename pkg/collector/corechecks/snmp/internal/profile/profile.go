@@ -15,12 +15,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-// GetProfiles returns profiles depending on various sources:
-//   - init config profiles
-//   - yaml profiles
-//   - downloaded json gzip profiles
-//   - remote config profiles
-func GetProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) {
+// GetProfiles returns a Provider depending on various sources:
+//   - If initConfigProfiles are provided, they'll be used statically
+//   - If not, but a JSON gzip is present, we parse that and provide them statically
+//   - Otherwise, we parse any YAML profiles and provide them statically
+func GetProfiles(initConfigProfiles ProfileConfigMap) (Provider, error) {
+	profiles, err := loadProfiles(initConfigProfiles)
+	if err != nil {
+		return nil, err
+	}
+	return StaticProvider(profiles), nil
+}
+
+func loadProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) {
 	var profiles ProfileConfigMap
 	if len(initConfigProfiles) > 0 {
 		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
@@ -49,8 +56,8 @@ func GetProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) 
 	return profiles, nil
 }
 
-// GetProfileForSysObjectID return a profile for a sys object id
-func GetProfileForSysObjectID(profiles ProfileConfigMap, sysObjectID string) (string, error) {
+// getProfileForSysObjectID return a profile for a sys object id
+func getProfileForSysObjectID(profiles ProfileConfigMap, sysObjectID string) (string, error) {
 	tmpSysOidToProfile := map[string]string{}
 	var matchedOids []string
 

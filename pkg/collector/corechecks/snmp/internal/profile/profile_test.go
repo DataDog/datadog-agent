@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-func Test_getProfiles(t *testing.T) {
+func Test_loadProfiles(t *testing.T) {
 	tests := []struct {
 		name                   string
 		mockConfd              string
@@ -111,7 +111,7 @@ func Test_getProfiles(t *testing.T) {
 			path, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
 			pkgconfigsetup.Datadog().SetWithoutSource("confd_path", path)
 
-			actualProfiles, err := GetProfiles(tt.profiles)
+			actualProfiles, err := loadProfiles(tt.profiles)
 			if tt.expectedErr != "" {
 				assert.ErrorContains(t, err, tt.expectedErr)
 			}
@@ -373,7 +373,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			profile, err := GetProfileForSysObjectID(tt.profiles, tt.sysObjectID)
+			profile, err := getProfileForSysObjectID(tt.profiles, tt.sysObjectID)
 			if tt.expectedError == "" {
 				assert.Nil(t, err)
 			} else {

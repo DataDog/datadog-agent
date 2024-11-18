@@ -49,5 +49,5 @@ collect_topology: false
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
 	assert.NoError(t, err)
 
-	assert.Contains(t, chk.config.Profiles, "profile-from-ui")
+	assert.True(t, chk.config.Profiles.HasProfile("profile-from-ui"))
 }
