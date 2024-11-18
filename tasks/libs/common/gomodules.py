@@ -14,6 +14,7 @@ from typing import ClassVar
 import yaml
 
 import tasks
+from tasks.libs.common.agent6 import agent_working_directory
 
 
 class ConfigDumper(yaml.SafeDumper):
@@ -312,6 +313,8 @@ def get_default_modules(base_dir: Path | None = None) -> dict[str, GoModule]:
     Args:
         base_dir: Root directory of the agent repository ('.' by default).
     """
+
+    base_dir = base_dir or agent_working_directory()
 
     return Configuration.from_file(base_dir).modules
 

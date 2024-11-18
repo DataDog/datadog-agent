@@ -5,11 +5,12 @@ Common environment variables that can be used:
 """
 
 import os
-
+from contextlib import contextmanager
 from pathlib import Path
 
 AGENT6_BRANCH = "6.53.x"
-AGENT6_WORKTREE = Path.cwd().parent / "datadog-agent6"
+AGENT6_WORKING_DIRECTORY = Path.cwd().parent / "datadog-agent6"
+AGENT7_WORKING_DIRECTORY = Path.cwd()
 
 
 def prepare(ctx):
@@ -21,14 +22,58 @@ def prepare(ctx):
     2. Fetch the latest changes from the agent6 worktree.
     """
 
-    if not AGENT6_WORKTREE.is_dir():
-        ctx.run(f"git worktree add '{AGENT6_WORKTREE}' origin/{AGENT6_BRANCH}", warn=True)
+    if not AGENT6_WORKING_DIRECTORY.is_dir():
+        ctx.run(f"git worktree add '{AGENT6_WORKING_DIRECTORY}' origin/{AGENT6_BRANCH}", warn=True)
 
     if not os.environ.get("AGENT6_NO_PULL"):
-        ctx.run(f"git -C '{AGENT6_WORKTREE}' fetch origin {AGENT6_BRANCH}", warn=True)
+        ctx.run(f"git -C '{AGENT6_WORKING_DIRECTORY}' fetch origin {AGENT6_BRANCH}", warn=True)
 
 
 def is_agent6():
     """Will return True if the current environment is an agent6 environment."""
 
-    return Path.cwd() == AGENT6_WORKTREE
+    return Path.cwd() == AGENT6_WORKING_DIRECTORY
+
+
+@contextmanager
+def _agent6_context(ctx):
+    """To run code from the agent6 environment.
+
+    Prefer using agent_context(ctx, version).
+    """
+
+    prepare(ctx)
+
+    current_dir = Path.cwd()
+
+    try:
+        # Enter
+        os.chdir(AGENT6_WORKING_DIRECTORY)
+
+        # TODO: Load modules etc.
+        yield
+    finally:
+        # Exit
+        os.chdir(current_dir)
+
+
+@contextmanager
+def agent_context(ctx, version: str | int | None):
+    """Runs code from the agent6 environment if the version is 6.
+
+    Usage:
+        > with agent_context(ctx, version):
+        >    ctx.run("head CHANGELOG.rst")  # Displays the changelog of the target version
+    """
+
+    if version == 6 or isinstance(version, str) and version.startswith("6"):
+        with _agent6_context(ctx):
+            yield
+    else:
+        yield
+
+
+def agent_working_directory():
+    """Returns the working directory for the current context (agent 6 / 7)."""
+
+    return AGENT6_WORKING_DIRECTORY if is_agent6() else AGENT7_WORKING_DIRECTORY
