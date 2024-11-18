@@ -31,9 +31,10 @@ func (w *winrawsocket) close() {
 
 func (t *TCPv4) sendRawPacket(w *winrawsocket, payload []byte) error {
 
+	dst :=t.Target.To4()
 	sa := &windows.SockaddrInet4{
 		Port: int(t.DestPort), 
-		Addr: [4]byte{t.Target[12], t.Target[13], t.Target[14], t.Target[15]},
+		Addr: [4]byte{dst[0], dst[1], dst[2], dst[3]},
 	}
 	if err := windows.Sendto(w.s, payload, 0, sa); err != nil {
 		return fmt.Errorf("failed to send packet: %w", err)
