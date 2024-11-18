@@ -151,6 +151,8 @@ class GoModule:
     lint_targets: list[str] | None = None
     # Whether the module is an otel dependency or not
     used_by_otel: bool = False
+    # Used to load agent 6 modules from agent 7
+    legacy_go_mod_version: bool | None = None
 
     @staticmethod
     def from_dict(path: str, data: dict[str, object]) -> GoModule:
@@ -165,6 +167,7 @@ class GoModule:
             importable=data.get("importable", default["importable"]),
             independent=data.get("independent", default["independent"]),
             used_by_otel=data.get("used_by_otel", default["used_by_otel"]),
+            legacy_go_mod_version=data.get("legacy_go_mod_version", default["legacy_go_mod_version"]),
         )
 
     @staticmethod
@@ -197,6 +200,7 @@ class GoModule:
             "importable": self.importable,
             "independent": self.independent,
             "used_by_otel": self.used_by_otel,
+            "legacy_go_mod_version": self.legacy_go_mod_version,
         }
 
         if remove_path:

@@ -38,20 +38,6 @@ type Tagger interface {
 	Tag(entity types.EntityID, cardinality types.TagCardinality) ([]string, error)
 }
 
-type nullTagger struct{}
-
-func (n *nullTagger) Start(_ context.Context) error {
-	return nil
-}
-
-func (n *nullTagger) Stop() error {
-	return nil
-}
-
-func (n *nullTagger) Tag(_ types.EntityID, _ types.TagCardinality) ([]string, error) {
-	return nil, nil
-}
-
 // Resolver represents a cache resolver
 type Resolver interface {
 	Start(ctx context.Context) error
@@ -113,28 +99,22 @@ func (t *DefaultResolver) Stop() error {
 
 // NewDefaultResolver returns a new default tags resolver
 func NewDefaultResolver(config *config.Config, telemetry telemetry.Component, tagger Tagger) *DefaultResolver {
-	if tagger == nil {
-		tagger = &nullTagger{}
-	}
-
 	ddConfig := pkgconfigsetup.Datadog()
 	resolver := &DefaultResolver{
 		tagger: tagger,
 	}
 
-	if config.RemoteTaggerEnabled {
-		params := taggerdef.RemoteParams{
-			RemoteFilter: types.NewMatchAllFilter(),
-			RemoteTarget: func(c coreconfig.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
-			RemoteTokenFetcher: func(c coreconfig.Component) func() (string, error) {
-				return func() (string, error) {
-					return security.FetchAuthToken(c)
-				}
-			},
-		}
-
-		resolver.tagger, _ = remotetagger.NewRemoteTagger(params, ddConfig, log.NewWrapper(2), telemetry)
+	params := taggerdef.RemoteParams{
+		RemoteFilter: types.NewMatchAllFilter(),
+		RemoteTarget: func(c coreconfig.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
+		RemoteTokenFetcher: func(c coreconfig.Component) func() (string, error) {
+			return func() (string, error) {
+				return security.FetchAuthToken(c)
+			}
+		},
 	}
+
+	resolver.tagger, _ = remotetagger.NewRemoteTagger(params, ddConfig, log.NewWrapper(2), telemetry)
 
 	return resolver
 }
