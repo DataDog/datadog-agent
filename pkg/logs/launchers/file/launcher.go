@@ -7,7 +7,6 @@
 package file
 
 import (
-	"fmt"
 	"regexp"
 	"time"
 
@@ -113,7 +112,6 @@ func (s *Launcher) run() {
 	for {
 		select {
 		case source := <-s.addedSources:
-			fmt.Println("WACKTEST77", source)
 			s.addSource(source)
 
 		case source := <-s.removedSources:
@@ -252,7 +250,6 @@ func (s *Launcher) cleanUpRotatedTailers() {
 
 // addSource keeps track of the new source and launch new tailers for this source.
 func (s *Launcher) addSource(source *sources.LogSource) {
-	fmt.Println("add source in launcher?", source)
 	s.activeSources = append(s.activeSources, source)
 	s.launchTailers(source)
 }
@@ -280,7 +277,6 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		log.Warnf("Could not collect files: %v", err)
 		return
 	}
-	fmt.Println("files are ", files)
 	for _, file := range files {
 		if s.tailers.Count() >= s.tailingLimit {
 			return
@@ -303,7 +299,6 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			mode = config.Beginning
 			source.Config.TailingMode = mode.String()
 		}
-		fmt.Println("starting new tailer?", file, mode)
 		s.startNewTailer(file, mode)
 	}
 }

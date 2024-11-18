@@ -6,7 +6,6 @@
 package sources
 
 import (
-	"fmt"
 	"os"
 	"sync"
 
@@ -52,7 +51,6 @@ func (s *ConfigSources) AddFileSource(path string) error {
 		return err
 	}
 	logsConfig, err := logsConfig.ParseYAML(data)
-	fmt.Println("logsConfig", logsConfig)
 	if err != nil {
 		return err
 	}

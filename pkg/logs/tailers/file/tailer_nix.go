@@ -8,7 +8,6 @@
 package file
 
 import (
-	"fmt"
 	"io"
 	"path/filepath"
 
@@ -29,7 +28,6 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	t.tags = t.buildTailerTags()
 
 	log.Info("Opening", t.file.Path, "for tailer key", t.file.GetScanKey())
-	fmt.Println("WAIT A MINUTE full path is ", fullpath)
 	f, err := filesystem.OpenShared(fullpath)
 	if err != nil {
 		return err
@@ -58,9 +56,7 @@ func (t *Tailer) read() (int, error) {
 		return 0, nil
 	}
 	t.lastReadOffset.Add(int64(n))
-	fmt.Println("Number of bytes read is ", n)
 	msg := decoder.NewInput(inBuf[:n])
-	fmt.Println("MESSAGE is ", msg)
 	t.decoder.InputChan <- msg
 	return n, nil
 }
