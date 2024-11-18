@@ -88,7 +88,9 @@ def get_file_modifications(
     return modifications
 
 
-def get_modified_files(ctx, base_branch="main") -> list[str]:
+def get_modified_files(ctx, base_branch=None) -> list[str]:
+    base_branch = base_branch or get_default_branch()
+
     return get_file_modifications(
         ctx, base_branch=base_branch, added=True, modified=True, only_names=True, no_renames=True
     )
@@ -140,7 +142,7 @@ def get_main_parent_commit(ctx) -> str:
     """
     Get the commit sha your current branch originated from
     """
-    return ctx.run("git merge-base HEAD origin/main", hide=True).stdout.strip()
+    return ctx.run(f"git merge-base HEAD origin/{get_default_branch()}", hide=True).stdout.strip()
 
 
 def check_base_branch(branch, release_version):

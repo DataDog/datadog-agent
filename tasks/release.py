@@ -663,7 +663,7 @@ def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", up
 
         create_release_pr(
             f"[release] Update current milestone to {next}",
-            "main",
+            get_default_branch(),
             milestone_branch,
             next,
         )
@@ -683,8 +683,8 @@ def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", up
 
             with open(file, "w") as gl:
                 for line in file_content:
-                    if re.search(r"compare_to: main", line):
-                        gl.write(line.replace("main", f"{release_branch}"))
+                    if re.search(rf"compare_to: {get_default_branch()}", line):
+                        gl.write(line.replace(get_default_branch(), f"{release_branch}"))
                     else:
                         gl.write(line)
 
@@ -754,7 +754,7 @@ def cleanup(ctx):
     current_milestone = _update_last_stable(ctx, version)
 
     # create pull request to update last stable version
-    main_branch = "main"
+    main_branch = get_default_branch()
     cleanup_branch = f"release/{version}-cleanup"
     ctx.run(f"git checkout -b {cleanup_branch}")
     ctx.run("git add release.json")
@@ -787,7 +787,7 @@ def cleanup(ctx):
 @task
 def check_omnibus_branches(ctx):
     base_branch = _get_release_json_value('base_branch')
-    if base_branch == 'main':
+    if base_branch == get_default_branch():
         omnibus_ruby_branch = 'datadog-5.5.0'
         omnibus_software_branch = 'master'
     else:
@@ -913,7 +913,7 @@ def get_active_release_branch(_):
     if release_branch:
         print(f"{release_branch.name}")
     else:
-        print("main")
+        print(get_default_branch())
 
 
 @task
