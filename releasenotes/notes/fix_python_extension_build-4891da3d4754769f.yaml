@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix building of python extension containing native code.
+    Fix building of Python extension containing native code.
