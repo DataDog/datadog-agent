@@ -113,7 +113,9 @@ func NewDefaultResolver(telemetry telemetry.Component, tagger Tagger) *DefaultRe
 		},
 	}
 
-	resolver.tagger, _ = remotetagger.NewRemoteTagger(params, ddConfig, log.NewWrapper(2), telemetry)
+	if tagger == nil {
+		resolver.tagger, _ = remotetagger.NewRemoteTagger(params, ddConfig, log.NewWrapper(2), telemetry)
+	}
 
 	return resolver
 }
