@@ -51,7 +51,6 @@ const (
 	kafkaHeapMap       = "kafka_heap"
 	inFlightMap        = "kafka_in_flight"
 	responseMap        = "kafka_response"
-	telemetryMap       = "kafka_telemetry"
 
 	tlsFilterTailCall = "uprobe__kafka_tls_filter"
 
@@ -88,7 +87,7 @@ var Spec = &protocols.ProtocolSpec{
 			Name: "kafka_topic_name",
 		},
 		{
-			Name: telemetryMap,
+			Name: eBPFTelemetryMap,
 		},
 		{
 			Name: "kafka_batch_events",
@@ -312,7 +311,7 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
-	case telemetryMap:
+	case eBPFTelemetryMap:
 		var zeroKey uint32
 
 		var value RawKernelTelemetry
@@ -332,11 +331,11 @@ func (p *protocol) processKafka(events []EbpfTx) {
 }
 
 func (p *protocol) setupInFlightMapCleaner(mgr *manager.Manager) error {
-	inFlightMap, _, err := mgr.GetMap(inFlightMap)
+	kafkaInFlight, _, err := mgr.GetMap(inFlightMap)
 	if err != nil {
 		return err
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[KafkaTransactionKey, KafkaTransaction](inFlightMap, 1024)
+	mapCleaner, err := ddebpf.NewMapCleaner[KafkaTransactionKey, KafkaTransaction](kafkaInFlight, 1024, inFlightMap, "usm_monitor")
 	if err != nil {
 		return err
 	}

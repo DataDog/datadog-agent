@@ -194,6 +194,8 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 			probes.ConnectionProtocolMap:             {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.ConnectionTupleToSocketSKBConnMap: {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.TCPOngoingConnectPid:              {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.ConnCloseFlushed:                  {MaxEntries: config.MaxTrackedConnections / 4, EditorFlag: manager.EditMaxEntries},
+			probes.TCPRecvMsgArgsMap:                 {MaxEntries: config.MaxTrackedConnections / 32, EditorFlag: manager.EditMaxEntries},
 		},
 		ConstantEditors: []manager.ConstantEditor{
 			boolConst("tcpv6_enabled", config.CollectTCPv6Conns),
@@ -703,7 +705,7 @@ func (t *ebpfTracer) setupMapCleaner(m *manager.Manager) {
 		return
 	}
 
-	tcpOngoingConnectPidCleaner, err := ddebpf.NewMapCleaner[netebpf.SkpConn, netebpf.PidTs](tcpOngoingConnectPidMap, 1024)
+	tcpOngoingConnectPidCleaner, err := ddebpf.NewMapCleaner[netebpf.SkpConn, netebpf.PidTs](tcpOngoingConnectPidMap, 1024, probes.TCPOngoingConnectPid, "npm_tracer")
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
@@ -724,7 +726,7 @@ func (t *ebpfTracer) setupMapCleaner(m *manager.Manager) {
 		if err != nil {
 			log.Errorf("error getting %v map: %s", probes.ConnCloseFlushed, err)
 		}
-		connCloseFlushCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, int64](connCloseFlushMap, 1024)
+		connCloseFlushCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, int64](connCloseFlushMap, 1024, probes.ConnCloseFlushed, "npm_tracer")
 		if err != nil {
 			log.Errorf("error creating map cleaner: %s", err)
 			return

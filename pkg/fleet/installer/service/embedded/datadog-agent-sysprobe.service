@@ -4,7 +4,8 @@ Requires=sys-kernel-debug.mount
 Before=datadog-agent.service
 After=network.target sys-kernel-debug.mount
 BindsTo=datadog-agent.service
-ConditionPathExists=/etc/datadog-agent/system-probe.yaml
+ConditionPathExists=|/etc/datadog-agent/system-probe.yaml
+ConditionPathExists=|/etc/datadog-packages/datadog-agent/stable/system-probe.yaml
 
 [Service]
 Type=simple

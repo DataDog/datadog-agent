@@ -6,7 +6,6 @@
 package model
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"reflect"
@@ -109,57 +108,6 @@ func TestGetConfigEnvVarsDedupe(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, count)
-}
-
-func TestGetFloat64SliceE(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
-
-	config.BindEnv("float_list")
-	config.SetConfigType("yaml")
-	yamlExample := []byte(`---
-float_list:
-  - 1.1
-  - "2.2"
-  - 3.3
-`)
-	config.ReadConfig(bytes.NewBuffer(yamlExample))
-
-	list, err := config.GetFloat64SliceE("float_list")
-	assert.NoError(t, err)
-	assert.Equal(t, []float64{1.1, 2.2, 3.3}, list)
-
-	yamlExample = []byte(`---
-float_list:
-  - a
-  - 2.2
-  - 3.3
-`)
-	config.ReadConfig(bytes.NewBuffer(yamlExample))
-
-	list, err = config.GetFloat64SliceE("float_list")
-	assert.NotNil(t, err)
-	assert.Equal(t, "value 'a' from 'float_list' is not a float64", err.Error())
-	assert.Nil(t, list)
-}
-
-func TestGetFloat64SliceEEnv(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
-
-	config.BindEnv("float_list")
-	config.SetConfigType("yaml")
-
-	yamlExample := []byte(`
-float_list:
-- 25
-`)
-
-	config.ReadConfig(bytes.NewBuffer(yamlExample))
-
-	t.Setenv("DD_FLOAT_LIST", "1.1 2.2 3.3")
-
-	list, err := config.GetFloat64SliceE("float_list")
-	assert.NoError(t, err)
-	assert.Equal(t, []float64{1.1, 2.2, 3.3}, list)
 }
 
 func TestSet(t *testing.T) {
