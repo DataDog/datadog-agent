@@ -25,7 +25,7 @@ import (
 type cliParams struct {
 	*command.GlobalParams
 
-	logLevelOff command.LogLevelOff
+	logLevelDefaultOff command.LogLevelDefaultOff
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -42,12 +42,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:    log.ForOneShot(command.LoggerName, cliParams.logLevelOff.Override(), false)}), // never output anything but hostname
+					LogParams:    log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), false)}), // never output anything but hostname
 				core.Bundle(),
 			)
 		},
 	}
-	cliParams.logLevelOff.Register(getHostnameCommand)
+	cliParams.logLevelDefaultOff.Register(getHostnameCommand)
 	return []*cobra.Command{getHostnameCommand}
 }
 

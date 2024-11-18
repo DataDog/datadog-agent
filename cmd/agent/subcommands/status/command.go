@@ -36,12 +36,12 @@ type cliParams struct {
 	// args are the positional command-line arguments
 	args []string
 
-	jsonStatus      bool
-	prettyPrintJSON bool
-	statusFilePath  string
-	verbose         bool
-	list            bool
-	logLevelOff     command.LogLevelOff
+	jsonStatus         bool
+	prettyPrintJSON    bool
+	statusFilePath     string
+	verbose            bool
+	list               bool
+	logLevelDefaultOff command.LogLevelDefaultOff
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -70,12 +70,12 @@ The --list flag can be used to list all available status sections.`,
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:            log.ForOneShot(command.LoggerName, cliParams.logLevelOff.Override(), true)}),
+					LogParams:            log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), true)}),
 				core.Bundle(),
 			)
 		},
 	}
-	cliParams.logLevelOff.Register(cmd)
+	cliParams.logLevelDefaultOff.Register(cmd)
 	cmd.PersistentFlags().BoolVarP(&cliParams.jsonStatus, "json", "j", false, "print out raw json")
 	cmd.PersistentFlags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
 	cmd.PersistentFlags().StringVarP(&cliParams.statusFilePath, "file", "o", "", "Output the status command to a file")
