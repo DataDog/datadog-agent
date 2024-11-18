@@ -23,8 +23,6 @@ int classifier_raw_packet_sender(struct __sk_buff *skb) {
         return ACT_OK;
     }
 
-    bpf_printk("DATA: %d", evt->data[12]);
-
     // process context
     fill_network_process_context(&evt->process, pkt);
 

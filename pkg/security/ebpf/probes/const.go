@@ -78,6 +78,11 @@ const (
 )
 
 const (
+	// RawPacketFilterMaxTailCall defines the maximum of tail calls
+	RawPacketFilterMaxTailCall = 5
+)
+
+const (
 	// TCDNSRequestKey is the key to the DNS request program
 	TCDNSRequestKey uint32 = iota + 1
 	// TCDNSRequestParserKey is the key to the DNS request parser program
