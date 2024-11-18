@@ -91,7 +91,7 @@ func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiv
 	// Start a goroutine to forward messages from outputChan to stdout
 	go func() {
 		for msg := range outputChan {
-			fmt.Printf("Message: %s\n", string(msg.GetContent()))
+			fmt.Println(string(msg.GetContent()))
 		}
 	}()
 
