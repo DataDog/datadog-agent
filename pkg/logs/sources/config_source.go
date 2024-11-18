@@ -60,6 +60,7 @@ func (s *ConfigSources) AddFileSource(path string) error {
 	configSource := GetInstance()
 	for _, cfg := range logsConfig {
 		cfg.Path = absolutePath
+		cfg.TailingMode = "start"
 		source := NewLogSource(cfg.Name, cfg)
 		fmt.Println("source is ", source)
 		configSource.AddSource(source)
