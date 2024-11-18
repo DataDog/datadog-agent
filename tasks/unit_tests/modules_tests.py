@@ -188,6 +188,7 @@ class TestGoModuleSerialization(unittest.TestCase):
             'importable': True,
             'independent': True,
             'used_by_otel': True,
+            'legacy_go_mod_version': None,
         }
         module = GoModule.from_dict(d['path'], d)
         d2 = module.to_dict(remove_defaults=False)
