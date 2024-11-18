@@ -583,7 +583,7 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 func (p *EBPFProbe) onEventLost(perfMapName string, perEvent map[string]uint64) {
 	if p.config.RuntimeSecurity.InternalMonitoringEnabled {
 		p.probe.DispatchCustomEvent(
-			NewEventLostWriteEvent(perfMapName, perEvent),
+			NewEventLostWriteEvent(p.GetAgentContainerContext(), perfMapName, perEvent),
 		)
 	}
 
@@ -2377,6 +2377,11 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			}
 		}
 	}
+}
+
+// GetAgentContainerContext returns the agent container context
+func (p *EBPFProbe) GetAgentContainerContext() *events.AgentContainerContext {
+	return p.probe.GetAgentContainerContext()
 }
 
 // newPlaceholderProcessCacheEntryPTraceMe returns a new empty process cache entry for PTRACE_TRACEME calls,

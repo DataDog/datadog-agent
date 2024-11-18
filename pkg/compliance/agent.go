@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
 	secl "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -134,7 +134,7 @@ func xccdfEnabled() bool {
 }
 
 var defaultSECLRuleFilter = sync.OnceValues(func() (*secl.SECLRuleFilter, error) {
-	ruleFilterModel, err := rules.NewRuleFilterModel(nil, "")
+	ruleFilterModel, err := filtermodel.NewRuleFilterModel(nil, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create default SECL rule filter: %w", err)
 	}
@@ -422,7 +422,7 @@ func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
 }
 
 func (a *Agent) runAptConfigurationExport(ctx context.Context) {
-	ruleFilterModel, err := rules.NewRuleFilterModel(nil, "")
+	ruleFilterModel, err := filtermodel.NewRuleFilterModel(nil, "")
 	if err != nil {
 		log.Errorf("failed to run apt configuration export: %v", err)
 		return

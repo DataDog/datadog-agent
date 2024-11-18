@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -165,6 +166,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
 				proccontainers.InitSharedContainerProvider(wmeta, tagger)
 			}),
+			fx.Provide(func() remoteagentregistry.Component { return nil }),
 		)
 	}
 
