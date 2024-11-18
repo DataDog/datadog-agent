@@ -1,4 +1,3 @@
-DEFAULT_BRANCH = "main"
 DEFAULT_INTEGRATIONS_CORE_BRANCH = "master"
 GITHUB_ORG = "DataDog"
 REPO_NAME = "datadog-agent"
@@ -8,6 +7,9 @@ ALLOWED_REPO_NON_NIGHTLY_BRANCHES = {"dev", "stable", "beta", "none"}
 ALLOWED_REPO_NIGHTLY_BRANCHES = {"nightly", "oldnightly"}
 ALLOWED_REPO_ALL_BRANCHES = ALLOWED_REPO_NON_NIGHTLY_BRANCHES.union(ALLOWED_REPO_NIGHTLY_BRANCHES)
 AGENT_VERSION_CACHE_NAME = "agent-version.cache"
+
+# WARNING: Do not use this constant, prefer using `utils.get_default_branch()` instead. This is used to change default branch within agent 6 context
+_DEFAULT_BRANCH = "main"
 
 # Metric Origin Constants:
 # https://github.com/DataDog/dd-source/blob/a060ce7a403c2215c44ebfbcc588e42cd9985aeb/domains/metrics/shared/libs/proto/origin/origin.proto#L144

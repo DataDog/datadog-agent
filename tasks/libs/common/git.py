@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import DEFAULT_BRANCH
 from tasks.libs.common.user_interactions import yes_no_question
 
 if TYPE_CHECKING:
@@ -99,7 +98,17 @@ def get_current_branch(ctx) -> str:
     return ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
 
 
-def get_common_ancestor(ctx, branch, base=DEFAULT_BRANCH) -> str:
+def get_default_branch():
+    """Returns the default git branch given the current context (agent 6 / 7)."""
+
+    from tasks.libs.common import agent6
+
+    return agent6.get_default_branch()
+
+
+def get_common_ancestor(ctx, branch, base=None) -> str:
+    base = base or get_default_branch()
+
     return ctx.run(f"git merge-base {branch} {base}", hide=True).stdout.strip()
 
 
@@ -139,7 +148,7 @@ def check_base_branch(branch, release_version):
     Checks if the given branch is either the default branch or the release branch associated
     with the given release version.
     """
-    return branch == DEFAULT_BRANCH or branch == release_version.branch()
+    return branch == get_default_branch() or branch == release_version.branch()
 
 
 def try_git_command(ctx, git_command):

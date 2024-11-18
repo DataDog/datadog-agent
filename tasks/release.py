@@ -20,7 +20,6 @@ from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import (
-    DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
 )
 from tasks.libs.common.git import (
@@ -28,6 +27,7 @@ from tasks.libs.common.git import (
     check_clean_branch_state,
     clone,
     get_current_branch,
+    get_default_branch,
     get_last_commit,
     get_last_release_tag,
     try_git_command,
@@ -371,7 +371,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
     if not check_base_branch(current_branch, new_highest_version):
         raise Exit(
             color_message(
-                f"The branch you are on is neither {DEFAULT_BRANCH} or the correct release branch ({new_highest_version.branch()}). Aborting.",
+                f"The branch you are on is neither {get_default_branch()} or the correct release branch ({new_highest_version.branch()}). Aborting.",
                 "red",
             ),
             code=1,
@@ -472,7 +472,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
     if not check_base_branch(current_branch, new_version):
         raise Exit(
             color_message(
-                f"The branch you are on is neither {DEFAULT_BRANCH} or the correct release branch ({new_version.branch()}). Aborting.",
+                f"The branch you are on is neither {get_default_branch()} or the correct release branch ({new_version.branch()}). Aborting.",
                 "red",
             ),
             code=1,
