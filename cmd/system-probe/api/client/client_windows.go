@@ -9,7 +9,6 @@ package client
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"time"
 
@@ -40,9 +39,7 @@ func DialContextFunc(_ string) func(context.Context, string, string) (net.Conn, 
 		if err != nil {
 			// This important error may not get reported upstream, making connection failures
 			// very difficult to diagnose. Explicitly log the error here too for diagnostics.
-			var namedPipeErr = fmt.Errorf("error connecting to named pipe %q: %s", SystemProbePipeName, err)
-			log.Error(namedPipeErr.Error())
-			return nil, namedPipeErr
+			return nil, log.Error("error connecting to named pipe %q: %s", SystemProbePipeName, err)
 		}
 
 		return namedPipe, nil
