@@ -66,10 +66,7 @@ func waitUntilSucceeds[T any](p *ProcInfo, procFile string, readFunc func(string
 	}
 
 	if err == nil {
-		if failedTimes > 0 {
-			readTemporaryFail.Add(int64(failedTimes))
-		}
-
+		readTemporaryFail.Add(int64(failedTimes))
 		readSuccess.Add(1)
 	} else {
 		readFail.Add(1)
