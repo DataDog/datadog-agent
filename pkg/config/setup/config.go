@@ -1555,6 +1555,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Add a tag to logs that are truncated by the agent
 	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
 
+	// Number of logs pipeline instances. Defaults to number of logical CPU cores as defined by GOMAXPROCS.
+	config.BindEnvAndSetDefault("logs_config.pipelines", runtime.GOMAXPROCS(0))
+
 	// If true, the agent looks for container logs in the location used by podman, rather
 	// than docker.  This is a temporary configuration parameter to support podman logs until
 	// a more substantial refactor of autodiscovery is made to determine this automatically.
