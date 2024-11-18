@@ -8,7 +8,7 @@
 package demultiplexerimpl
 
 import (
-	fx_mock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
+	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"go.uber.org/fx"
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -75,7 +75,7 @@ func newMock(deps mockDependencies) MockProvides {
 		Log:             deps.Log,
 		Hostname:        deps.Hostname,
 		SharedForwarder: defaultforwarder.NoopForwarder{},
-		Compressor:      fx_mock.NewMockCompressor(),
+		Compressor:      compressionmock.NewMockCompressor(),
 	}
 
 	instance := &mock{AgentDemultiplexer: aggregator.InitAndStartAgentDemultiplexerForTest(aggDeps, opts, "")}

@@ -91,7 +91,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker => ./../../pkg/util/utilizationtracker
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ./../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ./../../pkg/version
-
 )
 
 require (

@@ -10,7 +10,6 @@ package mocksender
 import (
 	"time"
 
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -20,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
