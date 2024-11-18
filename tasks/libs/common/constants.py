@@ -8,7 +8,7 @@ ALLOWED_REPO_NIGHTLY_BRANCHES = {"nightly", "oldnightly"}
 ALLOWED_REPO_ALL_BRANCHES = ALLOWED_REPO_NON_NIGHTLY_BRANCHES.union(ALLOWED_REPO_NIGHTLY_BRANCHES)
 AGENT_VERSION_CACHE_NAME = "agent-version.cache"
 
-# WARNING: Do not use this constant, prefer using `utils.get_default_branch()` instead. This is used to change default branch within agent 6 context
+# WARNING: Do not use this constant, prefer using `get_default_branch()` instead. This is used to change default branch within agent 6 context
 _DEFAULT_BRANCH = "main"
 
 # Metric Origin Constants:

@@ -25,7 +25,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import ALLOWED_REPO_ALL_BRANCHES, REPO_PATH
-from tasks.libs.common.git import get_default_branch
+from tasks.libs.common.git import get_commit_sha, get_default_branch
 from tasks.libs.owners.parsing import search_owners
 from tasks.libs.releasing.version import get_version
 from tasks.libs.types.arch import Arch
@@ -373,8 +373,6 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
     Compute the version from the git tags, and set the appropriate compiler
     flags
     """
-
-    from tasks.libs.common.git import get_commit_sha
 
     payload_v = get_payload_version()
     commit = get_commit_sha(ctx, short=True)
