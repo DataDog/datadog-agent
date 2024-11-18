@@ -521,6 +521,11 @@ github.com/outcaste-io/ristretto/z/simd
 github.com/patrickmn/go-cache
 github.com/pelletier/go-toml
 github.com/philhofer/fwd
+github.com/pierrec/lz4/v4
+github.com/pierrec/lz4/v4/internal/lz4block
+github.com/pierrec/lz4/v4/internal/lz4errors
+github.com/pierrec/lz4/v4/internal/lz4stream
+github.com/pierrec/lz4/v4/internal/xxh32
 github.com/pkg/errors
 github.com/pmezard/go-difflib/difflib
 github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil
@@ -571,7 +576,6 @@ github.com/tklauser/numcpus
 github.com/twmb/murmur3
 go.opentelemetry.io/collector/client
 go.opentelemetry.io/collector/component
-go.opentelemetry.io/collector/component/componentprofiles
 go.opentelemetry.io/collector/component/componentstatus
 go.opentelemetry.io/collector/component/componenttest
 go.opentelemetry.io/collector/config/configauth
@@ -592,6 +596,8 @@ go.opentelemetry.io/collector/connector/connectortest
 go.opentelemetry.io/collector/connector/internal
 go.opentelemetry.io/collector/consumer
 go.opentelemetry.io/collector/consumer/consumererror
+go.opentelemetry.io/collector/consumer/consumererror/consumererrorprofiles
+go.opentelemetry.io/collector/consumer/consumererror/internal
 go.opentelemetry.io/collector/consumer/consumerprofiles
 go.opentelemetry.io/collector/consumer/consumertest
 go.opentelemetry.io/collector/consumer/internal
@@ -599,8 +605,10 @@ go.opentelemetry.io/collector/exporter
 go.opentelemetry.io/collector/exporter/debugexporter
 go.opentelemetry.io/collector/exporter/debugexporter/internal/metadata
 go.opentelemetry.io/collector/exporter/debugexporter/internal/normal
+go.opentelemetry.io/collector/exporter/debugexporter/internal/otlptext
 go.opentelemetry.io/collector/exporter/exporterbatcher
 go.opentelemetry.io/collector/exporter/exporterhelper
+go.opentelemetry.io/collector/exporter/exporterhelper/exporterhelperprofiles
 go.opentelemetry.io/collector/exporter/exporterhelper/internal
 go.opentelemetry.io/collector/exporter/exporterhelper/internal/metadata
 go.opentelemetry.io/collector/exporter/exporterprofiles
@@ -608,7 +616,6 @@ go.opentelemetry.io/collector/exporter/exporterqueue
 go.opentelemetry.io/collector/exporter/exportertest
 go.opentelemetry.io/collector/exporter/internal
 go.opentelemetry.io/collector/exporter/internal/experr
-go.opentelemetry.io/collector/exporter/internal/otlptext
 go.opentelemetry.io/collector/exporter/internal/queue
 go.opentelemetry.io/collector/exporter/otlpexporter
 go.opentelemetry.io/collector/exporter/otlpexporter/internal/metadata
@@ -619,8 +626,6 @@ go.opentelemetry.io/collector/extension/extensioncapabilities
 go.opentelemetry.io/collector/extension/extensiontest
 go.opentelemetry.io/collector/featuregate
 go.opentelemetry.io/collector/internal/fanoutconsumer
-go.opentelemetry.io/collector/internal/globalgates
-go.opentelemetry.io/collector/internal/globalsignal
 go.opentelemetry.io/collector/internal/httphelper
 go.opentelemetry.io/collector/internal/sharedcomponent
 go.opentelemetry.io/collector/otelcol
@@ -651,6 +656,8 @@ go.opentelemetry.io/collector/pdata/ptrace
 go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp
 go.opentelemetry.io/collector/pdata/testdata
 go.opentelemetry.io/collector/pipeline
+go.opentelemetry.io/collector/pipeline/internal/globalsignal
+go.opentelemetry.io/collector/pipeline/pipelineprofiles
 go.opentelemetry.io/collector/processor
 go.opentelemetry.io/collector/processor/batchprocessor
 go.opentelemetry.io/collector/processor/batchprocessor/internal/metadata
@@ -675,6 +682,7 @@ go.opentelemetry.io/collector/receiver/receivertest
 go.opentelemetry.io/collector/semconv/v1.17.0
 go.opentelemetry.io/collector/semconv/v1.18.0
 go.opentelemetry.io/collector/semconv/v1.21.0
+go.opentelemetry.io/collector/semconv/v1.26.0
 go.opentelemetry.io/collector/semconv/v1.6.1
 go.opentelemetry.io/collector/service
 go.opentelemetry.io/collector/service/extensions
@@ -690,6 +698,7 @@ go.opentelemetry.io/collector/service/internal/zpages
 go.opentelemetry.io/collector/service/pipelines
 go.opentelemetry.io/collector/service/telemetry
 go.opentelemetry.io/collector/service/telemetry/internal/otelinit
+go.opentelemetry.io/contrib/bridges/otelzap
 go.opentelemetry.io/contrib/config
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal
@@ -739,6 +748,8 @@ go.opentelemetry.io/otel/internal/baggage
 go.opentelemetry.io/otel/internal/global
 go.opentelemetry.io/otel/log
 go.opentelemetry.io/otel/log/embedded
+go.opentelemetry.io/otel/log/global
+go.opentelemetry.io/otel/log/internal/global
 go.opentelemetry.io/otel/log/noop
 go.opentelemetry.io/otel/metric
 go.opentelemetry.io/otel/metric/embedded
@@ -759,11 +770,9 @@ go.opentelemetry.io/otel/sdk/metric/metricdata
 go.opentelemetry.io/otel/sdk/resource
 go.opentelemetry.io/otel/sdk/trace
 go.opentelemetry.io/otel/sdk/trace/tracetest
-go.opentelemetry.io/otel/semconv/internal
 go.opentelemetry.io/otel/semconv/v1.17.0
 go.opentelemetry.io/otel/semconv/v1.20.0
 go.opentelemetry.io/otel/semconv/v1.26.0
-go.opentelemetry.io/otel/semconv/v1.4.0
 go.opentelemetry.io/otel/trace
 go.opentelemetry.io/otel/trace/embedded
 go.opentelemetry.io/otel/trace/noop
