@@ -170,7 +170,7 @@ func (v *baseHostnameSuite) TestWithoutIMDSv1() {
 			expectedHostname:                 retrieveInstanceID,
 			expectedLegacyResolutionHostname: retrieveInstanceHostname,
 		},
-		// IMDSv1 and INDSv2 are disabled, the hostname should be the OS hostname
+		// IMDSv1 and IMDSv2 are disabled, the hostname should be the OS hostname
 		{
 			name:                             "WithoutIMDSv1_IMDSv2Disabled_OSHostname",
 			ec2PreferIMDSv2:                  false,
