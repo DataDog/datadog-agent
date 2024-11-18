@@ -9,6 +9,10 @@ package awskubernetes
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentwithoperatorparams"
+	"github.com/DataDog/test-infra-definitions/components/datadog/operator"
+	"github.com/DataDog/test-infra-definitions/components/datadog/operatorparams"
 
 	"github.com/DataDog/test-infra-definitions/common/utils"
 
@@ -88,7 +92,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
-	kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, awsEnv.CommonNamer().ResourceName("kind"), awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	if err != nil {
 		return err
 	}
@@ -127,9 +131,10 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		env.FakeIntake = nil
 	}
 
+	kindClusterName := ctx.Stack()
+
 	var dependsOnCrd []pulumi.Resource
-	if params.agentOptions != nil {
-		kindClusterName := ctx.Stack()
+	if params.agentOptions != nil && !params.deployOperator {
 		helmValues := fmt.Sprintf(`
 datadog:
   kubelet:
@@ -150,6 +155,43 @@ agents:
 			return err
 		}
 		dependsOnCrd = append(dependsOnCrd, agent)
+	}
+
+	if params.deployOperator {
+		operatorOpts := make([]operatorparams.Option, 0)
+		operatorOpts = append(
+			operatorOpts,
+			params.operatorOptions...,
+		)
+
+		if params.operatorDDAOptions != nil && params.deployOperator {
+			ddaOptions := make([]agentwithoperatorparams.Option, 0)
+			ddaOptions = append(
+				ddaOptions,
+				params.operatorDDAOptions...,
+			)
+
+			ddaWithOperatorComp, err := agent.NewDDAWithOperator(&awsEnv, awsEnv.CommonNamer().ResourceName("dd-operator-agent"), kubeProvider, operatorOpts, ddaOptions...)
+
+			if err != nil {
+				return err
+			}
+
+			if err := ddaWithOperatorComp.Export(ctx, &env.Agent.KubernetesAgentOutput); err != nil {
+				return err
+			}
+			dependsOnCrd = append(dependsOnCrd, ddaWithOperatorComp)
+
+		} else {
+			operatorComp, err := operator.NewOperator(&awsEnv, kindClusterName, kubeProvider, operatorOpts...)
+			if err != nil {
+				return err
+			}
+			err = operatorComp.Export(ctx, nil)
+			if err != nil {
+				return err
+			}
+		}
 	} else {
 		env.Agent = nil
 	}

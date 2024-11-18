@@ -25,7 +25,7 @@ import (
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 )
 
-type localOperatorKindSuite struct {
+type localKindOperatorSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
@@ -36,29 +36,26 @@ func localKindOperatorProvisioner() e2e.PulumiEnvRunFunc[environments.Kubernetes
 			return err
 		}
 
-		kindCluster, err := compkube.NewLocalKindCluster(&kindEnv, kindEnv.CommonNamer().ResourceName("kind"), "kind-operator", kindEnv.KubernetesVersion())
+		kindCluster, err := compkube.NewLocalKindCluster(&kindEnv, kindEnv.CommonNamer().ResourceName("kind-operator"), kindEnv.KubernetesVersion())
 		if err != nil {
 			return err
 		}
 
-		if &env.KubernetesCluster != nil && &env.KubernetesCluster.ClusterOutput != nil {
-			err = kindCluster.Export(ctx, &env.KubernetesCluster.ClusterOutput)
-			if err != nil {
-				return err
-			}
+		err = kindCluster.Export(ctx, &env.KubernetesCluster.ClusterOutput)
+		if err != nil {
+			return err
 		}
 
-		// Building Kubernetes provider
+		// Build Kubernetes provider
 		kindKubeProvider, err := kubernetes.NewProvider(ctx, kindEnv.CommonNamer().ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
 			Kubeconfig:            kindCluster.KubeConfig,
 			EnableServerSideApply: pulumi.BoolPtr(true),
-			DeleteUnreachable:     pulumi.BoolPtr(true),
 		})
 		if err != nil {
 			return err
 		}
 
-		namespace := "datadog" // TODO: fix namespace for ddaw/operator component
+		namespace := "e2e-operator"
 
 		fakeIntake, err := fakeintakeComp.NewLocalDockerFakeintake(&kindEnv, "fakeintake")
 		if err != nil {
@@ -75,28 +72,30 @@ func localKindOperatorProvisioner() e2e.PulumiEnvRunFunc[environments.Kubernetes
 			operatorOpts,
 			operatorparams.WithNamespace(namespace),
 		)
+
+		customDDA := `
+spec:
+  features:
+    apm:
+      enabled: true
+`
 		// Setup DDA options
 		ddaOptions := make([]agentwithoperatorparams.Option, 0)
 		ddaOptions = append(
 			ddaOptions,
 			agentwithoperatorparams.WithNamespace(namespace),
 			agentwithoperatorparams.WithTLSKubeletVerify(false),
+			agentwithoperatorparams.WithDDAConfig(customDDA),
 		)
 
-		if fakeIntake != nil {
-			ddaOptions = append(
-				ddaOptions,
-				agentwithoperatorparams.WithFakeIntake(fakeIntake),
-			)
-		}
-
+		// Create Datadog Agent with Operator component
 		operatorAgentComponent, err := agent.NewDDAWithOperator(&kindEnv, kindEnv.CommonNamer().ResourceName("dd-operator-agent"), kindKubeProvider, operatorOpts, ddaOptions...)
 
 		if err != nil {
 			return err
 		}
 
-		if err := operatorAgentComponent.Export(kindEnv.Ctx(), nil); err != nil {
+		if err := operatorAgentComponent.Export(ctx, &env.Agent.KubernetesAgentOutput); err != nil {
 			return err
 		}
 
@@ -104,13 +103,12 @@ func localKindOperatorProvisioner() e2e.PulumiEnvRunFunc[environments.Kubernetes
 	}
 }
 
-func TestLocalOpKindSuite(t *testing.T) {
-	e2e.Run(t, &localOperatorKindSuite{}, e2e.WithPulumiProvisioner(localKindOperatorProvisioner(), nil),
-		e2e.WithDevMode())
+func TestOperatorKindSuite(t *testing.T) {
+	e2e.Run(t, &localKindOperatorSuite{}, e2e.WithPulumiProvisioner(localKindOperatorProvisioner(), nil))
 }
 
-func (v *localOperatorKindSuite) TestClusterAgentInstalled() {
-	res, _ := v.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.TODO(), v1.ListOptions{})
+func (k *localKindOperatorSuite) TestClusterAgentInstalled() {
+	res, _ := k.Env().KubernetesCluster.Client().CoreV1().Pods("blahblah").List(context.TODO(), v1.ListOptions{})
 	containsClusterAgent := false
 	for _, pod := range res.Items {
 		if strings.Contains(pod.Name, "cluster-agent") {
@@ -118,5 +116,5 @@ func (v *localOperatorKindSuite) TestClusterAgentInstalled() {
 			break
 		}
 	}
-	assert.True(v.T(), containsClusterAgent, "Cluster Agent not found")
+	assert.True(k.T(), containsClusterAgent, "Cluster Agent not found")
 }
