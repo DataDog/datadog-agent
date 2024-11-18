@@ -20,55 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
-// EventLostRead is the event used to report lost events detected from user space
-// easyjson:json
-type EventLostRead struct {
-	events.CustomEventCommonFields
-	Name string  `json:"map"`
-	Lost float64 `json:"lost"`
-}
-
-// ToJSON marshal using json format
-func (e EventLostRead) ToJSON() ([]byte, error) {
-	return utils.MarshalEasyJSON(e)
-}
-
-// NewEventLostReadEvent returns the rule and a populated custom event for a lost_events_read event
-func NewEventLostReadEvent(acc *events.AgentContainerContext, mapName string, lost float64) (*rules.Rule, *events.CustomEvent) {
-	evt := EventLostRead{
-		Name: mapName,
-		Lost: lost,
-	}
-	evt.FillCustomEventCommonFields(acc)
-
-	return events.NewCustomRule(events.LostEventsRuleID, events.LostEventsRuleDesc), events.NewCustomEvent(model.CustomEventType, evt)
-}
-
-// EventLostWrite is the event used to report lost events detected from kernel space
-// easyjson:json
-type EventLostWrite struct {
-	events.CustomEventCommonFields
-	Name string            `json:"map"`
-	Lost map[string]uint64 `json:"per_event"`
-}
-
-// ToJSON marshal using json format
-func (e EventLostWrite) ToJSON() ([]byte, error) {
-	return utils.MarshalEasyJSON(e)
-}
-
-// NewEventLostWriteEvent returns the rule and a populated custom event for a lost_events_write event
-func NewEventLostWriteEvent(acc *events.AgentContainerContext, mapName string, perEventPerCPU map[string]uint64) (*rules.Rule, *events.CustomEvent) {
-	evt := EventLostWrite{
-		Name: mapName,
-		Lost: perEventPerCPU,
-	}
-	evt.FillCustomEventCommonFields(acc)
-
-	return events.NewCustomRule(events.LostEventsRuleID, events.LostEventsRuleDesc), events.NewCustomEvent(model.CustomEventType, evt)
-}
-
-
 // AbnormalEvent is used to report that a path resolution failed for a suspicious reason
 // easyjson:json
 type AbnormalEvent struct {

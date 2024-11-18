@@ -19,11 +19,6 @@ const (
 	// ServiceName is the service tag of the custom event types defined in this package
 	ServiceName = "runtime-security-agent"
 
-	// LostEventsRuleID is the rule ID for the lost_events_* events
-	LostEventsRuleID = "lost_events"
-	//LostEventsRuleDesc is the rule description for the lost_events_* events
-	LostEventsRuleDesc = "Lost events"
-
 	// RulesetLoadedRuleID is the rule ID for the ruleset_loaded events
 	RulesetLoadedRuleID = "ruleset_loaded"
 	// RulesetLoadedRuleDesc is the rule description for the ruleset_loaded events
@@ -103,7 +98,6 @@ func NewCustomRule(id eval.RuleID, description string) *rules.Rule {
 // AllCustomRuleIDs returns the list of custom rule IDs
 func AllCustomRuleIDs() []string {
 	return []string{
-		LostEventsRuleID,
 		RulesetLoadedRuleID,
 		AbnormalPathRuleID,
 		SelfTestRuleID,
