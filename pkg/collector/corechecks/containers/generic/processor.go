@@ -192,9 +192,8 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 		p.sendMetric(sender.Gauge, "container.pid.thread_limit", containerStats.PID.ThreadLimit, tags)
 	}
 
-	restartCount := float64(container.RestartCount)
-	if 0 < restartCount {
-		p.sendMetric(sender.Gauge, "container.restarts", &restartCount, tags)
+	if 0 < container.RestartCount {
+		p.sendMetric(sender.Gauge, "container.restarts", pointer.Ptr(float64(container.RestartCount)), tags)
 	}
 
 	return nil
