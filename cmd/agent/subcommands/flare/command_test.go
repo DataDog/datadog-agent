@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"path"
 	"runtime"
 	"testing"
 
@@ -36,11 +35,7 @@ type commandTestSuite struct {
 
 func (c *commandTestSuite) SetupSuite() {
 	t := c.T()
-	if runtime.GOOS == "windows" {
-		c.sysprobeSocketPath = systemProbeTestPipeName
-	} else {
-		c.sysprobeSocketPath = path.Join(t.TempDir(), "sysprobe.sock")
-	}
+	c.sysprobeSocketPath = sysprobeSocketPath(t)
 }
 
 // startTestServers starts test servers from a clean state to ensure no cache responses are used.

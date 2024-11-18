@@ -11,6 +11,7 @@ package flare
 import (
 	"net/http"
 	"net/http/httptest"
+	"testing"
 
 	"github.com/stretchr/testify/require"
 
@@ -19,9 +20,13 @@ import (
 )
 
 const (
-	// SystemProbeTestPipeName is the test named pipe for system-probe
+	// systemProbeTestPipeName is the test named pipe for system-probe
 	systemProbeTestPipeName = `\\.\pipe\dd_system_probe_flare_test`
 )
+
+func sysprobeSocketPath(_ *testing.T) string {
+	return systemProbeTestPipeName
+}
 
 // NewSystemProbeTestServer starts a new mock server to handle System Probe requests.
 func NewSystemProbeTestServer(handler http.Handler) (*httptest.Server, error) {
