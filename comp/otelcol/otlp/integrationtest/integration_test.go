@@ -32,6 +32,8 @@ import (
 	"go.uber.org/fx"
 	"google.golang.org/protobuf/proto"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
@@ -41,8 +43,8 @@ import (
 	logtrace "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -74,7 +76,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) error {
@@ -103,6 +104,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 			pkgconfigenv.DetectFeatures(c)
 			return c, nil
 		}),
+		fxutil.ProvideOptional[coreconfig.Component](),
 		fx.Provide(func() []string {
 			return append(params.ConfPaths, params.Sets...)
 		}),
@@ -133,9 +135,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		orchestratorimpl.MockModule(),
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ optional.Option[logsagentpipeline.Component]) {
 		}),
-
-		fx.Provide(tagger.NewTaggerParams),
-		taggerimpl.Module(),
+		taggerfx.Module(tagger.Params{}),
 		noopsimpl.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())

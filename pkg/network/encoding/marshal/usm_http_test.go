@@ -23,15 +23,6 @@ import (
 )
 
 func TestFormatHTTPStats(t *testing.T) {
-	t.Run("status code", func(t *testing.T) {
-		testFormatHTTPStats(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testFormatHTTPStats(t, false)
-	})
-}
-
-func testFormatHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	var (
 		clientPort  = uint16(52800)
 		serverPort  = uint16(8080)
@@ -48,7 +39,7 @@ func testFormatHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 		true,
 		http.MethodGet,
 	)
-	httpStats1 := http.NewRequestStats(aggregateByStatusCode)
+	httpStats1 := http.NewRequestStats()
 	for _, i := range statusCodes {
 		httpStats1.AddRequest(i, 10, 1<<(i/100-1), nil)
 	}
@@ -58,7 +49,7 @@ func testFormatHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 		Content:  http.Interner.GetString("/testpath-2"),
 		FullPath: true,
 	}
-	httpStats2 := http.NewRequestStats(aggregateByStatusCode)
+	httpStats2 := http.NewRequestStats()
 	for _, i := range statusCodes {
 		httpStats2.AddRequest(i, 20, 1<<(i/100-1), nil)
 	}
@@ -66,12 +57,12 @@ func testFormatHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
-				{
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: localhost,
 					Dest:   localhost,
 					SPort:  clientPort,
 					DPort:  serverPort,
-				},
+				}},
 			},
 		},
 		HTTP: map[http.Key]*http.RequestStats{
@@ -97,9 +88,8 @@ func testFormatHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	}
 
 	for _, statusCode := range statusCodes {
-		code := int32(httpStats1.NormalizeStatusCode(statusCode))
-		out.EndpointAggregations[0].StatsByStatusCode[code] = &model.HTTPStats_Data{Count: 1, FirstLatencySample: 10, Latencies: nil}
-		out.EndpointAggregations[1].StatsByStatusCode[code] = &model.HTTPStats_Data{Count: 1, FirstLatencySample: 20, Latencies: nil}
+		out.EndpointAggregations[0].StatsByStatusCode[int32(statusCode)] = &model.HTTPStats_Data{Count: 1, FirstLatencySample: 10, Latencies: nil}
+		out.EndpointAggregations[1].StatsByStatusCode[int32(statusCode)] = &model.HTTPStats_Data{Count: 1, FirstLatencySample: 20, Latencies: nil}
 	}
 
 	httpEncoder := newHTTPEncoder(in.HTTP)
@@ -115,16 +105,7 @@ func testFormatHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 }
 
 func TestFormatHTTPStatsByPath(t *testing.T) {
-	t.Run("status code", func(t *testing.T) {
-		testFormatHTTPStatsByPath(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testFormatHTTPStatsByPath(t, false)
-	})
-}
-
-func testFormatHTTPStatsByPath(t *testing.T, aggregateByStatusCode bool) {
-	httpReqStats := http.NewRequestStats(aggregateByStatusCode)
+	httpReqStats := http.NewRequestStats()
 
 	httpReqStats.AddRequest(100, 12.5, 0, nil)
 	httpReqStats.AddRequest(100, 12.5, tagGnuTLS, nil)
@@ -133,11 +114,11 @@ func testFormatHTTPStatsByPath(t *testing.T, aggregateByStatusCode bool) {
 
 	// Verify the latency data is correct prior to serialization
 
-	latencies := httpReqStats.Data[httpReqStats.NormalizeStatusCode(100)].Latencies
+	latencies := httpReqStats.Data[100].Latencies
 	assert.Equal(t, 2.0, latencies.GetCount())
 	verifyQuantile(t, latencies, 0.5, 12.5)
 
-	latencies = httpReqStats.Data[httpReqStats.NormalizeStatusCode(405)].Latencies
+	latencies = httpReqStats.Data[405].Latencies
 	assert.Equal(t, 2.0, latencies.GetCount())
 	verifyQuantile(t, latencies, 0.5, 3.5)
 
@@ -154,12 +135,12 @@ func testFormatHTTPStatsByPath(t *testing.T, aggregateByStatusCode bool) {
 	payload := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
-				{
+				{ConnectionTuple: network.ConnectionTuple{
 					Source: util.AddressFromString("10.1.1.1"),
 					Dest:   util.AddressFromString("10.2.2.2"),
 					SPort:  60000,
 					DPort:  80,
-				},
+				}},
 			},
 		},
 		HTTP: map[http.Key]*http.RequestStats{
@@ -181,12 +162,12 @@ func testFormatHTTPStatsByPath(t *testing.T, aggregateByStatusCode bool) {
 	statsByResponseStatus := endpointAggregations[0].StatsByStatusCode
 	assert.Len(t, statsByResponseStatus, 2)
 
-	serializedLatencies := statsByResponseStatus[int32(httpReqStats.NormalizeStatusCode(100))].Latencies
+	serializedLatencies := statsByResponseStatus[int32(100)].Latencies
 	sketch := unmarshalSketch(t, serializedLatencies)
 	assert.Equal(t, 2.0, sketch.GetCount())
 	verifyQuantile(t, sketch, 0.5, 12.5)
 
-	serializedLatencies = statsByResponseStatus[int32(httpReqStats.NormalizeStatusCode(405))].Latencies
+	serializedLatencies = statsByResponseStatus[int32(405)].Latencies
 	sketch = unmarshalSketch(t, serializedLatencies)
 	assert.Equal(t, 2.0, sketch.GetCount())
 	verifyQuantile(t, sketch, 0.5, 3.5)
@@ -196,32 +177,23 @@ func testFormatHTTPStatsByPath(t *testing.T, aggregateByStatusCode bool) {
 }
 
 func TestIDCollisionRegression(t *testing.T) {
-	t.Run("status code", func(t *testing.T) {
-		testIDCollisionRegression(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testIDCollisionRegression(t, false)
-	})
-}
-
-func testIDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
-	httpStats := http.NewRequestStats(aggregateByStatusCode)
+	httpStats := http.NewRequestStats()
 	assert := assert.New(t)
 	connections := []network.ConnectionStats{
-		{
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("1.1.1.1"),
 			SPort:  60000,
 			Dest:   util.AddressFromString("2.2.2.2"),
 			DPort:  80,
 			Pid:    1,
-		},
-		{
+		}},
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("1.1.1.1"),
 			SPort:  60000,
 			Dest:   util.AddressFromString("2.2.2.2"),
 			DPort:  80,
 			Pid:    2,
-		},
+		}},
 	}
 
 	httpKey := http.NewKey(
@@ -250,7 +222,7 @@ func testIDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 	// back a non-nil result
 	aggregations, _, _ := getHTTPAggregations(t, httpEncoder, in.Conns[0])
 	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
-	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(httpStats.NormalizeStatusCode(104))].Count)
+	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(104)].Count)
 
 	// assert that the other connections sharing the same (source,destination)
 	// addresses but different PIDs *won't* be associated with the HTTP stats
@@ -264,34 +236,25 @@ func testIDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 }
 
 func TestLocalhostScenario(t *testing.T) {
-	t.Run("status code", func(t *testing.T) {
-		testLocalhostScenario(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testLocalhostScenario(t, false)
-	})
-}
-
-func testLocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 	assert := assert.New(t)
 	connections := []network.ConnectionStats{
-		{
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("127.0.0.1"),
 			SPort:  60000,
 			Dest:   util.AddressFromString("127.0.0.1"),
 			DPort:  80,
 			Pid:    1,
-		},
-		{
+		}},
+		{ConnectionTuple: network.ConnectionTuple{
 			Source: util.AddressFromString("127.0.0.1"),
 			SPort:  80,
 			Dest:   util.AddressFromString("127.0.0.1"),
 			DPort:  60000,
 			Pid:    2,
-		},
+		}},
 	}
 
-	httpStats := http.NewRequestStats(aggregateByStatusCode)
+	httpStats := http.NewRequestStats()
 	httpKey := http.NewKey(
 		util.AddressFromString("127.0.0.1"),
 		util.AddressFromString("127.0.0.1"),
@@ -337,11 +300,11 @@ func testLocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 	// will have HTTP stats
 	aggregations, _, _ := getHTTPAggregations(t, httpEncoder, in.Conns[0])
 	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
-	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(httpStats.NormalizeStatusCode(103))].Count)
+	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(103)].Count)
 
 	aggregations, _, _ = getHTTPAggregations(t, httpEncoder, in.Conns[1])
 	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
-	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(httpStats.NormalizeStatusCode(103))].Count)
+	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(103)].Count)
 }
 
 func getHTTPAggregations(t *testing.T, encoder *httpEncoder, c network.ConnectionStats) (*model.HTTPAggregations, uint64, map[string]struct{}) {
@@ -388,7 +351,7 @@ func generateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Conne
 		HTTP: make(map[http.Key]*http.RequestStats),
 	}
 
-	httpStats := http.NewRequestStats(false)
+	httpStats := http.NewRequestStats()
 	httpStats.AddRequest(100, 10, 0, nil)
 	httpStats.AddRequest(200, 10, 0, nil)
 	httpStats.AddRequest(300, 10, 0, nil)

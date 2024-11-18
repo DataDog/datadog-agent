@@ -34,6 +34,8 @@ func TestMain(m *testing.M) {
 }
 
 var (
+	commonCfgDir string
+
 	logLevelStr     string
 	logPatterns     stringSlice
 	logTags         stringSlice

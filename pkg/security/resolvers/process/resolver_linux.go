@@ -8,9 +8,12 @@ package process
 
 import (
 	"path"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
+
+const memfdPrefix = "memfd:"
 
 // IsKThread returns whether given pids are from kthreads
 func IsKThread(ppid, pid uint32) bool {
@@ -23,12 +26,16 @@ func IsBusybox(pathname string) bool {
 }
 
 func setPathname(fileEvent *model.FileEvent, pathnameStr string) {
+	baseName := path.Base(pathnameStr)
 	if fileEvent.FileFields.IsFileless() {
 		fileEvent.SetPathnameStr("")
+		if !strings.HasPrefix(baseName, memfdPrefix) {
+			baseName = memfdPrefix + baseName
+		}
 	} else {
 		fileEvent.SetPathnameStr(pathnameStr)
 	}
-	fileEvent.SetBasenameStr(path.Base(pathnameStr))
+	fileEvent.SetBasenameStr(baseName)
 }
 
 // GetProcessArgv returns the unscrubbed args of the event as an array. Use with caution.

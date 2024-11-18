@@ -38,14 +38,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -62,6 +60,10 @@ var (
 	logger seelog.LoggerInterface
 )
 
+const (
+	filelessExecutionFilenamePrefix = "memfd:"
+)
+
 const testConfig = `---
 log_level: DEBUG
 system_probe_config:
@@ -71,13 +73,14 @@ system_probe_config:
 
 event_monitoring_config:
   socket: /tmp/test-event-monitor.sock
-  remote_tagger: false
   custom_sensitive_words:
     - "*custom*"
   network:
     enabled: true
     ingress:
       enabled: {{ .NetworkIngressEnabled }}
+    raw_packet:
+      enabled: {{ .NetworkRawPacketEnabled}}
   flush_discarder_window: 0
 {{if .DisableFilters}}
   enable_kernel_filters: false
@@ -225,24 +228,6 @@ type testModule struct {
 	ruleEngine    *rulesmodule.RuleEngine
 	tracePipe     *tracePipeLogger
 	msgSender     *fakeMsgSender
-}
-
-var testMod *testModule
-var commonCfgDir string
-
-type onRuleHandler func(*model.Event, *rules.Rule)
-type onProbeEventHandler func(*model.Event)
-type onCustomSendEventHandler func(*rules.Rule, *events.CustomEvent)
-type onSendEventHandler func(*rules.Rule, *model.Event)
-type onDiscarderPushedHandler func(event eval.Event, field eval.Field, eventType eval.EventType) bool
-
-type eventHandlers struct {
-	sync.RWMutex
-	onRuleMatch       onRuleHandler
-	onProbeEvent      onProbeEventHandler
-	onCustomSendEvent onCustomSendEventHandler
-	onSendEvent       onSendEventHandler
-	onDiscarderPushed onDiscarderPushedHandler
 }
 
 //nolint:deadcode,unused
@@ -451,7 +436,6 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event) {
 	if event.Origin != "ebpfless" {
 		nameFields = append(nameFields,
 			"process.ancestors.file.name",
-			"process.parent.file.path",
 			"process.parent.file.name",
 		)
 	}
@@ -463,7 +447,10 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event) {
 		"process.file.path",
 	}
 	if event.Origin != "ebpfless" {
-		pathFields = append(pathFields, "process.ancestors.file.path")
+		pathFields = append(pathFields,
+			"process.parent.file.path",
+			"process.ancestors.file.path",
+		)
 	}
 
 	pathFieldValid := true
@@ -732,12 +719,13 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 	emopts := eventmonitor.Opts{
 		StatsdClient: statsdClient,
 		ProbeOpts: sprobe.Opts{
-			StatsdClient:           statsdClient,
-			DontDiscardRuntime:     true,
-			PathResolutionEnabled:  true,
-			SyscallsMonitorEnabled: true,
-			TTYFallbackEnabled:     true,
-			EBPFLessEnabled:        ebpfLessEnabled,
+			StatsdClient:             statsdClient,
+			DontDiscardRuntime:       true,
+			PathResolutionEnabled:    true,
+			EnvsVarResolutionEnabled: !opts.staticOpts.disableEnvVarsResolution,
+			SyscallsMonitorEnabled:   true,
+			TTYFallbackEnabled:       true,
+			EBPFLessEnabled:          ebpfLessEnabled,
 		},
 	}
 	if opts.staticOpts.tagsResolver != nil {
@@ -805,7 +793,9 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		testMod.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
 			opts.staticOpts.snapshotRuleMatchHandler(testMod, e, r)
 		})
-		defer testMod.RegisterRuleEventHandler(nil)
+		t.Cleanup(func() {
+			testMod.RegisterRuleEventHandler(nil)
+		})
 	}
 
 	if err := testMod.eventMonitor.Start(); err != nil {
@@ -813,7 +803,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 	}
 
 	if ruleSetloadedErr.ErrorOrNil() != nil {
-		defer testMod.Close()
+		testMod.Close()
 		return nil, ruleSetloadedErr.ErrorOrNil()
 	}
 
@@ -1613,28 +1603,9 @@ func (tm *testModule) GetADSelector(dumpID *activityDumpIdentifier) (*cgroupMode
 	return &selector, err
 }
 
-// NewTimeoutError returns a new timeout error with the metrics collected during the test
-func (tm *testModule) NewTimeoutError() ErrTimeout {
-	var msg strings.Builder
-
-	msg.WriteString("timeout, details: ")
-	msg.WriteString(GetEBPFStatusMetrics(tm.probe))
-	msg.WriteString(spew.Sdump(ebpftelemetry.GetProbeStats()))
-
-	events := tm.ruleEngine.StopEventCollector()
-	if len(events) != 0 {
-		msg.WriteString("\nevents evaluated:\n")
-
-		for _, event := range events {
-			msg.WriteString(fmt.Sprintf("%s (eval=%v) {\n", event.Type, event.EvalResult))
-			for field, value := range event.Fields {
-				msg.WriteString(fmt.Sprintf("\t%s=%v,\n", field, value))
-			}
-			msg.WriteString("}\n")
-		}
-	}
-
-	return ErrTimeout{msg.String()}
+func (tm *testModule) writePlatformSpecificTimeoutError(b *strings.Builder) {
+	b.WriteString(GetEBPFStatusMetrics(tm.probe))
+	b.WriteString(spew.Sdump(ebpftelemetry.GetProbeStats()))
 }
 
 func (tm *testModule) WaitSignals(tb testing.TB, action func() error, cbs ...func(event *model.Event, rule *rules.Rule) error) {

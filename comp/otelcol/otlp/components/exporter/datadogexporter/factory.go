@@ -128,7 +128,7 @@ func CreateDefaultConfig() component.Config {
 	return &Config{
 		ClientConfig:  defaultClientConfig(),
 		BackOffConfig: configretry.NewDefaultBackOffConfig(),
-		QueueSettings: exporterhelper.NewDefaultQueueSettings(),
+		QueueConfig:   exporterhelper.NewDefaultQueueConfig(),
 
 		API: APIConfig{
 			Site: "datadoghq.com",
@@ -211,16 +211,16 @@ func (f *factory) createTracesExporter(
 
 	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp)
 
-	return exporterhelper.NewTracesExporter(
+	return exporterhelper.NewTraces(
 		ctx,
 		set,
 		cfg,
 		tracex.consumeTraces,
 		// explicitly disable since we rely on http.Client timeout logic.
-		exporterhelper.WithTimeout(exporterhelper.TimeoutSettings{Timeout: 0 * time.Second}),
+		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0 * time.Second}),
 		// We don't do retries on traces because of deduping concerns on APM Events.
 		exporterhelper.WithRetry(configretry.BackOffConfig{Enabled: false}),
-		exporterhelper.WithQueue(cfg.QueueSettings),
+		exporterhelper.WithQueue(cfg.QueueConfig),
 	)
 }
 
@@ -241,12 +241,12 @@ func (f *factory) createMetricsExporter(
 	sf := serializerexporter.NewFactory(f.s, &tagEnricher{}, f.h, statsIn, &wg)
 	ex := &serializerexporter.ExporterConfig{
 		Metrics: cfg.Metrics,
-		TimeoutSettings: exporterhelper.TimeoutSettings{
+		TimeoutConfig: exporterhelper.TimeoutConfig{
 			Timeout: cfg.Timeout,
 		},
-		QueueSettings: cfg.QueueSettings,
+		QueueConfig: cfg.QueueConfig,
 	}
-	return sf.CreateMetricsExporter(ctx, set, ex)
+	return sf.CreateMetrics(ctx, set, ex)
 }
 
 func (f *factory) consumeStatsPayload(ctx context.Context, wg *sync.WaitGroup, statsIn <-chan []byte, tracerVersion string, agentVersion string, logger *zap.Logger) {
@@ -295,5 +295,5 @@ func (f *factory) createLogsExporter(
 		OtelSource:    "otel_agent",
 		LogSourceName: logsagentexporter.LogSourceName,
 	}
-	return lf.CreateLogsExporter(ctx, set, lc)
+	return lf.CreateLogs(ctx, set, lc)
 }

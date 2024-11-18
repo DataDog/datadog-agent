@@ -31,13 +31,14 @@ import (
 )
 
 const (
-	calendarService      = "calendar-rest-go"
-	telemetrygenService  = "telemetrygen-job"
-	env                  = "e2e"
-	version              = "1.0"
-	customAttribute      = "custom.attribute"
-	customAttributeValue = "true"
-	logBody              = "random date"
+	calendarService              = "calendar-rest-go"
+	telemetrygenService          = "telemetrygen-job"
+	telemetrygenTopLevelResource = "lets-go"
+	env                          = "e2e"
+	version                      = "1.0"
+	customAttribute              = "custom.attribute"
+	customAttributeValue         = "true"
+	logBody                      = "random date"
 )
 
 // OTelTestSuite is an interface for the OTel e2e test suite.
@@ -119,6 +120,78 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 			maps.Copy(ctags, sp.Meta)
 			testInfraTags(s.T(), ctags, iaParams)
 		}
+	}
+}
+
+// TestTracesWithSpanReceiverV2 tests that OTLP traces are received through OTel pipelines as expected with updated OTLP span receiver
+func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+
+	var traces []*aggregator.TracePayload
+	s.T().Log("Waiting for traces")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		traces, err = s.Env().FakeIntake.Client().GetTraces()
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.NotEmpty(c, traces) {
+			return
+		}
+		trace := traces[0]
+		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
+			return
+		}
+		tp := trace.TracerPayloads[0]
+		if !assert.NotEmpty(s.T(), tp.Chunks) {
+			return
+		}
+		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
+			return
+		}
+		assert.Equal(s.T(), telemetrygenService, tp.Chunks[0].Spans[0].Service)
+	}, 5*time.Minute, 10*time.Second)
+	require.NotEmpty(s.T(), traces)
+	s.T().Log("Got traces", s.T().Name(), traces)
+
+	// Verify tags on traces and spans
+	tp := traces[0].TracerPayloads[0]
+	assert.Equal(s.T(), env, tp.Env)
+	assert.Equal(s.T(), version, tp.AppVersion)
+	assert.Empty(s.T(), tp.ContainerID)
+	require.NotEmpty(s.T(), tp.Chunks)
+	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
+	spans := tp.Chunks[0].Spans
+	ctags, ok := getContainerTags(s.T(), tp)
+
+	for _, sp := range spans {
+		assert.Equal(s.T(), telemetrygenService, sp.Service)
+		assert.Equal(s.T(), env, sp.Meta["env"])
+		assert.Equal(s.T(), version, sp.Meta["version"])
+		assert.Equal(s.T(), customAttributeValue, sp.Meta[customAttribute])
+		if sp.Meta["span.kind"] == "client" {
+			assert.Equal(s.T(), "telemetrygen.client", sp.Name)
+			assert.Equal(s.T(), "lets-go", sp.Resource)
+			assert.Equal(s.T(), "http", sp.Type)
+			assert.Zero(s.T(), sp.ParentID)
+		} else {
+			assert.Equal(s.T(), "server", sp.Meta["span.kind"])
+			assert.Equal(s.T(), "telemetrygen.server", sp.Name)
+			assert.Equal(s.T(), "okey-dokey-0", sp.Resource)
+			assert.Equal(s.T(), "web", sp.Type)
+			assert.IsType(s.T(), uint64(0), sp.ParentID)
+			assert.NotZero(s.T(), sp.ParentID)
+		}
+		assert.IsType(s.T(), uint64(0), sp.TraceID)
+		assert.NotZero(s.T(), sp.TraceID)
+		assert.IsType(s.T(), uint64(0), sp.SpanID)
+		assert.NotZero(s.T(), sp.SpanID)
+		assert.Equal(s.T(), "telemetrygen", sp.Meta["otel.library.name"])
+		assert.Equal(s.T(), sp.Meta["k8s.node.name"], tp.Hostname)
+		assert.True(s.T(), ok)
+		assert.Equal(s.T(), sp.Meta["k8s.container.name"], ctags["kube_container_name"])
+		assert.Equal(s.T(), sp.Meta["k8s.namespace.name"], ctags["kube_namespace"])
+		assert.Equal(s.T(), sp.Meta["k8s.pod.name"], ctags["pod_name"])
 	}
 }
 
@@ -255,20 +328,14 @@ func TestHosts(s OTelTestSuite) {
 }
 
 // TestSampling tests that APM stats are correct when using probabilistic sampling
-func TestSampling(s OTelTestSuite) {
-	ctx := context.Background()
-	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	require.NoError(s.T(), err)
-	numTraces := 10
+func TestSampling(s OTelTestSuite, computeTopLevelBySpanKind bool) {
+	SetupSampleTraces(s)
 
-	s.T().Log("Starting telemetrygen")
-	createTelemetrygenJob(ctx, s, "traces", []string{"--traces", fmt.Sprint(numTraces)})
-
-	TestAPMStats(s, numTraces)
+	TestAPMStats(s, 10, computeTopLevelBySpanKind)
 }
 
 // TestAPMStats checks that APM stats are received with the correct number of hits per traces given
-func TestAPMStats(s OTelTestSuite, numTraces int) {
+func TestAPMStats(s OTelTestSuite, numTraces int, computeTopLevelBySpanKind bool) {
 	s.T().Log("Waiting for APM stats")
 	var stats []*aggregator.APMStatsPayload
 	var err error
@@ -284,7 +351,9 @@ func TestAPMStats(s OTelTestSuite, numTraces int) {
 						if cgs.Service == telemetrygenService {
 							hasStatsForService = true
 							assert.EqualValues(c, cgs.Hits, numTraces)
-							assert.EqualValues(c, cgs.TopLevelHits, numTraces)
+							if computeTopLevelBySpanKind || cgs.Resource == telemetrygenTopLevelResource {
+								assert.EqualValues(c, cgs.TopLevelHits, numTraces)
+							}
 						}
 					}
 				}
@@ -314,6 +383,17 @@ func TestPrometheusMetrics(s OTelTestSuite) {
 	}, 2*time.Minute, 10*time.Second)
 	s.T().Log("Got otelcol_process_uptime", otelcolMetrics)
 	s.T().Log("Got otelcol_datadog_trace_agent_trace_writer_spans", traceAgentMetrics)
+}
+
+// SetupSampleTraces flushes the intake server and starts a telemetrygen job to generate traces
+func SetupSampleTraces(s OTelTestSuite) {
+	ctx := context.Background()
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+	numTraces := 10
+
+	s.T().Log("Starting telemetrygen")
+	createTelemetrygenJob(ctx, s, "traces", []string{"--traces", fmt.Sprint(numTraces)})
 }
 
 func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry string, options []string) {
@@ -353,6 +433,7 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 							Command: append([]string{
 								"/telemetrygen", telemetry, "--otlp-endpoint", otlpEndpoint, "--otlp-insecure",
 								"--telemetry-attributes", fmt.Sprintf("%v=%v", customAttribute, customAttributeValue),
+								"--telemetry-attributes", "k8s.pod.uid=\"$(OTEL_K8S_POD_ID)\"",
 								"--otlp-attributes", "service.name=\"$(OTEL_SERVICE_NAME)\"",
 								"--otlp-attributes", "host.name=\"$(OTEL_K8S_NODE_NAME)\"",
 								"--otlp-attributes", fmt.Sprintf("deployment.environment=\"%v\"", env),
@@ -360,7 +441,6 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 								"--otlp-attributes", "k8s.namespace.name=\"$(OTEL_K8S_NAMESPACE)\"",
 								"--otlp-attributes", "k8s.node.name=\"$(OTEL_K8S_NODE_NAME)\"",
 								"--otlp-attributes", "k8s.pod.name=\"$(OTEL_K8S_POD_NAME)\"",
-								"--otlp-attributes", "k8s.pod.uid=\"$(OTEL_K8S_POD_ID)\"",
 								"--otlp-attributes", "k8s.container.name=\"telemetrygen-job\"",
 							}, options...),
 						},
@@ -377,23 +457,23 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 }
 
 // TestCalendarApp tests that OTLP metrics are received through OTel pipelines as expected
-func TestCalendarApp(s OTelTestSuite) {
+func TestCalendarApp(s OTelTestSuite, ust bool) {
 	ctx := context.Background()
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 
 	s.T().Log("Starting calendar app")
-	createCalendarApp(ctx, s)
+	createCalendarApp(ctx, s, ust)
 
 	// Wait for calendar app to start
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		logs, err := s.Env().FakeIntake.Client().FilterLogs(calendarService, fakeintake.WithMessageContaining(logBody))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
-	}, 60*time.Minute, 10*time.Second)
+	}, 30*time.Minute, 10*time.Second)
 }
 
-func createCalendarApp(ctx context.Context, s OTelTestSuite) {
+func createCalendarApp(ctx context.Context, s OTelTestSuite, ust bool) {
 	var replicas int32 = 1
 	name := fmt.Sprintf("calendar-rest-go-%v", strings.ReplaceAll(strings.ToLower(s.T().Name()), "/", "-"))
 
@@ -465,7 +545,7 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite) {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name:            name,
-						Image:           "datadog/opentelemetry-examples:calendar-go-rest-0.15",
+						Image:           "ghcr.io/datadog/apps-calendar-go:main",
 						ImagePullPolicy: "IfNotPresent",
 						Ports: []corev1.ContainerPort{{
 							Name:          "http",
@@ -487,43 +567,7 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite) {
 								},
 							},
 						},
-						Env: []corev1.EnvVar{{
-							Name:  "OTEL_SERVICE_NAME",
-							Value: calendarService,
-						}, {
-							Name:  "OTEL_CONTAINER_NAME",
-							Value: name,
-						}, {
-							Name:      "OTEL_K8S_NAMESPACE",
-							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}},
-						}, {
-							Name:      "OTEL_K8S_NODE_NAME",
-							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "spec.nodeName"}},
-						}, {
-							Name:      "OTEL_K8S_POD_NAME",
-							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}},
-						}, {
-							Name:      "OTEL_K8S_POD_ID",
-							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}},
-						}, {
-							Name:  "OTEL_EXPORTER_OTLP_ENDPOINT",
-							Value: otlpEndpoint,
-						}, {
-							Name:  "OTEL_EXPORTER_OTLP_PROTOCOL",
-							Value: "grpc",
-						}, {
-							Name: "OTEL_RESOURCE_ATTRIBUTES",
-							Value: "service.name=$(OTEL_SERVICE_NAME)," +
-								"k8s.namespace.name=$(OTEL_K8S_NAMESPACE)," +
-								"k8s.node.name=$(OTEL_K8S_NODE_NAME)," +
-								"k8s.pod.name=$(OTEL_K8S_POD_NAME)," +
-								"k8s.pod.uid=$(OTEL_K8S_POD_ID)," +
-								"k8s.container.name=$(OTEL_CONTAINER_NAME)," +
-								"host.name=$(OTEL_K8S_NODE_NAME)," +
-								fmt.Sprintf("deployment.environment=%v,", env) +
-								fmt.Sprintf("service.version=%v,", version) +
-								fmt.Sprintf("%v=%v", customAttribute, customAttributeValue),
-						}},
+						Env: getCalendarAppEnvVars(name, otlpEndpoint, ust),
 					},
 					},
 				},
@@ -535,6 +579,65 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite) {
 	require.NoError(s.T(), err, "Could not properly start service")
 	_, err = s.Env().KubernetesCluster.Client().AppsV1().Deployments("datadog").Create(ctx, deploymentSpec, metav1.CreateOptions{})
 	require.NoError(s.T(), err, "Could not properly start deployment")
+}
+
+func getCalendarAppEnvVars(name string, otlpEndpoint string, ust bool) []corev1.EnvVar {
+	envVars := []corev1.EnvVar{{
+		Name:  "OTEL_CONTAINER_NAME",
+		Value: name,
+	}, {
+		Name:      "OTEL_K8S_NAMESPACE",
+		ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}},
+	}, {
+		Name:      "OTEL_K8S_NODE_NAME",
+		ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "spec.nodeName"}},
+	}, {
+		Name:      "OTEL_K8S_POD_NAME",
+		ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}},
+	}, {
+		Name:      "OTEL_K8S_POD_ID",
+		ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}},
+	}, {
+		Name:  "OTEL_EXPORTER_OTLP_ENDPOINT",
+		Value: otlpEndpoint,
+	}, {
+		Name:  "OTEL_EXPORTER_OTLP_PROTOCOL",
+		Value: "grpc",
+	}}
+	resourceAttrs := "k8s.namespace.name=$(OTEL_K8S_NAMESPACE)," +
+		"k8s.node.name=$(OTEL_K8S_NODE_NAME)," +
+		"k8s.pod.name=$(OTEL_K8S_POD_NAME)," +
+		"k8s.pod.uid=$(OTEL_K8S_POD_ID)," +
+		"k8s.container.name=$(OTEL_CONTAINER_NAME)," +
+		"host.name=$(OTEL_K8S_NODE_NAME)," +
+		fmt.Sprintf("%v=%v", customAttribute, customAttributeValue)
+
+	// Use Unified Service Tagging env vars instead of OTel env vars
+	if ust {
+		return append(envVars, []corev1.EnvVar{{
+			Name:  "DD_SERVICE",
+			Value: calendarService,
+		}, {
+			Name:  "DD_ENV",
+			Value: env,
+		}, {
+			Name:  "DD_VERSION",
+			Value: version,
+		}, {
+			Name:  "OTEL_RESOURCE_ATTRIBUTES",
+			Value: resourceAttrs,
+		}}...)
+	}
+
+	return append(envVars, []corev1.EnvVar{{
+		Name:  "OTEL_SERVICE_NAME",
+		Value: calendarService,
+	}, {
+		Name: "OTEL_RESOURCE_ATTRIBUTES",
+		Value: resourceAttrs +
+			fmt.Sprintf(",deployment.environment=%v,", env) +
+			fmt.Sprintf("service.version=%v", version),
+	}}...)
 }
 
 func testInfraTags(t *testing.T, tags map[string]string, iaParams IAParams) {

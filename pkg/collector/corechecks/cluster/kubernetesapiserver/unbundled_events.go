@@ -12,7 +12,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -104,10 +104,10 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 		)
 
 		var timestamp int64
-		if ev.FirstTimestamp.IsZero() {
+		if ev.LastTimestamp.IsZero() {
 			timestamp = int64(ev.EventTime.Unix())
 		} else {
-			timestamp = int64(ev.FirstTimestamp.Unix())
+			timestamp = int64(ev.LastTimestamp.Unix())
 		}
 
 		event := event.Event{

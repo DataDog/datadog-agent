@@ -9,6 +9,7 @@ from invoke import Collection, Task
 
 from tasks import (
     agent,
+    ami,
     bench,
     buildimages,
     cluster_agent,
@@ -18,6 +19,7 @@ from tasks import (
     coverage,
     cws_instrumentation,
     debug,
+    debugging,
     devcontainer,
     diff,
     docker_tasks,
@@ -155,11 +157,13 @@ ns.add_task(lint_go)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
+ns.add_collection(ami)
 ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
 ns.add_collection(coverage)
+ns.add_collection(debugging)
 ns.add_collection(docs)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)

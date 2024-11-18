@@ -14,7 +14,6 @@ import (
 )
 
 const (
-	//nolint:revive // TODO(SERV) Fix revive linter
 	revisionNameEnvVar      = "K_REVISION"
 	ServiceNameEnvVar       = "K_SERVICE" // ServiceNameEnvVar is also used in the trace package
 	configurationNameEnvVar = "K_CONFIGURATION"
@@ -22,52 +21,60 @@ const (
 	functionTargetEnvVar    = "FUNCTION_TARGET" // exists as a cloudrunfunction env var for all runtimes except Go
 )
 
+const (
+	// SpanNamespace is the namespace for the span
+	cloudRunService  = "gcr."
+	cloudRunFunction = "gcrfx."
+)
+
 var metadataHelperFunc = helper.GetMetaData
 
 // CloudRun has helper functions for getting Google Cloud Run data
 type CloudRun struct {
-	cloudRunFunctionMode bool
+	spanNamespace string
 }
 
 // GetTags returns a map of gcp-related tags.
 func (c *CloudRun) GetTags() map[string]string {
-	tags := metadataHelperFunc(helper.GetDefaultConfig()).TagMap()
-
+	tags := metadataHelperFunc(helper.GetDefaultConfig()).TagMap(c.spanNamespace)
 	revisionName := os.Getenv(revisionNameEnvVar)
 	serviceName := os.Getenv(ServiceNameEnvVar)
 	configName := os.Getenv(configurationNameEnvVar)
 
 	if revisionName != "" {
+		tags[c.spanNamespace+"revision_name"] = revisionName
 		tags["revision_name"] = revisionName
 	}
 
 	if serviceName != "" {
+		tags[c.spanNamespace+"service_name"] = serviceName
 		tags["service_name"] = serviceName
 	}
 
 	if configName != "" {
+		tags[c.spanNamespace+"configuration_name"] = configName
 		tags["configuration_name"] = configName
 	}
 
-	if c.cloudRunFunctionMode {
-		tags = getFunctionTags(tags)
+	if c.spanNamespace == cloudRunFunction {
+		tags = c.getFunctionTags(tags)
 	}
+
 	tags["origin"] = c.GetOrigin()
 	tags["_dd.origin"] = c.GetOrigin()
-
 	return tags
 }
 
-func getFunctionTags(tags map[string]string) map[string]string {
+func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
 	functionTarget := os.Getenv(functionTargetEnvVar)
 	functionSignatureType := os.Getenv(functionTypeEnvVar)
 
 	if functionTarget != "" {
-		tags["function_target"] = functionTarget
+		tags[c.spanNamespace+"function_target"] = functionTarget
 	}
 
 	if functionSignatureType != "" {
-		tags["function_signature_type"] = functionSignatureType
+		tags[c.spanNamespace+"function_signature_type"] = functionSignatureType
 	}
 	return tags
 }
@@ -75,18 +82,12 @@ func getFunctionTags(tags map[string]string) map[string]string {
 // GetOrigin returns the `origin` attribute type for the given
 // cloud service.
 func (c *CloudRun) GetOrigin() string {
-	if c.cloudRunFunctionMode {
-		return "cloudfunctions"
-	}
 	return "cloudrun"
 }
 
 // GetPrefix returns the prefix that we're prefixing all
 // metrics with.
 func (c *CloudRun) GetPrefix() string {
-	if c.cloudRunFunctionMode {
-		return "gcp.cloudfunctions"
-	}
 	return "gcp.run"
 }
 
@@ -102,6 +103,6 @@ func isCloudRunService() bool {
 
 func isCloudRunFunction() bool {
 	_, cloudRunFunctionMode := os.LookupEnv(functionTargetEnvVar)
-	log.Debug(fmt.Sprintf("cloud function mode SET TO: %t", cloudRunFunctionMode))
+	log.Debug(fmt.Sprintf("cloud run namespace SET TO: %s", cloudRunFunction))
 	return cloudRunFunctionMode
 }

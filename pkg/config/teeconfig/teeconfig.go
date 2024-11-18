@@ -77,6 +77,12 @@ func (t *teeConfig) GetKnownKeysLowercased() map[string]interface{} {
 	return t.baseline.GetKnownKeysLowercased()
 }
 
+// BuildSchema constructs the default schema and marks the config as ready for use
+func (t *teeConfig) BuildSchema() {
+	t.baseline.BuildSchema()
+	t.compare.BuildSchema()
+}
+
 // ParseEnvAsStringSlice registers a transformer function to parse an an environment variables as a []string.
 func (t *teeConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
 	t.baseline.ParseEnvAsStringSlice(key, fn)
@@ -270,20 +276,6 @@ func (t *teeConfig) MergeConfig(in io.Reader) error {
 func (t *teeConfig) MergeFleetPolicy(configPath string) error {
 	err1 := t.baseline.MergeFleetPolicy(configPath)
 	err2 := t.compare.MergeFleetPolicy(configPath)
-	if err1 != nil {
-		return err1
-	}
-	if err2 != nil {
-		return err2
-	}
-	return nil
-}
-
-// MergeConfigMap merges the configuration from the map given with an existing config.
-// Note that the map given may be modified.
-func (t *teeConfig) MergeConfigMap(cfg map[string]any) error {
-	err1 := t.baseline.MergeConfigMap(cfg)
-	err2 := t.compare.MergeConfigMap(cfg)
 	if err1 != nil {
 		return err1
 	}

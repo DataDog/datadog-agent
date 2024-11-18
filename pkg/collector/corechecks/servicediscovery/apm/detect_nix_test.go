@@ -79,9 +79,29 @@ func Test_javaDetector(t *testing.T) {
 			result: None,
 		},
 		{
-			name:   "cmdline",
+			name:   "cmdline - dd-java-agent.jar",
 			args:   []string{"java", "-foo", "-javaagent:/path/to/data dog/dd-java-agent.jar", "-Ddd.profiling.enabled=true"},
 			result: Provided,
+		},
+		{
+			name:   "cmdline - dd-trace-agent.jar",
+			args:   []string{"java", "-foo", "-javaagent:/path/to/data dog/dd-trace-agent.jar", "-Ddd.profiling.enabled=true"},
+			result: Provided,
+		},
+		{
+			name:   "cmdline - datadog.jar",
+			args:   []string{"java", "-foo", "-javaagent:/path/to/data dog/datadog.jar", "-Ddd.profiling.enabled=true"},
+			result: Provided,
+		},
+		{
+			name:   "cmdline - datadog only in does not match",
+			args:   []string{"java", "-foo", "path/to/data dog/datadog", "-Ddd.profiling.enabled=true"},
+			result: None,
+		},
+		{
+			name:   "cmdline - jar only in does not match",
+			args:   []string{"java", "-foo", "path/to/data dog/datadog.jar", "-Ddd.profiling.enabled=true"},
+			result: None,
 		},
 		{
 			name: "CATALINA_OPTS",
@@ -94,7 +114,8 @@ func Test_javaDetector(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := javaDetector(0, d.args, envs.NewVariables(d.envs), nil)
+			ctx := usm.NewDetectionContext(d.args, envs.NewVariables(d.envs), nil)
+			result := javaDetector(ctx)
 			if result != d.result {
 				t.Errorf("expected %s got %s", d.result, result)
 			}
@@ -131,7 +152,9 @@ func Test_nodeDetector(t *testing.T) {
 
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := nodeDetector(0, nil, envs.NewVariables(nil), d.contextMap)
+			ctx := usm.NewDetectionContext(nil, envs.NewVariables(nil), nil)
+			ctx.ContextMap = d.contextMap
+			result := nodeDetector(ctx)
 			assert.Equal(t, d.result, result)
 		})
 	}
@@ -231,7 +254,8 @@ func TestDotNetDetector(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var result Instrumentation
 			if test.maps == "" {
-				result = dotNetDetector(0, nil, envs.NewVariables(test.envs), nil)
+				ctx := usm.NewDetectionContext(nil, envs.NewVariables(test.envs), nil)
+				result = dotNetDetector(ctx)
 			} else {
 				result = dotNetDetectorFromMapsReader(strings.NewReader(test.maps))
 			}
@@ -262,13 +286,16 @@ func TestGoDetector(t *testing.T) {
 	t.Cleanup(func() {
 		_ = cmdWithoutSymbols.Process.Kill()
 	})
-
-	result := goDetector(os.Getpid(), nil, envs.NewVariables(nil), nil)
+	ctx := usm.NewDetectionContext(nil, envs.NewVariables(nil), nil)
+	ctx.Pid = os.Getpid()
+	result := goDetector(ctx)
 	require.Equal(t, None, result)
 
-	result = goDetector(cmdWithSymbols.Process.Pid, nil, envs.NewVariables(nil), nil)
+	ctx.Pid = cmdWithSymbols.Process.Pid
+	result = goDetector(ctx)
 	require.Equal(t, Provided, result)
 
-	result = goDetector(cmdWithoutSymbols.Process.Pid, nil, envs.NewVariables(nil), nil)
+	ctx.Pid = cmdWithoutSymbols.Process.Pid
+	result = goDetector(ctx)
 	require.Equal(t, Provided, result)
 }
