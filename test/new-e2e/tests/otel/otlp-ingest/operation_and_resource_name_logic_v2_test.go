@@ -6,21 +6,21 @@
 package otlpingest
 
 import (
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
 	"testing"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
 )
 
-type opNameV2RecvrV1TestSuite struct {
+type otlpIngestOpNameV2RecvrV1TestSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
-func TestOpAndResNameV2WithSpanRecvrV1(t *testing.T) {
+func TestOTLPIngestOpNameV2SpanRecvrV1(t *testing.T) {
 	values := `
 datadog:
   otlp:
@@ -41,23 +41,23 @@ agents:
           value: 'enable_operation_and_resource_name_logic_v2'
 `
 	t.Parallel()
-	e2e.Run(t, &opNameV2RecvrV1TestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
+	e2e.Run(t, &otlpIngestOpNameV2RecvrV1TestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
 }
 
-func (s *opNameV2RecvrV1TestSuite) SetupSuite() {
+func (s *otlpIngestOpNameV2RecvrV1TestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	utils.SetupSampleTraces(s)
 }
 
-func (s *opNameV2RecvrV1TestSuite) TestTraces() {
+func (s *otlpIngestOpNameV2RecvrV1TestSuite) TestTraces() {
 	utils.TestTracesWithOperationAndResourceName(s, "client.request", "lets-go", "server.request", "okey-dokey-0")
 }
 
-type opNameV2RecvrV2TestSuite struct {
+type otlpIngestOpNameV2RecvrV2TestSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
-func TestOpAndResNameV2WithSpanRecvrV2(t *testing.T) {
+func TestOTLPIngestOpNameV2SpanRecvrV2(t *testing.T) {
 	values := `
 datadog:
   otlp:
@@ -78,23 +78,23 @@ agents:
           value: 'enable_operation_and_resource_name_logic_v2,enable_receive_resource_spans_v2'
 `
 	t.Parallel()
-	e2e.Run(t, &opNameV2RecvrV2TestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
+	e2e.Run(t, &otlpIngestOpNameV2RecvrV2TestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
 }
 
-func (s *opNameV2RecvrV2TestSuite) SetupSuite() {
+func (s *otlpIngestOpNameV2RecvrV2TestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	utils.SetupSampleTraces(s)
 }
 
-func (s *opNameV2RecvrV2TestSuite) TestTraces() {
+func (s *otlpIngestOpNameV2RecvrV2TestSuite) TestTraces() {
 	utils.TestTracesWithOperationAndResourceName(s, "client.request", "lets-go", "server.request", "okey-dokey-0")
 }
 
-type opNameV2SpanAsResNameTestSuite struct {
+type otlpIngestOpNameV2SpanAsResNameTestSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
-func TestOpNameV2OverriddenBySpanAsResName(t *testing.T) {
+func TestOTLPIngestOpNameV2Override(t *testing.T) {
 	values := `
 datadog:
   otlp:
@@ -117,23 +117,23 @@ agents:
           value: 'true'
 `
 	t.Parallel()
-	e2e.Run(t, &opNameV2SpanAsResNameTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
+	e2e.Run(t, &otlpIngestOpNameV2SpanAsResNameTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
 }
 
-func (s *opNameV2SpanAsResNameTestSuite) SetupSuite() {
+func (s *otlpIngestOpNameV2SpanAsResNameTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	utils.SetupSampleTraces(s)
 }
 
-func (s *opNameV2SpanAsResNameTestSuite) TestTraces() {
+func (s *otlpIngestOpNameV2SpanAsResNameTestSuite) TestTraces() {
 	utils.TestTracesWithOperationAndResourceName(s, "lets_go", "lets-go", "okey_dokey_0", "okey-dokey-0")
 }
 
-type opNameV2RemappingTestSuite struct {
+type otlpIngestOpNameV2RemappingTestSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
-func TestOpNameV2OverriddenByRemapping(t *testing.T) {
+func TestOTLPIngestOpV2OverrideRemapping(t *testing.T) {
 	values := `
 datadog:
   otlp:
@@ -156,15 +156,15 @@ agents:
           value: '{"telemetrygen.client":"mapping.output","server.request":"telemetrygen.server"}'
 `
 	t.Parallel()
-	ts := &opNameV2RemappingTestSuite{}
+	ts := &otlpIngestOpNameV2RemappingTestSuite{}
 	e2e.Run(t, ts, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
 }
 
-func (s *opNameV2RemappingTestSuite) SetupSuite() {
+func (s *otlpIngestOpNameV2RemappingTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	utils.SetupSampleTraces(s)
 }
 
-func (s *opNameV2RemappingTestSuite) TestTraces() {
+func (s *otlpIngestOpNameV2RemappingTestSuite) TestTraces() {
 	utils.TestTracesWithOperationAndResourceName(s, "mapping.output", "lets-go", "telemetrygen.server", "okey-dokey-0")
 }
