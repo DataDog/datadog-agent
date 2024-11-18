@@ -15,17 +15,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // SetUpLaunchers creates intializes the launcher. The launchers schedule the tailers to read the log files provided by the analyze-logs command
-func SetUpLaunchers(conf configComponent.Component) {
+func SetUpLaunchers(conf configComponent.Component) chan *message.Message {
 	processingRules, err := config.GlobalProcessingRules(conf)
 	if err != nil {
-		return
+		log.Errorf("Error while getting processing rules from config: %v", err)
+		return nil
 	}
 
 	pipelineProvider := pipeline.NewProcessorOnlyProvider(nil, processingRules, conf, nil)
@@ -54,4 +57,7 @@ func SetUpLaunchers(conf configComponent.Component) {
 	auditor := auditor.New(defaultRunPath, auditor.DefaultRegistryFilename, auditorTTL, health)
 	fileLauncher.Start(sourceProvider, pipelineProvider, auditor, tracker)
 	lnchrs.AddLauncher(fileLauncher)
+
+	outputChan := pipelineProvider.NextPipelineChan()
+	return outputChan
 }
