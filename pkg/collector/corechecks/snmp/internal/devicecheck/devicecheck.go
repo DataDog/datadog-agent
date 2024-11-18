@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/fetch"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
@@ -330,7 +329,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 		if err != nil {
 			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
 		}
-		profile, err := profile.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
+		profile, err := d.config.Profiles.GetProfileNameForSysObjectID(sysObjectID)
 		if err != nil {
 			return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
 		}
@@ -338,7 +337,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 			log.Debugf("detected profile change: %s -> %s", d.config.Profile, profile)
 			err = d.config.SetProfile(profile)
 			if err != nil {
-				// Should not happen since the profile is one of those we matched in GetProfileForSysObjectID
+				// Should not happen since the profile is one of those we matched in GetProfileNameForSysObjectID
 				return fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)
 			}
 		}
@@ -362,7 +361,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]profiledefinition.MetricsConfi
 	alreadySeenMetrics := make(map[string]bool)
 	// If a global tag has already been encountered, we won't try to add it again.
 	alreadyGlobalTags := make(map[string]bool)
-	for _, profileConfig := range d.config.Profiles {
+	for _, profileConfig := range d.config.Profiles.GetAllProfiles() {
 		for _, metricConfig := range profileConfig.Definition.Metrics {
 			newMetricConfig := metricConfig
 			if metricConfig.IsScalar() {
