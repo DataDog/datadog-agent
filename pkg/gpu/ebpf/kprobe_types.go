@@ -23,9 +23,12 @@ type CudaSync C.cuda_sync_t
 type CudaMemEvent C.cuda_memory_event_t
 type CudaMemEventType C.cuda_memory_event_type_t
 
+type CudaSetDeviceEvent C.cuda_set_device_event_t
+
 const CudaEventTypeKernelLaunch = C.cuda_kernel_launch
 const CudaEventTypeMemory = C.cuda_memory_event
 const CudaEventTypeSync = C.cuda_sync
+const CudaEventTypeSetDevice = C.cuda_set_device
 
 const CudaMemAlloc = C.cudaMalloc
 const CudaMemFree = C.cudaFree
@@ -34,3 +37,4 @@ const SizeofCudaKernelLaunch = C.sizeof_cuda_kernel_launch_t
 const SizeofCudaMemEvent = C.sizeof_cuda_memory_event_t
 const SizeofCudaEventHeader = C.sizeof_cuda_event_header_t
 const SizeofCudaSync = C.sizeof_cuda_sync_t
+const SizeofCudaSetDeviceEvent = C.sizeof_cuda_set_device_event_t

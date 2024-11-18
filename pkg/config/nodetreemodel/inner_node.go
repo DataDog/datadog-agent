@@ -162,3 +162,26 @@ func (n *innerNode) InsertChildNode(name string, node Node) {
 	n.children[name] = node
 	n.makeRemapCase()
 }
+
+// DumpSettings clone the entire tree starting from the node into a map based on the leaf source.
+//
+// The selector will be call with the source of each leaf to determine if it should be included in the dump.
+func (n *innerNode) DumpSettings(selector func(model.Source) bool) map[string]interface{} {
+	res := map[string]interface{}{}
+
+	for _, k := range n.ChildrenKeys() {
+		child, _ := n.GetChild(k)
+		if leaf, ok := child.(LeafNode); ok {
+			if selector(leaf.Source()) {
+				res[k], _ = leaf.GetAny()
+			}
+			continue
+		}
+
+		childDump := child.(InnerNode).DumpSettings(selector)
+		if len(childDump) != 0 {
+			res[k] = childDump
+		}
+	}
+	return res
+}

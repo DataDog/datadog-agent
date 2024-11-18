@@ -8,6 +8,7 @@ package nodetreemodel
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 
@@ -234,4 +235,105 @@ func TestSetUnkownKey(t *testing.T) {
 
 	assert.Nil(t, cfg.Get("unknown_key"))
 	assert.Equal(t, model.SourceUnknown, cfg.GetSource("unknown_key"))
+}
+
+func TestAllSettings(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b.c", 0)
+	cfg.SetDefault("b.d", 0)
+	cfg.BuildSchema()
+
+	cfg.ReadConfig(strings.NewReader("a: 987"))
+	cfg.Set("b.c", 123, model.SourceAgentRuntime)
+
+	expected := map[string]interface{}{
+		"a": 987,
+		"b": map[string]interface{}{
+			"c": 123,
+			"d": 0,
+		},
+	}
+	assert.Equal(t, expected, cfg.AllSettings())
+}
+
+func TestAllSettingsWithoutDefault(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b.c", 0)
+	cfg.SetDefault("b.d", 0)
+	cfg.BuildSchema()
+
+	cfg.ReadConfig(strings.NewReader("a: 987"))
+	cfg.Set("b.c", 123, model.SourceAgentRuntime)
+
+	expected := map[string]interface{}{
+		"a": 987,
+		"b": map[string]interface{}{
+			"c": 123,
+		},
+	}
+	assert.Equal(t, expected, cfg.AllSettingsWithoutDefault())
+}
+
+func TestAllSettingsBySource(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b.c", 0)
+	cfg.SetDefault("b.d", 0)
+	cfg.BuildSchema()
+
+	cfg.ReadConfig(strings.NewReader("a: 987"))
+	cfg.Set("b.c", 123, model.SourceAgentRuntime)
+
+	expected := map[model.Source]interface{}{
+		model.SourceDefault: map[string]interface{}{
+			"a": 0,
+			"b": map[string]interface{}{
+				"c": 0,
+				"d": 0,
+			},
+		},
+		model.SourceUnknown: map[string]interface{}{},
+		model.SourceFile: map[string]interface{}{
+			"a": 987,
+		},
+		model.SourceEnvVar:        map[string]interface{}{},
+		model.SourceFleetPolicies: map[string]interface{}{},
+		model.SourceAgentRuntime: map[string]interface{}{
+			"b": map[string]interface{}{
+				"c": 123,
+			},
+		},
+		model.SourceLocalConfigProcess: map[string]interface{}{},
+		model.SourceRC:                 map[string]interface{}{},
+		model.SourceCLI:                map[string]interface{}{},
+	}
+	assert.Equal(t, expected, cfg.AllSettingsBySource())
+}
+
+func TestIsSet(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b", 0)
+	cfg.BuildSchema()
+
+	cfg.Set("b", 123, model.SourceAgentRuntime)
+
+	assert.True(t, cfg.IsSet("b"))
+	assert.True(t, cfg.IsSet("a"))
+	assert.False(t, cfg.IsSet("unknown"))
+}
+
+func TestAllKeysLowercased(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b", 0)
+	cfg.BuildSchema()
+
+	cfg.Set("b", 123, model.SourceAgentRuntime)
+
+	keys := cfg.AllKeysLowercased()
+	sort.Strings(keys)
+	assert.Equal(t, []string{"a", "b"}, keys)
 }
