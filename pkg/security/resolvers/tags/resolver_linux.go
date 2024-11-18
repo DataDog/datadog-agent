@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -90,10 +89,10 @@ func (t *LinuxResolver) fetchTags(container *cgroupModel.CacheEntry) error {
 }
 
 // NewResolver returns a new tags resolver
-func NewResolver(config *config.Config, telemetry telemetry.Component, tagger Tagger, cgroupsResolver *cgroup.Resolver) *LinuxResolver {
+func NewResolver(telemetry telemetry.Component, tagger Tagger, cgroupsResolver *cgroup.Resolver) *LinuxResolver {
 	resolver := &LinuxResolver{
 		Notifier:             utils.NewNotifier[Event, *cgroupModel.CacheEntry](),
-		DefaultResolver:      NewDefaultResolver(config, telemetry, tagger),
+		DefaultResolver:      NewDefaultResolver(telemetry, tagger),
 		workloadsWithoutTags: make(chan *cgroupModel.CacheEntry, 100),
 		cgroupResolver:       cgroupsResolver,
 	}

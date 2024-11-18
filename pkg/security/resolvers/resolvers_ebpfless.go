@@ -38,7 +38,7 @@ func NewEBPFLessResolvers(config *config.Config, statsdClient statsd.ClientInter
 		return nil, err
 	}
 
-	tagsResolver := tags.NewResolver(config.Probe, telemetry, opts.Tagger, cgroupsResolver)
+	tagsResolver := tags.NewResolver(telemetry, opts.Tagger, cgroupsResolver)
 	processOpts := process.NewResolverOpts()
 	processOpts.WithEnvsValue(config.Probe.EnvsWithValue)
 

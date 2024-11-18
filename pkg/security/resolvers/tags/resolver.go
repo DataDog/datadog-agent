@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -98,7 +97,7 @@ func (t *DefaultResolver) Stop() error {
 }
 
 // NewDefaultResolver returns a new default tags resolver
-func NewDefaultResolver(config *config.Config, telemetry telemetry.Component, tagger Tagger) *DefaultResolver {
+func NewDefaultResolver(telemetry telemetry.Component, tagger Tagger) *DefaultResolver {
 	ddConfig := pkgconfigsetup.Datadog()
 	resolver := &DefaultResolver{
 		tagger: tagger,

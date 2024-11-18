@@ -10,10 +10,9 @@ package tags
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 )
 
 // NewResolver returns a new tags resolver
-func NewResolver(config *config.Config, telemetry telemetry.Component, tagger Tagger) Resolver {
-	return NewDefaultResolver(config, telemetry, tagger)
+func NewResolver(telemetry telemetry.Component, tagger Tagger) Resolver {
+	return NewDefaultResolver(telemetry, tagger)
 }
