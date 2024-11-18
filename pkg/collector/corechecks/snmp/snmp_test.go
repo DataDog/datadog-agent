@@ -2639,7 +2639,6 @@ func waitForDiscoveredDevices(discovery *discovery.Discovery, expectedDeviceCoun
 }
 
 func TestRDNSHostnameEnrichment(t *testing.T) {
-	// Create the deps struct
 	deps := createDeps(t)
 	testDir := t.TempDir()
 	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
