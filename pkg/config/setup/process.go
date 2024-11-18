@@ -82,6 +82,9 @@ const (
 
 	// DefaultProcessDiscoveryHintFrequency is the default frequency in terms of number of checks which we send a process discovery hint
 	DefaultProcessDiscoveryHintFrequency = 60
+
+	// DefaultConnectionsMinCheckInterval is the minimum interval allowed for the connections check
+	DefaultConnectionsMinCheckInterval = 5 * time.Second
 )
 
 // setupProcesses is meant to be called multiple times for different configs, but overrides apply to all configs, so

@@ -189,6 +189,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	cfg.BindEnvAndSetDefault(join(spNS, "offset_guess_threshold"), int64(defaultOffsetThreshold))
 
+	cfg.BindEnvAndSetDefault(join(spNS, "connections_check_interval_seconds"), 30*time.Second)
 	cfg.BindEnvAndSetDefault(join(spNS, "max_tracked_connections"), 65536)
 	cfg.BindEnv(join(spNS, "max_closed_connections_buffered"))
 	cfg.BindEnv(join(netNS, "max_failed_connections_buffered"))

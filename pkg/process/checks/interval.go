@@ -23,8 +23,6 @@ const (
 	//nolint:revive // TODO(PROC) Fix revive linter
 	RTContainerCheckDefaultInterval = 2 * time.Second
 	//nolint:revive // TODO(PROC) Fix revive linter
-	ConnectionsCheckDefaultInterval = 10 * time.Second
-	//nolint:revive // TODO(PROC) Fix revive linter
 	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
 
 	discoveryMinInterval = 10 * time.Minute
@@ -47,7 +45,6 @@ var (
 		RTProcessCheckName:     RTProcessCheckDefaultInterval,
 		ContainerCheckName:     ContainerCheckDefaultInterval,
 		RTContainerCheckName:   RTContainerCheckDefaultInterval,
-		ConnectionsCheckName:   ConnectionsCheckDefaultInterval,
 		DiscoveryCheckName:     ProcessDiscoveryCheckDefaultInterval,
 		ProcessEventsCheckName: pkgconfigsetup.DefaultProcessEventsCheckInterval,
 	}
@@ -87,6 +84,15 @@ func GetInterval(cfg pkgconfigmodel.Reader, checkName string) time.Duration {
 				pkgconfigsetup.DefaultProcessEventsMinCheckInterval.String(), pkgconfigsetup.DefaultProcessEventsCheckInterval.String())
 		}
 		return eventsInterval
+	case ConnectionsCheckName:
+		connectionsInterval := cfg.GetDuration("connections_check_interval_seconds")
+		minInterval := pkgconfigsetup.DefaultConnectionsMinCheckInterval
+		if connectionsInterval < minInterval {
+			connectionsInterval = minInterval
+			_ = log.Warnf("Invalid interval for connections check (< %s) using default value of %s",
+				minInterval.String(), minInterval.String())
+		}
+		return connectionsInterval
 
 	default:
 		defaultInterval := defaultIntervals[checkName]
