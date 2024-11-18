@@ -9,6 +9,7 @@ package diagnosesendermanagerimpl
 import (
 	"context"
 
+	noophaagent "github.com/DataDog/datadog-agent/comp/haagent/impl-noop"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
@@ -78,6 +79,7 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 		orchestratorForwarder,
 		opts,
 		eventPlatformForwarder,
+		noophaagent.NewNoopHaAgent(),
 		sender.deps.Compressor,
 		sender.deps.Tagger,
 		hostnameDetected)

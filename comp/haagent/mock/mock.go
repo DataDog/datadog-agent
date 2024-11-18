@@ -9,37 +9,64 @@
 package mock
 
 import (
-	"testing"
-
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
-type mock struct {
+type mockHaAgent struct {
 	Logger log.Component
+
+	group   string
+	enabled bool
 }
 
-func (m *mock) GetGroup() string {
-	return "mockGroup01"
+func (m *mockHaAgent) GetGroup() string {
+	return m.group
 }
 
-func (m *mock) Enabled() bool {
-	return true
+func (m *mockHaAgent) Enabled() bool {
+	return m.enabled
 }
 
-func (m *mock) SetLeader(_ string) {
+func (m *mockHaAgent) SetLeader(_ string) {
 }
 
-func (m *mock) IsLeader() bool { return false }
+func (m *mockHaAgent) IsLeader() bool { return false }
+
+func (m *mockHaAgent) SetGroup(group string) {
+	m.group = group
+}
+
+func (m *mockHaAgent) SetEnabled(enabled bool) {
+	m.enabled = enabled
+}
+
+// MockComponent is the component type.
+type MockComponent interface {
+	haagent.Component
+
+	SetGroup(string)
+	SetEnabled(bool)
+}
 
 // Provides that defines the output of mocked snmpscan component
 type Provides struct {
-	comp haagent.Component
+	comp MockComponent
 }
 
-// Mock returns a mock for haagent component.
-func Mock(_ *testing.T) Provides {
-	return Provides{
-		comp: &mock{},
+// NewMockHaAgent returns a new Mock
+func NewMockHaAgent() MockComponent {
+	return &mockHaAgent{
+		enabled: false,
+		group:   "group01",
 	}
+}
+
+// MockModule defines the fx options for the mockHaAgent component.
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(NewMockHaAgent),
+	)
 }

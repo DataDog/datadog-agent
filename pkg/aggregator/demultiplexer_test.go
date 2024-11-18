@@ -173,7 +173,7 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	opts := demuxTestOptions()
 	opts.FlushInterval = time.Hour
 	deps := createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
-	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorFwd, opts, deps.EventPlatformFwd, deps.Compressor, nooptagger.NewComponent(), "")
+	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorFwd, opts, deps.EventPlatformFwd, deps.HaAgent, deps.Compressor, nooptagger.NewComponent(), "")
 	demux.Aggregator().tlmContainerTagsEnabled = false
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)
@@ -300,7 +300,7 @@ func createDemuxDepsWithOrchestratorFwd(
 
 	return aggregatorDeps{
 		TestDeps:         deps.TestDeps,
-		Demultiplexer:    InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, deps.Compressor, nooptagger.NewComponent(), ""),
+		Demultiplexer:    InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, deps.HaAgent, deps.Compressor, nooptagger.NewComponent(), ""),
 		OrchestratorFwd:  deps.OrchestratorForwarder,
 		EventPlatformFwd: deps.Eventplatform,
 	}
