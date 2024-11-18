@@ -42,9 +42,10 @@ func NewProcInfo(procRoot string, pid uint32) *ProcInfo {
 // Avoid allocations, reuse the error to mark "iteration start" in the loop
 var errIterStart = errors.New("iteration start")
 var metricGroup = telemetry.NewMetricGroup("ebpf.attacher.procfs", telemetry.OptPrometheus)
-var readTemporaryFail = metricGroup.NewCounter("read_temporary_fail")
-var readSuccess = metricGroup.NewCounter("read_success")
-var readFail = metricGroup.NewCounter("read_fail")
+var metricName = "read"
+var readTemporaryFail = metricGroup.NewCounter(metricName, "result:temporary_fail")
+var readSuccess = metricGroup.NewCounter(metricName, "result:success")
+var readFail = metricGroup.NewCounter(metricName, "result:fail")
 
 func waitUntilSucceeds[T any](p *ProcInfo, procFile string, readFunc func(string) (T, error)) (T, error) {
 	// Read the exe link
