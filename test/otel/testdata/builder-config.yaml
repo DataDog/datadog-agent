@@ -58,3 +58,8 @@ providers:
 
 connectors:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.113.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.113.0
+
+converters:
+  - gomod: github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.60.0
+    path: ./comp/otelcol/converter/impl
