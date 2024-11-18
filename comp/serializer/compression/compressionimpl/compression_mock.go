@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// MockModuleFactory defines the fx options for the mock component.
 func MockModuleFactory() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(NewMockCompressorFactory),

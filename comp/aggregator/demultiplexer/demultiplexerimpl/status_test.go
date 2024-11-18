@@ -59,7 +59,7 @@ func TestStatusOutPut(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		core.MockBundle(),
-		compressionimpl.MockModule(),
+		compressionimpl.MockModuleFactory(),
 		defaultforwarder.MockModule(),
 		orchestratorimpl.MockModule(),
 		eventplatformimpl.MockModule(),
