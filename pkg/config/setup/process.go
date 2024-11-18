@@ -86,7 +86,7 @@ const (
 	// DefaultConnectionsMinCheckInterval is the minimum interval allowed for the connections check
 	DefaultConnectionsMinCheckInterval = 5 * time.Second
 
-	// DefaultConnectionsMaxCheckInterval is the minimum interval allowed for the connections check
+	// DefaultConnectionsMaxCheckInterval is the maximum interval allowed for the connections check
 	DefaultConnectionsMaxCheckInterval = 5 * time.Minute
 )
 

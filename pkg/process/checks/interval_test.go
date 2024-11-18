@@ -167,9 +167,9 @@ func TestConnectionsInterval(t *testing.T) {
 
 			assert.Equal(t, tc.expectedInterval, GetInterval(cfg, ConnectionsCheckName))
 		})
-		t.Run(tc.name+" default", func(t *testing.T) {
-			cfg := configmock.New(t)
-			assert.Equal(t, 30*time.Second, GetInterval(cfg, ConnectionsCheckName))
-		})
 	}
+	t.Run("default", func(t *testing.T) {
+		cfg := configmock.New(t)
+		assert.Equal(t, 30*time.Second, GetInterval(cfg, ConnectionsCheckName))
+	})
 }
