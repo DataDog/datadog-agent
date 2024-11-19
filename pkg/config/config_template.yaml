@@ -3304,7 +3304,7 @@ api_key:
 ## @env DD_CRI_QUERY_TIMEOUT - integer - optional - default: 5
 ## Configure the timeout in seconds for querying the CRI.
 #
-# cri_query_timeout:
+# cri_query_timeout: 5
 
 {{ end -}}
 {{- if .Containerd}}
