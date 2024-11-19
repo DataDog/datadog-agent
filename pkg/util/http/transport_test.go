@@ -192,6 +192,7 @@ func TestCreateHTTPTransport(t *testing.T) {
 	transport = CreateHTTPTransport(c)
 	assert.Equal(t, transport.TLSHandshakeTimeout, time.Second)
 }
+
 func TestNoProxyWarningMap(t *testing.T) {
 	setupTest(t)
 
