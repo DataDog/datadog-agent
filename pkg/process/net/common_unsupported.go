@@ -5,7 +5,6 @@
 
 //go:build !linux && !windows
 
-//nolint:revive // TODO(PROC) Fix revive linter
 package net
 
 import (
@@ -13,7 +12,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	discoverymodel "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	nppayload "github.com/DataDog/datadog-agent/pkg/networkpath/payload"
