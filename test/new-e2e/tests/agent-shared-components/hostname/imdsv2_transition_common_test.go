@@ -39,7 +39,7 @@ func TestBaseHostnameSuite(t *testing.T) {
 	e2e.Run(t, &baseHostnameSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
-func requestAgentHostnameMetadataPayload(v *baseHostnameSuite) {
+func requestAgentHostnameMetadataPayload(v *baseHostnameSuite) Meta {
 	v.T().Helper()
 
 	// Get the hostname and legacy-resolution-hostname from the agent status
@@ -59,7 +59,7 @@ func requestAgentHostnameMetadataPayload(v *baseHostnameSuite) {
 		v.T().Fatal(err)
 	}
 
-	v.hostnameMetadata = result.Data.MetaPayload
+	return result.Data.MetaPayload
 }
 
 // retrieveInstanceHostname retrieves the OS hostname from the EC2 metadata
@@ -84,7 +84,7 @@ func runHostnameTest(v *baseHostnameSuite, instanceOpts []awshost.ProvisionerOpt
 		v.UpdateEnv(awshost.ProvisionerNoFakeIntake(instanceOpts...))
 		ec2Client := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 
-		requestAgentHostnameMetadataPayload(v)
+		v.hostnameMetadata = requestAgentHostnameMetadataPayload(v)
 		assert.NotEmpty(t, v.hostnameMetadata.Hostname)
 
 		assert.Equal(t, tt.expectedHostname(ec2Client), v.hostnameMetadata.Hostname)
