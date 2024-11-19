@@ -1,2 +1,4 @@
-bin
 go/ebpf_probe.o
+bin/syscall_go_tester
+bin/syscall_tester
+bin/syscall_tester.d
