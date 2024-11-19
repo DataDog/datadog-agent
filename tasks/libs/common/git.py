@@ -103,9 +103,9 @@ def get_current_branch(ctx) -> str:
 def get_default_branch():
     """Returns the default git branch given the current context (agent 6 / 7)."""
 
-    from tasks.libs.common import agent6
+    from tasks.libs.common.agent6 import AGENT6_BRANCH, is_agent6
 
-    return agent6.get_default_branch()
+    return AGENT6_BRANCH if is_agent6() else 'main'
 
 
 def get_common_ancestor(ctx, branch, base=None) -> str:

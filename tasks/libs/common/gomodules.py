@@ -14,7 +14,7 @@ from typing import ClassVar
 import yaml
 
 import tasks
-from tasks.libs.common.agent6 import agent_working_directory
+from tasks.libs.common.utils import agent_working_directory
 
 
 class ConfigDumper(yaml.SafeDumper):

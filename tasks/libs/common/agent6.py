@@ -50,28 +50,6 @@ def exit_agent6_context():
 
 
 @contextmanager
-def _agent6_context(ctx):
-    """To run code from the agent6 environment.
-
-    Prefer using agent_context(ctx, version).
-    """
-
-    # Do not stack two agent 6 contexts
-    if is_agent6():
-        yield
-        return
-
-    try:
-        # Enter
-        enter_agent6_context(ctx)
-
-        yield
-    finally:
-        # Exit
-        exit_agent6_context()
-
-
-@contextmanager
 def agent_context(ctx, version: str | int | None):
     """Runs code from the agent6 environment if the version is 6.
 
@@ -83,22 +61,21 @@ def agent_context(ctx, version: str | int | None):
     switch_agent6 = version == 6 or isinstance(version, str) and version.startswith("6")
 
     if switch_agent6:
-        with _agent6_context(ctx):
+        # Do not stack two agent 6 contexts
+        if is_agent6():
             yield
+            return
+
+        try:
+            # Enter
+            enter_agent6_context(ctx)
+
+            yield
+        finally:
+            # Exit
+            exit_agent6_context()
     else:
         # NOTE: This ensures that we don't push agent 7 context from agent 6 context (context might be switched within inner functions)
         assert not is_agent6(), 'Agent 7 context cannot be used within an agent 6 context'
 
         yield
-
-
-def agent_working_directory():
-    """Returns the working directory for the current context (agent 6 / 7)."""
-
-    return AGENT6_WORKING_DIRECTORY if is_agent6() else AGENT7_WORKING_DIRECTORY
-
-
-def get_default_branch():
-    from tasks.libs.common.constants import _DEFAULT_BRANCH
-
-    return AGENT6_BRANCH if is_agent6() else _DEFAULT_BRANCH
