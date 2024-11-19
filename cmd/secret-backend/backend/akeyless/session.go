@@ -14,13 +14,14 @@ import (
 	"strings"
 )
 
-type AkeylessSessionBackendConfig struct {
-	AkeylessAccessId  string `mapstructure:"akeyless_access_id"`
+// SessionBackendConfig is the session configuration for Akeyless
+type SessionBackendConfig struct {
+	AkeylessAccessID  string `mapstructure:"akeyless_access_id"`
 	AkeylessAccessKey string `mapstructure:"akeyless_access_key"`
 }
 
 type authRequest struct {
-	AccessId   string `json:"access-id"`
+	AccessID   string `json:"access-id"`
 	AccessKey  string `json:"access-key"`
 	AccessType string `json:"access-type"`
 }
@@ -30,14 +31,15 @@ type authResponse struct {
 	//	might need to add creds
 }
 
-func NewAkeylessConfigFromBackendConfig(akeylessUrl string, sessionConfig AkeylessSessionBackendConfig) (string, error) {
+// NewAkeylessConfigFromBackendConfig returns a new config for Akeyless
+func NewAkeylessConfigFromBackendConfig(akeylessURL string, sessionConfig SessionBackendConfig) (string, error) {
 	requestBody, _ := json.Marshal(authRequest{
-		AccessId:   sessionConfig.AkeylessAccessId,
+		AccessID:   sessionConfig.AkeylessAccessID,
 		AccessKey:  sessionConfig.AkeylessAccessKey,
 		AccessType: "access_key",
 	})
 
-	resp, err := http.Post(strings.TrimRight(akeylessUrl, "/")+"/auth", "application/json", bytes.NewBuffer(requestBody))
+	resp, err := http.Post(strings.TrimRight(akeylessURL, "/")+"/auth", "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
 		return "", err
 	}

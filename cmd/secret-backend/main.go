@@ -4,13 +4,14 @@
 // Copyright 2024-present Datadog, Inc.
 // Copyright (c) 2021, RapDev.IO
 
+// main package for the datadog-secret-backend
 package main
 
 import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,16 +21,10 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/DataDog/datadog-secret-backend/backend"
+	"github.com/DataDog/datadog-secret-backend/secret"
 )
 
-type InputPayload struct {
-	Secrets []string `json:"secrets"`
-	Version string   `json:"version"`
-}
-
 const appVersion = "0.1.11"
-
-var Log zerolog.Logger
 
 func init() {
 	zerolog.TimestampFunc = func() time.Time {
@@ -50,7 +45,7 @@ func main() {
 	programPath := filepath.Dir(program)
 	defaultConfigFile := filepath.Join(programPath, "datadog-secret-backend.yaml")
 
-	version := flag.Bool("version", false, fmt.Sprintf("Print the version info"))
+	version := flag.Bool("version", false, "Print the version info")
 	configFile := flag.String("config", defaultConfigFile, "Path to backend configuration yaml")
 
 	flag.Parse()
@@ -60,17 +55,17 @@ func main() {
 		os.Exit(0)
 	}
 
-	input, err := ioutil.ReadAll(os.Stdin)
+	input, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to read from stdin")
 	}
 
-	inputPayload := &InputPayload{}
+	inputPayload := &secret.Input{}
 	if err := json.Unmarshal(input, inputPayload); err != nil {
 		log.Fatal().Err(err).Msg("failed to unmarshal input")
 	}
 
-	backends := backend.NewBackends(configFile)
+	backends := backend.NewBackends(*configFile)
 	secretOutputs := backends.GetSecretOutputs(inputPayload.Secrets)
 
 	output, err := json.Marshal(secretOutputs)
@@ -78,5 +73,5 @@ func main() {
 		log.Fatal().Err(err).Msg("failed to marshal output")
 	}
 
-	fmt.Printf(string(output))
+	fmt.Print(string(output))
 }

@@ -4,6 +4,7 @@
 // Copyright 2024-present Datadog, Inc.
 // Copyright (c) 2021, RapDev.IO
 
+// Package aws allows to fetch secrets from Aws SSM and Secrets Manager service
 package aws
 
 import (
@@ -18,35 +19,38 @@ import (
 	"github.com/DataDog/datadog-secret-backend/secret"
 )
 
-type AwsSecretsManagerBackendConfig struct {
-	AwsSession  AwsSessionBackendConfig `mapstructure:"aws_session"`
-	BackendType string                  `mapstructure:"backend_type"`
-	ForceString bool                    `mapstructure:"force_string"`
-	SecretId    string                  `mapstructure:"secret_id"`
+// SecretsManagerBackendConfig is the configuration for a AWS Secret Manager backend
+type SecretsManagerBackendConfig struct {
+	Session     SessionBackendConfig `mapstructure:"aws_session"`
+	BackendType string               `mapstructure:"backend_type"`
+	ForceString bool                 `mapstructure:"force_string"`
+	SecretID    string               `mapstructure:"secret_id"`
 }
 
-type AwsSecretsManagerBackend struct {
-	BackendId string
-	Config    AwsSecretsManagerBackendConfig
+// SecretsManagerBackend represents backend for AWS Secret Manager
+type SecretsManagerBackend struct {
+	BackendID string
+	Config    SecretsManagerBackendConfig
 	Secret    map[string]string
 }
 
-func NewAwsSecretsManagerBackend(backendId string, bc map[string]interface{}) (
-	*AwsSecretsManagerBackend, error) {
+// NewSecretsManagerBackend returns a new AWS Secret Manager backend
+func NewSecretsManagerBackend(backendID string, bc map[string]interface{}) (
+	*SecretsManagerBackend, error) {
 
-	backendConfig := AwsSecretsManagerBackendConfig{}
+	backendConfig := SecretsManagerBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
 		log.Error().Err(err).
-			Str("backend_id", backendId).
+			Str("backend_id", backendID).
 			Msg("failed to map backend configuration")
 		return nil, err
 	}
 
-	cfg, err := NewAwsConfigFromBackendConfig(backendId, backendConfig.AwsSession)
+	cfg, err := NewConfigFromBackendConfig(backendConfig.Session)
 	if err != nil {
 		log.Error().Err(err).
-			Str("backend_id", backendId).
+			Str("backend_id", backendID).
 			Msg("failed to initialize aws session")
 		return nil, err
 	}
@@ -54,17 +58,17 @@ func NewAwsSecretsManagerBackend(backendId string, bc map[string]interface{}) (
 
 	// GetSecretValue
 	input := &secretsmanager.GetSecretValueInput{
-		SecretId: &backendConfig.SecretId,
+		SecretId: &backendConfig.SecretID,
 	}
 	out, err := client.GetSecretValue(context.TODO(), input)
 	if err != nil {
 		log.Error().Err(err).
-			Str("backend_id", backendId).
+			Str("backend_id", backendID).
 			Str("backend_type", backendConfig.BackendType).
-			Str("secret_id", backendConfig.SecretId).
-			Str("aws_access_key_id", backendConfig.AwsSession.AwsAccessKeyId).
-			Str("aws_profile", backendConfig.AwsSession.AwsProfile).
-			Msg("failed to retreive secret value")
+			Str("secret_id", backendConfig.SecretID).
+			Str("aws_access_key_id", backendConfig.Session.AccessKeyID).
+			Str("aws_profile", backendConfig.Session.Profile).
+			Msg("failed to retrieve secret value")
 		return nil, err
 	}
 
@@ -77,25 +81,26 @@ func NewAwsSecretsManagerBackend(backendId string, bc map[string]interface{}) (
 		}
 	}
 
-	backend := &AwsSecretsManagerBackend{
-		BackendId: backendId,
+	backend := &SecretsManagerBackend{
+		BackendID: backendID,
 		Config:    backendConfig,
 		Secret:    secretValue,
 	}
 	return backend, nil
 }
 
-func (b *AwsSecretsManagerBackend) GetSecretOutput(secretKey string) secret.SecretOutput {
+// GetSecretOutput returns a the value for a specific secret
+func (b *SecretsManagerBackend) GetSecretOutput(secretKey string) secret.Output {
 	if val, ok := b.Secret[secretKey]; ok {
-		return secret.SecretOutput{Value: &val, Error: nil}
+		return secret.Output{Value: &val, Error: nil}
 	}
 	es := errors.New("backend does not provide secret key").Error()
 
 	log.Error().
-		Str("backend_id", b.BackendId).
+		Str("backend_id", b.BackendID).
 		Str("backend_type", b.Config.BackendType).
-		Str("secret_id", b.Config.SecretId).
+		Str("secret_id", b.Config.SecretID).
 		Str("secret_key", secretKey).
 		Msg("backend does not provide secret key")
-	return secret.SecretOutput{Value: nil, Error: &es}
+	return secret.Output{Value: nil, Error: &es}
 }

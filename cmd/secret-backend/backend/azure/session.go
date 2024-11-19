@@ -13,34 +13,35 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 )
 
-type AzureSessionBackendConfig struct {
-	AzureTenantId            string `mapstructure:"azure_tenant_id"`
-	AzureClientId            string `mapstructure:"azure_client_id"`
-	AzureClientSecret        string `mapstructure:"azure_client_secret"`
-	AzureCertificatePath     string `mapstructure:"azure_certificate_path"`
-	AzureCertificatePassword string `mapstructure:"azure_certificate_password"`
+// SessionBackendConfig is the configuration for a Azure backend
+type SessionBackendConfig struct {
+	TenantID            string `mapstructure:"azure_tenant_id"`
+	ClientID            string `mapstructure:"azure_client_id"`
+	ClientSecret        string `mapstructure:"azure_client_secret"`
+	CertificatePath     string `mapstructure:"azure_certificate_path"`
+	CertificatePassword string `mapstructure:"azure_certificate_password"`
 }
 
-func NewAzureConfigFromBackendConfig(backendId string, sessionConfig AzureSessionBackendConfig) (*autorest.Authorizer, error) {
-
-	if sessionConfig.AzureTenantId != "" {
-		os.Setenv("AZURE_TENANT_ID", sessionConfig.AzureTenantId)
+// NewConfigFromBackendConfig returns a Authorizer for Azure based on the configuration
+func NewConfigFromBackendConfig(sessionConfig SessionBackendConfig) (*autorest.Authorizer, error) {
+	if sessionConfig.TenantID != "" {
+		os.Setenv("AZURE_TENANT_ID", sessionConfig.TenantID)
 	}
 
-	if sessionConfig.AzureClientId != "" {
-		os.Setenv("AZURE_CLIENT_ID", sessionConfig.AzureClientId)
+	if sessionConfig.ClientID != "" {
+		os.Setenv("AZURE_CLIENT_ID", sessionConfig.ClientID)
 	}
 
-	if sessionConfig.AzureClientSecret != "" {
-		os.Setenv("AZURE_CLIENT_SECRET", sessionConfig.AzureClientSecret)
+	if sessionConfig.ClientSecret != "" {
+		os.Setenv("AZURE_CLIENT_SECRET", sessionConfig.ClientSecret)
 	}
 
-	if sessionConfig.AzureCertificatePath != "" {
-		os.Setenv("AZURE_CERTIFICATE_PATH", sessionConfig.AzureCertificatePath)
+	if sessionConfig.CertificatePath != "" {
+		os.Setenv("AZURE_CERTIFICATE_PATH", sessionConfig.CertificatePath)
 	}
 
-	if sessionConfig.AzureCertificatePassword != "" {
-		os.Setenv("AZURE_CERTIFICATE_PASSWORD", sessionConfig.AzureCertificatePassword)
+	if sessionConfig.CertificatePassword != "" {
+		os.Setenv("AZURE_CERTIFICATE_PASSWORD", sessionConfig.CertificatePassword)
 	}
 
 	os.Setenv("AZURE_AD_RESOURCE", "https://vault.azure.net")

@@ -4,11 +4,12 @@
 // Copyright 2024-present Datadog, Inc.
 // Copyright (c) 2021, RapDev.IO
 
+// Package backend aggregates all supported backends and allow fetching secrets from them
 package backend
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/rs/zerolog/log"
@@ -22,32 +23,35 @@ import (
 	"github.com/DataDog/datadog-secret-backend/secret"
 )
 
+// Backend represents the common interface for all secret backends
 type Backend interface {
-	GetSecretOutput(string) secret.SecretOutput
+	GetSecretOutput(string) secret.Output
 }
 
+// Backends encapsulate all known backends
 type Backends struct {
 	Backends map[string]Backend
 }
 
-type BackendConfigurations struct {
+type configurations struct {
 	Configs map[string]map[string]interface{} `yaml:"backends"`
 }
 
-func NewBackends(configFile *string) Backends {
+// NewBackends returns a new Backends
+func NewBackends(configFile string) Backends {
 	backends := Backends{
 		Backends: make(map[string]Backend, 0),
 	}
 
-	configYAML, err := ioutil.ReadFile(*configFile)
+	configYAML, err := os.ReadFile(configFile)
 	if err != nil {
-		log.Fatal().Err(err).Str("config_file", *configFile).
+		log.Fatal().Err(err).Str("config_file", configFile).
 			Msg("failed to read configuration file")
 	}
 
-	backendConfigs := &BackendConfigurations{}
+	backendConfigs := &configurations{}
 	if err := yaml.Unmarshal(configYAML, backendConfigs); err != nil {
-		log.Fatal().Err(err).Str("config_file", *configFile).
+		log.Fatal().Err(err).Str("config_file", configFile).
 			Msg("failed to unmarshal configuration yaml")
 	}
 
@@ -58,17 +62,18 @@ func NewBackends(configFile *string) Backends {
 	return backends
 }
 
-func (b *Backends) InitBackend(backendId string, config map[string]interface{}) {
-	if _, ok := b.Backends[backendId]; ok {
+// InitBackend initialize all the backends based on their configuration
+func (b *Backends) InitBackend(backendID string, config map[string]interface{}) {
+	if _, ok := b.Backends[backendID]; ok {
 		return
 	}
 
 	if _, ok := config["backend_type"].(string); !ok {
-		log.Error().Str("backend_id", backendId).
+		log.Error().Str("backend_id", backendID).
 			Msg("undefined secret backend type in configuration")
 
-		b.Backends[backendId] = &ErrorBackend{
-			BackendId: backendId,
+		b.Backends[backendID] = &ErrorBackend{
+			BackendID: backendID,
 			Error:     fmt.Errorf("undefined secret backend type in configuration"),
 		}
 		return
@@ -76,84 +81,84 @@ func (b *Backends) InitBackend(backendId string, config map[string]interface{}) 
 
 	switch backendType := config["backend_type"].(string); backendType {
 	case "aws.secrets":
-		backend, err := aws.NewAwsSecretsManagerBackend(backendId, config)
+		backend, err := aws.NewSecretsManagerBackend(backendID, config)
 		if err != nil {
-			b.Backends[backendId] = NewErrorBackend(backendId, err)
+			b.Backends[backendID] = NewErrorBackend(backendID, err)
 		} else {
-			b.Backends[backendId] = backend
+			b.Backends[backendID] = backend
 		}
 	case "aws.ssm":
-		backend, err := aws.NewAwsSsmParameterStoreBackend(backendId, config)
+		backend, err := aws.NewSSMParameterStoreBackend(backendID, config)
 		if err != nil {
-			b.Backends[backendId] = NewErrorBackend(backendId, err)
+			b.Backends[backendID] = NewErrorBackend(backendID, err)
 		} else {
-			b.Backends[backendId] = backend
+			b.Backends[backendID] = backend
 		}
 	case "azure.keyvault":
-		backend, err := azure.NewAzureKeyVaultBackend(backendId, config)
+		backend, err := azure.NewKeyVaultBackend(backendID, config)
 		if err != nil {
-			b.Backends[backendId] = NewErrorBackend(backendId, err)
+			b.Backends[backendID] = NewErrorBackend(backendID, err)
 		} else {
-			b.Backends[backendId] = backend
+			b.Backends[backendID] = backend
 		}
 	case "hashicorp.vault":
-		backend, err := hashicorp.NewVaultBackend(backendId, config)
+		backend, err := hashicorp.NewVaultBackend(backendID, config)
 		if err != nil {
-			b.Backends[backendId] = NewErrorBackend(backendId, err)
+			b.Backends[backendID] = NewErrorBackend(backendID, err)
 		} else {
-			b.Backends[backendId] = backend
+			b.Backends[backendID] = backend
 		}
 	case "file.yaml":
-		backend, err := file.NewFileYamlBackend(backendId, config)
+		backend, err := file.NewYAMLBackend(backendID, config)
 		if err != nil {
-			b.Backends[backendId] = NewErrorBackend(backendId, err)
+			b.Backends[backendID] = NewErrorBackend(backendID, err)
 		} else {
-			b.Backends[backendId] = backend
+			b.Backends[backendID] = backend
 		}
 	case "file.json":
-		backend, err := file.NewFileJsonBackend(backendId, config)
+		backend, err := file.NewJSONBackend(backendID, config)
 		if err != nil {
-			b.Backends[backendId] = NewErrorBackend(backendId, err)
+			b.Backends[backendID] = NewErrorBackend(backendID, err)
 		} else {
-			b.Backends[backendId] = backend
+			b.Backends[backendID] = backend
 		}
 	case "akeyless":
-		backend, err := akeyless.NewAkeylessBackend(backendId, config)
+		backend, err := akeyless.NewAkeylessBackend(backendID, config)
 		if err != nil {
-			b.Backends[backendId] = NewErrorBackend(backendId, err)
+			b.Backends[backendID] = NewErrorBackend(backendID, err)
 		} else {
-			b.Backends[backendId] = backend
+			b.Backends[backendID] = backend
 		}
 	default:
-		log.Error().Str("backend_id", backendId).Str("backend_type", backendType).
+		log.Error().Str("backend_id", backendID).Str("backend_type", backendType).
 			Msg("unsupported backend type")
 
-		b.Backends[backendId] = &ErrorBackend{
-			BackendId: backendId,
+		b.Backends[backendID] = &ErrorBackend{
+			BackendID: backendID,
 			Error:     fmt.Errorf("unsupported backend type: %s", backendType),
 		}
 	}
-	return
 }
 
-func (b *Backends) GetSecretOutputs(secrets []string) map[string]secret.SecretOutput {
-	secretOutputs := make(map[string]secret.SecretOutput, 0)
+// GetSecretOutputs returns a the value for a list of given secrets of form "<backendID>:<secret key>"
+func (b *Backends) GetSecretOutputs(secrets []string) map[string]secret.Output {
+	secretOutputs := make(map[string]secret.Output, 0)
 
 	for _, s := range secrets {
 		segments := strings.SplitN(s, ":", 2)
-		backendId := segments[0]
+		backendID := segments[0]
 		secretKey := segments[1]
 
-		if _, ok := b.Backends[backendId]; !ok {
-			log.Error().Str("backend_id", backendId).Str("secret_key", secretKey).
+		if _, ok := b.Backends[backendID]; !ok {
+			log.Error().Str("backend_id", backendID).Str("secret_key", secretKey).
 				Msg("undefined backend")
 
-			b.Backends[backendId] = &ErrorBackend{
-				BackendId: backendId,
+			b.Backends[backendID] = &ErrorBackend{
+				BackendID: backendID,
 				Error:     fmt.Errorf("undefined backend"),
 			}
 		}
-		secretOutputs[s] = b.Backends[backendId].GetSecretOutput(secretKey)
+		secretOutputs[s] = b.Backends[backendID].GetSecretOutput(secretKey)
 	}
 	return secretOutputs
 }

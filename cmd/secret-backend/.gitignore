@@ -19,3 +19,9 @@ bin/**
 
 # Ignore local builds
 datadog-secret-backend
+
+# vim
+*.swp
+
+# folders
+venv*/

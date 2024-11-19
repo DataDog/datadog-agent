@@ -8,8 +8,9 @@ package file
 
 import (
 	"errors"
+	"os"
+
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog/log"
@@ -17,31 +18,34 @@ import (
 	"github.com/DataDog/datadog-secret-backend/secret"
 )
 
-type FileYamlBackendConfig struct {
+// YamlBackendConfig is the configuration for a YAML backend
+type YamlBackendConfig struct {
 	BackendType string `mapstructure:"backend_type"`
 	FilePath    string `mapstructure:"file_path"`
 }
 
-type FileYamlBackend struct {
-	BackendId string
-	Config    FileYamlBackendConfig
+// YamlBackend represents backend for YAML file
+type YamlBackend struct {
+	BackendID string
+	Config    YamlBackendConfig
 	Secret    map[string]string
 }
 
-func NewFileYamlBackend(backendId string, bc map[string]interface{}) (
-	*FileYamlBackend, error) {
+// NewYAMLBackend returns a new YAML backend
+func NewYAMLBackend(backendID string, bc map[string]interface{}) (
+	*YamlBackend, error) {
 
-	backendConfig := FileYamlBackendConfig{}
+	backendConfig := YamlBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		log.Error().Err(err).Str("backend_id", backendId).
+		log.Error().Err(err).Str("backend_id", backendID).
 			Msg("failed to map backend configuration")
 		return nil, err
 	}
 
-	content, err := ioutil.ReadFile(backendConfig.FilePath)
+	content, err := os.ReadFile(backendConfig.FilePath)
 	if err != nil {
-		log.Error().Err(err).Str("backend_id", backendId).
+		log.Error().Err(err).Str("backend_id", backendID).
 			Str("file_path", backendConfig.FilePath).
 			Msg("failed to read yaml secret file")
 		return nil, err
@@ -49,31 +53,32 @@ func NewFileYamlBackend(backendId string, bc map[string]interface{}) (
 
 	secretValue := make(map[string]string, 0)
 	if err := yaml.Unmarshal(content, secretValue); err != nil {
-		log.Error().Err(err).Str("backend_id", backendId).
+		log.Error().Err(err).Str("backend_id", backendID).
 			Str("file_path", backendConfig.FilePath).
 			Msg("failed to unmarshal yaml secret")
 		return nil, err
 	}
 
-	backend := &FileYamlBackend{
-		BackendId: backendId,
+	backend := &YamlBackend{
+		BackendID: backendID,
 		Config:    backendConfig,
 		Secret:    secretValue,
 	}
 	return backend, nil
 }
 
-func (b *FileYamlBackend) GetSecretOutput(secretKey string) secret.SecretOutput {
+// GetSecretOutput returns a the value for a specific secret
+func (b *YamlBackend) GetSecretOutput(secretKey string) secret.Output {
 	if val, ok := b.Secret[secretKey]; ok {
-		return secret.SecretOutput{Value: &val, Error: nil}
+		return secret.Output{Value: &val, Error: nil}
 	}
 	es := errors.New("backend does not provide secret key").Error()
 
 	log.Error().
-		Str("backend_id", b.BackendId).
+		Str("backend_id", b.BackendID).
 		Str("backend_type", b.Config.BackendType).
 		Str("file_path", b.Config.FilePath).
 		Str("secret_key", secretKey).
 		Msg("backend does not provide secret key")
-	return secret.SecretOutput{Value: nil, Error: &es}
+	return secret.Output{Value: nil, Error: &es}
 }

@@ -13,22 +13,24 @@ import (
 	"github.com/hashicorp/vault/api/auth/userpass"
 )
 
+// VaultSessionBackendConfig is the configuration for a Hashicorp vault backend
 type VaultSessionBackendConfig struct {
-	VaultRoleId       string `mapstructure:"vault_role_id"`
-	VaultSecretId     string `mapstructure:"vault_secret_id"`
+	VaultRoleID       string `mapstructure:"vault_role_id"`
+	VaultSecretID     string `mapstructure:"vault_secret_id"`
 	VaultUserName     string `mapstructure:"vault_username"`
 	VaultPassword     string `mapstructure:"vault_password"`
 	VaultLDAPUserName string `mapstructure:"vault_ldap_username"`
 	VaultLDAPPassword string `mapstructure:"vault_ldap_password"`
 }
 
-func NewVaultConfigFromBackendConfig(backendId string, sessionConfig VaultSessionBackendConfig) (api.AuthMethod, error) {
+// NewVaultConfigFromBackendConfig returns a AuthMethod for Hashicorp vault based on the configuration
+func NewVaultConfigFromBackendConfig(sessionConfig VaultSessionBackendConfig) (api.AuthMethod, error) {
 	var auth api.AuthMethod
 	var err error
-	if sessionConfig.VaultRoleId != "" {
-		if sessionConfig.VaultSecretId != "" {
-			secretId := &approle.SecretID{FromString: sessionConfig.VaultSecretId}
-			auth, err = approle.NewAppRoleAuth(sessionConfig.VaultRoleId, secretId)
+	if sessionConfig.VaultRoleID != "" {
+		if sessionConfig.VaultSecretID != "" {
+			secretID := &approle.SecretID{FromString: sessionConfig.VaultSecretID}
+			auth, err = approle.NewAppRoleAuth(sessionConfig.VaultRoleID, secretID)
 			if err != nil {
 				return nil, err
 			}

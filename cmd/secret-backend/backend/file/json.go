@@ -4,12 +4,13 @@
 // Copyright 2024-present Datadog, Inc.
 // Copyright (c) 2021, RapDev.IO
 
+// Package file allows to fetch secrets from JSON and YAML files
 package file
 
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"os"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog/log"
@@ -17,32 +18,35 @@ import (
 	"github.com/DataDog/datadog-secret-backend/secret"
 )
 
-type FileJsonBackendConfig struct {
+// JSONBackendConfig is the configuration for a JSON backend
+type JSONBackendConfig struct {
 	BackendType string `mapstructure:"backend_type"`
 	FilePath    string `mapstructure:"file_path"`
 }
 
-type FileJsonBackend struct {
-	BackendId string
-	Config    FileJsonBackendConfig
+// JSONBackend represents backend for JSON file
+type JSONBackend struct {
+	BackendID string
+	Config    JSONBackendConfig
 	Secret    map[string]string
 }
 
-func NewFileJsonBackend(backendId string, bc map[string]interface{}) (
-	*FileJsonBackend, error) {
+// NewJSONBackend returns a new JSON backend
+func NewJSONBackend(backendID string, bc map[string]interface{}) (
+	*JSONBackend, error) {
 
-	backendConfig := FileJsonBackendConfig{}
+	backendConfig := JSONBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		log.Error().Err(err).Str("backend_id", backendId).
+		log.Error().Err(err).Str("backend_id", backendID).
 			Msg("failed to map backend configuration")
 		return nil, err
 	}
 
-	content, err := ioutil.ReadFile(backendConfig.FilePath)
+	content, err := os.ReadFile(backendConfig.FilePath)
 	if err != nil {
 		log.Error().Err(err).Str("file_path", backendConfig.FilePath).
-			Str("backend_id", backendId).
+			Str("backend_id", backendID).
 			Msg("failed to read json secret file")
 		return nil, err
 	}
@@ -54,25 +58,26 @@ func NewFileJsonBackend(backendId string, bc map[string]interface{}) (
 		return nil, err
 	}
 
-	backend := &FileJsonBackend{
-		BackendId: backendId,
+	backend := &JSONBackend{
+		BackendID: backendID,
 		Config:    backendConfig,
 		Secret:    secretValue,
 	}
 	return backend, nil
 }
 
-func (b *FileJsonBackend) GetSecretOutput(secretKey string) secret.SecretOutput {
+// GetSecretOutput returns a the value for a specific secret
+func (b *JSONBackend) GetSecretOutput(secretKey string) secret.Output {
 	if val, ok := b.Secret[secretKey]; ok {
-		return secret.SecretOutput{Value: &val, Error: nil}
+		return secret.Output{Value: &val, Error: nil}
 	}
 	es := errors.New("backend does not provide secret key").Error()
 
 	log.Error().
-		Str("backend_id", b.BackendId).
+		Str("backend_id", b.BackendID).
 		Str("backend_type", b.Config.BackendType).
 		Str("file_path", b.Config.FilePath).
 		Str("secret_key", secretKey).
 		Msg("backend does not provide secret")
-	return secret.SecretOutput{Value: nil, Error: &es}
+	return secret.Output{Value: nil, Error: &es}
 }

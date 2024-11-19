@@ -4,9 +4,17 @@
 // Copyright 2024-present Datadog, Inc.
 // Copyright (c) 2021, RapDev.IO
 
+// Package secret contains the structure to receive and return secrets to the Datadog Agent
 package secret
 
-type SecretOutput struct {
+// Input represents a secret to be resolved
+type Input struct {
+	Secrets []string `json:"secrets"`
+	Version string   `json:"version"`
+}
+
+// Output represents a resolved secret
+type Output struct {
 	Value *string `json:"value"`
 	Error *string `json:"error"`
 }
