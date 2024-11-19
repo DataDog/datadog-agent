@@ -278,13 +278,14 @@ func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
 	//verify that service returns to stopped state
 	s.assertServiceState("Stopped", "datadog-system-probe")
 
-	// Log errors and warnings to the screen for easy access
-	entries, err := s.getAgentEventLogErrorsAndWarnings()
-	s.Require().NoError(err, "should get agent errors and warnings from Application event log")
-	//s.Require().Empty(entries, "should not have errors or warnings from agents in the event log")
-	for _, entry := range entries {
-		s.T().Logf("Errors and warnings from agent in the event log:\n%s", entry.Message)
-	}
+	// Verify there are not errors in the event log
+	entries, err := windowsCommon.GetEventLogErrorAndWarningEntries(s.Env().RemoteHost, "Application")
+	s.Require().NoError(err, "should get errors and warnings from Application event log")
+	s.Require().Empty(entries, "should not have errors or warnings from agents in the event log")
+
+	entries, err = windowsCommon.GetEventLogErrorAndWarningEntries(s.Env().RemoteHost, "System")
+	s.Require().NoError(err, "should get errors and warnings from System event log")
+	s.Require().Empty(entries, "should not have errors or warnings from agents in the event log")
 }
 
 func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string) {
