@@ -16,7 +16,6 @@ import (
 
 	"github.com/benbjohnson/clock"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	genericstore "github.com/DataDog/datadog-agent/comp/core/tagger/generic_store"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/subscriber"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
@@ -45,22 +44,20 @@ type TagStore struct {
 
 	clock clock.Clock
 
-	cfg            config.Component
 	telemetryStore *telemetry.Store
 }
 
 // NewTagStore creates new LocalTaggerTagStore.
-func NewTagStore(cfg config.Component, telemetryStore *telemetry.Store) *TagStore {
-	return newTagStoreWithClock(cfg, clock.New(), telemetryStore)
+func NewTagStore(telemetryStore *telemetry.Store) *TagStore {
+	return newTagStoreWithClock(clock.New(), telemetryStore)
 }
 
-func newTagStoreWithClock(cfg config.Component, clock clock.Clock, telemetryStore *telemetry.Store) *TagStore {
+func newTagStoreWithClock(clock clock.Clock, telemetryStore *telemetry.Store) *TagStore {
 	return &TagStore{
 		telemetry:           make(map[string]map[string]float64),
 		store:               genericstore.NewObjectStore[EntityTags](),
 		subscriptionManager: subscriber.NewSubscriptionManager(telemetryStore),
 		clock:               clock,
-		cfg:                 cfg,
 		telemetryStore:      telemetryStore,
 	}
 }
