@@ -25,6 +25,8 @@ import (
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 )
 
+const namespace = "e2e-operator"
+
 type localKindOperatorSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
@@ -41,8 +43,7 @@ func localKindOperatorProvisioner() e2e.PulumiEnvRunFunc[environments.Kubernetes
 			return err
 		}
 
-		err = kindCluster.Export(ctx, &env.KubernetesCluster.ClusterOutput)
-		if err != nil {
+		if err := kindCluster.Export(ctx, &env.KubernetesCluster.ClusterOutput); err != nil {
 			return err
 		}
 
@@ -55,14 +56,11 @@ func localKindOperatorProvisioner() e2e.PulumiEnvRunFunc[environments.Kubernetes
 			return err
 		}
 
-		namespace := "e2e-operator"
-
 		fakeIntake, err := fakeintakeComp.NewLocalDockerFakeintake(&kindEnv, "fakeintake")
 		if err != nil {
 			return err
 		}
-		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
-		if err != nil {
+		if err := fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput); err != nil {
 			return err
 		}
 
@@ -108,7 +106,7 @@ func TestOperatorKindSuite(t *testing.T) {
 }
 
 func (k *localKindOperatorSuite) TestClusterAgentInstalled() {
-	res, _ := k.Env().KubernetesCluster.Client().CoreV1().Pods("blahblah").List(context.TODO(), v1.ListOptions{})
+	res, _ := k.Env().KubernetesCluster.Client().CoreV1().Pods(namespace).List(context.TODO(), v1.ListOptions{})
 	containsClusterAgent := false
 	for _, pod := range res.Items {
 		if strings.Contains(pod.Name, "cluster-agent") {
