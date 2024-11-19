@@ -200,6 +200,11 @@ static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offse
     // Parse Extensions
     __u64 extensions_end = offset + extensions_length;
     __u8 extensions_parsed = 0;
+    __u16 extension_type;
+    __u16 extension_length;
+    __u8 sv_list_length;
+    __u8 num_versions = 0;
+    __u16 sv_version;
 
     #pragma unroll(MAX_EXTENSIONS)
         for (int i = 0; i < MAX_EXTENSIONS; i++) {
@@ -207,14 +212,12 @@ static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offse
                 break;
             }
             // Read Extension Type (2 bytes)
-            __u16 extension_type;
             if (bpf_skb_load_bytes(skb, offset, &extension_type, sizeof(extension_type)) < 0)
                 return -1;
             extension_type = bpf_ntohs(extension_type);
             offset += 2;
 
             // Read Extension Length (2 bytes)
-            __u16 extension_length;
             if (bpf_skb_load_bytes(skb, offset, &extension_length, sizeof(extension_length)) < 0)
                 return -1;
             extension_length = bpf_ntohs(extension_length);
@@ -231,7 +234,6 @@ static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offse
                     return -1;
 
                 // Read list length (1 byte)
-                __u8 sv_list_length;
                 if (bpf_skb_load_bytes(skb, offset, &sv_list_length, sizeof(sv_list_length)) < 0)
                     return -1;
                 offset += 1;
@@ -241,10 +243,8 @@ static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offse
                     return -1;
 
                 // Parse versions
-                __u8 num_versions = 0;
                 #define MAX_SUPPORTED_VERSIONS 6
                 for (__u8 i = 0; i + 1 < sv_list_length && num_versions < MAX_SUPPORTED_VERSIONS; i += 2, num_versions++) {
-                    __u16 sv_version;
                     if (bpf_skb_load_bytes(skb, offset, &sv_version, sizeof(sv_version)) < 0)
                         return -1;
                     sv_version = bpf_ntohs(sv_version);
@@ -342,20 +342,21 @@ static __always_inline int parse_server_hello(struct __sk_buff *skb, __u64 offse
         // Parse Extensions
         __u64 extensions_end = offset + extensions_length;
         __u8 extensions_parsed = 0;
+        __u16 extension_type;
+        __u16 extension_length;
+        __u16 selected_version;
         #pragma unroll(MAX_EXTENSIONS)
             for (int i = 0; i < MAX_EXTENSIONS; i++) {
                 if (offset + 4 > extensions_end) {
                     break;
                 }
                 // Read Extension Type (2 bytes)
-                __u16 extension_type;
                 if (bpf_skb_load_bytes(skb, offset, &extension_type, sizeof(extension_type)) < 0)
                     return -1;
                 extension_type = bpf_ntohs(extension_type);
                 offset += 2;
 
                 // Read Extension Length (2 bytes)
-                __u16 extension_length;
                 if (bpf_skb_load_bytes(skb, offset, &extension_length, sizeof(extension_length)) < 0)
                     return -1;
                 extension_length = bpf_ntohs(extension_length);
@@ -375,7 +376,6 @@ static __always_inline int parse_server_hello(struct __sk_buff *skb, __u64 offse
                         return -1;
 
                     // Read selected version (2 bytes)
-                    __u16 selected_version;
                     if (bpf_skb_load_bytes(skb, offset, &selected_version, sizeof(selected_version)) < 0)
                         return -1;
                     selected_version = bpf_ntohs(selected_version);
