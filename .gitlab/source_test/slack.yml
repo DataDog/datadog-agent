@@ -9,8 +9,4 @@ slack_teams_channels_check:
     - !reference [.except_mergequeue]
     - when: on_success
   script:
-    # Python 3.12 changes default behavior how packages are installed.
-    # In particular, --break-system-packages command line option is 
-    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-    - python3 -m pip install codeowners -c tasks/libs/requirements-notifications.txt --break-system-packages
     - inv -e notify.check-teams
