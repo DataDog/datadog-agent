@@ -78,9 +78,10 @@ func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, diagn
 
 // NewProcessorOnlyProvider is used by the logs check subcommand as the feature does not require the functionalities of the log pipeline other then the processor.
 func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, cfg pkgconfigmodel.Reader, hostname hostnameinterface.Component) Provider {
-	outputChan := make(chan *message.Message, config.ChanSize)
+	chanSize := 100
+	outputChan := make(chan *message.Message, chanSize)
 	encoder := processor.JSONServerlessEncoder
-	inputChan := make(chan *message.Message, config.ChanSize)
+	inputChan := make(chan *message.Message, chanSize)
 	pipelineID := 0
 	pipelineMonitor := metrics.NewTelemetryPipelineMonitor(strconv.Itoa(pipelineID))
 	processor := processor.New(cfg, inputChan, outputChan, processingRules,
