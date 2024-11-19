@@ -20,7 +20,7 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.113.0"
+OCB_VERSION = "0.114.0"
 
 MANDATORY_COMPONENTS = {
     "extensions": [
@@ -266,11 +266,11 @@ def fetch_latest_release(repo):
     return gh.latest_release()
 
 
-def fetch_core_module_versions(version):
+def fetch_module_versions(repo, version):
     """
     Fetch versions.yaml from the provided URL and build a map of modules with their versions.
     """
-    url = f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector/{version}/versions.yaml"
+    url = f"https://raw.githubusercontent.com/{repo}/{version}/versions.yaml"
     print(f"Fetching versions from {url}")
 
     try:
@@ -315,19 +315,38 @@ def update_go_mod_file(go_mod_path, collector_version_modules):
         for _, modules in collector_version_modules.items()
         for module in modules
     }
+
+    # Regex to match any `require` line
+    require_regex = re.compile(r"^require\s+(\S+)\s+v[\d\.]+")
+
     for line in lines:
         updated_line = line
-        for version, modules in collector_version_modules.items():
-            for module in modules:
-                module_regex = compiled_modules[module]
-                match = module_regex.match(line)
-                if match:
-                    print(f"Updating {module} to version {version} in {go_mod_path}")
-                    updated_line = f"{match.group(0).split()[0]} {version}\n"
+
+        # Check for any `require` line case
+        require_match = require_regex.match(line)
+        if require_match:
+            module_name = require_match.group(1)
+            for version, modules in collector_version_modules.items():
+                if module_name in modules:
+                    print(f"Updating {module_name} to version {version} in {go_mod_path}")
+                    updated_line = f"require {module_name} {version}\n"
                     file_updated = True
-                    break  # Stop checking other modules once we find a match
-            if updated_line != line:
-                break  # If the line was updated, stop checking other versions
+                    break  # Stop checking once updated
+
+        # General case for other module versions
+        else:
+            for version, modules in collector_version_modules.items():
+                for module in modules:
+                    module_regex = compiled_modules[module]
+                    match = module_regex.match(line)
+                    if match:
+                        print(f"Updating {module} to version {version} in {go_mod_path}")
+                        updated_line = f"{match.group(0).split()[0]} {version}\n"
+                        file_updated = True
+                        break  # Stop checking other modules once we find a match
+                if updated_line != line:
+                    break  # If the line was updated, stop checking other versions
+
         updated_lines.append(updated_line)
 
     # Write the updated lines back to the file only if changes were made
@@ -380,7 +399,7 @@ def update_core_collector():
     collector_version = fetch_latest_release(repo)
     if collector_version:
         print(f"Latest release for {repo}: {collector_version}")
-        version_modules = fetch_core_module_versions(collector_version)
+        version_modules = fetch_module_versions(repo, collector_version)
         update_all_go_mod(version_modules)
         old_version = read_old_version(MANIFEST_FILE)
         if old_version:
@@ -438,13 +457,10 @@ def update_versions_in_yaml(yaml_file_path, new_version, component_prefix):
 def update_collector_contrib():
     print("Updating the collector-contrib version in all go.mod files.")
     repo = "open-telemetry/opentelemetry-collector-contrib"
-    modules = ["github.com/open-telemetry/opentelemetry-collector-contrib"]
     collector_version = fetch_latest_release(repo)
     if collector_version:
         print(f"Latest release for {repo}: {collector_version}")
-        version_modules = {
-            collector_version: modules,
-        }
+        version_modules = fetch_module_versions(repo, collector_version)
         update_all_go_mod(version_modules)
         update_versions_in_yaml(
             MANIFEST_FILE,
