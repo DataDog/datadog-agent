@@ -25,7 +25,7 @@ from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import get_commit_sha, get_default_branch
+from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -1778,14 +1778,12 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
 
 
 @task
-def process_btfhub_archive(ctx, branch=None):
+def process_btfhub_archive(ctx, branch="main"):
     """
     process btfhub-archive repo to only select BTF tarball files of a single architecture
     :param ctx: invoke context
     :param branch: branch of DataDog/btfhub-archive to clone
     """
-
-    branch = branch or get_default_branch()
     output_dir = os.getcwd()
     with tempfile.TemporaryDirectory() as temp_dir:
         with ctx.cd(temp_dir):
