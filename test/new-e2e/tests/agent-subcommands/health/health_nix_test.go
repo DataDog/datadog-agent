@@ -14,15 +14,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type linuxHealthSuite struct {
 	baseHealthSuite
-	descriptor os.Descriptor
 }
 
 func TestLinuxHealthSuite(t *testing.T) {
@@ -42,8 +39,7 @@ func (v *linuxHealthSuite) TestDefaultInstallUnhealthy() {
 
 	// restart the agent, which validates the key using the fakeintake at startup
 	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
-		awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\nforwarder_apikey_validation_interval: 1")),
+		awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\n")),
 	))
 
 	require.EventuallyWithT(v.T(), func(collect *assert.CollectT) {
