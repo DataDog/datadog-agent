@@ -1394,7 +1394,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
 
-	fakeManualResolver := NewFakeManualResolver()
+	fakeManualResolver := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                         true,
@@ -1414,7 +1414,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 		anomalyDetectionMinimumStablePeriodDNS:     10 * time.Second,
 		anomalyDetectionDefaultMinimumStablePeriod: 10 * time.Second,
 		anomalyDetectionWarmupPeriod:               1 * time.Second,
-		tagsResolver:                               fakeManualResolver,
+		tagger:                                     fakeManualResolver,
 	}))
 	if err != nil {
 		t.Fatal(err)
