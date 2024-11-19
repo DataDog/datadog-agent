@@ -86,7 +86,9 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
 	inactivityTimeout := 1 * time.Second
 	idleTimer := time.NewTimer(inactivityTimeout)
 
-	// Goroutine to monitor the output channel
+	// Create a quit channel to signal when to stop blocking
+	quit := make(chan struct{})
+
 	go func() {
 		for msg := range outputChan {
 			fmt.Println(string(msg.GetContent()))
@@ -97,11 +99,17 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
 			}
 			idleTimer.Reset(inactivityTimeout)
 		}
+		close(quit)
 	}()
 
-	// Block the main thread, waiting for either inactivity or processing to finish
-	select {
-	case <-idleTimer.C: // Timeout if no activity within the defined period
-		return nil
-	}
+	// Wait for the quit channel to close or the timer to expire
+	go func() {
+		<-idleTimer.C
+		quit <- struct{}{} // Signal timeout
+	}()
+
+	// Block until a signal is received from quit
+	<-quit
+
+	return nil
 }
