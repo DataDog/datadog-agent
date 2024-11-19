@@ -384,9 +384,11 @@ func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() 
 
 	// Configure transport based on user setting
 	switch cfg.Get("logs_config.transport_type") {
-	case "http1.1":
+	case "http1":
 		transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
-		transport.TLSClientConfig.NextProtos = []string{"http/1.1"}
+		transport.TLSClientConfig = &tls.Config{
+			NextProtos: []string{"http/1.1"},
+		}
 	case "auto":
 		// Use default ALPN auto-negotiation
 	default:
@@ -401,7 +403,7 @@ func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() 
 			Transport: transport,
 		}
 
-		log.Infof("Log Agent is using %v transport for connection", getTransportProtocol(client))
+		log.Tracef("Log Agent is using %v transport for connection", getTransportProtocol(client))
 		return client
 	}
 }
@@ -409,34 +411,24 @@ func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() 
 // getTransportProtocol return the transport type
 func getTransportProtocol(client *http.Client) string {
 	transport, ok := client.Transport.(*http.Transport)
-	// log.Infof("Transport TLSNextProto elements %v", transport.TLSNextProto)
-	// log.Infof("Transport TLSClientConfig.NextProtos elements %v", transport.TLSClientConfig.NextProtos)
 	if !ok || transport == nil {
 		return "unknown"
 	}
 
-	// Check for HTTP/2 explicitly in TLSNextProto
-	if transport.ForceAttemptHTTP2 {
-		return "HTTP/2"
-	}
-
-	// Check for specific protocols in NextProtos
-	if transport.TLSClientConfig != nil {
-		for _, proto := range transport.TLSClientConfig.NextProtos {
-			log.Infof("Transport Protocol is %s", proto)
-			switch proto {
-			case "h2":
-				return "HTTP/2"
-			case "http/1.1":
-				return "HTTP/1.1"
-			case "http/1.0":
-				return "HTTP/1.0"
+	// Check if HTTP/2 is explicitly disabled, forcing HTTP/1.1
+	if len(transport.TLSNextProto) == 0 {
+		if transport.TLSClientConfig != nil && len(transport.TLSClientConfig.NextProtos) > 0 {
+			for _, proto := range transport.TLSClientConfig.NextProtos {
+				if proto == "http/1.1" {
+					return "HTTP/1.1"
+				}
 			}
 		}
 	}
 
-	// Default to HTTP/1.1 if no specific protocol is found
+	// If no specific protocol is forced, return "auto negotiation"
 	return "auto negotiation"
+
 }
 
 // buildURL buils a url from a config endpoint.

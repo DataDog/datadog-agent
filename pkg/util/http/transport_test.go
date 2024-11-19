@@ -192,25 +192,6 @@ func TestCreateHTTPTransport(t *testing.T) {
 	transport = CreateHTTPTransport(c)
 	assert.Equal(t, transport.TLSHandshakeTimeout, time.Second)
 }
-func TestCreateHTTPT2ransport(t *testing.T) {
-	c := configmock.New(t)
-
-	// Check if the force_http2 key is known
-	configKey := c.IsKnown("logs_config.use_http2")
-	assert.True(t, configKey)
-
-	// Check if the http transport is forced to use HTTP2
-	c.SetWithoutSource("logs_config.use_http2", true)
-	transport := CreateHTTPTransport(c)
-	assert.True(t, transport.ForceAttemptHTTP2)
-
-	// Check if the http transport is not forced to use HTTP2
-	c.SetWithoutSource("logs_config.use_http2", false)
-	transport = CreateHTTPTransport(c)
-	assert.False(t, transport.ForceAttemptHTTP2)
-
-}
-
 func TestNoProxyWarningMap(t *testing.T) {
 	setupTest(t)
 

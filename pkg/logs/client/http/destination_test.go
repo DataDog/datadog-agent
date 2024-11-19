@@ -366,3 +366,37 @@ func TestDestinationHA(t *testing.T) {
 		assert.Equal(t, isEndpointMRF, isDestMRF)
 	}
 }
+
+func TestTransportProtocol_HTTP1(t *testing.T) {
+	c := configmock.New(t)
+
+	assert.True(t, c.IsKnown("logs_config.transport_type"), "Config key logs_config.transport_type should be known")
+
+	// Force HTTP/1
+	c.SetWithoutSource("logs_config.transport_type", "http1")
+
+	timeout := 5 * time.Second
+	client := httpClientFactory(timeout, c)
+
+	protocol := getTransportProtocol(client())
+
+	// Assert the protocol is HTTP/1
+	assert.Equal(t, "HTTP/1.1", protocol, "Expected protocol to be HTTP/1.1")
+}
+
+func TestTransportProtocol_Auto(t *testing.T) {
+	c := configmock.New(t)
+
+	assert.True(t, c.IsKnown("logs_config.transport_type"), "Config key logs_config.transport_type should be known")
+
+	// Use default protocol: auto-negotiation
+	c.SetWithoutSource("logs_config.transport_type", "auto")
+
+	timeout := 5 * time.Second
+	client := httpClientFactory(timeout, c)
+
+	protocol := getTransportProtocol(client())
+
+	// Assert the protocol defaults to auto-negotiation
+	assert.Equal(t, "auto negotiation", protocol, "Expected protocol to be auto-negotiated")
+}
