@@ -71,7 +71,7 @@ func processActivityNodeToProto(pan *ProcessNode) *adproto.ProcessActivityNode {
 	}
 
 	for _, sysc := range pan.Syscalls {
-		ppan.Syscalls = append(ppan.Syscalls, uint32(sysc))
+		ppan.Syscalls = append(ppan.Syscalls, uint32(sysc.Syscall))
 	}
 
 	return ppan
