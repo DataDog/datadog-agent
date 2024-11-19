@@ -21,7 +21,6 @@ from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
-    get_goenv,
     get_version,
     gitlab_section,
 )
@@ -229,22 +228,6 @@ def build(
             development=development,
             windows_sysprobe=windows_sysprobe,
         )
-
-
-def create_launcher(ctx, agent, src, dst):
-    cc = get_goenv(ctx, "CC")
-    if not cc:
-        print("Failed to find C compiler")
-        raise Exit(code=1)
-
-    cmd = "{cc} -DDD_AGENT_PATH='\"{agent_bin}\"' -DDD_AGENT='\"{agent}\"' -o {launcher_bin} ./cmd/agent/launcher/launcher.c"
-    args = {
-        "cc": cc,
-        "agent": agent,
-        "agent_bin": src,
-        "launcher_bin": dst,
-    }
-    ctx.run(cmd.format(**args))
 
 
 def render_config(ctx, env, flavor, skip_assets, build_tags, development, windows_sysprobe):
