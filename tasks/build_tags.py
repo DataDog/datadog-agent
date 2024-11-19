@@ -117,6 +117,9 @@ DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib", "zstd"}
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
 IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib", "zstd"}
 
+# INSTALLER_TAGS lists the tags needed when building the installer
+INSTALLER_TAGS = {"docker", "ec2", "gce", "kubelet"}
+
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
 PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess"}).difference({"otlp", "python", "trivy"})
 
@@ -200,6 +203,7 @@ build_tags = {
         "cluster-agent": CLUSTER_AGENT_TAGS,
         "cluster-agent-cloudfoundry": CLUSTER_AGENT_CLOUDFOUNDRY_TAGS,
         "dogstatsd": DOGSTATSD_TAGS,
+        "installer": INSTALLER_TAGS,
         "process-agent": PROCESS_AGENT_TAGS,
         "security-agent": SECURITY_AGENT_TAGS,
         "serverless": SERVERLESS_TAGS,
