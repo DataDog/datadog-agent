@@ -30,8 +30,6 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -2014,66 +2012,6 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	assert.Equal(t, addrPort(server.Address()), int(incoming.SPort))
 	assert.Equal(t, c.LocalAddr().(*net.TCPAddr).Port, int(incoming.DPort))
 	assert.Equal(t, network.INCOMING, incoming.Direction)
-}
-
-func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
-	t := s.T()
-	t.Skip()
-	t.Run("ringbuf_enabled", func(t *testing.T) {
-		if features.HaveMapType(ebpf.RingBuf) != nil {
-			t.Skip("skipping test as ringbuffers are not supported on this kernel")
-		}
-		c := testConfig()
-		skipOnEbpflessNotSupported(t, c)
-		c.NPMRingbuffersEnabled = true
-		testPreexistingEmptyIncomingConnectionDirection(t, c)
-	})
-	t.Run("ringbuf_disabled", func(t *testing.T) {
-		c := testConfig()
-		c.NPMRingbuffersEnabled = false
-		testPreexistingEmptyIncomingConnectionDirection(t, c)
-	})
-}
-
-func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *config.Config) {
-	// Start the client and server before we enable the system probe to test that the tracer picks
-	// up the pre-existing connection
-
-	ch := make(chan struct{})
-	server := tracertestutil.NewTCPServer(func(c net.Conn) {
-		<-ch
-		c.Close()
-		close(ch)
-	})
-	require.NoError(t, server.Run())
-	t.Cleanup(server.Shutdown)
-
-	c, err := net.DialTimeout("tcp", server.Address(), 5*time.Second)
-	require.NoError(t, err)
-
-	// Enable BPF-based system probe
-	tr := setupTracer(t, config)
-
-	// close the server connection so the tracer picks it up
-	ch <- struct{}{}
-	<-ch
-
-	var conn *network.ConnectionStats
-	require.Eventually(t, func() bool {
-		conns := getConnections(t, tr)
-		t.Log(conns) // for debugging failures
-		conn, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
-		return conn != nil
-	}, 3*time.Second, 100*time.Millisecond)
-
-	m := conn.Monotonic
-	assert.Zero(t, m.SentBytes, "sent bytes should be 0")
-	assert.Zero(t, m.RecvBytes, "recv bytes should be 0")
-	assert.Zero(t, m.SentPackets, "sent packets should be 0")
-	assert.Zero(t, m.RecvPackets, "recv packets should be 0")
-	assert.Zero(t, m.TCPEstablished, "tcp established should be 0")
-	assert.Equal(t, uint16(1), m.TCPClosed, "tcp closed should be 1")
-	assert.Equal(t, network.INCOMING, conn.Direction, "connection direction should be incoming")
 }
 
 func (s *TracerSuite) TestUDPIncomingDirectionFix() {

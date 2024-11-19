@@ -51,30 +51,30 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     conn_stats_ts_t *cst = NULL;
     tcp_stats_t *tst = NULL;
     u32 *retrans = NULL;
-    bool empty_conn = true;
+    bool needs_flush = false;
     bool is_tcp = get_proto(&conn.tup) == CONN_TYPE_TCP;
     bool is_udp = get_proto(&conn.tup) == CONN_TYPE_UDP;
 
     if (is_tcp) {
         tst = bpf_map_lookup_elem(&tcp_stats, &(conn.tup));
+        // only proceed if the delete is successful to prevent multiple invocations of this method from flushing the same connection
         if (tst && bpf_map_delete_elem(&tcp_stats, &(conn.tup)) == 0) {
             conn.tcp_stats = *tst;
-            empty_conn = false;
+            needs_flush = true;
         }
 
         conn.tup.pid = 0;
         retrans = bpf_map_lookup_elem(&tcp_retransmits, &(conn.tup));
-        if (retrans) {
-            empty_conn = false;
+        if (retrans && bpf_map_delete_elem(&tcp_retransmits, &(conn.tup)) == 0) {
+            needs_flush = true;
             conn.tcp_stats.retransmits = *retrans;
-            bpf_map_delete_elem(&tcp_retransmits, &(conn.tup));
         }
         conn.tup.pid = tup->pid;
 
         conn.tcp_stats.state_transitions |= (1 << TCP_CLOSE);
         conn.tcp_stats.failure_reason = tcp_failure_reason;
         if (tcp_failure_reason) {
-            empty_conn = false;
+            needs_flush = true;
             increment_telemetry_count(tcp_failed_connect);
         }
     }
@@ -82,10 +82,10 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     cst = bpf_map_lookup_elem(&conn_stats, &(conn.tup));
     if (cst && bpf_map_delete_elem(&conn_stats, &(conn.tup)) == 0) {
         conn.conn_stats = *cst;
-        empty_conn = false;
+        needs_flush = true;
     }
 
-    if (empty_conn) {
+    if (!needs_flush) {
         if (is_udp) {
             increment_telemetry_count(udp_dropped_conns);
         }
