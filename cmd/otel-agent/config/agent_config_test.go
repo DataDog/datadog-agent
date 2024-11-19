@@ -141,11 +141,7 @@ func (suite *ConfigTestSuite) TestAgentConfigSetAPMFeaturesFromDatadogYaml() {
 func (suite *ConfigTestSuite) TestAgentConfigSetAPMFeaturesFromEnv() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
-	oldval, _ := os.LookupEnv("DD_APM_FEATURES")
 	t.Setenv("DD_APM_FEATURES", "test1,test2")
-	defer func() {
-		t.Setenv("DD_APM_FEATURES", oldval)
-	}()
 	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
 	if err != nil {
 		t.Errorf("Failed to load agent config: %v", err)
