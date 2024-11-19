@@ -7,7 +7,6 @@ package cdn
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,14 +27,13 @@ func newCDNLocal(env *env.Env) (CDN, error) {
 
 // Get gets the configuration from the CDN.
 func (c *cdnLocal) Get(_ context.Context, pkg string) (cfg Config, err error) {
-	files, err := os.ReadDir(c.dirPath)
+	f, err := os.ReadDir(c.dirPath)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't read directory %s: %w", c.dirPath, err)
 	}
 
-	var orderConfig *orderConfig
-	var layers = [][]byte{}
-	for _, file := range files {
+	files := map[string][]byte{}
+	for _, file := range f {
 		if file.IsDir() {
 			continue
 		}
@@ -45,28 +43,22 @@ func (c *cdnLocal) Get(_ context.Context, pkg string) (cfg Config, err error) {
 			return nil, fmt.Errorf("couldn't read file %s: %w", file.Name(), err)
 		}
 
-		if file.Name() == configOrderID {
-			err = json.Unmarshal(contents, &orderConfig)
-			if err != nil {
-				return nil, fmt.Errorf("couldn't unmarshal config order %s: %w", file.Name(), err)
-			}
-		} else {
-			layers = append(layers, contents)
-		}
+		files[file.Name()] = contents
 	}
 
-	if orderConfig == nil {
-		return nil, fmt.Errorf("no configuration_order found")
+	layers, err := getOrderedScopedLayers(files, nil)
+	if err != nil {
+		return nil, err
 	}
 
 	switch pkg {
 	case "datadog-agent":
-		cfg, err = newAgentConfig(orderConfig, layers...)
+		cfg, err = newAgentConfig(layers...)
 		if err != nil {
 			return nil, err
 		}
 	case "datadog-apm-inject":
-		cfg, err = newAPMConfig([]string{}, orderConfig, layers...)
+		cfg, err = newAPMConfig([]string{}, layers...)
 		if err != nil {
 			return nil, err
 		}

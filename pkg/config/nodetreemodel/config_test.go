@@ -8,6 +8,7 @@ package nodetreemodel
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 
@@ -206,6 +207,16 @@ file: 2
 	assert.Equal(t, model.SourceCLI, cfg.GetSource("cli"))
 }
 
+func TestGetSource(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.BuildSchema()
+
+	assert.Equal(t, model.SourceDefault, cfg.GetSource("a"))
+	cfg.Set("a", 0, model.SourceAgentRuntime)
+	assert.Equal(t, model.SourceAgentRuntime, cfg.GetSource("a"))
+}
+
 func TestSetLowerSource(t *testing.T) {
 	cfg := NewConfig("test", "TEST", nil)
 
@@ -309,4 +320,30 @@ func TestAllSettingsBySource(t *testing.T) {
 		model.SourceCLI:                map[string]interface{}{},
 	}
 	assert.Equal(t, expected, cfg.AllSettingsBySource())
+}
+
+func TestIsSet(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b", 0)
+	cfg.BuildSchema()
+
+	cfg.Set("b", 123, model.SourceAgentRuntime)
+
+	assert.True(t, cfg.IsSet("b"))
+	assert.True(t, cfg.IsSet("a"))
+	assert.False(t, cfg.IsSet("unknown"))
+}
+
+func TestAllKeysLowercased(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.SetDefault("b", 0)
+	cfg.BuildSchema()
+
+	cfg.Set("b", 123, model.SourceAgentRuntime)
+
+	keys := cfg.AllKeysLowercased()
+	sort.Strings(keys)
+	assert.Equal(t, []string{"a", "b"}, keys)
 }

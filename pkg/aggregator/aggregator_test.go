@@ -22,8 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -146,7 +145,7 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 	// -
 
 	s := &MockSerializerIterableSerie{}
-	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
+	taggerComponent := taggerMock.SetupFakeTagger(t)
 	agg := NewBufferedAggregator(s, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval)
 
 	agg.addServiceCheck(servicecheck.ServiceCheck{
@@ -179,7 +178,7 @@ func TestAddEventDefaultValues(t *testing.T) {
 	// -
 
 	s := &MockSerializerIterableSerie{}
-	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
+	taggerComponent := taggerMock.SetupFakeTagger(t)
 	agg := NewBufferedAggregator(s, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval)
 
 	agg.addEvent(event.Event{
@@ -229,7 +228,7 @@ func TestDefaultData(t *testing.T) {
 	// -
 
 	s := &MockSerializerIterableSerie{}
-	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
+	taggerComponent := taggerMock.SetupFakeTagger(t)
 	agg := NewBufferedAggregator(s, nil, taggerComponent, "hostname", DefaultFlushInterval)
 
 	start := time.Now()
@@ -584,7 +583,7 @@ func TestTags(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
 
-			taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
+			taggerComponent := taggerMock.SetupFakeTagger(t)
 
 			agg := NewBufferedAggregator(nil, nil, taggerComponent, tt.hostname, time.Second)
 			agg.agentTags = tt.agentTags
@@ -619,7 +618,7 @@ func TestAddDJMRecurrentSeries(t *testing.T) {
 
 	s := &MockSerializerIterableSerie{}
 	// NewBufferedAggregator with DJM enable will create a new recurrentSeries
-	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
+	taggerComponent := taggerMock.SetupFakeTagger(t)
 	NewBufferedAggregator(s, nil, taggerComponent, "hostname", DefaultFlushInterval)
 
 	expectedRecurrentSeries := metrics.Series{&metrics.Serie{
