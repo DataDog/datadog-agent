@@ -33,7 +33,7 @@ network_path:
     enabled: true
 
 runtime_security_config:
-  ## Set to true to enable Threat Detection
+  ## Set to true to enable CWS
   enabled: true
 
 cluster_checks:
