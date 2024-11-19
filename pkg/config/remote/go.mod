@@ -9,6 +9,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
+	github.com/DataDog/datadog-agent/pkg/api => ../../api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../config/env
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../config/mock
@@ -16,6 +17,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../config/nodetreemodel
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../config/setup
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../config/teeconfig
+	github.com/DataDog/datadog-agent/pkg/config/utils => ../utils
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ../../obfuscate
 	github.com/DataDog/datadog-agent/pkg/proto => ../../proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../remoteconfig/state
@@ -37,10 +39,11 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil
+	github.com/DataDog/datadog-agent/pkg/version => ../../version
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.56.0-rc.3

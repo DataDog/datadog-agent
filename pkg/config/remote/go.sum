@@ -9,12 +9,6 @@ github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/DataDog/appsec-internal-go v1.7.0 h1:iKRNLih83dJeVya3IoUfK+6HLD/hQsIbyBlfvLmAeb0=
 github.com/DataDog/appsec-internal-go v1.7.0/go.mod h1:wW0cRfWBo4C044jHGwYiyh5moQV2x0AhnwqMuiX7O/g=
-github.com/DataDog/datadog-agent/pkg/api v0.56.0-rc.3 h1:RZwMYeWW8MY2yPUMK+dIah+I6hoA8WmyqSAb9D8pV6A=
-github.com/DataDog/datadog-agent/pkg/api v0.56.0-rc.3/go.mod h1:x7xGEFazXx5rfwVDvi0Nsi0u2ZSncM6JhBmFvJs1VHw=
-github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3 h1:kyu8bzNmMW8rQUrsafGTs9gsQ0pohcuW0lvXZARiqjs=
-github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3/go.mod h1:1NFc3MvjjvdozSRHBt3giWKnjapBtTun3GNsQyddvwo=
-github.com/DataDog/datadog-agent/pkg/version v0.56.0-rc.3 h1:2v/0Ak4pHfQz5mH43mbbofgfgexk4D09bjeeI6IWTF4=
-github.com/DataDog/datadog-agent/pkg/version v0.56.0-rc.3/go.mod h1:EHeMJExE74SMdRoRCEuLOxbRgjfQwCVngMqFBiz1VN8=
 github.com/DataDog/datadog-go/v5 v5.5.0 h1:G5KHeB8pWBNXT4Jtw0zAkhdxEAWSpWH00geHI6LDrKU=
 github.com/DataDog/datadog-go/v5 v5.5.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/go-libddwaf/v3 v3.3.0 h1:jS72fuQpFgJZEdEJDmHJCPAgNTEMZoz1EUvimPUOiJ4=

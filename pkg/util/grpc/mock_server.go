@@ -14,13 +14,11 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"testing"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -31,16 +29,20 @@ type grpcServer struct {
 }
 
 // NewMockGrpcSecureServer creates a new agent secure gRPC server for testing purposes.
-func NewMockGrpcSecureServer(t *testing.T, port string) (*grpc.Server, string) {
+func NewMockGrpcSecureServer(port string) (*grpc.Server, string, error) {
 	// Generate a self-signed TLS certificate for the gRPC server.
 
 	tlsKeyPair, err := buildSelfSignedTLSCertificate("127.0.0.1")
-	require.NoError(t, err)
+	if err != nil {
+		return nil, "", err
+	}
 
 	// Generate an authentication token and set up our gRPC server to both serve over TLS and authenticate each RPC
 	// using the authentication token.
 	authToken, err := generateAuthenticationToken()
-	require.NoError(t, err)
+	if err != nil {
+		return nil, "", err
+	}
 
 	serverOpts := []grpc.ServerOption{
 		grpc.Creds(credentials.NewServerTLSFromCert(tlsKeyPair)),
@@ -49,17 +51,21 @@ func NewMockGrpcSecureServer(t *testing.T, port string) (*grpc.Server, string) {
 
 	// Start dummy gRPc server mocking the core agent
 	serverListener, err := net.Listen("tcp", "127.0.0.1:"+port)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, "", err
+	}
 
 	s := grpc.NewServer(serverOpts...)
 	pb.RegisterAgentSecureServer(s, &grpcServer{})
 
 	go func() {
 		err := s.Serve(serverListener)
-		require.NoError(t, err)
+		if err != nil {
+			panic(err)
+		}
 	}()
 
-	return s, authToken
+	return s, authToken, nil
 }
 
 func buildSelfSignedTLSCertificate(host string) (*tls.Certificate, error) {
