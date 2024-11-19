@@ -131,6 +131,18 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*Probe, err
 		}
 	}
 
+	// `security_bpf_map_alloc` was renamed to `security_bpf_map_create`
+	// in this commit: https://github.com/torvalds/linux/commit/a2431c7eabcf9bd5a1e7a1f7ecded40fdda4a8c5
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get kernel version: %s", err)
+	}
+	if kv >= kernel.VersionCode(6, 9, 0) {
+		delete(collSpec.Programs, "k_map_alloc")
+	} else {
+		delete(collSpec.Programs, "k_map_create")
+	}
+
 	p := Probe{nrcpus: nrcpus}
 	p.coll, err = ebpf.NewCollectionWithOptions(collSpec, opts.VerifierOptions)
 	if err != nil {
