@@ -62,8 +62,9 @@ type provider struct {
 
 // processorOnlyProvider implements the Provider provider interface and only contains the processor
 type processorOnlyProvider struct {
-	processor  *processor.Processor
-	outputChan chan *message.Message
+	processor       *processor.Processor
+	outputChan      chan *message.Message
+	pipelineMonitor *metrics.TelemetryPipelineMonitor
 }
 
 // NewProvider returns a new Provider
@@ -88,8 +89,9 @@ func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiv
 		encoder, diagnosticMessageReceiver, hostname, pipelineMonitor)
 
 	p := &processorOnlyProvider{
-		processor:  processor,
-		outputChan: outputChan,
+		processor:       processor,
+		outputChan:      outputChan,
+		pipelineMonitor: pipelineMonitor,
 	}
 
 	return p
@@ -265,7 +267,7 @@ func (p *processorOnlyProvider) NextPipelineChan() chan *message.Message {
 }
 
 func (p *processorOnlyProvider) NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor) {
-	return nil, nil
+	return p.outputChan, p.pipelineMonitor
 }
 
 // NextPipelineChanWithMonitor returns the next pipeline input channel with it's monitor.
