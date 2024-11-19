@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package fentry
+package fentry //nolint:revive // TODO
 
 import (
 	manager "github.com/DataDog/ebpf-manager"

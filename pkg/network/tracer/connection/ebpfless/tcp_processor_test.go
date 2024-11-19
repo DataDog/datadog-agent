@@ -21,14 +21,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-var localhost net.IP = net.ParseIP("127.0.0.1")
-var remoteIP net.IP = net.ParseIP("12.34.56.78")
+var localhost net.IP = net.ParseIP("127.0.0.1")  //nolint:revive // TODO
+var remoteIP net.IP = net.ParseIP("12.34.56.78") //nolint:revive // TODO
 
 const (
 	minIhl            = 5
 	defaultLocalPort  = 12345
 	defaultRemotePort = 8080
-	defaultNsId       = 123
+	defaultNsId       = 123 //nolint:revive // TODO
 )
 
 const (
@@ -77,7 +77,7 @@ type testCapture struct {
 	tcp     *layers.TCP
 }
 
-func (tc testCapture) reverse() testCapture {
+func (tc testCapture) reverse() testCapture { //nolint:unused // TODO
 	ret := tc
 	if tc.pktType == unix.PACKET_HOST {
 		ret.pktType = unix.PACKET_OUTGOING
@@ -99,7 +99,7 @@ func (tc testCapture) reverse() testCapture {
 	ret.tcp = &tcp
 	return ret
 }
-func reversePkts(tc []testCapture) []testCapture {
+func reversePkts(tc []testCapture) []testCapture { //nolint:unused // TODO
 	var ret []testCapture
 	for _, t := range tc {
 		ret = append(ret, t.reverse())
@@ -108,7 +108,7 @@ func reversePkts(tc []testCapture) []testCapture {
 }
 
 // TODO can this be merged with the logic creating scratchConns in ebpfless tracer?
-func makeTcpStates(synPkt testCapture) *network.ConnectionStats {
+func makeTcpStates(synPkt testCapture) *network.ConnectionStats { //nolint:revive // TODO
 	var family network.ConnectionFamily
 	var srcIP, dstIP net.IP
 	if synPkt.ipv4 != nil && synPkt.ipv6 != nil {
@@ -157,7 +157,7 @@ type tcpTestFixture struct {
 	localSeqBase, remoteSeqBase uint32
 }
 
-const TCP_HEADER_SIZE = 20
+const TCP_HEADER_SIZE = 20 //nolint:revive // TODO
 
 func (fixture *tcpTestFixture) incoming(payloadLen uint16, relSeq, relAck uint32, flags uint8) testCapture {
 	ipv4 := ipv4Packet(remoteIP, localhost, minIhl*4+TCP_HEADER_SIZE+payloadLen)
@@ -185,7 +185,7 @@ func (fixture *tcpTestFixture) outgoing(payloadLen uint16, relSeq, relAck uint32
 	}
 }
 
-func newTcpTestFixture(t *testing.T, localSeqBase, remoteSeqBase uint32) *tcpTestFixture {
+func newTcpTestFixture(t *testing.T, localSeqBase, remoteSeqBase uint32) *tcpTestFixture { //nolint:revive // TODO
 	return &tcpTestFixture{
 		t:             t,
 		tcp:           NewTCPProcessor(),
@@ -203,7 +203,7 @@ func (fixture *tcpTestFixture) runPkt(pkt testCapture) {
 	require.NoError(fixture.t, err)
 }
 
-func (fixture *tcpTestFixture) runPkts(packets []testCapture) {
+func (fixture *tcpTestFixture) runPkts(packets []testCapture) { //nolint:unused // TODO
 	for _, pkt := range packets {
 		fixture.runPkt(pkt)
 	}

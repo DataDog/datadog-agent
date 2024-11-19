@@ -385,7 +385,22 @@
         "name": {
           "type": "string"
         },
-        "value": true,
+        "value": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "array"
+            }
+          ]
+        },
         "field": {
           "type": "string"
         },
