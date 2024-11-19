@@ -584,10 +584,10 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	k8s.io/component-base v0.31.2
 	mellium.im/sasl v0.3.2 // indirect
-	modernc.org/libc v1.41.0 // indirect
+	modernc.org/libc v1.55.3 // indirect
 	modernc.org/mathutil v1.6.0
-	modernc.org/memory v1.7.2 // indirect
-	modernc.org/sqlite v1.29.5
+	modernc.org/memory v1.8.0 // indirect
+	modernc.org/sqlite v1.34.1
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.30.3 // indirect
 	sigs.k8s.io/controller-runtime v0.19.0 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
