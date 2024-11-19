@@ -1040,22 +1040,22 @@ func (m *mockRDNSQuerier) GetHostnames(ctx context.Context, ipAddrs []string) ma
 
 func TestHostnameEnrichment_NoMetadata(t *testing.T) {
 	rdnsquerier := new(mockRDNSQuerier)
-	device_metadata := []metadata.DeviceMetadata{}
+	deviceMetadata := []metadata.DeviceMetadata{}
 
-	result := hostnameEnrichment(device_metadata, rdnsquerier, 5*time.Second)
+	result := hostnameEnrichment(deviceMetadata, rdnsquerier, 5*time.Second)
 
 	assert.Empty(t, result)
 }
 
 func TestHostnameEnrichment_SuccessfulLookup(t *testing.T) {
 	rdnsquerier := new(mockRDNSQuerier)
-	device_metadata := []metadata.DeviceMetadata{
+	deviceMetadata := []metadata.DeviceMetadata{
 		{ID: "device1", IPAddress: "10.2.3.4"},
 	}
 
 	rdnsquerier.On("GetHostname", mock.Anything, "10.2.3.4").Return("hostname-10.2.3.4", nil)
 
-	result := hostnameEnrichment(device_metadata, rdnsquerier, 5*time.Second)
+	result := hostnameEnrichment(deviceMetadata, rdnsquerier, 5*time.Second)
 
 	assert.Equal(t, "hostname-10.2.3.4", result[0].DNSHostname)
 	rdnsquerier.AssertExpectations(t)
@@ -1063,13 +1063,13 @@ func TestHostnameEnrichment_SuccessfulLookup(t *testing.T) {
 
 func TestHostnameEnrichment_Timeout(t *testing.T) {
 	rdnsquerier := new(mockRDNSQuerier)
-	device_metadata := []metadata.DeviceMetadata{
+	deviceMetadata := []metadata.DeviceMetadata{
 		{ID: "device1", IPAddress: "10.2.3.4"},
 	}
 
 	rdnsquerier.On("GetHostname", mock.Anything, "10.2.3.4").Return("", context.DeadlineExceeded)
 
-	result := hostnameEnrichment(device_metadata, rdnsquerier, 1*time.Nanosecond)
+	result := hostnameEnrichment(deviceMetadata, rdnsquerier, 1*time.Nanosecond)
 
 	assert.Equal(t, "", result[0].DNSHostname)
 	rdnsquerier.AssertExpectations(t)
@@ -1077,13 +1077,13 @@ func TestHostnameEnrichment_Timeout(t *testing.T) {
 
 func TestHostnameEnrichment_Error(t *testing.T) {
 	rdnsquerier := new(mockRDNSQuerier)
-	device_metadata := []metadata.DeviceMetadata{
+	deviceMetadata := []metadata.DeviceMetadata{
 		{ID: "device1", IPAddress: "10.2.3.4"},
 	}
 
 	rdnsquerier.On("GetHostname", mock.Anything, "10.2.3.4").Return("", errors.New("lookup error"))
 
-	result := hostnameEnrichment(device_metadata, rdnsquerier, 5*time.Second)
+	result := hostnameEnrichment(deviceMetadata, rdnsquerier, 5*time.Second)
 
 	assert.Equal(t, "", result[0].DNSHostname)
 	rdnsquerier.AssertExpectations(t)
