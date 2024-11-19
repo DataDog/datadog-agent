@@ -24,7 +24,6 @@ var BTFHubVsRcPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameIoKiocbStructCtx,
 	constantfetch.OffsetNameMountMntID,
 	constantfetch.OffsetNameSocketProtocol,
-
 }
 
 var RCVsFallbackPossiblyMissingConstants = []string{
@@ -85,7 +84,7 @@ func TestOctogonConstants(t *testing.T) {
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
 		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&secconfig.Probe.Config, nil)
 
-		assertConstantsEqu al(t, rcFetcher, fallbackFetcher, kv, RCVsFallbackPossiblyMissingConstants)
+		assertConstantsEqual(t, rcFetcher, fallbackFetcher, kv, RCVsFallbackPossiblyMissingConstants)
 	})
 
 	t.Run("btfhub-vs-rc", func(t *testing.T) {
