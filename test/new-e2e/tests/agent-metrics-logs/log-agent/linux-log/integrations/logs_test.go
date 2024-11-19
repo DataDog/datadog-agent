@@ -7,13 +7,16 @@ package integrationslogs
 
 import (
 	_ "embed"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metrics-logs/log-agent/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/stretchr/testify/assert"
 )
 
 type IntegrationsLogsSuite struct {
@@ -55,9 +58,6 @@ func (v *IntegrationsLogsSuite) TestWriteTenLogsCheck() {
 
 // TestIntegrationLogFileMaxSize ensures integration log files don't exceed the max file size
 func (v *IntegrationsLogsSuite) TestIntegrationLogFileMaxSize() {
-	maxSizeCheck := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"maxSize"}))
-	assert.Contains(v.T(), maxSizeCheck, "maxSize")
-
 	// Since it's not yet possible to write to the integration log file by calling
 	// the agent check command, we can test if the file size limits are being
 	// respected using the following method:
@@ -67,6 +67,7 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileMaxSize() {
 	// 2. Check immediately that on the subsequent write, the file is smaller than
 	// in step 1, indicating the log file has been deleted and remade, and thus
 	// respects the set size.
+	// 3. After the file sizes are confirmed, check to make sure fakeIntake still receives logs
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		output := v.Env().RemoteHost.MustExecute("sudo cat /opt/datadog-agent/run/integrations/maxSize*.log")
 		integrationLogFileSize := len(output)
@@ -78,4 +79,9 @@ func (v *IntegrationsLogsSuite) TestIntegrationLogFileMaxSize() {
 		integrationLogFileSize := len(output)
 		assert.Equal(c, 1*1024*1024, integrationLogFileSize)
 	}, 1*time.Minute, 5*time.Second)
+
+	stringSize := 1024 * 1024
+	logString := strings.Repeat("a", stringSize-15)
+
+	utils.CheckLogsExpected(v.T(), v.Env().FakeIntake, "max_size_service", logString, []string{})
 }

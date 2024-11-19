@@ -4,5 +4,5 @@ instances:
 
 logs:
   - type: integration
-    source: my_source
-    service: my_service
+    source: max_size_source
+    service: max_size_service
