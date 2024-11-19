@@ -22,6 +22,10 @@ def handle_go_work():
         # go work is explicitly set
         return
 
+    if len(sys.argv) > 1 and sys.argv[1] == "--complete":
+        # GOWORK=off is not needed when completing
+        return
+
     try:
         # find the go.work file
         # according to the blog https://go.dev/blog/get-familiar-with-workspaces :

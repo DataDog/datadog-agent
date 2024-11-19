@@ -15,7 +15,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -23,7 +23,7 @@ import (
 func TestExtractECSTask(t *testing.T) {
 	now := time.Date(2024, 1, 1, 11, 1, 1, 1, time.UTC)
 
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 
 	actual := ExtractECSTask(TaskWithContainers{
 		Task: &workloadmeta.ECSTask{

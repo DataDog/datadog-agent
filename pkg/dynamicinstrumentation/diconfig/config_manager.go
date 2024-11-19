@@ -13,7 +13,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cilium/ebpf/ringbuf"
+	"github.com/google/uuid"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/codegen"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
@@ -22,8 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/eventparser"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/proctracker"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
-	"github.com/cilium/ebpf/ringbuf"
-	"github.com/google/uuid"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type rcConfig struct {

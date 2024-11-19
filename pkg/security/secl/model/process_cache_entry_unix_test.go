@@ -83,3 +83,28 @@ func TestHasValidLineage(t *testing.T) {
 		assert.ErrorAs(t, err, &mn)
 	})
 }
+
+func TestEntryEquals(t *testing.T) {
+	e1 := NewProcessCacheEntry(nil)
+	e1.Pid = 2
+	e2 := NewProcessCacheEntry(nil)
+	e2.Pid = 3
+	assert.True(t, e1.Equals(e2))
+
+	// different file
+	e1.FileEvent.Inode = 33
+	e2.FileEvent.Inode = 44
+	assert.False(t, e1.Equals(e2))
+
+	// same file
+	e2.FileEvent.Inode = 33
+	assert.True(t, e1.Equals(e2))
+
+	// different args
+	e2.ArgsEntry = &ArgsEntry{Values: []string{"aaa"}}
+	assert.False(t, e1.Equals(e2))
+
+	// same args
+	e1.ArgsEntry = &ArgsEntry{Values: []string{"aaa"}}
+	assert.True(t, e1.Equals(e2))
+}
