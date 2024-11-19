@@ -38,7 +38,7 @@ require (
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	go.opentelemetry.io/collector/component v0.113.0
 	go.opentelemetry.io/collector/consumer v0.113.0
-	go.opentelemetry.io/collector/pdata v1.19.0
+	go.opentelemetry.io/collector/pdata v1.20.0
 	go.opentelemetry.io/collector/processor/processortest v0.113.0
 	go.opentelemetry.io/collector/semconv v0.113.0
 	go.opentelemetry.io/otel v1.31.0
