@@ -16,7 +16,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -46,14 +46,13 @@ func TestGetContainers(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
+	fakeTagger := taggerMock.SetupFakeTagger(t)
 
 	// Finally, container provider
 	testTime := time.Now()
 	filter, err := containers.GetPauseContainerFilter()
 	assert.NoError(t, err)
-	containerProvider := NewContainerProvider(metricsProvider, metadataProvider, filter)
+	containerProvider := NewContainerProvider(metricsProvider, metadataProvider, filter, fakeTagger)
 
 	// Containers:
 	// cID1 full stats

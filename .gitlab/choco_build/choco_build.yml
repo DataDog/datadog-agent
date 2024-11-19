@@ -15,7 +15,7 @@ windows_choco_offline_7_x64:
     - $ErrorActionPreference = "Stop"
     - Get-ChildItem omnibus\pkg
     - copy omnibus\pkg\*.msi .\chocolatey\tools-offline\
-    - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES} c:\mnt\tasks\winbuildscripts\chocopack.bat offline
+    - docker run --rm -v "$(Get-Location):c:\mnt" registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES} c:\mnt\tasks\winbuildscripts\chocopack.bat offline
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - copy build-out\*.nupkg omnibus\pkg
   artifacts:
@@ -23,24 +23,32 @@ windows_choco_offline_7_x64:
     paths:
       - omnibus/pkg
 
-# The online version of the choco job fetches the msi package from S3 so
-# it is run only once the msi package is pushed
+# The online version of the choco job gets the msi package through the gitlab artifacts
 windows_choco_online_7_x64:
   rules:
-    !reference [.on_deploy_stable_or_beta_repo_branch_manual]
+    !reference [.on_deploy_stable_or_beta_repo_branch]
   stage: choco_and_install_script_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
-  needs: ["deploy_staging_windows_tags-7"]
+  needs: ["deploy_packages_windows-x64-7"]
   variables:
     ARCH: "x64"
   script:
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - $ErrorActionPreference = "Stop"
-    - if (Test-Path .omnibus) { remove-item -recurse -force .omnibus }
+    - mkdir temp\
+    - copy omnibus\pkg\*.msi temp\
+    - if (Test-Path omnibus) { remove-item -recurse -force omnibus }
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
     - mkdir omnibus\pkg
-    - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES} c:\mnt\tasks\winbuildscripts\chocopack.bat online
+    - >
+      docker run --rm
+      -v "$(Get-Location):c:\mnt"
+      -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
+      -e BUCKET_BRANCH="$BUCKET_BRANCH"
+      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      c:\mnt\tasks\winbuildscripts\chocopack.bat online c:\mnt\temp
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - Remove-Item -Path "temp\" -Recurse -Force
     - copy build-out\*.nupkg omnibus\pkg
     - $CopyNupkgToS3 = "$S3_CP_CMD --recursive --exclude '*' --include '*.nupkg' build-out $S3_RELEASE_ARTIFACTS_URI/choco/nupkg"
     - Invoke-Expression $CopyNupkgToS3

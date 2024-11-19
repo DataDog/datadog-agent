@@ -14,7 +14,7 @@ import (
 
 	"github.com/prometheus/common/model"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -45,13 +45,15 @@ type podMetadata struct {
 type PodUtils struct {
 	podTagsByPVC map[string][]string
 	podMetadata  map[string]*podMetadata
+	tagger       tagger.Component
 }
 
 // NewPodUtils creates a new instance of PodUtils
-func NewPodUtils() *PodUtils {
+func NewPodUtils(tagger tagger.Component) *PodUtils {
 	return &PodUtils{
 		podTagsByPVC: map[string][]string{},
 		podMetadata:  map[string]*podMetadata{},
+		tagger:       tagger,
 	}
 }
 
@@ -86,7 +88,7 @@ func (p *PodUtils) PopulateForPod(pod *kubelet.Pod) {
 // volume name.
 func (p *PodUtils) computePodTagsByPVC(pod *kubelet.Pod) {
 	podUID := types.NewEntityID(types.KubernetesPodUID, pod.Metadata.UID)
-	tags, _ := tagger.Tag(podUID, types.OrchestratorCardinality)
+	tags, _ := p.tagger.Tag(podUID, types.OrchestratorCardinality)
 	if len(tags) == 0 {
 		return
 	}

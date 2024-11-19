@@ -8,7 +8,7 @@ package generic
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -21,8 +21,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	mockSender := mocksender.NewMockSender("network-extension")
 	mockSender.SetupAcceptAll()
 
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
+	fakeTagger := taggerMock.SetupFakeTagger(t)
 
 	mockCollector := mock.NewCollector("testCollector")
 
@@ -207,7 +206,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	container7Tags, _ := fakeTagger.Tag(types.NewEntityID(types.ContainerID, "7"), types.HighCardinality)
 	networkProcessor.Process(container7Tags, container7, mockCollector, 0)
 
-	networkProcessor.PostProcess()
+	networkProcessor.PostProcess(fakeTagger)
 
 	// Checking results
 	mockSender.AssertNumberOfCalls(t, "Rate", 12)

@@ -17,8 +17,8 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -41,9 +41,8 @@ func TestBundleDependencies(t *testing.T) {
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		statsd.Module(),
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
-		fx.Supply(tagger.NewFakeTaggerParams()),
 		zstdfx.Module(),
-		taggerimpl.Module(),
+		taggerfx.Module(tagger.Params{}),
 		fx.Supply(&traceagentimpl.Params{}),
 	)
 }
@@ -73,8 +72,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		fx.Supply(&traceagentimpl.Params{}),
 		fx.Invoke(func(_ traceagent.Component) {}),
 		MockBundle(),
-		taggerimpl.Module(),
-		fx.Supply(tagger.NewTaggerParams()),
+		taggerfx.Module(tagger.Params{}),
 	))
 
 	require.NotNil(t, cfg.Object())

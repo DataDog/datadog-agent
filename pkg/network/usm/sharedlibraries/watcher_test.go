@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
@@ -55,7 +56,12 @@ func TestSharedLibrary(t *testing.T) {
 		t.Skip("shared library tracing not supported for this platform")
 	}
 
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	if !prebuilt.IsDeprecated() {
+		modes = append(modes, ebpftest.Prebuilt)
+	}
+
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 		t.Run("netlink", func(t *testing.T) {
 			launchProcessMonitor(t, false)
 			suite.Run(t, new(SharedLibrarySuite))

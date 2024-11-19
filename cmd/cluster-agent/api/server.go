@@ -36,8 +36,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -60,7 +60,7 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
 
 	// IPC REST API server
-	agent.SetupHandlers(router, w, ac, statusComponent, settings)
+	agent.SetupHandlers(router, w, ac, statusComponent, settings, taggerComp)
 
 	// API V1 Metadata APIs
 	v1.InstallMetadataEndpoints(apiRouter, w)

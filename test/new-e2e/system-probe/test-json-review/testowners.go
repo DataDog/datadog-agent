@@ -8,7 +8,7 @@
 package main
 
 import (
-	"debug/elf"
+	"debug/elf" //nolint:depguard
 	"debug/gosym"
 	"fmt"
 	"io"

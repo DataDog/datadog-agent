@@ -9,7 +9,6 @@ package usm
 
 import (
 	"bytes"
-	"debug/elf"
 	"fmt"
 	"io"
 	"os"
@@ -37,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
@@ -592,6 +592,10 @@ func isBuildKit(procRoot string, pid uint32) bool {
 			}
 		}
 	}
+	if err != nil {
+		return false
+	}
+	defer file.Close()
 
 	buf := taskCommLenBufferPool.Get()
 	defer taskCommLenBufferPool.Put(buf)
@@ -613,7 +617,7 @@ func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelect
 
 		uid := getUID(fpath.ID)
 
-		elfFile, err := elf.Open(fpath.HostPath)
+		elfFile, err := safeelf.Open(fpath.HostPath)
 		if err != nil {
 			return err
 		}
@@ -693,7 +697,7 @@ func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelect
 						continue
 					}
 				}
-				manager.SanitizeUprobeAddresses(elfFile, []elf.Symbol{sym})
+				manager.SanitizeUprobeAddresses(elfFile.File, []safeelf.Symbol{sym})
 				offset, err := bininspect.SymbolToOffset(elfFile, sym)
 				if err != nil {
 					return err

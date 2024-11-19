@@ -24,7 +24,9 @@ import (
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 )
 
 const (
@@ -54,6 +56,7 @@ type goTLSProgram struct {
 	attacher  *uprobes.UprobeAttacher
 	inspector *goTLSBinaryInspector
 	cfg       *config.Config
+	procMon   *monitor.ProcessMonitor
 }
 
 var goTLSSpec = &protocols.ProtocolSpec{
@@ -145,7 +148,8 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 			binNoSymbolsMetric:          libtelemetry.NewCounter("usm.go_tls.missing_symbols", libtelemetry.OptPrometheus),
 		}
 
-		attacher, err := uprobes.NewUprobeAttacher(GoTLSAttacherName, attacherCfg, m, nil, inspector)
+		procMon := monitor.GetProcessMonitor()
+		attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, GoTLSAttacherName, attacherCfg, m, nil, inspector, procMon)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create uprobe attacher: %w", err)
 		}
@@ -154,6 +158,7 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 			cfg:       c,
 			inspector: inspector,
 			attacher:  attacher,
+			procMon:   procMon,
 		}, nil
 	}
 }
@@ -208,6 +213,7 @@ func (p *goTLSProgram) GetStats() *protocols.ProtocolStats {
 
 // Stop terminates the uprobe attacher for GoTLS programs.
 func (p *goTLSProgram) Stop(*manager.Manager) {
+	p.procMon.Stop()
 	p.attacher.Stop()
 }
 

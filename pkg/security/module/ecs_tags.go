@@ -10,6 +10,7 @@ package module
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
@@ -29,10 +30,24 @@ func getCurrentECSTaskTags() (map[string]string, error) {
 		return nil, err
 	}
 
+	cont, err := client.GetContainer(ctx)
+	if err != nil {
+		return nil, err
+	}
+	imageName := cont.Name
+	imageTag := ""
+	image := strings.Split(cont.Image, ":")
+	if len(image) == 2 {
+		imageName = image[0]
+		imageTag = image[1]
+	}
+
 	return map[string]string{
 		"task_name":    task.Family,
 		"task_family":  task.Family,
 		"task_arn":     task.TaskARN,
 		"task_version": task.Version,
+		"image_name":   imageName,
+		"image_tag":    imageTag,
 	}, nil
 }

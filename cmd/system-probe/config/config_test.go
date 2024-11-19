@@ -23,8 +23,8 @@ func TestEventMonitor(t *testing.T) {
 	mock.NewSystemProbe(t)
 
 	for i, tc := range []struct {
-		cws, fim, processEvents, networkEvents bool
-		enabled                                bool
+		cws, fim, processEvents, networkEvents, gpu bool
+		enabled                                     bool
 	}{
 		{cws: false, fim: false, processEvents: false, networkEvents: false, enabled: false},
 		{cws: false, fim: false, processEvents: true, networkEvents: false, enabled: true},
@@ -42,6 +42,7 @@ func TestEventMonitor(t *testing.T) {
 		{cws: true, fim: false, processEvents: true, networkEvents: true, enabled: true},
 		{cws: true, fim: true, processEvents: false, networkEvents: true, enabled: true},
 		{cws: true, fim: true, processEvents: true, networkEvents: true, enabled: true},
+		{cws: false, fim: false, processEvents: false, networkEvents: false, gpu: true, enabled: true},
 	} {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 			t.Logf("%+v\n", tc)
@@ -50,6 +51,7 @@ func TestEventMonitor(t *testing.T) {
 			t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_PROCESS_ENABLED", strconv.FormatBool(tc.processEvents))
 			t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(tc.networkEvents))
 			t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", strconv.FormatBool(tc.networkEvents))
+			t.Setenv("DD_GPU_MONITORING_ENABLED", strconv.FormatBool(tc.gpu))
 
 			cfg, err := New("/doesnotexist", "")
 			t.Logf("%+v\n", cfg)

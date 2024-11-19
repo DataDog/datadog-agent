@@ -238,20 +238,24 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	debugging,
 	vector,
 	podman,
+	fleet,
+	autoscaling,
 }
 
 func init() {
 	osinit()
 
 	// Configure Datadog global configuration
-	envvar, found := os.LookupEnv("DD_CONF_NODETREEMODEL")
+	envvar := os.Getenv("DD_CONF_NODETREEMODEL")
 	// Possible values for DD_CONF_NODETREEMODEL:
-	// - "enable": Use the nodetreemodel for the config, instead of viper
-	// - "tee":    Construct both viper and nodetreemodel. Write to both, only read from viper
-	// - other:    Use viper for the config
-	if found && envvar == "enable" {
+	// - "enable":    Use the nodetreemodel for the config, instead of viper
+	// - "tee":       Construct both viper and nodetreemodel. Write to both, only read from viper
+	// - "unmarshal": Use viper for the config but the reflection based version of UnmarshalKey which used some of
+	//                nodetreemodel internals
+	// - other:       Use viper for the config
+	if envvar == "enable" {
 		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
-	} else if found && envvar == "tee" {
+	} else if envvar == "tee" {
 		var viperConfig = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))   // nolint: forbidigo // legit use case
 		var nodetreeConfig = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 		datadog = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
@@ -263,6 +267,7 @@ func init() {
 
 	// Configuration defaults
 	initConfig()
+	datadog.BuildSchema()
 }
 
 // initCommonWithServerless initializes configs that are common to all agents, in particular serverless.
@@ -348,10 +353,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Defaults to safe YAML methods in base and custom checks.
 	config.BindEnvAndSetDefault("disable_unsafe_yaml", true)
-
-	// Yaml keys which values are stripped from flare
-	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
-	config.BindEnvAndSetDefault("scrubber.additional_keys", []string{})
 
 	// flare configs
 	config.BindEnvAndSetDefault("flare_provider_timeout", 10*time.Second)
@@ -469,6 +470,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_ttl", "15m")
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_interval", "5m")
 	config.BindEnvAndSetDefault("network_path.collector.flush_interval", "10s")
+	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.enabled", true)
+	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.timeout", 5000)
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// Kube ApiServer
@@ -547,9 +550,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Used internally to protect against configurations where metadata endpoints return incorrect values with 200 status codes.
 	config.BindEnvAndSetDefault("metadata_endpoints_max_hostname_size", 255)
 
-	// Duration during which the host tags will be submitted with metrics.
-	config.BindEnvAndSetDefault("expected_tags_duration", time.Duration(0))
-
 	// EC2
 	config.BindEnvAndSetDefault("ec2_use_windows_prefix_detection", false)
 	config.BindEnvAndSetDefault("ec2_metadata_timeout", 300)          // value in milliseconds
@@ -560,6 +560,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 	config.BindEnvAndSetDefault("collect_ec2_tags_use_imds", false)
 	config.BindEnvAndSetDefault("exclude_ec2_tags", []string{})
+	config.BindEnvAndSetDefault("ec2_imdsv2_transition_payload_enabled", false)
 
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
@@ -669,9 +670,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Changing this setting may impact your custom metrics billing.
 	config.BindEnvAndSetDefault("checks_tag_cardinality", "low")
 	config.BindEnvAndSetDefault("dogstatsd_tag_cardinality", "low")
-
-	// Autoscaling product
-	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
@@ -889,7 +887,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("security_agent.cmd_port", DefaultSecurityAgentCmdPort)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", DefaultSecurityAgentLogFile)
-	config.BindEnvAndSetDefault("security_agent.remote_tagger", true)
 	config.BindEnvAndSetDefault("security_agent.remote_workloadmeta", true)
 
 	// debug config to enable a remote client to receive data from the workloadmeta agent without a timeout
@@ -993,8 +990,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
 	config.BindEnvAndSetDefault("installer.registry.username", "")
 	config.BindEnvAndSetDefault("installer.registry.password", "")
-	config.BindEnv("fleet_policies_dir")
-	config.SetDefault("fleet_layers", []string{})
 
 	// Data Jobs Monitoring config
 	config.BindEnvAndSetDefault("djm_config.enabled", false)
@@ -1014,6 +1009,11 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("reverse_dns_enrichment.rate_limiter.throttle_error_threshold")
 	config.SetKnown("reverse_dns_enrichment.rate_limiter.recovery_intervals")
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_interval", time.Duration(0))
+
+	// Remote agents
+	config.BindEnvAndSetDefault("remote_agent_registry.idle_timeout", time.Duration(30*time.Second))
+	config.BindEnvAndSetDefault("remote_agent_registry.query_timeout", time.Duration(3*time.Second))
+	config.BindEnvAndSetDefault("remote_agent_registry.recommended_refresh_interval", time.Duration(10*time.Second))
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1093,6 +1093,13 @@ func agent(config pkgconfigmodel.Setup) {
 	// Use to output logs in JSON format
 	config.BindEnvAndSetDefault("log_format_json", false)
 
+	// Yaml keys which values are stripped from flare
+	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
+	config.BindEnvAndSetDefault("scrubber.additional_keys", []string{})
+
+	// Duration during which the host tags will be submitted with metrics.
+	config.BindEnvAndSetDefault("expected_tags_duration", time.Duration(0))
+
 	// Agent GUI access host
 	// 		'http://localhost' is preferred over 'http://127.0.0.1' due to Internet Explorer behavior.
 	// 		Internet Explorer High Security Level does not support setting cookies via HTTP Header response.
@@ -1105,6 +1112,19 @@ func agent(config pkgconfigmodel.Setup) {
 	config.SetKnown("proxy.http")
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
+}
+
+func fleet(config pkgconfigmodel.Setup) {
+	// Directory to store fleet policies
+	config.BindEnv("fleet_policies_dir")
+	config.SetDefault("fleet_layers", []string{})
+}
+
+func autoscaling(config pkgconfigmodel.Setup) {
+	// Autoscaling product
+	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
+	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
+	config.BindEnv("autoscaling.failover.metrics")
 }
 
 func fips(config pkgconfigmodel.Setup) {
@@ -1505,6 +1525,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
+	config.BindEnvAndSetDefault("logs_config.message_channel_size", 100)
+	config.BindEnvAndSetDefault("logs_config.payload_channel_size", 10)
+
 	// maximum time that the unix tailer will hold a log file open after it has been rotated
 	config.BindEnvAndSetDefault("logs_config.close_timeout", 60)
 	// maximum time that the windows tailer will hold a log file open, while waiting for
