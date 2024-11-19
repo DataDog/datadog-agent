@@ -69,7 +69,7 @@ func (w *winrawsocket) listenPackets(timeout time.Duration, localIP net.IP, loca
 // packet on the connection and then return. If no packet is received within the
 // timeout or if the listener is canceled, it should return a canceledError
 func (w* winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
-	buf := make([]byte, 1024)
+	buf := make([]byte, 512)
 	tp := newTCPParser()
 	for {
 		select {
@@ -85,6 +85,10 @@ func (w* winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localP
 		if err != nil {
 			if err == windows.WSAETIMEDOUT {
 				continue;
+			}
+			if err == windows.WSAEMSGSIZE {
+				log.Warnf("Message too large for buffer")
+				continue
 			}
 			return nil, 0, 0, time.Time{}, err
 		}
