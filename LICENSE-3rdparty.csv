@@ -2433,6 +2433,7 @@ core,go.opentelemetry.io/collector/processor/memorylimiterprocessor,Apache-2.0,C
 core,go.opentelemetry.io/collector/processor/memorylimiterprocessor/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/processor/processorhelper,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/processor/processorhelper/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/processor/processorhelper/processorhelperprofiles,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/processor/processorprofiles,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/processor/processortest,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/receiver,Apache-2.0,Copyright The OpenTelemetry Authors
