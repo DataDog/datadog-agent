@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package logscheck implements 'agent analyze-logs'.
-package logscheck
+// Package analyzelogs implements 'agent analyze-logs'.
+package analyzelogs
 
 import (
 	"fmt"
@@ -70,7 +70,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // runAnalyzeLogs initializes the launcher and sends the log config file path to the source provider.
-func runAnalyzeLogs(config config.Component, cliParams *CliParams) error {
+func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
 	outputChan := agentimpl.SetUpLaunchers(config)
 	//send paths to source provider
 	if err := cliParams.ConfigSource.AddFileSource(cliParams.LogConfigPath); err != nil {
