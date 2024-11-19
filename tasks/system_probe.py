@@ -19,10 +19,7 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks.agent import BUNDLED_AGENTS
-from tasks.agent import build as agent_build
 from tasks.build_tags import UNIT_TEST_TAGS, add_fips_tags, get_default_build_tags
-from tasks.flavor import AgentFlavor
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha
@@ -685,7 +682,6 @@ def build(
     strip_object_files=False,
     strip_binary=False,
     with_unit_test=False,
-    bundle=True,
     ebpf_compiler='clang',
     static=False,
 ):
@@ -712,7 +708,6 @@ def build(
         race=race,
         incremental_build=incremental_build,
         strip_binary=strip_binary,
-        bundle=bundle,
         arch=arch,
         static=static,
     )
@@ -740,20 +735,9 @@ def build_sysprobe_binary(
     install_path=None,
     bundle_ebpf=False,
     strip_binary=False,
-    bundle=True,
     fips_mode=False,
     static=False,
 ) -> None:
-    if bundle and not is_windows:
-        return agent_build(
-            ctx,
-            race=race,
-            major_version=major_version,
-            go_mod=go_mod,
-            bundle_ebpf=bundle_ebpf,
-            bundle=BUNDLED_AGENTS[AgentFlavor.base] + ["system-probe"],
-        )
-
     arch_obj = Arch.from_str(arch)
 
     ldflags, gcflags, env = get_build_flags(

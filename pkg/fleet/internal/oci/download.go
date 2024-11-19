@@ -10,11 +10,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/awslabs/amazon-ecr-credential-helper/ecr-login"
@@ -320,10 +323,10 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string)
 				err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
 				uncompressedLayer.Close()
 				if err != nil {
-					if !isStreamResetError(err) {
+					if !isStreamResetError(err) && !isConnectionResetByPeerError(err) {
 						return fmt.Errorf("could not extract layer: %w", err)
 					}
-					log.Warnf("stream error while extracting layer, retrying")
+					log.Warnf("network error while extracting layer, retrying")
 					// Clean up the directory before retrying to avoid partial extraction
 					err = tar.Clean(dir)
 					if err != nil {
@@ -377,6 +380,18 @@ func isStreamResetError(err error) bool {
 	serrp := &http2.StreamError{}
 	if errors.As(err, &serrp) {
 		return serrp.Code == http2.ErrCodeInternal
+	}
+	return false
+}
+
+// isConnectionResetByPeer returns true if the error is a connection reset by peer error
+func isConnectionResetByPeerError(err error) bool {
+	if netErr, ok := err.(*net.OpError); ok {
+		if syscallErr, ok := netErr.Err.(*os.SyscallError); ok {
+			if errno, ok := syscallErr.Err.(syscall.Errno); ok {
+				return errno == syscall.ECONNRESET
+			}
+		}
 	}
 	return false
 }
