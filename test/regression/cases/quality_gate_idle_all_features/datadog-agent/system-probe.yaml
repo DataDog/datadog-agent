@@ -8,3 +8,27 @@ runtime_security_config:
   remote_configuration:
     ## @param enabled - boolean - optional - default: false
     enabled: true
+
+system_probe_config:
+  enable_oom_kill: true
+  enable_tcp_queue_length: true
+  process_config:
+    enabled: true
+
+dynamic_instrumentation:
+  enabled: true
+
+service_monitoring_config:
+  enabled: true
+
+network_config:
+  enabled: true
+
+discovery:
+  enabled: true
+
+ping:
+  enabled: true
+
+traceroute:
+  enabled: true
