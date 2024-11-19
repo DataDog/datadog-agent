@@ -45,10 +45,6 @@ __maybe_unused static __always_inline void submit_closed_conn_event(void *ctx, i
 }
 
 static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk, __u16 tcp_failure_reason) {
-    __u64 timestamp = bpf_ktime_get_ns();
-    if (bpf_map_update_with_telemetry(conn_close_flushed, tup, &timestamp, BPF_NOEXIST, -EEXIST) != 0) {
-        return;
-    }
     u32 cpu = bpf_get_smp_processor_id();
     // Will hold the full connection data to send through the perf or ring buffer
     conn_t conn = { .tup = *tup };
@@ -61,10 +57,9 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
 
     if (is_tcp) {
         tst = bpf_map_lookup_elem(&tcp_stats, &(conn.tup));
-        if (tst) {
-            empty_conn = false;
+        if (tst && bpf_map_delete_elem(&tcp_stats, &(conn.tup)) == 0) {
             conn.tcp_stats = *tst;
-            bpf_map_delete_elem(&tcp_stats, &(conn.tup));
+            empty_conn = false;
         }
 
         conn.tup.pid = 0;
@@ -85,13 +80,10 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     }
 
     cst = bpf_map_lookup_elem(&conn_stats, &(conn.tup));
-    if (cst) {
-        empty_conn = false;
+    if (cst && bpf_map_delete_elem(&conn_stats, &(conn.tup)) == 0) {
         conn.conn_stats = *cst;
-        bpf_map_delete_elem(&conn_stats, &(conn.tup));
+        empty_conn = false;
     }
-
-    bpf_map_delete_elem(&conn_close_flushed, tup);
 
     if (empty_conn) {
         if (is_udp) {

@@ -75,7 +75,6 @@ var EbpfTracerTelemetry = struct {
 	PidCollisions               *telemetry.StatCounterWrapper
 	iterationDups               telemetry.Counter
 	iterationAborts             telemetry.Counter
-	closedConnFlushedCleaned    telemetry.Counter
 
 	lastTcpFailedConnects *atomic.Int64
 	LastTcpSentMiscounts  *atomic.Int64
@@ -121,7 +120,6 @@ var EbpfTracerTelemetry = struct {
 	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
-	telemetry.NewCounter(connTracerModuleName, "closed_conn_flushed_cleaned", []string{}, "Counter measuring the number of conn_close_flushed entries cleaned in userspace"),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
@@ -194,7 +192,6 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 			probes.ConnectionProtocolMap:             {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.ConnectionTupleToSocketSKBConnMap: {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.TCPOngoingConnectPid:              {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
-			probes.ConnCloseFlushed:                  {MaxEntries: config.MaxTrackedConnections / 4, EditorFlag: manager.EditMaxEntries},
 			probes.TCPRecvMsgArgsMap:                 {MaxEntries: config.MaxTrackedConnections / 32, EditorFlag: manager.EditMaxEntries},
 		},
 		ConstantEditors: []manager.ConstantEditor{
@@ -720,26 +717,6 @@ func (t *ebpfTracer) setupMapCleaner(m *manager.Manager) {
 	})
 
 	t.ongoingConnectCleaner = tcpOngoingConnectPidCleaner
-
-	if t.config.FailedConnectionsSupported() {
-		connCloseFlushMap, _, err := m.GetMap(probes.ConnCloseFlushed)
-		if err != nil {
-			log.Errorf("error getting %v map: %s", probes.ConnCloseFlushed, err)
-		}
-		connCloseFlushCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, int64](connCloseFlushMap, 1024, probes.ConnCloseFlushed, "npm_tracer")
-		if err != nil {
-			log.Errorf("error creating map cleaner: %s", err)
-			return
-		}
-		connCloseFlushCleaner.Clean(time.Second*1, nil, nil, func(now int64, _ netebpf.ConnTuple, val int64) bool {
-			expired := val > 0 && now-val > connClosedFlushMapTTL
-			if expired {
-				EbpfTracerTelemetry.closedConnFlushedCleaned.Inc()
-			}
-			return expired
-		})
-		t.connCloseFlushCleaner = connCloseFlushCleaner
-	}
 }
 
 func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats, ch *cookieHasher) {
