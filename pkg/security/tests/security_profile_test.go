@@ -420,7 +420,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 		anomalyDetectionMinimumStablePeriodExec: 0,
 		anomalyDetectionMinimumStablePeriodDNS:  0,
 		anomalyDetectionWarmupPeriod:            3 * time.Second,
-		tagsResolver:                            NewFakeMonoResolver(),
+		tagger:                                  NewFakeMonoTagger(),
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -1047,7 +1047,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
 
-	fakeManualResolver := NewFakeManualResolver()
+	fakeManualTagger := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                      true,
@@ -1066,7 +1066,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 		anomalyDetectionMinimumStablePeriodExec: 10 * time.Second,
 		anomalyDetectionMinimumStablePeriodDNS:  10 * time.Second,
 		anomalyDetectionWarmupPeriod:            1 * time.Second,
-		tagsResolver:                            fakeManualResolver,
+		tagger:                                  fakeManualTagger,
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -1109,7 +1109,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
 
-	selector := fakeManualResolver.GetContainerSelector(dockerInstanceV1.containerID)
+	selector := fakeManualTagger.GetContainerSelector(dockerInstanceV1.containerID)
 	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   "*",
@@ -1132,7 +1132,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 		}
 	})
 
-	fakeManualResolver.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
+	fakeManualTagger.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   selector.Tag + "+",
 	})
@@ -1221,7 +1221,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
 
-	fakeManualResolver := NewFakeManualResolver()
+	fakeManualTagger := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                      true,
@@ -1240,7 +1240,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 		anomalyDetectionMinimumStablePeriodExec: 10 * time.Second,
 		anomalyDetectionMinimumStablePeriodDNS:  10 * time.Second,
 		anomalyDetectionWarmupPeriod:            1 * time.Second,
-		tagsResolver:                            fakeManualResolver,
+		tagger:                                  fakeManualTagger,
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -1300,8 +1300,8 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 		}
 	})
 
-	selector := fakeManualResolver.GetContainerSelector(dockerInstanceV1.containerID)
-	fakeManualResolver.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
+	selector := fakeManualTagger.GetContainerSelector(dockerInstanceV1.containerID)
+	fakeManualTagger.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   selector.Tag + "+",
 	})
@@ -1393,7 +1393,7 @@ func TestSecurityProfileLifeCycleEvictitonProcess(t *testing.T) {
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
 
-	fakeManualResolver := NewFakeManualResolver()
+	fakeManualTagger := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                      true,
@@ -1412,7 +1412,7 @@ func TestSecurityProfileLifeCycleEvictitonProcess(t *testing.T) {
 		anomalyDetectionMinimumStablePeriodExec: 10 * time.Second,
 		anomalyDetectionMinimumStablePeriodDNS:  10 * time.Second,
 		anomalyDetectionWarmupPeriod:            1 * time.Second,
-		tagsResolver:                            fakeManualResolver,
+		tagger:                                  fakeManualTagger,
 		securityProfileMaxImageTags:             2,
 	}))
 	if err != nil {
@@ -1456,7 +1456,7 @@ func TestSecurityProfileLifeCycleEvictitonProcess(t *testing.T) {
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
 
-	selector := fakeManualResolver.GetContainerSelector(dockerInstanceV1.containerID)
+	selector := fakeManualTagger.GetContainerSelector(dockerInstanceV1.containerID)
 	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   "*",
@@ -1479,7 +1479,7 @@ func TestSecurityProfileLifeCycleEvictitonProcess(t *testing.T) {
 		}
 	})
 
-	fakeManualResolver.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
+	fakeManualTagger.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   selector.Tag + "v2",
 	})
@@ -1504,7 +1504,7 @@ func TestSecurityProfileLifeCycleEvictitonProcess(t *testing.T) {
 		}
 	})
 
-	fakeManualResolver.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
+	fakeManualTagger.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   selector.Tag + "v3",
 	})
@@ -1571,7 +1571,7 @@ func TestSecurityProfileLifeCycleEvictitonDNS(t *testing.T) {
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
 
-	fakeManualResolver := NewFakeManualResolver()
+	fakeManualTagger := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                      true,
@@ -1590,7 +1590,7 @@ func TestSecurityProfileLifeCycleEvictitonDNS(t *testing.T) {
 		anomalyDetectionMinimumStablePeriodExec: 10 * time.Second,
 		anomalyDetectionMinimumStablePeriodDNS:  10 * time.Second,
 		anomalyDetectionWarmupPeriod:            1 * time.Second,
-		tagsResolver:                            fakeManualResolver,
+		tagger:                                  fakeManualTagger,
 		securityProfileMaxImageTags:             2,
 	}))
 	if err != nil {
@@ -1634,7 +1634,7 @@ func TestSecurityProfileLifeCycleEvictitonDNS(t *testing.T) {
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
 
-	selector := fakeManualResolver.GetContainerSelector(dockerInstanceV1.containerID)
+	selector := fakeManualTagger.GetContainerSelector(dockerInstanceV1.containerID)
 	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   "*",
@@ -1657,7 +1657,7 @@ func TestSecurityProfileLifeCycleEvictitonDNS(t *testing.T) {
 		}
 	})
 
-	fakeManualResolver.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
+	fakeManualTagger.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   selector.Tag + "v2",
 	})
@@ -1682,7 +1682,7 @@ func TestSecurityProfileLifeCycleEvictitonDNS(t *testing.T) {
 		}
 	})
 
-	fakeManualResolver.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
+	fakeManualTagger.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   selector.Tag + "v3",
 	})
@@ -1749,7 +1749,7 @@ func TestSecurityProfileLifeCycleEvictitonProcessUnstable(t *testing.T) {
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
 
-	fakeManualResolver := NewFakeManualResolver()
+	fakeManualTagger := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                      true,
@@ -1768,7 +1768,7 @@ func TestSecurityProfileLifeCycleEvictitonProcessUnstable(t *testing.T) {
 		anomalyDetectionMinimumStablePeriodExec: 10 * time.Second,
 		anomalyDetectionMinimumStablePeriodDNS:  10 * time.Second,
 		anomalyDetectionWarmupPeriod:            1 * time.Second,
-		tagsResolver:                            fakeManualResolver,
+		tagger:                                  fakeManualTagger,
 		securityProfileMaxImageTags:             2,
 	}))
 	if err != nil {
@@ -1812,7 +1812,7 @@ func TestSecurityProfileLifeCycleEvictitonProcessUnstable(t *testing.T) {
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
 
-	selector := fakeManualResolver.GetContainerSelector(dockerInstanceV1.containerID)
+	selector := fakeManualTagger.GetContainerSelector(dockerInstanceV1.containerID)
 	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   "*",
@@ -1833,7 +1833,7 @@ func TestSecurityProfileLifeCycleEvictitonProcessUnstable(t *testing.T) {
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
 
-	fakeManualResolver.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
+	fakeManualTagger.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   selector.Tag + "v2",
 	})
@@ -1856,7 +1856,7 @@ func TestSecurityProfileLifeCycleEvictitonProcessUnstable(t *testing.T) {
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
 
-	fakeManualResolver.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
+	fakeManualTagger.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   selector.Tag + "v3",
 	})
@@ -1931,7 +1931,7 @@ func TestSecurityProfilePersistence(t *testing.T) {
 		},
 	}
 
-	fakeManualResolver := NewFakeManualResolver()
+	fakeManualTagger := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, rulesDef, withStaticOpts(testOpts{
 		enableActivityDump:                      true,
@@ -1951,7 +1951,7 @@ func TestSecurityProfilePersistence(t *testing.T) {
 		anomalyDetectionEventTypes:              []string{"exec"},
 		anomalyDetectionMinimumStablePeriodExec: 10 * time.Second,
 		anomalyDetectionWarmupPeriod:            1 * time.Second,
-		tagsResolver:                            fakeManualResolver,
+		tagger:                                  fakeManualTagger,
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -1992,7 +1992,7 @@ func TestSecurityProfilePersistence(t *testing.T) {
 	dockerInstance1.stop()
 
 	// make sure the next instance has the same image name as the previous one
-	fakeManualResolver.SpecifyNextSelector(fakeManualResolver.GetContainerSelector(dockerInstance1.containerID))
+	fakeManualTagger.SpecifyNextSelector(fakeManualTagger.GetContainerSelector(dockerInstance1.containerID))
 	dockerInstance2, err := test.StartADocker()
 	if err != nil {
 		t.Fatal(err)
@@ -2160,7 +2160,7 @@ func TestSecurityProfileSyscallDrift(t *testing.T) {
 		enableSecurityProfile:                      true,
 		enableAnomalyDetection:                     true,
 		securityProfileDir:                         outputDir,
-		tagsResolver:                               NewFakeMonoResolver(),
+		tagger:                                     NewFakeMonoTagger(),
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -2285,7 +2285,7 @@ func TestSecurityProfileSyscallDriftExecExitInProfile(t *testing.T) {
 		enableSecurityProfile:                      true,
 		enableAnomalyDetection:                     true,
 		securityProfileDir:                         outputDir,
-		tagsResolver:                               NewFakeMonoResolver(),
+		tagger:                                     NewFakeMonoTagger(),
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -2408,7 +2408,7 @@ func TestSecurityProfileSyscallDriftNoNewSyscall(t *testing.T) {
 		enableSecurityProfile:                      true,
 		enableAnomalyDetection:                     true,
 		securityProfileDir:                         outputDir,
-		tagsResolver:                               NewFakeMonoResolver(),
+		tagger:                                     NewFakeMonoTagger(),
 	}))
 	if err != nil {
 		t.Fatal(err)
