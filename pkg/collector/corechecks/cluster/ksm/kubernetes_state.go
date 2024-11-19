@@ -488,7 +488,7 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		clients[f.Name()] = client
 	}
 
-	customResourceStateMetricFactories, err := customresourcestate.FromConfig(customResourceDecoder{k.instance.CustomResource})
+	customResourceStateMetricFactories, err := FromConfig(customResourceDecoder{k.instance.CustomResource})
 	if err != nil {
 		log.Errorf("failed to create custom resource state metrics: %v", err)
 	} else {
@@ -514,6 +514,28 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		clients:    clients,
 		factories:  factories,
 	}
+}
+
+// FromConfig decodes a configuration source into a slice of customresource.RegistryFactory that are ready to use.
+func FromConfig(decoder customresourcestate.ConfigDecoder) ([]customresource.RegistryFactory, error) {
+	var crconfig customresourcestate.Metrics
+	var factories []customresource.RegistryFactory
+	factoriesIndex := map[string]bool{}
+	if err := decoder.Decode(&crconfig); err != nil {
+		return nil, fmt.Errorf("failed to parse Custom Resource State metrics: %w", err)
+	}
+	for _, resource := range crconfig.Spec.Resources {
+		factory, err := customresourcestate.NewCustomResourceMetrics(resource)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create metrics factory for %s: %w", resource.GroupVersionKind, err)
+		}
+		if _, ok := factoriesIndex[factory.Name()]; ok {
+			return nil, fmt.Errorf("found multiple custom resource configurations for the same resource %s", factory.Name())
+		}
+		factoriesIndex[factory.Name()] = true
+		factories = append(factories, factory)
+	}
+	return factories, nil
 }
 
 func manageResourcesReplacement(c *apiserver.APIClient, factories []customresource.RegistryFactory, resources []*v1.APIResourceList) []customresource.RegistryFactory {
