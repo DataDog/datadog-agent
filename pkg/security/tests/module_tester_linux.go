@@ -728,10 +728,11 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 			EBPFLessEnabled:          ebpfLessEnabled,
 		},
 	}
-	if opts.staticOpts.tagsResolver != nil {
-		emopts.ProbeOpts.TagsResolver = opts.staticOpts.tagsResolver
+
+	if opts.staticOpts.tagger != nil {
+		emopts.ProbeOpts.Tagger = opts.staticOpts.tagger
 	} else {
-		emopts.ProbeOpts.TagsResolver = NewFakeResolverDifferentImageNames()
+		emopts.ProbeOpts.Tagger = NewFakeTaggerDifferentImageNames()
 	}
 
 	if opts.staticOpts.discardRuntime {

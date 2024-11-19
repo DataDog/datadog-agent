@@ -685,7 +685,7 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 	}
 
 	resolversOpts := resolvers.Opts{
-		TagsResolver: opts.TagsResolver,
+		Tagger: opts.Tagger,
 	}
 
 	p.Resolvers, err = resolvers.NewEBPFLessResolvers(config, p.statsdClient, probe.scrubber, resolversOpts, telemetry)
