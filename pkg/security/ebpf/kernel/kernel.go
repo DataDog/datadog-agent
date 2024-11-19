@@ -273,7 +273,7 @@ func (k *Version) IsSuseKernel() bool {
 
 // IsFedoraKernel returns whether the kernel is a fedora kernel
 func (k *Version) IsFedoraKernel() bool {
-	return k.IsFedoraKernel() || k.OsRelease["ID"] == "fedora"
+	return k.OsRelease["ID"] == "fedora"
 }
 
 // IsSuse12Kernel returns whether the kernel is a sles 12 kernel
