@@ -15,8 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
@@ -55,7 +55,7 @@ func TestStatusOutPut(t *testing.T) {
 		}},
 	}
 
-	mockTagger := taggerimpl.SetupFakeTagger(t)
+	mockTagger := taggerMock.SetupFakeTagger(t)
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		core.MockBundle(),

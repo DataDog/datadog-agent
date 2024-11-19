@@ -14,7 +14,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -173,15 +173,9 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	opts.FlushInterval = time.Hour
 	deps := createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
 
-	// TODO Could this be the MockCompressor?
-	compressor := deps.CompressionFactory.NewCompressor(
-		deps.Config.GetString("serializer_compressor_kind"),
-		deps.Config.GetInt("serializer_zstd_compressor_level"),
-		"serializer_compressor_kind",
-		[]string{"zstd", "zlib"},
-	)
+	compressor := deps.CompressionFactory.NewNoopCompressor()
 
-	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorFwd, opts, deps.EventPlatformFwd, compressor, nooptagger.NewTaggerClient(), "")
+	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorFwd, opts, deps.EventPlatformFwd, compressor, nooptagger.NewComponent(), "")
 	demux.Aggregator().tlmContainerTagsEnabled = false
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)
@@ -309,7 +303,7 @@ func createDemuxDepsWithOrchestratorFwd(
 
 	return aggregatorDeps{
 		TestDeps:         deps.TestDeps,
-		Demultiplexer:    InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, compressor, nooptagger.NewTaggerClient(), ""),
+		Demultiplexer:    InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, compressor, nooptagger.NewComponent(), ""),
 		OrchestratorFwd:  deps.OrchestratorForwarder,
 		EventPlatformFwd: deps.Eventplatform,
 	}

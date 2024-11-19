@@ -23,8 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -99,8 +99,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					InitHelper: common.GetWorkloadmetaInit(),
 				}),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
-				taggerimpl.Module(),
-				fx.Provide(func(config config.Component) tagger.Params { return tagger.NewTaggerParamsForCoreAgent(config) }),
+				dualTaggerfx.Module(common.DualTaggerParams()),
 				autodiscoveryimpl.Module(),
 				diagnosesendermanagerimpl.Module(),
 			)

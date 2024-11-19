@@ -1073,9 +1073,10 @@ def kmt_sysprobe_prepare(
                         # copy command
                         implicit=[testdata_folder],
                         rule="cbin",
-                        variables={
-                            "cc": "clang",
-                        },
+                        # helper binaries need to be compiled statically to avoid problems with
+                        # libc not being found in target VMs/containers (motivating case: running
+                        # these binaries in alpine docker images, which has musl instead of lib)
+                        variables={"cc": "clang", "cflags": "-static"},
                     )
 
     info("[+] Compiling tests...")
@@ -1175,7 +1176,7 @@ def test(
     packages=None,
     run: str | None = None,
     quick=False,
-    retry=2,
+    retry=0,
     run_count=1,
     ssh_key: str | None = None,
     verbose=True,
@@ -1325,7 +1326,7 @@ def build(
 
     build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
     cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv {inv_echo} {component}.{build_task} --no-bundle --arch={arch_obj.name}",
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv {inv_echo} {component}.{build_task} --arch={arch_obj.name}",
     )
 
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")

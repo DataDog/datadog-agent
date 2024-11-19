@@ -201,7 +201,7 @@ func TestPackageURL(t *testing.T) {
 
 	tests := []test{
 		{site: "datad0g.com", pkg: "datadog-agent", version: "latest", expected: "oci://install.datad0g.com/agent-package-dev:latest"},
-		{site: "datadoghq.com", pkg: "datadog-agent", version: "1.2.3", expected: "oci://gcr.io/datadoghq/agent-package:1.2.3"},
+		{site: "datadoghq.com", pkg: "datadog-agent", version: "1.2.3", expected: "oci://install.datadoghq.com/agent-package:1.2.3"},
 	}
 
 	for _, tt := range tests {
@@ -266,19 +266,19 @@ func TestGetRefAndKeychains(t *testing.T) {
 	tests := []test{
 		{
 			name: "no override - staging",
-			url:  "docker.io/datadog/agent-package-dev:latest",
+			url:  "install.datad0g.com/agent-package-dev:latest",
 			expectedRefAndKeychains: []urlWithKeychain{
+				{ref: "install.datad0g.com/agent-package-dev:latest", keychain: authn.DefaultKeychain},
 				{ref: "docker.io/datadog/agent-package-dev:latest", keychain: authn.DefaultKeychain},
 			},
 		},
 		{
 			name:   "no override - prod",
-			url:    "gcr.io/datadoghq/agent-package@sha256:1234",
+			url:    "install.datadoghq.com/agent-package@sha256:1234",
 			isProd: true,
 			expectedRefAndKeychains: []urlWithKeychain{
+				{ref: "install.datadoghq.com/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
 				{ref: "gcr.io/datadoghq/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
-				{ref: "public.ecr.aws/datadog/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
-				{ref: "docker.io/datadog/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
 			},
 		},
 		{
@@ -287,9 +287,8 @@ func TestGetRefAndKeychains(t *testing.T) {
 			isProd: true,
 			expectedRefAndKeychains: []urlWithKeychain{
 				{ref: "mysuperregistry.tv/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
+				{ref: "install.datadoghq.com/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
 				{ref: "gcr.io/datadoghq/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
-				{ref: "public.ecr.aws/datadog/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
-				{ref: "docker.io/datadog/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
 			},
 		},
 		{
@@ -300,9 +299,6 @@ func TestGetRefAndKeychains(t *testing.T) {
 			isProd:               true,
 			expectedRefAndKeychains: []urlWithKeychain{
 				{ref: "mysuperregistry.tv/agent-package@sha256:1234", keychain: google.Keychain},
-				{ref: "gcr.io/datadoghq/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
-				{ref: "public.ecr.aws/datadog/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
-				{ref: "docker.io/datadog/agent-package@sha256:1234", keychain: authn.DefaultKeychain},
 			},
 		},
 	}
