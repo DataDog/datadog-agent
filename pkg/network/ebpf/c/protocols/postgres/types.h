@@ -56,7 +56,7 @@ typedef enum
 // bucket 0: count 0 to 100, bucket 1: 100 to 119, bucket 2: 120 to 139 etc.
 #define PG_KERNEL_MSG_COUNT_NUM_BUCKETS 5
 #define PG_KERNEL_MSG_COUNT_BUCKET_SIZE 20
-#define PG_KERNEL_MSG_COUNT_FIRST_MAX 100
+#define PG_KERNEL_MSG_COUNT_FIRST_BUCKET 100
 
 // This structure stores statistics about the number of Postgres messages in a TCP packet.
 typedef struct {

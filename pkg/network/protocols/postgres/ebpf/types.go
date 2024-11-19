@@ -23,9 +23,9 @@ type EbpfTx C.postgres_transaction_t
 type PostgresKernelMsgCount C.postgres_kernel_msg_count_t
 
 const (
-	BufferSize             = C.POSTGRES_BUFFER_SIZE
-	MsgCountBucketSize     = C.PG_KERNEL_MSG_COUNT_BUCKET_SIZE
-	MsgCountNumBuckets     = C.PG_KERNEL_MSG_COUNT_NUM_BUCKETS
-	MsgCountFirstBucketMax = C.PG_KERNEL_MSG_COUNT_FIRST_MAX
-	MsgCountMaxTotal       = C.POSTGRES_MAX_TOTAL_MESSAGES
+	BufferSize          = C.POSTGRES_BUFFER_SIZE
+	MsgCountBucketSize  = C.PG_KERNEL_MSG_COUNT_BUCKET_SIZE
+	MsgCountNumBuckets  = C.PG_KERNEL_MSG_COUNT_NUM_BUCKETS
+	MsgCountFirstBucket = C.PG_KERNEL_MSG_COUNT_FIRST_BUCKET
+	MsgCountMaxTotal    = C.POSTGRES_MAX_TOTAL_MESSAGES
 )

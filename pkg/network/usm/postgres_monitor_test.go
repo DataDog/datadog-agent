@@ -623,8 +623,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 			},
 		},
 		// This test validates that when we exceed the POSTGRES_MAX_MESSAGES_PER_TAIL_CALL * POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES limit,
-		// all requests are captured, because large buffers are fragmented by the TCP layer,
-		// and ebpf flushes out commands when it detects a fragmented packet.
+		// the request is not captured as we will miss the response.In this case, it applies to the SELECT query.
 		{
 			name: "exceeding max supported messages limit",
 			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
@@ -928,7 +927,7 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 
 	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
 	if isTLS {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid(), utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
 	}
 	pgClient := setupPGClient(t, serverAddress, isTLS)
 	defer func() {
@@ -939,7 +938,7 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 		}
 	}()
 
-	createLargeTable(t, pgClient, ebpf.MsgCountFirstBucketMax+ebpf.MsgCountBucketSize*ebpf.MsgCountNumBuckets)
+	createLargeTable(t, pgClient, ebpf.MsgCountFirstBucket+ebpf.MsgCountBucketSize*ebpf.MsgCountNumBuckets)
 	expectedBuckets := [ebpf.MsgCountNumBuckets]bool{}
 
 	for i := 0; i < ebpf.MsgCountNumBuckets; i++ {
@@ -953,9 +952,9 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 			if i == 0 {
 				// first bucket, it counts upto ebpf.MsgCountFirstBucketMax messages
 				// subtract three messages ('bind', 'row description' and 'ready')
-				require.NoError(t, pgClient.RunQuery(generateSelectLimitQuery(ebpf.MsgCountFirstBucketMax-3)))
+				require.NoError(t, pgClient.RunQuery(generateSelectLimitQuery(ebpf.MsgCountFirstBucket-3)))
 			} else {
-				limitCount := ebpf.MsgCountFirstBucketMax + i*ebpf.MsgCountBucketSize - 3
+				limitCount := ebpf.MsgCountFirstBucket + i*ebpf.MsgCountBucketSize - 3
 				require.NoError(t, pgClient.RunQuery(generateSelectLimitQuery(limitCount)))
 			}
 			require.NoError(t, monitor.Pause())
@@ -974,7 +973,6 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 		require.NoError(t, monitor.Pause())
 
 		validateKernelExceedingMax(t, monitor, isTLS)
-		//validateKernelBuckets(t, monitor, isTLS, expectedBuckets)
 	})
 }
 
@@ -1006,6 +1004,7 @@ func validateKernelBuckets(t *testing.T, monitor *Monitor, tls bool, expected [e
 	}, time.Second*2, time.Millisecond*100)
 	if t.Failed() {
 		t.Logf("expected telemetry:\n %+v;\nactual telemetry:\n %+v", expected, actual)
+		ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, postgres.KernelTelemetryMap)
 	}
 }
 

@@ -34,9 +34,9 @@ type PostgresKernelMsgCount struct {
 }
 
 const (
-	BufferSize             = 0xa0
-	MsgCountBucketSize     = 0x14
-	MsgCountNumBuckets     = 0x5
-	MsgCountFirstBucketMax = 0x64
-	MsgCountMaxTotal       = 0xb4
+	BufferSize          = 0xa0
+	MsgCountBucketSize  = 0x14
+	MsgCountNumBuckets  = 0x5
+	MsgCountFirstBucket = 0x64
+	MsgCountMaxTotal    = 0xb4
 )

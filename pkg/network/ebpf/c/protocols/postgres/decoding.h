@@ -268,11 +268,10 @@ static __always_inline bool handle_response(pktbuf_t pkt, conn_tuple_t conn_tupl
         handle_command_complete(&conn_tuple, transaction);
 
         // save messages counter in bucket.
-        if (iteration_value->total_msg_count < PG_KERNEL_MSG_COUNT_FIRST_MAX) {
+        if (iteration_value->total_msg_count < PG_KERNEL_MSG_COUNT_FIRST_BUCKET) {
             __sync_fetch_and_add(&pg_msg_counts->msg_count_buckets[0], 1);
         } else {
-            iteration_value->total_msg_count -= PG_KERNEL_MSG_COUNT_FIRST_MAX;
-            __u8 bucket_idx = (iteration_value->total_msg_count / PG_KERNEL_MSG_COUNT_BUCKET_SIZE) + 1;
+            __u8 bucket_idx = ((__u8)(iteration_value->total_msg_count - PG_KERNEL_MSG_COUNT_FIRST_BUCKET) / PG_KERNEL_MSG_COUNT_BUCKET_SIZE) + 1;
             bucket_idx = (bucket_idx >= PG_KERNEL_MSG_COUNT_NUM_BUCKETS) ? (PG_KERNEL_MSG_COUNT_NUM_BUCKETS - 1) : bucket_idx;
             __sync_fetch_and_add(&pg_msg_counts->msg_count_buckets[bucket_idx], 1);
         }
