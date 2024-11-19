@@ -141,14 +141,10 @@ func (suite *ConfigTestSuite) TestAgentConfigSetAPMFeaturesFromDatadogYaml() {
 func (suite *ConfigTestSuite) TestAgentConfigSetAPMFeaturesFromEnv() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
-	oldval, exists := os.LookupEnv("DD_APM_FEATURES")
-	os.Setenv("DD_APM_FEATURES", "test1,test2")
+	oldval, _ := os.LookupEnv("DD_APM_FEATURES")
+	t.Setenv("DD_APM_FEATURES", "test1,test2")
 	defer func() {
-		if !exists {
-			os.Unsetenv("DD_APM_FEATURES")
-		} else {
-			os.Setenv("DD_APM_FEATURES", oldval)
-		}
+		t.Setenv("DD_APM_FEATURES", oldval)
 	}()
 	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
 	if err != nil {
