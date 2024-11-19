@@ -3,15 +3,41 @@ module github.com/DataDog/datadog-agent/pkg/util/grpc
 go 1.22.0
 
 replace (
+	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
+	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
+	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../comp/core/secrets
+	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
+	github.com/DataDog/datadog-agent/pkg/api => ../../api
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/env => ../../config/env
+	github.com/DataDog/datadog-agent/pkg/config/mock => ../../config/mock
+	github.com/DataDog/datadog-agent/pkg/config/model => ../../config/model
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../config/nodetreemodel
+	github.com/DataDog/datadog-agent/pkg/config/setup => ../../config/setup
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../config/teeconfig
+	github.com/DataDog/datadog-agent/pkg/config/utils => ../../config/utils
 	github.com/DataDog/datadog-agent/pkg/proto => ../../proto
+	github.com/DataDog/datadog-agent/pkg/util/executable => ../executable
+	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../filesystem
+	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../fxutil
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/log => ../log
+	github.com/DataDog/datadog-agent/pkg/util/optional => ../optional
+	github.com/DataDog/datadog-agent/pkg/util/pointer => ../pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../scrubber
+	github.com/DataDog/datadog-agent/pkg/util/system => ../system
+	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../system/socket
+	github.com/DataDog/datadog-agent/pkg/util/testutil => ../testutil
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ../winutil
+	github.com/DataDog/datadog-agent/pkg/version => ../../version
 )
 
 require (
 	github.com/DataDog/datadog-agent/pkg/api v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.57.1
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0
 	github.com/stretchr/testify v1.9.0
@@ -28,15 +54,15 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.57.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.56.0-rc.3 // indirect
 	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
@@ -67,12 +93,12 @@ require (
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0 // indirect
-	golang.org/x/mod v0.21.0 // indirect
+	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f // indirect
+	golang.org/x/mod v0.22.0 // indirect
 	golang.org/x/sync v0.9.0 // indirect
 	golang.org/x/sys v0.27.0 // indirect
 	golang.org/x/text v0.20.0 // indirect
-	golang.org/x/tools v0.25.0 // indirect
+	golang.org/x/tools v0.27.0 // indirect
 	google.golang.org/genproto v0.0.0-20231106174013-bbf56f31fb17 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20231106174013-bbf56f31fb17 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231120223509-83a465c0220f // indirect
