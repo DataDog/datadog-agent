@@ -203,8 +203,6 @@ static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offse
     __u16 extension_type;
     __u16 extension_length;
     __u8 sv_list_length;
-    __u8 num_versions = 0;
-    __u16 sv_version;
 
     #pragma unroll(MAX_EXTENSIONS)
         for (int i = 0; i < MAX_EXTENSIONS; i++) {
@@ -242,14 +240,29 @@ static __always_inline int parse_client_hello(struct __sk_buff *skb, __u64 offse
                 if (offset + sv_list_length > skb_len || offset + sv_list_length > extensions_end)
                     return -1;
 
-                // Parse versions
                 #define MAX_SUPPORTED_VERSIONS 6
-                for (__u8 i = 0; i + 1 < sv_list_length && num_versions < MAX_SUPPORTED_VERSIONS; i += 2, num_versions++) {
+                __u8 num_versions = 0;
+                __u8 i = 0;
+                __u16 sv_version;
+
+                #pragma unroll(MAX_SUPPORTED_VERSIONS)
+                for (int idx = 0; idx < MAX_SUPPORTED_VERSIONS; idx++) {
+                    if (i + 1 >= sv_list_length)
+                        break;
+                    if (offset + 2 > skb_len)
+                        return -1;
+
+                    // Load the supported version
                     if (bpf_skb_load_bytes(skb, offset, &sv_version, sizeof(sv_version)) < 0)
                         return -1;
                     sv_version = bpf_ntohs(sv_version);
                     offset += 2;
+
+                    // Store the version
                     set_tls_offered_version(tags, sv_version);
+
+                    num_versions++;
+                    i += 2;
                 }
             } else {
                 // Skip other extensions
