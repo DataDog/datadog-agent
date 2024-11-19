@@ -21,7 +21,6 @@ from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
-    get_embedded_path,
     get_goenv,
     get_version,
     gitlab_section,
@@ -115,7 +114,7 @@ CACHED_WHEEL_FULL_PATH_PATTERN = CACHED_WHEEL_DIRECTORY_PATTERN + CACHED_WHEEL_F
 LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {integration}"
 
 
-@task(iterable=['bundle'])
+@task
 @run_on_devcontainer
 def build(
     ctx,
@@ -137,7 +136,6 @@ def build(
     go_mod="mod",
     windows_sysprobe=False,
     cmake_options='',
-    bundle=None,
     bundle_ebpf=False,
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
@@ -172,7 +170,6 @@ def build(
         major_version=major_version,
     )
 
-    bundled_agents = ["agent"]
     if sys.platform == 'win32':
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
@@ -185,30 +182,19 @@ def build(
             vars=vars,
             out="cmd/agent/rsrc.syso",
         )
-    else:
-        bundled_agents += bundle or []
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
         build_tags = get_default_build_tags(build="agent", flavor=flavor)
     else:
-        all_tags = set()
-        if bundle_ebpf and "system-probe" in bundled_agents:
-            all_tags.add("ebpf_bindata")
+        include_tags = (
+            get_default_build_tags(build="agent", flavor=flavor)
+            if build_include is None
+            else filter_incompatible_tags(build_include.split(","))
+        )
 
-        for build in bundled_agents:
-            all_tags.add("bundle_" + build.replace("-", "_"))
-            include_tags = (
-                get_default_build_tags(build=build, flavor=flavor)
-                if build_include is None
-                else filter_incompatible_tags(build_include.split(","))
-            )
-
-            exclude_tags = [] if build_exclude is None else build_exclude.split(",")
-            build_tags = get_build_tags(include_tags, exclude_tags)
-
-            all_tags |= set(build_tags)
-        build_tags = list(all_tags)
+        exclude_tags = [] if build_exclude is None else build_exclude.split(",")
+        build_tags = get_build_tags(include_tags, exclude_tags)
 
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
@@ -232,23 +218,6 @@ def build(
     }
     with gitlab_section("Build agent", collapsed=True):
         ctx.run(cmd.format(**args), env=env)
-
-    if embedded_path is None:
-        embedded_path = get_embedded_path(ctx)
-        assert embedded_path, "Failed to find embedded path"
-
-    for build in bundled_agents:
-        if build == "agent":
-            continue
-
-        bundled_agent_dir = os.path.join(BIN_DIR, build)
-        bundled_agent_bin = os.path.join(bundled_agent_dir, bin_name(build))
-        agent_fullpath = os.path.normpath(os.path.join(embedded_path, "..", "bin", "agent", bin_name("agent")))
-
-        if not os.path.exists(os.path.dirname(bundled_agent_bin)):
-            os.mkdir(os.path.dirname(bundled_agent_bin))
-
-        create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
 
     with gitlab_section("Generate configuration files", collapsed=True):
         render_config(
