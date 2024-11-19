@@ -10,9 +10,5 @@ import "github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 
 // Opts defines common options
 type Opts struct {
-	PathResolutionEnabled    bool
-	EnvVarsResolutionEnabled bool
-	Tagger                   tags.Tagger
-	UseRingBuffer            bool
-	TTYFallbackEnabled       bool
+	Tagger tags.Tagger
 }
