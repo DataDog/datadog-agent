@@ -86,11 +86,9 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
 	inactivityTimeout := 1 * time.Second
 	idleTimer := time.NewTimer(inactivityTimeout)
 
-	// Create a quit channel to signal when to stop blocking
-	quit := make(chan struct{})
-
-	go func() {
-		for msg := range outputChan {
+	for {
+		select {
+		case msg := <-outputChan:
 			fmt.Println(string(msg.GetContent()))
 
 			// Reset the inactivity timer every time a message is processed
@@ -98,18 +96,9 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
 				<-idleTimer.C
 			}
 			idleTimer.Reset(inactivityTimeout)
+		case <-idleTimer.C:
+			// Timeout reached, signal quit
+			return nil
 		}
-		close(quit)
-	}()
-
-	// Wait for the quit channel to close or the timer to expire
-	go func() {
-		<-idleTimer.C
-		quit <- struct{}{} // Signal timeout
-	}()
-
-	// Block until a signal is received from quit
-	<-quit
-
-	return nil
+	}
 }
