@@ -88,9 +88,17 @@
 /*
  * Helper macros to manipulate data structures
  */
+
 #ifndef offsetof
-#define offsetof(TYPE, MEMBER)	((unsigned long)&((TYPE *)0)->MEMBER)
+#define offsetof(TYPE, MEMBER) ({                                      \
+    TYPE temp = {0};                                                    \
+    uintptr_t base = (uintptr_t)&temp;                                  \
+    uintptr_t member_addr = (uintptr_t)&temp.MEMBER;                    \
+    size_t byte_offset = member_addr - base;                            \
+    (sizeof(temp.MEMBER) < 1) ? (byte_offset * 8 + __bit_offset(&temp, &temp.MEMBER)) : byte_offset; \
+})
 #endif
+
 #ifndef container_of
 #define container_of(ptr, type, member)				\
 	({							\
