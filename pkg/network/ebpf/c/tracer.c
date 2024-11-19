@@ -232,7 +232,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         return 0;
     }
 
-    cleanup_conn(ctx, &t, sk, err, true);
+    cleanup_conn(ctx, &t, sk, err);
     increment_telemetry_count(tcp_done_connection_flush);
 
     return 0;
@@ -276,7 +276,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
         tcp_failure_reason = err;
     }
 
-    cleanup_conn(ctx, &t, sk, tcp_failure_reason, false);
+    cleanup_conn(ctx, &t, sk, tcp_failure_reason);
     increment_telemetry_count(tcp_close_connection_flush);
 
     return 0;
@@ -1026,7 +1026,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *skp) 
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(ctx, &tup, skp, 0, true);
+        cleanup_conn(ctx, &tup, skp, 0);
         lport = tup.sport;
     } else {
         lport = read_sport(skp);

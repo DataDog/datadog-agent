@@ -244,7 +244,7 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
 
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
 
-    cleanup_conn(ctx, &t, sk, 0, true);
+    cleanup_conn(ctx, &t, sk, 0);
     return 0;
 }
 
@@ -543,7 +543,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *sk) {
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(ctx, &tup, sk, 0, true);
+        cleanup_conn(ctx, &tup, sk, 0);
         lport = tup.sport;
     } else {
         // get the port for the current sock

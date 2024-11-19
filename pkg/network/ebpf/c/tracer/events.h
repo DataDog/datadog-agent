@@ -44,19 +44,25 @@ __maybe_unused static __always_inline void submit_closed_conn_event(void *ctx, i
     }
 }
 
-static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk, __u16 tcp_failure_reason, bool flush_empty) {
+static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk, __u16 tcp_failure_reason) {
+    __u64 timestamp = bpf_ktime_get_ns();
+    if (bpf_map_update_with_telemetry(conn_close_flushed, tup, &timestamp, BPF_NOEXIST, -EEXIST) != 0) {
+        return;
+    }
     u32 cpu = bpf_get_smp_processor_id();
     // Will hold the full connection data to send through the perf or ring buffer
     conn_t conn = { .tup = *tup };
     conn_stats_ts_t *cst = NULL;
     tcp_stats_t *tst = NULL;
     u32 *retrans = NULL;
+    bool empty_conn = true;
     bool is_tcp = get_proto(&conn.tup) == CONN_TYPE_TCP;
     bool is_udp = get_proto(&conn.tup) == CONN_TYPE_UDP;
 
     if (is_tcp) {
         tst = bpf_map_lookup_elem(&tcp_stats, &(conn.tup));
         if (tst) {
+            empty_conn = false;
             conn.tcp_stats = *tst;
             bpf_map_delete_elem(&tcp_stats, &(conn.tup));
         }
@@ -64,6 +70,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         conn.tup.pid = 0;
         retrans = bpf_map_lookup_elem(&tcp_retransmits, &(conn.tup));
         if (retrans) {
+            empty_conn = false;
             conn.tcp_stats.retransmits = *retrans;
             bpf_map_delete_elem(&tcp_retransmits, &(conn.tup));
         }
@@ -72,28 +79,25 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         conn.tcp_stats.state_transitions |= (1 << TCP_CLOSE);
         conn.tcp_stats.failure_reason = tcp_failure_reason;
         if (tcp_failure_reason) {
+            empty_conn = false;
             increment_telemetry_count(tcp_failed_connect);
         }
     }
 
     cst = bpf_map_lookup_elem(&conn_stats, &(conn.tup));
-
     if (cst) {
+        empty_conn = false;
         conn.conn_stats = *cst;
         bpf_map_delete_elem(&conn_stats, &(conn.tup));
-    } else {
+    }
+
+    bpf_map_delete_elem(&conn_close_flushed, tup);
+
+    if (empty_conn) {
         if (is_udp) {
             increment_telemetry_count(udp_dropped_conns);
-            return; // nothing to report
         }
-        if (!flush_empty) {
-            return;
-        }
-        // we don't have any stats for the connection,
-        // so cookie is not set, set it here
-        conn.conn_stats.cookie = get_sk_cookie(sk);
-        // make sure direction is set correctly
-        determine_connection_direction(&conn.tup, &conn.conn_stats);
+        return;
     }
 
     // update the `duration` field to reflect the duration of the
