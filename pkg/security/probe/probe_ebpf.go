@@ -353,13 +353,20 @@ func (p *EBPFProbe) IsRuntimeCompiled() bool {
 }
 
 func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
-	rawPacketEventMap, _, err := p.Manager.GetMap("rawpacket_event")
+	rawPacketEventMap, _, err := p.Manager.GetMap("raw_packet_event")
 	if err != nil {
 		return err
 	}
+	if rawPacketEventMap == nil {
+		return errors.New("unable to find `rawpacket_event` map")
+	}
+
 	routerMap, _, err := p.Manager.GetMap("classifier_router")
 	if err != nil {
 		return err
+	}
+	if routerMap == nil {
+		return errors.New("unable to find `classifier_router` map")
 	}
 
 	var rawPacketFilters []rawpacket.Filter
