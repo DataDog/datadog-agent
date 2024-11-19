@@ -96,10 +96,6 @@ func (r *RemoteSysProbeUtil) GetDiscoveryServices() (*discoverymodel.ServicesRes
 	return nil, ErrNotImplemented
 }
 
-func (r *RemoteSysProbeUtil) GetCheck(module sysconfigtypes.ModuleName) (interface{}, error) {
-	return nil, ErrNotImplemented
-}
-
 func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, interval time.Duration, timeout time.Duration) ([]byte, error) {
 	return nil, ErrNotImplemented
 }
