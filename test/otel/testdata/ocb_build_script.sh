@@ -3,6 +3,8 @@
 mkdir -p /tmp/otel-ci
 cp ./test/otel/testdata/builder-config.yaml /tmp/otel-ci/
 cp ./test/otel/testdata/collector-config.yaml /tmp/otel-ci/
+cp ./tools/ci/retry.sh /tmp/otel-ci/
+chmod +x /tmp/otel-ci/retry.sh
 
 # TODO: Pin OCB to v0.114.0 once we upgrade collector dependencies to v0.114.0
 # OCB_VERSION="0.113.0"
@@ -11,9 +13,10 @@ cp ./test/otel/testdata/collector-config.yaml /tmp/otel-ci/
 
 # TODO: remove this once we upgrade collector dependencies to v0.114.0
 # clone collector repo and build cmd/builder from source
-git clone --depth 1 https://github.com/open-telemetry/opentelemetry-collector.git /tmp/otel-ci/opentelemetry-collector
+git clone https://github.com/open-telemetry/opentelemetry-collector.git /tmp/otel-ci/opentelemetry-collector
 cwd=$(pwd)
 cd "/tmp/otel-ci/opentelemetry-collector/cmd/builder" || (echo "failed to change to ocb source dir" && exit 1)
+git checkout 1d87709aeabf492fdfd59ee110f8396c0441206b # pin to specific commit since APIs changed in v0.114.0
 CGO_ENABLED=0 go build -o /tmp/otel-ci/ocb -trimpath -ldflags "-s -w" . > "${cwd}/go-install-ocb.log" 2>&1 || (echo "failed to build ocb" && exit 1)
 cd "$cwd" || (echo "failed to change back to original dir" && exit 1)
 
@@ -25,45 +28,9 @@ grep -q '{"binary": "/tmp/otel-ci/otelcol-custom/otelcol-custom"}' ocb-output.lo
 
 /tmp/otel-ci/otelcol-custom/otelcol-custom --config /tmp/otel-ci/collector-config.yaml > otelcol-custom.log 2>&1 &
 OTELCOL_PID=$!
+/tmp/otel-ci/retry.sh grep -q 'Everything is ready. Begin running and processing data.' otelcol-custom.log || (echo "Failed to start otelcol-custom" && kill $OTELCOL_PID && exit 1)
 
-# Function to retry grep up to 5 times
-retry_grep() {
-    local phrase="$1"
-    local file="$2"
-    local retries=5
-    local count=0
-
-    until grep -q "$phrase" "$file"; do
-        count=$((count + 1))
-        if [ $count -ge $retries ]; then
-            echo "Failed to find phrase '$phrase' in $file after $retries attempts"
-            kill $OTELCOL_PID
-            exit 1
-        fi
-        sleep 1
-    done
-}
-
-# Function to retry curl up to 5 times
-retry_curl() {
-    local url="$1"
-    local retries=5
-    local count=0
-
-    until curl -k "$url"; do
-        count=$((count + 1))
-        if [ $count -ge $retries ]; then
-            echo "Failed to successfully curl '$url' after $retries attempts"
-            kill $OTELCOL_PID
-            exit 1
-        fi
-        sleep 1
-    done
-}
-
-retry_grep 'Everything is ready. Begin running and processing data.' otelcol-custom.log
-
-retry_curl https://localhost:7777 > flare-info.log 2>&1
+/tmp/otel-ci/retry.sh curl -k https://localhost:7777 > flare-info.log 2>&1 
 grep -q '"provided_configuration": ""' flare-info.log || (echo "provided config is not empty" && kill $OTELCOL_PID && exit 1)
 grep -q 'ddflare/dd-autoconfigured' flare-info.log || (echo "ddflare extension should be enabled" && kill $OTELCOL_PID && exit 1)
 grep -q 'health_check/dd-autoconfigured' flare-info.log || (echo "health_check extension should be enabled" && kill $OTELCOL_PID && exit 1)
