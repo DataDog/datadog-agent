@@ -886,6 +886,7 @@ core,github.com/elastic/go-licenser,Apache-2.0,Copyright 2017-2018 Elasticsearch
 core,github.com/elastic/go-licenser/licensing,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
 core,github.com/elastic/go-seccomp-bpf,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
 core,github.com/elastic/go-seccomp-bpf/arch,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
+core,github.com/elastic/go-seccomp-bpf/internal/unix,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
 core,github.com/elastic/lunes,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
 core,github.com/elastic/lunes/dev-tools/mage,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
 core,github.com/elastic/lunes/dev-tools/mage/gotool,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
