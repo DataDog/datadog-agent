@@ -9,14 +9,15 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/net/http/httpproxy"
-	"golang.org/x/net/http2"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -89,61 +90,35 @@ func CreateHTTPTransport(cfg pkgconfigmodel.Reader) *http.Transport {
 	// consider the implication of the protocol switch for intakes and other http
 	// servers. See ForceAttemptHTTP2 in https://pkg.go.dev/net/http#Transport.
 
-	// var tlsHandshakeTimeout time.Duration
-	// if cfg.IsSet("tls_handshake_timeout") {
-	// 	tlsHandshakeTimeout = cfg.GetDuration("tls_handshake_timeout")
-	// } else {
-	// 	tlsHandshakeTimeout = 10 * time.Second
-	// }
+	var tlsHandshakeTimeout time.Duration
+	if cfg.IsSet("tls_handshake_timeout") {
+		tlsHandshakeTimeout = cfg.GetDuration("tls_handshake_timeout")
+	} else {
+		tlsHandshakeTimeout = 10 * time.Second
+	}
 
 	// // Control whether to disable RFC 6555 Fast Fallback ("Happy Eyeballs")
 	// // By default this is disabled (set to a negative value).
 	// // It can be set to 0 to use the default value, or an explicit duration.
-	// fallbackDelay := -1 * time.Nanosecond
-	// if cfg.IsSet("http_dial_fallback_delay") {
-	// 	fallbackDelay = cfg.GetDuration("http_dial_fallback_delay")
-	// }
-
-	transport := &http.Transport{
-		// TLSClientConfig: tlsConfig,
-		// DialContext: (&net.Dialer{
-		// 	Timeout: 30 * time.Second,
-		// 	// Enables TCP keepalives to detect broken connections
-		// 	KeepAlive:     30 * time.Second,
-		// 	FallbackDelay: fallbackDelay,
-		// }).DialContext,
-		// MaxIdleConns:        100,
-		// MaxIdleConnsPerHost: 5,
-		// // This parameter is set to avoid connections sitting idle in the pool indefinitely
-		// IdleConnTimeout:       45 * time.Second,
-		// TLSHandshakeTimeout:   tlsHandshakeTimeout,
-		// ExpectContinueTimeout: 1 * time.Second,
+	fallbackDelay := -1 * time.Nanosecond
+	if cfg.IsSet("http_dial_fallback_delay") {
+		fallbackDelay = cfg.GetDuration("http_dial_fallback_delay")
 	}
 
-	// see if we can auto negotiate to lower bound protocol eg: if set to http1.1 then auto negotiate 1 to 1.1 when either fails
-
-	// Configure transport based on user setting
-	switch cfg.Get("logs_config.transport_type") {
-	case "http2":
-		transport.TLSClientConfig = nil
-		transport.DialContext = nil
-		// transport.ForceAttemptHTTP2 = true
-		err := http2.ConfigureTransport(transport)
-		if err != nil {
-			log.Errorf("Failed to configure HTTP/2 transport: %v", err)
-		}
-
-	case "http1.1":
-		transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
-		transport.TLSClientConfig.NextProtos = []string{"http/1.1"}
-	case "http1":
-		transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
-		transport.TLSClientConfig.NextProtos = []string{"http/1.0"}
-	case "auto":
-		// Use default ALPN auto-negotiation
-	default:
-		log.Warnf("Invalid transport_type '%s', falling back to 'auto'", cfg.GetString("logs_config.transport_type"))
-		// Use default ALPN auto-negotiation
+	transport := &http.Transport{
+		TLSClientConfig: tlsConfig,
+		DialContext: (&net.Dialer{
+			Timeout: 30 * time.Second,
+			// Enables TCP keepalives to detect broken connections
+			KeepAlive:     30 * time.Second,
+			FallbackDelay: fallbackDelay,
+		}).DialContext,
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 5,
+		// This parameter is set to avoid connections sitting idle in the pool indefinitely
+		IdleConnTimeout:       45 * time.Second,
+		TLSHandshakeTimeout:   tlsHandshakeTimeout,
+		ExpectContinueTimeout: 1 * time.Second,
 	}
 
 	if proxies := cfg.GetProxies(); proxies != nil {

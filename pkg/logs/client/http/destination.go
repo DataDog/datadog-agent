@@ -9,6 +9,7 @@ package http
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"expvar"
 	"fmt"
@@ -309,6 +310,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	resp, err := d.client.Do(req)
 
 	latency := time.Since(then).Milliseconds()
+	log.Tracef("Log payload sent to %s using %s protocol with latency %d ms", d.url, req.Proto, latency)
 	metrics.TlmSenderLatency.Observe(float64(latency))
 	metrics.SenderLatency.Set(latency)
 
@@ -322,6 +324,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 
 	defer resp.Body.Close()
 	response, err := io.ReadAll(resp.Body)
+	log.Tracef("Log agent payload sent with: %s", resp.Proto)
 	if err != nil {
 		// the read failed because the server closed or terminated the connection
 		// *after* serving the request.
@@ -376,11 +379,26 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 }
 
 func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() *http.Client {
+
+	transport := httputils.CreateHTTPTransport(cfg)
+
+	// Configure transport based on user setting
+	switch cfg.Get("logs_config.transport_type") {
+	case "http1.1":
+		transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
+		transport.TLSClientConfig.NextProtos = []string{"http/1.1"}
+	case "auto":
+		// Use default ALPN auto-negotiation
+	default:
+		log.Warnf("Invalid transport_type '%s', falling back to 'auto'", cfg.GetString("logs_config.transport_type"))
+		// Use default ALPN auto-negotiation
+	}
+
 	return func() *http.Client {
 		client := &http.Client{
 			Timeout: timeout,
 			// reusing core agent HTTP transport to benefit from proxy settings.
-			Transport: httputils.CreateHTTPTransport(cfg),
+			Transport: transport,
 		}
 
 		log.Infof("Log Agent is using %v transport for connection", getTransportProtocol(client))

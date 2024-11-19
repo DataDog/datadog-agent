@@ -951,7 +951,7 @@ api_key:
 
   ## @param transport_type - string - optional - default: auto
   ## @env DD_LOGS_CONFIG_TRANSPORT_TYPE - string - optional - default: auto
-  ## The transport type to use for sending logs. Possible values are "auto", "http2", "http1.1" or "http1".
+  ## The transport type to use for sending logs. Possible values are "auto" or "http1".
   # transport_type: auto
 
   ## @param force_use_tcp - boolean - optional - default: false
