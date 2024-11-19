@@ -7,6 +7,7 @@ package pipeline
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
@@ -81,8 +82,9 @@ func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiv
 	encoder := processor.JSONServerlessEncoder
 	inputChan := make(chan *message.Message, config.ChanSize)
 	pipelineID := 0
+	pipelineMonitor := metrics.NewTelemetryPipelineMonitor(strconv.Itoa(pipelineID))
 	processor := processor.New(cfg, inputChan, outputChan, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, pipelineID)
+		encoder, diagnosticMessageReceiver, hostname, pipelineMonitor)
 
 	p := &processorOnlyProvider{
 		processor:  processor,
@@ -259,6 +261,10 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 
 func (p *processorOnlyProvider) NextPipelineChan() chan *message.Message {
 	return p.outputChan
+}
+
+func (p *processorOnlyProvider) NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor) {
+	return nil, nil
 }
 
 // NextPipelineChanWithMonitor returns the next pipeline input channel with it's monitor.
