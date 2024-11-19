@@ -7,8 +7,6 @@
 package probe
 
 import (
-	"os"
-
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -63,7 +61,7 @@ func (p *Probe) Origin() string {
 
 // NewAgentContainerContext returns the agent container context
 func NewAgentContainerContext() (*events.AgentContainerContext, error) {
-	pid := os.Getpid()
+	pid := utils.Getpid()
 
 	procProcess, err := gopsutilProcess.NewProcess(int32(pid))
 	if err != nil {
