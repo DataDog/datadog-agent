@@ -822,7 +822,7 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (*DebugConntrackTable, 
 	}
 
 	// some clients have tens of thousands of connections and we need to stop early
-	// if netlink takes too long. we indicate this behavior occured early with IsTruncated
+	// if netlink takes too long. we indicate this behavior occurred early with IsTruncated
 	isTruncated := errors.Is(ctx.Err(), context.DeadlineExceeded)
 
 	return &DebugConntrackTable{
@@ -883,7 +883,7 @@ func (t *Tracer) GetNetworkID(context context.Context) (string, error) {
 }
 
 const connProtoTTL = 3 * time.Minute
-const connProtoCleaningInterval = 5 * time.Minute
+const connProtoCleaningInterval = 65 * time.Second // slight jitter to avoid all maps cleaning at the same time
 
 // setupConnectionProtocolMapCleaner sets up a map cleaner for the connectionProtocolMap.
 // It will run every connProtoCleaningInterval and delete entries older than connProtoTTL.

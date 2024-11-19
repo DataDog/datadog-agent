@@ -9,6 +9,10 @@ package snmp
 import (
 	"errors"
 	"fmt"
+	"net"
+	"os"
+	"strconv"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/aggregator"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
@@ -16,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -27,9 +31,6 @@ import (
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"net"
-	"os"
-	"strconv"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -135,6 +136,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	snmpCmd.AddCommand(snmpWalkCmd)
 
+	logLevelDefaultOff := command.LogLevelDefaultOff{}
+
 	// This command does nothing until the backend supports it, so it isn't visible yet.
 	snmpScanCmd := &cobra.Command{
 		Hidden: true,
@@ -150,7 +153,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, logLevelDefaultOff.Value(), true)}),
 				core.Bundle(),
 				aggregator.Bundle(demultiplexerimpl.NewDefaultParams()),
 				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
@@ -171,6 +174,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return nil
 		},
 	}
+
+	logLevelDefaultOff.Register(snmpScanCmd)
 	// TODO is there a way to merge these flags with snmpWalkCmd flags, without cobra changing the docs to mark them as "global flags"?
 	snmpScanCmd.Flags().VarP(Flag(&snmpparse.VersionOpts, &connParams.Version), "snmp-version", "v",
 		fmt.Sprintf("Specify SNMP version to use (%s)", snmpparse.VersionOpts.OptsStr()))

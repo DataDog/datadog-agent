@@ -42,7 +42,7 @@ const (
 	MinimalDockerImage DockerImage = "alpine:3.20.3"
 )
 
-type SampleArgs struct {
+type SampleArgs struct { //nolint:revive // TODO
 	// StartWaitTimeSec represents the time in seconds to wait before the binary starting the CUDA calls
 	StartWaitTimeSec int
 
@@ -51,12 +51,27 @@ type SampleArgs struct {
 	// eBPF probe has a chance to read the events and inspect the binary. To make the behavior of the sample binary
 	// more predictable and avoid flakiness in the tests, we introduce a delay before the binary exits.
 	EndWaitTimeSec int
+
+	// CudaVisibleDevicesEnv represents the value of the CUDA_VISIBLE_DEVICES environment variable
+	CudaVisibleDevicesEnv string
+
+	// SelectedDevice represents the device that the CUDA sample will select
+	SelectedDevice int
+}
+
+func (a *SampleArgs) getEnv() []string {
+	env := []string{}
+	if a.CudaVisibleDevicesEnv != "" {
+		env = append(env, fmt.Sprintf("CUDA_VISIBLE_DEVICES=%s", a.CudaVisibleDevicesEnv))
+	}
+	return env
 }
 
 func (a *SampleArgs) getCLIArgs() []string {
 	return []string{
 		strconv.Itoa(int(a.StartWaitTimeSec)),
 		strconv.Itoa(int(a.EndWaitTimeSec)),
+		strconv.Itoa(a.SelectedDevice),
 	}
 }
 
@@ -88,8 +103,10 @@ func getBuiltSamplePath(t *testing.T, sample SampleName) string {
 // GetDefaultArgs returns the default arguments for the sample binary
 func GetDefaultArgs() SampleArgs {
 	return SampleArgs{
-		StartWaitTimeSec: 5,
-		EndWaitTimeSec:   0,
+		StartWaitTimeSec:      5,
+		EndWaitTimeSec:        1, // We need the process to stay active a bit so we can inspect its environment variables, if it ends too quickly we get no information
+		CudaVisibleDevicesEnv: "",
+		SelectedDevice:        0,
 	}
 }
 
@@ -103,6 +120,9 @@ func runCommandAndPipeOutput(t *testing.T, command []string, args SampleArgs, lo
 		}
 	})
 
+	env := args.getEnv()
+	cmd.Env = append(cmd.Env, env...)
+
 	stdout, err := cmd.StdoutPipe()
 	require.NoError(t, err)
 	stderr, err := cmd.StderrPipe()
@@ -111,7 +131,7 @@ func runCommandAndPipeOutput(t *testing.T, command []string, args SampleArgs, lo
 	redirectReaderToLog(stdout, fmt.Sprintf("%s stdout", logName))
 	redirectReaderToLog(stderr, fmt.Sprintf("%s stderr", logName))
 
-	log.Debugf("Running command %v", command)
+	log.Debugf("Running command %v, env=%v", command, env)
 	err = cmd.Start()
 	require.NoError(t, err)
 
@@ -123,7 +143,7 @@ func RunSample(t *testing.T, name SampleName) *exec.Cmd {
 	return RunSampleWithArgs(t, name, GetDefaultArgs())
 }
 
-// RunSample executes the sample binary with args and returns the command. Cleanup is configured automatically
+// RunSampleWithArgs executes the sample binary with args and returns the command. Cleanup is configured automatically
 func RunSampleWithArgs(t *testing.T, name SampleName, args SampleArgs) *exec.Cmd {
 	builtBin := getBuiltSamplePath(t, name)
 
@@ -141,7 +161,14 @@ func RunSampleInDockerWithArgs(t *testing.T, name SampleName, image DockerImage,
 	containerName := fmt.Sprintf("gpu-testutil-%s", utils.RandString(10))
 	mountArg := fmt.Sprintf("%s:%s", builtBin, builtBin)
 
-	command := []string{"docker", "run", "--rm", "-v", mountArg, "--name", containerName, string(image), builtBin}
+	command := []string{"docker", "run", "--rm", "-v", mountArg, "--name", containerName}
+
+	// Pass environment variables to the container as docker args
+	for _, env := range args.getEnv() {
+		command = append(command, "-e", env)
+	}
+
+	command = append(command, string(image), builtBin)
 
 	_ = runCommandAndPipeOutput(t, command, args, string(name))
 
