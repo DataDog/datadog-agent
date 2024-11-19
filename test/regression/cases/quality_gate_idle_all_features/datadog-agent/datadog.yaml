@@ -47,12 +47,6 @@ otlp_config:
   logs:
     enabled: true
 
-system_probe_config:
-  enabled: true
-
-network_config:
-  enabled: true
-
 # Per Cloud Security Management setup documentation
 # https://docs.datadoghq.com/security/cloud_security_management/setup/agent/linux/
 remote_configuration:
