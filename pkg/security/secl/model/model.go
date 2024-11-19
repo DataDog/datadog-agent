@@ -230,6 +230,13 @@ func (e *Event) AddToFlags(flag uint32) {
 	e.Flags |= flag
 }
 
+// ResetAnomalyDetectionEvent removes the anomaly detection event flag
+func (e *Event) ResetAnomalyDetectionEvent() {
+	if e.IsAnomalyDetectionEvent() {
+		e.RemoveFromFlags(EventFlagsAnomalyDetectionEvent)
+	}
+}
+
 // RemoveFromFlags remove a flag to the event
 func (e *Event) RemoveFromFlags(flag uint32) {
 	e.Flags ^= flag
