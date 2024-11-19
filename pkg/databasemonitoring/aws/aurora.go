@@ -106,24 +106,34 @@ func (c *Client) GetAuroraClustersFromTags(ctx context.Context, tags []string) (
 		return nil, fmt.Errorf("at least one tag filter is required")
 	}
 	clusterIdentifiers := make([]string, 0)
-	clusters, err := c.client.DescribeDBClusters(ctx, &rds.DescribeDBClustersInput{
-		Filters: []types.Filter{
-			{
-				Name: aws.String("engine"),
-				Values: []string{
-					auroraMysqlEngine, auroraPostgresqlEngine,
+	var marker *string
+	var err error
+	for {
+		clusters, err := c.client.DescribeDBClusters(ctx, &rds.DescribeDBClustersInput{
+			Marker: marker,
+			Filters: []types.Filter{
+				{
+					Name: aws.String("engine"),
+					Values: []string{
+						auroraMysqlEngine, auroraPostgresqlEngine,
+					},
 				},
 			},
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error running GetAuroraClustersFromTags: %v", err)
-	}
-	for _, cluster := range clusters.DBClusters {
-		if cluster.DBClusterIdentifier != nil && containsTags(cluster.TagList, tags) {
-			clusterIdentifiers = append(clusterIdentifiers, *cluster.DBClusterIdentifier)
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error running GetAuroraClustersFromTags: %v", err)
+		}
+		for _, cluster := range clusters.DBClusters {
+			if cluster.DBClusterIdentifier != nil && containsTags(cluster.TagList, tags) {
+				clusterIdentifiers = append(clusterIdentifiers, *cluster.DBClusterIdentifier)
+			}
+		}
+		marker = clusters.Marker
+		if marker == nil {
+			break
 		}
 	}
+
 	return clusterIdentifiers, err
 }
 
