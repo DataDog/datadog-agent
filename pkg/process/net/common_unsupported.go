@@ -90,14 +90,17 @@ func (r *RemoteSysProbeUtil) GetConnTrackHost() ([]byte, error) { return nil, Er
 // GetBTFLoaderInfo is not supported
 func (r *RemoteSysProbeUtil) GetBTFLoaderInfo() ([]byte, error) { return nil, ErrNotImplemented }
 
+// GetDiscoveryServices is not supported
 func (r *RemoteSysProbeUtil) GetDiscoveryServices() (*discoverymodel.ServicesResponse, error) {
 	return nil, ErrNotImplemented
 }
 
+// GetPing is not supported
 func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, interval time.Duration, timeout time.Duration) ([]byte, error) {
 	return nil, ErrNotImplemented
 }
 
+// GetTraceroute is not supported
 func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port uint16, protocol nppayload.Protocol, maxTTL uint8, timeout time.Duration) ([]byte, error) {
 	return nil, ErrNotImplemented
 }
