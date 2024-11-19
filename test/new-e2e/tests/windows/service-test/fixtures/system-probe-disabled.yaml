@@ -1,0 +1,7 @@
+# enable NPM
+network_config:
+  enabled: false
+
+# enable security agent
+runtime_security_config:
+  enabled: false

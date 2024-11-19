@@ -10,6 +10,7 @@ import (
 	_ "embed"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -37,6 +38,9 @@ var systemProbeConfig string
 
 //go:embed fixtures/system-probe-nofim.yaml
 var systemProbeNoFIMConfig string
+
+//go:embed fixtures/system-probe-disabled.yaml
+var systemProbeDisabled string
 
 //go:embed fixtures/security-agent.yaml
 var securityAgentConfig string
@@ -218,6 +222,71 @@ func (s *powerShellServiceCommandSuite) TestHardExitEventLogEntry() {
 	}, 1*time.Minute, 1*time.Second, "should have hard exit messages in the event log")
 }
 
+// TestServiceBehaviorWhenDisabled tests the service behavior when disabled in the configuration
+func TestServiceBehaviorWhenDisabled(t *testing.T) {
+	s := &agentServiceDisabledSuite{}
+	run(t, s, systemProbeDisabled)
+}
+
+type agentServiceDisabledSuite struct {
+	baseStartStopSuite
+}
+
+func (s *agentServiceDisabledSuite) SetupSuite() {
+	s.baseStartStopSuite.SetupSuite()
+
+	// set up the expected services before calling the base setup
+	s.expectedUserServices = func() []string {
+		return []string{
+			"datadogagent",
+			"datadog-trace-agent",
+			"datadog-process-agent",
+		}
+	}
+	s.expectedInstalledServices = func() []string {
+		return s.expectedUserServices()
+	}
+
+	s.startAgentCommand = func(host *components.RemoteHost) error {
+		cmd := `Start-Service -Name datadogagent`
+		out, err := host.Execute(cmd)
+		out = strings.TrimSpace(out)
+		if err == nil && out != "" {
+			s.T().Logf("PowerShell Start-Service output:\n%s", out)
+		}
+		return err
+	}
+	s.stopAgentCommand = func(host *components.RemoteHost) error {
+		cmd := `Stop-Service -Force -Name datadogagent`
+		out, err := host.Execute(cmd)
+		out = strings.TrimSpace(out)
+		if err == nil && out != "" {
+			s.T().Logf("PowerShell Stop-Service output:\n%s", out)
+		}
+		return err
+	}
+}
+
+func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
+	// check that the system probe is not running
+	s.assertServiceState("Stopped", "datadog-system-probe")
+
+	// try and start it and verify that it does correctly outputs to event log
+	_, _, err := windowsCommon.MeasureCommand(s.Env().RemoteHost, "Start-Service -Name datadog-system-probe")
+	s.Require().NoError(err, "should start datadog-system-probe")
+
+	//verify that service returns to stopped state
+	s.assertServiceState("Stopped", "datadog-system-probe")
+
+	// Log errors and warnings to the screen for easy access
+	entries, err := s.getAgentEventLogErrorsAndWarnings()
+	s.Require().NoError(err, "should get agent errors and warnings from Application event log")
+	//s.Require().Empty(entries, "should not have errors or warnings from agents in the event log")
+	for _, entry := range entries {
+		s.T().Logf("Errors and warnings from agent in the event log:\n%s", entry.Message)
+	}
+}
+
 func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string) {
 	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoFakeIntake(
 		awsHostWindows.WithAgentOptions(
@@ -234,9 +303,11 @@ func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string) {
 
 type baseStartStopSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
-	startAgentCommand func(host *components.RemoteHost) error
-	stopAgentCommand  func(host *components.RemoteHost) error
-	dumpFolder        string
+	startAgentCommand         func(host *components.RemoteHost) error
+	stopAgentCommand          func(host *components.RemoteHost) error
+	expectedUserServices      func() []string
+	expectedInstalledServices func() []string
+	dumpFolder                string
 }
 
 // TestAgentStartsAllServices tests that starting the agent starts all services (as enabled)
@@ -309,18 +380,27 @@ func (s *baseStartStopSuite) SetupSuite() {
 	env := map[string]string{
 		"GOTRACEBACK": "wer",
 	}
-	for _, svc := range s.expectedUserServices() {
+	for _, svc := range s.getUserServices() {
 		err := windowsCommon.SetServiceEnvironment(s.Env().RemoteHost, svc, env)
 		s.Require().NoError(err, "should set environment for %s", svc)
 	}
 
 	// Disable failure actions (auto restart service) so they don't interfere with the tests
 	host := s.Env().RemoteHost
-	for _, serviceName := range s.expectedInstalledServices() {
+	for _, serviceName := range s.getServices() {
 		cmd := fmt.Sprintf(`sc.exe failure "%s" reset= 0 actions= none`, serviceName)
 		_, err := host.Execute(cmd)
 		s.Require().NoError(err, "should disable failure actions for %s", serviceName)
 	}
+
+	// Setup default expected services
+	s.expectedUserServices = func() []string {
+		return s.getUserServices()
+	}
+	s.expectedInstalledServices = func() []string {
+		return s.getServices()
+	}
+
 }
 
 func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
@@ -435,22 +515,41 @@ func (s *baseStartStopSuite) requireAllServicesState(expected string) {
 		// stop test if not all services are running
 		s.FailNowf("not all services are %s", expected)
 	}
+
+	// ensure no unexpected services are running
+	s.assertNonExpectedServiceState("Stopped")
+	if s.T().Failed() {
+		// stop test if unexpected services are running
+		s.FailNow("unexpected services are running")
+	}
+}
+
+func (s *baseStartStopSuite) assertNonExpectedServiceState(expected string) {
+	expectedServices := s.expectedInstalledServices()
+	for _, serviceName := range s.getServices() {
+		if !slices.Contains(expectedServices, serviceName) {
+			s.assertServiceState(expected, serviceName)
+		}
+	}
 }
 
 func (s *baseStartStopSuite) assertAllServicesState(expected string) {
-	host := s.Env().RemoteHost
-
 	for _, serviceName := range s.expectedInstalledServices() {
-		s.Assert().EventuallyWithT(func(c *assert.CollectT) {
-			status, err := windowsCommon.GetServiceStatus(host, serviceName)
-			if !assert.NoError(c, err) {
-				return
-			}
-			if !assert.Equal(c, expected, status, "%s should be %s", serviceName, expected) {
-				s.T().Logf("waiting for %s to be %s, status %s", serviceName, expected, status)
-			}
-		}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
+		s.assertServiceState(expected, serviceName)
 	}
+}
+
+func (s *baseStartStopSuite) assertServiceState(expected string, serviceName string) {
+	host := s.Env().RemoteHost
+	s.Assert().EventuallyWithT(func(c *assert.CollectT) {
+		status, err := windowsCommon.GetServiceStatus(host, serviceName)
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.Equal(c, expected, status, "%s should be %s", serviceName, expected) {
+			s.T().Logf("waiting for %s to be %s, status %s", serviceName, expected, status)
+		}
+	}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
 }
 
 func (s *baseStartStopSuite) stopAllServices() {
@@ -463,7 +562,7 @@ func (s *baseStartStopSuite) stopAllServices() {
 	s.T().Logf("Agent service stopped")
 
 	// ensure all services are stopped
-	for _, serviceName := range s.expectedInstalledServices() {
+	for _, serviceName := range s.getServices() {
 		s.Assert().EventuallyWithT(func(c *assert.CollectT) {
 			status, err := windowsCommon.GetServiceStatus(host, serviceName)
 			if !assert.NoError(c, err) {
@@ -477,9 +576,7 @@ func (s *baseStartStopSuite) stopAllServices() {
 		}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
 	}
 }
-
-// expectedUserServices returns the list of user-mode services
-func (s *baseStartStopSuite) expectedUserServices() []string {
+func (s *baseStartStopSuite) getUserServices() []string {
 	return []string{
 		"datadogagent",
 		"datadog-trace-agent",
@@ -490,8 +587,8 @@ func (s *baseStartStopSuite) expectedUserServices() []string {
 }
 
 // expectedInstalledServices returns the list of services that should be installed by the agent
-func (s *baseStartStopSuite) expectedInstalledServices() []string {
-	user := s.expectedUserServices()
+func (s *baseStartStopSuite) getServices() []string {
+	user := s.getUserServices()
 	kernel := []string{
 		"ddnpm",
 		"ddprocmon",
@@ -502,7 +599,7 @@ func (s *baseStartStopSuite) expectedInstalledServices() []string {
 // getAgentEventLogErrorsAndWarnings returns the errors and warnings from the agent services in the Application event log
 func (s *baseStartStopSuite) getAgentEventLogErrorsAndWarnings() ([]windowsCommon.EventLogEntry, error) {
 	host := s.Env().RemoteHost
-	providerNames := s.expectedUserServices()
+	providerNames := s.getUserServices()
 	providerNamesFilter := fmt.Sprintf(`"%s"`, strings.Join(providerNames, `","`))
 	filter := fmt.Sprintf(`@{ LogName='Application'; ProviderName=%s; Level=1,2,3 }`, providerNamesFilter)
 	return windowsCommon.GetEventLogEntriesWithFilterHashTable(host, filter)
