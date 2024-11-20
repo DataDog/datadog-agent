@@ -96,11 +96,11 @@ func (r *RemoteSysProbeUtil) GetDiscoveryServices() (*discoverymodel.ServicesRes
 }
 
 // GetPing is not supported
-func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, interval time.Duration, timeout time.Duration) ([]byte, error) {
+func (r *RemoteSysProbeUtil) GetPing(_ string, _ string, _ int, _ time.Duration, _ time.Duration) ([]byte, error) {
 	return nil, ErrNotImplemented
 }
 
 // GetTraceroute is not supported
-func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port uint16, protocol nppayload.Protocol, maxTTL uint8, timeout time.Duration) ([]byte, error) {
+func (r *RemoteSysProbeUtil) GetTraceroute(_ string, _ string, _ uint16, _ nppayload.Protocol, _ uint8, _ time.Duration) ([]byte, error) {
 	return nil, ErrNotImplemented
 }
