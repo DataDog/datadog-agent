@@ -186,15 +186,6 @@ func (t *remoteTagger) Start(ctx context.Context) error {
 
 	t.client = pb.NewAgentSecureClient(t.conn)
 
-	err = t.startTaggerStream(noTimeout)
-	if err != nil {
-		// tagger stopped before being connected
-		if errors.Is(err, errTaggerStreamNotStarted) {
-			return nil
-		}
-		return err
-	}
-
 	t.log.Info("remote tagger initialized successfully")
 
 	go t.run()
