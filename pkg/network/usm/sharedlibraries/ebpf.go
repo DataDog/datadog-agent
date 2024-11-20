@@ -50,26 +50,27 @@ var progSingleton *EbpfProgram
 // LibraryCallback defines the type of the callback function that will be called when a shared library event is detected
 type LibraryCallback func(LibPath)
 
-type libsetData struct {
-	callbacks   map[*LibraryCallback]struct{}
-	done        chan struct{}
-	perfHandler *ddebpf.PerfHandler
-	enabled     bool
+type libsetHandler struct {
+	callbacksMutex sync.RWMutex
+	callbacks      map[*LibraryCallback]struct{}
+	done           chan struct{}
+	perfHandler    *ddebpf.PerfHandler
+	enabled        bool
 }
 
 // EbpfProgram represents the shared libraries eBPF program.
 type EbpfProgram struct {
 	*ddebpf.Manager
 
-	libsets  map[Libset]*libsetData
+	libsets  map[Libset]*libsetHandler
 	cfg      *ddebpf.Config
 	refcount atomic.Int32
 
-	callbacksMutex sync.RWMutex
-	wg             sync.WaitGroup
+	wg sync.WaitGroup
 
-	// We need to protect the initialization variables with a mutex, as the program can be initialized
-	// from multiple goroutines at the same time
+	// We need to protect the initialization variables and libset map with a
+	// mutex, as the program can be initialized from multiple goroutines at the
+	// same time.
 	initMutex     sync.Mutex
 	isInitialized bool
 }
@@ -95,7 +96,16 @@ func GetEBPFProgram(cfg *ddebpf.Config) *EbpfProgram {
 	progSingletonOnce.Do(func() {
 		progSingleton = &EbpfProgram{
 			cfg:     cfg,
-			libsets: make(map[Libset]*libsetData),
+			libsets: make(map[Libset]*libsetHandler),
+		}
+
+		// Initialize the libsets to avoid requiring a mutex on the map. Golang maps are thread safe
+		// for reads.
+		for libset := range LibsetToLibSuffixes {
+			progSingleton.libsets[libset] = &libsetHandler{
+				callbacks: make(map[*LibraryCallback]struct{}),
+				done:      make(chan struct{}),
+			}
 		}
 	})
 	progSingleton.refcount.Inc()
@@ -103,30 +113,19 @@ func GetEBPFProgram(cfg *ddebpf.Config) *EbpfProgram {
 	return progSingleton
 }
 
-func (e *EbpfProgram) getLibsetData(libset Libset) *libsetData {
-	if data, ok := e.libsets[libset]; ok {
-		return data
-	}
-
-	data := &libsetData{
-		callbacks: make(map[*LibraryCallback]struct{}),
-		done:      make(chan struct{}),
-	}
-	e.libsets[libset] = data
-	return data
-}
-
+// enableLibset enables the eBPF program for the given libset. Assumes initMutex is locked
 func (e *EbpfProgram) enableLibset(libset Libset) {
-	// Force the program to be initialized if it's not already initialized
-	data := e.getLibsetData(libset)
-	data.enabled = true
+	e.libsets[libset].enabled = true
 }
 
+// isLibsetEnabled checks if the libset is enabled. Assumes initMutex is locked
 func (e *EbpfProgram) isLibsetEnabled(libset Libset) bool {
 	data, ok := e.libsets[libset]
 	return ok && data.enabled
 }
 
+// setupManagerAndPerfHandlers sets up the manager and perf handlers for the eBPF program, creating the perf handlers
+// Assumes initMutex is locked
 func (e *EbpfProgram) setupManagerAndPerfHandlers() {
 	mgr := &manager.Manager{}
 
@@ -148,7 +147,7 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() {
 		}
 		mgr.PerfMaps = append(mgr.PerfMaps, pm)
 		ebpftelemetry.ReportPerfMapTelemetry(pm)
-		e.getLibsetData(libset).perfHandler = perfHandler
+		e.libsets[libset].perfHandler = perfHandler
 	}
 
 	probeIDs := getSysOpenHooksIdentifiers()
@@ -260,54 +259,77 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 	return nil
 }
 
+// start starts the eBPF program and the perf handlers, assumes the initMutex is locked
 func (e *EbpfProgram) start() error {
 	err := e.Manager.Start()
 	if err != nil {
 		return fmt.Errorf("cannot start manager: %w", err)
 	}
 
-	for libset, data := range e.libsets {
-		if !data.enabled {
+	for _, handler := range e.libsets {
+		if !handler.enabled {
 			continue
 		}
 
 		e.wg.Add(1)
-		go func(ls Libset, ldata *libsetData) {
-			defer e.wg.Done()
-
-			dataChan := ldata.perfHandler.DataChannel()
-			lostChan := ldata.perfHandler.LostChannel()
-			for {
-				select {
-				case <-data.done:
-					return
-				case event, ok := <-dataChan:
-					if !ok {
-						return
-					}
-					e.handleEvent(&event, ls)
-				case <-lostChan:
-					// Nothing to do in this case
-					break
-				}
-			}
-		}(libset, data)
+		go handler.eventLoop(&e.wg)
 	}
 
 	return nil
 }
 
-func (e *EbpfProgram) handleEvent(event *ebpf.DataEvent, libset Libset) {
-	e.callbacksMutex.RLock()
-	defer func() {
-		event.Done()
-		e.callbacksMutex.RUnlock()
-	}()
+// eventLoop is the main loop for a single libset. Should be called with all perfHandlers initialized.
+func (l *libsetHandler) eventLoop(wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	dataChan := l.perfHandler.DataChannel()
+	lostChan := l.perfHandler.LostChannel()
+	for {
+		select {
+		case <-l.done:
+			return
+		case event, ok := <-dataChan:
+			if !ok {
+				return
+			}
+			l.handleEvent(&event)
+		case <-lostChan:
+			// Nothing to do in this case
+			break
+		}
+	}
+}
+
+func (l *libsetHandler) handleEvent(event *ebpf.DataEvent) {
+	defer event.Done()
+	l.callbacksMutex.RLock()
+	defer l.callbacksMutex.RUnlock()
 
 	libpath := ToLibPath(event.Data)
-	for callback := range e.getLibsetData(libset).callbacks {
+	for callback := range l.callbacks {
 		// Not using a callback runner for now, as we don't have a lot of callbacks
 		(*callback)(libpath)
+	}
+}
+
+func (l *libsetHandler) stop() {
+	l.perfHandler.Stop()
+	close(l.done)
+}
+
+// subscribe subscribes to the shared libraries events for this libset, returns the function
+// to call to unsubscribe
+func (l *libsetHandler) subscribe(callback LibraryCallback) func() {
+	l.callbacksMutex.Lock()
+	defer l.callbacksMutex.Unlock()
+
+	l.callbacks[&callback] = struct{}{}
+
+	return func() {
+		l.callbacksMutex.Lock()
+		defer l.callbacksMutex.Unlock()
+
+		delete(l.callbacks, &callback)
 	}
 }
 
@@ -334,19 +356,17 @@ func (e *EbpfProgram) Subscribe(callback LibraryCallback, libsets ...Libset) (fu
 		return nil, err
 	}
 
-	e.callbacksMutex.Lock()
-	defer e.callbacksMutex.Unlock()
-
+	var unsubscribers []func()
 	for _, libset := range libsets {
-		e.getLibsetData(libset).callbacks[&callback] = struct{}{}
+		// e.libsets is thread-safe for reads, subscribe takes the libset-specific callback.
+		unsub := e.libsets[libset].subscribe(callback)
+		unsubscribers = append(unsubscribers, unsub)
 	}
 
 	// UnSubscribe()
 	return func() {
-		e.callbacksMutex.Lock()
-		defer e.callbacksMutex.Unlock()
-		for _, libset := range libsets {
-			delete(e.getLibsetData(libset).callbacks, &callback)
+		for _, unsub := range unsubscribers {
+			unsub()
 		}
 	}, nil
 }
@@ -377,9 +397,8 @@ func (e *EbpfProgram) stopImpl() {
 		ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
 	}
 
-	for _, data := range e.libsets {
-		data.perfHandler.Stop()
-		close(data.done)
+	for _, handler := range e.libsets {
+		handler.stop()
 	}
 
 	e.wg.Wait()
