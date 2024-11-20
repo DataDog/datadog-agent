@@ -19,9 +19,7 @@ import (
 
 func testSocketExistsNewUDSListener(t *testing.T, socketPath string) {
 	// Pre-create a socket
-	addr, err := net.ResolveUnixAddr("unix", socketPath)
-	require.NoError(t, err)
-	_, err = net.Listen("unix", addr.Name)
+	_, err := net.Listen("unix", socketPath)
 	require.NoError(t, err)
 
 	// Create a new socket using UDSListener
@@ -54,10 +52,10 @@ func testWorkingNewUDSListener(t *testing.T, socketPath string) {
 }
 
 func TestNewUDSListener(t *testing.T) {
-	t.Run("socket_exists_but_is_successfully_removed", func(t *testing.T) {
+	t.Run("socket exists", func(t *testing.T) {
 		testSocketExistsNewUDSListener(t, t.TempDir()+"/net.sock")
 	})
-	t.Run("non_socket_exists_and_fails_to_be_removed", func(t *testing.T) {
+	t.Run("non socket exists", func(t *testing.T) {
 		testSocketExistsAsRegularFileNewUDSListener(t, t.TempDir()+"/net.sock")
 	})
 	t.Run("working", func(t *testing.T) {

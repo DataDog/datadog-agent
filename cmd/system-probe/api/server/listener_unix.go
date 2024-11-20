@@ -23,11 +23,6 @@ func NewListener(socketAddr string) (net.Listener, error) {
 		return nil, errors.New("uds: empty socket path provided")
 	}
 
-	addr, err := net.ResolveUnixAddr("unix", socketAddr)
-	if err != nil {
-		return nil, fmt.Errorf("uds: resolve unix address: %v", err)
-	}
-
 	// Check to see if there's a pre-existing system probe socket.
 	fileInfo, err := os.Stat(socketAddr)
 	if err == nil { // No error means the socket file already exists
@@ -41,7 +36,7 @@ func NewListener(socketAddr string) (net.Listener, error) {
 		}
 	}
 
-	conn, err := net.Listen("unix", addr.Name)
+	conn, err := net.Listen("unix", socketAddr)
 	if err != nil {
 		return nil, fmt.Errorf("listen: %s", err)
 	}
