@@ -6,6 +6,7 @@
 package health
 
 import (
+	"net/http"
 	"testing"
 	"time"
 
@@ -30,12 +31,13 @@ func TestWindowsHealthSuite(t *testing.T) {
 func (v *windowsHealthSuite) TestDefaultInstallUnhealthy() {
 	// the fakeintake says that any API key is invalid by sending a 403 code
 	override := api.ResponseOverride{
-		Endpoint:    "/api/v1/validate",
-		StatusCode:  403,
-		ContentType: "text/plain",
-		Body:        []byte("invalid API key"),
+		Endpoint:   "/api/v1/validate",
+		StatusCode: 403,
+		Method:     http.MethodGet,
+		Body:       []byte("invalid API key"),
 	}
-	v.Env().FakeIntake.Client().ConfigureOverride(override)
+	err := v.Env().FakeIntake.Client().ConfigureOverride(override)
+	require.NoError(v.T(), err)
 	// restart the agent, which validates the key using the fakeintake at startup
 	v.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\n"))))
