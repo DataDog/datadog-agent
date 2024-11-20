@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/DataDog/viper"
 	"github.com/spf13/cast"
 )
 
@@ -45,6 +46,23 @@ var ImplicitlyConvertArrayToMapSet UnmarshalKeyOption = func(fs *featureSet) {
 	fs.convertArrayToMap = true
 }
 
+// legacyConvertArrayToMap convert array to map when DD_CONF_NODETREEMODEL is disabled
+var legacyConvertArrayToMap = viper.DecodeHook(
+	func(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
+		if rf != reflect.Slice {
+			return data, nil
+		}
+		if rt != reflect.Map {
+			return data, nil
+		}
+		newData := map[interface{}]bool{}
+		for _, i := range data.([]interface{}) {
+			newData[i] = true
+		}
+		return newData, nil
+	},
+)
+
 // UnmarshalKey retrieves data from the config at the given key and deserializes it
 // to be stored on the target struct.
 //
@@ -56,6 +74,15 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 	nodetreemodel := os.Getenv("DD_CONF_NODETREEMODEL")
 	if nodetreemodel == "enabled" || nodetreemodel == "unmarshal" {
 		return unmarshalKeyReflection(cfg, key, target, opts...)
+	}
+
+	fs := &featureSet{}
+	for _, o := range opts {
+		o(fs)
+	}
+
+	if fs.convertArrayToMap {
+		return cfg.UnmarshalKey(key, target, legacyConvertArrayToMap)
 	}
 	return cfg.UnmarshalKey(key, target)
 }
@@ -177,7 +204,7 @@ func copyMap(target reflect.Value, source nodetreemodel.Node, fs *featureSet) er
 
 	if fs.convertArrayToMap {
 		if leaf, ok := source.(nodetreemodel.LeafNode); ok {
-			thing, _ := leaf.GetAny()
+			thing := leaf.Get()
 			if arr, ok := thing.([]interface{}); ok {
 				// convert []interface{} to map[interface{}]bool
 				create := make(map[interface{}]bool)
@@ -209,9 +236,9 @@ func copyMap(target reflect.Value, source nodetreemodel.Node, fs *featureSet) er
 			continue
 		}
 		if scalar, ok := child.(nodetreemodel.LeafNode); ok {
-			if mval, err := cast.ToStringE(scalar.Get()); err == nil {
+			if mval, err := cast.ToStringE(scalar.Get()); vtype == reflect.TypeOf("") && err == nil {
 				results.SetMapIndex(reflect.ValueOf(mkey), reflect.ValueOf(mval))
-			} else if bval, err := scalar.GetBool(); err == nil {
+			} else if bval, err := cast.ToBoolE(scalar.Get()); vtype == reflect.TypeOf(true) && err == nil {
 				results.SetMapIndex(reflect.ValueOf(mkey), reflect.ValueOf(bval))
 			} else {
 				return fmt.Errorf("only map[string]string and map[string]bool supported currently")

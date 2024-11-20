@@ -961,38 +961,6 @@ feature:
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "can't copy into target: scalar required")
 	})
-
-	t.Run("errors on non-string map", func(t *testing.T) {
-		confYaml := `
-feature:
-  enabled: true
-`
-
-		mockConfig := mock.NewFromYAML(t, confYaml)
-		mockConfig.SetKnown("feature")
-
-		feature := make(map[string]bool)
-
-		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
-		require.Error(t, err)
-		assert.Equal(t, err.Error(), "only map[string]string are supported, not map[string]bool")
-	})
-
-	t.Run("errors on non-string map", func(t *testing.T) {
-		confYaml := `
-feature:
-  enabled: true
-`
-
-		mockConfig := mock.NewFromYAML(t, confYaml)
-		mockConfig.SetKnown("feature")
-
-		feature := make(map[string]bool)
-
-		err := UnmarshalKey(mockConfig, "feature", &feature)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "only map[string]string supported currently")
-	})
 }
 
 // A flag is provided as a struct tag after a field name separated by a comma that
@@ -1247,13 +1215,15 @@ service:
 	})
 }
 
-func TestUnmarshalKeysToMap(t *testing.T) {
+func TestUnmarshalKeysToMapOfString(t *testing.T) {
 	confYaml := `
 service:
   host: datad0g.com
   name: intake
   apikey: abc1
   the_great_question: 42
+  enabled: true
+  disabled: f
 `
 	mockConfig := mock.NewFromYAML(t, confYaml)
 	mockConfig.SetKnown("service")
@@ -1266,6 +1236,31 @@ service:
 	assert.Equal(t, svc["name"], "intake")
 	assert.Equal(t, svc["apikey"], "abc1")
 	assert.Equal(t, svc["the_great_question"], "42")
+	assert.Equal(t, svc["enabled"], "true")
+	assert.Equal(t, svc["disabled"], "f")
+}
+
+func TestUnmarshalKeysToMapOfBool(t *testing.T) {
+	confYaml := `
+service:
+  enabled: true
+  disabled: false
+`
+	mockConfig := mock.NewFromYAML(t, confYaml)
+	mockConfig.SetKnown("service")
+	var svc = make(map[string]bool)
+
+	err := unmarshalKeyReflection(mockConfig, "service", &svc)
+	assert.NoError(t, err)
+
+	assert.Equal(t, svc["enabled"], true)
+	assert.Equal(t, svc["disabled"], false)
+
+	err = UnmarshalKey(mockConfig, "service", &svc)
+	assert.NoError(t, err)
+
+	assert.Equal(t, svc["enabled"], true)
+	assert.Equal(t, svc["disabled"], false)
 }
 
 func TestMapGetChildNotFound(t *testing.T) {
