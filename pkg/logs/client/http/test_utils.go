@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"golang.org/x/net/http2"
 )
 
 // StatusCodeContainer is a lock around the status code to return
@@ -32,6 +33,7 @@ type TestServer struct {
 	request             *http.Request
 	statusCodeContainer *StatusCodeContainer
 	stopChan            chan struct{}
+	// httpClient          *http.Client
 }
 
 // NewTestServer creates a new test server
@@ -89,6 +91,25 @@ func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool
 		statusCodeContainer: statusCodeContainer,
 		stopChan:            stopChan,
 	}
+}
+
+// NewTestHTTPSServer creates a new test server that can support HTTP/2
+func NewTestHTTPSServer(forceHTTP1 bool) *httptest.Server {
+	// Create an HTTP/2 test server
+	testServer := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("protocol", r.Proto)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// Configure the server to support HTTP/2
+	if !forceHTTP1 {
+		http2.ConfigureServer(testServer.Config, &http2.Server{})
+		testServer.TLS = testServer.Config.TLSConfig
+	}
+	// Start the server with TLS
+	testServer.StartTLS()
+
+	return testServer
 }
 
 // Stop stops the server

@@ -380,21 +380,21 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() *http.Client {
 
 	transport := httputils.CreateHTTPTransport(cfg)
-
+	transportConfig := cfg.Get("logs_config.transport_type")
 	// Configure transport based on user setting
-	switch cfg.Get("logs_config.transport_type") {
+	switch transportConfig {
 	case "http1":
 		// Use default ALPN auto-negotiation to negotiate up to http/1.1
 	case "auto":
 		fallthrough
 	default:
 		if cfg.Get("logs_config.transport_type") != "auto" {
-			log.Warnf("Invalid transport_type '%s', falling back to 'auto'", transport)
+			log.Warnf("Invalid transport_type '%v', falling back to 'auto'", transportConfig)
 		}
 		// Use default ALPN auto-negotiation and negotiate to HTTP/2 if possible, if not it will automatically fallback to best available protocol
 		err := http2.ConfigureTransport(transport)
 		if err != nil {
-			log.Warnf("Failed to configure HTTP/2 transport: %v. Resolving to best available protocl", err)
+			log.Warnf("Failed to configure HTTP/2 transport: %v. Resolving to best available protocol", err)
 		}
 	}
 
