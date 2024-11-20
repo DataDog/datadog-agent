@@ -165,7 +165,7 @@ func (m *nodeJSMonitor) Stop() {
 	m.attacher.Stop()
 }
 
-// getNodeJSPath checks if the given PID is a NodeJS process and returns the path to the binary
+// isNodeJSBinary returns true if the process is a NodeJS binary.
 func isNodeJSBinary(_ string, procInfo *uprobes.ProcInfo) bool {
 	exe, err := procInfo.Exe()
 	if err != nil {
