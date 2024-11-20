@@ -15,7 +15,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 func copyFile(src, dst string) error {
@@ -61,10 +61,10 @@ func RunServerNodeJS(t *testing.T, key, cert, serverPort string) error {
 		"CERTS_DIR=/v/certs",
 		"TESTDIR=" + dir + "/testdata",
 	}
-	return protocolsUtils.RunDockerServer(t, "nodejs-server", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile("Server running at https.*"), protocolsUtils.DefaultTimeout, 3)
+	return dockerutils.RunDockerServer(t, "nodejs-server", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile("Server running at https.*"), dockerutils.DefaultTimeout, 3)
 }
 
 // GetNodeJSDockerPID returns the PID of the nodejs docker container.
 func GetNodeJSDockerPID() (int64, error) {
-	return protocolsUtils.GetDockerPID("node-node-1")
+	return dockerutils.GetDockerPID("node-node-1")
 }

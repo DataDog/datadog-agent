@@ -16,6 +16,7 @@ import (
 
 	httpUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 const (
@@ -44,7 +45,7 @@ func RunServer(t testing.TB, serverAddr, serverPort string, enableTLS bool) erro
 	startupRegexp := startupRegexpGenerators[enableTLS](t, serverPort)
 
 	dir, _ := httpUtils.CurDir()
-	return protocolsUtils.RunDockerServer(t, "amqp", dir+"/testdata/docker-compose.yml", env, startupRegexp, protocolsUtils.DefaultTimeout, 3)
+	return docker.RunDockerServer(t, "amqp", dir+"/testdata/docker-compose.yml", env, startupRegexp, docker.DefaultTimeout, 3)
 }
 
 // getServerEnv returns the environment to configure the amqp server

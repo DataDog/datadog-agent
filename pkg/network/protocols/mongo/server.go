@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 const (
@@ -30,5 +30,5 @@ func RunServer(t testing.TB, serverAddress, serverPort string) error {
 		"MONGO_PASSWORD=" + Pass,
 	}
 	dir, _ := testutil.CurDir()
-	return protocolsUtils.RunDockerServer(t, "mongo", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(fmt.Sprintf(".*Waiting for connections.*port.*:%s.*", serverPort)), protocolsUtils.DefaultTimeout, 3)
+	return dockerutils.RunDockerServer(t, "mongo", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(fmt.Sprintf(".*Waiting for connections.*port.*:%s.*", serverPort)), dockerutils.DefaultTimeout, 3)
 }

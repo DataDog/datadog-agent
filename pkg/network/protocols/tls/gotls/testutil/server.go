@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 // RunServer runs a go-httpbin server in a docker container.
@@ -21,5 +21,5 @@ func RunServer(t testing.TB, serverPort string) error {
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
-	return protocolsUtils.RunDockerServer(t, "https-gotls", dir+"/../testdata/docker-compose.yml", env, regexp.MustCompile("go-httpbin listening on https://0.0.0.0:8080"), protocolsUtils.DefaultTimeout, 3)
+	return dockerutils.RunDockerServer(t, "https-gotls", dir+"/../testdata/docker-compose.yml", env, regexp.MustCompile("go-httpbin listening on https://0.0.0.0:8080"), dockerutils.DefaultTimeout, 3)
 }

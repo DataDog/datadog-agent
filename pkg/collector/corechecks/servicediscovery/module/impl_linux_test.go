@@ -46,12 +46,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	protocolUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 func setupDiscoveryModule(t *testing.T) string {
@@ -772,10 +772,10 @@ func TestDocker(t *testing.T) {
 	url := setupDiscoveryModule(t)
 
 	dir, _ := testutil.CurDir()
-	err := protocolUtils.RunDockerServer(t, "foo-server",
+	err := dockerutils.RunDockerServer(t, "foo-server",
 		dir+"/testdata/docker-compose.yml", []string{},
 		regexp.MustCompile("Serving.*"),
-		protocolUtils.DefaultTimeout, 3)
+		dockerutils.DefaultTimeout, 3)
 	require.NoError(t, err)
 
 	proc, err := procfs.NewDefaultFS()

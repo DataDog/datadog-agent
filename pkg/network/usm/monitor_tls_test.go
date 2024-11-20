@@ -38,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
-	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
@@ -46,6 +45,7 @@ import (
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	procmontestutil "github.com/DataDog/datadog-agent/pkg/process/monitor/testutil"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 type tlsSuite struct {
@@ -111,8 +111,8 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 				require.NoError(t, err)
 
 				dir = path.Join(dir, "testdata", "musl")
-				protocolsUtils.RunDockerServer(t, "musl-alpine", path.Join(dir, "/docker-compose.yml"),
-					nil, regexp.MustCompile("started"), protocolsUtils.DefaultTimeout, 3)
+				dockerutils.RunDockerServer(t, "musl-alpine", path.Join(dir, "/docker-compose.yml"),
+					nil, regexp.MustCompile("started"), dockerutils.DefaultTimeout, 3)
 
 				rawout, err := exec.Command("docker", "inspect", "-f", "{{.State.Pid}}", "musl-alpine-1").Output()
 				require.NoError(t, err)

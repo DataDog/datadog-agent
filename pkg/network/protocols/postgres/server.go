@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 // RunServer runs a postgres server in a docker container
@@ -49,7 +49,7 @@ func RunServer(t testing.TB, serverAddr, serverPort string, enableTLS bool) erro
 		"TESTDIR=" + testDataDir,
 	}
 
-	return protocolsUtils.RunDockerServer(t, "postgres", filepath.Join(testDataDir, "docker-compose.yml"), env, regexp.MustCompile(fmt.Sprintf(".*listening on IPv4 address \"0.0.0.0\", port %s", serverPort)), protocolsUtils.DefaultTimeout, 3)
+	return dockerutils.RunDockerServer(t, "postgres", filepath.Join(testDataDir, "docker-compose.yml"), env, regexp.MustCompile(fmt.Sprintf(".*listening on IPv4 address \"0.0.0.0\", port %s", serverPort)), dockerutils.DefaultTimeout, 3)
 }
 
 // copyFile copies a file from src to dst

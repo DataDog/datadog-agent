@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package testutil provides utilities for testing the network package.
-package testutil
+// Package docker provides test utilities to execute workload inside docker or docker-compose.
+package docker
 
 import (
 	"regexp"

@@ -10,6 +10,7 @@ package testutil
 import (
 	"bufio"
 	"fmt"
+	prototestutil "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 	"io"
 	"os/exec"
 	"path/filepath"
@@ -21,7 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	prototestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
