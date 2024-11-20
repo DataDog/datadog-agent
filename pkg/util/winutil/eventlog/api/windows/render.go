@@ -12,7 +12,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 
 	"golang.org/x/sys/windows"
 )
