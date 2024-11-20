@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	agentPayload "github.com/DataDog/agent-payload/v5/process"
 	"github.com/shirou/gopsutil/v3/process"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -613,6 +614,65 @@ func (s *discovery) updateServicesCPUStats(services []model.Service) error {
 	return nil
 }
 
+func (s *discovery) enrichContainerData(service *model.Service, containers []*agentPayload.Container, pidToCid map[int]string) {
+	id, ok := pidToCid[service.PID]
+	if !ok {
+		return
+	}
+
+	// The tags we look for service name generation, in their priority order.
+	// The map entries will be filled as we go through the containers tags.
+	tagsPriority := []struct {
+		tagName  string
+		tagValue *string
+	}{
+		{"service", nil},
+		{"app", nil},
+		{"short_image", nil},
+		{"kube_container_name", nil},
+		{"kube_deployment", nil},
+		{"kube_service", nil},
+	}
+
+	service.ContainerID = id
+	log.Debugf("Found container id for %v: %v", service.Name, id)
+	for _, c := range containers {
+		if c.Id != id {
+			continue
+		}
+
+		for _, tag := range c.Tags {
+			// Get index of separator between name and value
+			sepIndex := strings.IndexRune(tag, ':')
+			if sepIndex < 0 || sepIndex >= len(tag)-1 {
+				// Malformed tag; we skip it
+				continue
+			}
+
+			for i := range tagsPriority {
+				if tag[:sepIndex] != tagsPriority[i].tagName {
+					// Not a tag we care about; we skip it
+					continue
+				}
+
+				value := tag[sepIndex+1:]
+				tagsPriority[i].tagValue = &value
+				break
+			}
+		}
+
+		for _, tag := range tagsPriority {
+			if tag.tagValue != nil {
+				service.GeneratedName = *tag.tagValue
+				log.Debugf("Using %v:%v tag for service name", tag.tagName, *tag.tagValue)
+				return
+			}
+		}
+
+		return
+	}
+}
+
 // getStatus returns the list of currently running services.
 func (s *discovery) getServices() (*[]model.Service, error) {
 	procRoot := kernel.ProcFSRoot()
@@ -628,7 +688,7 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 
 	var services []model.Service
 	alivePids := make(map[int32]struct{}, len(pids))
-	_, _, pidToCid, err := s.containerProvider.GetContainers(1*time.Minute, nil)
+	containers, _, pidToCid, err := s.containerProvider.GetContainers(1*time.Minute, nil)
 	if err != nil {
 		log.Errorf("could not get containers: %s", err)
 	}
@@ -640,10 +700,7 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 		if service == nil {
 			continue
 		}
-
-		if id, ok := pidToCid[service.PID]; ok {
-			service.ContainerID = id
-		}
+		s.enrichContainerData(service, containers, pidToCid)
 
 		services = append(services, *service)
 	}

@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	agentPayload "github.com/DataDog/agent-payload/v5/process"
 	"github.com/golang/mock/gomock"
 	gorillamux "github.com/gorilla/mux"
 	"github.com/prometheus/procfs"
@@ -812,9 +813,21 @@ func TestDocker(t *testing.T) {
 			}
 			if comm == "python-1111" {
 				pid1111 = process.PID
-				mockContainerProvider.EXPECT().GetContainers(1*time.Minute, nil).Return(nil, nil, map[int]string{
-					pid1111: "dummyCID",
-				}, nil)
+				mockContainerProvider.
+					EXPECT().
+					GetContainers(1*time.Minute, nil).
+					Return(
+						[]*agentPayload.Container{
+							{Id: "dummyCID", Tags: []string{
+								"sometag:somevalue",
+								"kube_service:kube_foo", // Should not have priority compared to app tag, for service naming
+								"app:foo_from_app_tag",
+							}},
+						},
+						nil,
+						map[int]string{
+							pid1111: "dummyCID",
+						}, nil)
 
 				break
 			}
@@ -827,6 +840,7 @@ func TestDocker(t *testing.T) {
 	require.Contains(t, portMap, pid1111)
 	require.Contains(t, portMap[pid1111].Ports, uint16(1234))
 	require.Contains(t, portMap[pid1111].ContainerID, "dummyCID")
+	require.Contains(t, portMap[pid1111].GeneratedName, "foo_from_app_tag")
 }
 
 // Check that the cache is cleaned when procceses die.
