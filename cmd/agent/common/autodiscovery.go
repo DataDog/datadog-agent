@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"go.uber.org/atomic"
@@ -41,6 +42,10 @@ var (
 )
 
 func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, ac autodiscovery.Component) {
+	if pkgconfigsetup.Datadog().GetString("fleet_policies_dir") != "" {
+		confSearchPaths = append(confSearchPaths, filepath.Join(pkgconfigsetup.Datadog().GetString("fleet_policies_dir"), "conf.d"))
+	}
+
 	providers.InitConfigFilesReader(confSearchPaths)
 
 	acTelemetryStore := ac.GetTelemetryStore()
