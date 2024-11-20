@@ -523,7 +523,7 @@ func TestTwoProfilesOnTheSameScheduleGenerateSinglePayload(t *testing.T) {
                 aggregate_tags:
                   - tag1
     `
-	// setup and initiate atel
+	// setup and initiate a tel
 	tel := makeTelMock(t)
 	counter1 := tel.NewCounter("bar", "bar", []string{"tag1", "tag2", "tag3"}, "")
 	counter1.AddWithTags(10, map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"})
@@ -542,7 +542,7 @@ func TestTwoProfilesOnTheSameScheduleGenerateSinglePayload(t *testing.T) {
 	assert.NoError(t, err)
 
 	// -----------------------
-	// for 2 profiles there are2 metrics, but 1 payload (test is currently payload schema dependent, improve in future)
+	// for 2 profiles there are 2 metrics, but 1 payload (test is currently payload schema dependent, improve in future)
 
 	// Single payload whcich has sub-payloads for each metric
 	requestType, ok := payload["request_type"]
