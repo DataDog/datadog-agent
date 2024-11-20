@@ -732,6 +732,17 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
         ctx, major_version='7', kernel_release=None, with_unit_test=True, bundle_ebpf=True, arch=CURRENT_ARCH
     )
 
+    env = {"CGO_ENABLED": "1"}
+
+    build_libpcap(ctx)
+    cgo_flags = get_libpcap_cgo_flags(ctx)
+    # append libpcap cgo-related environment variables to any existing ones
+    for k, v in cgo_flags.items():
+        if k in env:
+            env[k] += f" {v}"
+        else:
+            env[k] = v
+
     flags = '-tags ebpf_bindata,cgo,pcap'
     if verbose:
         flags += " -test.v"
@@ -740,7 +751,7 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
     if trace:
         args += " -trace"
 
-    ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args}")
+    ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args}", env=env)
 
 
 @task
