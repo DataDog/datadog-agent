@@ -199,6 +199,10 @@ func (p *EBPFProbe) selectFentryMode() {
 	p.useFentry = supported
 }
 
+func (p *EBPFProbe) isNetworkNotSupported() bool {
+	return p.kernelVersion.IsRH7Kernel() || (p.kernelVersion.IsAmazonLinuxKernel() && p.kernelVersion.Code < kernel.Kernel4_14)
+}
+
 func (p *EBPFProbe) sanityChecks() error {
 	// make sure debugfs is mounted
 	if _, err := tracefs.Root(); err != nil {
@@ -209,7 +213,7 @@ func (p *EBPFProbe) sanityChecks() error {
 		return errors.New("eBPF not supported in lockdown `confidentiality` mode")
 	}
 
-	if p.config.Probe.NetworkEnabled && p.kernelVersion.IsRH7Kernel() {
+	if p.config.Probe.NetworkEnabled && p.isNetworkNotSupported() {
 		seclog.Warnf("The network feature of CWS isn't supported on Centos7, setting event_monitoring_config.network.enabled to false")
 		p.config.Probe.NetworkEnabled = false
 	}

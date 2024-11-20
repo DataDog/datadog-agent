@@ -82,7 +82,7 @@ func TestRawPacket(t *testing.T) {
 	checkKernelCompatibility(t, "RHEL, SLES, SUSE and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
 		// OpenSUSE distributions are missing the dummy kernel module
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel() || (kv.IsAmazonLinuxKernel() && kv.Code < kernel.Kernel4_14)
 	})
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {

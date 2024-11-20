@@ -66,14 +66,23 @@ func GetTCProbes(withNetworkIngress bool, withRawPacket bool) []*manager.Probe {
 	return out
 }
 
+// GetRawPacketTCProgramFunctions returns the raw packet functions
+func GetRawPacketTCProgramFunctions() []string {
+	return []string{
+		"classifier_raw_packet",
+		"classifier_raw_packet_sender",
+	}
+}
+
 // GetAllTCProgramFunctions returns the list of TC classifier sections
 func GetAllTCProgramFunctions() []string {
 	output := []string{
 		"classifier_dns_request_parser",
 		"classifier_dns_request",
 		"classifier_imds_request",
-		"classifier_raw_packet",
 	}
+
+	output = append(output, GetRawPacketTCProgramFunctions()...)
 
 	for _, tcProbe := range GetTCProbes(true, true) {
 		output = append(output, tcProbe.EBPFFuncName)
