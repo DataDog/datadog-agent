@@ -40,7 +40,7 @@ FROM baseimage AS extract
 ARG TARGETARCH
 ARG WITH_JMX
 ARG PYTHON_VERSION
-ARG DD_AGENT_ARTIFACT=datadog-agent*_$TARGETARCH.deb
+ARG DD_AGENT_ARTIFACT=datadog-agent*-$TARGETARCH.tar.xz
 ARG GENERAL_ARTIFACTS_CACHE_BUCKET_URL
 
 # copy everything - globbing with args wont work
@@ -65,9 +65,9 @@ RUN echo "$(cat /output/s6.$TARGETARCH.sha256) /output/s6.tgz" | sha256sum -c - 
 #   - static libraries                   # FIXME: move upstream
 #   - jmxfetch on nojmx build
 
-RUN find / -maxdepth 1 -type f -name "datadog-*_$TARGETARCH.deb" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \;
+RUN find / -maxdepth 1 -type f -name "datadog-*-$TARGETARCH.tar.xz" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \;
 
-RUN find / -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec dpkg -x {} . \; \
+RUN find / -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
  && rm -rf usr etc/init lib \
     opt/datadog-agent/sources \
     opt/datadog-agent/embedded/share/doc \
