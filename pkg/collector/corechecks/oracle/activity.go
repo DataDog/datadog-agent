@@ -470,7 +470,7 @@ AND status = 'ACTIVE'`)
 	}
 	sendMetricWithDefaultTags(c, gauge, "dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()))
 	TlmOracleActivityLatency.Observe(float64(time.Since(start).Milliseconds()))
-	TlmOracleActivitySamplesCount.Add(float64(len(sessionRows)))
+	TlmOracleActivitySamplesCount.Set(float64(len(sessionRows)))
 
 	sender.Commit()
 

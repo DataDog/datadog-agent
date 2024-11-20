@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/schemas/policy -output ../../../tests/schemas/policy.schema.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/schemas/policy -output ../../../secl/schemas/policy.schema.json
 
 // Package main holds main related files
 package main

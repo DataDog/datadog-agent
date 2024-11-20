@@ -157,6 +157,11 @@ func (a *apmInjectorInstaller) Remove(ctx context.Context) (err error) {
 		return fmt.Errorf("error removing install scripts: %w", err)
 	}
 
+	err = removeAppArmor(ctx)
+	if err != nil {
+		return fmt.Errorf("error removing AppArmor profile: %w", err)
+	}
+
 	return a.Uninstrument(ctx)
 }
 
@@ -214,8 +219,6 @@ func (a *apmInjectorInstaller) Uninstrument(ctx context.Context) error {
 		dockerErr := a.uninstrumentDocker(ctx)
 		errs = append(errs, dockerErr)
 	}
-	appArmorErr := removeAppArmor(ctx)
-	errs = append(errs, appArmorErr)
 
 	return multierr.Combine(errs...)
 }

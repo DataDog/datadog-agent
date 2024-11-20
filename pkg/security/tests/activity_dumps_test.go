@@ -351,10 +351,10 @@ func TestActivityDumps(t *testing.T) {
 			var exitOK, bindOK bool
 			for _, node := range nodes {
 				for _, s := range node.Syscalls {
-					if s == int(model.SysExit) || s == int(model.SysExitGroup) {
+					if s.Syscall == int(model.SysExit) || s.Syscall == int(model.SysExitGroup) {
 						exitOK = true
 					}
-					if s == int(model.SysBind) {
+					if s.Syscall == int(model.SysBind) {
 						bindOK = true
 					}
 				}
