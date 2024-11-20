@@ -58,14 +58,12 @@ func TestEventRulesetLoaded(t *testing.T) {
 			// force a reload
 			return syscall.Kill(syscall.Getpid(), syscall.SIGHUP)
 		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
-			assert.Equal(t, events.RulesetLoadedRuleID, rule.ID, "wrong rule")
-
 			test.cws.SendStats()
 
 			assert.Equal(t, count+1, test.statsdClient.Get(key))
 
 			return validateRuleSetLoadedSchema(t, customEvent)
-		}, 20*time.Second, model.CustomRulesetLoadedEventType)
+		}, 20*time.Second, model.CustomEventType, events.RulesetLoadedRuleID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -93,11 +91,8 @@ func TestEventHeartbeatSent(t *testing.T) {
 			// force a reload
 			return syscall.Kill(syscall.Getpid(), syscall.SIGHUP)
 		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
-
-			isHeartbeatEvent := events.HeartbeatRuleID == rule.ID
-
-			return validateHeartbeatSchema(t, customEvent) && isHeartbeatEvent
-		}, 80*time.Second, model.CustomHeartbeatEventType)
+			return validateHeartbeatSchema(t, customEvent)
+		}, 80*time.Second, model.CustomEventType, events.HeartbeatRuleID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -323,9 +318,8 @@ func truncatedParents(t *testing.T, staticOpts testOpts, dynamicOpts dynamicTest
 		}
 		return f.Close()
 	}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
-		assert.Equal(t, events.AbnormalPathRuleID, rule.ID, "wrong rule")
 		return true
-	}, getEventTimeout, model.CustomTruncatedParentsEventType)
+	}, getEventTimeout, model.CustomEventType, events.AbnormalPathRuleID)
 	if err != nil {
 		t.Fatal(err)
 	}

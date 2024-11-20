@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
@@ -191,7 +192,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 
 	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
 	if isTLS {
-		utils.WaitForProgramsToBeTraced(t, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
 	}
 
 	tests := []postgresParsingTestAttributes{

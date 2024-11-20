@@ -27,7 +27,7 @@ BPF_HASH_MAP(tcp_retransmits, conn_tuple_t, __u32, 0)
 BPF_HASH_MAP(tcp_ongoing_connect_pid, skp_conn_tuple_t, pid_ts_t, 0)
 
 /* Will hold a flag to indicate that closed connections have already been flushed */
-BPF_HASH_MAP(conn_close_flushed, conn_tuple_t, __u64, 16384)
+BPF_HASH_MAP(conn_close_flushed, conn_tuple_t, __u64, 0)
 
 /* Will hold the tcp/udp close events
  * The keys are the cpu number and the values a perf file descriptor for a perf event
@@ -63,7 +63,7 @@ BPF_HASH_MAP(udp_sendpage_args, __u64, struct sock *, 1024)
  * Map to hold struct sock parameter for tcp_recvmsg/tcp_read_sock calls
  * to be used in kretprobe/tcp_recvmsg/tcp_read_sock
  */
-BPF_HASH_MAP(tcp_recvmsg_args, __u64, struct sock *, 1024)
+BPF_HASH_MAP(tcp_recvmsg_args, __u64, struct sock *, 0)
 
 /* This map is used to match the kprobe & kretprobe of udp_recvmsg */
 /* This is a key/value store with the keys being a pid

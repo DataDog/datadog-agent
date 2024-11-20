@@ -23,12 +23,12 @@ function Install-Service {
 }
 
 if ("$env:WITH_JMX" -ne "false") {
-    $JDK_DOWNLOAD_URL = if ($env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL) {"${env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/openjdk"} else {"https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.6%2B10"}
-    Invoke-WebRequest -OutFile jre-11.0.6.zip "${JDK_DOWNLOAD_URL}/OpenJDK11U-jre_x64_windows_hotspot_11.0.6_10.zip"
-    (Get-FileHash -Algorithm SHA256 jre-11.0.6.zip) -eq "f0d82b256c4aecf051d66ec31920c3527b656159930aa980d37a689a73634e8e"
-    Expand-Archive -Path jre-11.0.6.zip -DestinationPath C:/
-    Remove-Item jre-11.0.6.zip
-    Move-Item C:/jdk-11.0.6+10-jre/ C:/java
+    $JDK_DOWNLOAD_URL = if ($env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL) {"${env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/openjdk"} else {"https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.25%2B9"}
+    Invoke-WebRequest -OutFile jre-11.0.25.zip "${JDK_DOWNLOAD_URL}/OpenJDK11U-jre_x64_windows_hotspot_11.0.25_9.zip"
+    (Get-FileHash -Algorithm SHA256 jre-11.0.25.zip).Hash -eq "052f09448d5b8d9afb7a8e5049d40d7fafa8f5884afe6043bb2359787fd41e84"
+    Expand-Archive -Path jre-11.0.25.zip -DestinationPath C:/
+    Remove-Item jre-11.0.25.zip
+    Move-Item C:/jdk-11.0.25+9-jre/ C:/java
     # Add java to the path for jmxfetch
     setx /m PATH "$Env:Path;C:/java/bin"
     $Env:Path="$Env:Path;C:/java/bin"

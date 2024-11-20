@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -26,12 +27,12 @@ const (
 // running traceroute from an agent running
 // on Windows
 type WindowsTraceroute struct {
-	cfg Config
+	cfg config.Config
 }
 
 // New creates a new instance of WindowsTraceroute
 // based on an input configuration
-func New(cfg Config, _ telemetry.Component) (*WindowsTraceroute, error) {
+func New(cfg config.Config, _ telemetry.Component) (*WindowsTraceroute, error) {
 	log.Debugf("Creating new traceroute with config: %+v", cfg)
 	return &WindowsTraceroute{
 		cfg: cfg,

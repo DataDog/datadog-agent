@@ -36,7 +36,7 @@ docker_image_build_otel:
     - cp test/integration/docker/otel_agent_build_tests.py /tmp/otel-ci/
     - wget https://github.com/mikefarah/yq/releases/download/3.4.1/yq_linux_amd64 -O
       /usr/bin/yq && chmod +x /usr/bin/yq
-    - export OTELCOL_VERSION=v$(/usr/bin/yq r /tmp/otel-ci/manifest.yaml dist.otelcol_version)
+    - export OTELCOL_VERSION=v$(/usr/bin/yq r /tmp/otel-ci/manifest.yaml dist.version)
     - yq w -i /tmp/otel-ci/manifest.yaml "receivers[+] gomod"
       "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver ${OTELCOL_VERSION}"
     - yq w -i /tmp/otel-ci/manifest.yaml "processors[+] gomod"
@@ -65,7 +65,7 @@ ddflare_extension_ocb_build:
     - !reference [.retrieve_linux_go_deps]
     - mkdir -p /tmp/otel-ci
     - cp test/otel/testdata/* /tmp/otel-ci/
-    - wget -O /tmp/otel-ci/ocb https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv0.111.0/ocb_0.111.0_linux_amd64
+    - wget -O /tmp/otel-ci/ocb https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv0.113.0/ocb_0.113.0_linux_amd64
     - chmod +x /tmp/otel-ci/ocb
   script:
     - echo 'Building collector with OCB and test ddflare extension'
