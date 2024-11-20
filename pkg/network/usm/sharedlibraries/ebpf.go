@@ -104,7 +104,6 @@ func GetEBPFProgram(cfg *ddebpf.Config) *EbpfProgram {
 		for libset := range LibsetToLibSuffixes {
 			progSingleton.libsets[libset] = &libsetHandler{
 				callbacks: make(map[*LibraryCallback]struct{}),
-				done:      make(chan struct{}),
 			}
 		}
 	})
@@ -271,6 +270,8 @@ func (e *EbpfProgram) start() error {
 			continue
 		}
 
+		// Init the "done" channel for the handler, it will be closed when the handler stops
+		handler.done = make(chan struct{})
 		e.wg.Add(1)
 		go handler.eventLoop(&e.wg)
 	}
@@ -398,7 +399,9 @@ func (e *EbpfProgram) stopImpl() {
 	}
 
 	for _, handler := range e.libsets {
-		handler.stop()
+		if handler.enabled {
+			handler.stop()
+		}
 	}
 
 	e.wg.Wait()
