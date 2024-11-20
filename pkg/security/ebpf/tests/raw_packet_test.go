@@ -3,14 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && ebpf_bindata
+//go:build linux && ebpf_bindata && pcap && cgo
 
 // Package tests holds tests related files
 package tests
 
-// TODO(safchain) uncomment when the baloum deps will be fixed
-/*
-func testRawPacketFilter(t *testing.T, filters []rawpacket.Filter, expectedRetCode int, opts rawpacket.ProgOpts) {
+import (
+	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
+	"github.com/safchain/baloum/pkg/baloum"
+)
+
+func testRawPacketFilter(t *testing.T, filters []rawpacket.Filter, expectedRetCode int64, opts rawpacket.ProgOpts) {
 	var ctx baloum.StdContext
 
 	vm := newVM(t)
@@ -115,4 +123,3 @@ func TestRawPacketTailCalls(t *testing.T) {
 		testRawPacketFilter(t, filters, 0, opts)
 	})
 }
-*/

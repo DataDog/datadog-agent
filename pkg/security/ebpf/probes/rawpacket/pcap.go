@@ -26,9 +26,6 @@ const (
 	// progPrefix prefix used for raw packet filter programs
 	progPrefix = "raw_packet_prog_"
 
-	// filterEntryProg first raw packet tc program to be called
-	filterEntryProg = "raw_packet_prog_0"
-
 	// packetCaptureSize see kernel definition
 	packetCaptureSize = 256
 )
@@ -219,10 +216,7 @@ func TCFiltersToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, filters []
 	progSpecs := make([]*ebpf.ProgramSpec, len(progInsts))
 
 	for i, insts := range progInsts {
-		name := filterEntryProg
-		if i > 0 {
-			name = fmt.Sprintf("%s%d", progPrefix, i+1)
-		}
+		name := fmt.Sprintf("%s%d", progPrefix, i)
 
 		progSpecs[i] = &ebpf.ProgramSpec{
 			Name:         name,

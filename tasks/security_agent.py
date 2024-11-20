@@ -732,7 +732,7 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
         ctx, major_version='7', kernel_release=None, with_unit_test=True, bundle_ebpf=True, arch=CURRENT_ARCH
     )
 
-    flags = '-tags ebpf_bindata'
+    flags = '-tags ebpf_bindata,cgo,pcap'
     if verbose:
         flags += " -test.v"
 
