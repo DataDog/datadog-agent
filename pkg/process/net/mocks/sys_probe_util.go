@@ -3,10 +3,7 @@
 package mocks
 
 import (
-	languagemodels "github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	mock "github.com/stretchr/testify/mock"
-
-	model "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 
 	payload "github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 
@@ -26,64 +23,6 @@ type SysProbeUtil_Expecter struct {
 
 func (_m *SysProbeUtil) EXPECT() *SysProbeUtil_Expecter {
 	return &SysProbeUtil_Expecter{mock: &_m.Mock}
-}
-
-// DetectLanguage provides a mock function with given fields: pids
-func (_m *SysProbeUtil) DetectLanguage(pids []int32) ([]languagemodels.Language, error) {
-	ret := _m.Called(pids)
-
-	if len(ret) == 0 {
-		panic("no return value specified for DetectLanguage")
-	}
-
-	var r0 []languagemodels.Language
-	var r1 error
-	if rf, ok := ret.Get(0).(func([]int32) ([]languagemodels.Language, error)); ok {
-		return rf(pids)
-	}
-	if rf, ok := ret.Get(0).(func([]int32) []languagemodels.Language); ok {
-		r0 = rf(pids)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]languagemodels.Language)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func([]int32) error); ok {
-		r1 = rf(pids)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// SysProbeUtil_DetectLanguage_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DetectLanguage'
-type SysProbeUtil_DetectLanguage_Call struct {
-	*mock.Call
-}
-
-// DetectLanguage is a helper method to define mock.On call
-//   - pids []int32
-func (_e *SysProbeUtil_Expecter) DetectLanguage(pids interface{}) *SysProbeUtil_DetectLanguage_Call {
-	return &SysProbeUtil_DetectLanguage_Call{Call: _e.mock.On("DetectLanguage", pids)}
-}
-
-func (_c *SysProbeUtil_DetectLanguage_Call) Run(run func(pids []int32)) *SysProbeUtil_DetectLanguage_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].([]int32))
-	})
-	return _c
-}
-
-func (_c *SysProbeUtil_DetectLanguage_Call) Return(_a0 []languagemodels.Language, _a1 error) *SysProbeUtil_DetectLanguage_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *SysProbeUtil_DetectLanguage_Call) RunAndReturn(run func([]int32) ([]languagemodels.Language, error)) *SysProbeUtil_DetectLanguage_Call {
-	_c.Call.Return(run)
-	return _c
 }
 
 // GetConnections provides a mock function with given fields: clientID
@@ -140,63 +79,6 @@ func (_c *SysProbeUtil_GetConnections_Call) Return(_a0 *process.Connections, _a1
 }
 
 func (_c *SysProbeUtil_GetConnections_Call) RunAndReturn(run func(string) (*process.Connections, error)) *SysProbeUtil_GetConnections_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// GetDiscoveryServices provides a mock function with given fields:
-func (_m *SysProbeUtil) GetDiscoveryServices() (*model.ServicesResponse, error) {
-	ret := _m.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetDiscoveryServices")
-	}
-
-	var r0 *model.ServicesResponse
-	var r1 error
-	if rf, ok := ret.Get(0).(func() (*model.ServicesResponse, error)); ok {
-		return rf()
-	}
-	if rf, ok := ret.Get(0).(func() *model.ServicesResponse); ok {
-		r0 = rf()
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*model.ServicesResponse)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func() error); ok {
-		r1 = rf()
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// SysProbeUtil_GetDiscoveryServices_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetDiscoveryServices'
-type SysProbeUtil_GetDiscoveryServices_Call struct {
-	*mock.Call
-}
-
-// GetDiscoveryServices is a helper method to define mock.On call
-func (_e *SysProbeUtil_Expecter) GetDiscoveryServices() *SysProbeUtil_GetDiscoveryServices_Call {
-	return &SysProbeUtil_GetDiscoveryServices_Call{Call: _e.mock.On("GetDiscoveryServices")}
-}
-
-func (_c *SysProbeUtil_GetDiscoveryServices_Call) Run(run func()) *SysProbeUtil_GetDiscoveryServices_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run()
-	})
-	return _c
-}
-
-func (_c *SysProbeUtil_GetDiscoveryServices_Call) Return(_a0 *model.ServicesResponse, _a1 error) *SysProbeUtil_GetDiscoveryServices_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *SysProbeUtil_GetDiscoveryServices_Call) RunAndReturn(run func() (*model.ServicesResponse, error)) *SysProbeUtil_GetDiscoveryServices_Call {
 	_c.Call.Return(run)
 	return _c
 }
