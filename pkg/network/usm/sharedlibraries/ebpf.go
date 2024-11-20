@@ -50,24 +50,29 @@ var progSingleton *EbpfProgram
 // LibraryCallback defines the type of the callback function that will be called when a shared library event is detected
 type LibraryCallback func(LibPath)
 
+type libsetData struct {
+	libset      Libset
+	callbacks   map[*LibraryCallback]struct{}
+	done        chan struct{}
+	perfHandler *ddebpf.PerfHandler
+	enabled     bool
+}
+
 // EbpfProgram represents the shared libraries eBPF program.
 type EbpfProgram struct {
 	*ddebpf.Manager
 
-	cfg          *ddebpf.Config
-	perfHandlers map[Libset]*ddebpf.PerfHandler
-	refcount     atomic.Int32
+	libsets  map[Libset]*libsetData
+	cfg      *ddebpf.Config
+	refcount atomic.Int32
 
 	callbacksMutex sync.RWMutex
-	callbacks      map[Libset]map[*LibraryCallback]struct{}
 	wg             sync.WaitGroup
-	done           map[Libset]chan struct{}
 
 	// We need to protect the initialization variables with a mutex, as the program can be initialized
 	// from multiple goroutines at the same time
-	initMutex      sync.Mutex
-	enabledLibsets map[Libset]struct{}
-	isInitialized  bool
+	initMutex     sync.Mutex
+	isInitialized bool
 }
 
 // IsSupported returns true if the shared libraries monitoring is supported on the current system.
@@ -90,9 +95,8 @@ func IsSupported(cfg *ddebpf.Config) bool {
 func GetEBPFProgram(cfg *ddebpf.Config) *EbpfProgram {
 	progSingletonOnce.Do(func() {
 		progSingleton = &EbpfProgram{
-			cfg:            cfg,
-			enabledLibsets: make(map[Libset]struct{}),
-			callbacks:      make(map[Libset]map[*LibraryCallback]struct{}),
+			cfg:     cfg,
+			libsets: make(map[Libset]*libsetData),
 		}
 	})
 	progSingleton.refcount.Inc()
@@ -100,9 +104,33 @@ func GetEBPFProgram(cfg *ddebpf.Config) *EbpfProgram {
 	return progSingleton
 }
 
+func (e *EbpfProgram) getLibsetData(libset Libset) *libsetData {
+	if data, ok := e.libsets[libset]; ok {
+		return data
+	}
+
+	data := &libsetData{
+		libset:    libset,
+		callbacks: make(map[*LibraryCallback]struct{}),
+		done:      make(chan struct{}),
+	}
+	e.libsets[libset] = data
+	return data
+}
+
+func (e *EbpfProgram) enableLibset(libset Libset) {
+	// Force the program to be initialized if it's not already initialized
+	data := e.getLibsetData(libset)
+	data.enabled = true
+}
+
+func (e *EbpfProgram) isLibsetEnabled(libset Libset) bool {
+	data, ok := e.libsets[libset]
+	return ok && data.enabled
+}
+
 func (e *EbpfProgram) setupManagerAndPerfHandlers() {
 	mgr := &manager.Manager{}
-	e.perfHandlers = make(map[Libset]*ddebpf.PerfHandler)
 
 	// Tell the manager to load all possible maps
 	for libset := range LibsetToLibSuffixes {
@@ -122,7 +150,7 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() {
 		}
 		mgr.PerfMaps = append(mgr.PerfMaps, pm)
 		ebpftelemetry.ReportPerfMapTelemetry(pm)
-		e.perfHandlers[libset] = perfHandler
+		e.getLibsetData(libset).perfHandler = perfHandler
 	}
 
 	probeIDs := getSysOpenHooksIdentifiers()
@@ -142,7 +170,7 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() {
 // Requires the initMutex to be locked
 func (e *EbpfProgram) areLibsetsAlreadyEnabled(libsets ...Libset) bool {
 	for _, libset := range libsets {
-		if _, ok := e.enabledLibsets[libset]; !ok {
+		if !e.isLibsetEnabled(libset) {
 			return false
 		}
 	}
@@ -228,7 +256,7 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 
 	// Add the libsets to the enabled libsets
 	for _, libset := range libsets {
-		e.enabledLibsets[libset] = struct{}{}
+		e.enableLibset(libset)
 	}
 	e.isInitialized = true
 	return nil
@@ -240,16 +268,20 @@ func (e *EbpfProgram) start() error {
 		return fmt.Errorf("cannot start manager: %w", err)
 	}
 
-	for libset, perfHandler := range e.perfHandlers {
+	for libset, data := range e.libsets {
+		if !data.enabled {
+			continue
+		}
+
 		e.wg.Add(1)
-		go func(ls Libset, ph *ddebpf.PerfHandler) {
+		go func(ls Libset, ldata *libsetData) {
 			defer e.wg.Done()
 
-			dataChan := ph.DataChannel()
-			lostChan := ph.LostChannel()
+			dataChan := ldata.perfHandler.DataChannel()
+			lostChan := ldata.perfHandler.LostChannel()
 			for {
 				select {
-				case <-e.done[ls]:
+				case <-data.done:
 					return
 				case event, ok := <-dataChan:
 					if !ok {
@@ -261,7 +293,7 @@ func (e *EbpfProgram) start() error {
 					break
 				}
 			}
-		}(libset, perfHandler)
+		}(libset, data)
 	}
 
 	return nil
@@ -275,7 +307,7 @@ func (e *EbpfProgram) handleEvent(event *ebpf.DataEvent, libset Libset) {
 	}()
 
 	libpath := ToLibPath(event.Data)
-	for callback := range e.callbacks[libset] {
+	for callback := range e.getLibsetData(libset).callbacks {
 		// Not using a callback runner for now, as we don't have a lot of callbacks
 		(*callback)(libpath)
 	}
@@ -289,7 +321,7 @@ func (e *EbpfProgram) CheckLibsetsEnabled(libsets ...Libset) error {
 
 	var errs []error
 	for _, libset := range libsets {
-		if _, ok := e.enabledLibsets[libset]; !ok {
+		if !e.isLibsetEnabled(libset) {
 			errs = append(errs, fmt.Errorf("libset %s is not enabled", libset))
 		}
 	}
@@ -308,10 +340,7 @@ func (e *EbpfProgram) Subscribe(callback LibraryCallback, libsets ...Libset) (fu
 	defer e.callbacksMutex.Unlock()
 
 	for _, libset := range libsets {
-		if _, ok := e.callbacks[libset]; !ok {
-			e.callbacks[libset] = make(map[*LibraryCallback]struct{})
-		}
-		e.callbacks[libset][&callback] = struct{}{}
+		e.getLibsetData(libset).callbacks[&callback] = struct{}{}
 	}
 
 	// UnSubscribe()
@@ -319,7 +348,7 @@ func (e *EbpfProgram) Subscribe(callback LibraryCallback, libsets ...Libset) (fu
 		e.callbacksMutex.Lock()
 		defer e.callbacksMutex.Unlock()
 		for _, libset := range libsets {
-			delete(e.callbacks[libset], &callback)
+			delete(e.getLibsetData(libset).callbacks, &callback)
 		}
 	}, nil
 }
@@ -350,11 +379,9 @@ func (e *EbpfProgram) stopImpl() {
 		ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
 	}
 
-	for _, perfHandler := range e.perfHandlers {
-		perfHandler.Stop()
-	}
-	for _, done := range e.done {
-		close(done)
+	for _, data := range e.libsets {
+		data.perfHandler.Stop()
+		close(data.done)
 	}
 
 	e.Manager = nil
