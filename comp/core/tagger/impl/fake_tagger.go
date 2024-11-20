@@ -8,7 +8,6 @@ package taggerimpl
 import (
 	"context"
 	"strconv"
-	"sync"
 
 	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -25,7 +24,6 @@ type FakeTagger struct {
 	errors         map[string]error
 	store          *tagstore.TagStore
 	telemetryStore *telemetry.Store
-	sync.RWMutex
 }
 
 func newFakeTagger(telemetryStore *telemetry.Store) *FakeTagger {
@@ -53,20 +51,6 @@ func (f *FakeTagger) SetTags(entityID types.EntityID, source string, low, orch, 
 // SetGlobalTags allows to set tags in store for the global entity
 func (f *FakeTagger) SetGlobalTags(low, orch, high, std []string) {
 	f.SetTags(taggercommon.GetGlobalEntityID(), "static", low, orch, high, std)
-}
-
-// SetTagsFromInfo allows to set tags from list of TagInfo
-func (f *FakeTagger) SetTagsFromInfo(tags []*types.TagInfo) {
-	f.store.ProcessTagInfo(tags)
-}
-
-// SetError allows to set an error to be returned when `Tag` or `AccumulateTagsFor` is called
-// for this entity and cardinality
-func (f *FakeTagger) SetError(entityID types.EntityID, cardinality types.TagCardinality, err error) {
-	f.Lock()
-	defer f.Unlock()
-
-	f.errors[f.getKey(entityID, cardinality)] = err
 }
 
 // Tagger interface
