@@ -859,7 +859,7 @@ func setupUSMTLSMonitor(t *testing.T, cfg *config.Config) *Monitor {
 	usmMonitor, err := NewMonitor(cfg, nil)
 	require.NoError(t, err)
 	require.NoError(t, usmMonitor.Start())
-	if cfg.EnableUSMEventStream {
+	if cfg.EnableUSMEventStream && usmconfig.NeedProcessMonitor(cfg) {
 		eventmonitortestutil.StartEventMonitor(t, procmontestutil.RegisterProcessMonitorEventConsumer)
 	}
 	t.Cleanup(usmMonitor.Stop)
