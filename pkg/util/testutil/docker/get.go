@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-// GetDockerPID returns the PID of a docker container.
+// GetDockerPID returns the PID of the main process in the docker container.
 func GetDockerPID(dockerName string) (int64, error) {
 	// Ensuring no previous instances exists.
 	c := exec.Command("docker", "inspect", "-f", "{{.State.Pid}}", dockerName)
