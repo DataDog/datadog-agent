@@ -6,7 +6,6 @@
 // Package tcp adds a TCP traceroute implementation to the agent
 package tcp
 
-
 import (
 	"fmt"
 	"math/rand"
@@ -17,6 +16,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// sendto is a variable to allow mocking of the windows.Sendto function
+var sendto = windows.Sendto
 
 type winrawsocket struct {
 	s windows.Handle
@@ -31,12 +33,12 @@ func (w *winrawsocket) close() {
 
 func (t *TCPv4) sendRawPacket(w *winrawsocket, payload []byte) error {
 
-	dst :=t.Target.To4()
+	dst := t.Target.To4()
 	sa := &windows.SockaddrInet4{
-		Port: int(t.DestPort), 
+		Port: int(t.DestPort),
 		Addr: [4]byte{dst[0], dst[1], dst[2], dst[3]},
 	}
-	if err := windows.Sendto(w.s, payload, 0, sa); err != nil {
+	if err := sendto(w.s, payload, 0, sa); err != nil {
 		return fmt.Errorf("failed to send packet: %w", err)
 	}
 	return nil
@@ -59,8 +61,11 @@ func createRawSocket() (*winrawsocket, error) {
 		windows.Closesocket(s)
 		return nil, fmt.Errorf("failed to set SO_RCVTIMEO: %w", err)
 	}
-	return &winrawsocket{s: s}, nil
+	return &winrawsocket{
+		s: s,
+	}, nil
 }
+
 // TracerouteSequential runs a traceroute sequentially where a packet is
 // sent and we wait for a response before sending the next packet
 func (t *TCPv4) TracerouteSequential() (*Results, error) {
@@ -107,10 +112,7 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 		DstPort:    t.DestPort,
 		Hops:       hops,
 	}, nil
-
-	return nil, nil
 }
-
 
 func (t *TCPv4) sendAndReceive(rs *winrawsocket, ttl int, seqNum uint32, timeout time.Duration) (*Hop, error) {
 	_, buffer, _, err := createRawTCPSynBuffer(t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, ttl)

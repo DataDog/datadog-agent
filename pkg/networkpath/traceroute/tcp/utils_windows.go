@@ -6,7 +6,6 @@
 // Package tcp adds a TCP traceroute implementation to the agent
 package tcp
 
-
 import (
 	"context"
 	"fmt"
@@ -21,6 +20,8 @@ import (
 	"github.com/google/gopacket/layers"
 )
 
+// recvFrom is a variable to allow mocking of the windows.Recvfrom function
+var recvFrom = windows.Recvfrom
 
 // listenPackets takes in raw ICMP and TCP connections and listens for matching ICMP
 // and TCP responses based on the passed in trace information. If neither listener
@@ -59,16 +60,14 @@ func (w *winrawsocket) listenPackets(timeout time.Duration, localIP net.IP, loca
 		return net.IP{}, 0, 0, time.Time{}, fmt.Errorf("icmp error: %w", icmpErr)
 	}
 
-
 	// return the TCP response
 	return icmpIP, port, 0, icmpFinished, nil
 }
 
-
 // handlePackets in its current implementation should listen for the first matching
 // packet on the connection and then return. If no packet is received within the
 // timeout or if the listener is canceled, it should return a canceledError
-func (w* winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
+func (w *winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
 	buf := make([]byte, 512)
 	tp := newTCPParser()
 	for {
@@ -77,14 +76,14 @@ func (w* winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localP
 			return net.IP{}, 0, 0, time.Time{}, canceledError("listener canceled")
 		default:
 		}
-		
+
 		// the receive timeout is set to 100ms in the constructor, to match the
 		// linux side. This is a workaround for the lack of a deadline for sockets.
 		//err := conn.SetReadDeadline(now.Add(time.Millisecond * 100))
-		n, _, err := windows.Recvfrom(w.s, buf, 0)
+		n, _, err := recvFrom(w.s, buf, 0)
 		if err != nil {
 			if err == windows.WSAETIMEDOUT {
-				continue;
+				continue
 			}
 			if err == windows.WSAEMSGSIZE {
 				log.Warnf("Message too large for buffer")
@@ -102,7 +101,7 @@ func (w* winrawsocket) handlePackets(ctx context.Context, localIP net.IP, localP
 			continue
 		}
 		packet := buf[header.Len:header.TotalLen]
-		
+
 		// once we have a packet, take a timestamp to know when
 		// the response was received, if it matches, we will
 		// return this timestamp
