@@ -25,39 +25,39 @@ import (
 
 // generateImageEventFromContainer creates a workloadmeta image event based on container image metadata.
 func (c *collector) generateImageEventFromContainer(ctx context.Context, container *v1.Container) (*workloadmeta.CollectorEvent, error) {
-	if container.Image == nil || container.Image.Image == "" {
+	if container.GetImage() == nil || container.GetImage().GetImage() == "" {
 		return nil, fmt.Errorf("container has an invalid image reference: %+v", container)
 	}
-	imageSpec := v1.ImageSpec{Image: container.Image.Image}
+	imageSpec := v1.ImageSpec{Image: container.GetImage().GetImage()}
 	imageResp, err := c.client.GetContainerImage(ctx, &imageSpec, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve image data for container %+v: %v", container, err)
 	}
-	image := imageResp.Image
+	image := imageResp.GetImage()
 
-	namespace := getPodNamespace(ctx, c.client, container.PodSandboxId)
+	namespace := getPodNamespace(ctx, c.client, container.GetPodSandboxId())
 
-	imageEvent := c.convertImageToEvent(image, imageResp.Info, namespace, nil)
+	imageEvent := c.convertImageToEvent(image, imageResp.GetInfo(), namespace, nil)
 	return imageEvent, nil
 }
 
 // convertImageToEvent converts a CRI-O image and additional metadata into a workloadmeta CollectorEvent.
 func (c *collector) convertImageToEvent(img *v1.Image, info map[string]string, namespace string, sbom *workloadmeta.SBOM) *workloadmeta.CollectorEvent {
 	var annotations map[string]string
-	if img.Spec == nil {
+	if img.GetSpec() == nil {
 		annotations = nil
 	} else {
-		annotations = img.Spec.Annotations
+		annotations = img.GetSpec().GetAnnotations()
 	}
 
 	var name string
-	if len(img.RepoTags) > 0 {
-		name = img.RepoTags[0]
+	if len(img.GetRepoTags()) > 0 {
+		name = img.GetRepoTags()[0]
 	}
-	imgId := img.Id
+	imgId := img.GetId()
 	os, arch, variant, labels, layers := parseImageInfo(info, crio.GetOverlayImagePath(), imgId)
 
-	imgIdAsDigest, err := parseDigests(img.RepoDigests)
+	imgIdAsDigest, err := parseDigests(img.GetRepoDigests())
 	if err == nil {
 		imgId = imgIdAsDigest
 	} else if sbomCollectionIsEnabled() {
@@ -76,8 +76,8 @@ func (c *collector) convertImageToEvent(img *v1.Image, info map[string]string, n
 			Labels:      labels,
 		},
 		SizeBytes:    int64(img.Size_),
-		RepoTags:     img.RepoTags,
-		RepoDigests:  img.RepoDigests,
+		RepoTags:     img.GetRepoTags(),
+		RepoDigests:  img.GetRepoDigests(),
 		SBOM:         sbom,
 		OS:           os,
 		Architecture: arch,

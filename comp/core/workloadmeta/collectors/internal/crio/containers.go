@@ -96,15 +96,15 @@ func getContainerImage(ctx context.Context, client crio.Client, imageSpec *v1.Im
 		return workloadmeta.ContainerImage{}
 	}
 	imageResp, err := client.GetContainerImage(ctx, imageSpec, false)
-	if err != nil || imageResp == nil || imageResp.Image == nil {
+	if err != nil || imageResp == nil || imageResp.GetImage() == nil {
 		log.Warnf("Failed to fetch image: %v", err)
 		return workloadmeta.ContainerImage{}
 	}
-	image := imageResp.Image
-	imgId := image.Id
+	image := imageResp.GetImage()
+	imgId := image.GetId()
 	imgName := ""
-	if len(image.RepoTags) > 0 {
-		imgName = image.RepoTags[0]
+	if len(image.GetRepoTags()) > 0 {
+		imgName = image.GetRepoTags()[0]
 	}
 	wmImg, err := workloadmeta.NewContainerImage(imgId, imgName)
 	if err != nil {
@@ -112,15 +112,15 @@ func getContainerImage(ctx context.Context, client crio.Client, imageSpec *v1.Im
 		return workloadmeta.ContainerImage{}
 	}
 
-	imgIdAsDigest, err := parseDigests(image.RepoDigests)
+	imgIdAsDigest, err := parseDigests(image.GetRepoDigests())
 	if err == nil {
 		imgId = imgIdAsDigest
 	} else if sbomCollectionIsEnabled() {
 		log.Warnf("Failed to parse digest for image with ID %s: %v. As a result, SBOM vulnerabilities may not be properly linked to this image.", imgId, err)
 	}
 
-	if len(image.RepoDigests) > 0 {
-		wmImg.RepoDigest = image.RepoDigests[0]
+	if len(image.GetRepoDigests()) > 0 {
+		wmImg.RepoDigest = image.GetRepoDigests()[0]
 	}
 	return wmImg
 }
@@ -130,13 +130,13 @@ func getContainerState(containerStatus *v1.ContainerStatus) workloadmeta.Contain
 	if containerStatus == nil {
 		return workloadmeta.ContainerState{Status: workloadmeta.ContainerStatusUnknown}
 	}
-	exitCode := int64(containerStatus.ExitCode)
+	exitCode := int64(containerStatus.GetExitCode())
 	return workloadmeta.ContainerState{
 		Running:    containerStatus.State == v1.ContainerState_CONTAINER_RUNNING,
-		Status:     mapContainerStatus(containerStatus.State),
-		CreatedAt:  time.Unix(0, containerStatus.CreatedAt).UTC(),
-		StartedAt:  time.Unix(0, containerStatus.StartedAt).UTC(),
-		FinishedAt: time.Unix(0, containerStatus.FinishedAt).UTC(),
+		Status:     mapContainerStatus(containerStatus.GetState()),
+		CreatedAt:  time.Unix(0, containerStatus.GetCreatedAt()).UTC(),
+		StartedAt:  time.Unix(0, containerStatus.GetStartedAt()).UTC(),
+		FinishedAt: time.Unix(0, containerStatus.GetFinishedAt()).UTC(),
 		ExitCode:   &exitCode,
 	}
 }
@@ -237,7 +237,7 @@ func parsePortsFromAnnotations(annotations map[string]string) []workloadmeta.Con
 
 			if err := json.Unmarshal([]byte(value), &ports); err != nil {
 				log.Debugf("Failed to parse ports from annotation %s: %v", key, err)
-				continue
+				continue // skip to next annotation
 			}
 
 			for _, port := range ports {
