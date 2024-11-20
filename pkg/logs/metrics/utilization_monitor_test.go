@@ -7,13 +7,51 @@ package metrics
 
 import (
 	"testing"
+	"time"
+
+	"github.com/benbjohnson/clock"
+	"github.com/stretchr/testify/require"
 )
 
-func TestUtilizationMonitorLifecycle(_ *testing.T) {
-	// The core logic of the UtilizationMonitor is tested in the utilizationtracker package.
-	// This test just ensures the lifecycle methods don't block.
-	um := NewTelemetryUtilizationMonitor("", "")
-	um.Start()
-	um.Stop()
-	um.Cancel()
+func TestUtilizationMonitorLifecycle(t *testing.T) {
+	tickChan := make(chan time.Time, 1)
+	clock := clock.NewMock()
+	um := newTelemetryUtilizationMonitorWithTickAndClock("name", "instance", tickChan, clock)
+
+	// Converge on 50% utilization
+	for i := 0; i < 100; i++ {
+		um.Start()
+		clock.Add(1 * time.Second)
+
+		tickChan <- time.Time{} // Trigger report
+		um.Stop()
+		clock.Add(1 * time.Second)
+	}
+
+	require.InDelta(t, 0.5, um.avg, 0.01)
+
+	// Converge on 100% utilization
+	for i := 0; i < 100; i++ {
+		um.Start()
+		clock.Add(1 * time.Second)
+
+		tickChan <- time.Time{} // Trigger report
+		um.Stop()
+		clock.Add(1 * time.Millisecond)
+	}
+
+	require.InDelta(t, 0.99, um.avg, 0.01)
+
+	// Converge on 0% utilization
+	for i := 0; i < 100; i++ {
+		um.Start()
+		clock.Add(1 * time.Millisecond)
+
+		tickChan <- time.Time{} // Trigger report
+		um.Stop()
+		clock.Add(1 * time.Second)
+	}
+
+	require.InDelta(t, 0.0, um.avg, 0.01)
+
 }

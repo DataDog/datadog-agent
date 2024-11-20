@@ -124,7 +124,7 @@ func (w *Worker) Run() {
 	log.Debugf("Runner %d, worker %d: Ready to process checks...", w.runnerID, w.ID)
 
 	alpha := 0.25 // converges to 99.98% of constant input in 30 iterations.
-	utilizationTracker := utilizationtracker.NewUtilizationTracker(w.utilizationTickInterval, alpha)
+	utilizationTracker := utilizationtracker.NewUtilizationTracker(w.utilizationTickInterval, alpha, true)
 	defer utilizationTracker.Stop()
 
 	startUtilizationUpdater(w.Name, utilizationTracker)

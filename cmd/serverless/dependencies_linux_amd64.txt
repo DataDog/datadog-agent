@@ -301,7 +301,6 @@ github.com/DataDog/datadog-agent/pkg/util/sync
 github.com/DataDog/datadog-agent/pkg/util/system
 github.com/DataDog/datadog-agent/pkg/util/system/socket
 github.com/DataDog/datadog-agent/pkg/util/tmplvar
-github.com/DataDog/datadog-agent/pkg/util/utilizationtracker
 github.com/DataDog/datadog-agent/pkg/version
 github.com/DataDog/datadog-api-client-go/v2
 github.com/DataDog/datadog-api-client-go/v2/api/datadog

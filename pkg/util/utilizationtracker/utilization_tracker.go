@@ -33,9 +33,10 @@ type UtilizationTracker struct {
 	// alpha is the ewma smoothing factor.
 	alpha float64
 
-	started  time.Time
-	nextTick time.Time
-	interval time.Duration
+	started          time.Time
+	nextTick         time.Time
+	interval         time.Duration
+	updateFrequently bool
 
 	clock clock.Clock
 }
@@ -45,27 +46,30 @@ type UtilizationTracker struct {
 func NewUtilizationTracker(
 	interval time.Duration,
 	alpha float64,
+	updateFrequently bool,
 ) *UtilizationTracker {
 	return newUtilizationTrackerWithClock(
 		interval,
 		clock.New(),
 		alpha,
+		updateFrequently,
 	)
 }
 
 // newUtilizationTrackerWithClock is primarely used for testing.
 // Does not start the background goroutines, so that the tests can call update() to get
 // deterministic results.
-func newUtilizationTrackerWithClock(interval time.Duration, clk clock.Clock, alpha float64) *UtilizationTracker {
+func newUtilizationTrackerWithClock(interval time.Duration, clk clock.Clock, alpha float64, updateFrequently bool) *UtilizationTracker {
 	ut := &UtilizationTracker{
 		clock: clk,
 
 		eventsChan: make(chan trackerEvent),
 
-		nextTick: clk.Now(),
-		interval: interval,
-		alpha:    alpha,
-		Output:   make(chan float64, 1),
+		nextTick:         clk.Now(),
+		interval:         interval,
+		alpha:            alpha,
+		Output:           make(chan float64, 1),
+		updateFrequently: updateFrequently,
 	}
 
 	go ut.run()
@@ -108,9 +112,15 @@ func (ut *UtilizationTracker) update(now time.Time) {
 		ut.busy = 0
 
 		ut.nextTick = ut.nextTick.Add(ut.interval)
+
+		if !ut.updateFrequently {
+			ut.Output <- ut.value
+
+		}
 	}
-	// invariant: ut.nextTick > now
-	ut.Output <- ut.value
+	if ut.updateFrequently {
+		ut.Output <- ut.value
+	}
 }
 
 // Stop should be invoked when a component is about to exit
