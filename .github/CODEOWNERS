@@ -249,6 +249,7 @@
 /Dockerfiles/agent/entrypoint.ps1        @DataDog/container-integrations @DataDog/windows-agent
 /Dockerfiles/agent/windows/              @DataDog/container-integrations @DataDog/windows-agent
 /Dockerfiles/agent-ot                    @DataDog/opentelemetry
+/Dockerfiles/agent/bouncycastle-fips     @DataDog/agent-metrics-logs
 
 /docs/                                  @DataDog/documentation @DataDog/agent-devx-loops
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-metrics-logs
@@ -644,5 +645,3 @@
 /internal/third_party/client-go         @DataDog/container-platform
 /internal/third_party/kubernetes        @DataDog/container-integrations
 /internal/third_party/golang/           @DataDog/container-integrations
-
-/Dockerfiles/agent/bouncycastle-fips    @DataDog/agent-metrics-logs
