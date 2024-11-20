@@ -54,20 +54,20 @@ func (c *collector) convertImageToEvent(img *v1.Image, info map[string]string, n
 	if len(img.GetRepoTags()) > 0 {
 		name = img.GetRepoTags()[0]
 	}
-	imgId := img.GetId()
-	os, arch, variant, labels, layers := parseImageInfo(info, crio.GetOverlayImagePath(), imgId)
+	imgID := img.GetId()
+	os, arch, variant, labels, layers := parseImageInfo(info, crio.GetOverlayImagePath(), imgID)
 
-	imgIdAsDigest, err := parseDigests(img.GetRepoDigests())
+	imgIDAsDigest, err := parseDigests(img.GetRepoDigests())
 	if err == nil {
-		imgId = imgIdAsDigest
+		imgID = imgIDAsDigest
 	} else if sbomCollectionIsEnabled() {
-		log.Warnf("Failed to parse digest for image with ID %s: %v. As a result, SBOM vulnerabilities may not be properly linked to this image.", imgId, err)
+		log.Warnf("Failed to parse digest for image with ID %s: %v. As a result, SBOM vulnerabilities may not be properly linked to this image.", imgID, err)
 	}
 
 	imgMeta := workloadmeta.ContainerImageMetadata{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainerImageMetadata,
-			ID:   imgId,
+			ID:   imgID,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
 			Name:        name,

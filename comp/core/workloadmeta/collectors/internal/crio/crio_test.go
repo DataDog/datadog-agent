@@ -70,7 +70,7 @@ func TestPull(t *testing.T) {
 					},
 				}, nil
 			},
-			mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec, verbose bool) (*v1.ImageStatusResponse, error) {
+			mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec, _ bool) (*v1.ImageStatusResponse, error) {
 				return &v1.ImageStatusResponse{
 					Image: &v1.Image{
 						Id:          "image123",

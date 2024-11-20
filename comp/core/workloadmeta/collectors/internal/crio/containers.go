@@ -101,22 +101,22 @@ func getContainerImage(ctx context.Context, client crio.Client, imageSpec *v1.Im
 		return workloadmeta.ContainerImage{}
 	}
 	image := imageResp.GetImage()
-	imgId := image.GetId()
+	imgID := image.GetId()
 	imgName := ""
 	if len(image.GetRepoTags()) > 0 {
 		imgName = image.GetRepoTags()[0]
 	}
-	wmImg, err := workloadmeta.NewContainerImage(imgId, imgName)
+	wmImg, err := workloadmeta.NewContainerImage(imgID, imgName)
 	if err != nil {
 		log.Warnf("Failed to create image: %v", err)
 		return workloadmeta.ContainerImage{}
 	}
 
-	imgIdAsDigest, err := parseDigests(image.GetRepoDigests())
+	imgIDAsDigest, err := parseDigests(image.GetRepoDigests())
 	if err == nil {
-		imgId = imgIdAsDigest
+		wmImg.ID = imgIDAsDigest
 	} else if sbomCollectionIsEnabled() {
-		log.Warnf("Failed to parse digest for image with ID %s: %v. As a result, SBOM vulnerabilities may not be properly linked to this image.", imgId, err)
+		log.Warnf("Failed to parse digest for image with ID %s: %v. As a result, SBOM vulnerabilities may not be properly linked to this image.", imgID, err)
 	}
 
 	if len(image.GetRepoDigests()) > 0 {
