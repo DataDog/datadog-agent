@@ -6,7 +6,11 @@
 package check
 
 import (
+	"bytes"
 	"encoding/json"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type root struct {
@@ -27,11 +31,17 @@ type metric struct {
 	Type           string   `json:"type"`
 }
 
-func parseCheckOutput(check []byte) []root {
+func parseCheckOutput(t *testing.T, check []byte) []root {
+	// On Windows a warning is printed when running the check command with the wrong user
+	// This warning is not part of the JSON output and needs to be ignored when parsing
+	startIdx := bytes.IndexAny(check, "[{")
+	require.NotEqual(t, -1, startIdx, "Failed to find start of JSON output in check output: %v", string(check))
+
+	check = check[startIdx:]
+
 	var data []root
-	if err := json.Unmarshal([]byte(check), &data); err != nil {
-		return nil
-	}
+	err := json.Unmarshal([]byte(check), &data)
+	require.NoErrorf(t, err, "Failed to unmarshal check output: %v", string(check))
 
 	return data
 }
