@@ -8,9 +8,9 @@
 // Package mock provides the mock component for serializer/compression
 package mock
 
-import def "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+import compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 
 // Mock implements mock-specific methods.
 type Mock interface {
-	def.Component
+	compression.Component
 }
