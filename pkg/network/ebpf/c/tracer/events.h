@@ -44,7 +44,7 @@ __maybe_unused static __always_inline void submit_closed_conn_event(void *ctx, i
     }
 }
 
-static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk, __u16 tcp_failure_reason) {
+static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
     u32 cpu = bpf_get_smp_processor_id();
     // Will hold the full connection data to send through the perf or ring buffer
     conn_t conn = { .tup = *tup };
@@ -72,11 +72,9 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         if (tst && (bpf_map_delete_elem(&tcp_stats, &(conn.tup)) == 0)) {
             conn.tcp_stats = *tst;
         } else {
-            // flush empty connections in the case of tcp failures
-            if (tcp_failure_reason == 0 && !cst_flushable) {
+            if (!cst_flushable) {
                 return;
             }
-            conn.tcp_stats = (tcp_stats_t){};
         }
 
         conn.tup.pid = 0;
@@ -86,12 +84,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
             bpf_map_delete_elem(&tcp_retransmits, &(conn.tup));
         }
         conn.tup.pid = tup->pid;
-
         conn.tcp_stats.state_transitions |= (1 << TCP_CLOSE);
-        conn.tcp_stats.failure_reason = tcp_failure_reason;
-        if (tcp_failure_reason) {
-            increment_telemetry_count(tcp_failed_connect);
-        }
     }
 
     // update the `duration` field to reflect the duration of the

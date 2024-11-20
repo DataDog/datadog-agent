@@ -220,6 +220,8 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         return 0;
     }
 
+    increment_telemetry_count(tcp_failed_connect);
+
     // connection timeouts will have 0 pids as they are cleaned up by an idle process.
     // resets can also have kernel pids are they are triggered by receiving an RST packet from the server
     // get the pid from the ongoing failure map in this case, as it should have been set in connect(). else bail
@@ -232,7 +234,11 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         return 0;
     }
 
-    cleanup_conn(ctx, &t, sk, err);
+    tcp_stats_t stats = {.failure_reason = err};
+    update_tcp_stats(&t, stats);
+
+    cleanup_conn(ctx, &t, sk);
+
     increment_telemetry_count(tcp_done_connection_flush);
 
     return 0;
@@ -267,16 +273,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
 
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
 
-    __u16 tcp_failure_reason = 0;
-    int err = 0;
-    bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
-    if (err == TCP_CONN_FAILED_RESET || err == TCP_CONN_FAILED_TIMEOUT || err == TCP_CONN_FAILED_REFUSED) {
-        increment_telemetry_count(tcp_close_target_failures);
-        // only set tcp_failure_reason if err is one of the desired values
-        tcp_failure_reason = err;
-    }
-
-    cleanup_conn(ctx, &t, sk, tcp_failure_reason);
+    cleanup_conn(ctx, &t, sk);
     increment_telemetry_count(tcp_close_connection_flush);
 
     return 0;
@@ -1026,7 +1023,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *skp) 
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(ctx, &tup, skp, 0);
+        cleanup_conn(ctx, &tup, skp);
         lport = tup.sport;
     } else {
         lport = read_sport(skp);
