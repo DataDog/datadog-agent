@@ -1,13 +1,20 @@
 from invoke import task
 
-from tasks.libs.common.agent6 import agent_context, enter_agent6_context, prepare
+from tasks.libs.common.agent6 import agent_context, enter_agent6_context, init_env, remove_env
 
 
 @task
 def init(ctx):
     """Will prepare the agent 6 context (git clone / pull of the agent 6 branch)."""
 
-    prepare(ctx)
+    init_env(ctx)
+
+
+@task
+def remove(ctx):
+    """Will remove all the context git submodules."""
+
+    remove_env(ctx)
 
 
 @task

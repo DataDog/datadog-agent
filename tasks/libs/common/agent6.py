@@ -13,7 +13,7 @@ AGENT6_WORKING_DIRECTORY = Path.cwd().parent / "datadog-agent6"
 AGENT7_WORKING_DIRECTORY = Path.cwd()
 
 
-def prepare(ctx):
+def init_env(ctx):
     """Will prepare the environment for agent6 commands.
 
     To be used before each agent6 command.
@@ -26,7 +26,14 @@ def prepare(ctx):
         ctx.run(f"git worktree add '{AGENT6_WORKING_DIRECTORY}' origin/{AGENT6_BRANCH}", warn=True)
 
     if not os.environ.get("AGENT6_NO_PULL"):
-        ctx.run(f"git -C '{AGENT6_WORKING_DIRECTORY}' fetch origin {AGENT6_BRANCH}", warn=True)
+        ctx.run(f"git -C '{AGENT6_WORKING_DIRECTORY}' fetch origin {AGENT6_BRANCH}", warn=True, hide=True)
+
+
+def remove_env(ctx):
+    """Will remove the environment for agent6 commands."""
+
+    if AGENT6_WORKING_DIRECTORY.is_dir():
+        ctx.run(f"git worktree remove '{AGENT6_WORKING_DIRECTORY}'", warn=True)
 
 
 def is_agent6():
@@ -38,7 +45,7 @@ def is_agent6():
 def enter_agent6_context(ctx):
     """Enters the agent 6 environment."""
 
-    prepare(ctx)
+    init_env(ctx)
 
     os.chdir(AGENT6_WORKING_DIRECTORY)
 

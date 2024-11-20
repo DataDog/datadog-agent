@@ -3,7 +3,7 @@ import unittest
 
 from invoke import Context
 
-from tasks.libs.common.agent6 import agent_context, is_agent6, prepare
+from tasks.libs.common.agent6 import agent_context, init_env, is_agent6
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.gomodules import get_default_modules
 
@@ -15,7 +15,7 @@ def get_ctx():
 class TestAgent6(unittest.TestCase):
     def setUp(self):
         # Pull only once
-        prepare(get_ctx())
+        init_env(get_ctx())
         os.environ['AGENT6_NO_PULL'] = '1'
 
     def test_context_is_agent6_true(self):
