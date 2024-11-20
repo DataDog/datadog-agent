@@ -89,7 +89,7 @@ class GithubAPI:
                 return milestone
         return None
 
-    def get_branch_protection_checks(self, branch_name: str) -> list[str]:
+    def get_branch_required_checks(self, branch_name: str) -> list[str]:
         """
         Get the required checks for a given branch
         """
@@ -97,15 +97,15 @@ class GithubAPI:
         if not branch:
             raise Exit(color_message(f"Branch {branch_name} not found", Color.RED), code=1)
         elif not branch.protected:
-            raise Exit(color_message(f"Branch {branch_name} doesn't have required checks", Color.RED), code=1)
+            raise Exit(color_message(f"Branch {branch_name} doesn't have protection", Color.RED), code=1)
         protection = branch.get_protection()
-        return protection.raw_data['required_status_checks']['contexts']
+        return protection.required_status_checks.contexts
 
     def add_branch_protection_check(self, branch_name: str, checks: list[str]) -> None:
         """
         Add required checks to a given branch
         """
-        current_required_checks = self.get_branch_protection_checks(branch_name)
+        current_required_checks = self.get_branch_required_checks(branch_name)
         new_required_checks = []
         for check in checks:
             if check in current_required_checks:

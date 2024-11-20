@@ -549,8 +549,8 @@ def get_required_checks(_, branch: str = "main"):
     """
     from tasks.libs.ciproviders.github_api import GithubAPI
 
-    gh = GithubAPI('DataDog/datadog-agent')
-    required_checks = gh.get_branch_protection_checks(branch)
+    gh = GithubAPI()
+    required_checks = gh.get_branch_required_checks(branch)
     print(required_checks)
 
 
@@ -569,5 +569,5 @@ def add_required_checks(_, branch: str, check: str):
     if not check:
         raise Exit(color_message("No check name provided, exiting", Color.RED), code=1)
 
-    gh = GithubAPI('DataDog/datadog-agent')
+    gh = GithubAPI()
     gh.add_branch_protection_check(branch, check)
