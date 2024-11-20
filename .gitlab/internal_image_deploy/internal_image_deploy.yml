@@ -55,7 +55,7 @@ docker_trigger_internal-fips:
       artifacts: false
     - job: docker_build_fips_agent7_arm64
       artifacts: false
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
