@@ -821,11 +821,7 @@ func getBuckets(cfg model.Reader, logger log.Component, option string) []float64
 		return nil
 	}
 
-	buckets, err := cfg.GetFloat64SliceE(option)
-	if err != nil {
-		logger.Errorf("%s, falling back to default values", err)
-		return nil
-	}
+	buckets := cfg.GetFloat64Slice(option)
 	if len(buckets) == 0 {
 		logger.Debugf("'%s' is empty, falling back to default values", option)
 		return nil

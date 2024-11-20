@@ -13,7 +13,6 @@ from subprocess import check_output
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks.agent import build as agent_build
 from tasks.agent import generate_config
 from tasks.build_tags import get_default_build_tags
 from tasks.go import run_golangci_lint
@@ -60,18 +59,10 @@ def build(
     go_mod="mod",
     skip_assets=False,
     static=False,
-    bundle=True,
 ):
     """
     Build the security agent
     """
-    if bundle and sys.platform != "win32":
-        return agent_build(
-            ctx,
-            install_path=install_path,
-            race=race,
-            go_mod=go_mod,
-        )
 
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, install_path=install_path)
 
@@ -761,7 +752,7 @@ def go_generate_check(ctx):
     tasks = [
         [cws_go_generate],
         [generate_cws_documentation],
-        [gen_mocks],
+        # [gen_mocks], TODO: re-enable this when go is bumped to 1.23 and mocker is updated to >2.46.1
         [sync_secl_win_pkg],
     ]
     failing_tasks = []
@@ -865,6 +856,7 @@ def sync_secl_win_pkg(ctx):
         ("accessors_windows.go", "accessors_win.go"),
         ("legacy_secl.go", None),
         ("security_profile.go", None),
+        ("string_array_iter.go", None),
     ]
 
     ctx.run("rm -r pkg/security/seclwin/model")

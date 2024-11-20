@@ -100,7 +100,6 @@ type TaggerWrapper struct {
 	defaultTagger tagger.Component
 
 	wmeta         workloadmeta.Component
-	cfg           config.Component
 	datadogConfig datadogConfig
 
 	checksCardinality          types.TagCardinality
@@ -143,7 +142,7 @@ func NewTaggerClient(params tagger.Params, cfg config.Component, wmeta workloadm
 	var err error
 	telemetryStore := telemetry.NewStore(telemetryComp)
 	if params.UseFakeTagger {
-		defaultTagger = newFakeTagger(cfg, telemetryStore)
+		defaultTagger = newFakeTagger(telemetryStore)
 	} else {
 		defaultTagger, err = newLocalTagger(cfg, wmeta, telemetryStore)
 	}
@@ -207,7 +206,7 @@ func (t *TaggerWrapper) Stop() error {
 
 // ReplayTagger returns the replay tagger instance
 func (t *TaggerWrapper) ReplayTagger() tagger.ReplayTagger {
-	return newReplayTagger(t.cfg, t.telemetryStore)
+	return newReplayTagger(t.telemetryStore)
 }
 
 // GetTaggerTelemetryStore returns tagger telemetry store
