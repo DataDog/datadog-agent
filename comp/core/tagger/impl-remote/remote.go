@@ -132,7 +132,7 @@ func NewRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.C
 			TokenFetcher: params.RemoteTokenFetcher(cfg),
 		},
 		cfg:            cfg,
-		store:          newTagStore(cfg, telemetryStore),
+		store:          newTagStore(telemetryStore),
 		telemetryStore: telemetryStore,
 		filter:         params.RemoteFilter,
 		log:            log,
@@ -186,8 +186,7 @@ func (t *remoteTagger) Start(ctx context.Context) error {
 
 	t.client = pb.NewAgentSecureClient(t.conn)
 
-	timeout := time.Duration(t.cfg.GetInt("remote_tagger_timeout_seconds")) * time.Second
-	err = t.startTaggerStream(timeout)
+	err = t.startTaggerStream(noTimeout)
 	if err != nil {
 		// tagger stopped before being connected
 		if errors.Is(err, errTaggerStreamNotStarted) {

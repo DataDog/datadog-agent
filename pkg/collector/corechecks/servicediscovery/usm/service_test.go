@@ -453,7 +453,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"swoole-server.php",
 			},
 			lang:                  language.PHP,
-			expectedGeneratedName: "foo",
+			expectedDDService:     "foo",
+			expectedGeneratedName: "php",
 		},
 		{
 			name: "PHP with version number",

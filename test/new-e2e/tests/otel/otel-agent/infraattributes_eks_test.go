@@ -43,7 +43,7 @@ var eksParams = utils.IAParams{
 
 func (s *iaEKSTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.TestCalendarApp(s)
+	utils.TestCalendarApp(s, false)
 }
 
 func (s *iaEKSTestSuite) TestOTLPTraces() {
@@ -64,4 +64,36 @@ func (s *iaEKSTestSuite) TestHosts() {
 
 func (s *iaEKSTestSuite) TestPrometheusMetrics() {
 	utils.TestPrometheusMetrics(s)
+}
+
+type iaUSTEKSTestSuite struct {
+	e2e.BaseSuite[environments.Kubernetes]
+}
+
+func TestOTelAgentIAUSTEKS(t *testing.T) {
+	values := `
+datadog:
+  logs:
+    containerCollectAll: false
+    containerCollectUsingFiles: false
+`
+	t.Parallel()
+	e2e.Run(t, &iaUSTEKSTestSuite{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(awskubernetes.WithEKSOptions(eks.WithLinuxNodeGroup()), awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
+}
+
+func (s *iaUSTEKSTestSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	utils.TestCalendarApp(s, true)
+}
+
+func (s *iaUSTEKSTestSuite) TestOTLPTraces() {
+	utils.TestTraces(s, eksParams)
+}
+
+func (s *iaUSTEKSTestSuite) TestOTLPMetrics() {
+	utils.TestMetrics(s, eksParams)
+}
+
+func (s *iaUSTEKSTestSuite) TestOTLPLogs() {
+	utils.TestLogs(s, eksParams)
 }
