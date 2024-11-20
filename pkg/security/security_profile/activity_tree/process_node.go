@@ -43,7 +43,7 @@ type ProcessNode struct {
 	IMDSEvents map[model.IMDSEvent]*IMDSNode
 
 	Sockets  []*SocketNode
-	Syscalls []int
+	Syscalls []*SyscallNode
 	Children []*ProcessNode
 }
 
@@ -200,20 +200,29 @@ func (pn *ProcessNode) Matches(entry *model.Process, matchArgs bool, normalize b
 }
 
 // InsertSyscalls inserts the syscall of the process in the dump
-func (pn *ProcessNode) InsertSyscalls(e *model.Event, syscallMask map[int]int) bool {
+func (pn *ProcessNode) InsertSyscalls(e *model.Event, imageTag string, syscallMask map[int]int, stats *Stats, dryRun bool) bool {
 	var hasNewSyscalls bool
 newSyscallLoop:
 	for _, newSyscall := range e.Syscalls.Syscalls {
 		for _, existingSyscall := range pn.Syscalls {
-			if existingSyscall == int(newSyscall) {
+			if existingSyscall.Syscall == int(newSyscall) {
+				if imageTag != "" && !slices.Contains(existingSyscall.ImageTags, imageTag) {
+					existingSyscall.ImageTags = append(existingSyscall.ImageTags, imageTag)
+				}
 				continue newSyscallLoop
 			}
 		}
 
-		pn.Syscalls = append(pn.Syscalls, int(newSyscall))
-		syscallMask[int(newSyscall)] = int(newSyscall)
 		hasNewSyscalls = true
+		if dryRun {
+			// exit early
+			break
+		}
+		pn.Syscalls = append(pn.Syscalls, NewSyscallNode(int(newSyscall), imageTag, Runtime))
+		syscallMask[int(newSyscall)] = int(newSyscall)
+		stats.SyscallNodes++
 	}
+
 	return hasNewSyscalls
 }
 
@@ -389,6 +398,9 @@ func (pn *ProcessNode) TagAllNodes(imageTag string) {
 	for _, sock := range pn.Sockets {
 		sock.appendImageTag(imageTag)
 	}
+	for _, scall := range pn.Syscalls {
+		scall.appendImageTag(imageTag)
+	}
 	for _, child := range pn.Children {
 		child.TagAllNodes(imageTag)
 	}
@@ -449,6 +461,15 @@ func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys
 	}
 	pn.Sockets = newSockets
 
+	newSyscalls := []*SyscallNode{}
+	for _, scall := range pn.Syscalls {
+		if shouldRemove := scall.evictImageTag(imageTag); !shouldRemove {
+			newSyscalls = append(newSyscalls, scall)
+			SyscallsMask[scall.Syscall] = scall.Syscall
+		}
+	}
+	pn.Syscalls = newSyscalls
+
 	newChildren := []*ProcessNode{}
 	for _, child := range pn.Children {
 		if shouldRemoveNode := child.EvictImageTag(imageTag, DNSNames, SyscallsMask); !shouldRemoveNode {
@@ -456,9 +477,5 @@ func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys
 		}
 	}
 	pn.Children = newChildren
-
-	for _, id := range pn.Syscalls {
-		SyscallsMask[id] = id
-	}
 	return false
 }

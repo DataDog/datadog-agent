@@ -64,17 +64,17 @@ func getContainerName(containerMetadata *v1.ContainerMetadata) string {
 	if containerMetadata == nil {
 		return ""
 	}
-	return containerMetadata.Name
+	return containerMetadata.GetName()
 }
 
 // getPodNamespace retrieves the namespace for a given pod ID.
 func getPodNamespace(ctx context.Context, client crio.Client, podID string) string {
 	pod, err := client.GetPodStatus(ctx, podID)
-	if err != nil || pod == nil || pod.Metadata == nil {
+	if err != nil || pod == nil || pod.GetMetadata() == nil {
 		log.Errorf("Failed to get pod namespace for pod ID %s: %v", podID, err)
 		return ""
 	}
-	return pod.Metadata.Namespace
+	return pod.GetMetadata().GetNamespace()
 }
 
 // getContainerStatus retrieves the status of a container.

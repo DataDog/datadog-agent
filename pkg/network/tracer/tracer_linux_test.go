@@ -126,8 +126,10 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 
 func (s *TracerSuite) TestTCPRetransmit() {
 	t := s.T()
+	cfg := testConfig()
+	skipEbpflessTodo(t, cfg)
 	// Enable BPF-based system probe
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, cfg)
 
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
@@ -175,6 +177,8 @@ func (s *TracerSuite) TestTCPRetransmit() {
 
 func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
 	t := s.T()
+	cfg := testConfig()
+	skipEbpflessTodo(t, cfg)
 	// Create TCP Server that simply "drains" connection until receiving an EOF
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		io.Copy(io.Discard, c)
@@ -203,7 +207,7 @@ func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
 	// this connection (if there are pid collisions,
 	// we assign the tcp stats to one connection randomly,
 	// which is the point of this test)
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, cfg)
 
 	const numProcesses = 10
 	iptablesWrapper(t, func() {
@@ -252,8 +256,10 @@ func (s *TracerSuite) TestTCPRTT() {
 	if ebpftest.GetBuildMode() == ebpftest.Prebuilt {
 		flake.Mark(t)
 	}
+	cfg := testConfig()
+	skipEbpflessTodo(t, cfg)
 	// Enable BPF-based system probe
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, cfg)
 	// Create TCP Server that simply "drains" connection until receiving an EOF
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		io.Copy(io.Discard, c)
@@ -576,24 +582,31 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv6() {
 	tr := setupTracer(t, cfg)
 	linkLocal, err := offsetguess.GetIPv6LinkLocalAddress()
 	require.NoError(t, err)
+	remoteAddr := linkLocal[0]
+	remoteAddr.Port = rand.Int()%5000 + 15000
 
-	remotePort := rand.Int()%5000 + 15000
-	remoteAddr := &net.UDPAddr{IP: net.ParseIP(offsetguess.InterfaceLocalMulticastIPv6), Port: remotePort}
-	conn, err := net.ListenUDP("udp6", linkLocal[0])
+	conn, err := net.ListenUDP("udp6", remoteAddr)
 	require.NoError(t, err)
 	defer conn.Close()
 	message := []byte("payload")
 	bytesSent, err := conn.WriteTo(message, remoteAddr)
 	require.NoError(t, err)
 
-	connections := getConnections(t, tr)
-	outgoing := network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
-		return cs.DPort == uint16(remotePort)
-	})
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		connections := getConnections(t, tr)
+		outgoing := network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
+			if cs.Type != network.UDP {
+				return false
+			}
+			return cs.DPort == uint16(remoteAddr.Port)
+		})
+		if !assert.Len(ct, outgoing, 1) {
+			return
+		}
+		assert.Equal(ct, remoteAddr.IP.String(), outgoing[0].Dest.String())
+		assert.Equal(ct, bytesSent, int(outgoing[0].Monotonic.SentBytes))
+	}, 3*time.Second, 100*time.Millisecond)
 
-	require.Len(t, outgoing, 1)
-	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
-	assert.Equal(t, bytesSent, int(outgoing[0].Monotonic.SentBytes))
 }
 
 func (s *TracerSuite) TestGatewayLookupNotEnabled() {
@@ -1094,6 +1107,10 @@ func (s *TracerSuite) TestSelfConnect() {
 	// Enable BPF-based system probe
 	cfg := testConfig()
 	cfg.TCPConnTimeout = 3 * time.Second
+	// TODO filter out connections in ebpfless where the incoming IP:port == outgoing IP:port because
+	// packet capture can't trace it properly
+	skipEbpflessTodo(t, cfg)
+
 	tr := setupTracer(t, cfg)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
@@ -1134,7 +1151,7 @@ func (s *TracerSuite) TestSelfConnect() {
 
 // sets up two udp sockets talking to each other locally.
 // returns (listener, dialer)
-func setupUdpSockets(t *testing.T, udpnet, ip string) (*net.UDPConn, *net.UDPConn) {
+func setupUdpSockets(t *testing.T, udpnet, ip string) (*net.UDPConn, *net.UDPConn) { //nolint:revive // TODO
 	serverAddr := fmt.Sprintf("%s:%d", ip, 0)
 
 	laddr, err := net.ResolveUDPAddr(udpnet, serverAddr)
@@ -1471,28 +1488,35 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	t.Logf("port: %d", assignedPort)
+
+	assert.EventuallyWithT(t, func(ct *assert.CollectT) { //nolint:revive // TODO
+		// use t instead of ct because getConnections uses require (not assert), and we get a better error message that way
+		connections := getConnections(t, tr)
+
+		incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		if assert.True(t, ok, "unable to find incoming connection") {
+			assert.Equal(t, network.INCOMING, incoming.Direction)
+
+			// make sure the inverse values are seen for the other message
+			assert.Equal(t, serverMessageSize, int(incoming.Monotonic.SentBytes), "incoming sent")
+			assert.Equal(t, clientMessageSize, int(incoming.Monotonic.RecvBytes), "incoming recv")
+			assert.True(t, incoming.IntraHost, "incoming intrahost")
+		}
+
+		outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		if assert.True(t, ok, "unable to find outgoing connection") {
+			assert.Equal(t, network.OUTGOING, outgoing.Direction)
+
+			assert.Equal(t, clientMessageSize, int(outgoing.Monotonic.SentBytes), "outgoing sent")
+			assert.Equal(t, serverMessageSize, int(outgoing.Monotonic.RecvBytes), "outgoing recv")
+			assert.True(t, outgoing.IntraHost, "outgoing intrahost")
+		}
+	}, 3*time.Second, 100*time.Millisecond)
+
+	// log the connections at the end in case the test failed
 	connections := getConnections(t, tr)
 	for _, c := range connections.Conns {
 		t.Log(c)
-	}
-
-	incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-	if assert.True(t, ok, "unable to find incoming connection") {
-		assert.Equal(t, network.INCOMING, incoming.Direction)
-
-		// make sure the inverse values are seen for the other message
-		assert.Equal(t, serverMessageSize, int(incoming.Monotonic.SentBytes), "incoming sent")
-		assert.Equal(t, clientMessageSize, int(incoming.Monotonic.RecvBytes), "incoming recv")
-		assert.True(t, incoming.IntraHost, "incoming intrahost")
-	}
-
-	outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	if assert.True(t, ok, "unable to find outgoing connection") {
-		assert.Equal(t, network.OUTGOING, outgoing.Direction)
-
-		assert.Equal(t, clientMessageSize, int(outgoing.Monotonic.SentBytes), "outgoing sent")
-		assert.Equal(t, serverMessageSize, int(outgoing.Monotonic.RecvBytes), "outgoing recv")
-		assert.True(t, outgoing.IntraHost, "outgoing intrahost")
 	}
 }
 
@@ -2314,6 +2338,7 @@ func BenchmarkAddProcessInfo(b *testing.B) {
 func (s *TracerSuite) TestConnectionDuration() {
 	t := s.T()
 	cfg := testConfig()
+	skipEbpflessTodo(t, cfg)
 	tr := setupTracer(t, cfg)
 
 	srv := tracertestutil.NewTCPServer(func(c net.Conn) {

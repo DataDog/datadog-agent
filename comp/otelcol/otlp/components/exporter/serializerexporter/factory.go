@@ -74,9 +74,9 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		return nil, err
 	}
 
-	exporter, err := exporterhelper.NewMetricsExporter(ctx, params, cfg, newExp.ConsumeMetrics,
-		exporterhelper.WithQueue(cfg.QueueSettings),
-		exporterhelper.WithTimeout(cfg.TimeoutSettings),
+	exporter, err := exporterhelper.NewMetrics(ctx, params, cfg, newExp.ConsumeMetrics,
+		exporterhelper.WithQueue(cfg.QueueConfig),
+		exporterhelper.WithTimeout(cfg.TimeoutConfig),
 		// the metrics remapping code mutates data
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: true}),
 		exporterhelper.WithShutdown(func(context.Context) error {

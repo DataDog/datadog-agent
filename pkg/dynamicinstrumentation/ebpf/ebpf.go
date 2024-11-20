@@ -127,7 +127,7 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 }
 
 // CompileBPFProgram compiles the code for a single probe associated with the process given by procInfo
-func CompileBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error {
+func CompileBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error { //nolint:revive // TODO
 	f := func(in io.Reader, out io.Writer) error {
 		fileContents, err := io.ReadAll(in)
 		if err != nil {
@@ -171,5 +171,5 @@ func getCFlags(config *ddebpf.Config) []string {
 }
 
 const (
-	compilationStepTimeout = 60 * time.Second
+	compilationStepTimeout = 60 * time.Second //nolint:unused // TODO
 )

@@ -73,7 +73,7 @@ type clientImpl struct {
 	socketPath    string
 }
 
-// NewCRIOClient creates a new CRI-O client implementing the CRIOItf interface.
+// NewCRIOClient creates a new CRI-O client implementing the Client interface.
 func NewCRIOClient() (Client, error) {
 	socketPath := getCRIOSocketPath()
 	client := &clientImpl{socketPath: socketPath}
@@ -113,7 +113,7 @@ func (c *clientImpl) GetAllContainers(ctx context.Context) ([]*v1.Container, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
-	return containersResponse.Containers, nil
+	return containersResponse.GetContainers(), nil
 }
 
 // GetContainerStatus retrieves the status of a specific container.
