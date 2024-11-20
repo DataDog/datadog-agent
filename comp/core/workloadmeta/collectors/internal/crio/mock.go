@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package crio provides mock implementations of workloadmeta store and CRI-O client for testing.
+//go:build crio
+
 package crio
 
 import (
@@ -22,6 +23,10 @@ func floatPtr(f float64) *float64 {
 
 func uintPtr(u uint64) *uint64 {
 	return &u
+}
+
+func intPtr(i int64) *int64 {
+	return &i
 }
 
 // mockWorkloadmetaStore is a mock implementation of the workloadmeta store for testing purposes.

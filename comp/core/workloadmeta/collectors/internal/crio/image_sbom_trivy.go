@@ -10,6 +10,7 @@ package crio
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/CycloneDX/cyclonedx-go"
 
@@ -19,22 +20,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/crio"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
+	crioUtil "github.com/DataDog/datadog-agent/pkg/util/crio"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// sbomCollectionIsEnabled returns true if SBOM collection is enabled.
 func sbomCollectionIsEnabled() bool {
 	return imageMetadataCollectionIsEnabled() && pkgconfigsetup.Datadog().GetBool("sbom.container_image.enabled")
 }
 
+// startSBOMCollection starts the SBOM collection process and subscribes to image metadata events.
 func (c *collector) startSBOMCollection(ctx context.Context) error {
 	if !sbomCollectionIsEnabled() {
 		return nil
 	}
+	if err := overlayDirectoryAccess(); err != nil {
+		return fmt.Errorf("SBOM collection enabled, but error accessing overlay directories: %v", err)
+	}
 	c.sbomScanner = scanner.GetGlobalScanner()
 	if c.sbomScanner == nil {
-		err := fmt.Errorf("global SBOM scanner not found")
-		log.Errorf("%v", err)
-		return err
+		return fmt.Errorf("global SBOM scanner not found")
 	}
 
 	filter := workloadmeta.NewFilterBuilder().
@@ -46,16 +51,12 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 
 	scanner := collectors.GetCrioScanner()
 	if scanner == nil {
-		err := fmt.Errorf("failed to retrieve CRI-O SBOM scanner")
-		log.Errorf("%v", err)
-		return err
+		return fmt.Errorf("failed to retrieve CRI-O SBOM scanner")
 	}
 
 	resultChan := scanner.Channel()
 	if resultChan == nil {
-		err := fmt.Errorf("failed to retrieve scanner result channel")
-		log.Errorf("%v", err)
-		return err
+		return fmt.Errorf("failed to retrieve scanner result channel")
 	}
 
 	go c.handleImageEvents(ctx, imgEventsCh)
@@ -85,7 +86,7 @@ func (c *collector) handleEventBundle(eventBundle workloadmeta.EventBundle) {
 	for _, event := range eventBundle.Events {
 		image := event.Entity.(*workloadmeta.ContainerImageMetadata)
 
-		if image.SBOM.Status != workloadmeta.Pending {
+		if image.SBOM != nil && image.SBOM.Status != workloadmeta.Pending {
 			continue
 		}
 		if err := c.extractSBOMWithTrivy(image.ID); err != nil {
@@ -102,7 +103,7 @@ func (c *collector) extractSBOMWithTrivy(imageID string) error {
 	return nil
 }
 
-// The scanResultHandler receives SBOM scan results and updates the workloadmeta entities accordingly.
+// startScanResultHandler receives SBOM scan results and updates the workloadmeta entities accordingly.
 func (c *collector) startScanResultHandler(ctx context.Context, resultChan <-chan sbom.ScanResult) {
 	for {
 		select {
@@ -117,17 +118,17 @@ func (c *collector) startScanResultHandler(ctx context.Context, resultChan <-cha
 	}
 }
 
+// processScanResult updates the workloadmeta store with the SBOM for the image.
 func (c *collector) processScanResult(result sbom.ScanResult) {
 	if result.ImgMeta == nil {
-		log.Errorf("Scan result missing image metadata. Error: %v", result.Error)
+		log.Errorf("Scan result missing image identifier. Error: %v", result.Error)
 		return
 	}
 
-	if err := c.updateSBOMForImage(result.ImgMeta.ID, convertScanResultToSBOM(result)); err != nil {
-		log.Warnf("Error updating SBOM for image: namespace=%s name=%s, err: %s", result.ImgMeta.Namespace, result.ImgMeta.Name, err)
-	}
+	c.notifyStoreWithSBOMForImage(result.ImgMeta.ID, convertScanResultToSBOM(result))
 }
 
+// convertScanResultToSBOM converts an SBOM scan result to a workloadmeta SBOM.
 func convertScanResultToSBOM(result sbom.ScanResult) *workloadmeta.SBOM {
 	status := workloadmeta.Success
 	reportedError := ""
@@ -152,4 +153,23 @@ func convertScanResultToSBOM(result sbom.ScanResult) *workloadmeta.SBOM {
 		Status:             status,
 		Error:              reportedError,
 	}
+}
+
+// overlayDirectoryAccess checks if the overlay directory and overlay-layers directory are accessible.
+func overlayDirectoryAccess() error {
+	overlayPath := crioUtil.GetOverlayPath()
+	if _, err := os.Stat(overlayPath); os.IsNotExist(err) {
+		return fmt.Errorf("overlay directory %s does not exist. Ensure this directory is mounted for SBOM collection to work", overlayPath)
+	} else if err != nil {
+		return fmt.Errorf("failed to check overlay directory %s: %v. Ensure this directory is mounted for SBOM collection to work", overlayPath, err)
+	}
+
+	overlayLayersPath := crioUtil.GetOverlayLayersPath()
+	if _, err := os.Stat(overlayLayersPath); os.IsNotExist(err) {
+		return fmt.Errorf("overlay-layers directory %s does not exist. Ensure this directory is mounted for SBOM collection to work", overlayLayersPath)
+	} else if err != nil {
+		return fmt.Errorf("failed to check overlay-layers directory %s: %v. Ensure this directory is mounted for SBOM collection to work", overlayLayersPath, err)
+	}
+
+	return nil
 }

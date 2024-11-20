@@ -29,42 +29,38 @@ const (
 	defaultCrioSocketPath = "/var/run/crio/crio.sock"
 	udsPrefix             = "unix://%s"
 	overlayPath           = "/var/lib/containers/storage/overlay"
-	OverlayImagePath      = "/var/lib/containers/storage/overlay-images"
+	overlayImagePath      = "/var/lib/containers/storage/overlay-images"
 	overlayLayersPath     = "/var/lib/containers/storage/overlay-layers/layers.json"
 )
 
 // Client defines an interface for interacting with the CRI-API, providing methods for
 // retrieving information about container and pod statuses, images, and metadata.
 type Client interface {
-	// Close closes the connection to the CRI-O API and cleans up resources.
+	// Close terminates the CRI-O API connection and cleans up resources.
 	Close() error
 
-	// RuntimeMetadata retrieves version information and metadata about the container runtime.
-	// ctx: The context for managing the lifetime of the request.
+	// RuntimeMetadata returns metadata about the container runtime, including version details.
+	// Accepts a context to manage request lifetime.
 	RuntimeMetadata(ctx context.Context) (*v1.VersionResponse, error)
 
-	// GetAllContainers lists all containers managed by the CRI-O runtime.
-	// ctx: The context for managing the lifetime of the request.
+	// GetAllContainers lists all containers managed by CRI-O.
+	// Accepts a context for managing request lifetime and returns a slice of container metadata.
 	GetAllContainers(ctx context.Context) ([]*v1.Container, error)
 
-	// GetContainerStatus retrieves the current status of a specific container.
-	// ctx: The context for managing the lifetime of the request.
-	// containerID: The unique identifier of the container for which the status is requested.
+	// GetContainerStatus retrieves the status of a specified container by containerID.
+	// Accepts a context for the request and returns details on container state, creation time, and exit codes.
 	GetContainerStatus(ctx context.Context, containerID string) (*v1.ContainerStatusResponse, error)
 
-	// GetContainerImage retrieves metadata and status information about a specific image.
-	// ctx: The context for managing the lifetime of the request.
-	// imageSpec: A reference to the image, which includes its name or other identifying information.
-	// verbose: If set to true, includes detailed metadata in the response.
+	// GetContainerImage fetches metadata for a specified image, identified by imageSpec.
+	// Accepts a context, the imageSpec to identify the image, and a verbose flag for detailed metadata.
 	GetContainerImage(ctx context.Context, imageSpec *v1.ImageSpec, verbose bool) (*v1.ImageStatusResponse, error)
 
-	// GetPodStatus retrieves the current status of a specific pod sandbox.
-	// ctx: The context for managing the lifetime of the request.
-	// podSandboxID: The unique identifier of the pod sandbox for which the status is requested.
+	// GetPodStatus provides the status of a specified pod sandbox, identified by podSandboxID.
+	// Takes a context to manage the request and returns sandbox status information.
 	GetPodStatus(ctx context.Context, podSandboxID string) (*v1.PodSandboxStatus, error)
 
-	// GetCRIOImageLayers returns the paths of the `diff` directories for each layer of the specified image.
-	// imgMeta: Metadata information about the container image whose layer paths are requested.
+	// GetCRIOImageLayers returns paths to `diff` directories for each layer of the specified image,
+	// using imgMeta to identify the image and resolve its layers.
 	GetCRIOImageLayers(imgMeta *workloadmeta.ContainerImageMetadata) ([]string, error)
 }
 
@@ -171,6 +167,21 @@ func (c *clientImpl) GetCRIOImageLayers(imgMeta *workloadmeta.ContainerImageMeta
 	}
 
 	return lowerDirs, nil
+}
+
+// GetOverlayImagePath returns the path to the overlay-images directory.
+func GetOverlayImagePath() string {
+	return overlayImagePath
+}
+
+// GetOverlayPath returns the path to the overlay directory.
+func GetOverlayPath() string {
+	return overlayLayersPath
+}
+
+// GetOverlayLayersPath returns the path to the overlay-layers directory.
+func GetOverlayLayersPath() string {
+	return overlayPath
 }
 
 // getCRIOSocketPath returns the configured CRI-O socket path or the default path.

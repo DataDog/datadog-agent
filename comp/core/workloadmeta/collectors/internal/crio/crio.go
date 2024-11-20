@@ -10,14 +10,16 @@ package crio
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
-	"sync"
+	"fmt"
+	"os"
 
 	"go.uber.org/fx"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/crio"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,14 +30,13 @@ const (
 )
 
 type collector struct {
-	id              string
-	client          crio.Client
-	store           workloadmeta.Component
-	catalog         workloadmeta.AgentType
-	seenContainers  map[workloadmeta.EntityID]struct{}
-	seenImages      map[workloadmeta.EntityID]struct{}
-	handleImagesMut sync.Mutex
-	sbomScanner     *scanner.Scanner //nolint: unused
+	id             string
+	client         crio.Client
+	store          workloadmeta.Component
+	catalog        workloadmeta.AgentType
+	seenContainers map[workloadmeta.EntityID]struct{}
+	seenImages     map[workloadmeta.EntityID]struct{}
+	sbomScanner    *scanner.Scanner //nolint: unused
 }
 
 // NewCollector initializes a new CRI-O collector.
@@ -63,35 +64,40 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 	client, err := crio.NewCRIOClient()
 	if err != nil {
-		log.Errorf("CRI-O client creation failed: %v", err)
-		client.Close()
-		return err
+		errClose := client.Close()
+		if errClose != nil {
+			log.Warnf("Failed to close CRI-O client: %v", errClose)
+		}
+		return fmt.Errorf("CRI-O client creation failed: %v", err)
 	}
 	c.client = client
 
 	if err := c.startSBOMCollection(ctx); err != nil {
-		log.Errorf("SBOM collection initialization failed: %v", err)
-		return err
+		return fmt.Errorf("SBOM collection initialization failed: %v", err)
+	}
+
+	if imageMetadataCollectionIsEnabled() {
+		if err := checkOverlayImageDirectoryExists(); err != nil {
+			log.Warnf("Overlay image directory check failed: %v", err)
+		}
 	}
 
 	return nil
 }
 
+// Pull gathers container data.
 func (c *collector) Pull(ctx context.Context) error {
 	containers, err := c.client.GetAllContainers(ctx)
 	if err != nil {
-		log.Errorf("Failed to pull container list: %v", err)
-		return err
+		return fmt.Errorf("failed to pull container list: %v", err)
 	}
 
-	// Lock image processing to prevent concurrent modifications
-	c.handleImagesMut.Lock()
-	defer c.handleImagesMut.Unlock()
-
-	// Process container events and generate image events
 	seenContainers := make(map[workloadmeta.EntityID]struct{})
-	seenImages := make(map[string]*workloadmeta.CollectorEvent) // Map to store unique images by ID
+	seenImages := make(map[workloadmeta.EntityID]struct{})
 	containerEvents := make([]workloadmeta.CollectorEvent, 0, len(containers))
+	imageEvents := make([]workloadmeta.CollectorEvent, 0, len(containers))
+
+	collectImages := imageMetadataCollectionIsEnabled()
 
 	for _, container := range containers {
 		// Generate container event
@@ -99,19 +105,32 @@ func (c *collector) Pull(ctx context.Context) error {
 		seenContainers[containerEvent.Entity.GetID()] = struct{}{}
 		containerEvents = append(containerEvents, containerEvent)
 
-		// Generate associated image event from container's image reference
-		if container.Image == nil || container.Image.Image == "" {
-			log.Warnf("Skipped container with empty image reference: %+v", container)
+		// Skip image collection if the condition is not met
+		if !collectImages {
 			continue
 		}
 
-		// Fetch and convert image to event with namespace
-		imageEvent := c.generateImageEventFromContainer(ctx, container)
-		if imageEvent.Type == workloadmeta.EventTypeUnset {
-			log.Warnf("Image event generation failed for container image ID: %s", container.Image.Image)
+		imageEvent, err := c.generateImageEventFromContainer(ctx, container)
+		if err != nil {
+			log.Warnf("Image event generation failed for container %+v: %v", container, err)
 			continue
 		}
-		seenImages[imageEvent.Entity.GetID().ID] = &imageEvent // Store unique images by ID
+
+		imageID := imageEvent.Entity.GetID()
+		seenImages[imageID] = struct{}{}
+		imageEvents = append(imageEvents, *imageEvent)
+	}
+
+	// Handle unset events for images if collecting images
+	if collectImages {
+		for seenID := range c.seenImages {
+			if _, ok := seenImages[seenID]; !ok {
+				unsetEvent := generateUnsetImageEvent(seenID)
+				imageEvents = append(imageEvents, *unsetEvent)
+			}
+		}
+		c.seenImages = seenImages
+		c.store.Notify(imageEvents)
 	}
 
 	// Handle unset events for containers
@@ -122,27 +141,9 @@ func (c *collector) Pull(ctx context.Context) error {
 		}
 	}
 
-	// Handle unset events for images
-	for seenID := range c.seenImages {
-		if _, ok := seenImages[seenID.ID]; !ok {
-			unsetEvent := generateUnsetImageEvent(seenID)
-			seenImages[unsetEvent.Entity.GetID().ID] = &unsetEvent
-		}
-	}
-
-	// Update seen maps and notify all events
 	c.seenContainers = seenContainers
-	c.seenImages = make(map[workloadmeta.EntityID]struct{})
-	for id := range seenImages {
-		c.seenImages[workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: id}] = struct{}{}
-	}
+	c.store.Notify(containerEvents)
 
-	// Collect all events from the map and containerEvents list
-	allEvents := containerEvents
-	for _, event := range seenImages {
-		allEvents = append(allEvents, *event)
-	}
-	c.store.Notify(allEvents)
 	return nil
 }
 
@@ -154,4 +155,20 @@ func (c *collector) GetID() string {
 // GetTargetCatalog returns the workloadmeta agent type.
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
+}
+
+// imageMetadataCollectionIsEnabled checks if image metadata collection is enabled via configuration.
+func imageMetadataCollectionIsEnabled() bool {
+	return pkgconfigsetup.Datadog().GetBool("container_image.enabled")
+}
+
+// checkOverlayImageDirectoryExists checks if the overlay-image directory exists.
+func checkOverlayImageDirectoryExists() error {
+	overlayImagePath := crio.GetOverlayImagePath()
+	if _, err := os.Stat(overlayImagePath); os.IsNotExist(err) {
+		return fmt.Errorf("overlay-image directory %s does not exist. Ensure this directory is mounted to enable access to layer size and media type", overlayImagePath)
+	} else if err != nil {
+		return fmt.Errorf("failed to check overlay-image directory %s: %v. Ensure this directory is mounted to enable access to layer size and media type", overlayImagePath, err)
+	}
+	return nil
 }

@@ -405,17 +405,15 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 	return c.scanFilesystem(ctx, os.DirFS("/"), imagePath, imgMeta, scanOptions)
 }
 
-// ScanCRIOImageFromFilesystem scans the CRI-O image layers using OverlayFS.
-func (c *Collector) ScanCRIOImageFromFilesystem(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client crio.Client, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+// ScanCRIOImageFromOverlayFS scans the CRI-O image layers using OverlayFS.
+func (c *Collector) ScanCRIOImageFromOverlayFS(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client crio.Client, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	lowerDirs, err := client.GetCRIOImageLayers(imgMeta)
 	if err != nil {
-		log.Errorf("Failed to retrieve layer directories: %v", err)
 		return nil, fmt.Errorf("failed to retrieve layer directories: %w", err)
 	}
 
 	report, err := c.scanOverlayFS(ctx, lowerDirs, imgMeta, scanOptions)
 	if err != nil {
-		log.Errorf("Error scanning overlay filesystem for image %s: %v", imgMeta.ID, err)
 		return nil, err
 	}
 
