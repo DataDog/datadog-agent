@@ -13,6 +13,8 @@ receivers:
           static_configs:
             - targets: [ '0.0.0.0:8888' ]
 exporters:
+  debug:
+    verbosity: detailed
   datadog:
     traces:
       span_name_as_resource_name: true
@@ -23,6 +25,15 @@ exporters:
       key: ${DD_API_KEY}
 processors:
   batch:
+  k8sattributes:
+    extract:
+      metadata:
+      - k8s.pod.name
+      - k8s.pod.uid
+      - container.image.name
+      - container.image.tag
+      - k8s.container.name
+      - container.image.repo_digests
   infraattributes:
     cardinality: 2
 extensions:
@@ -42,8 +53,8 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [infraattributes, batch]
-      exporters: [datadog]
+      processors: [k8sattributes, infraattributes, batch]
+      exporters: [datadog, debug]
     metrics:
       receivers: [otlp, prometheus]
       processors: [infraattributes, batch]
