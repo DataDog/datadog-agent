@@ -2,7 +2,6 @@ import os
 import re
 import unittest
 from unittest import mock
-from unittest.mock import patch
 
 from invoke.context import MockContext
 from invoke.exceptions import Exit, UnexpectedExit
