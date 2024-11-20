@@ -42,6 +42,7 @@ database/sql/driver
 embed
 encoding
 encoding/asn1
+encoding/base32
 encoding/base64
 encoding/binary
 encoding/csv
@@ -64,6 +65,7 @@ github.com/DataDog/appsec-internal-go/log
 github.com/DataDog/appsec-internal-go/netip
 github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice
 github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice/helper
+github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote
 github.com/DataDog/datadog-agent/comp/api/api/def
 github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration
 github.com/DataDog/datadog-agent/comp/core/config
@@ -123,6 +125,8 @@ github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraatt
 github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype
 github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils
 github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types
+github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter
+github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl
 github.com/DataDog/datadog-agent/comp/serializer/compression
 github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl
 github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy
@@ -144,7 +148,12 @@ github.com/DataDog/datadog-agent/pkg/collector/check/stats
 github.com/DataDog/datadog-agent/pkg/config/env
 github.com/DataDog/datadog-agent/pkg/config/model
 github.com/DataDog/datadog-agent/pkg/config/nodetreemodel
+github.com/DataDog/datadog-agent/pkg/config/remote/api
+github.com/DataDog/datadog-agent/pkg/config/remote/client
 github.com/DataDog/datadog-agent/pkg/config/remote/data
+github.com/DataDog/datadog-agent/pkg/config/remote/meta
+github.com/DataDog/datadog-agent/pkg/config/remote/service
+github.com/DataDog/datadog-agent/pkg/config/remote/uptane
 github.com/DataDog/datadog-agent/pkg/config/setup
 github.com/DataDog/datadog-agent/pkg/config/setup/constants
 github.com/DataDog/datadog-agent/pkg/config/structure
@@ -197,6 +206,8 @@ github.com/DataDog/datadog-agent/pkg/metrics/servicecheck
 github.com/DataDog/datadog-agent/pkg/obfuscate
 github.com/DataDog/datadog-agent/pkg/orchestrator/model
 github.com/DataDog/datadog-agent/pkg/process/util/api/headers
+github.com/DataDog/datadog-agent/pkg/proto/msgpgo
+github.com/DataDog/datadog-agent/pkg/proto/pbgo/core
 github.com/DataDog/datadog-agent/pkg/proto/pbgo/process
 github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace
 github.com/DataDog/datadog-agent/pkg/remoteconfig/state
@@ -225,6 +236,7 @@ github.com/DataDog/datadog-agent/pkg/serverless/proc
 github.com/DataDog/datadog-agent/pkg/serverless/proxy
 github.com/DataDog/datadog-agent/pkg/serverless/random
 github.com/DataDog/datadog-agent/pkg/serverless/registration
+github.com/DataDog/datadog-agent/pkg/serverless/remoteconfig
 github.com/DataDog/datadog-agent/pkg/serverless/streamlogs
 github.com/DataDog/datadog-agent/pkg/serverless/tags
 github.com/DataDog/datadog-agent/pkg/serverless/trace
@@ -278,6 +290,8 @@ github.com/DataDog/datadog-agent/pkg/util/filesystem
 github.com/DataDog/datadog-agent/pkg/util/flavor
 github.com/DataDog/datadog-agent/pkg/util/fxutil
 github.com/DataDog/datadog-agent/pkg/util/fxutil/logging
+github.com/DataDog/datadog-agent/pkg/util/grpc
+github.com/DataDog/datadog-agent/pkg/util/grpc/context
 github.com/DataDog/datadog-agent/pkg/util/hostname
 github.com/DataDog/datadog-agent/pkg/util/hostname/validate
 github.com/DataDog/datadog-agent/pkg/util/http
@@ -301,6 +315,7 @@ github.com/DataDog/datadog-agent/pkg/util/sync
 github.com/DataDog/datadog-agent/pkg/util/system
 github.com/DataDog/datadog-agent/pkg/util/system/socket
 github.com/DataDog/datadog-agent/pkg/util/tmplvar
+github.com/DataDog/datadog-agent/pkg/util/uuid
 github.com/DataDog/datadog-agent/pkg/version
 github.com/DataDog/datadog-api-client-go/v2
 github.com/DataDog/datadog-api-client-go/v2/api/datadog
@@ -343,6 +358,7 @@ github.com/DataDog/sketches-go/ddsketch/stat
 github.com/DataDog/sketches-go/ddsketch/store
 github.com/DataDog/viper
 github.com/DataDog/zstd
+github.com/Masterminds/semver
 github.com/aws/aws-lambda-go/events
 github.com/aws/aws-sdk-go-v2/aws
 github.com/aws/aws-sdk-go-v2/aws/arn
@@ -455,9 +471,23 @@ github.com/gogo/protobuf/protoc-gen-gogo/descriptor
 github.com/gogo/protobuf/sortkeys
 github.com/gogo/protobuf/types
 github.com/golang/mock/gomock
+github.com/golang/protobuf/descriptor
+github.com/golang/protobuf/jsonpb
 github.com/golang/protobuf/proto
+github.com/golang/protobuf/protoc-gen-go/descriptor
+github.com/golang/protobuf/ptypes/any
+github.com/golang/protobuf/ptypes/duration
+github.com/golang/protobuf/ptypes/empty
+github.com/golang/protobuf/ptypes/timestamp
+github.com/golang/protobuf/ptypes/wrappers
 github.com/golang/snappy
 github.com/google/uuid
+github.com/grpc-ecosystem/go-grpc-middleware
+github.com/grpc-ecosystem/go-grpc-middleware/auth
+github.com/grpc-ecosystem/go-grpc-middleware/util/metautils
+github.com/grpc-ecosystem/grpc-gateway/internal
+github.com/grpc-ecosystem/grpc-gateway/runtime
+github.com/grpc-ecosystem/grpc-gateway/utilities
 github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
@@ -549,6 +579,7 @@ github.com/secure-systems-lab/go-securesystemslib/cjson
 github.com/shirou/gopsutil/v3/common
 github.com/shirou/gopsutil/v3/cpu
 github.com/shirou/gopsutil/v3/disk
+github.com/shirou/gopsutil/v3/host
 github.com/shirou/gopsutil/v3/internal/common
 github.com/shirou/gopsutil/v3/mem
 github.com/shirou/gopsutil/v3/net
@@ -573,6 +604,7 @@ github.com/tinylib/msgp/msgp
 github.com/tklauser/go-sysconf
 github.com/tklauser/numcpus
 github.com/twmb/murmur3
+go.etcd.io/bbolt
 go.opentelemetry.io/collector/client
 go.opentelemetry.io/collector/component
 go.opentelemetry.io/collector/component/componentstatus
@@ -818,6 +850,7 @@ golang.org/x/mod/semver
 golang.org/x/net/http/httpguts
 golang.org/x/net/http/httpproxy
 golang.org/x/net/http2
+golang.org/x/net/http2/h2c
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/internal/socks
@@ -874,9 +907,12 @@ gonum.org/v1/gonum/lapack
 gonum.org/v1/gonum/lapack/gonum
 gonum.org/v1/gonum/lapack/lapack64
 gonum.org/v1/gonum/mat
+google.golang.org/genproto/googleapis/api
+google.golang.org/genproto/googleapis/api/annotations
 google.golang.org/genproto/googleapis/api/httpbody
 google.golang.org/genproto/googleapis/rpc/errdetails
 google.golang.org/genproto/googleapis/rpc/status
+google.golang.org/genproto/protobuf/field_mask
 google.golang.org/grpc
 google.golang.org/grpc/attributes
 google.golang.org/grpc/backoff
@@ -970,6 +1006,7 @@ google.golang.org/protobuf/types/descriptorpb
 google.golang.org/protobuf/types/gofeaturespb
 google.golang.org/protobuf/types/known/anypb
 google.golang.org/protobuf/types/known/durationpb
+google.golang.org/protobuf/types/known/emptypb
 google.golang.org/protobuf/types/known/fieldmaskpb
 google.golang.org/protobuf/types/known/structpb
 google.golang.org/protobuf/types/known/timestamppb
