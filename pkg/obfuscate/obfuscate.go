@@ -277,7 +277,7 @@ func NewObfuscator(cfg Config) *Obfuscator {
 	}
 	o := Obfuscator{
 		opts:              &cfg,
-		queryCache:        newMeasuredCache(cacheOptions{On: cfg.SQL.Cache, Statsd: cfg.Statsd}),
+		queryCache:        newMeasuredCache(cacheOptions{On: true, Statsd: cfg.Statsd}),
 		sqlLiteralEscapes: atomic.NewBool(false),
 		log:               cfg.Logger,
 	}
