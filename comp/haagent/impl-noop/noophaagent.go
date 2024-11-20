@@ -14,21 +14,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type haagentimpl struct {
+type noopHaAgent struct {
 	Logger log.Component
 }
 
-func (m *haagentimpl) GetGroup() string { return "" }
+func (m *noopHaAgent) GetGroup() string { return "" }
 
-func (m *haagentimpl) Enabled() bool { return false }
+func (m *noopHaAgent) Enabled() bool { return false }
 
-func (m *haagentimpl) SetLeader(_ string) {}
+func (m *noopHaAgent) SetLeader(_ string) {}
 
-func (m *haagentimpl) IsLeader() bool { return false }
+func (m *noopHaAgent) IsLeader() bool { return false }
 
 // NewNoopHaAgent returns a new Mock
 func NewNoopHaAgent() haagent.Component {
-	return &haagentimpl{}
+	return &noopHaAgent{}
 }
 
 // NoopModule defines the fx options for the haagentimpl component.
