@@ -359,26 +359,29 @@ def reset(ctx):
 
 
 @task
-def check_go_mod_replaces(_):
+def check_go_mod_replaces(ctx, fix=False):
     errors_found = set()
     for mod in get_default_modules().values():
-        go_sum = os.path.join(mod.full_path(), "go.sum")
-        if not os.path.exists(go_sum):
-            continue
-        with open(go_sum) as f:
-            for line in f:
-                if "github.com/datadog/datadog-agent" in line.lower():
-                    err_mod = line.split()[0]
-
-                    if (Path(err_mod.removeprefix("github.com/DataDog/datadog-agent/")) / "go.mod").exists():
-                        errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
+        with ctx.cd(mod.path):
+            go_sum = os.path.join(mod.full_path(), "go.sum")
+            if not os.path.exists(go_sum):
+                continue
+            with open(go_sum) as f:
+                for line in f:
+                    if "github.com/datadog/datadog-agent" in line.lower():
+                        err_mod = line.split()[0]
+                        if (Path(err_mod.removeprefix("github.com/DataDog/datadog-agent/")) / "go.mod").exists():
+                            if fix:
+                                relative_path = os.path.relpath(err_mod, mod.import_path)
+                                ctx.run(f"go mod edit -replace {err_mod}={relative_path}")
+                            else:
+                                errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
 
     if errors_found:
         message = "\nErrors found:\n"
         message += "\n".join("  - " + error for error in sorted(errors_found))
-        message += (
-            "\n\nThis task operates on go.sum files, so make sure to run `inv -e tidy` before re-running this task."
-        )
+        message += "\n\n Run `inv check-go-mod-replaces --fix` to fix the errors.\n"
+        message += "This task operates on go.sum files, so make sure to run `inv -e tidy` after fixing the errors."
         raise Exit(message=message)
 
 

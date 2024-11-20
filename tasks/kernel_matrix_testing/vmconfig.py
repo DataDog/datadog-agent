@@ -6,7 +6,7 @@ import json
 import os
 import random
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 from urllib.parse import urlparse
 
 from invoke.context import Context
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
         VMSetDict,
     )
 
-local_arch = "local"
+local_arch: Literal['local'] = "local"
 
 try:
     from thefuzz import fuzz, process
@@ -277,7 +277,11 @@ def normalize_vm_def(possible: list[str], vm: str) -> VMDef:
     if res is None:
         raise Exit(f"Unable to find a match for {vm}")
     vm_def = cast(str, res[0])
-    recipe, version, arch = vm_def.split('-')
+    vm_def_parts = vm_def.split('-', maxsplit=2)  # Arch might contain '-' in some spellings, so split only twice
+    if len(vm_def_parts) != 3:
+        raise Exit(f"Invalid vm def {vm_def}, expected 3 parts separated by '-'")
+
+    recipe, version, arch = vm_def_parts
 
     if arch != local_arch:
         arch = Arch.from_str(arch).kmt_arch
@@ -568,7 +572,7 @@ def build_vmsets(normalized_vm_defs_by_set: dict[str, list[VMDef]]) -> set[VMSet
 
 def generate_vmconfig(
     vm_config: VMConfig,
-    normalized_vm_defs_by_set: list[VMDef],
+    normalized_vm_defs_by_set: dict[str, list[VMDef]],
     vcpu: list[int],
     memory: list[int],
     ci: bool,

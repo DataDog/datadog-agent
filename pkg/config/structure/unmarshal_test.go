@@ -14,7 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Struct that is used within the config
@@ -245,6 +247,15 @@ feature:
 			conf: `
 feature:
   enabled: 1
+`,
+			want: true,
+			skip: false,
+		},
+		{
+			name: "float 1.0 value is true",
+			conf: `
+feature:
+  enabled: 1.0
 `,
 			want: true,
 			skip: false,
@@ -801,8 +812,8 @@ feature:
 		}{}
 
 		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "could not convert to int")
+		require.Error(t, err)
+		assert.Equal(t, err.Error(), "unable to cast \"true\" of type string to int64")
 	})
 
 	t.Run("errors on string to float", func(t *testing.T) {
@@ -819,8 +830,8 @@ feature:
 		}{}
 
 		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "could not convert to float")
+		require.Error(t, err)
+		assert.Equal(t, err.Error(), "unable to cast \"true\" of type string to float64")
 	})
 
 	t.Run("errors on bad string to bool", func(t *testing.T) {
@@ -837,8 +848,8 @@ feature:
 		}{}
 
 		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "could not convert to bool")
+		require.Error(t, err)
+		assert.Equal(t, err.Error(), "could not convert \"elderberries\" to bool")
 	})
 
 	t.Run("errors on empty string bool ", func(t *testing.T) {
@@ -855,26 +866,8 @@ feature:
 		}{}
 
 		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "could not convert to bool")
-	})
-
-	t.Run("errors on float to bool", func(t *testing.T) {
-		confYaml := `
-feature:
-  enabled: 1.0
-`
-
-		mockConfig := mock.NewFromYAML(t, confYaml)
-		mockConfig.SetKnown("feature")
-
-		feature := struct {
-			Enabled bool
-		}{}
-
-		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "could not convert to bool")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "could not convert \"\" to bool")
 	})
 
 	t.Run("errors on negative to uint", func(t *testing.T) {
@@ -892,14 +885,14 @@ feature:
 		}{}
 
 		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "could not convert to uint")
 	})
 
 	t.Run("errors on bool to int", func(t *testing.T) {
 		confYaml := `
 feature:
-  enabled: true
+  enabled: test
 `
 
 		mockConfig := mock.NewFromYAML(t, confYaml)
@@ -910,14 +903,14 @@ feature:
 		}{}
 
 		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "could not convert to int")
+		require.Error(t, err)
+		assert.Equal(t, err.Error(), "unable to cast \"test\" of type string to int64")
 	})
 
 	t.Run("errors on bool to float", func(t *testing.T) {
 		confYaml := `
 feature:
-  enabled: true
+  enabled: test
 `
 
 		mockConfig := mock.NewFromYAML(t, confYaml)
@@ -928,14 +921,14 @@ feature:
 		}{}
 
 		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "could not convert to float")
+		require.Error(t, err)
+		assert.Equal(t, err.Error(), "unable to cast \"test\" of type string to float64")
 	})
 
 	t.Run("errors on bool to string", func(t *testing.T) {
 		confYaml := `
 feature:
-  enabled: true
+  enabled: [1]
 `
 
 		mockConfig := mock.NewFromYAML(t, confYaml)
@@ -946,8 +939,8 @@ feature:
 		}{}
 
 		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "could not convert to string")
+		require.Error(t, err)
+		assert.Equal(t, err.Error(), "unable to cast []interface {}{1} of type []interface {} to string")
 	})
 
 	t.Run("errors on map to scalar type", func(t *testing.T) {
@@ -965,7 +958,7 @@ feature:
 		}{}
 
 		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "can't copy into target: scalar required")
 	})
 
@@ -981,8 +974,8 @@ feature:
 		feature := make(map[string]bool)
 
 		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "only map[string]string supported currently")
+		require.Error(t, err)
+		assert.Equal(t, err.Error(), "only map[string]string are supported, not map[string]bool")
 	})
 }
 
@@ -1075,7 +1068,7 @@ feature:
 		}{}
 
 		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "EnableSquash")
 	})
 
@@ -1109,7 +1102,7 @@ feature:
 		}{}
 
 		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "EnableSquash")
 	})
 }
@@ -1266,12 +1259,12 @@ func TestMapGetChildNotFound(t *testing.T) {
 
 	val, err := n.GetChild("a")
 	assert.NoError(t, err)
-	str, err := val.(nodetreemodel.LeafNode).GetString()
+	str, err := cast.ToStringE(val.(nodetreemodel.LeafNode).Get())
 	assert.NoError(t, err)
 	assert.Equal(t, str, "apple")
 
 	_, err = n.GetChild("c")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, err.Error(), "not found")
 
 	inner, ok := n.(nodetreemodel.InnerNode)

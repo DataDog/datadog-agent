@@ -442,6 +442,7 @@
 /pkg/util/clusteragent/                 @DataDog/container-platform
 /pkg/util/containerd/                   @DataDog/container-integrations
 /pkg/util/containers/                   @DataDog/container-integrations
+/pkg/util/crio/                         @DataDog/container-integrations
 /pkg/util/docker/                       @DataDog/container-integrations
 /pkg/util/ecs/                          @DataDog/container-integrations
 /pkg/util/funcs/                        @DataDog/ebpf-platform

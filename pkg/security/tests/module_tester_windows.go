@@ -157,6 +157,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			DontDiscardRuntime: true,
 		},
 	}
+	if opts.staticOpts.tagger != nil {
+		emopts.ProbeOpts.Tagger = opts.staticOpts.tagger
+	} else {
+		emopts.ProbeOpts.Tagger = NewFakeTaggerDifferentImageNames()
+	}
+
 	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, nil)
 	if err != nil {
 		return nil, err

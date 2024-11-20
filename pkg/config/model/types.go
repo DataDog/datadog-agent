@@ -34,10 +34,9 @@ type Reader interface {
 	GetInt32(key string) int32
 	GetInt64(key string) int64
 	GetFloat64(key string) float64
-	GetTime(key string) time.Time
 	GetDuration(key string) time.Duration
 	GetStringSlice(key string) []string
-	GetFloat64SliceE(key string) ([]float64, error)
+	GetFloat64Slice(key string) []float64
 	GetStringMap(key string) map[string]interface{}
 	GetStringMapString(key string) map[string]string
 	GetStringMapStringSlice(key string) map[string][]string
