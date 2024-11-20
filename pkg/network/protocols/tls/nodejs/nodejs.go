@@ -66,5 +66,5 @@ func RunServerNodeJS(t *testing.T, key, cert, serverPort string) error {
 
 // GetNodeJSDockerPID returns the PID of the nodejs docker container.
 func GetNodeJSDockerPID() (int64, error) {
-	return dockerutils.GetDockerPID("node-node-1")
+	return dockerutils.GetMainPID("node-node-1")
 }
