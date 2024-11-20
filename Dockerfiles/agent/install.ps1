@@ -25,7 +25,7 @@ function Install-Service {
 if ("$env:WITH_JMX" -ne "false") {
     $JDK_DOWNLOAD_URL = if ($env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL) {"${env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/openjdk"} else {"https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.25%2B9"}
     Invoke-WebRequest -OutFile jre-11.0.25.zip "${JDK_DOWNLOAD_URL}/OpenJDK11U-jre_x64_windows_hotspot_11.0.25_9.zip"
-    (Get-FileHash -Algorithm SHA256 jre-11.0.25.zip).Hash -eq "472d59e54f81e86c79192b7d9291d94f6e29d6d56ef7ed1d8aa74fcc7df548dc"
+    (Get-FileHash -Algorithm SHA256 jre-11.0.25.zip).Hash -eq "052f09448d5b8d9afb7a8e5049d40d7fafa8f5884afe6043bb2359787fd41e84"
     Expand-Archive -Path jre-11.0.25.zip -DestinationPath C:/
     Remove-Item jre-11.0.25.zip
     Move-Item C:/jdk-11.0.25+9-jre/ C:/java
