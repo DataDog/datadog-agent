@@ -108,10 +108,7 @@ func (a *TestAgentDemultiplexer) WaitForSamples(timeout time.Duration) (ontime [
 // WaitForNumberOfSamples returns the samples received by the demultiplexer.
 // Note that it waits until at least the requested number of samples are
 // available in both the live metrics buffer and the late metrics one.
-func (a *TestAgentDemultiplexer) WaitForNumberOfSamples(
-	ontimeCount, timedCount int,
-	timeout time.Duration,
-) (ontime []metrics.MetricSample, timed []metrics.MetricSample) {
+func (a *TestAgentDemultiplexer) WaitForNumberOfSamples(ontimeCount, timedCount int, timeout time.Duration) (ontime []metrics.MetricSample, timed []metrics.MetricSample) {
 	return a.waitForSamples(timeout, func(ontime, timed []metrics.MetricSample) bool {
 		return (len(ontime) >= ontimeCount || ontimeCount == 0) &&
 			(len(timed) >= timedCount || timedCount == 0)
@@ -120,10 +117,7 @@ func (a *TestAgentDemultiplexer) WaitForNumberOfSamples(
 
 // waitForSamples returns the samples received by the demultiplexer.
 // It returns once the given foundFunc returns true or the timeout is reached.
-func (a *TestAgentDemultiplexer) waitForSamples(
-	timeout time.Duration,
-	foundFunc func([]metrics.MetricSample, []metrics.MetricSample) bool,
-) (ontime []metrics.MetricSample, timed []metrics.MetricSample) {
+func (a *TestAgentDemultiplexer) waitForSamples(timeout time.Duration, foundFunc func([]metrics.MetricSample, []metrics.MetricSample) bool) (ontime []metrics.MetricSample, timed []metrics.MetricSample) {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 	timeoutOn := time.Now().Add(timeout)
@@ -148,11 +142,7 @@ func (a *TestAgentDemultiplexer) waitForSamples(
 }
 
 // WaitEventPlatformEvents waits for timeout and eventually returns the event platform events samples received by the demultiplexer.
-func (a *TestAgentDemultiplexer) WaitEventPlatformEvents(
-	eventType string,
-	minEvents int,
-	timeout time.Duration,
-) ([]*message.Message, error) {
+func (a *TestAgentDemultiplexer) WaitEventPlatformEvents(eventType string, minEvents int, timeout time.Duration) ([]*message.Message, error) {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 	timeoutOn := time.Now().Add(timeout)
@@ -186,12 +176,7 @@ func (a *TestAgentDemultiplexer) Reset() {
 }
 
 // initTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given flush interval.
-func initTestAgentDemultiplexerWithFlushInterval(
-	log log.Component,
-	hostname hostname.Component,
-	compressor compression.Component,
-	flushInterval time.Duration,
-) *TestAgentDemultiplexer {
+func initTestAgentDemultiplexerWithFlushInterval(log log.Component, hostname hostname.Component, compressor compression.Component, flushInterval time.Duration) *TestAgentDemultiplexer {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = flushInterval
 	opts.DontStartForwarders = true
