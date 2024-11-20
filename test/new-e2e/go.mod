@@ -25,7 +25,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.53.0
 	github.com/DataDog/datadog-agent/test/fakeintake v0.53.0
 	github.com/DataDog/datadog-api-client-go v1.16.0
-	github.com/DataDog/datadog-api-client-go/v2 v2.19.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.27.0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
 	// You should bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` in `.gitlab-ci.yml`
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
@@ -242,9 +242,11 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.58.2
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.56.1
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.16.1
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.17.1
+	github.com/xeipuuv/gojsonschema v1.2.0
 )
 
 require (
@@ -260,4 +262,6 @@ require (
 	github.com/pulumi/pulumi-eks/sdk/v2 v2.7.8 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v6 v6.67.1 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
+	github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f // indirect
+	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 )
