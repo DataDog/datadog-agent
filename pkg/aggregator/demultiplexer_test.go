@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl-noop"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -272,7 +273,11 @@ func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 	assert.Equal(4, pipelines)
 }
 
-func createDemuxDeps(t *testing.T, opts AgentDemultiplexerOptions, eventPlatformParams eventplatformimpl.Params) aggregatorDeps {
+func createDemuxDeps(
+	t *testing.T,
+	opts AgentDemultiplexerOptions,
+	eventPlatformParams eventplatformimpl.Params,
+) aggregatorDeps {
 	return createDemuxDepsWithOrchestratorFwd(t, opts, orchestratorForwarderImpl.NewDefaultParams(), eventPlatformParams)
 }
 
@@ -287,7 +292,8 @@ func createDemuxDepsWithOrchestratorFwd(
 	t *testing.T,
 	opts AgentDemultiplexerOptions,
 	orchestratorParams orchestratorForwarderImpl.Params,
-	eventPlatformParams eventplatformimpl.Params) aggregatorDeps {
+	eventPlatformParams eventplatformimpl.Params,
+) aggregatorDeps {
 	modules := fx.Options(
 		defaultforwarder.MockModule(),
 		core.MockBundle(),
@@ -295,6 +301,7 @@ func createDemuxDepsWithOrchestratorFwd(
 		eventplatformimpl.Module(eventPlatformParams),
 		eventplatformreceiverimpl.Module(),
 		compressionimpl.MockModule(),
+		haagentimpl.NoopModule(),
 	)
 	deps := fxutil.Test[internalDemutiplexerDeps](t, modules)
 

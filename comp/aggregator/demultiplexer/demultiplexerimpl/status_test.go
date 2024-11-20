@@ -10,7 +10,7 @@ import (
 	"bytes"
 	"testing"
 
-	noophaagent "github.com/DataDog/datadog-agent/comp/haagent/impl-noop"
+	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl-noop"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
@@ -62,7 +62,7 @@ func TestStatusOutPut(t *testing.T) {
 		core.MockBundle(),
 		compressionimpl.MockModule(),
 		defaultforwarder.MockModule(),
-		noophaagent.Module(),
+		haagentimpl.NoopModule(),
 		orchestratorimpl.MockModule(),
 		eventplatformimpl.MockModule(),
 		fx.Provide(func() tagger.Component {

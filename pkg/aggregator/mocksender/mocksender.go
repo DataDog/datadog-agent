@@ -10,7 +10,7 @@ package mocksender
 import (
 	"time"
 
-	noophaagent "github.com/DataDog/datadog-agent/comp/haagent/impl-noop"
+	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl-noop"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -44,7 +44,7 @@ func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameimpl.NewHostnameService()))
 	taggerComponent := nooptagger.NewComponent()
-	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, noophaagent.NewNoopHaAgent(), compressionimpl.NewMockCompressor(), taggerComponent, "")
+	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, haagentimpl.NewNoopHaAgent(), compressionimpl.NewMockCompressor(), taggerComponent, "")
 
 }
 

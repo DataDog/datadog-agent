@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	noophaagent "github.com/DataDog/datadog-agent/comp/haagent/impl-noop"
+	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl-noop"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 
 	//nolint:revive // TODO(AML) Fix revive linter
@@ -52,7 +52,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	sharedForwarder := forwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), deps.Log, forwarderOpts)
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname))
-	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, noophaagent.NewNoopHaAgent(), deps.Compressor, taggerComponent, "hostname")
+	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, haagentimpl.NewNoopHaAgent(), deps.Compressor, taggerComponent, "hostname")
 	defer demux.Stop(true)
 
 	checkSampler := newCheckSampler(1, true, true, 1000, tags.NewStore(true, "bench"), checkid.ID("hello:world:1234"), taggerComponent)
