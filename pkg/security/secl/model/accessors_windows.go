@@ -831,13 +831,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					return results
 				}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := value
-					result := element.ProcessContext.Process.ContainerID
-					results = append(results, result)
-					value = iterator.Next()
-				}
+				results = newAncestorsIterator(iterator, ctx, nil, func(ev *Event, pce *ProcessCacheEntry) string {
+					return pce.ProcessContext.Process.ContainerID
+				})
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
@@ -1071,13 +1067,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					return results
 				}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := value
-					result := int(element.ProcessContext.Process.PIDContext.Pid)
-					results = append(results, result)
-					value = iterator.Next()
-				}
+				results = newAncestorsIterator(iterator, ctx, nil, func(ev *Event, pce *ProcessCacheEntry) int {
+					return int(pce.ProcessContext.Process.PIDContext.Pid)
+				})
 				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
@@ -1101,13 +1093,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					return results
 				}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := value
-					result := int(element.ProcessContext.Process.PPid)
-					results = append(results, result)
-					value = iterator.Next()
-				}
+				results = newAncestorsIterator(iterator, ctx, nil, func(ev *Event, pce *ProcessCacheEntry) int {
+					return int(pce.ProcessContext.Process.PPid)
+				})
 				ctx.IntCache[field] = results
 				return results
 			}, Field: field,
@@ -1158,13 +1146,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					results = append(results, result)
 					return results
 				}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := value
-					result := element.ProcessContext.Process.OwnerSidString
-					results = append(results, result)
-					value = iterator.Next()
-				}
+				results = newAncestorsIterator(iterator, ctx, nil, func(ev *Event, pce *ProcessCacheEntry) string {
+					return pce.ProcessContext.Process.OwnerSidString
+				})
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
