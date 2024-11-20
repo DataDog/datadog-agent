@@ -382,6 +382,8 @@ func (e *EbpfProgram) stopImpl() {
 		close(data.done)
 	}
 
+	e.wg.Wait()
+
 	e.Manager = nil
 }
 
