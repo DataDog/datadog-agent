@@ -105,7 +105,7 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     conn_tuple_copy.pid = 0;
     normalize_tuple(&conn_tuple_copy);
 
-    protocol_stack_t *protocol_stack = __get_protocol_stack(&conn_tuple_copy);
+    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&conn_tuple_copy);
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
     mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
@@ -116,7 +116,7 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     }
 
     conn_tuple_copy = *cached_skb_conn_tup_ptr;
-    protocol_stack = __get_protocol_stack(&conn_tuple_copy);
+    protocol_stack = get_protocol_stack_if_exists(&conn_tuple_copy);
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
     mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);

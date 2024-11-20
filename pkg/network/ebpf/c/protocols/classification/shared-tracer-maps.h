@@ -15,21 +15,25 @@ static __always_inline bool is_protocol_classification_supported() {
     return val > 0;
 }
 
-static __always_inline protocol_stack_t* __get_protocol_stack(conn_tuple_t* tuple) {
+// Returns the protocol_stack_t associated with the given connection tuple.
+// If the tuple is not found, returns NULL.
+static __always_inline protocol_stack_t* get_protocol_stack_if_exists(conn_tuple_t* tuple) {
     protocol_stack_wrapper_t *wrapper = bpf_map_lookup_elem(&connection_protocol, tuple);
     if (!wrapper) {
         return NULL;
     }
+    wrapper->updated = bpf_ktime_get_ns();
     return &wrapper->stack;
 }
 
-static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *skb_tup) {
+// Returns the protocol_stack_t associated with the given connection tuple.
+// If the tuple is not found, creates a new entry and returns it.
+static __always_inline protocol_stack_t* get_or_create_protocol_stack(conn_tuple_t *skb_tup) {
     conn_tuple_t normalized_tup = *skb_tup;
     normalize_tuple(&normalized_tup);
-    protocol_stack_wrapper_t* wrapper = bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
+    protocol_stack_t *wrapper = get_protocol_stack_if_exists(&normalized_tup);
     if (wrapper) {
-        wrapper->updated = bpf_ktime_get_ns();
-        return &wrapper->stack;
+        return wrapper;
     }
 
     // this code path is executed once during the entire connection lifecycle
@@ -51,11 +55,12 @@ static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *skb_tu
     // above scenario.
     // However the EBUSY error does not carry any signal for us since this is caused by a kernel bug.
     bpf_map_update_with_telemetry(connection_protocol, &normalized_tup, &empty_wrapper, BPF_NOEXIST, -EEXIST, -EBUSY);
-    return __get_protocol_stack(&normalized_tup);
+    return get_protocol_stack_if_exists(&normalized_tup);
 }
 
+// Do we need this wrapper?
 __maybe_unused static __always_inline void update_protocol_stack(conn_tuple_t* skb_tup, protocol_t cur_fragment_protocol) {
-    protocol_stack_t *stack = get_protocol_stack(skb_tup);
+    protocol_stack_t *stack = get_or_create_protocol_stack(skb_tup);
     if (!stack) {
         return;
     }

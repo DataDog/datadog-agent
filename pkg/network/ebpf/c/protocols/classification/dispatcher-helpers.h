@@ -124,7 +124,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         bpf_map_delete_elem(&connection_states, &skb_tup);
     }
 
-    protocol_stack_t *stack = get_protocol_stack(&skb_tup);
+    protocol_stack_t *stack = get_or_create_protocol_stack(&skb_tup);
     if (!stack) {
         // should never happen, but it is required by the eBPF verifier
         return;
