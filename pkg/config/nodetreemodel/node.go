@@ -7,13 +7,26 @@ package nodetreemodel
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // ErrNotFound is an error for when a key is not found
 var ErrNotFound = fmt.Errorf("not found")
+
+func mapInterfaceToMapString(m map[interface{}]interface{}) map[string]interface{} {
+	res := make(map[string]interface{}, len(m))
+	for k, v := range m {
+		mk := ""
+		if str, ok := k.(string); ok {
+			mk = str
+		} else {
+			mk = fmt.Sprintf("%s", k)
+		}
+		res[mk] = v
+	}
+	return res
+}
 
 // NewNodeTree will recursively create nodes from the input value to construct a tree
 func NewNodeTree(v interface{}, source model.Source) (Node, error) {
@@ -90,14 +103,7 @@ type InnerNode interface {
 // LeafNode represents a leaf node of the config
 type LeafNode interface {
 	Node
-	GetAny() (interface{}, error)
-	GetBool() (bool, error)
-	GetInt() (int, error)
-	GetFloat() (float64, error)
-	GetString() (string, error)
-	GetTime() (time.Time, error)
-	GetDuration() (time.Duration, error)
-	SetWithSource(interface{}, model.Source) error
+	Get() interface{}
 	Source() model.Source
 	SourceGreaterOrEqual(model.Source) bool
 }

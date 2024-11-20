@@ -16,7 +16,7 @@ exporters:
   datadog:
     api:
       fail_on_invalid_key: false
-      key: '[REDACTED]'
+      key: "[REDACTED]"
       site: datadoghq.com
     auth: null
     compression: ""
@@ -25,13 +25,13 @@ exporters:
     endpoint: ""
     headers: {}
     host_metadata:
-      enabled: true
+      enabled: false
       hostname_source: config_or_system
       tags: []
     hostname: otelcol-docker
     http2_ping_timeout: 0s
     http2_read_idle_timeout: 0s
-    idle_conn_timeout: null
+    idle_conn_timeout: "1m30s"
     logs:
       batch_wait: 5
       compression_level: 6
@@ -39,15 +39,13 @@ exporters:
         timeout: 0s
       dump_payloads: false
       use_compression: true
-    max_conns_per_host: null
-    max_idle_conns: null
-    max_idle_conns_per_host: null
+    max_conns_per_host: 0
+    max_idle_conns: 100
+    max_idle_conns_per_host: 0
     metrics:
-      apm_stats_receiver_addr: ""
       delta_ttl: 3600
       dialer:
         timeout: 0s
-      enabled: false
       histograms:
         mode: distributions
         send_aggregation_metrics: false
@@ -59,8 +57,6 @@ exporters:
       sums:
         cumulative_monotonic_mode: to_delta
         initial_cumulative_monotonic_value: auto
-      tag_cardinality: ""
-      tags: ""
     only_metadata: false
     proxy_url: ""
     read_buffer_size: 0
@@ -79,24 +75,28 @@ exporters:
     timeout: 15s
     tls:
       ca_file: ""
-      ca_pem: '[REDACTED]'
+      ca_pem: "[REDACTED]"
       cert_file: ""
-      cert_pem: '[REDACTED]'
+      cert_pem: "[REDACTED]"
       cipher_suites: []
       include_system_ca_certs_pool: false
       insecure: false
       insecure_skip_verify: false
       key_file: ""
-      key_pem: '[REDACTED]'
+      key_pem: "[REDACTED]"
       max_version: ""
       min_version: ""
       reload_interval: 0s
       server_name_override: ""
     traces:
+      compute_stats_by_span_kind: false
       compute_top_level_by_span_kind: true
       dialer:
         timeout: 0s
       ignore_resources: []
+      peer_service_aggregation: false
+      peer_tags: []
+      peer_tags_aggregation: false
       span_name_as_resource_name: true
       span_name_remappings: {}
       trace_buffer: 0
@@ -207,30 +207,30 @@ receivers:
         evaluation_interval: 1m
         scrape_interval: 1m
         scrape_protocols:
-        - OpenMetricsText1.0.0
-        - OpenMetricsText0.0.1
-        - PrometheusText0.0.4
+          - OpenMetricsText1.0.0
+          - OpenMetricsText0.0.1
+          - PrometheusText0.0.4
         scrape_timeout: 10s
       runtime:
         gogc: 75
       scrape_configs:
-      - enable_compression: true
-        enable_http2: true
-        follow_redirects: true
-        honor_timestamps: true
-        job_name: datadog-agent
-        metrics_path: /metrics
-        scheme: http
-        scrape_interval: 10s
-        scrape_protocols:
-        - OpenMetricsText1.0.0
-        - OpenMetricsText0.0.1
-        - PrometheusText0.0.4
-        scrape_timeout: 10s
-        static_configs:
-        - targets:
-          - 0.0.0.0:8888
-        track_timestamps_staleness: false
+        - enable_compression: true
+          enable_http2: true
+          follow_redirects: true
+          honor_timestamps: true
+          job_name: datadog-agent
+          metrics_path: /metrics
+          scheme: http
+          scrape_interval: 10s
+          scrape_protocols:
+            - OpenMetricsText1.0.0
+            - OpenMetricsText0.0.1
+            - PrometheusText0.0.4
+          scrape_timeout: 10s
+          static_configs:
+            - targets:
+                - 0.0.0.0:8888
+          track_timestamps_staleness: false
     report_extra_scrape_metrics: false
     start_time_metric_regex: ""
     target_allocator: null
@@ -238,50 +238,50 @@ receivers:
     use_start_time_metric: false
 service:
   extensions:
-  - pprof/dd-autoconfigured
-  - zpages/dd-autoconfigured
-  - health_check/dd-autoconfigured
-  - ddflare/dd-autoconfigured
+    - pprof/dd-autoconfigured
+    - zpages/dd-autoconfigured
+    - health_check/dd-autoconfigured
+    - ddflare/dd-autoconfigured
   pipelines:
     logs:
       exporters:
-      - datadog
+        - datadog
       processors:
-      - batch
-      - infraattributes/dd-autoconfigured
+        - batch
+        - infraattributes/dd-autoconfigured
       receivers:
-      - otlp
+        - otlp
     metrics:
       exporters:
-      - datadog
+        - datadog
       processors:
-      - batch
-      - infraattributes/dd-autoconfigured
+        - batch
+        - infraattributes/dd-autoconfigured
       receivers:
-      - otlp
-      - datadog/connector
+        - otlp
+        - datadog/connector
     metrics/dd-autoconfigured/datadog:
       exporters:
-      - datadog
+        - datadog
       processors: []
       receivers:
-      - prometheus/dd-autoconfigured
+        - prometheus/dd-autoconfigured
     traces:
       exporters:
-      - datadog/connector
+        - datadog/connector
       processors:
-      - batch
-      - infraattributes/dd-autoconfigured
+        - batch
+        - infraattributes/dd-autoconfigured
       receivers:
-      - otlp
+        - otlp
     traces/send:
       exporters:
-      - datadog
+        - datadog
       processors:
-      - batch
-      - infraattributes/dd-autoconfigured
+        - batch
+        - infraattributes/dd-autoconfigured
       receivers:
-      - otlp
+        - otlp
   telemetry:
     logs:
       development: false
@@ -289,11 +289,12 @@ service:
       disable_stacktrace: false
       encoding: console
       error_output_paths:
-      - stderr
+        - stderr
       initial_fields: {}
       level: info
       output_paths:
-      - stderr
+        - stderr
+      processors: []
       sampling:
         enabled: true
         initial: 10

@@ -8,13 +8,11 @@
 package net
 
 import (
-	"context"
 	"errors"
-	"fmt"
-	"net"
 	"net/http"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 )
 
@@ -26,7 +24,6 @@ const (
 	statsURL             = "http://localhost:3333/debug/stats"
 	pprofURL             = "http://localhost:3333/debug/pprof"
 	tracerouteURL        = "http://localhost:3333/" + string(sysconfig.TracerouteModule) + "/traceroute/"
-	netType              = "tcp"
 	telemetryURL         = "http://localhost:3333/telemetry"
 
 	// discovery* is not used on Windows, the value is added to avoid a compilation error
@@ -40,9 +37,6 @@ const (
 	// conntrackHostURL is not used on Windows, the value is added to avoid a compilation error
 	conntrackHostURL = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/host"
 
-	// SystemProbePipeName is the production named pipe for system probe
-	SystemProbePipeName = `\\.\pipe\dd_system_probe`
-
 	// systemProbeMaxIdleConns sets the maximum number of idle named pipe connections.
 	systemProbeMaxIdleConns = 2
 
@@ -55,40 +49,21 @@ const (
 // CheckPath is used to make sure the globalSocketPath has been set before attempting to connect
 func CheckPath(path string) error {
 	if path == "" {
-		return fmt.Errorf("socket path is empty")
+		return errors.New("socket path is empty")
 	}
 	return nil
-}
-
-// NewSystemProbeClient returns a http client configured to talk to the system-probe
-func NewSystemProbeClient() *http.Client {
-	return &http.Client{
-		Timeout: 10 * time.Second,
-		Transport: &http.Transport{
-			MaxIdleConns:    systemProbeMaxIdleConns,
-			IdleConnTimeout: systemProbeIdleConnTimeout,
-			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return DialSystemProbe()
-			},
-			TLSHandshakeTimeout:   1 * time.Second,
-			ResponseHeaderTimeout: 2 * time.Second,
-			ExpectContinueTimeout: 50 * time.Millisecond,
-		},
-	}
 }
 
 // newSystemProbe creates a group of clients to interact with system-probe.
 func newSystemProbe(path string) *RemoteSysProbeUtil {
 	return &RemoteSysProbeUtil{
 		path:       path,
-		httpClient: *NewSystemProbeClient(),
+		httpClient: *client.Get(path),
 		pprofClient: http.Client{
 			Transport: &http.Transport{
 				MaxIdleConns:    systemProbeMaxIdleConns,
 				IdleConnTimeout: systemProbeIdleConnTimeout,
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return DialSystemProbe()
-				},
+				DialContext:     client.DialContextFunc(path),
 			},
 		},
 		tracerouteClient: http.Client{
@@ -97,9 +72,7 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 			Transport: &http.Transport{
 				MaxIdleConns:    systemProbeMaxIdleConns,
 				IdleConnTimeout: systemProbeIdleConnTimeout,
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return DialSystemProbe()
-				},
+				DialContext:     client.DialContextFunc(path),
 			},
 		},
 	}

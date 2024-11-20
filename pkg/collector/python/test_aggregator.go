@@ -10,8 +10,8 @@ package python
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -27,7 +27,7 @@ import "C"
 func testSubmitMetric(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	logReceiver := optional.NewNoneOption[integrations.Component]()
-	tagger := nooptagger.NewTaggerClient()
+	tagger := nooptagger.NewComponent()
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
 	defer release()
 
@@ -104,7 +104,7 @@ func testSubmitMetric(t *testing.T) {
 func testSubmitMetricEmptyTags(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	logReceiver := optional.NewNoneOption[integrations.Component]()
-	tagger := nooptagger.NewTaggerClient()
+	tagger := nooptagger.NewComponent()
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
 	defer release()
 
@@ -125,7 +125,7 @@ func testSubmitMetricEmptyTags(t *testing.T) {
 func testSubmitMetricEmptyHostname(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	logReceiver := optional.NewNoneOption[integrations.Component]()
-	tagger := nooptagger.NewTaggerClient()
+	tagger := nooptagger.NewComponent()
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
 	defer release()
 
@@ -146,7 +146,7 @@ func testSubmitMetricEmptyHostname(t *testing.T) {
 func testSubmitServiceCheck(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	logReceiver := optional.NewNoneOption[integrations.Component]()
-	tagger := nooptagger.NewTaggerClient()
+	tagger := nooptagger.NewComponent()
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
 	defer release()
 
@@ -166,7 +166,7 @@ func testSubmitServiceCheck(t *testing.T) {
 func testSubmitServiceCheckEmptyTag(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	logReceiver := optional.NewNoneOption[integrations.Component]()
-	tagger := nooptagger.NewTaggerClient()
+	tagger := nooptagger.NewComponent()
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
 	defer release()
 
@@ -186,7 +186,7 @@ func testSubmitServiceCheckEmptyTag(t *testing.T) {
 func testSubmitServiceCheckEmptyHostame(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	logReceiver := optional.NewNoneOption[integrations.Component]()
-	tagger := nooptagger.NewTaggerClient()
+	tagger := nooptagger.NewComponent()
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
 	defer release()
 
@@ -206,7 +206,7 @@ func testSubmitServiceCheckEmptyHostame(t *testing.T) {
 func testSubmitEvent(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	logReceiver := optional.NewNoneOption[integrations.Component]()
-	tagger := nooptagger.NewTaggerClient()
+	tagger := nooptagger.NewComponent()
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
 	defer release()
 
@@ -244,7 +244,7 @@ func testSubmitEvent(t *testing.T) {
 func testSubmitHistogramBucket(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	logReceiver := optional.NewNoneOption[integrations.Component]()
-	tagger := nooptagger.NewTaggerClient()
+	tagger := nooptagger.NewComponent()
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
 	defer release()
 
@@ -269,7 +269,7 @@ func testSubmitHistogramBucket(t *testing.T) {
 func testSubmitEventPlatformEvent(t *testing.T) {
 	sender := mocksender.NewMockSender("testID")
 	logReceiver := optional.NewNoneOption[integrations.Component]()
-	tagger := nooptagger.NewTaggerClient()
+	tagger := nooptagger.NewComponent()
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
 	defer release()
 

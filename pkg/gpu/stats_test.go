@@ -13,11 +13,22 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
+
+func getMetricsEntry(key model.StatsKey, stats *model.GPUStats) *model.UtilizationMetrics {
+	for _, entry := range stats.Metrics {
+		if entry.Key == key {
+			return &entry.UtilizationMetrics
+		}
+	}
+
+	return nil
+}
 
 func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, map[streamKey]*StreamHandler, int64) {
 	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
@@ -43,7 +54,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	pid := uint32(1)
 	streamID := uint64(120)
 	pidTgid := uint64(pid)<<32 + uint64(pid)
-	skeyKern := streamKey{pid: pid, stream: streamID}
+	skeyKern := streamKey{pid: pid, stream: streamID, gpuUUID: testutil.DefaultGpuUUID}
 	shmemSize := uint64(10)
 	streamHandlers[skeyKern] = &StreamHandler{
 		processEnded: false,
@@ -61,7 +72,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	}
 
 	allocSize := uint64(10)
-	skeyAlloc := streamKey{pid: pid, stream: 0}
+	skeyAlloc := streamKey{pid: pid, stream: 0, gpuUUID: testutil.DefaultGpuUUID}
 	streamHandlers[skeyAlloc] = &StreamHandler{
 		processEnded: false,
 		memAllocEvents: map[uint64]gpuebpf.CudaMemEvent{
@@ -78,15 +89,16 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	checkKtime := ktime + int64(checkDuration)
 	stats := statsGen.getStats(checkKtime)
 	require.NotNil(t, stats)
-	require.Contains(t, stats.ProcessStats, pid)
 
-	pidStats := stats.ProcessStats[pid]
-	require.Equal(t, allocSize*2, pidStats.Memory.CurrentBytes)
-	require.Equal(t, allocSize*2, pidStats.Memory.MaxBytes)
+	metricsKey := model.StatsKey{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
+	metrics := getMetricsEntry(metricsKey, stats)
+	require.NotNil(t, metrics)
+	require.Equal(t, allocSize*2, metrics.Memory.CurrentBytes)
+	require.Equal(t, allocSize*2, metrics.Memory.MaxBytes)
 
 	// defined kernel is using only 1 core for 9 of the 10 seconds
 	expectedUtil := 1.0 / testutil.DefaultGpuCores * 0.9
-	require.Equal(t, expectedUtil, pidStats.UtilizationPercentage)
+	require.Equal(t, expectedUtil, metrics.UtilizationPercentage)
 }
 
 func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
@@ -97,7 +109,7 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 
 	pid := uint32(1)
 	streamID := uint64(120)
-	skeyKern := streamKey{pid: pid, stream: streamID}
+	skeyKern := streamKey{pid: pid, stream: streamID, gpuUUID: testutil.DefaultGpuUUID}
 	numThreads := uint64(5)
 	streamHandlers[skeyKern] = &StreamHandler{
 		processEnded: false,
@@ -112,7 +124,7 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	}
 
 	allocSize := uint64(10)
-	skeyAlloc := streamKey{pid: pid, stream: 0}
+	skeyAlloc := streamKey{pid: pid, stream: 0, gpuUUID: testutil.DefaultGpuUUID}
 	streamHandlers[skeyAlloc] = &StreamHandler{
 		processEnded: false,
 		allocations: []*memoryAllocation{
@@ -130,17 +142,18 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	checkKtime := ktime + int64(checkDuration)
 	stats := statsGen.getStats(checkKtime)
 	require.NotNil(t, stats)
-	require.Contains(t, stats.ProcessStats, pid)
 
-	pidStats := stats.ProcessStats[pid]
-	require.Equal(t, uint64(0), pidStats.Memory.CurrentBytes)
-	require.Equal(t, allocSize, pidStats.Memory.MaxBytes)
+	metricsKey := model.StatsKey{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
+	metrics := getMetricsEntry(metricsKey, stats)
+	require.NotNil(t, metrics)
+	require.Equal(t, uint64(0), metrics.Memory.CurrentBytes)
+	require.Equal(t, allocSize, metrics.Memory.MaxBytes)
 
 	// numThreads / DefaultGpuCores is the utilization for the
 	threadSecondsUsed := float64(numThreads) * float64(endKtime-startKtime) / 1e9
 	threadSecondsAvailable := float64(testutil.DefaultGpuCores) * checkDuration.Seconds()
 	expectedUtil := threadSecondsUsed / threadSecondsAvailable
-	require.InDelta(t, expectedUtil, pidStats.UtilizationPercentage, 0.001)
+	require.InDelta(t, expectedUtil, metrics.UtilizationPercentage, 0.001)
 }
 
 func TestGetStatsWithPastAndCurrentData(t *testing.T) {
@@ -151,7 +164,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 
 	pid := uint32(1)
 	streamID := uint64(120)
-	skeyKern := streamKey{pid: pid, stream: streamID}
+	skeyKern := streamKey{pid: pid, stream: streamID, gpuUUID: testutil.DefaultGpuUUID}
 	pidTgid := uint64(pid)<<32 + uint64(pid)
 	numThreads := uint64(5)
 	shmemSize := uint64(10)
@@ -179,7 +192,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	}
 
 	allocSize := uint64(10)
-	skeyAlloc := streamKey{pid: pid, stream: 0}
+	skeyAlloc := streamKey{pid: pid, stream: 0, gpuUUID: testutil.DefaultGpuUUID}
 	streamHandlers[skeyAlloc] = &StreamHandler{
 		processEnded: false,
 		allocations: []*memoryAllocation{
@@ -205,11 +218,12 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	checkKtime := ktime + int64(checkDuration)
 	stats := statsGen.getStats(checkKtime)
 	require.NotNil(t, stats)
-	require.Contains(t, stats.ProcessStats, pid)
 
-	pidStats := stats.ProcessStats[pid]
-	require.Equal(t, allocSize+shmemSize, pidStats.Memory.CurrentBytes)
-	require.Equal(t, allocSize*2+shmemSize, pidStats.Memory.MaxBytes)
+	metricsKey := model.StatsKey{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
+	metrics := getMetricsEntry(metricsKey, stats)
+	require.NotNil(t, metrics)
+	require.Equal(t, allocSize+shmemSize, metrics.Memory.CurrentBytes)
+	require.Equal(t, allocSize*2+shmemSize, metrics.Memory.MaxBytes)
 
 	// numThreads / DefaultGpuCores is the utilization for the
 	threadSecondsUsed := float64(numThreads) * float64(endKtime-startKtime) / 1e9
@@ -217,5 +231,5 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	expectedUtilKern1 := threadSecondsUsed / threadSecondsAvailable
 	expectedUtilKern2 := 1.0 / testutil.DefaultGpuCores * 0.9
 	expectedUtil := expectedUtilKern1 + expectedUtilKern2
-	require.InDelta(t, expectedUtil, pidStats.UtilizationPercentage, 0.001)
+	require.InDelta(t, expectedUtil, metrics.UtilizationPercentage, 0.001)
 }
