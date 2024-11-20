@@ -21,16 +21,14 @@ import (
 
 // FakeTagger is a fake implementation of the tagger interface
 type FakeTagger struct {
-	errors         map[string]error
-	store          *tagstore.TagStore
-	telemetryStore *telemetry.Store
+	errors map[string]error
+	store  *tagstore.TagStore
 }
 
-func newFakeTagger(telemetryStore *telemetry.Store) *FakeTagger {
+func newFakeTagger() *FakeTagger {
 	return &FakeTagger{
-		errors:         make(map[string]error),
-		store:          tagstore.NewTagStore(telemetryStore),
-		telemetryStore: telemetryStore,
+		errors: make(map[string]error),
+		store:  tagstore.NewTagStore(nil),
 	}
 }
 
@@ -72,8 +70,9 @@ func (f *FakeTagger) ReplayTagger() tagger.ReplayTagger {
 }
 
 // GetTaggerTelemetryStore returns tagger telemetry store
+// The fake tagger returns nil as it doesn't use telemetry
 func (f *FakeTagger) GetTaggerTelemetryStore() *telemetry.Store {
-	return f.telemetryStore
+	return nil
 }
 
 // Tag fake implementation

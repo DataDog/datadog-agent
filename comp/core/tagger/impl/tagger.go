@@ -142,7 +142,7 @@ func NewTaggerClient(params tagger.Params, cfg config.Component, wmeta workloadm
 	var err error
 	telemetryStore := telemetry.NewStore(telemetryComp)
 	if params.UseFakeTagger {
-		defaultTagger = newFakeTagger(telemetryStore)
+		defaultTagger = newFakeTagger()
 	} else {
 		defaultTagger, err = newLocalTagger(cfg, wmeta, telemetryStore)
 	}

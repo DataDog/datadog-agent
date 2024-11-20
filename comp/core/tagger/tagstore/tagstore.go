@@ -58,7 +58,9 @@ func newTagStoreWithClock(clock clock.Clock, telemetryStore *telemetry.Store) *T
 		store:               genericstore.NewObjectStore[EntityTags](),
 		subscriptionManager: subscriber.NewSubscriptionManager(telemetryStore),
 		clock:               clock,
-		telemetryStore:      telemetryStore,
+		// telemetryStore is optional. If it is nil, we will not collect
+		// telemetry. The fake tagger does not have a telemetry store.
+		telemetryStore: telemetryStore,
 	}
 }
 
@@ -137,7 +139,9 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*types.TagInfo) {
 			s.store.Set(info.EntityID, storedTags)
 		}
 
-		s.telemetryStore.UpdatedEntities.Inc()
+		if s.telemetryStore != nil {
+			s.telemetryStore.UpdatedEntities.Inc()
+		}
 		storedTags.setTagsForSource(info.Source, newSt)
 
 		events = append(events, types.EntityEvent{
@@ -174,7 +178,9 @@ func (s *TagStore) collectTelemetry() {
 
 	for prefix, sources := range s.telemetry {
 		for source, storedEntities := range sources {
-			s.telemetryStore.StoredEntities.Set(storedEntities, source, prefix)
+			if s.telemetryStore != nil {
+				s.telemetryStore.StoredEntities.Set(storedEntities, source, prefix)
+			}
 			s.telemetry[prefix][source] = 0
 		}
 	}
@@ -220,7 +226,9 @@ func (s *TagStore) Prune() {
 		}
 
 		if et.shouldRemove() {
-			s.telemetryStore.PrunedEntities.Inc()
+			if s.telemetryStore != nil {
+				s.telemetryStore.PrunedEntities.Inc()
+			}
 			s.store.Unset(eid)
 			events = append(events, types.EntityEvent{
 				EventType: types.EventTypeDeleted,
