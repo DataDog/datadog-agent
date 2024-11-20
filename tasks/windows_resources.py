@@ -23,7 +23,7 @@ def build_messagetable(
     # Generate the message header and resource file
     windmc = "windmc"
     if host_target:
-        windmc = host_target+"-"+windmc
+        windmc = host_target + "-" + windmc
 
     command = f"{windmc} --target {target} -r {root} -h {root} {messagefile}"
     ctx.run(command)
@@ -43,7 +43,7 @@ def build_rc(ctx, rc_file, vars=None, out=None, target='pe-x86-64', host_target=
     # go automatically detects+includes .syso files
     windres = "windres"
     if host_target:
-        windres = host_target+"-"+windres
+        windres = host_target + "-" + windres
 
     command = f"{windres} --target {target} -i {rc_file} -O coff -o {out}"
     for key, value in vars.items():
