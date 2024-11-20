@@ -11,5 +11,6 @@ features:
      Introduced a new configuration variable logs_config.transport_type, allowing users to enforce HTTP/1.1 for outgoing HTTP connections in the Datadog Agent. This provides better control over transport protocols, improving compatibility with systems that do not support HTTP/2.
 enhancements:
   - |
-    Improved logging adding visiblity for latency and transport protocol 
+    Improved logging adding visiblity for latency and transport protocol
+    Default the log agent to use HTTP/2 or best available protocol
     

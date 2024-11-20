@@ -310,7 +310,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	resp, err := d.client.Do(req)
 
 	latency := time.Since(then).Milliseconds()
-	log.Tracef("Log payload sent to %s with latency %d ms", d.url, latency)
+	log.Tracef("Log payload sent to %s. Response resolved with protocol %s in %d ms", d.url, resp.Proto, latency)
 	metrics.TlmSenderLatency.Observe(float64(latency))
 	metrics.SenderLatency.Set(latency)
 
@@ -324,7 +324,6 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 
 	defer resp.Body.Close()
 	response, err := io.ReadAll(resp.Body)
-	log.Tracef("Log agent payload resolved with: %s", resp.Proto)
 	if err != nil {
 		// the read failed because the server closed or terminated the connection
 		// *after* serving the request.
@@ -393,7 +392,10 @@ func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() 
 			log.Warnf("Invalid transport_type '%s', falling back to 'auto'", transport)
 		}
 		// Use default ALPN auto-negotiation and negotiate to HTTP/2 if possible, if not it will automatically fallback to best available protocol
-		http2.ConfigureTransport(transport)
+		err := http2.ConfigureTransport(transport)
+		if err != nil {
+			log.Warnf("Failed to configure HTTP/2 transport: %v. Resolving to best available protocl", err)
+		}
 	}
 
 	return func() *http.Client {
