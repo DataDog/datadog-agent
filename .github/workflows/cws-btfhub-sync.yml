@@ -113,7 +113,6 @@ jobs:
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           ref: ${{ inputs.base_branch || 'main' }}
-          persist-credentials: false
 
       - name: Install python
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
@@ -165,8 +164,8 @@ jobs:
               title: 'CWS: sync BTFHub constants',
               owner,
               repo,
-              head: "$BRANCH_NAME",
-              base: "$BASE_BRANCH",
+              head: process.env.BRANCH_NAME,
+              base: process.env.BASE_BRANCH,
               body: [
                 '### What does this PR do?',
                 'This PR syncs the BTFHub constants used by CWS',

@@ -22,7 +22,7 @@ def handle_go_work():
         # go work is explicitly set
         return
 
-    if len(sys.argv) >= 1 and sys.argv[1] == "--complete":
+    if len(sys.argv) > 1 and sys.argv[1] == "--complete":
         # GOWORK=off is not needed when completing
         return
 
