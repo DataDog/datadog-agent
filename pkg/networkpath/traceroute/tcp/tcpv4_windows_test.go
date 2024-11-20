@@ -10,7 +10,6 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/stretchr/testify/assert"
 )
@@ -51,25 +50,4 @@ func Test_TracerouteSequential(t *testing.T) {
 
 	_, err := tracer.TracerouteSequential()
 	assert.NoError(t, err)
-}
-
-func decodeICMPPacket(data []byte) (*layers.ICMPv4, error) {
-	packet := gopacket.NewPacket(data, layers.LayerTypeIPv4, gopacket.Default)
-	if err := packet.ErrorLayer(); err != nil {
-		return nil, err.Error()
-	}
-
-	ipLayer := packet.Layer(layers.LayerTypeIPv4)
-	if ipLayer == nil {
-		return nil, fmt.Errorf("No IPv4 layer found in packet")
-	}
-
-	ipPacket, _ := ipLayer.(*layers.IPv4)
-	icmpLayer := packet.Layer(layers.LayerTypeICMPv4)
-	if icmpLayer == nil {
-		return nil, fmt.Errorf("No ICMP layer found in packet")
-	}
-
-	icmpPacket, _ := icmpLayer.(*layers.ICMPv4)
-	return icmpPacket, nil
 }
