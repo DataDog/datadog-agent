@@ -29,18 +29,20 @@ import (
 )
 
 var (
-	osVersion        = flag.String("osversion", "", "os version to test")
-	platform         = flag.String("platform", "", "platform to test")
-	architecture     = flag.String("arch", "", "architecture to test (x86_64, arm64))")
-	flavorName       = flag.String("flavor", "datadog-agent", "package flavor to install")
-	srcAgentVersion  = flag.String("src-agent-version", "5", "start agent version")
-	destAgentVersion = flag.String("dest-agent-version", "7", "destination agent version to upgrade to")
+	osVersion           = flag.String("osversion", "", "os version to test")
+	platform            = flag.String("platform", "", "platform to test")
+	architecture        = flag.String("arch", "", "architecture to test (x86_64, arm64))")
+	flavorName          = flag.String("flavor", "datadog-agent", "package flavor to install")
+	srcAgentVersion     = flag.String("src-agent-version", "5", "start agent version")
+	destAgentVersion    = flag.String("dest-agent-version", "7", "destination agent version to upgrade to")
+	fromCurrentToStable = flag.Bool("from-current-to-stable", false, "upgrade from the pipeline version of agent to a stable version")
 )
 
 type upgradeSuite struct {
 	e2e.BaseSuite[environments.Host]
-	srcVersion  string
-	destVersion string
+	srcVersion          string
+	destVersion         string
+	fromCurrentToStable bool
 }
 
 func TestUpgradeScript(t *testing.T) {
@@ -72,7 +74,7 @@ func TestUpgradeScript(t *testing.T) {
 			vmOpts = append(vmOpts, ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture))
 
 			e2e.Run(tt,
-				&upgradeSuite{srcVersion: *srcAgentVersion, destVersion: *destAgentVersion},
+				&upgradeSuite{srcVersion: *srcAgentVersion, destVersion: *destAgentVersion, fromCurrentToStable: *fromCurrentToStable},
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
@@ -90,13 +92,23 @@ func (is *upgradeSuite) TestUpgrade() {
 
 	unixHelper := helpers.NewUnix()
 	VMclient := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
-	is.SetupAgentStartVersion(VMclient)
-	is.UpgradeAgentVersion(VMclient)
+	fromStable := false
+	toCurrent := true
+	if is.fromCurrentToStable {
+		fromStable = true
+		toCurrent = false
+	}
+	is.SetupAgentStartVersion(VMclient, fromStable)
+	is.UpgradeAgentVersion(VMclient, toCurrent)
 	is.CheckUpgradeAgentInstallation(VMclient)
 }
 
-func (is *upgradeSuite) SetupAgentStartVersion(VMclient *common.TestClient) {
-	install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.srcVersion), installparams.WithAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")), installparams.WithPipelineID(""))
+func (is *upgradeSuite) SetupAgentStartVersion(VMclient *common.TestClient, fromStable bool) {
+	if fromStable {
+		install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.srcVersion), installparams.WithAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")), installparams.WithPipelineID(""))
+	} else {
+		install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.srcVersion), installparams.WithAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")))
+	}
 	var err error
 	if is.srcVersion == "5" {
 		_, err = VMclient.Host.Execute("sudo /etc/init.d/datadog-agent stop")
@@ -106,8 +118,13 @@ func (is *upgradeSuite) SetupAgentStartVersion(VMclient *common.TestClient) {
 	require.NoError(is.T(), err)
 }
 
-func (is *upgradeSuite) UpgradeAgentVersion(VMclient *common.TestClient) {
-	install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.destVersion), installparams.WithUpgrade(true))
+func (is *upgradeSuite) UpgradeAgentVersion(VMclient *common.TestClient, toCurrent bool) {
+	if toCurrent {
+		install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.destVersion), installparams.WithUpgrade(true))
+	} else {
+		install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.destVersion), installparams.WithUpgrade(true), installparams.WithPipelineID(""))
+
+	}
 	_, err := VMclient.SvcManager.Restart("datadog-agent")
 	require.NoError(is.T(), err)
 }
