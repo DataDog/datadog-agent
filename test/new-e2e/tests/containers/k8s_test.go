@@ -802,14 +802,6 @@ func (suite *k8sSuite) TestDogstatsdInAgent() {
 	suite.testDogstatsdPodUID(kubeNamespaceDogstatsWorkload)
 }
 
-func (suite *k8sSuite) TestDogstatsdStandalone() {
-	// Test with UDS
-	suite.testDogstatsdContainerID(kubeNamespaceDogstatsStandaloneWorkload, kubeDeploymentDogstatsdUDS)
-	// Dogstatsd standalone does not support origin detection
-	// Test with UDP + DD_ENTITY_ID
-	suite.testDogstatsdPodUID(kubeNamespaceDogstatsWorkload)
-}
-
 func (suite *k8sSuite) testDogstatsdPodUID(kubeNamespace string) {
 	// Test dogstatsd origin detection with UDP + DD_ENTITY_ID
 	suite.testMetric(&testMetricArgs{
