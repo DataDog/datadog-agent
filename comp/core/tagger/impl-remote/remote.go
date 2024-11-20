@@ -354,10 +354,9 @@ func (t *remoteTagger) DogstatsdCardinality() types.TagCardinality {
 }
 
 // Subscribe returns a channel that receives a slice of events whenever an entity is
-// added, modified or deleted. It can send an initial burst of events only to the new
-// subscriber, without notifying all of the others.
-func (t *remoteTagger) Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
-	return t.store.subscribe(subscriptionID, filter)
+// Agents running the remote tagger don't have the ability to subscribe to events, as they are the ones receiving the events.
+func (t *remoteTagger) Subscribe(string, *types.Filter) (types.Subscription, error) {
+	return nil, nil
 }
 
 func (t *remoteTagger) run() {
