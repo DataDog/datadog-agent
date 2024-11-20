@@ -207,8 +207,8 @@ def create_release_notes(freeze_date, teams):
     doc, tag, text, line = Doc().ttl()
     milestones = {
         '"Code freeze"': freeze_date,
-        '"RC.1 built"': freeze_date + timedelta(days=3),
-        '"Staging deployment"': freeze_date + timedelta(days=5),
+        '"RC.1 built"': freeze_date + timedelta(days=1),
+        '"Staging deployment"': freeze_date + timedelta(days=3),
         '"Prod deployment start"': freeze_date + timedelta(days=11),
         '"Full prod deployment"': freeze_date + timedelta(days=20),
         '"Release"': freeze_date + timedelta(days=26),
