@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
@@ -29,10 +28,10 @@ type FakeTagger struct {
 	sync.RWMutex
 }
 
-func newFakeTagger(cfg config.Component, telemetryStore *telemetry.Store) *FakeTagger {
+func newFakeTagger(telemetryStore *telemetry.Store) *FakeTagger {
 	return &FakeTagger{
 		errors:         make(map[string]error),
-		store:          tagstore.NewTagStore(cfg, telemetryStore),
+		store:          tagstore.NewTagStore(telemetryStore),
 		telemetryStore: telemetryStore,
 	}
 }
