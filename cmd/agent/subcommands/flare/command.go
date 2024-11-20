@@ -9,9 +9,10 @@ package flare
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamlogs"
+	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -52,7 +54,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	procnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -250,21 +251,32 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	}
 
 	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
-		probeUtil, probeUtilErr := procnet.GetRemoteSystemProbeUtil(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
-
-		if !errors.Is(probeUtilErr, procnet.ErrNotImplemented) {
-			sysProbeGet := func() pprofGetter {
-				return func(path string) ([]byte, error) {
-					if probeUtilErr != nil {
-						return nil, probeUtilErr
-					}
-
-					return probeUtil.GetPprof(path)
-				}
-			}
-
-			agentCollectors["system-probe"] = serviceProfileCollector(sysProbeGet(), seconds)
+		client := &http.Client{
+			Transport: &http.Transport{
+				DialContext: sysprobeclient.DialContextFunc(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
+			},
 		}
+
+		sysProbeGet := func() pprofGetter {
+			return func(path string) ([]byte, error) {
+				var buf bytes.Buffer
+				pprofURL := sysprobeclient.DebugURL("/pprof" + path)
+				req, err := http.NewRequest(http.MethodGet, pprofURL, &buf)
+				if err != nil {
+					return nil, err
+				}
+
+				res, err := client.Do(req)
+				if err != nil {
+					return nil, err
+				}
+				defer res.Body.Close()
+
+				return io.ReadAll(res.Body)
+			}
+		}
+
+		agentCollectors["system-probe"] = serviceProfileCollector(sysProbeGet(), seconds)
 	}
 
 	var errs error

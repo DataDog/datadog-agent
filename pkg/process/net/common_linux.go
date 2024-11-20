@@ -10,7 +10,6 @@ package net
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 
@@ -26,13 +25,8 @@ const (
 	procStatsURL         = "http://unix/" + string(sysconfig.ProcessModule) + "/stats"
 	registerURL          = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/register"
 	statsURL             = "http://unix/debug/stats"
-	pprofURL             = "http://unix/debug/pprof"
 	languageDetectionURL = "http://unix/" + string(sysconfig.LanguageDetectionModule) + "/detect"
 	discoveryServicesURL = "http://unix/" + string(sysconfig.DiscoveryModule) + "/services"
-	telemetryURL         = "http://unix/telemetry"
-	conntrackCachedURL   = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/cached"
-	conntrackHostURL     = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/debug/conntrack/host"
-	ebpfBTFLoaderURL     = "http://unix/debug/ebpf_btf_loader_info"
 )
 
 // CheckPath is used in conjunction with calling the stats endpoint, since we are calling this
@@ -53,11 +47,6 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 	return &RemoteSysProbeUtil{
 		path:       path,
 		httpClient: *client.Get(path),
-		pprofClient: http.Client{
-			Transport: &http.Transport{
-				DialContext: client.DialContextFunc(path),
-			},
-		},
 		tracerouteClient: http.Client{
 			// no timeout set here, the expected usage of this client
 			// is that the caller will set a timeout on each request
@@ -66,29 +55,4 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 			},
 		},
 	}
-}
-
-// GetBTFLoaderInfo queries ebpf_btf_loader_info to get information about where btf files came from
-func (r *RemoteSysProbeUtil) GetBTFLoaderInfo() ([]byte, error) {
-	req, err := http.NewRequest(http.MethodGet, ebpfBTFLoaderURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(`GetEbpfBtfInfo got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
-	}
-
-	return data, nil
 }
