@@ -239,9 +239,11 @@ func (t *Tailer) Start(offset int64, whence int) error {
 	}
 	t.file.Source.Status().Success()
 	t.file.Source.AddInput(t.file.Path)
+
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.readForever()
+
 	return nil
 }
 

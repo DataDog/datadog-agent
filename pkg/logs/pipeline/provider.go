@@ -211,7 +211,6 @@ func (p *processorOnlyProvider) reconfigureSDS(config []byte, orderType sds.Reco
 	}
 
 	return scannerActive, rerr
-
 }
 
 // ReconfigureSDSStandardRules stores the SDS standard rules for the given provider.

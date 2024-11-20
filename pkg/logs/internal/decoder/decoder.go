@@ -211,6 +211,7 @@ func (d *Decoder) run() {
 				// InputChan has been closed, no more lines are expected
 				return
 			}
+
 			d.framer.Process(msg)
 
 		case <-d.lineParser.flushChan():

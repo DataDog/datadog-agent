@@ -36,6 +36,7 @@ import (
 // NewAgent returns a new Logs Agent
 func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta optional.Option[workloadmeta.Component], integrationsLogs integrations.Component) {
 	health := health.RegisterLiveness("logs-agent")
+
 	// setup the auditor
 	// We pass the health handle to the auditor because it's the end of the pipeline and the most
 	// critical part. Arguably it could also be plugged to the destination.

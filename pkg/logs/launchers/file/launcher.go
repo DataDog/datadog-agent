@@ -114,7 +114,6 @@ func (s *Launcher) run() {
 		select {
 		case source := <-s.addedSources:
 			s.addSource(source)
-
 		case source := <-s.removedSources:
 			s.removeSource(source)
 		case <-scanTicker.C:
@@ -300,6 +299,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			mode = config.Beginning
 			source.Config.TailingMode = mode.String()
 		}
+
 		s.startNewTailer(file, mode)
 	}
 }
