@@ -410,7 +410,7 @@ func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options, li
 
 		constEd := manager.ConstantEditor{
 			Name:  fmt.Sprintf("%s_libset_enabled", string(libset)),
-			Value: uint64(1),
+			Value: value,
 		}
 
 		options.ConstantEditors = append(options.ConstantEditors, constEd)
