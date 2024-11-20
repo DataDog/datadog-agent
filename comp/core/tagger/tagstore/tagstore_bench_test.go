@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -48,7 +47,7 @@ func init() {
 func BenchmarkTagStoreThroughput(b *testing.B) {
 	tel := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
 	telemetryStore := taggerTelemetry.NewStore(tel)
-	store := NewTagStore(configmock.New(b), telemetryStore)
+	store := NewTagStore(telemetryStore)
 
 	doneCh := make(chan struct{})
 	pruneTicker := time.NewTicker(time.Second)
@@ -95,7 +94,7 @@ func BenchmarkTagStore_processTagInfo(b *testing.B) {
 	tel := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 
-	store := NewTagStore(configmock.New(b), telemetryStore)
+	store := NewTagStore(telemetryStore)
 
 	for i := 0; i < b.N; i++ {
 		processRandomTagInfoBatch(store)

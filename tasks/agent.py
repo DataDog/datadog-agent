@@ -37,12 +37,6 @@ BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "agent")
 AGENT_TAG = "datadog/agent:master"
 
-BUNDLED_AGENTS = {
-    # system-probe requires a working compilation environment for eBPF so we do not
-    # enable it by default but we enable it in the released artifacts.
-    AgentFlavor.base: ["process-agent", "trace-agent", "security-agent"],
-}
-
 if sys.platform == "win32":
     # Our `ridk enable` toolchain puts Ruby's bin dir at the front of the PATH
     # This dir contains `aws.rb` which will execute if we just call `aws`,
@@ -192,7 +186,7 @@ def build(
             out="cmd/agent/rsrc.syso",
         )
     else:
-        bundled_agents += bundle or BUNDLED_AGENTS.get(flavor, [])
+        bundled_agents += bundle or []
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
@@ -505,7 +499,7 @@ def hacky_dev_image_build(
     if process_agent:
         from tasks.process_agent import build as process_agent_build
 
-        process_agent_build(ctx, bundle=False)
+        process_agent_build(ctx)
         copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
     if trace_agent:
         from tasks.trace_agent import build as trace_agent_build

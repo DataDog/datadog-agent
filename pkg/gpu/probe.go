@@ -32,6 +32,7 @@ import (
 
 const (
 	gpuAttacherName = "gpu"
+	gpuModuleName   = gpuAttacherName
 
 	// consumerChannelSize controls the size of the go channel that buffers ringbuffer
 	// events (*ddebpf.RingBufferHandler).
@@ -142,7 +143,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		}
 	}
 
-	p.attacher, err = uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, p.m, nil, &uprobes.NativeBinaryInspector{}, deps.ProcessMonitor)
+	p.attacher, err = uprobes.NewUprobeAttacher(gpuModuleName, gpuAttacherName, attachCfg, p.m, nil, &uprobes.NativeBinaryInspector{}, deps.ProcessMonitor)
 	if err != nil {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
@@ -210,7 +211,7 @@ func (p *Probe) initRCGPU(cfg *config.Config) error {
 
 func (p *Probe) initCOREGPU(cfg *config.Config) error {
 	asset := getAssetName("gpu", cfg.BPFDebug)
-	var err error
+	var err error //nolint:gosimple // TODO
 	err = ddebpf.LoadCOREAsset(asset, func(ar bytecode.AssetReader, o manager.Options) error {
 		return p.setupManager(ar, o)
 	})

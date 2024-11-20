@@ -82,6 +82,12 @@ const (
 
 	// DefaultProcessDiscoveryHintFrequency is the default frequency in terms of number of checks which we send a process discovery hint
 	DefaultProcessDiscoveryHintFrequency = 60
+
+	// DefaultConnectionsMinCheckInterval is the minimum interval allowed for the connections check
+	DefaultConnectionsMinCheckInterval = 5 * time.Second
+
+	// DefaultConnectionsMaxCheckInterval is the maximum interval allowed for the connections check
+	DefaultConnectionsMaxCheckInterval = 5 * time.Minute
 )
 
 // setupProcesses is meant to be called multiple times for different configs, but overrides apply to all configs, so
@@ -172,7 +178,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 		"DD_PROCESS_ADDITIONAL_ENDPOINTS",
 	)
 	procBindEnvAndSetDefault(config, "process_config.events_additional_endpoints", make(map[string][]string))
-	config.SetKnown("process_config.intervals.connections")
+	procBindEnvAndSetDefault(config, "process_config.intervals.connections", 30*time.Second)
 	procBindEnvAndSetDefault(config, "process_config.expvar_port", DefaultProcessExpVarPort)
 	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
 	procBindEnvAndSetDefault(config, "process_config.internal_profiling.enabled", false)

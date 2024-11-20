@@ -207,6 +207,16 @@ file: 2
 	assert.Equal(t, model.SourceCLI, cfg.GetSource("cli"))
 }
 
+func TestGetSource(t *testing.T) {
+	cfg := NewConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 0)
+	cfg.BuildSchema()
+
+	assert.Equal(t, model.SourceDefault, cfg.GetSource("a"))
+	cfg.Set("a", 0, model.SourceAgentRuntime)
+	assert.Equal(t, model.SourceAgentRuntime, cfg.GetSource("a"))
+}
+
 func TestSetLowerSource(t *testing.T) {
 	cfg := NewConfig("test", "TEST", nil)
 
