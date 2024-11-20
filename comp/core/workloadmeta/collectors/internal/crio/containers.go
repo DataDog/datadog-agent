@@ -132,7 +132,7 @@ func getContainerState(containerStatus *v1.ContainerStatus) workloadmeta.Contain
 	}
 	exitCode := int64(containerStatus.GetExitCode())
 	return workloadmeta.ContainerState{
-		Running:    containerStatus.State == v1.ContainerState_CONTAINER_RUNNING,
+		Running:    containerStatus.GetState() == v1.ContainerState_CONTAINER_RUNNING,
 		Status:     mapContainerStatus(containerStatus.GetState()),
 		CreatedAt:  time.Unix(0, containerStatus.GetCreatedAt()).UTC(),
 		StartedAt:  time.Unix(0, containerStatus.GetStartedAt()).UTC(),
