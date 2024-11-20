@@ -30,6 +30,9 @@ type msiexecArgs struct {
 	// If nothing is specified, a random, temporary file is used.
 	logFile         string
 	ddagentUserName string
+
+	// additionalArgs are further args that can be passed to msiexec
+	additionalArgs []string
 }
 
 // MsiexecOption is an option type for creating msiexec command lines
@@ -93,6 +96,14 @@ func WithProduct(productName string) MsiexecOption {
 func WithLogFile(logFile string) MsiexecOption {
 	return func(a *msiexecArgs) error {
 		a.logFile = logFile
+		return nil
+	}
+}
+
+// WithAdditionalArgs specifies additional arguments for msiexec
+func WithAdditionalArgs(additionalArgs []string) MsiexecOption {
+	return func(a *msiexecArgs) error {
+		a.additionalArgs = additionalArgs
 		return nil
 	}
 }
@@ -190,7 +201,7 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 			_ = os.RemoveAll(tempDir)
 		})
 	}
-	args := []string{a.msiAction, a.target, "/qn", "MSIFASTINSTALL=7", "/log", a.logFile}
+	args := append(a.additionalArgs, a.msiAction, a.target, "/qn", "MSIFASTINSTALL=7", "/log", a.logFile)
 	if a.ddagentUserName != "" {
 		args = append(args, fmt.Sprintf("DDAGENTUSER_NAME=%s", a.ddagentUserName))
 	}

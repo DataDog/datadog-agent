@@ -46,7 +46,7 @@ func StartInstallerExperiment(_ context.Context) (err error) {
 }
 
 // StopInstallerExperiment stops the installer experiment
-func StopInstallerExperiment(ctx context.Context) (err error) {
+func StopInstallerExperiment(_ context.Context) (err error) {
 	cmd, err := msi.Cmd(msi.Install(), msi.WithMsiFromPackagePath("stable", datadogInstaller))
 	if err != nil {
 		return fmt.Errorf("failed to stop installer experiment: %w", err)

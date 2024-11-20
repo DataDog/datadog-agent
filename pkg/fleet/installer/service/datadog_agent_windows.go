@@ -105,10 +105,11 @@ func installAgentPackage(target string, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get Agent user: %w", err)
 	}
-	args = append(args, fmt.Sprintf("DDAGENTUSER_NAME=%s", agentUser))
 	cmd, err := msi.Cmd(
 		msi.Install(),
 		msi.WithMsiFromPackagePath(target, datadogAgent),
+		msi.WithDdAgentUserName(agentUser),
+		msi.WithAdditionalArgs(args),
 	)
 	var output []byte
 	if err == nil {
