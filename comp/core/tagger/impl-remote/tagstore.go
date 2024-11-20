@@ -8,7 +8,6 @@ package remotetaggerimpl
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	genericstore "github.com/DataDog/datadog-agent/comp/core/tagger/generic_store"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -20,16 +19,14 @@ type tagStore struct {
 	mutex     sync.RWMutex
 	store     types.ObjectStore[*types.Entity]
 	telemetry map[string]float64
-	cfg       config.Component
 
 	telemetryStore *telemetry.Store
 }
 
-func newTagStore(cfg config.Component, telemetryStore *telemetry.Store) *tagStore {
+func newTagStore(telemetryStore *telemetry.Store) *tagStore {
 	return &tagStore{
 		store:          genericstore.NewObjectStore[*types.Entity](),
 		telemetry:      make(map[string]float64),
-		cfg:            cfg,
 		telemetryStore: telemetryStore,
 	}
 }

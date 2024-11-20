@@ -132,7 +132,7 @@ func NewRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.C
 			TokenFetcher: params.RemoteTokenFetcher(cfg),
 		},
 		cfg:            cfg,
-		store:          newTagStore(cfg, telemetryStore),
+		store:          newTagStore(telemetryStore),
 		telemetryStore: telemetryStore,
 		filter:         params.RemoteFilter,
 		log:            log,
