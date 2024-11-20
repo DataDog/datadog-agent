@@ -9,7 +9,6 @@ package http
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"errors"
 	"expvar"
 	"fmt"
@@ -30,6 +29,7 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"golang.org/x/net/http2"
 )
 
 // ContentType options,
@@ -310,7 +310,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	resp, err := d.client.Do(req)
 
 	latency := time.Since(then).Milliseconds()
-	log.Tracef("Log payload sent to %s using %s protocol with latency %d ms", d.url, req.Proto, latency)
+	log.Tracef("Log payload sent to %s with latency %d ms", d.url, latency)
 	metrics.TlmSenderLatency.Observe(float64(latency))
 	metrics.SenderLatency.Set(latency)
 
@@ -324,7 +324,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 
 	defer resp.Body.Close()
 	response, err := io.ReadAll(resp.Body)
-	log.Tracef("Log agent payload sent with: %s", resp.Proto)
+	log.Tracef("Log agent payload resolved with: %s", resp.Proto)
 	if err != nil {
 		// the read failed because the server closed or terminated the connection
 		// *after* serving the request.
@@ -385,15 +385,15 @@ func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() 
 	// Configure transport based on user setting
 	switch cfg.Get("logs_config.transport_type") {
 	case "http1":
-		transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
-		transport.TLSClientConfig = &tls.Config{
-			NextProtos: []string{"http/1.1"},
-		}
+		// Use default ALPN auto-negotiation to negotiate up to http/1.1
 	case "auto":
-		// Use default ALPN auto-negotiation
+		fallthrough
 	default:
-		log.Warnf("Invalid transport_type '%s', falling back to 'auto'", cfg.GetString("logs_config.transport_type"))
-		// Use default ALPN auto-negotiation
+		if cfg.Get("logs_config.transport_type") != "auto" {
+			log.Warnf("Invalid transport_type '%s', falling back to 'auto'", transport)
+		}
+		// Use default ALPN auto-negotiation and negotiate to HTTP/2 if possible, if not it will automatically fallback to best available protocol
+		http2.ConfigureTransport(transport)
 	}
 
 	return func() *http.Client {
@@ -403,32 +403,8 @@ func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() 
 			Transport: transport,
 		}
 
-		log.Tracef("Log Agent is using %v transport for connection", getTransportProtocol(client))
 		return client
 	}
-}
-
-// getTransportProtocol return the transport type
-func getTransportProtocol(client *http.Client) string {
-	transport, ok := client.Transport.(*http.Transport)
-	if !ok || transport == nil {
-		return "unknown"
-	}
-
-	// Check if HTTP/2 is explicitly disabled, forcing HTTP/1.1
-	if len(transport.TLSNextProto) == 0 {
-		if transport.TLSClientConfig != nil && len(transport.TLSClientConfig.NextProtos) > 0 {
-			for _, proto := range transport.TLSClientConfig.NextProtos {
-				if proto == "http/1.1" {
-					return "HTTP/1.1"
-				}
-			}
-		}
-	}
-
-	// If no specific protocol is forced, return "auto negotiation"
-	return "auto negotiation"
-
 }
 
 // buildURL buils a url from a config endpoint.
