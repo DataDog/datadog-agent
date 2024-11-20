@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"golang.org/x/text/encoding/unicode"
 	"os"
 	"os/exec"
 	"path"
@@ -115,16 +116,30 @@ type Msiexec struct {
 	postExecActions []func()
 }
 
+func (m *Msiexec) readLogFile() ([]byte, error) {
+	logFileBytes, err := os.ReadFile(m.logFile)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// File does not exist is not necessarily an error
+			return nil, nil
+		}
+		return nil, err
+	}
+	utf16 := unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder()
+	return utf16.Bytes(logFileBytes)
+}
+
 // Run runs msiexec synchronously
 func (m *Msiexec) Run() ([]byte, error) {
 	err := m.Cmd.Run()
 	// The log file *should not* be too big. Avoid verbose log files.
-	file, err2 := os.ReadFile(m.logFile)
+	logFileBytes, err2 := m.readLogFile()
 	err = errors.Join(err, err2)
 	for _, p := range m.postExecActions {
 		p()
 	}
-	return file, err
+
+	return logFileBytes, err
 }
 
 // RunAsync runs msiexec asynchronously
@@ -135,12 +150,13 @@ func (m *Msiexec) RunAsync(done func([]byte, error)) error {
 	}
 	go func() {
 		err := m.Cmd.Wait()
-		file, err2 := os.ReadFile(m.logFile)
+		// The log file *should not* be too big. Avoid verbose log files.
+		logFileBytes, err2 := m.readLogFile()
 		err = errors.Join(err, err2)
 		for _, p := range m.postExecActions {
 			p()
 		}
-		done(file, err)
+		done(logFileBytes, err)
 	}()
 	return nil
 }
@@ -174,7 +190,7 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 			_ = os.RemoveAll(tempDir)
 		})
 	}
-	args := []string{a.msiAction, a.target, "/qn", "MSIFASTINSTALL=7", fmt.Sprintf("/log %s", a.logFile)}
+	args := []string{a.msiAction, a.target, "/qn", "MSIFASTINSTALL=7", "/log", a.logFile}
 	if a.ddagentUserName != "" {
 		args = append(args, fmt.Sprintf("DDAGENTUSER_NAME=%s", a.ddagentUserName))
 	}
