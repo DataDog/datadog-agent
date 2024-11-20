@@ -61,17 +61,6 @@ dev_branch_multiarch-dogstatsd:
     IMG_REGISTRIES: dev
     IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
     IMG_DESTINATIONS: dogstatsd-dev:${CI_COMMIT_REF_SLUG}
-dev_branch_multiarch-dogstatsd:
-  extends: .docker_publish_job_definition
-  stage: dev_container_deploy
-  rules: !reference [.manual]
-  needs:
-    - docker_build_dogstatsd_amd64
-    - docker_build_dogstatsd_arm64
-  variables:
-    IMG_REGISTRIES: dev
-    IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
-    IMG_DESTINATIONS: dogstatsd-dev:${CI_COMMIT_REF_SLUG}
 
 dev_master-a7:
   extends: .docker_publish_job_definition

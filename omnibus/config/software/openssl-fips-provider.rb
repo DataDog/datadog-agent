@@ -4,9 +4,9 @@
 # Copyright 2016-present Datadog, Inc.
 
 # Embedded OpenSSL to meet FIPS requirements. It comes in two parts:
-# 1. The FIPS module itself (this software definition). It must use a FIPS-validated version 
+# 1. The FIPS module itself (this software definition). It must use a FIPS-validated version
 #    and follow the build steps outlined in the OpenSSL FIPS Security Policy.
-# 2. The OpenSSL library, which can be any 3.0.x version. This library will use the FIPS provider. 
+# 2. The OpenSSL library, which can be any 3.0.x version. This library will use the FIPS provider.
 
 name "openssl-fips-provider"
 default_version "0.0.1"
@@ -18,7 +18,6 @@ OPENSSL_FIPS_MODULE_SHA256_SUM="eb1ab04781474360f77c318ab89d8c5a03abc38e63d65a60
 source url: "https://www.openssl.org/source/#{OPENSSL_FIPS_MODULE_FILENAME}",
         sha256: "#{OPENSSL_FIPS_MODULE_SHA256_SUM}",
         extract: :seven_zip,
-        target_filename: "#{OPENSSL_FIPS_MODULE_FILENAME}"
 
 relative_path "openssl-#{OPENSSL_FIPS_MODULE_VERSION}"
 
