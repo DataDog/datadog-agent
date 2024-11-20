@@ -284,5 +284,5 @@ class TestRpathEdit(unittest.TestCase):
             )
             in call_list
         )
-        # We can't assert regex based temporay name in calls, hence we're checking that we get the correct total number of calls
+        # We can't assert regex based temporary name in calls, hence we're checking that we get the correct total number of calls
         assert len(call_list) == 8
