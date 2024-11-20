@@ -51,7 +51,6 @@ var progSingleton *EbpfProgram
 type LibraryCallback func(LibPath)
 
 type libsetData struct {
-	libset      Libset
 	callbacks   map[*LibraryCallback]struct{}
 	done        chan struct{}
 	perfHandler *ddebpf.PerfHandler
@@ -110,7 +109,6 @@ func (e *EbpfProgram) getLibsetData(libset Libset) *libsetData {
 	}
 
 	data := &libsetData{
-		libset:    libset,
 		callbacks: make(map[*LibraryCallback]struct{}),
 		done:      make(chan struct{}),
 	}
