@@ -7,12 +7,14 @@
 
 package net
 
+import "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
+
 // OverrideSystemProbeNamedPipeConfig sets the active named pipe path and its DACL for
 // System Probe connections.
 // This is used by tests only to avoid conflicts with an existing locally installed Datadog agent.
 func OverrideSystemProbeNamedPipeConfig(path string, securityDescriptor string) {
 	if path != "" {
-		systemProbePipeName = path
+		client.SystemProbePipeName = path
 	}
 
 	if securityDescriptor != "" {
