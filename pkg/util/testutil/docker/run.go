@@ -6,13 +6,10 @@
 package docker
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
 	"regexp"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -23,23 +20,6 @@ const (
 	// DefaultTimeout is the default timeout for running a server.
 	DefaultTimeout = time.Minute
 )
-
-// GetDockerPID returns the PID of a docker container.
-func GetDockerPID(dockerName string) (int64, error) {
-	// Ensuring no previous instances exists.
-	c := exec.Command("docker", "inspect", "-f", "{{.State.Pid}}", dockerName)
-	var stdout, stderr bytes.Buffer
-	c.Stdout = &stdout
-	c.Stderr = &stderr
-	if err := c.Run(); err != nil {
-		return 0, fmt.Errorf("failed to get %s pid: %s", dockerName, stderr.String())
-	}
-	pid, err := strconv.ParseInt(strings.TrimSpace(stdout.String()), 10, 64)
-	if pid == 0 {
-		return 0, fmt.Errorf("failed to retrieve %s pid, container is not running", dockerName)
-	}
-	return pid, err
-}
 
 // RunDockerServer is a template for running a protocols server in a docker.
 // - serverName is a friendly name of the server we are setting (AMQP, mongo, etc.).
