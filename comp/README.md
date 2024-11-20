@@ -113,7 +113,7 @@ Package agenttelemetry implements a component to generate Agent telemetry
 
 ### [comp/core/autodiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/autodiscovery)
 
-*Datadog Team*: container-platform
+*Datadog Team*: container-platform agent-shared-components
 
 Package autodiscovery provides the autodiscovery component for the Datadog Agent
 
@@ -185,7 +185,7 @@ component temporarily wraps pkg/config.
 
 ### [comp/core/tagger](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/tagger)
 
-*Datadog Team*: container-platform
+*Datadog Team*: container-platform agent-shared-components
 
 Package tagger provides the tagger interface for the Datadog Agent
 
@@ -195,7 +195,7 @@ Package telemetry implements a component for all agent telemetry.
 
 ### [comp/core/workloadmeta](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/workloadmeta)
 
-*Datadog Team*: container-platform
+*Datadog Team*: container-platform agent-shared-components
 
 Package workloadmeta provides the workloadmeta component for the Datadog Agent
 

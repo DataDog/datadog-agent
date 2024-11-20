@@ -19,7 +19,7 @@ import (
 )
 
 // Component is the component type.
-// team: container-platform
+// team: container-platform agent-shared-components
 type Component interface {
 	AddConfigProvider(provider providers.ConfigProvider, shouldPoll bool, pollInterval time.Duration)
 	LoadAndRun(ctx context.Context)

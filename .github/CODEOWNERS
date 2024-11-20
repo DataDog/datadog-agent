@@ -308,10 +308,10 @@
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
 /comp/checks/windowseventlog @DataDog/windows-agent
 /comp/checks/winregistry @DataDog/windows-agent
-/comp/core/autodiscovery @DataDog/container-platform
+/comp/core/autodiscovery @DataDog/container-platform @DataDog/agent-shared-components
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
-/comp/core/tagger @DataDog/container-platform
-/comp/core/workloadmeta @DataDog/container-platform
+/comp/core/tagger @DataDog/container-platform @DataDog/agent-shared-components
+/comp/core/workloadmeta @DataDog/container-platform @DataDog/agent-shared-components
 /comp/metadata/packagesigning @DataDog/agent-delivery
 /comp/trace/etwtracer @DataDog/windows-agent
 /comp/autoscaling/datadogclient @DataDog/container-integrations

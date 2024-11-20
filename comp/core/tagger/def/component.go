@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
-// team: container-platform
+// team: container-platform agent-shared-components
 
 // ReplayTagger interface represent the tagger use for replaying dogstatsd events.
 type ReplayTagger interface {

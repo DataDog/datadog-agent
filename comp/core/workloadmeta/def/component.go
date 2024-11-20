@@ -6,7 +6,7 @@
 // Package workloadmeta provides the workloadmeta component for the Datadog Agent
 package workloadmeta
 
-// team: container-platform
+// team: container-platform agent-shared-components
 
 // Component is the component type.
 type Component interface {
