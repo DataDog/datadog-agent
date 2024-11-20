@@ -1,4 +1,5 @@
 ---
 fixes:
   - |
-    Fixes issue with disabled services producing an error message in event log on start. Now produce informational message.
+    Fixes the issue of disabled services producing an error message in the event log on start. Now produces an informational message.
+
