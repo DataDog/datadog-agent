@@ -162,6 +162,11 @@ func imageMetadataCollectionIsEnabled() bool {
 	return pkgconfigsetup.Datadog().GetBool("container_image.enabled")
 }
 
+// sbomCollectionIsEnabled returns true if SBOM collection is enabled.
+func sbomCollectionIsEnabled() bool {
+	return imageMetadataCollectionIsEnabled() && pkgconfigsetup.Datadog().GetBool("sbom.container_image.enabled")
+}
+
 // checkOverlayImageDirectoryExists checks if the overlay-image directory exists.
 func checkOverlayImageDirectoryExists() error {
 	overlayImagePath := crio.GetOverlayImagePath()

@@ -11,12 +11,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	imgspecs "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 	"os"
 	"testing"
 	"time"
+
+	imgspecs "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )

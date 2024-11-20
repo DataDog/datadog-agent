@@ -15,7 +15,6 @@ import (
 	"github.com/CycloneDX/cyclonedx-go"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/crio"
@@ -23,11 +22,6 @@ import (
 	crioUtil "github.com/DataDog/datadog-agent/pkg/util/crio"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// sbomCollectionIsEnabled returns true if SBOM collection is enabled.
-func sbomCollectionIsEnabled() bool {
-	return imageMetadataCollectionIsEnabled() && pkgconfigsetup.Datadog().GetBool("sbom.container_image.enabled")
-}
 
 // startSBOMCollection starts the SBOM collection process and subscribes to image metadata events.
 func (c *collector) startSBOMCollection(ctx context.Context) error {
