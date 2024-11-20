@@ -109,6 +109,7 @@ go_e2e_deps:
 
 fetch_openjdk:
   needs: []
+  tags: ["arch:amd64"]
   rules:
     - !reference [.manual]
   stage: deps_fetch
