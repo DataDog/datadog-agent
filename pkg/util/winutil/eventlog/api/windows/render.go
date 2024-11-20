@@ -21,6 +21,8 @@ import (
 // #include <windows.h>
 // #include <winevt.h>
 //
+// #include <stdlib.h>
+//
 // /* Helper to get a pointer value from the union in EVT_VARIANT without abusing
 //  * unsafe.Pointer+uintptr and triggering warnings that are not relevant because
 //  * this pointer value is in C memory not Go memory.
