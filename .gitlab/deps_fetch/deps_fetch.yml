@@ -108,6 +108,7 @@ go_e2e_deps:
         - modcache_e2e.tar.xz
 
 fetch_openjdk:
+  needs: []
   rules:
     - !reference [.manual]
   stage: deps_fetch
