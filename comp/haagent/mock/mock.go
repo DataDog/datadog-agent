@@ -9,10 +9,11 @@
 package mock
 
 import (
+	"go.uber.org/fx"
+
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 type mockHaAgent struct {

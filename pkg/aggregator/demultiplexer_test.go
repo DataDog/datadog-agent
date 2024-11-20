@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl-noop"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -22,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl-noop"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
