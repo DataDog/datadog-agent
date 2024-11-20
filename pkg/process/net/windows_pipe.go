@@ -12,8 +12,6 @@ import (
 	"net"
 
 	"github.com/Microsoft/go-winio"
-
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 )
 
 const (
@@ -54,15 +52,13 @@ func newPipeListener(namedPipeName string) (net.Listener, error) {
 }
 
 // NewSystemProbeListener sets up a named pipe listener for the system probe service.
-func NewSystemProbeListener(_ string) (*WindowsPipeListener, error) {
-	// socketAddr not used
-
-	namedPipe, err := newPipeListener(client.SystemProbePipeName)
+func NewSystemProbeListener(namedPipePath string) (*WindowsPipeListener, error) {
+	namedPipe, err := newPipeListener(namedPipePath)
 	if err != nil {
-		return nil, fmt.Errorf("error named pipe %s : %s", client.SystemProbePipeName, err)
+		return nil, fmt.Errorf("error named pipe %s : %s", namedPipePath, err)
 	}
 
-	return &WindowsPipeListener{namedPipe, client.SystemProbePipeName}, nil
+	return &WindowsPipeListener{namedPipe, namedPipePath}, nil
 }
 
 // GetListener will return underlying Listener's conn
