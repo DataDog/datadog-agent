@@ -1556,10 +1556,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
 
 	// Number of logs pipeline instances. Defaults to number of logical CPU cores as defined by GOMAXPROCS or 8, whichever is lower.
-	logsPipelines := 8
-	if logsPipelines > runtime.GOMAXPROCS(0) {
-		logsPipelines = runtime.GOMAXPROCS(0)
-	}
+	logsPipelines := min(8, runtime.GOMAXPROCS(0))
 	config.BindEnvAndSetDefault("logs_config.pipelines", logsPipelines)
 
 	// If true, the agent looks for container logs in the location used by podman, rather
