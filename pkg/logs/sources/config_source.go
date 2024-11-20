@@ -10,17 +10,15 @@ import (
 	"sync"
 
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ConfigSources receives file paths to log configs and creates sources. The sources are added to a channel and read by the launcher.
+// This class implements the SourceProvider interface
 type ConfigSources struct {
-	mu            sync.Mutex
-	sources       []*LogSource
-	added         []chan *LogSource
-	addedByType   map[string][]chan *LogSource
-	removed       []chan *LogSource
-	removedByType map[string][]chan *LogSource
+	mu          sync.Mutex
+	sources     []*LogSource
+	added       []chan *LogSource
+	addedByType map[string][]chan *LogSource
 }
 
 var (
@@ -32,8 +30,7 @@ var (
 func GetInstance() *ConfigSources {
 	once.Do(func() {
 		instance = &ConfigSources{
-			addedByType:   make(map[string][]chan *LogSource),
-			removedByType: make(map[string][]chan *LogSource),
+			addedByType: make(map[string][]chan *LogSource),
 		}
 	})
 	return instance
@@ -71,7 +68,6 @@ func (s *ConfigSources) AddFileSource(path string) error {
 // All of the subscribers registered for this source's type (src.Config.Type) will be
 // notified.
 func (s *ConfigSources) AddSource(source *LogSource) {
-	log.Tracef("Adding %s", source.Dump(false))
 	configSource := GetInstance()
 	configSource.mu.Lock()
 	configSource.sources = append(configSource.sources, source)
@@ -92,51 +88,16 @@ func (s *ConfigSources) AddSource(source *LogSource) {
 	}
 }
 
-// RemoveSource removes a source.
-//
-// All of the subscribers registered for this source's type (src.Config.Type) will be
-// notified of its removal.
-func (s *ConfigSources) RemoveSource(source *LogSource) {
-	log.Tracef("Removing %s", source.Dump(false))
-	configSource := GetInstance()
-	configSource.mu.Lock()
-	var sourceFound bool
-	for i, src := range s.sources {
-		if src == source {
-			configSource.sources = append(configSource.sources[:i], s.sources[i+1:]...)
-			sourceFound = true
-			break
-		}
-	}
-	streams := configSource.removed
-	streamsForType := configSource.removedByType[source.Config.Type]
-	configSource.mu.Unlock()
-
-	if sourceFound {
-		for _, stream := range streams {
-			stream <- source
-		}
-		for _, stream := range streamsForType {
-			stream <- source
-		}
-	}
-}
-
-// SubscribeAll returns two channels carrying notifications of all added and
-// removed sources, respectively.  This guarantees consistency if sources are
-// added or removed concurrently.
-//
+// SubscribeAll returns a channel carrying notifications of all added sources.
 // Any sources added before this call are delivered from a new goroutine.
-func (s *ConfigSources) SubscribeAll() (added chan *LogSource, removed chan *LogSource) {
+func (s *ConfigSources) SubscribeAll() (added chan *LogSource, _ chan *LogSource) {
 	configSource := GetInstance()
 	configSource.mu.Lock()
 	defer configSource.mu.Unlock()
 
 	added = make(chan *LogSource)
-	removed = make(chan *LogSource)
 
 	configSource.added = append(configSource.added, added)
-	configSource.removed = append(configSource.removed, removed)
 
 	existingSources := append([]*LogSource{}, configSource.sources...) // clone for goroutine
 	go func() {
@@ -148,28 +109,20 @@ func (s *ConfigSources) SubscribeAll() (added chan *LogSource, removed chan *Log
 	return
 }
 
-// SubscribeForType returns two channels carrying notifications of added and
-// removed sources with the given type, respectively.  This guarantees
-// consistency if sources are added or removed concurrently.
-//
+// SubscribeForType returns two channels carrying notifications of added sources
+// of a specified type
 // Any sources added before this call are delivered from a new goroutine.
-func (s *ConfigSources) SubscribeForType(sourceType string) (added chan *LogSource, removed chan *LogSource) {
+func (s *ConfigSources) SubscribeForType(sourceType string) (added chan *LogSource, _ chan *LogSource) {
 	configSource := GetInstance()
 	configSource.mu.Lock()
 	defer configSource.mu.Unlock()
 
 	added = make(chan *LogSource)
-	removed = make(chan *LogSource)
 
 	if _, exists := configSource.addedByType[sourceType]; !exists {
 		configSource.addedByType[sourceType] = []chan *LogSource{}
 	}
 	configSource.addedByType[sourceType] = append(configSource.addedByType[sourceType], added)
-
-	if _, exists := configSource.removedByType[sourceType]; !exists {
-		configSource.removedByType[sourceType] = []chan *LogSource{}
-	}
-	configSource.removedByType[sourceType] = append(configSource.removedByType[sourceType], removed)
 
 	existingSources := append([]*LogSource{}, configSource.sources...) // clone for goroutine
 	go func() {
@@ -210,16 +163,4 @@ func (s *ConfigSources) GetAddedForType(sourceType string) chan *LogSource {
 	}()
 
 	return stream
-}
-
-// GetSources returns all the sources currently held.  The result is copied and
-// will not be modified after it is returned.  However, the copy in the LogSources
-// instance may change in that time (changing indexes or adding/removing entries).
-func (s *ConfigSources) GetSources() []*LogSource {
-	configSource := GetInstance()
-	configSource.mu.Lock()
-	defer configSource.mu.Unlock()
-
-	clone := append([]*LogSource{}, configSource.sources...)
-	return clone
 }
