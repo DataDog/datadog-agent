@@ -51,45 +51,47 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     conn_stats_ts_t *cst = NULL;
     tcp_stats_t *tst = NULL;
     u32 *retrans = NULL;
-    bool needs_flush = false;
     bool is_tcp = get_proto(&conn.tup) == CONN_TYPE_TCP;
     bool is_udp = get_proto(&conn.tup) == CONN_TYPE_UDP;
+    bool cst_flushable = false;
+
+    cst = bpf_map_lookup_elem(&conn_stats, &(conn.tup));
+    // if we were able to delete the entry, it signals that no other threads have flushed it
+    if (cst && (bpf_map_delete_elem(&conn_stats, &(conn.tup)) == 0)) {
+        cst_flushable = true;
+        conn.conn_stats = *cst;
+    }
+
+    if (is_udp && !cst_flushable) {
+        increment_telemetry_count(udp_dropped_conns);
+        return;
+    }
 
     if (is_tcp) {
         tst = bpf_map_lookup_elem(&tcp_stats, &(conn.tup));
-        // only proceed if the delete is successful to prevent multiple invocations of this method from flushing the same connection
-        if (tst && bpf_map_delete_elem(&tcp_stats, &(conn.tup)) == 0) {
+        if (tst && (bpf_map_delete_elem(&tcp_stats, &(conn.tup)) == 0)) {
             conn.tcp_stats = *tst;
-            needs_flush = true;
+        } else {
+            // flush empty connections in the case of tcp failures
+            if (tcp_failure_reason == 0 && !cst_flushable) {
+                return;
+            }
+            conn.tcp_stats = (tcp_stats_t){};
         }
 
         conn.tup.pid = 0;
         retrans = bpf_map_lookup_elem(&tcp_retransmits, &(conn.tup));
-        if (retrans && bpf_map_delete_elem(&tcp_retransmits, &(conn.tup)) == 0) {
-            needs_flush = true;
+        if (retrans) {
             conn.tcp_stats.retransmits = *retrans;
+            bpf_map_delete_elem(&tcp_retransmits, &(conn.tup));
         }
         conn.tup.pid = tup->pid;
 
         conn.tcp_stats.state_transitions |= (1 << TCP_CLOSE);
         conn.tcp_stats.failure_reason = tcp_failure_reason;
         if (tcp_failure_reason) {
-            needs_flush = true;
             increment_telemetry_count(tcp_failed_connect);
         }
-    }
-
-    cst = bpf_map_lookup_elem(&conn_stats, &(conn.tup));
-    if (cst && bpf_map_delete_elem(&conn_stats, &(conn.tup)) == 0) {
-        conn.conn_stats = *cst;
-        needs_flush = true;
-    }
-
-    if (!needs_flush) {
-        if (is_udp) {
-            increment_telemetry_count(udp_dropped_conns);
-        }
-        return;
     }
 
     // update the `duration` field to reflect the duration of the
