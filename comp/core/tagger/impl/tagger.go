@@ -458,6 +458,15 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 			}
 		}
 	default:
+		// Disable origin detection if cardinality is none
+		// TODO: The `none` cardinality should be directly supported by the Tagger.
+		if originInfo.Cardinality == "none" {
+			originInfo.ContainerIDFromSocket = packets.NoOrigin
+			originInfo.PodUID = ""
+			originInfo.ContainerID = ""
+			return
+		}
+
 		// Tag using Local Data
 		if originInfo.ContainerIDFromSocket != packets.NoOrigin && len(originInfo.ContainerIDFromSocket) > containerIDFromSocketCutIndex {
 			containerID := originInfo.ContainerIDFromSocket[containerIDFromSocketCutIndex:]

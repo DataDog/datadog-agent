@@ -21,25 +21,20 @@ const (
 	idleConnTimeout = 5 * time.Second
 )
 
-var (
-	// SystemProbePipeName is the production named pipe for system probe
-	SystemProbePipeName = `\\.\pipe\dd_system_probe`
-)
-
 // DialContextFunc returns a function to be used in http.Transport.DialContext for connecting to system-probe.
 // The result will be OS-specific.
-func DialContextFunc(_ string) func(context.Context, string, string) (net.Conn, error) {
+func DialContextFunc(namedPipePath string) func(context.Context, string, string) (net.Conn, error) {
 	return func(_ context.Context, _, _ string) (net.Conn, error) {
 		// Go clients do not immediately close (named pipe) connections when done,
 		// they keep connections idle for a while.  Make sure the idle time
 		// is not too high and the timeout is generous enough for pending connections.
 		var timeout = 30 * time.Second
 
-		namedPipe, err := winio.DialPipe(SystemProbePipeName, &timeout)
+		namedPipe, err := winio.DialPipe(namedPipePath, &timeout)
 		if err != nil {
 			// This important error may not get reported upstream, making connection failures
 			// very difficult to diagnose. Explicitly log the error here too for diagnostics.
-			return nil, log.Errorf("error connecting to named pipe %q: %s", SystemProbePipeName, err)
+			return nil, log.Errorf("error connecting to named pipe %q: %s", namedPipePath, err)
 		}
 
 		return namedPipe, nil
