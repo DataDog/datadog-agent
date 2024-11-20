@@ -248,7 +248,6 @@ func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, chan
 
 	err := s.service.Init()
 	if err != nil {
-		s.eventlog(messagestrings.MSG_AGENT_START_FAILURE, err.Error())
 		if errors.Is(err, ErrCleanStopAfterInit) {
 			// Service requested to exit successfully. We must enter SERVICE_RUNNING state and stay there
 			// for a period of time to ensure the service manager treats the start as successful.
@@ -256,8 +255,10 @@ func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, chan
 			// We must still process control requests, in case we receive a STOP signal. If we don't
 			// respond to a STOP signal within a few seconds it will fail. So continue and enter
 			// RUNNING state and start the control handler, but don't execute Service.Run().
+			s.eventlog(messagestrings.MSG_AGENT_CLEAN_STOP_AFTER_INIT, err.Error())
 			executeRun = false
 		} else {
+			s.eventlog(messagestrings.MSG_AGENT_START_FAILURE, err.Error())
 			return
 		}
 	}
