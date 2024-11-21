@@ -1044,8 +1044,9 @@ func validateKernelExceedingMax(t *testing.T, monitor *Monitor, tls bool) {
 	var actual *ebpf.PostgresKernelMsgCount
 	assert.Eventually(t, func() bool {
 		found, err := getKernelTelemetry(monitor, tls)
-		require.NoError(t, err)
-		require.NotNil(t, found)
+		if err != nil {
+			return false
+		}
 		actual = found
 		return found.Reached_max_messages > 0
 	}, time.Second*2, time.Millisecond*100)
