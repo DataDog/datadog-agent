@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package proto provides autodiscovery proto util functions
 package proto
 
 import (
@@ -10,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
+// ProtobufConfigFromAutodiscoveryConfig converts an autodiscovery config to a protobuf config
 func ProtobufConfigFromAutodiscoveryConfig(config *integration.Config) *core.Config {
 	instances := [][]byte{}
 
@@ -51,6 +53,7 @@ func ProtobufConfigFromAutodiscoveryConfig(config *integration.Config) *core.Con
 	}
 }
 
+// AutodiscoveryConfigFromProtobufConfig converts a protobuf config to an autodiscovery config
 func AutodiscoveryConfigFromProtobufConfig(config *core.Config) integration.Config {
 	instances := []integration.Data{}
 

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package server provides the autodiscovery stream config
+// Package stream provides the autodiscovery stream config
 package stream
 
 import (
@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// StreamConfig streams configs
+// Config streams autodiscovery configs
 func Config(ac autodiscovery.Component, out pb.AgentSecure_AutodiscoveryStreamConfigServer) error {
 	s := &scheduler{
 		out:  out,
