@@ -407,9 +407,6 @@ class CollectorRepo:
     def get_old_version(self):
         return self.old_version
 
-    def get_version_modules(self):
-        return self.version_modules
-
     def get_modules_version(self):
         return self.modules_version
 
