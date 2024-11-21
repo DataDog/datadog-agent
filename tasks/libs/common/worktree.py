@@ -38,8 +38,7 @@ def init_env(ctx, branch: str | None = None):
 def remove_env(ctx):
     """Will remove the environment for commands applying to a worktree."""
 
-    if WORKTREE_DIRECTORY.is_dir():
-        ctx.run(f"git worktree remove '{WORKTREE_DIRECTORY}'", warn=True)
+    ctx.run(f"git worktree remove -f '{WORKTREE_DIRECTORY}'", warn=True)
 
 
 def is_worktree():
