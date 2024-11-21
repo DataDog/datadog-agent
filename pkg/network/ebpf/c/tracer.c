@@ -207,7 +207,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     }
 
     int err = 0;
-    bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
+    BPF_CORE_READ_INTO(&err, sk, sk_err);
     if (err == 0) {
         bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
         return 0; // no failure
@@ -279,7 +279,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     }
 
     int err = 0;
-    bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
+    BPF_CORE_READ_INTO(&err, sk, sk_err);
     if (err == TCP_CONN_FAILED_RESET || err == TCP_CONN_FAILED_TIMEOUT || err == TCP_CONN_FAILED_REFUSED) {
         increment_telemetry_count(tcp_close_target_failures);
         tcp_stats_t stats = {.failure_reason = err};
