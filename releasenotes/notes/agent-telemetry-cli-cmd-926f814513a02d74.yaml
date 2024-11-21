@@ -11,4 +11,4 @@ enhancements:
     Add ability to show Agent telemetry payloads to be sent by Agent
     if the telemetry is enabled. One can run it with the following command:
        `agent diagnose show-metadata agent-telemetry`. See
-    `docs <https://docs.datadoghq.com/data_security/agent/#telemetry-collection>`for more details.
+    `docs <https://docs.datadoghq.com/data_security/agent/#telemetry-collection>` for more details.
