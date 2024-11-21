@@ -101,8 +101,6 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 
 	for _, event := range evBundle.Events {
 		entityID := event.Entity.GetID()
-		log.Debugf("Processing event for entity: %s of kind %s", entityID.ID, entityID.Kind)
-
 		switch entityID.Kind {
 		case workloadmeta.KindContainerImageMetadata:
 			imageEvents = append(imageEvents, event)

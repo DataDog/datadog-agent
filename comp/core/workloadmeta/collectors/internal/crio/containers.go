@@ -108,7 +108,7 @@ func getContainerImage(ctx context.Context, client crio.Client, imageSpec *v1.Im
 	}
 	wmImg, err := workloadmeta.NewContainerImage(imgID, imgName)
 	if err != nil {
-		log.Warnf("Failed to create image: %v", err)
+		log.Debugf("Failed to create image: %v", err)
 		return workloadmeta.ContainerImage{}
 	}
 
