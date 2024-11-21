@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows && kubeapiserver
+//go:build !darwin && !windows && kubeapiserver
 
 // Package workloadlist implements 'cluster-agent workloadlist'.
 package workloadlist
