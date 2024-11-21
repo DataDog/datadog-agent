@@ -227,6 +227,9 @@ def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_
             print("Test washer is always enabled in the CI, enforcing it")
 
         tw = TestWasher()
+        print(
+            "Processing test results for known flakes. Learn more about flake marker and test washer at https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark"
+        )
         should_succeed = tw.process_module_results(test_results)
         if should_succeed:
             print(
