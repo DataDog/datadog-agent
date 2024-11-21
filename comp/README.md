@@ -599,7 +599,7 @@ Package etw provides an ETW tracing interface
 
 ### [comp/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/haagent)
 
-*Datadog Team*: network-device-monitoring remote-config fleet
+*Datadog Team*: network-device-monitoring
 
 Package haagent handles states for HA Agent feature.
 
