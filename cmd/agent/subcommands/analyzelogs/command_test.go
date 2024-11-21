@@ -46,9 +46,11 @@ func TestRunAnalyzeLogs(t *testing.T) {
 	// Write config content to the temp file
 	configContent := `logs:
   - type: file
-	path: "/tmp/test.log"
-	service: "custom_logs"
-	source: "custom"`
+    path: 'C:\logs\e2e_test_logs\hello-world.log'
+    service: hello
+    source: custom_log
+   
+`
 
 	_, err = tempFile.Write([]byte(configContent))
 	assert.NoError(t, err)
@@ -59,30 +61,36 @@ func TestRunAnalyzeLogs(t *testing.T) {
 
 	// Set CLI params
 	cliParams := &CliParams{
-		CoreConfigPath: "bin/agent/dist/datadog.yaml",
 		LogConfigPath:  tempFile.Name(),
+		CoreConfigPath: tempFile.Name(),
 		ConfigSource:   sources.GetInstance(),
 	}
 
-	// Capture stdout
+	// // Capture stdout
 	oldStdout := os.Stdout
 	r, w, err := os.Pipe()
 	assert.NoError(t, err)
 	os.Stdout = w
 
-	// Run the function
-	go func() {
-		err := runAnalyzeLogs(cliParams, config)
-		assert.NoError(t, err)
-		w.Close() // Close the write end of the pipe when done
-	}()
+	err = runAnalyzeLogs(cliParams, config)
+	assert.NoError(t, err)
 
-	// Read and verify the output
+	w.Close() // Close the write end of the pipe when done
+
+	// // Read and verify the output
 	var buf bytes.Buffer
 	_, err = io.Copy(&buf, r)
 	assert.NoError(t, err)
 	os.Stdout = oldStdout // Restore original stdout
 
 	// Assert output matches expected
-	assert.Equal(t, configContent, buf.String())
+	expectedOutput :=
+		`logs:
+- type: file
+path: 'C:\logs\e2e_test_logs\hello-world.log'
+service: hello
+source: custom_log`
+
+	// Use contains isntead of equals since there is also debug logs sent to stdout
+	assert.Contains(t, buf.String(), expectedOutput)
 }
