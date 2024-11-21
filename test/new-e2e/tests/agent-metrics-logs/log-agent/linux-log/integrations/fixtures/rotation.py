@@ -23,4 +23,4 @@ class HelloCheck(AgentCheck):
         data['message'] = log_str
 
         self.send_log(data)
-        self.monotonic_count("rotate_logs_sent", self.counter, tags=["foo:bar"])
+        self.monotonic_count("rotate_logs_sent", self.counter)
