@@ -331,8 +331,8 @@ func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
 
 	// Verify there are not errors in the event log
 	entries, err := s.getAgentEventLogErrorsAndWarnings()
-	s.Assert().NoError(err, "should get errors and warnings from Application event log")
-	s.Assert().Empty(entries, "should not have errors or warnings from agents in the event log")
+	s.Require().NoError(err, "should get errors and warnings from Application event log")
+	s.Require().Empty(entries, "should not have errors or warnings from agents in the event log")
 }
 
 func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string, agentConfig string, securityAgentConfig string) {
