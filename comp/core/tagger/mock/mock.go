@@ -10,14 +10,12 @@
 package mock
 
 import (
-	"net/http"
 	"testing"
 
 	"go.uber.org/fx"
 
 	"github.com/stretchr/testify/assert"
 
-	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -50,11 +48,6 @@ type mockTaggerClient struct {
 	*taggerimpl.TaggerWrapper
 }
 
-// mockHandleRequest is a simple mocked http.Handler function to test the route is registered correctly on the api component
-func (m *mockTaggerClient) mockHandleRequest(w http.ResponseWriter, _ *http.Request) {
-	w.Write([]byte("OK"))
-}
-
 // New returns a Mock
 func New(t testing.TB) Mock {
 	c := configmock.New(t)
@@ -81,8 +74,7 @@ func New(t testing.TB) Mock {
 type Provides struct {
 	fx.Out
 
-	Comp     Mock
-	Endpoint api.AgentEndpointProvider
+	Comp Mock
 }
 
 type dependencies struct {
@@ -109,8 +101,7 @@ func NewMock(deps dependencies) (Provides, error) {
 		tagger,
 	}
 	return Provides{
-		Comp:     c,
-		Endpoint: api.NewAgentEndpointProvider(c.mockHandleRequest, "/tagger-list", "GET"),
+		Comp: c,
 	}, nil
 }
 
