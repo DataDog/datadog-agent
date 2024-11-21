@@ -189,3 +189,5 @@ updates:
       - dependencies
       - team/agent-metrics-logs
       - changelog/no-changelog
+    schedule:
+      interval: weekly
