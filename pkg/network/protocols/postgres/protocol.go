@@ -29,6 +29,8 @@ import (
 )
 
 const (
+	// KernelTelemetryMap is the map for getting kernel metrics
+	KernelTelemetryMap = "postgres_telemetry"
 	// InFlightMap is the name of the in-flight map.
 	InFlightMap               = "postgres_in_flight"
 	scratchBufferMap          = "postgres_scratch_buffer"
@@ -41,7 +43,6 @@ const (
 	tlsTerminationTailCall    = "uprobe__postgres_tls_termination"
 	tlsHandleResponseTailCall = "uprobe__postgres_tls_handle_response"
 	eventStream               = "postgres"
-	KernelTelemetryMap        = "postgres_telemetry" // map for getting kernel metrics
 )
 
 // protocol holds the state of the postgres protocol monitoring.
