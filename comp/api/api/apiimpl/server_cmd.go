@@ -76,6 +76,7 @@ func (server *apiServer) startCMDServer(
 		capture:             server.capture,
 		pidMap:              server.pidMap,
 		remoteAgentRegistry: server.remoteAgentRegistry,
+		autodiscovery:       server.autoConfig,
 	})
 
 	dcreds := credentials.NewTLS(&tls.Config{

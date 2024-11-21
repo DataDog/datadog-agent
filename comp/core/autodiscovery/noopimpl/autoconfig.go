@@ -87,6 +87,10 @@ func (n *noopAutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 	return integration.ConfigCheckResponse{}
 }
 
+func (n *noopAutoConfig) GetServerChannels() (chan *integration.Config, chan *integration.Config) {
+	return nil, nil
+}
+
 func (n *noopAutoConfig) IsStarted() bool {
 	return false
 }
