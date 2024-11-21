@@ -200,7 +200,7 @@ func (p *EBPFProbe) selectFentryMode() {
 }
 
 func (p *EBPFProbe) isNetworkNotSupported() bool {
-	return p.kernelVersion.IsRH7Kernel() || (p.kernelVersion.IsAmazonLinuxKernel() && p.kernelVersion.Code < kernel.Kernel4_14)
+	return p.kernelVersion.IsRH7Kernel() || (p.kernelVersion.IsAmazonLinuxKernel() && p.kernelVersion.Code < kernel.Kernel4_15)
 }
 
 func (p *EBPFProbe) sanityChecks() error {
