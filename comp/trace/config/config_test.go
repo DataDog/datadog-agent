@@ -2209,8 +2209,6 @@ func TestGetCoreConfigHandler(t *testing.T) {
 func TestDisableReceiverConfig(t *testing.T) {
 	config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
 		Params: corecomp.Params{ConfFilePath: "./testdata/disable_receiver.yaml"},
-		// Setting an explicit hostname here avoids a flake related to creating a grpc connection to a core agent that doesn't exist
-		Overrides: map[string]interface{}{"hostname": "testhostname"},
 	}))
 	cfg := config.Object()
 
@@ -2225,10 +2223,7 @@ func TestOnUpdateAPIKeyCallback(t *testing.T) {
 		n++
 	}
 
-	config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
-		// Setting an explicit hostname here avoids a flake related to creating a grpc connection to a core agent that doesn't exist
-		Overrides: map[string]interface{}{"hostname": "testhostname"},
-	}))
+	config := buildConfigComponent(t, true)
 
 	config.OnUpdateAPIKey(callback)
 
