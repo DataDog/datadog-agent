@@ -6,7 +6,7 @@
 // Package haagent handles states for HA Agent feature.
 package haagent
 
-// team: network-device-monitoring remote-config fleet
+// team: network-device-monitoring
 
 // Component is the component type.
 type Component interface {
