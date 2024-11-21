@@ -3,30 +3,32 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build zstd
-
-// Package strategy provides a set of functions for compressing with zlib / zstd /gzip
-package strategy
+// Package compressionimpl provides a set of functions for compressing with zstd
+package compressionimpl
 
 import (
 	"bytes"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 	"github.com/DataDog/zstd"
 )
+
+// Requires contains the compression level for zstd compression
+type Requires struct {
+	Level int
+}
 
 // ZstdStrategy is the strategy for when serializer_compressor_kind is zstd
 type ZstdStrategy struct {
 	level int
 }
 
-// NewZstdStrategy returns a new ZstdStrategy
-func NewZstdStrategy(level int) *ZstdStrategy {
-	log.Debugf("Compressing zstd at level %d", level)
-
-	return &ZstdStrategy{
-		level: level,
+// NewComponent returns a new ZstdStrategy
+func NewComponent(reqs Requires) compression.Provides {
+	return compression.Provides{
+		Comp: &ZstdStrategy{
+			level: reqs.Level,
+		},
 	}
 }
 

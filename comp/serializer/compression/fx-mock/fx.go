@@ -5,19 +5,21 @@
 
 //go:build test
 
-package compressionimpl
+// Package fx provides the fx module for the serializer/compression component
+package fx
 
 import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	compressionnoop "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-noop"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // MockModuleFactory defines the fx options for the mock component.
 func MockModuleFactory() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(NewMockCompressorFactory),
+		fxutil.ProvideComponentConstructor(
+			NewMockCompressor,
+		),
 	)
 }
 
@@ -38,5 +40,5 @@ func NewMockCompressorFactory() compression.Factory {
 
 // NewMockCompressor returns a new Mock
 func NewMockCompressor() compression.Component {
-	return NewCompressorFactory().NewNoopCompressor()
+	return compressionnoop.NewComponent().Comp
 }

@@ -3,24 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package strategy provides a set of functions for compressing with zlib / zstd
-package strategy
+// Package compressionimpl provides a set of functions for compressing with zlib / zstd
+package compressionimpl
 
 import (
 	"bytes"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
 )
 
 // NoopStrategy is the strategy for when serializer_compressor_kind is neither zlib nor zstd
 type NoopStrategy struct {
 }
 
-// NewNoopStrategy returns a new NoopStrategy for when kind is neither zlib nor zstd
-func NewNoopStrategy() *NoopStrategy {
-	log.Debug("Compressing noop")
-	return &NoopStrategy{}
+// NewComponent returns a new NoopStrategy for when kind is neither zlib nor zstd
+func NewComponent() compression.Provides {
+	return compression.Provides{
+		Comp: &NoopStrategy{},
+	}
 }
 
 // Compress implements the Compress method for NoopStrategy to satisfy the Compressor interface

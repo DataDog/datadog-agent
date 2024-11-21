@@ -9,6 +9,8 @@ package compression
 import (
 	"bytes"
 	"io"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
 )
 
 // team: agent-metrics-logs
@@ -41,4 +43,14 @@ type Component interface {
 type StreamCompressor interface {
 	io.WriteCloser
 	Flush() error
+}
+
+// Requires contains the config for Compression
+type Requires struct {
+	Cfg config.Component
+}
+
+// Provides contains the compression component
+type Provides struct {
+	Comp Component
 }

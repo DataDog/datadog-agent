@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -72,9 +72,10 @@ func newMock(deps mockDependencies) MockProvides {
 	opts.DontStartForwarders = true
 
 	aggDeps := aggregator.TestDeps{
-		Log:                deps.Log,
-		Hostname:           deps.Hostname,
-		SharedForwarder:    defaultforwarder.NoopForwarder{},
+		Log:             deps.Log,
+		Hostname:        deps.Hostname,
+		SharedForwarder: defaultforwarder.NoopForwarder{},
+		Compressor:      compressionmock.NewMockCompressor(),
 		CompressionFactory: compressionimpl.NewMockCompressorFactory(),
 	}
 
