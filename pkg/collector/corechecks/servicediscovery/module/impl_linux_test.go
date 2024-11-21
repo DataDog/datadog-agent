@@ -579,7 +579,7 @@ func assertStat(t assert.TestingT, svc model.Service) {
 	// https://github.com/shirou/gopsutil/commit/aa0b73dc6d5669de5bc9483c0655b1f9446317a9).
 	//
 	// This is due to an inherent race since the code in BootTimeWithContext
-	// substracts the uptime of the host from the current time, and there can be
+	// subtracts the uptime of the host from the current time, and there can be
 	// in theory an unbounded amount of time between the read of /proc/uptime
 	// and the retrieval of the current time. Allow a 10 second diff as a
 	// reasonable value.

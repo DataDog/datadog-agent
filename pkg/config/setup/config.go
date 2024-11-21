@@ -474,6 +474,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.timeout", 5000)
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
+	// HA Agent
+	config.BindEnvAndSetDefault("ha_agent.enabled", false)
+	config.BindEnv("ha_agent.group")
+
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
 	config.BindEnvAndSetDefault("kubernetes_apiserver_ca_path", "")
@@ -1085,7 +1089,6 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
-	config.BindEnvAndSetDefault("remote_tagger_timeout_seconds", 30)
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")

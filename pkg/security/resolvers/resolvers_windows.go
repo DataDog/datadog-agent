@@ -29,13 +29,13 @@ type Resolvers struct {
 }
 
 // NewResolvers creates a new instance of Resolvers
-func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, telemetry telemetry.Component) (*Resolvers, error) {
+func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, telemetry telemetry.Component, opts Opts) (*Resolvers, error) {
 	processResolver, err := process.NewResolver(config, statsdClient, scrubber, process.NewResolverOpts())
 	if err != nil {
 		return nil, err
 	}
 
-	tagsResolver := tags.NewResolver(telemetry)
+	tagsResolver := tags.NewResolver(telemetry, opts.Tagger)
 
 	userSessionsResolver, err := usersessions.NewResolver(config.RuntimeSecurity)
 	if err != nil {

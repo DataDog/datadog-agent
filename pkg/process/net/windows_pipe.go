@@ -10,9 +10,7 @@ package net
 import (
 	"fmt"
 	"net"
-	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/Microsoft/go-winio"
 )
 
@@ -36,9 +34,6 @@ type WindowsPipeListener struct {
 	pipePath string
 }
 
-// systemProbePipeName is the effective named pipe path for system probe
-var systemProbePipeName = SystemProbePipeName
-
 // systemProbePipSecurityDescriptor has the effective DACL for the system probe named pipe.
 var systemProbePipSecurityDescriptor = namedPipeSecurityDescriptor
 
@@ -57,15 +52,13 @@ func newPipeListener(namedPipeName string) (net.Listener, error) {
 }
 
 // NewSystemProbeListener sets up a named pipe listener for the system probe service.
-func NewSystemProbeListener(_ string) (*WindowsPipeListener, error) {
-	// socketAddr not used
-
-	namedPipe, err := newPipeListener(systemProbePipeName)
+func NewSystemProbeListener(namedPipePath string) (*WindowsPipeListener, error) {
+	namedPipe, err := newPipeListener(namedPipePath)
 	if err != nil {
-		return nil, fmt.Errorf("error named pipe %s : %s", systemProbePipeName, err)
+		return nil, fmt.Errorf("error named pipe %s : %s", namedPipePath, err)
 	}
 
-	return &WindowsPipeListener{namedPipe, systemProbePipeName}, nil
+	return &WindowsPipeListener{namedPipe, namedPipePath}, nil
 }
 
 // GetListener will return underlying Listener's conn
@@ -76,23 +69,4 @@ func (wp *WindowsPipeListener) GetListener() net.Listener {
 // Stop closes the WindowsPipeListener connection and stops listening
 func (wp *WindowsPipeListener) Stop() {
 	wp.conn.Close()
-}
-
-// DialSystemProbe connects to the system-probe service endpoint
-func DialSystemProbe() (net.Conn, error) {
-	// Go clients do not immediately close (named pipe) connections when done,
-	// they keep connections idle for a while.  Make sure the idle time
-	// is not too high and the timeout is generous enough for pending connections.
-	var timeout = time.Duration(30 * time.Second)
-
-	namedPipe, err := winio.DialPipe(systemProbePipeName, &timeout)
-	if err != nil {
-		// This important error may not get reported upstream, making connection failures
-		// very difficult to diagnose. Explicitly log the error here too for diagnostics.
-		var namedPipeErr = fmt.Errorf("error connecting to named pipe %s : %s", systemProbePipeName, err)
-		log.Errorf("%s", namedPipeErr.Error())
-		return nil, namedPipeErr
-	}
-
-	return namedPipe, nil
 }
