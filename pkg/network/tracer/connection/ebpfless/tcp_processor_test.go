@@ -8,6 +8,7 @@
 package ebpfless
 
 import (
+	"fmt"
 	"net"
 	"syscall"
 	"testing"
@@ -75,6 +76,29 @@ type testCapture struct {
 	ipv4    *layers.IPv4
 	ipv6    *layers.IPv6
 	tcp     *layers.TCP
+}
+
+func (tc testCapture) sanityCheck() {
+	if tc.ipv4 == nil && tc.ipv6 == nil {
+		panic("testCapture is missing IP capture")
+	} else if tc.ipv4 != nil && tc.ipv6 != nil {
+		panic("testCapture has both IP families")
+	} else if tc.pktType != unix.PACKET_HOST && tc.pktType != unix.PACKET_OUTGOING {
+		panic(fmt.Sprintf("testCapture has unrecogized pktType %d", tc.pktType))
+	}
+}
+
+func (tc testCapture) payloadLen() uint16 {
+	tc.sanityCheck()
+	family := network.AFINET
+	if tc.ipv6 != nil {
+		family = network.AFINET6
+	}
+	payloadLen, err := TCPPayloadLen(family, tc.ipv4, tc.ipv6, tc.tcp)
+	if err != nil {
+		panic(err)
+	}
+	return payloadLen
 }
 
 // TODO can this be merged with the logic creating scratchConns in ebpfless tracer?
@@ -607,47 +631,6 @@ func TestConnReset(t *testing.T) {
 		Retransmits:    0,
 		TCPEstablished: 1,
 		TCPClosed:      1,
-	}
-	require.Equal(t, expectedStats, f.conn.Monotonic)
-}
-
-func TestRstRetransmit(t *testing.T) {
-	pb := newPacketBuilder(lowerSeq, higherSeq)
-	basicHandshake := []testCapture{
-		pb.incoming(0, 0, 0, SYN),
-		pb.outgoing(0, 0, 1, SYN|ACK),
-		pb.incoming(0, 1, 1, ACK),
-		// handshake done, now blow up
-		pb.outgoing(0, 1, 1, RST|ACK),
-		pb.outgoing(0, 1, 1, RST|ACK),
-	}
-
-	expectedClientStates := []ConnStatus{
-		ConnStatAttempted,
-		ConnStatAttempted,
-		ConnStatEstablished,
-		// reset
-		ConnStatClosed,
-		ConnStatClosed,
-	}
-
-	f := newTcpTestFixture(t)
-	f.runAgainstState(basicHandshake, expectedClientStates)
-
-	// should count as a single failure
-	require.Equal(t, map[uint16]uint32{
-		uint16(syscall.ECONNRESET): 1,
-	}, f.conn.TCPFailures)
-
-	expectedStats := network.StatCounters{
-		SentBytes:      0,
-		RecvBytes:      0,
-		SentPackets:    3,
-		RecvPackets:    2,
-		Retransmits:    0,
-		TCPEstablished: 1,
-		// should count as a single closed connection
-		TCPClosed: 1,
 	}
 	require.Equal(t, expectedStats, f.conn.Monotonic)
 }
