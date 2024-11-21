@@ -614,6 +614,7 @@ require (
 	github.com/kouhin/envflag v0.0.0-20150818174321-0e9a86061649
 	github.com/lorenzosaino/go-sysctl v0.3.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.113.0
+	go.opentelemetry.io/collector/component/componenttest v0.114.0
 	go.opentelemetry.io/collector/config/configtelemetry v0.114.0
 )
 
@@ -1007,6 +1008,7 @@ require (
 	go.opentelemetry.io/collector/extension/auth v0.114.0 // indirect
 	go.opentelemetry.io/collector/extension/experimental/storage v0.114.0 // indirect
 	go.opentelemetry.io/collector/extension/extensioncapabilities v0.113.0 // indirect
+	go.opentelemetry.io/collector/extension/extensiontest v0.114.0 // indirect
 	go.opentelemetry.io/collector/extension/zpagesextension v0.113.0 // indirect
 	go.opentelemetry.io/collector/filter v0.113.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.114.0 // indirect
