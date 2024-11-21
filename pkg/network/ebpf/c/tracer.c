@@ -220,8 +220,6 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         return 0;
     }
 
-    increment_telemetry_count(tcp_failed_connect);
-
     // connection timeouts will have 0 pids as they are cleaned up by an idle process.
     // resets can also have kernel pids are they are triggered by receiving an RST packet from the server
     // get the pid from the ongoing failure map in this case, as it should have been set in connect(). else bail
@@ -241,6 +239,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         increment_telemetry_count(tcp_done_connection_flush);
     }
 
+    increment_telemetry_count(tcp_failed_connect);
 
     return 0;
 }
