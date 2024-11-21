@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 )
 
 const numProcFSUpdateRetries = 10
@@ -39,6 +41,11 @@ func NewProcInfo(procRoot string, pid uint32) *ProcInfo {
 
 // Avoid allocations, reuse the error to mark "iteration start" in the loop
 var errIterStart = errors.New("iteration start")
+var metricGroup = telemetry.NewMetricGroup("ebpf.attacher.procfs", telemetry.OptPrometheus)
+var metricName = "read"
+var readTemporaryFail = metricGroup.NewCounter(metricName, "result:temporary_fail")
+var readSuccess = metricGroup.NewCounter(metricName, "result:success")
+var readFail = metricGroup.NewCounter(metricName, "result:fail")
 
 func waitUntilSucceeds[T any](p *ProcInfo, procFile string, readFunc func(string) (T, error)) (T, error) {
 	// Read the exe link
@@ -48,12 +55,21 @@ func waitUntilSucceeds[T any](p *ProcInfo, procFile string, readFunc func(string
 	var result T
 	err := errIterStart
 	end := time.Now().Add(procFSUpdateTimeout)
+	failedTimes := 0
 
 	for err != nil && end.After(time.Now()) {
 		result, err = readFunc(filePath)
 		if err != nil {
+			failedTimes++
 			time.Sleep(procFSUpdateInterval)
 		}
+	}
+
+	if err == nil {
+		readTemporaryFail.Add(int64(failedTimes))
+		readSuccess.Add(1)
+	} else {
+		readFail.Add(1)
 	}
 
 	return result, err

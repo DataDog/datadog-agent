@@ -7,57 +7,27 @@ package cdn
 
 import (
 	"context"
-	"os"
-	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	detectenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/yaml.v2"
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 )
 
 type hostTagsGetter struct {
-	config model.Config
+	config     model.Config
+	staticTags []string
 }
 
-func newHostTagsGetter() hostTagsGetter {
+func newHostTagsGetter(env *env.Env) hostTagsGetter {
 	config := pkgconfigsetup.Datadog()
-	detectenv.DetectFeatures(config) // For host tags to work
-	err := populateTags(config)
-	if err != nil {
-		log.Warnf("Failed to populate tags from datadog.yaml: %v", err)
-	}
+	detectenv.DetectFeatures(config)
 	return hostTagsGetter{
-		config: config,
+		config:     config,
+		staticTags: env.Tags,
 	}
-}
-
-type tagsConfigFields struct {
-	Tags      []string `yaml:"tags"`
-	ExtraTags []string `yaml:"extra_tags"`
-}
-
-// populateTags is a best effort to get the tags from `datadog.yaml`.
-func populateTags(config model.Config) error {
-	configPath := "/etc/datadog-agent/datadog.yaml"
-	if runtime.GOOS == "windows" {
-		configPath = "C:\\ProgramData\\Datadog\\datadog.yaml"
-	}
-	rawConfig, err := os.ReadFile(configPath)
-	if err != nil {
-		return err
-	}
-	var cfg tagsConfigFields
-	err = yaml.Unmarshal(rawConfig, &cfg)
-	if err != nil {
-		return err
-	}
-	config.Set("tags", cfg.Tags, model.SourceFile)
-	config.Set("extra_tags", cfg.ExtraTags, model.SourceFile)
-	return nil
 }
 
 func (h *hostTagsGetter) get() []string {
@@ -66,6 +36,20 @@ func (h *hostTagsGetter) get() []string {
 	ctx, cc := context.WithTimeout(context.Background(), time.Second)
 	defer cc()
 	hostTags := hosttags.Get(ctx, true, h.config)
-	tags := append(hostTags.System, hostTags.GoogleCloudPlatform...)
+
+	tags := []string{}
+	tags = append(tags, h.staticTags...)
+	tags = append(tags, hostTags.System...)
+	tags = append(tags, hostTags.GoogleCloudPlatform...)
+	tagSet := make(map[string]struct{})
+	for _, tag := range tags {
+		tagSet[tag] = struct{}{}
+	}
+	deduplicatedTags := make([]string, 0, len(tagSet))
+	for tag := range tagSet {
+		deduplicatedTags = append(deduplicatedTags, tag)
+	}
+	tags = deduplicatedTags
+
 	return tags
 }

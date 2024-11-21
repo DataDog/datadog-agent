@@ -22,11 +22,11 @@ import (
 type TracerType int
 
 const (
-	TracerTypeKProbePrebuilt TracerType = iota
-	TracerTypeKProbeRuntimeCompiled
-	TracerTypeKProbeCORE
-	TracerTypeFentry
-	TracerTypeEbpfless
+	TracerTypeKProbePrebuilt        TracerType = iota //nolint:revive // TODO
+	TracerTypeKProbeRuntimeCompiled                   //nolint:revive // TODO
+	TracerTypeKProbeCORE                              //nolint:revive // TODO
+	TracerTypeFentry                                  //nolint:revive // TODO
+	TracerTypeEbpfless                                //nolint:revive // TODO
 )
 
 const (
