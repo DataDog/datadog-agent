@@ -28,9 +28,13 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run update task
+        env: 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: inv -e collector.update
 
       - name: Run generate task
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: inv -e collector.generate
 
       - name: Check for changes
