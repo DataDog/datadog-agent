@@ -7,10 +7,31 @@
 package client
 
 import (
+	"errors"
 	"net/http"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/funcs"
+)
+
+var (
+	// ErrNotImplemented is an error used when system-probe is attempted to be accessed on an unsupported OS
+	ErrNotImplemented = errors.New("system-probe unsupported")
 )
 
 // Get returns a http client configured to talk to the system-probe
-func Get(socketPath string) *http.Client {
-	return newSystemProbeClient(socketPath)
+var Get = funcs.MemoizeArgNoError[string, *http.Client](get)
+
+func get(socketPath string) *http.Client {
+	return &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:          2,
+			IdleConnTimeout:       idleConnTimeout,
+			DialContext:           DialContextFunc(socketPath),
+			TLSHandshakeTimeout:   1 * time.Second,
+			ResponseHeaderTimeout: 5 * time.Second,
+			ExpectContinueTimeout: 50 * time.Millisecond,
+		},
+	}
 }
