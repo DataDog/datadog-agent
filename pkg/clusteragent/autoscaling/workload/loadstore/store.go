@@ -23,6 +23,15 @@ type StoreInfo struct {
 	EntityCountByNamespace map[string]uint64
 }
 
+type StatsResult struct {
+	p10    ValueType
+	medium ValueType
+	avg    ValueType
+	p95    ValueType
+	p99    ValueType
+	max    ValueType
+}
+
 // Store is an interface for in-memory storage of entities and their load metric values.
 type Store interface {
 	// SetEntitiesValues sets the values for the given map
@@ -31,11 +40,11 @@ type Store interface {
 	// GetStoreInfo returns the store information.
 	GetStoreInfo() StoreInfo
 
-	// GetEntitiesByNamespace to get all entities and values by namespace
-	GetEntitiesByNamespace(namespace string) map[*Entity]*EntityValue
+	// GetEntitiesStatsByNamespace to get entities stats by namespace
+	GetEntitiesStatsByNamespace(namespace string) StatsResult
 
-	// GetEntitiesByMetricName to get all entities and values by load metric name
-	GetEntitiesByMetricName(metricName string) map[*Entity]*EntityValue
+	// GetEntitiesStatsByMetricName to get entities stats by metric name
+	GetEntitiesStatsByMetricName(metricName string) StatsResult
 
 	// GetAllMetricNamesWithCount to get all metric names and corresponding entity count
 	GetAllMetricNamesWithCount() map[string]int64
