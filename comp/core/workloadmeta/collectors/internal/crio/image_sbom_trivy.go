@@ -149,6 +149,23 @@ func convertScanResultToSBOM(result sbom.ScanResult) *workloadmeta.SBOM {
 	}
 }
 
+// notifyStoreWithSBOMForImage notifies the store about the SBOM for a given image.
+func (c *collector) notifyStoreWithSBOMForImage(imageID string, sbom *workloadmeta.SBOM) {
+	c.store.Notify([]workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceTrivy,
+			Entity: &workloadmeta.ContainerImageMetadata{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainerImageMetadata,
+					ID:   imageID,
+				},
+				SBOM: sbom,
+			},
+		},
+	})
+}
+
 // overlayDirectoryAccess checks if the overlay directory and overlay-layers directory are accessible.
 func overlayDirectoryAccess() error {
 	overlayPath := crioUtil.GetOverlayPath()

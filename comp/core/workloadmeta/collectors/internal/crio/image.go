@@ -92,23 +92,6 @@ func (c *collector) convertImageToEvent(img *v1.Image, info map[string]string, n
 	}
 }
 
-// notifyStoreWithSBOMForImage notifies the store about the SBOM for a given image.
-func (c *collector) notifyStoreWithSBOMForImage(imageID string, sbom *workloadmeta.SBOM) {
-	c.store.Notify([]workloadmeta.CollectorEvent{
-		{
-			Type:   workloadmeta.EventTypeSet,
-			Source: workloadmeta.SourceTrivy,
-			Entity: &workloadmeta.ContainerImageMetadata{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindContainerImageMetadata,
-					ID:   imageID,
-				},
-				SBOM: sbom,
-			},
-		},
-	})
-}
-
 // generateUnsetImageEvent generates an unset CollectorEvent for a removed or deleted image.
 func generateUnsetImageEvent(seenID workloadmeta.EntityID) *workloadmeta.CollectorEvent {
 	return &workloadmeta.CollectorEvent{
