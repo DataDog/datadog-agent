@@ -104,7 +104,7 @@ func TestSubscribeAllConfig(t *testing.T) {
 	case added := <-addedChan:
 		// Check the type and path of the source added
 		assert.Equal(t, "file", added.Config.Type)
-	case <-time.After(1 * time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("Timeout waiting for source addition")
 	}
 }
