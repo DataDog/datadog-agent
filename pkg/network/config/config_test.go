@@ -1355,7 +1355,7 @@ func TestUSMEventStream(t *testing.T) {
 		assert.False(t, cfg.EnableUSMEventStream)
 	})
 
-	t.Run("via deprecated ENV variable", func(t *testing.T) {
+	t.Run("via ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_EVENT_STREAM", "false")
 		cfg := New()
