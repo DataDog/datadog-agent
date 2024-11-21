@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package stream provides the autodiscovery stream config
+// Package stream provides the autodiscovery config streaming logic
 package stream
 
 import (
@@ -29,7 +29,12 @@ func Config(ac autodiscovery.Component, out pb.AgentSecure_AutodiscoveryStreamCo
 	ac.AddScheduler(schedulerName, s, true)
 	defer ac.RemoveScheduler(schedulerName)
 
-	return <-s.done
+	select {
+	case err := <-s.done:
+		return err
+	case <-out.Context().Done():
+		return nil
+	}
 }
 
 type scheduler struct {
