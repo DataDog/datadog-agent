@@ -55,7 +55,6 @@ func Test_reserveLocalPort(t *testing.T) {
 	port, listener, err := reserveLocalPort()
 	require.NoError(t, err)
 	require.NotNil(t, listener)
-	t.Logf("Port is: %d", port)
 
 	// THEN we should not be able to get another connection
 	// on the same port
