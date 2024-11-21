@@ -8,6 +8,10 @@ import os
 from contextlib import contextmanager
 from pathlib import Path
 
+from invoke.exceptions import Exit
+
+from tasks.libs.common.color import Color, color_message
+
 WORKTREE_DIRECTORY = Path.cwd().parent / "datadog-agent-worktree"
 LOCAL_DIRECTORY = Path.cwd().resolve()
 
@@ -22,12 +26,11 @@ def init_env(ctx, branch: str | None = None):
     """
 
     if not WORKTREE_DIRECTORY.is_dir():
-        try:
-            ctx.run(f"git worktree add '{WORKTREE_DIRECTORY}' origin/{branch or 'main'}")
-        except Exception as e:
-            e.add_note('You might want to reset the worktree directory with `inv worktree.remove`')
-
-            raise
+        if not ctx.run(f"git worktree add '{WORKTREE_DIRECTORY}' origin/{branch or 'main'}", warn=True):
+            raise Exit(
+                f'{color_message("Error", Color.RED)}: Cannot initialize worktree environment. You might want to reset the worktree directory with `inv worktree.remove`',
+                code=1,
+            )
 
     if branch:
         worktree_branch = ctx.run(
