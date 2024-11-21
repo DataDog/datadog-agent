@@ -22,7 +22,7 @@ func TestLoadSidecarProfiles(t *testing.T) {
 	tests := []struct {
 		name             string
 		profilesJSON     string
-		expectedProfiles *[]ProfileOverride
+		expectedProfiles []ProfileOverride
 		expectError      bool
 	}{
 		{
@@ -34,7 +34,7 @@ func TestLoadSidecarProfiles(t *testing.T) {
 		{
 			name:             "default profile",
 			profilesJSON:     "[]",
-			expectedProfiles: &[]ProfileOverride{},
+			expectedProfiles: []ProfileOverride{},
 			expectError:      false,
 		},
 		{
@@ -60,7 +60,7 @@ func TestLoadSidecarProfiles(t *testing.T) {
 					}
 				}
 			]`,
-			expectedProfiles: &[]ProfileOverride{
+			expectedProfiles: []ProfileOverride{
 				{
 					EnvVars: []corev1.EnvVar{
 						{Name: "ENV_VAR_1", Value: "value1"},

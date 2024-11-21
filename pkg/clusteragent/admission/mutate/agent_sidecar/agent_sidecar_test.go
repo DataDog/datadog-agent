@@ -70,7 +70,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 					Spec: corev1.PodSpec{
 						InitContainers: []corev1.Container{
-							*NewWebhook(mockConfig).getDefaultSidecarInitTemplate(),
+							*NewWebhook(mockConfig).getDefaultSidecarInitTemplate(agentConfigVolumeName),
 						},
 						Containers: []corev1.Container{
 							{Name: "container-name"},
@@ -236,7 +236,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					Spec: corev1.PodSpec{
 						ShareProcessNamespace: pointer.Ptr(true),
 						InitContainers: []corev1.Container{
-							*NewWebhook(mockConfig).getDefaultSidecarInitTemplate(),
+							*NewWebhook(mockConfig).getDefaultSidecarInitTemplate(agentConfigVolumeName),
 						},
 						Containers: []corev1.Container{
 							{
@@ -360,7 +360,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					Spec: corev1.PodSpec{
 						ShareProcessNamespace: pointer.Ptr(true),
 						InitContainers: []corev1.Container{
-							*NewWebhook(mockConfig).getDefaultSidecarInitTemplate(),
+							*NewWebhook(mockConfig).getDefaultSidecarInitTemplate(agentConfigVolumeName),
 						},
 						Containers: []corev1.Container{
 							{
@@ -713,7 +713,7 @@ func TestIsReadOnlyRootFilesystem(t *testing.T) {
 			assert.Equal(tt, test.expected, webhook.isReadOnlyRootFilesystem())
 
 			if test.expected {
-				webhook.addDefaultSidecarSecurity(sidecar)
+				webhook.addDefaultSidecarSecurity(sidecar, agentConfigVolumeName)
 			} else {
 				assert.Nil(t, sidecar.SecurityContext)
 				profile, _ := loadSidecarProfiles(test.profile)

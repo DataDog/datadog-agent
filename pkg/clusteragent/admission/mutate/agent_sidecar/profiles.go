@@ -31,7 +31,7 @@ type ProfileOverride struct {
 // loadSidecarProfiles returns the profile overrides provided by the user
 // It returns an error in case of miss-configuration or in case more than
 // one profile is configured
-func loadSidecarProfiles(profilesJSON string) (*[]ProfileOverride, error) {
+func loadSidecarProfiles(profilesJSON string) ([]ProfileOverride, error) {
 	// Read and parse profiles
 	var profiles []ProfileOverride
 
@@ -44,12 +44,12 @@ func loadSidecarProfiles(profilesJSON string) (*[]ProfileOverride, error) {
 		return nil, fmt.Errorf("only 1 profile is supported")
 	}
 
-	return &profiles, nil
+	return profiles, nil
 }
 
 // applyProfileOverrides applies the profile overrides to the container. It
 // returns a boolean that indicates if the container was mutated
-func applyProfileOverrides(container *corev1.Container, profiles *[]ProfileOverride) (bool, error) {
+func applyProfileOverrides(container *corev1.Container, profiles []ProfileOverride) (bool, error) {
 	if container == nil {
 		return false, fmt.Errorf("can't apply profile overrides to nil containers")
 	}
@@ -58,11 +58,11 @@ func applyProfileOverrides(container *corev1.Container, profiles *[]ProfileOverr
 		return false, fmt.Errorf("can't apply nil profiles")
 	}
 
-	if len(*profiles) == 0 {
+	if len(profiles) == 0 {
 		return false, nil
 	}
 
-	overrides := (*profiles)[0]
+	overrides := profiles[0]
 
 	mutated := false
 

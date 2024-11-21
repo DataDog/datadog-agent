@@ -37,6 +37,7 @@ import (
 )
 
 const webhookName = "agent_sidecar"
+const agentConfigVolumeName = "agent-config"
 
 // Selector specifies an object label selector and a namespace label selector
 type Selector struct {
@@ -58,7 +59,7 @@ type Webhook struct {
 	// These fields store datadog agent config parameters
 	// to avoid calling the config resolution each time the webhook
 	// receives requests because the resolution is CPU expensive.
-	profileOverrides             *[]ProfileOverride
+	profileOverrides             []ProfileOverride
 	provider                     string
 	imageName                    string
 	imageTag                     string
@@ -147,13 +148,14 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	}
 }
 
-// isReadOnlyRootFilesystem returns whether the agent sidecar should have readOnlyRootFilesystem security setup
+// isReadOnlyRootFilesystem returns whether the agent sidecar should have the readOnlyRootFilesystem security setup
 // This will always activate unless a profile is provided with a securityContext that has readOnlyRootFilesystem set to false
+// We want to default to true to ensure that the agent sidecar has the least amount of permissions as possible
 func (w *Webhook) isReadOnlyRootFilesystem() bool {
-	if w.profileOverrides == nil || len(*w.profileOverrides) == 0 {
+	if w.profileOverrides == nil || len(w.profileOverrides) == 0 {
 		return true
 	}
-	securityContext := (*w.profileOverrides)[0].SecurityContext
+	securityContext := w.profileOverrides[0].SecurityContext
 	return securityContext == nil || securityContext.ReadOnlyRootFilesystem == nil || *securityContext.ReadOnlyRootFilesystem
 }
 
@@ -172,11 +174,13 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 		agentSidecarContainer := w.getDefaultSidecarTemplate()
 		pod.Spec.Containers = append(pod.Spec.Containers, *agentSidecarContainer)
 		if w.isReadOnlyRootFilesystem() {
-			w.addDefaultSidecarSecurity(agentSidecarContainer)
-			pod.Spec.Volumes = append(pod.Spec.Volumes, *w.getDefaultSidecarVolumeTemplate())
+			configVolume := w.getDefaultSidecarVolumeTemplate()
+			pod.Spec.Volumes = append(pod.Spec.Volumes, *configVolume)
+			w.addDefaultSidecarSecurity(agentSidecarContainer, configVolume.Name)
 			// Don't want to apply any overrides to the agent sidecar init container
 			defer func() {
-				pod.Spec.InitContainers = append(pod.Spec.InitContainers, *w.getDefaultSidecarInitTemplate())
+				initContainer := w.getDefaultSidecarInitTemplate(configVolume.Name)
+				pod.Spec.InitContainers = append(pod.Spec.InitContainers, *initContainer)
 			}()
 		}
 		podUpdated = true
@@ -206,7 +210,7 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 	return podUpdated, nil
 }
 
-func (w *Webhook) getDefaultSidecarInitTemplate() *corev1.Container {
+func (w *Webhook) getDefaultSidecarInitTemplate(configVolumeName string) *corev1.Container {
 	return &corev1.Container{
 		Image:           fmt.Sprintf("%s/%s:%s", w.containerRegistry, w.imageName, w.imageTag),
 		ImagePullPolicy: corev1.PullIfNotPresent,
@@ -214,7 +218,7 @@ func (w *Webhook) getDefaultSidecarInitTemplate() *corev1.Container {
 		Command:         []string{"sh", "-c", "cp -R /etc/datadog-agent/* /agent-config/"},
 		VolumeMounts: []corev1.VolumeMount{
 			{
-				Name:      "agent-config",
+				Name:      configVolumeName,
 				MountPath: "/agent-config",
 			},
 		},
@@ -223,18 +227,19 @@ func (w *Webhook) getDefaultSidecarInitTemplate() *corev1.Container {
 
 func (w *Webhook) getDefaultSidecarVolumeTemplate() *corev1.Volume {
 	return &corev1.Volume{
-		Name: "agent-config",
+		Name: agentConfigVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
 		},
 	}
 }
 
-func (w *Webhook) addDefaultSidecarSecurity(container *corev1.Container) {
+func (w *Webhook) addDefaultSidecarSecurity(container *corev1.Container, configVolumeName string) {
 	if container.SecurityContext == nil {
-		container.SecurityContext = &corev1.SecurityContext{ReadOnlyRootFilesystem: pointer.Ptr(true)}
+		container.SecurityContext = &corev1.SecurityContext{}
 	}
-	container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{Name: "agent-config", MountPath: "/etc/datadog-agent"})
+	container.SecurityContext.ReadOnlyRootFilesystem = pointer.Ptr(true)
+	container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{Name: configVolumeName, MountPath: "/etc/datadog-agent"})
 }
 
 func (w *Webhook) getDefaultSidecarTemplate() *corev1.Container {
@@ -321,7 +326,7 @@ func (w *Webhook) getDefaultSidecarTemplate() *corev1.Container {
 }
 
 // labelSelectors returns the mutating webhooks object selectors based on the configuration
-func labelSelectors(datadogConfig config.Component, profileOverrides *[]ProfileOverride) (namespaceSelector, objectSelector *metav1.LabelSelector) {
+func labelSelectors(datadogConfig config.Component, profileOverrides []ProfileOverride) (namespaceSelector, objectSelector *metav1.LabelSelector) {
 	// Read and parse selectors
 	selectorsJSON := datadogConfig.GetString("admission_controller.agent_sidecar.selectors")
 
