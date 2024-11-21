@@ -33,7 +33,6 @@ type TestServer struct {
 	request             *http.Request
 	statusCodeContainer *StatusCodeContainer
 	stopChan            chan struct{}
-	// httpClient          *http.Client
 }
 
 // NewTestServer creates a new test server
@@ -103,7 +102,10 @@ func NewTestHTTPSServer(forceHTTP1 bool) *httptest.Server {
 
 	// Configure the server to support HTTP/2
 	if !forceHTTP1 {
-		http2.ConfigureServer(testServer.Config, &http2.Server{})
+		err := http2.ConfigureServer(testServer.Config, &http2.Server{})
+		if err != nil {
+			panic(err)
+		}
 		testServer.TLS = testServer.Config.TLSConfig
 	}
 	// Start the server with TLS

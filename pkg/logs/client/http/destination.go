@@ -273,6 +273,9 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	}()
 
 	ctx := d.destinationsContext.Context()
+	if ctx == nil {
+		return fmt.Errorf("Destination context is nil")
+	}
 
 	if err != nil {
 		return err
@@ -307,6 +310,9 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	req.Header.Set("dd-current-timestamp", strconv.FormatInt(then.UnixMilli(), 10))
 
 	req = req.WithContext(ctx)
+	if d.client == nil {
+		return errors.New("HTTP client is nil")
+	}
 	resp, err := d.client.Do(req)
 
 	latency := time.Since(then).Milliseconds()
