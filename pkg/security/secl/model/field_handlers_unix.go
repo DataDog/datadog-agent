@@ -299,7 +299,6 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 	case "connect":
 		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
-		_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
 	case "dns":
 	case "exec":
 		if ev.Exec.Process.IsNotKworker() {

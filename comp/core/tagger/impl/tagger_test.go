@@ -17,6 +17,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -67,7 +68,7 @@ func TestEnrichTags(t *testing.T) {
 
 	tagger, err := NewTaggerClient(params, c, wmeta, logComponent, noopTelemetry.GetCompatComponent())
 	assert.NoError(t, err)
-	fakeTagger := tagger.defaultTagger.(*FakeTagger)
+	fakeTagger := tagger.defaultTagger.(*mock.FakeTagger)
 
 	containerName, initContainerName, containerID, initContainerID, podUID := "container-name", "init-container-name", "container-id", "init-container-id", "pod-uid"
 
@@ -191,7 +192,7 @@ func TestEnrichTagsOrchestrator(t *testing.T) {
 	tagger, err := NewTaggerClient(params, c, wmeta, logComponent, noopTelemetry.GetCompatComponent())
 	assert.NoError(t, err)
 
-	fakeTagger := tagger.defaultTagger.(*FakeTagger)
+	fakeTagger := tagger.defaultTagger.(*mock.FakeTagger)
 
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
 	tb := tagset.NewHashingTagsAccumulator()
@@ -203,6 +204,7 @@ func TestEnrichTagsOptOut(t *testing.T) {
 	// Create fake tagger
 	c := configmock.New(t)
 	c.SetWithoutSource("dogstatsd_origin_optout_enabled", true)
+	c.SetWithoutSource("origin_detection_unified", true)
 	params := tagger.Params{
 		UseFakeTagger: true,
 	}
@@ -215,14 +217,18 @@ func TestEnrichTagsOptOut(t *testing.T) {
 
 	tagger, err := NewTaggerClient(params, c, wmeta, logComponent, noopTelemetry.GetCompatComponent())
 	assert.NoError(t, err)
-	fakeTagger := tagger.defaultTagger.(*FakeTagger)
+	fakeTagger := tagger.defaultTagger.(*mock.FakeTagger)
 
-	fakeTagger.SetTags(types.NewEntityID(types.EntityIDPrefix("foo"), "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, nil, nil)
+
 	tb := tagset.NewHashingTagsAccumulator()
-	tagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "foo://bar", PodUID: "pod-uid", ContainerID: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
+	// Test with none cardinality
+	tagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", ContainerID: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
 	assert.Equal(t, []string{}, tb.Get())
-	tagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "foo://bar", ContainerID: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
-	assert.Equal(t, []string{}, tb.Get())
+
+	// Test without none cardinality
+	tagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", PodUID: "pod-uid", ContainerID: "container-id", Cardinality: "low", ProductOrigin: taggertypes.ProductOriginDogStatsD})
+	assert.Equal(t, []string{"container-low"}, tb.Get())
 }
 
 func TestGenerateContainerIDFromExternalData(t *testing.T) {
@@ -307,7 +313,7 @@ func TestAgentTags(t *testing.T) {
 
 	tagger, err := NewTaggerClient(params, c, wmeta, logComponent, noopTelemetry.GetCompatComponent())
 	assert.NoError(t, err)
-	fakeTagger := tagger.defaultTagger.(*FakeTagger)
+	fakeTagger := tagger.defaultTagger.(*mock.FakeTagger)
 
 	agentContainerID, podUID := "agentContainerID", "podUID"
 	mockMetricsProvider := collectormock.NewMetricsProvider()
@@ -346,7 +352,7 @@ func TestGlobalTags(t *testing.T) {
 
 	tagger, err := NewTaggerClient(params, c, wmeta, logComponent, noopTelemetry.GetCompatComponent())
 	assert.NoError(t, err)
-	fakeTagger := tagger.defaultTagger.(*FakeTagger)
+	fakeTagger := tagger.defaultTagger.(*mock.FakeTagger)
 	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"container-low"}, []string{"container-orch"}, []string{"container-high"}, nil)
 	fakeTagger.SetGlobalTags([]string{"global-low"}, []string{"global-orch"}, []string{"global-high"}, nil)
 
