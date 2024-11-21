@@ -13,8 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -36,21 +34,12 @@ type dispatcher struct {
 	rebalancingPeriod             time.Duration
 }
 
-func newDispatcher(tagger tagger.Component) *dispatcher {
+func newDispatcher() *dispatcher {
 	d := &dispatcher{
 		store: newClusterStore(),
 	}
 	d.nodeExpirationSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.node_expiration_timeout")
-
-	// Attach the cluster agent's global tags to all dispatched checks
-	// as defined in the tagger's workloadmeta collector
-	var err error
-	d.extraTags, err = tagger.GlobalTags(types.LowCardinality)
-	if err != nil {
-		log.Warnf("Cannot get global tags from the tagger: %v", err)
-	} else {
-		log.Debugf("Adding global tags to cluster check dispatcher: %v", d.extraTags)
-	}
+	d.extraTags = pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.extra_tags")
 
 	excludedChecks := pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks")
 	// This option will almost always be empty
@@ -88,6 +77,7 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 		return d
 	}
 
+	var err error
 	d.clcRunnersClient, err = clusteragent.GetCLCRunnerClient()
 	if err != nil {
 		log.Warnf("Cannot create CLC runners client, advanced dispatching will be disabled: %v", err)
