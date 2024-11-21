@@ -111,6 +111,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getSocketSockOffset(f.kernelVersion)
 	case OffsetNameSocketProtocol:
 		value = getSocketProtocolOffset(f.kernelVersion)
+	case OffsetNameSKFlagsOffset:
+		value = getSKFlagsOffset(f.kernelVersion)
 	case OffsetNameNFConnStructCTNet:
 		value = getNFConnCTNetOffset(f.kernelVersion)
 	case OffsetNameSockCommonStructSKCFamily:
