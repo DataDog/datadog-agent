@@ -270,6 +270,7 @@ type CreditCardsConfig struct {
 	KeepValues []string `mapstructure:"keep_values"`
 }
 
+// CacheConfig holds the configuration for caching obfuscated queries.
 type CacheConfig struct {
 	// Enabled specifies whether caching should be enabled.
 	Enabled bool `mapstructure:"enabled"`
