@@ -30,26 +30,10 @@ import (
 var (
 	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
 
-	// Kernel3_10 is the KernelVersion representation of kernel version 3.10
-	Kernel3_10 = kernel.VersionCode(3, 10, 0)
-	// Kernel3_18 is the KernelVersion representation of kernel version 3.18
-	Kernel3_18 = kernel.VersionCode(3, 18, 0)
-	// Kernel4_0 is the KernelVersion representation of kernel version 4.0
-	Kernel4_0 = kernel.VersionCode(4, 0, 0)
-	// Kernel4_1 is the KernelVersion representation of kernel version 4.1
-	Kernel4_1 = kernel.VersionCode(4, 1, 0)
-	// Kernel4_2 is the KernelVersion representation of kernel version 4.2
-	Kernel4_2 = kernel.VersionCode(4, 2, 0)
-	// Kernel4_4 is the KernelVersion representation of kernel version 4.4
-	Kernel4_4 = kernel.VersionCode(4, 4, 0)
-	// Kernel4_5 is the KernelVersion representation of kernel version 4.5
-	Kernel4_5 = kernel.VersionCode(4, 5, 0)
 	// Kernel4_9 is the KernelVersion representation of kernel version 4.9
 	Kernel4_9 = kernel.VersionCode(4, 9, 0)
 	// Kernel4_10 is the KernelVersion representation of kernel version 4.10
 	Kernel4_10 = kernel.VersionCode(4, 10, 0)
-	// Kernel4_11 is the KernelVersion representation of kernel version 4.11
-	Kernel4_11 = kernel.VersionCode(4, 11, 0)
 	// Kernel4_12 is the KernelVersion representation of kernel version 4.12
 	Kernel4_12 = kernel.VersionCode(4, 12, 0)
 	// Kernel4_13 is the KernelVersion representation of kernel version 4.13
@@ -251,11 +235,6 @@ func (k *Version) IsRH7Kernel() bool {
 	return (k.OsRelease["ID"] == "centos" || k.OsRelease["ID"] == "rhel") && strings.HasPrefix(k.OsRelease["VERSION_ID"], "7")
 }
 
-// IsCentOSKernel returns wether the kernel is a centos kernel
-func (k *Version) IsCentOSKernel() bool {
-	return k.OsRelease["ID"] == "centos"
-}
-
 // IsRH8Kernel returns whether the kernel is a rh8 kernel
 func (k *Version) IsRH8Kernel() bool {
 	return k.OsRelease["PLATFORM_ID"] == "platform:el8"
@@ -274,11 +253,6 @@ func (k *Version) IsRH9_3Kernel() bool {
 // IsSuseKernel returns whether the kernel is a suse kernel
 func (k *Version) IsSuseKernel() bool {
 	return k.IsSLESKernel() || k.OsRelease["ID"] == "opensuse-leap"
-}
-
-// IsFedoraKernel returns whether the kernel is a fedora kernel
-func (k *Version) IsFedoraKernel() bool {
-	return k.OsRelease["ID"] == "fedora"
 }
 
 // IsSuse12Kernel returns whether the kernel is a sles 12 kernel
@@ -309,11 +283,6 @@ func (k *Version) IsOpenSUSELeap15_3Kernel() bool {
 // IsOracleUEKKernel returns whether the kernel is an oracle uek kernel
 func (k *Version) IsOracleUEKKernel() bool {
 	return k.OsRelease["ID"] == "ol" && k.Code >= Kernel5_4
-}
-
-// IsOracleKernel returns wether the kernel is a oracle kernel
-func (k *Version) IsOracleKernel() bool {
-	return k.OsRelease["ID"] == "ol"
 }
 
 // IsCOSKernel returns whether the kernel is a suse kernel
