@@ -268,34 +268,46 @@ func TestGoDetector(t *testing.T) {
 	if os.Getenv("CI") == "" && os.Getuid() != 0 {
 		t.Skip("skipping test; requires root privileges")
 	}
+
+	tests := []struct {
+		program string
+		build   func(string, string) (string, error)
+		binary  string
+		pid     int
+	}{
+		{
+			program: "instrumented",
+			build:   usmtestutil.BuildGoBinaryWrapper,
+		},
+		{
+			program: "instrumented",
+			build:   usmtestutil.BuildGoBinaryWrapperWithoutSymbols,
+		},
+	}
+
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
-	serverBinWithSymbols, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "instrumented")
-	require.NoError(t, err)
-	serverBinWithoutSymbols, err := usmtestutil.BuildGoBinaryWrapperWithoutSymbols(filepath.Join(curDir, "testutil"), "instrumented")
-	require.NoError(t, err)
 
-	cmdWithSymbols := exec.Command(serverBinWithSymbols)
-	require.NoError(t, cmdWithSymbols.Start())
-	t.Cleanup(func() {
-		_ = cmdWithSymbols.Process.Kill()
-	})
+	for i, test := range tests {
+		binary, err := test.build(filepath.Join(curDir, "testutil"), test.program)
+		require.NoError(t, err)
 
-	cmdWithoutSymbols := exec.Command(serverBinWithoutSymbols)
-	require.NoError(t, cmdWithoutSymbols.Start())
-	t.Cleanup(func() {
-		_ = cmdWithoutSymbols.Process.Kill()
-	})
+		cmd := exec.Command(binary)
+		require.NoError(t, cmd.Start())
+		tests[i].pid = cmd.Process.Pid
+		t.Cleanup(func() {
+			_ = cmd.Process.Kill()
+		})
+	}
+
 	ctx := usm.NewDetectionContext(nil, envs.NewVariables(nil), nil)
 	ctx.Pid = os.Getpid()
 	result := goDetector(ctx)
 	require.Equal(t, None, result)
 
-	ctx.Pid = cmdWithSymbols.Process.Pid
-	result = goDetector(ctx)
-	require.Equal(t, Provided, result)
-
-	ctx.Pid = cmdWithoutSymbols.Process.Pid
-	result = goDetector(ctx)
-	require.Equal(t, Provided, result)
+	for _, binary := range tests {
+		ctx.Pid = binary.pid
+		result = goDetector(ctx)
+		require.Equal(t, Provided, result)
+	}
 }
