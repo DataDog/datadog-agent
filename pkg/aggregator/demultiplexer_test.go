@@ -273,11 +273,7 @@ func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 	assert.Equal(4, pipelines)
 }
 
-func createDemuxDeps(
-	t *testing.T,
-	opts AgentDemultiplexerOptions,
-	eventPlatformParams eventplatformimpl.Params,
-) aggregatorDeps {
+func createDemuxDeps(t *testing.T, opts AgentDemultiplexerOptions, eventPlatformParams eventplatformimpl.Params) aggregatorDeps {
 	return createDemuxDepsWithOrchestratorFwd(t, opts, orchestratorForwarderImpl.NewDefaultParams(), eventPlatformParams)
 }
 
@@ -292,8 +288,7 @@ func createDemuxDepsWithOrchestratorFwd(
 	t *testing.T,
 	opts AgentDemultiplexerOptions,
 	orchestratorParams orchestratorForwarderImpl.Params,
-	eventPlatformParams eventplatformimpl.Params,
-) aggregatorDeps {
+	eventPlatformParams eventplatformimpl.Params) aggregatorDeps {
 	modules := fx.Options(
 		defaultforwarder.MockModule(),
 		core.MockBundle(),
