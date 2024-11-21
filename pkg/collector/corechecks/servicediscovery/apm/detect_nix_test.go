@@ -283,6 +283,14 @@ func TestGoDetector(t *testing.T) {
 			program: "instrumented",
 			build:   usmtestutil.BuildGoBinaryWrapperWithoutSymbols,
 		},
+		{
+			program: "instrumented2",
+			build:   usmtestutil.BuildGoBinaryWrapper,
+		},
+		{
+			program: "instrumented2",
+			build:   usmtestutil.BuildGoBinaryWrapperWithoutSymbols,
+		},
 	}
 
 	curDir, err := testutil.CurDir()
