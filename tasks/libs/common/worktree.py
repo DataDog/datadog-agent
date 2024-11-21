@@ -22,7 +22,12 @@ def init_env(ctx, branch: str | None = None):
     """
 
     if not WORKTREE_DIRECTORY.is_dir():
-        ctx.run(f"git worktree add '{WORKTREE_DIRECTORY}' origin/{branch or 'main'}")
+        try:
+            ctx.run(f"git worktree add '{WORKTREE_DIRECTORY}' origin/{branch or 'main'}")
+        except Exception as e:
+            e.add_note('You might want to reset the worktree directory with `inv worktree.remove`')
+
+            raise
 
     if branch:
         worktree_branch = ctx.run(
