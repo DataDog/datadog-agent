@@ -60,7 +60,7 @@ func NewMockHaAgent() haagent.Component {
 	}
 }
 
-// Module defines the fx options for the mockHaAgent component.
+// Module defines the fx options for the mock component.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(NewMockHaAgent),
