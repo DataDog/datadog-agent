@@ -27,8 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
-	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl-noop"
-	mockhaagent "github.com/DataDog/datadog-agent/comp/haagent/mock"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -231,7 +230,7 @@ func TestDefaultData(t *testing.T) {
 
 	s := &MockSerializerIterableSerie{}
 	taggerComponent := taggerMock.SetupFakeTagger(t)
-	agg := NewBufferedAggregator(s, nil, haagentimpl.NewNoopHaAgent(), taggerComponent, "hostname", DefaultFlushInterval)
+	agg := NewBufferedAggregator(s, nil, haagentmock.NewMockHaAgent(), taggerComponent, "hostname", DefaultFlushInterval)
 
 	start := time.Now()
 
@@ -598,7 +597,7 @@ func TestTags(t *testing.T) {
 
 			taggerComponent := taggerMock.SetupFakeTagger(t)
 
-			mockHaAgent := mockhaagent.NewMockHaAgent()
+			mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.MockComponent)
 			mockHaAgent.SetEnabled(tt.haAgentEnabled)
 
 			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, tt.hostname, time.Second)
@@ -744,7 +743,7 @@ type aggregatorDeps struct {
 }
 
 func createAggrDeps(t *testing.T) aggregatorDeps {
-	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), compressionimpl.MockModule(), haagentimpl.NoopModule())
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), compressionimpl.MockModule(), haagentmock.MockModule())
 
 	opts := demuxTestOptions()
 	return aggregatorDeps{

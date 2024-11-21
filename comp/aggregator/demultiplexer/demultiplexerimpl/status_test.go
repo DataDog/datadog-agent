@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"testing"
 
-	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl-noop"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
@@ -21,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -62,7 +62,7 @@ func TestStatusOutPut(t *testing.T) {
 		core.MockBundle(),
 		compressionimpl.MockModule(),
 		defaultforwarder.MockModule(),
-		haagentimpl.NoopModule(),
+		haagentmock.MockModule(),
 		orchestratorimpl.MockModule(),
 		eventplatformimpl.MockModule(),
 		fx.Provide(func() tagger.Component {

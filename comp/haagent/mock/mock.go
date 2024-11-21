@@ -58,7 +58,7 @@ type Provides struct {
 }
 
 // NewMockHaAgent returns a new Mock
-func NewMockHaAgent() MockComponent {
+func NewMockHaAgent() haagent.Component {
 	return &mockHaAgent{
 		enabled: false,
 		group:   "group01",
