@@ -4,16 +4,20 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package strategy provides a set of functions for compressing with zlib / zstd / gzip
-package strategy
+package compressionimpl
 
 import (
 	"bytes"
 	"compress/gzip"
 	"io"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/compression"
 )
+
+// Requires contains the compression level for gzip compression
+type Requires struct {
+	Level int
+}
 
 // GzipStrategy is the strategy for when serializer_compression_kind is gzip
 type GzipStrategy struct {
@@ -21,17 +25,17 @@ type GzipStrategy struct {
 }
 
 // NewGzipStrategy returns a new GzipStrategy
-func NewGzipStrategy(level int) *GzipStrategy {
+func NewComponent(level int) *GzipStrategy {
 	if level < gzip.NoCompression {
 		level = gzip.NoCompression
 	} else if level > gzip.BestCompression {
 		level = gzip.BestCompression
 	}
 
-	log.Debugf("Compressing gzip at level %d", level)
-
-	return &GzipStrategy{
-		level: level,
+	return compression.Provides{
+		Comp: &GzipStrategy{
+			level: level,
+		},
 	}
 }
 

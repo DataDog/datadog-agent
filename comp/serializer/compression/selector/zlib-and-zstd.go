@@ -9,6 +9,9 @@
 package selector
 
 import (
+	"slices"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/common"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
@@ -17,6 +20,28 @@ import (
 	implzstd "github.com/DataDog/datadog-agent/comp/serializer/compression/impl-zstd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// NewCompressor returns a new Compressor based on serializer_compressor_kind
+// This function is called only when the zlib build tag is included
+func (*CompressorFactory) NewCompressor(kind string, level int, option string, valid []string) compression.Component {
+	if !slices.Contains(valid, kind) {
+		log.Warn("invalid " + option + " set. use one of " + strings.Join(valid, ", "))
+		return implnoop.NewComponent().Comp
+	}
+
+	switch kind {
+	case common.ZlibKind:
+		return implzlib.NewComponent().Comp
+	case common.ZstdKind:
+		return implzstd.NewComponent(implzstd.Requires{Level: level}).Comp
+	case common.NoneKind:
+		log.Warn("no " + option + " set. use one of " + strings.Join(valid, ", "))
+		return implnoop.NewComponent().Comp
+	default:
+		log.Warn("invalid " + option + " set. use one of " + strings.Join(valid, ", "))
+		return implnoop.NewComponent().Comp
+	}
+}
 
 // NewCompressorReq returns a new Compressor based on serializer_compressor_kind
 // This function is called when both zlib and zstd build tags are included
