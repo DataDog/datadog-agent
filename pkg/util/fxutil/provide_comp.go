@@ -67,8 +67,7 @@ func ProvideComponentConstructor(compCtorFunc interface{}) fx.Option {
 		// Caller(1) is the caller of *this* function, which should be a fx.go source file.
 		// This info lets us show better error messages to developers
 		_, file, line, _ := runtime.Caller(1)
-		errmsg := "argument must be a function with 0 or 1 arguments, and 1 or 2 return values"
-		errtext := fmt.Sprintf("%s:%d: %s", file, line, errmsg)
+		errtext := fmt.Sprintf("%s:%d: argument must be a function with 0 or 1 arguments, and 1 or 2 return values", file, line)
 		return fx.Error(errors.New(errtext))
 	}
 	if ctorFuncType.NumIn() > 0 && ctorFuncType.In(0).Kind() != reflect.Struct {
@@ -83,7 +82,8 @@ func ProvideComponentConstructor(compCtorFunc interface{}) fx.Option {
 
 	ctorTypes, err := getConstructorTypes(ctorFuncType)
 	if err != nil {
-		return fx.Error(err)
+		_, file, line, _ := runtime.Caller(1)
+		return fx.Error(fmt.Errorf("%s:%d: %s", file, line, err))
 	}
 
 	// build reflect.Type of the constructor function that will be provided to `fx.Provide`
