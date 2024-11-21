@@ -29,7 +29,7 @@ def init_env(ctx, branch: str | None = None):
             f"git -C '{WORKTREE_DIRECTORY}' rev-parse --abbrev-ref HEAD", hide=True
         ).stdout.strip()
         if worktree_branch != branch:
-            ctx.run(f"git -C '{WORKTREE_DIRECTORY}' switch '{branch}'", hide=True)
+            ctx.run(f"git -C '{WORKTREE_DIRECTORY}' checkout '{branch}'", hide=True)
 
         if not os.environ.get("AGENT_WORKTREE_NO_PULL"):
             ctx.run(f"git -C '{WORKTREE_DIRECTORY}' pull", hide=True)
