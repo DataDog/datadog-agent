@@ -296,26 +296,21 @@ func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, chan
 			defer close(done)
 			// Run the actual agent/service
 			err = s.service.Run(ctx)
-			if err != nil {
-				if errors.Is(err, ErrCleanStopAfterInit) {
-					s.eventlog(messagestrings.MSG_AGENT_CLEAN_STOP_AFTER_INIT, err.Error())
-				} else {
-					s.eventlog(messagestrings.MSG_SERVICE_FAILED, err.Error())
-				}
-			}
 		}()
 		select {
 		case <-done:
-			if err != nil {
+		case <-cleanExitCtx.Done():
+			err = errors.New("service did not cleanly shutdown in a timely manner, hard stopping service")
+		}
+		if err != nil {
+			if errors.Is(err, ErrCleanStopAfterInit) {
+				s.eventlog(messagestrings.MSG_AGENT_CLEAN_STOP_AFTER_INIT, err.Error())
+			} else {
+				s.eventlog(messagestrings.MSG_SERVICE_FAILED, err.Error())
 				// since exitGate is meant to avoid an error, if we are returning
 				// with an error then we can skip the exitGate.
 				return
 			}
-		case <-cleanExitCtx.Done():
-			s.eventlog(messagestrings.MSG_SERVICE_FAILED, "service did not cleanly shutdown in a timely manner, hard stopping service")
-			// since exitGate is meant to avoid an error, if we are returning
-			// with an error then we can skip the exitGate.
-			return
 		}
 	}
 
