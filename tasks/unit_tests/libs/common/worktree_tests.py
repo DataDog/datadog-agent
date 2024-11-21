@@ -65,3 +65,18 @@ class TestWorktree(unittest.TestCase):
             branch6 = get_default_branch()
 
         self.assertNotEqual(branch6, branch7)
+
+    def test_context_no_switch(self):
+        ctx = get_ctx()
+
+        with agent_context(ctx, '6.53.x'):
+            branch6 = get_default_branch()
+
+        with agent_context(ctx, 'main'):
+            branch7 = get_default_branch()
+
+        with agent_context(ctx, 'main', no_switch=True):
+            branch_noswitch = get_default_branch()
+
+        self.assertNotEqual(branch6, branch7)
+        self.assertEqual(branch7, branch_noswitch)

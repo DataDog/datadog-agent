@@ -48,10 +48,13 @@ def is_worktree():
     return Path.cwd() != LOCAL_DIRECTORY
 
 
-def enter_env(ctx, branch: str):
+def enter_env(ctx, branch: str, no_switch=False):
     """Enters the worktree environment."""
 
-    init_env(ctx, branch)
+    if not no_switch:
+        init_env(ctx, branch)
+    else:
+        assert WORKTREE_DIRECTORY.is_dir(), "Worktree directory is not present and no_switch is set to True"
 
     os.chdir(WORKTREE_DIRECTORY)
 
@@ -63,8 +66,12 @@ def exit_env():
 
 
 @contextmanager
-def agent_context(ctx, branch: str | None):
+def agent_context(ctx, branch: str | None, no_switch=False):
     """Applies code to the worktree environment if the version is not None.
+
+    Args:
+        branch: The branch to switch to.
+        no_switch: If True, the branch will not be switched (no pull will be performed too).
 
     Usage:
         > with agent_context(ctx, branch):
@@ -79,7 +86,7 @@ def agent_context(ctx, branch: str | None):
 
         try:
             # Enter
-            enter_env(ctx, branch)
+            enter_env(ctx, branch, no_switch=no_switch)
 
             yield
         finally:
