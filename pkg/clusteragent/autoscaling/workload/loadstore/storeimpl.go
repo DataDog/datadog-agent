@@ -17,6 +17,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Enumeration of filter types.
+type filterType int
+
+const (
+	namespaceFilter filterType = iota
+	metricFilter
+)
+
 // EntityValueHeap is a min-heap of EntityValues based on timestamp.
 type EntityValueHeap []*EntityValue
 
@@ -126,11 +134,32 @@ func (es *EntityStore) GetEntityByHashKey(hash uint64) (*Entity, *EntityValue) {
 }
 
 // GetEntitiesByMetricName to get all entities by metric name
-func (es *EntityStore) GetEntitiesByMetricName(metricName string) map[*Entity]*EntityValue {
+func (es *EntityStore) GetEntitiesStatsByMetricName(metricName string) StatsResult {
 	es.lock.RLock() // Lock for writing
 	defer es.lock.RUnlock()
+	entityData := es.getEntitiesByFilter(metricFilter, metricName)
+	return calculateStats(entityData)
+}
+
+// GetEntitiesByNamespace to get all entities by namespace
+func (es *EntityStore) GetEntitiesStatsByNamespace(namespace string) StatsResult {
+	es.lock.RLock() // Lock for writing
+	defer es.lock.RUnlock()
+	entityData := es.getEntitiesByFilter(namespaceFilter, namespace)
+	return calculateStats(entityData)
+}
+
+// getEntitiesByFilter is an internal function. Caller should acquire lock. It gets entities by filtertype
+func (es *EntityStore) getEntitiesByFilter(filtertype filterType, filter string) map[*Entity]*EntityValue {
 	result := make(map[*Entity]*EntityValue)
-	keys, exists := es.metric2KeysMap[metricName]
+	keys := make(map[uint64]struct{})
+	exists := false
+	switch filtertype {
+	case namespaceFilter:
+		keys, exists = es.namespace2KeysMap[filter]
+	case metricFilter:
+		keys, exists = es.metric2KeysMap[filter]
+	}
 	if !exists {
 		return result
 	}
@@ -141,18 +170,12 @@ func (es *EntityStore) GetEntitiesByMetricName(metricName string) map[*Entity]*E
 	return result
 }
 
-// GetEntitiesByNamespace to get all entities by namespace
-func (es *EntityStore) GetEntitiesByNamespace(namespace string) map[*Entity]*EntityValue {
-	es.lock.RLock() // Lock for writing
-	defer es.lock.RUnlock()
-	result := make(map[*Entity]*EntityValue)
-	keys, exists := es.namespace2KeysMap[namespace]
-	if !exists {
-		return result
-	}
-	for key := range keys {
-		entity, value := es.getEntityByHashKeyInternal(key)
-		result[entity] = value
+func calculateStats(entityData map[*Entity]*EntityValue) StatsResult {
+	result := StatsResult{}
+	for _, value := range entityData {
+		if value == nil {
+			continue
+		}
 	}
 	return result
 }
