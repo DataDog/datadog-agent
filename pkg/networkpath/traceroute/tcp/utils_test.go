@@ -60,6 +60,7 @@ func Test_reserveLocalPort(t *testing.T) {
 	// on the same port
 	conn2, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
 	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "address already in use")
 	assert.Nil(t, conn2)
 }
 
