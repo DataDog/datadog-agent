@@ -1965,10 +1965,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry tele
 			Name:  "imds_ip",
 			Value: uint64(config.RuntimeSecurity.IMDSIPv4),
 		},
-		manager.ConstantEditor{
-			Name:  "sk_protocol_size",
-			Value: getSkProtocolSize(p.kernelVersion),
-		},
 	)
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
@@ -2193,13 +2189,6 @@ func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
 	return 0
 }
 
-func getSkProtocolSize(kernelVersion *kernel.Version) uint64 {
-	if kernelVersion.Code != 0 && kernelVersion.Code < kernel.Kernel5_6 {
-		return 1
-	}
-	return 2
-}
-
 // getCGroupWriteConstants returns the value of the constant used to determine how cgroups should be captured in kernel
 // space
 func getCGroupWriteConstants() manager.ConstantEditor {
@@ -2318,7 +2307,11 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructSADDR, "struct flowi6", "saddr", "net/flow.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructULI, "struct flowi6", "uli", "net/flow.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSocketStructSK, "struct socket", "sk", "linux/net.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSocketProtocol, "struct sock", "sk_protocol", "net/sock.h")
+	if kv.Code != 0 && kv.Code < kernel.Kernel5_6 {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSKFlagsOffset, "struct sock", "__sk_flags_offset", "net/sock.h")
+	} else {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSocketProtocol, "struct sock", "sk_protocol", "net/sock.h")
+	}
 
 	// Interpreter constants
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmStructFile, "struct linux_binprm", "file", "linux/binfmts.h")

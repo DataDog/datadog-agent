@@ -68,11 +68,12 @@ int hook_security_socket_connect(ctx_t *ctx) {
 
     u64 socket_sock_offset;
     u64 sk_protocol_offset;
-    u64 sk_protocol_size;
+    u64 sk_flags_offset;
+    u64 sk_protocol_offset_in_sk_flags = 8;
 
     LOAD_CONSTANT("socket_sock_offset", socket_sock_offset);
     LOAD_CONSTANT("sock_sk_protocol_offset", sk_protocol_offset);
-    LOAD_CONSTANT("sk_protocol_size", sk_protocol_size);
+    LOAD_CONSTANT("sk_flags_offset", sk_flags_offset);
 
     // Extract IP and port from the sockaddr structure
     bpf_probe_read(&family, sizeof(family), &address->sa_family);
@@ -89,10 +90,10 @@ int hook_security_socket_connect(ctx_t *ctx) {
 
     struct sock *sk_sock = NULL;
     bpf_probe_read(&sk_sock, sizeof(sk_sock), (void *)sk + socket_sock_offset);
-    if (sk_protocol_size == sizeof(u8)) {
-        bpf_probe_read(&protocol, sizeof(u8), (void *)sk_sock + sk_protocol_offset);
-    } else if (sk_protocol_size == sizeof(u16)) {
+    if (sk_flags_offset == 0) { // kernel >= 5.8
         bpf_probe_read(&protocol, sizeof(u16), (void *)sk_sock + sk_protocol_offset);
+    } else {
+        bpf_probe_read(&protocol, sizeof(u8), (void *)sk_sock + sk_flags_offset + sk_protocol_offset_in_sk_flags);
     }
 
     // fill syscall_cache if necessary
