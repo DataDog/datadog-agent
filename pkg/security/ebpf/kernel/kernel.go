@@ -251,6 +251,11 @@ func (k *Version) IsRH7Kernel() bool {
 	return (k.OsRelease["ID"] == "centos" || k.OsRelease["ID"] == "rhel") && strings.HasPrefix(k.OsRelease["VERSION_ID"], "7")
 }
 
+// IsCentOSKernel returns wether the kernel is a centos kernel
+func (k *Version) IsCentOSKernel() bool {
+	return k.OsRelease["ID"] == "centos"
+}
+
 // IsRH8Kernel returns whether the kernel is a rh8 kernel
 func (k *Version) IsRH8Kernel() bool {
 	return k.OsRelease["PLATFORM_ID"] == "platform:el8"
@@ -304,6 +309,11 @@ func (k *Version) IsOpenSUSELeap15_3Kernel() bool {
 // IsOracleUEKKernel returns whether the kernel is an oracle uek kernel
 func (k *Version) IsOracleUEKKernel() bool {
 	return k.OsRelease["ID"] == "ol" && k.Code >= Kernel5_4
+}
+
+// IsOracleKernel returns wether the kernel is a oracle kernel
+func (k *Version) IsOracleKernel() bool {
+	return k.OsRelease["ID"] == "ol"
 }
 
 // IsCOSKernel returns whether the kernel is a suse kernel
