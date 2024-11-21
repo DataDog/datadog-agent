@@ -21,7 +21,9 @@ if ohai["platform"] != "windows"
 
   python_configure_options = [
     "--without-readline",  # Disables readline support
-    "--with-ensurepip=yes" # We upgrade pip later, in the pip3 software definition
+    "--with-ensurepip=yes", # We upgrade pip later, in the pip3 software definition
+    "--enable-optimizations",
+    "--with-lto",
   ]
 
   if mac_os_x?
