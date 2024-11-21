@@ -17,7 +17,14 @@ dev_branch-dogstatsd:
 dev_branch_multiarch-a7:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.manual]
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+      variables:
+        IMAGE_TAG: '${CI_COMMIT_SHORT_SHA}'
+    - when: manual
+      variables:
+        IMAGE_TAG: '${CI_COMMIT_REF_SLUG}'
   needs:
     - docker_build_agent7
     - docker_build_agent7_arm64
@@ -28,9 +35,9 @@ dev_branch_multiarch-a7:
   parallel:
     matrix:
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64
-        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py3
+        IMG_DESTINATIONS: agent-dev:${IMAGE_TAG}-py3
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-arm64
-        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx
+        IMG_DESTINATIONS: agent-dev:${IMAGE_TAG}-py3-jmx
 
 dev_branch_multiarch-dogstatsd:
   extends: .docker_publish_job_definition
