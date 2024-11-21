@@ -109,3 +109,42 @@ func TestIdleWaits(t *testing.T) {
 		assert.NotEqual(t, r.WaitEventClass, "Idle", "Idle wait class not sampled")
 	}
 }
+
+func TestActiveSessionHistory(t *testing.T) {
+	c, _ := newDefaultCheck(t, "", "")
+	defer c.Teardown()
+
+	c.dbmEnabled = true
+	c.config.QuerySamples.ActiveSessionHistory = true
+
+	err := c.Run()
+	assert.NoError(t, err, "check run")
+
+	err = c.SampleSession()
+	require.NoError(t, err, "activity sample failed")
+	prevSamplId := c.lastSampleId
+
+	conn, err := getSysConnection(t)
+	require.NoError(t, err)
+
+	tx, err := conn.Begin()
+	require.NoError(t, err)
+	_, err = tx.Exec("INSERT INTO t VALUES (1)")
+	require.NoError(t, err)
+
+	longRunningStatement := `DECLARE
+  PRAGMA AUTONOMOUS_TRANSACTION;
+  l NUMBER;
+BEGIN
+  execute immediate 'ALTER SESSION SET DDL_LOCK_TIMEOUT = 3';
+  execute immediate 'alter table t add n2 number';
+  ROLLBACK;
+END;`
+	_, err = tx.Exec(longRunningStatement)
+	require.Error(t, err)
+
+	err = c.SampleSession()
+	require.NoError(t, err, "activity sample failed")
+
+	assert.Greater(t, c.lastSampleId, prevSamplId, "sample id should have increased")
+}

@@ -216,7 +216,7 @@ func sendPayload(c *Check, sessionRows []OracleActivityRow, timestamp float64) e
 //nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) SampleSession() error {
 	activeSessionHistory := c.config.QuerySamples.ActiveSessionHistory
-	if activeSessionHistory && c.lastSampleId == 0 {
+	if activeSessionHistory {
 		err := getWrapper(c, &c.lastSampleId, "SELECT /* DD */ MAX(sample_id) FROM v$active_session_history")
 		return err
 	}
