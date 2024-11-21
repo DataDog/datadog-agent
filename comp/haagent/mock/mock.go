@@ -52,11 +52,6 @@ type MockComponent interface {
 	SetEnabled(bool)
 }
 
-// Provides that defines the output of mocked snmpscan component
-type Provides struct {
-	comp MockComponent
-}
-
 // NewMockHaAgent returns a new Mock
 func NewMockHaAgent() haagent.Component {
 	return &mockHaAgent{
